@@ -26,9 +26,7 @@ import sys
 import time
 import threading
 import os
-import traceback
 import json
-import shutil
 import weakref
 import csv
 from decimal import Decimal
@@ -45,8 +43,7 @@ from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
                              QShortcut, QMainWindow, QCompleter, QInputDialog,
-                             QWidget, QSizePolicy, QStatusBar, QToolTip, QDialog,
-                             QMenu, QAction, QStackedWidget, QToolButton, QTextBrowser)
+                             QWidget, QSizePolicy, QStatusBar, QToolTip, QMenu, QAction, QStackedWidget, QToolButton, QTextBrowser)
 
 import electrum
 from electrum import (keystore, ecc, constants, util, bitcoin, commands,
@@ -219,7 +216,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contacts_tab = self.create_contacts_tab()
         self.staking_tab = self.create_staking_tab()
         # todo uncomment when turn on lightning
-#        self.channels_tab = self.create_channels_tab()
+        self.channels_tab = self.create_channels_tab()
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
@@ -2013,7 +2010,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def create_staking_tab(self):
-        from .stake_dialog import staking_dialog
+        from electrum.gui.qt.staking.stake_dialog import staking_dialog
         self.staking_tab = l = staking_dialog(self)
         return self.create_list_tab(l)
 

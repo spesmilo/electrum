@@ -3,19 +3,26 @@ from datetime import date
 from decimal import Decimal
 from enum import IntEnum
 
+from PyQt5.QtCore import (Qt, QModelIndex, QSortFilterProxyModel, QItemSelectionModel)
+
 from electrum.gui.qt.custom_model import CustomModel
 from electrum.gui.qt.history_list import HistoryNode
 from electrum.i18n import _
-from electrum.logging import get_logger, Logger
-from electrum.util import OrderedDictWithIndex
-from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
-                          QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
-from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
+from electrum.logging import Logger
+from electrum.util import (profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
-                           Satoshis, Fiat, format_time)
+                           Satoshis)
 
 
-class HistorySortModel(QSortFilterProxyModel):
+class StakingColumns(IntEnum):
+    STATUS = 0
+    DESCRIPTION = 1
+    AMOUNT = 2
+    BALANCE = 3
+    TXID = 4
+
+
+class StakingSortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
         item1 = self.sourceModel().data(source_left, Qt.UserRole)
         item2 = self.sourceModel().data(source_right, Qt.UserRole)
@@ -30,13 +37,6 @@ class HistorySortModel(QSortFilterProxyModel):
         except:
             return False
 
-class StakingColumns(IntEnum):
-    START_DATE = 0
-    AMOUNT = 1
-    STAKING_PERIOD = 2
-    BLOCKS_LEFT = 3
-    TYPE = 4
-
 
 def get_item_key(tx_item):
     return tx_item.get('txid') or tx_item['payment_hash']
@@ -48,12 +48,13 @@ class StakingModel(CustomModel, Logger):
         CustomModel.__init__(self, parent, len(StakingColumns))
         Logger.__init__(self)
         self.parent = parent
-        self.view = None  # type: HistoryList
+        self.view = None
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
 
     def set_view(self, staking_list: 'StakingList'):
-        self.view = staking_list
+        # After constructing both, this method needs to be called.
+        self.view = staking_list  # type: StakingList
         self.set_visibility_of_columns()
 
     def update_label(self, index):
@@ -140,12 +141,13 @@ class StakingModel(CustomModel, Logger):
                         parent._data['confirmations'] = tx_item['confirmations']
 
         new_length = self._root.childCount()
-        self.beginInsertRows(QModelIndex(), 0, new_length-1)
+        self.beginInsertRows(QModelIndex(), 0, new_length - 1)
         self.transactions = transactions
         self.endInsertRows()
 
         if selected_row:
-            self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
+            self.view.selectionModel().select(self.createIndex(selected_row, 0),
+                                              QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
         self.view.filter()
         # update time filter
         if not self.view.years and self.transactions:
@@ -166,6 +168,7 @@ class StakingModel(CustomModel, Logger):
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.view.showColumn(col) if b else self.view.hideColumn(col)
+
         # txid
         set_visible(StakingColumns.TXID, False)
         # fiat
@@ -192,10 +195,10 @@ class StakingModel(CustomModel, Logger):
             return
         self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
         tx_item.update({
-            'confirmations':  tx_mined_info.conf,
-            'timestamp':      tx_mined_info.timestamp,
+            'confirmations': tx_mined_info.conf,
+            'timestamp': tx_mined_info.timestamp,
             'txpos_in_block': tx_mined_info.txpos,
-            'date':           timestamp_to_datetime(tx_mined_info.timestamp),
+            'date': timestamp_to_datetime(tx_mined_info.timestamp),
         })
         topLeft = self.createIndex(row, 0)
         bottomRight = self.createIndex(row, len(StakingColumns) - 1)
@@ -215,27 +218,16 @@ class StakingModel(CustomModel, Logger):
         assert orientation == Qt.Horizontal
         if role != Qt.DisplayRole:
             return None
-        fx = self.parent.fx
-        fiat_title = 'n/a fiat value'
-        fiat_acq_title = 'n/a fiat acquisition price'
-        fiat_cg_title = 'n/a fiat capital gains'
-        if fx and fx.show_history():
-            fiat_title = '%s '%fx.ccy + _('Value')
-            fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
-            fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
         return {
             StakingColumns.STATUS: _('Date'),
             StakingColumns.DESCRIPTION: _('Description'),
             StakingColumns.AMOUNT: _('Amount'),
             StakingColumns.BALANCE: _('Balance'),
-            StakingColumns.FIAT_VALUE: fiat_title,
-            StakingColumns.FIAT_ACQ_PRICE: fiat_acq_title,
-            StakingColumns.FIAT_CAP_GAINS: fiat_cg_title,
             StakingColumns.TXID: 'TXID',
         }[section]
 
     def flags(self, idx):
-        extra_flags = Qt.NoItemFlags # type: Qt.ItemFlag
+        extra_flags = Qt.NoItemFlags  # type: Qt.ItemFlag
         if idx.column() in self.view.editable_columns:
             extra_flags |= Qt.ItemIsEditable
         return super().flags(idx) | int(extra_flags)
