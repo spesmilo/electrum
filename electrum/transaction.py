@@ -1857,13 +1857,6 @@ class PartialTransaction(Transaction):
         except MissingTxInputAmount:
             return None
 
-    def is_flag_valid(self, sighash) -> bool:
-        for flag in Sighash:
-            for base_flag in BaseSighash:
-                if (flag & ~0x1f | base_flag) == sighash:
-                    return True
-        return False
-
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
