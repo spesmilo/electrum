@@ -1,6 +1,7 @@
 Popup:
     id: nd
     title: _('Network Setup')
+    was_cancelled: True
     NetworkDialog
         BoxLayout:
             orientation:'horizontal'
@@ -12,5 +13,7 @@ Popup:
                 height: '48dp'
                 text: _('Next')
                 on_release:
+                    app.set_auto_connect(app.auto_connect)
                     app.load_wallet_by_name(app.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+                    nd.was_cancelled = False
                     nd.dismiss()
