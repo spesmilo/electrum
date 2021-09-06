@@ -2,6 +2,7 @@ Popup:
     id: nd
     title: _('Network Setup')
     was_cancelled: True
+    on_dismiss: app.stop() if nd.was_cancelled else None
     NetworkDialog
         BoxLayout:
             orientation:'horizontal'
