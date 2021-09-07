@@ -8,6 +8,7 @@ from electrum.util import bh2u, bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
 from electrum.ecc import ECPrivkey
+from .test_bitcoin import disable_ecdsa_r_value_grinding
 
 from . import ElectrumTestCase, TestCaseForTestnet
 
@@ -960,24 +961,24 @@ class TestSighashTypes(ElectrumTestCase):
         self.assertEqual('3044022059ebf56d98010a932cf8ecfec54c48e6139ed6adb0728c09cbe1e4fa0915302e022007cd986c8fa870ff5d2b3a89139c9fe7e499259875357e20fcbb15571c76795403',
                         sig)
 
+    @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_all_anyonecanpay(self):
         self.txin.sighash=Sighash.ALL|Sighash.ANYONECANPAY
         self.txin.pubkeys = [bfh('033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f4')]
         privkey = bfh('14af36970f5025ea3e8b5542c0f8ebe7763e674838d08808896b63c3351ffe49')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
-        # Note that the expected sig differs from the one in BIP-0143, due to us grinding the R value. see https://github.com/bitcoin/bitcoin/pull/13666
-        self.assertEqual('304402204976f1b85fdc32f37567aae08e694935d614d7d4d580ea31b69c646dd984592d022021ab570800f360ac0a7eb1c819c3559e1017595322c8f70e505b21bd12b7d4cb81',
+        self.assertEqual('3045022100fbefd94bd0a488d50b79102b5dad4ab6ced30c4069f1eaa69a4b5a763414067e02203156c6a5c9cf88f91265f5a942e96213afae16d83321c8b31bb342142a14d16381',
                          sig)
 
+    @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_none_anyonecanpay(self):
         self.txin.sighash=Sighash.NONE|Sighash.ANYONECANPAY
         self.txin.pubkeys = [bfh('03a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac16')]
         privkey = bfh('fe9a95c19eef81dde2b95c1284ef39be497d128e2aa46916fb02d552485e0323')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
-        # Note that the expected sig differs from the one in BIP-0143, due to us grinding the R value. see https://github.com/bitcoin/bitcoin/pull/13666
-        self.assertEqual('304402205bd0cb0799b3b91305199b0ec9f9887732cb4f363e5c05ccbacb54f2b14b9839022066229a06db9c7fddffebbca357d7dd3715ac138f835e20c204ae79bef2696ef282',
+        self.assertEqual('3045022100a5263ea0553ba89221984bd7f0b13613db16e7a70c549a86de0cc0444141a407022005c360ef0ae5a5d4f9f2f87a56c1546cc8268cab08c73501d6b3be2e1e1a8a0882',
                          sig)
 
     def test_check_sighash_types_sighash_single_anyonecanpay(self):
