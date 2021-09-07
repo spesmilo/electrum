@@ -52,7 +52,8 @@ class AbstractNet:
 
 
 class BitcoinMainnet(AbstractNet):
-
+    
+    NET_NAME = "Mainnet"
     TESTNET = False
     WIF_PREFIX = 0x8E
     ADDRTYPE_P2PKH = 0x0E

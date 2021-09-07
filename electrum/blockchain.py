@@ -328,6 +328,7 @@ class Blockchain(Logger):
             raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
+        print("verify_chunk")
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
@@ -536,18 +537,21 @@ class Blockchain(Logger):
 
     def get_target(self, index: int) -> int:
         # compute target from chunk x, used in chunk x+1
+        print ("Index: ",index)
         if constants.net.TESTNET:
             return 0
         if index == -1:
             return MAX_TARGET
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
+            print(h,", ",t,", index: ",index)
             return t
         # new target
         first = self.read_header(index * 2016)
         last = self.read_header(index * 2016 + 2015)
         if not first or not last:
-            raise MissingHeader()
+            print("first: ",first," last: ",last)
+            raise MissingHeader(index)
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
@@ -615,23 +619,29 @@ class Blockchain(Logger):
         return running_total + work_in_last_partial_chunk
 
     def can_connect(self, header: dict, check_height: bool=True) -> bool:
+        print ("start {}",header['block_height'] )
         if header is None:
+            print ("no header")
             return False
         height = header['block_height']
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
+            #print ("genesis: ",constants.net.GENESIS)
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-        except:
+            #print(prev_hash,"\n\n")
+        except: 
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-#            target = self.get_target(height, None)
+            # target = self.(height, None)
+            print ("getting target")
             target = self.get_target(height)
         except MissingHeader:
+            print ("MissingHeader: ",height)
             return False
         try:
             self.verify_header(header, prev_hash, target)
