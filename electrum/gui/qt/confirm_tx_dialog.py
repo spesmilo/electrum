@@ -136,9 +136,12 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.setLayout(vbox)
         grid = QGridLayout()
         vbox.addLayout(grid)
+
+        msg = (_('The amount to be received by the recipient.') + ' '
+               + _('Fees are paid by the sender.'))
         self.amount_label = QLabel('')
         self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        grid.addWidget(QLabel(_("Amount to be sent") + ": "), 0, 0)
+        grid.addWidget(HelpLabel(_("Amount to be sent") + ": ", msg), 0, 0)
         grid.addWidget(self.amount_label, 0, 1)
 
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
