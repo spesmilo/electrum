@@ -26,7 +26,8 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Union
 
-from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -136,6 +137,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid = QGridLayout()
         vbox.addLayout(grid)
         self.amount_label = QLabel('')
+        self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         grid.addWidget(QLabel(_("Amount to be sent") + ": "), 0, 0)
         grid.addWidget(self.amount_label, 0, 1)
 
@@ -143,12 +145,14 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_label = QLabel('')
+        self.fee_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         grid.addWidget(HelpLabel(_("Mining fee") + ": ", msg), 1, 0)
         grid.addWidget(self.fee_label, 1, 1)
 
         self.extra_fee_label = QLabel(_("Additional fees") + ": ")
         self.extra_fee_label.setVisible(False)
         self.extra_fee_value = QLabel('')
+        self.extra_fee_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.extra_fee_value.setVisible(False)
         grid.addWidget(self.extra_fee_label, 2, 0)
         grid.addWidget(self.extra_fee_value, 2, 1)
@@ -160,6 +164,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.fee_combo, 5, 2)
 
         self.message_label = QLabel(self.default_message())
+        self.message_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         grid.addWidget(self.message_label, 6, 0, 1, -1)
         self.pw_label = QLabel(_('Password'))
         self.pw_label.setVisible(self.password_required)
