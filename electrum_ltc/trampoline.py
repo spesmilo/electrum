@@ -66,7 +66,8 @@ TRAMPOLINE_NODES_TESTNET = {
 }
 
 TRAMPOLINE_NODES_SIGNET = {
-    'wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
+    'lnd wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
+    'eclair wakiyamap.dev': LNPeerAddr(host='signet-eclair.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('0271cf3881e6eadad960f47125434342e57e65b98a78afa99f9b4191c02dd7ab3b')),
 }
 
 _TRAMPOLINE_NODES_UNITTESTS = {}  # used in unit tests
