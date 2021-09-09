@@ -124,16 +124,23 @@ class ElectrumWindow(App, Logger):
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(auto_connect=self.auto_connect)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        if net_params.auto_connect != self.auto_connect:
+            net_params = net_params._replace(auto_connect=self.auto_connect)
+            self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    def set_auto_connect(self, x: bool):
+        self.electrum_config.set_key('auto_connect',x)
+        self.auto_connect = x
+
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
     oneserver = BooleanProperty(False)
     def on_oneserver(self, instance, x):
         net_params = self.network.get_parameters()
-        net_params = net_params._replace(oneserver=self.oneserver)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        if net_params.oneserver != self.oneserver:
+            net_params = net_params._replace(oneserver=self.oneserver)
+            self.network.run_from_another_thread(self.network.set_parameters(net_params))
     def toggle_oneserver(self, x):
         self.oneserver = not self.oneserver
 
@@ -639,8 +646,13 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        # load wallet
-        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+        
+        if self.electrum_config.get('auto_connect') is None:
+            # load_wallet will be called in this code-path too at a later stage, after initial network setup is completed.
+            self.popup_dialog("first_screen")
+        else:
+            # load wallet
+            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
         # URI passed in config
         uri = self.electrum_config.get('url')
         if uri:
