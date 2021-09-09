@@ -135,7 +135,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             return '!'
         p = pow(10, self.amount_edit.decimal_point())
         try:
-            if check_max_spend(x):
+            if check_max_spend(x): #check for max spend
                 return str(parse_max_spend(x)) + '!'
             return int(p * Decimal(x))
         except decimal.InvalidOperation:
