@@ -364,6 +364,7 @@ class ElectrumWindow(App, Logger):
                                 bind=('_orientation',))
     '''Tries to ascertain the kind of device the app is running on.
     Cane be one of `tablet` or `phone`.
+
     :data:`orientation` is a read only `AliasProperty` Defaults to 'landscape'
     '''
 
@@ -377,6 +378,7 @@ class ElectrumWindow(App, Logger):
                             bind=('_ui_mode',))
     '''Defines tries to ascertain the kind of device the app is running on.
     Cane be one of `tablet` or `phone`.
+
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
@@ -1076,6 +1078,7 @@ class ElectrumWindow(App, Logger):
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
                          arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble
+
         .. parameters::
             text: Message to be displayed
             pos: position for the bubble
