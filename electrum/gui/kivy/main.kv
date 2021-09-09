@@ -530,6 +530,7 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                    disabled: app.network is None
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')

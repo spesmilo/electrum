@@ -655,7 +655,7 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         
-        if self.electrum_config.get('auto_connect') is None:
+        if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
         else:
