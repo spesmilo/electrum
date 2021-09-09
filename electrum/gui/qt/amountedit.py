@@ -28,6 +28,7 @@ class SizedFreezableLineEdit(FreezableLineEdit):
         super().__init__(parent)
         self._width = width
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setMaximumWidth(width)
 
     def sizeHint(self) -> QSize:
         sh = super().sizeHint()

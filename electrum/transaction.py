@@ -88,7 +88,19 @@ class MissingTxInputAmount(Exception):
     pass
 
 
-SIGHASH_ALL = 1
+class Sighash(IntEnum):
+    ALL = 1
+    NONE = 2
+    SINGLE = 3
+    ANYONECANPAY = 0x80
+
+    @classmethod
+    def is_valid(cls, sighash) -> bool:
+        for flag in Sighash:
+            for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
+                if (flag & ~0x1f | base_flag) == sighash:
+                    return True
+        return False
 
 
 class TxOutput:
@@ -1724,7 +1736,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None):
+                locktime: int = None, version: int = None, BIP69_sort: bool = True):
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -1732,7 +1744,8 @@ class PartialTransaction(Transaction):
             self.locktime = locktime
         if version is not None:
             self.version = version
-        self.BIP69_sort()
+        if BIP69_sort:
+            self.BIP69_sort()
         return self
 
     def _serialize_psbt(self, fd) -> None:
@@ -1851,17 +1864,28 @@ class PartialTransaction(Transaction):
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
-        if sighash != SIGHASH_ALL:
-            raise Exception("only SIGHASH_ALL signing is supported!")
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        if not Sighash.is_valid(sighash):
+            raise Exception("SIGHASH_FLAG not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
             if bip143_shared_txdigest_fields is None:
                 bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
-            hashSequence = bip143_shared_txdigest_fields.hashSequence
-            hashOutputs = bip143_shared_txdigest_fields.hashOutputs
+            if not(sighash & Sighash.ANYONECANPAY):
+                hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
+            else:
+                hashPrevouts = '00' * 32
+            if (not(sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+                hashSequence = bip143_shared_txdigest_fields.hashSequence
+            else:
+                hashSequence = '00' * 32
+            if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+                hashOutputs = bip143_shared_txdigest_fields.hashOutputs
+            elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
+                hashOutputs = bh2u(sha256d(outputs[txin_index].serialize_to_network()))
+            else:
+                hashOutputs = '00' * 32
             outpoint = txin.prevout.serialize_to_network().hex()
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
@@ -1895,11 +1919,13 @@ class PartialTransaction(Transaction):
     def sign_txin(self, txin_index, privkey_bytes, *, bip143_shared_txdigest_fields=None) -> str:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + '01'  # SIGHASH_ALL
+        sig = bh2u(sig) + sighash_type
         return sig
 
     def is_complete(self) -> bool:

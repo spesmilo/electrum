@@ -1369,10 +1369,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.message_e = SizedFreezableLineEdit(width=700)
         grid.addWidget(self.message_e, 2, 1, 1, -1)
 
-        msg = _('Amount to be sent.') + '\n\n' \
-              + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' ' \
-              + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
-              + _('Keyboard shortcut: type "!" to send all your coins.')
+        msg = (_('The amount to be received by the recipient.') + ' '
+               + _('Fees are paid by the sender.') + '\n\n'
+               + _('The amount will be displayed in red if you do not have enough funds in your wallet.') + ' '
+               + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n'
+               + _('Keyboard shortcut: type "!" to send all your coins.'))
         amount_label = HelpLabel(_('Amount'), msg)
         grid.addWidget(amount_label, 3, 0)
         grid.addWidget(self.amount_e, 3, 1)
@@ -1971,7 +1972,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_("Error parsing Lightning invoice") + f":\n{e}")
             return
 
-        self.payto_e.lightning_invoice = invoice
         pubkey = bh2u(lnaddr.pubkey.serialize())
         for k,v in lnaddr.tags:
             if k == 'd':
@@ -1981,6 +1981,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
              description = ''
         self.payto_e.setFrozen(True)
         self.payto_e.setText(pubkey)
+        self.payto_e.lightning_invoice = invoice
         self.message_e.setText(description)
         if lnaddr.get_amount_sat() is not None:
             self.amount_e.setAmount(lnaddr.get_amount_sat())
