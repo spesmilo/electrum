@@ -14,7 +14,7 @@ Popup:
                 height: '48dp'
                 text: _('Next')
                 on_release:
-                    app.set_auto_connect(app.auto_connect)
-                    app.load_wallet_by_name(app.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+                    app.set_auto_connect(app.auto_connect)  # make sure config setting is persisted
+                    app.load_wallet_on_start()
                     nd.was_cancelled = False
                     nd.dismiss()

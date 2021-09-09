@@ -43,7 +43,9 @@ Popup:
                 height: '48dp'
                 text: _('Next')
                 on_release:
-                    app.set_auto_connect(nd.auto_connect) if nd.auto_connect else None
-                    app.load_wallet_by_name(app.electrum_config.get_wallet_path(use_gui_last_wallet=True)) if nd.auto_connect else app.popup_dialog("initial_network_setup")
+                    # if user chose auto_connect==True, we persist that now;
+                    # if user chose auto_connect==False, that will only get saved after they finish configuring the network.
+                    if nd.auto_connect: app.set_auto_connect(nd.auto_connect)
+                    app.load_wallet_on_start() if nd.auto_connect else app.popup_dialog("initial_network_setup")
                     nd.was_cancelled = False
                     nd.dismiss()

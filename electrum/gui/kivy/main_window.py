@@ -123,24 +123,28 @@ class ElectrumWindow(App, Logger):
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
+        if not self._init_finished:
+            return
         net_params = self.network.get_parameters()
-        if net_params.auto_connect != self.auto_connect:
-            net_params = net_params._replace(auto_connect=self.auto_connect)
-            self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        net_params = net_params._replace(auto_connect=self.auto_connect)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
-    def set_auto_connect(self, x: bool):
-        self.electrum_config.set_key('auto_connect',x)
-        self.auto_connect = x
+    def set_auto_connect(self, b: bool):
+        # This method makes sure we persist x into the config even if self.auto_connect == b.
+        # Note: on_auto_connect() only gets called if the value of the self.auto_connect property *changes*.
+        self.electrum_config.set_key('auto_connect', b)
+        self.auto_connect = b
 
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
     oneserver = BooleanProperty(False)
     def on_oneserver(self, instance, x):
+        if not self._init_finished:
+            return
         net_params = self.network.get_parameters()
-        if net_params.oneserver != self.oneserver:
-            net_params = net_params._replace(oneserver=self.oneserver)
-            self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        net_params = net_params._replace(oneserver=self.oneserver)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
     def toggle_oneserver(self, x):
         self.oneserver = not self.oneserver
 
@@ -378,6 +382,8 @@ class ElectrumWindow(App, Logger):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
+    _init_finished = False
+
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = Clipboard
@@ -432,6 +438,8 @@ class ElectrumWindow(App, Logger):
         self.set_fee_status()
         self.invoice_popup = None
         self.request_popup = None
+
+        self._init_finished = True
 
     def on_pr(self, pr: 'PaymentRequest'):
         if not self.wallet:
@@ -648,15 +656,15 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         
         if self.electrum_config.get('auto_connect') is None:
-            # load_wallet will be called in this code-path too at a later stage, after initial network setup is completed.
             self.popup_dialog("first_screen")
+            # load_wallet_on_start will be called later, after initial network setup is completed
         else:
             # load wallet
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
-        # URI passed in config
-        uri = self.electrum_config.get('url')
-        if uri:
-            self.set_URI(uri)
+            self.load_wallet_on_start()
+            # URI passed in config
+            uri = self.electrum_config.get('url')
+            if uri:
+                self.set_URI(uri)
 
     def on_channel_db(self, event, num_nodes, num_channels, num_policies):
         self.lightning_gossip_num_nodes = num_nodes
@@ -702,6 +710,10 @@ class ElectrumWindow(App, Logger):
             return
         d = OpenWalletDialog(self, path, self.on_open_wallet)
         d.open()
+
+    def load_wallet_on_start(self):
+        """As part of app startup, try to load last wallet."""
+        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
 
     def on_open_wallet(self, password, storage):
         if not storage.file_exists():
