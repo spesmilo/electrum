@@ -108,6 +108,16 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+def check_max_spend(input) -> bool:
+    return isinstance(input, str) and input[-1] == '!'
+
+def parse_max_spend(input: str) -> Decimal:
+    x = ''
+    if input == '!':
+        x = '1'
+    else:
+        x = input[:-1]
+    return Decimal(x)
 
 class NotEnoughFunds(Exception):
     def __str__(self):
