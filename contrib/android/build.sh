@@ -22,13 +22,11 @@ if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
 fi
 
 info "building docker image."
-cp "$CONTRIB/deterministic-build/requirements-build-android.txt" "$CONTRIB_ANDROID/requirements-build-android.txt"
 sudo docker build \
     $DOCKER_BUILD_FLAGS \
     -t electrum-android-builder-img \
     --file "$CONTRIB_ANDROID/Dockerfile" \
     "$PROJECT_ROOT"
-rm "$CONTRIB_ANDROID/requirements-build-android.txt"
 
 
 # maybe do fresh clone
