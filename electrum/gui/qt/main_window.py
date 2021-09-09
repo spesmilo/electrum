@@ -1709,11 +1709,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             fee=fee_est,
             is_sweep=is_sweep)
         output_values = [x.value for x in outputs]
-        if output_values.count('!') > 1:
-            self.show_error(_("More than one output set to spend max"))
-            return
-
-        output_value = '!' if '!' in output_values else sum(output_values)
+        for value in output_values:
+            if value[-1] == '!':
+                output_value = '!'
+                break
+            else:
+                output_value += value
         conf_dlg = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         if conf_dlg.not_enough_funds:
             # Check if we had enough funds excluding fees,
