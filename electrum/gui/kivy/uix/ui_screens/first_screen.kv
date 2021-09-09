@@ -1,0 +1,51 @@
+Popup:
+    id: nd
+    title: _('Network Setup')
+    was_cancelled: True
+    auto_connect: True
+    on_dismiss: app.stop() if nd.was_cancelled else None
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        TopLabel:
+            text: _("How do you want to connect to a server?")
+            font_size: '18sp'
+            bold: True
+        TopLabel:
+            text: _("Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random.  However if you prefer feel free to select a server manually.")
+            font_size: '16sp'
+            spacing: '10dp'
+        GridLayout:
+            cols: 2
+            size_hint: 1, 0.1
+            height: self.minimum_height
+            padding: '10dp'
+            spacing: '10dp'
+            Label:
+                text: _("Auto Connect")
+            CheckBox:
+                group: "NetworkConfig"
+                active: True
+                on_active: nd.auto_connect = True
+            Label:
+                text: _("Select server manually")
+            CheckBox:
+                group: "NetworkConfig"
+                on_active: nd.auto_connect = False
+        BoxLayout:
+            orientation:'horizontal'
+            size_hint: 1, 0.2
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Next')
+                on_release:
+                    # if user chose auto_connect==True, we persist that now;
+                    # if user chose auto_connect==False, that will only get saved after they finish configuring the network.
+                    if nd.auto_connect: app.set_auto_connect(nd.auto_connect)
+                    app.load_wallet_on_start() if nd.auto_connect else app.popup_dialog("initial_network_setup")
+                    nd.was_cancelled = False
+                    nd.dismiss()

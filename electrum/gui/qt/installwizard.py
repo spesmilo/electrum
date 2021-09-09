@@ -182,6 +182,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         scroll_widget = QWidget()
         scroll_widget.setLayout(inner_vbox)
         scroll = QScrollArea()
+        scroll.setFocusPolicy(Qt.NoFocus)
         scroll.setWidget(scroll_widget)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setWidgetResizable(True)
@@ -753,8 +754,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def multisig_dialog(self, run_next):
         cw = CosignWidget(2, 2)
-        m_edit = QSlider(Qt.Horizontal, self)
         n_edit = QSlider(Qt.Horizontal, self)
+        m_edit = QSlider(Qt.Horizontal, self)
         n_edit.setMinimum(2)
         n_edit.setMaximum(15)
         m_edit.setMinimum(1)
