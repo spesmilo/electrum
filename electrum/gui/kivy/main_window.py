@@ -656,18 +656,6 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
         
-<<<<<<< HEAD
-        if self.electrum_config.get('auto_connect') is None:
-            # load_wallet will be called in this code-path too at a later stage, after initial network setup is completed.
-            self.popup_dialog("first_screen")
-        else:
-            # load wallet
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
-        # URI passed in config
-        uri = self.electrum_config.get('url')
-        if uri:
-            self.set_URI(uri)
-=======
         if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
@@ -678,7 +666,6 @@ class ElectrumWindow(App, Logger):
             uri = self.electrum_config.get('url')
             if uri:
                 self.set_URI(uri)
->>>>>>> master
 
     def on_channel_db(self, event, num_nodes, num_channels, num_policies):
         self.lightning_gossip_num_nodes = num_nodes
