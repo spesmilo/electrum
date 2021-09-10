@@ -16,7 +16,7 @@ from electrum.util import format_satoshis_plain
 
 Builder.load_string('''
 <CPFPDialog@Popup>
-    title: _('CPFP')
+    title: _('Child Pays for Parent')
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     method: 0
@@ -28,9 +28,13 @@ Builder.load_string('''
             size_hint_y: None
             cols: 1
             spacing: '10dp'
-            BoxLabel:
-                id: msg1
-                text: _('CPFP stands for Child Pays for Parent')
+            TopLabel:
+                text:
+                    _(\
+                    "A CPFP is a transaction that sends an unconfirmed output back to "\
+                    "yourself, with a high fee. The goal is to have miners confirm "\
+                    "the parent transaction in order to get the fee attached to the "\
+                    "child transaction.")
             BoxLabel:
                 id: total_size
                 text: _('Total Size')
@@ -67,13 +71,6 @@ Builder.load_string('''
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.2
-            Label:
-                text: _('Final')
-            CheckBox:
-                id: final_cb
         GridLayout:
             height: self.minimum_height
             size_hint_y: None
@@ -109,21 +106,17 @@ Builder.load_string('''
 class CPFPDialog(FeeSliderDialog, Factory.Popup):
 
     def __init__(self, app: 'ElectrumWindow', parent_fee, total_size, new_tx, callback):
+        self.app = app
         self.parent_fee = parent_fee
         self.total_size = total_size
         self.new_tx = new_tx
         self.max_fee = self.new_tx.output_value()
         Factory.Popup.__init__(self)
         FeeSliderDialog.__init__(self, app.electrum_config, self.ids.slider)
-        self.app = app
         self.callback = callback
         self.config = app.electrum_config
         self.ids.total_size.value = ('%d bytes'% self.total_size)
         self.ids.input_amount.value = self.app.format_amount(self.max_fee) + ' ' + self.app._get_bu()
-        suggested_feerate = self.config.fee_per_kb()
-        self.fee = self.get_child_fee_from_total_feerate(suggested_feerate)
-        self.fee_e = self.app.format_amount_and_units(self.fee)
-        self.ids.fee_for_child.value = self.fee_e
         self.update_slider()
         self.update_text()
 
@@ -141,20 +134,19 @@ class CPFPDialog(FeeSliderDialog, Factory.Popup):
         self.ids.fee_target.text = target
         fee_per_kb = self.config.fee_per_kb()
         self.fee = self.get_child_fee_from_total_feerate(fee_per_kb)
-        if fee_per_kb is None:
+        if self.fee is None:
             self.ids.fee_for_child.value = "unknown"
         else:
             comb_fee = self.fee + self.parent_fee
-            comb_feerate = comb_fee / self.total_size 
-            self.ids.fee_for_child.value = f'{self.fee:.1f} sat'
-            self.ids.output_amount.value = f'{self.max_fee-self.fee:.1f} sat'
-            self.ids.total_fee.value = f'{self.fee+self.parent_fee:.1f} sat'
-            self.ids.total_feerate.value = f'{comb_feerate:.1f} sat/B'
+            comb_feerate = 1000 * comb_fee / self.total_size
+            self.ids.fee_for_child.value = self.app.format_amount_and_units(self.fee)
+            self.ids.output_amount.value = self.app.format_amount_and_units(self.max_fee-self.fee)
+            self.ids.total_fee.value = self.app.format_amount_and_units(self.fee+self.parent_fee)
+            self.ids.total_feerate.value = self.app.format_fee_rate(comb_feerate)
 
     def on_ok(self):
         fee = self.fee
-        is_final = self.ids.final_cb.active
-        self.callback(fee, self.max_fee, is_final)
+        self.callback(fee, self.max_fee)
 
     def on_slider(self, value):
         self.save_config()

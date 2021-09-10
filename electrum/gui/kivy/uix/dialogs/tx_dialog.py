@@ -194,7 +194,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
-            ActionButtonOption(text=_('CPFP'), func=lambda btn: self.do_cpfp(), enabled=self.can_cpfp),
+            ActionButtonOption(text=_('Child pays\nfor parent'), func=lambda btn: self.do_cpfp(), enabled=self.can_cpfp),
             ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
@@ -272,9 +272,8 @@ class TxDialog(Factory.Popup):
             self,
             fee,
             max_fee,
-            is_final,
             *,
-            parent_tx: Transaction
+            parent_tx: Transaction,
     ):
         if fee is None:
             return  # fee left empty, treat is as "cancel"
@@ -287,7 +286,6 @@ class TxDialog(Factory.Popup):
             self.app.show_error(str(e))
             return
         self.app.tx_dialog(new_tx)
-        self.do_sign()
 
     def do_dscancel(self):
         from .dscancel_dialog import DSCancelDialog
