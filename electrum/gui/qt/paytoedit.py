@@ -31,7 +31,7 @@ from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, check_max_spend, parse_max_spend
+from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
@@ -131,12 +131,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         x = x.strip()
         if not x:
             raise Exception("Amount is empty")
-        if x == '!':
-            return '!'
+        if parse_max_spend(x):
+            return x
         p = pow(10, self.amount_edit.decimal_point())
         try:
-            if check_max_spend(x): #check for max spend
-                return str(parse_max_spend(x)) + '!'
             return int(p * Decimal(x))
         except decimal.InvalidOperation:
             raise Exception("Invalid amount")
@@ -205,7 +203,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                         idx=i, line_content=line.strip(), exc=e, is_multiline=True))
                     continue
             outputs.append(output)
-            if check_max_spend(output.value):
+            if parse_max_spend(output.value):
                 is_max = True
             else:
                 total += output.value

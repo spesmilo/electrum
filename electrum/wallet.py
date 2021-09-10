@@ -56,7 +56,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex, check_max_spend, parse_max_spend)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex, parse_max_spend)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
@@ -756,7 +756,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return OnchainInvoice.from_bip70_payreq(pr, height)
         amount = 0
         for x in outputs:
-            if check_max_spend(x.value):
+            if parse_max_spend(x.value):
                 amount = '!'
                 break
             else:
@@ -866,7 +866,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert isinstance(invoice, OnchainInvoice)
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in invoice.outputs:  # type: PartialTxOutput
-            invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
+            invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
         relevant_txs = []
         with self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
@@ -1339,10 +1339,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         i_max = []
         i_max_sum = 0
         for i, o in enumerate(outputs):
-            if check_max_spend(o.value):
-                x = parse_max_spend(o.value)
-                i_max_sum += x
-                i_max.append((x,i))
+            weight = parse_max_spend(o.value)
+            if weight:
+                i_max_sum += weight
+                i_max.append((weight,i))
 
         if fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
