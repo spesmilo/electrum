@@ -426,15 +426,17 @@ class LNWalletWatcher(LNWatcher):
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
         local_height = self.network.get_local_height()
-        if sweep_info.cltv_expiry:
-            wanted_height = sweep_info.cltv_expiry - local_height
-            if wanted_height - local_height > 0:
+        if sweep_info.cltv_expiry:  # HTLC-timeout transaction
+            # expiry needs to be in the past
+            wanted_height = sweep_info.cltv_expiry + 1
+            if not(local_height > sweep_info.cltv_expiry):
                 broadcast = False
                 reason = 'waiting for {}: CLTV ({} > {}), prevout {}'.format(name, local_height, sweep_info.cltv_expiry, prevout)
-        if sweep_info.csv_delay:
+        if sweep_info.csv_delay:  # to local, anchors additional: to remote, anchor outputs, HTLC-success, HTLC-timeout
+            # number of confirmations need to be equal or greater than csv
             prev_height = self.get_tx_height(prev_txid)
             wanted_height = sweep_info.csv_delay + prev_height.height - 1
-            if wanted_height - local_height > 0:
+            if not(prev_height.conf >= sweep_info.csv_delay):  # number of confirmations need to be equal or greater than csv TODO: please crosscheck
                 broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
         tx = sweep_info.gen_tx()
