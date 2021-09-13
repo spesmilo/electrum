@@ -439,6 +439,11 @@ class LNWalletWatcher(LNWatcher):
             if not(prev_height.conf >= sweep_info.csv_delay):  # number of confirmations need to be equal or greater than csv TODO: please crosscheck
                 broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
+        if not (sweep_info.cltv_expiry or sweep_info.csv_delay):
+            # used to control settling of htlcs onchain for testing purposes
+            # careful, this prevents revocation as well
+            if not self.lnworker.enable_htlc_settle_onchain:
+                return
         tx = sweep_info.gen_tx()
         if tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
