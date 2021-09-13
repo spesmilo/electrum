@@ -10,7 +10,7 @@
 # Or for a Windows x86_64 (64-bit) target, run:
 # $ GCC_TRIPLET_HOST="x86_64-w64-mingw32" BUILD_TYPE="wine" ./contrib/make_zbar.sh
 
-ZBAR_VERSION="d2893738411be897a04caa42ffc13d1f6107d3c6"
+ZBAR_VERSION="aac86d5f08d64ab4c3da78188eb622fa3cb07182"
 
 set -e
 
@@ -47,45 +47,39 @@ info "Building $pkgname..."
     if ! [ -r config.status ] ; then
         if [ "$BUILD_TYPE" = "wine" ] ; then
             # windows target
-            ./configure \
-                $AUTOCONF_FLAGS \
-                --prefix="$here/$pkgname/dist" \
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
                 --with-x=no \
-                --enable-pthread=no \
-                --enable-doc=no \
                 --enable-video=yes \
-                --with-directshow=yes \
                 --with-jpeg=no \
-                --with-python=no \
-                --with-gtk=no \
-                --with-qt=no \
-                --with-java=no \
-                --with-imagemagick=no \
-                --with-dbus=no \
-                --enable-codes=qrcode \
-                --disable-dependency-tracking \
-                --disable-static \
-                --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+                --with-directshow=yes \
+                --disable-dependency-tracking"
+        elif [ $(uname) == "Darwin" ]; then
+            # macos target
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
+                --with-x=no \
+                --enable-video=no \
+                --with-jpeg=no"
         else
             # linux target
-            ./configure \
-                $AUTOCONF_FLAGS \
-                --prefix="$here/$pkgname/dist" \
+            AUTOCONF_FLAGS="$AUTOCONF_FLAGS \
                 --with-x=yes \
-                --enable-pthread=no \
-                --enable-doc=no \
                 --enable-video=yes \
-                --with-jpeg=yes \
-                --with-python=no \
-                --with-gtk=no \
-                --with-qt=no \
-                --with-java=no \
-                --with-imagemagick=no \
-                --with-dbus=no \
-                --enable-codes=qrcode \
-                --disable-static \
-                --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+                --with-jpeg=yes"
         fi
+        ./configure \
+            $AUTOCONF_FLAGS \
+            --prefix="$here/$pkgname/dist" \
+            --enable-pthread=no \
+            --enable-doc=no \
+            --with-python=no \
+            --with-gtk=no \
+            --with-qt=no \
+            --with-java=no \
+            --with-imagemagick=no \
+            --with-dbus=no \
+            --enable-codes=qrcode \
+            --disable-static \
+            --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
     make -j4 || fail "Could not build $pkgname"
     make install || fail "Could not install $pkgname"
@@ -93,4 +87,7 @@ info "Building $pkgname..."
     host_strip "$here/$pkgname/dist/lib/$dlname"
     cp -fpv "$here/$pkgname/dist/lib/$dlname" "$PROJECT_ROOT/electrum" || fail "Could not copy the $pkgname binary to its destination"
     info "$dlname has been placed in the inner 'electrum' folder."
+    if [ -n "$DLL_TARGET_DIR" ] ; then
+        cp -fpv "$here/$pkgname/dist/lib/$dlname" "$DLL_TARGET_DIR" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
+    fi
 )

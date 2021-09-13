@@ -31,15 +31,16 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
                              QVBoxLayout, QGridLayout, QLineEdit,
                              QPushButton, QWidget)
 
-from electrum.i18n import _
+from electrum.i18n import _, languages
 from electrum import util, coinchooser, paymentrequest
+
+from electrum.gui import messages
+
 from electrum.util import base_units_list
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
 
-from electrum.i18n import languages
-from electrum import qrscanner
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -205,17 +206,18 @@ Use this if you want your local watchtower to keep running after you close your 
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
 
-        system_cameras = qrscanner._find_system_cameras()
+
         qr_combo = QComboBox()
-        qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
+        qr_combo.addItem("Default", "default")
+        msg = (_("For scanning QR codes.") + "\n"
+               + _("Install the zbar package to enable this."))
+        qr_label = HelpLabel(_('Video Device') + ':', msg)
+        from .qrreader import find_system_cameras
+        system_cameras = find_system_cameras()
+        for cam_desc, cam_path in system_cameras.items():
+            qr_combo.addItem(cam_desc, cam_path)
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.libzbar is not None)
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))

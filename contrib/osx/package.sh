@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+set -ex
+
+PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
+CONTRIB="$PROJECT_ROOT/contrib"
+. "$CONTRIB"/build_tools_util.sh
+
+# note: GCC 10.1 will need an extra option, see https://github.com/bitcoin/bitcoin/pull/19553
+
 cdrkit_version=1.1.11
 cdrkit_download_path=http://distro.ibiblio.org/fatdog/source/600/c
 cdrkit_file_name=cdrkit-${cdrkit_version}.tar.bz2
@@ -14,7 +22,6 @@ export LD_PRELOAD=$(locate libfaketime.so.1)
 export FAKETIME="2000-01-22 00:00:00"
 export PATH=$PATH:~/bin
 
-. $(dirname "$0")/base.sh
 
 if [ -z "$1" ]; then
     echo "Usage: $0 Electrum.app"
@@ -32,7 +39,7 @@ if ! which ${genisoimage} > /dev/null 2>&1; then
 
 	info "Patching genisoimage"
 	cd cdrkit-${cdrkit_version}
-	patch -p1 < ../cdrkit-deterministic.patch
+	patch -p1 < $CONTRIB/osx/cdrkit-deterministic.patch
 
 	info "Building genisoimage"
 	cmake . -Wno-dev
@@ -73,7 +80,7 @@ ${genisoimage} \
     -D \
     -l \
     -probe \
-    -V "ELCASH Wallet" \
+    -V "Electrum" \
     -no-pad \
     -r \
     -dir-mode 0755 \

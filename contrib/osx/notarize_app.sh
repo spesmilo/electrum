@@ -25,7 +25,7 @@ ditto -c -k --rsrc --keepParent "$APP_BUNDLE" "${APP_BUNDLE}.zip"
 echo "Submitting $APP_BUNDLE for notarization..."
 RESULT=$(xcrun altool --notarize-app --type osx \
   --file "${APP_BUNDLE}.zip" \
-  --primary-bundle-id ELCASHWallet.myapp \
+  --primary-bundle-id org.electrum.electrum \
   --username $APPLE_ID_USER \
   --password @env:APPLE_ID_PASSWORD \
   --output-format xml)
@@ -75,3 +75,6 @@ done
 
 # Staple the notary ticket
 xcrun stapler staple "$APP_BUNDLE"
+
+# rm zip
+rm "${APP_BUNDLE}.zip"

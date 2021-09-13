@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # Parameterize
 PYTHON_VERSION=3.7.9
 BUILDDIR=/tmp/electrum-build
@@ -7,28 +9,33 @@ PACKAGE=ELCASHWallet
 GIT_REPO=https://github.com/electric-cash/electrum-cash
 
 export GCC_STRIP_BINARIES="1"
+export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
 
 
-. $(dirname "$0")/../build_tools_util.sh
+. "$(dirname "$0")/../build_tools_util.sh"
 
 
 CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
-ROOT_FOLDER="$CONTRIB/.."
+PROJECT_ROOT="$CONTRIB/.."
+CACHEDIR="$CONTRIB_OSX/.cache"
 
-src_dir=$(dirname "$0")
-cd $src_dir/../..
+mkdir -p "$CACHEDIR"
+
+cd "$PROJECT_ROOT"
 
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
-which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
+which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"
 
 # Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
 if [ -n "$CODESIGN_CERT" ]; then
     # Test the identity is valid for signing by doing this hack. There is no other way to do this.
     cp -f /bin/ls ./CODESIGN_TEST
+    set +e
     codesign -s "$CODESIGN_CERT" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
     res=$?
+    set -e
     rm -f ./CODESIGN_TEST
     if ((res)); then
         fail "Code signing identity \"$CODESIGN_CERT\" appears to be invalid."
@@ -60,17 +67,21 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName
     codesign -f -v $deep -s "$CODESIGN_CERT" $hardened_arg "$file" || fail "Could not code sign ${infoName}"
 }
 
-
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.7/bin:$PATH"
-if [ -d "${HOME}/.pyenv" ]; then
-  pyenv update
-else
-  curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
+PKG_FILE="python-${PYTHON_VERSION}-macosx10.9.pkg"
+if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
+    curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
-PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
-pyenv global $PYTHON_VERSION || \
-fail "Unable to use Python $PYTHON_VERSION"
+echo "bf54a14eef23467991e8c7a88c7307762e484c024a94ec1ee292ac1db3d41fc9  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+     || fail "python pkg checksum mismatched"
+sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
+    || fail "failed to install python"
+
+# sanity check "python3" has the version we just installed.
+FOUND_PY_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')
+if [[ "$FOUND_PY_VERSION" != "$PYTHON_VERSION" ]]; then
+    fail "python version mismatch: $FOUND_PY_VERSION != $PYTHON_VERSION"
+fi
 
 break_legacy_easy_install
 
@@ -95,8 +106,8 @@ rm -rf ./dist
 
 git submodule update --init
 
-rm  -rf $BUILDDIR > /dev/null 2>&1
-mkdir $BUILDDIR
+rm  -rf "$BUILDDIR" > /dev/null 2>&1
+mkdir "$BUILDDIR"
 
 info "generating locale"
 (
@@ -104,35 +115,44 @@ info "generating locale"
         brew install gettext
         brew link --force gettext
     fi
-    cd "$CONTRIB"/deterministic-build/electrum-locale
+    # cd "$CONTRIB"/deterministic-build/electrum-locale
+    # we want the binary to have only compiled (.mo) locale files; not source (.po) files
+    # rm -rf "$PROJECT_ROOT/electrum/locale/"
+    cd "$PROJECT_ROOT"/electrum/
     for i in ./locale/*; do
-        dir="$ROOT_FOLDER"/electrum/$i/LC_MESSAGES
-        mkdir -p $dir
-        msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+        dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
+        mkdir -p "$dir"
+        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
     done
 ) || fail "failed generating locale"
 
 
-info "Downloading libusb..."
-curl https://homebrew.bintray.com/bottles/libusb-1.0.23.high_sierra.bottle.tar.gz | \
-tar xz --directory $BUILDDIR
-cp $BUILDDIR/libusb/1.0.23/lib/libusb-1.0.dylib contrib/osx
-echo "caea266f3fc3982adc55d6cb8d9bad10f6e61f0c24ce5901aa1804618e08e14d  contrib/osx/libusb-1.0.dylib" | \
-    shasum -a 256 -c || fail "libusb checksum mismatched"
+info "Installing some build-time deps for compilation..."
+brew install autoconf automake libtool gettext coreutils pkgconfig
 
-info "Preparing for building libsecp256k1"
-brew install autoconf automake libtool
-"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp "$ROOT_FOLDER"/electrum/libsecp256k1.0.dylib contrib/osx
+if [ ! -f "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib ]; then
+    info "Building libsecp256k1 dylib..."
+    "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+else
+    info "Skipping libsecp256k1 build: reusing already built dylib."
+fi
+cp "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
 
-info "Building CalinsQRReader..."
-d=contrib/osx/CalinsQRReader
-pushd $d
-rm -fr build
-# prefer building using xcode ourselves. otherwise fallback to prebuilt binary
-xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
-popd
-DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app"
+if [ ! -f "$PROJECT_ROOT"/electrum/libzbar.0.dylib ]; then
+    info "Building ZBar dylib..."
+    "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
+else
+    info "Skipping ZBar build: reusing already built dylib."
+fi
+cp "$PROJECT_ROOT"/electrum/libzbar.0.dylib "$CONTRIB"/osx
+
+if [ ! -f "$PROJECT_ROOT"/electrum/libusb-1.0.dylib ]; then
+    info "Building libusb dylib..."
+    "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
+else
+    info "Skipping libusb build: reusing already built dylib."
+fi
+cp "$PROJECT_ROOT"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."
@@ -151,20 +171,16 @@ info "Building $PACKAGE..."
 python3 -m pip install --no-dependencies --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
-for d in ~/Library/Python/ ~/.pyenv .; do
-  pushd $d
-  find . -exec touch -t '200101220000' {} +
-  popd
-done
+find . -exec touch -t '200101220000' {} + || true
 
 VERSION=`git describe --tags --dirty --always`
 
 info "Building binary"
-APP_SIGN="$CODESIGN_CERT" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Adding bitcoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string></array> </dict></array>' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string><string>lightning</string></array> </dict></array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
