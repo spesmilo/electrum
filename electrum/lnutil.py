@@ -37,6 +37,7 @@ if TYPE_CHECKING:
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 COMMITMENT_TX_WEIGHT = 724
+COMMITMENT_TX_WEIGHT_ANCHORS = 1124
 HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
@@ -133,6 +134,7 @@ class ChannelConfig(StoredObject):
             funding_sat: int,
             is_local_initiator: bool,  # whether we are the funder
             initial_feerate_per_kw: int,
+            has_anchors: bool,
     ) -> None:
         # first we validate the configs separately
         local_config.validate_params(funding_sat=funding_sat)
@@ -158,7 +160,9 @@ class ChannelConfig(StoredObject):
         if funder_config.initial_msat < calc_fees_for_commitment_tx(
                 num_htlcs=0,
                 feerate=initial_feerate_per_kw,
-                is_local_initiator=is_local_initiator)[funder]:
+                is_local_initiator=is_local_initiator,
+                has_anchors=has_anchors,
+        )[funder]:
             raise Exception(
                 "the funder's amount for the initial commitment transaction "
                 "is not sufficient for full fee payment")
@@ -912,13 +916,17 @@ def fee_for_htlc_output(*, feerate: int) -> int:
 
 
 def calc_fees_for_commitment_tx(*, num_htlcs: int, feerate: int,
-                                is_local_initiator: bool, round_to_sat: bool = True) -> Dict['HTLCOwner', int]:
+                                is_local_initiator: bool, round_to_sat: bool = True, has_anchors: bool) -> Dict['HTLCOwner', int]:
     # feerate is in sat/kw
     # returns fees in msats
     # note: BOLT-02 specifies that msat fees need to be rounded down to sat.
     #       However, the rounding needs to happen for the total fees, so if the return value
     #       is to be used as part of additional fee calculation then rounding should be done after that.
-    overall_weight = COMMITMENT_TX_WEIGHT + num_htlcs * HTLC_OUTPUT_WEIGHT
+    if has_anchors:
+        commitment_tx_weight = COMMITMENT_TX_WEIGHT_ANCHORS
+    else:
+        commitment_tx_weight = COMMITMENT_TX_WEIGHT
+    overall_weight = commitment_tx_weight + num_htlcs * HTLC_OUTPUT_WEIGHT
     fee = feerate * overall_weight
     if round_to_sat:
         fee = fee // 1000 * 1000

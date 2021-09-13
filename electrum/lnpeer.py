@@ -807,6 +807,7 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=True,
             initial_feerate_per_kw=feerate,
+            has_anchors=self.use_anchors(),
         )
 
         # -> funding created
@@ -967,6 +968,7 @@ class Peer(Logger):
             funding_sat=funding_sat,
             is_local_initiator=False,
             initial_feerate_per_kw=feerate,
+            has_anchors=self.use_anchors(),
         )
 
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.

@@ -1227,6 +1227,7 @@ class Channel(AbstractChannel):
                 feerate=feerate,
                 is_local_initiator=self.constraints.is_initiator,
                 round_to_sat=False,
+                has_anchors=self.has_anchors()
             )
             htlc_fee_msat = fee_for_htlc_output(feerate=feerate)
             htlc_trim_func = received_htlc_trim_threshold_sat if ctx_owner == receiver else offered_htlc_trim_threshold_sat
@@ -1237,6 +1238,7 @@ class Channel(AbstractChannel):
                     feerate=2 * feerate,
                     is_local_initiator=self.constraints.is_initiator,
                     round_to_sat=False,
+                    has_anchors=self.has_anchors()
                 )[sender]
                 max_send_msat = sender_balance_msat - sender_reserve_msat - fee_spike_buffer
             else:
@@ -1424,6 +1426,7 @@ class Channel(AbstractChannel):
             num_htlcs=num_htlcs_in_ctx,
             feerate=feerate,
             is_local_initiator=self.constraints.is_initiator,
+            has_anchors=self.has_anchors()
         )
         remainder = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
         if remainder < 0:
@@ -1473,6 +1476,7 @@ class Channel(AbstractChannel):
             num_htlcs=len(htlcs),
             feerate=feerate,
             is_local_initiator=self.constraints.is_initiator == (subject == LOCAL),
+            has_anchors=self.has_anchors(),
         )
         assert self.is_static_remotekey_enabled()
         payment_pubkey = other_config.payment_basepoint.pubkey
