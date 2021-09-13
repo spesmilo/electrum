@@ -41,6 +41,7 @@ HTLC_SUCCESS_WEIGHT_ANCHORS = 706
 COMMITMENT_TX_WEIGHT = 724
 COMMITMENT_TX_WEIGHT_ANCHORS = 1124
 HTLC_OUTPUT_WEIGHT = 172
+FIXED_ANCHOR_SAT = 330
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
@@ -921,26 +922,64 @@ RECEIVED = Direction.RECEIVED
 LOCAL = HTLCOwner.LOCAL
 REMOTE = HTLCOwner.REMOTE
 
-def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], local_amount_msat: int, remote_amount_msat: int,
-        local_script: str, remote_script: str, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[PartialTxOutput], List[PartialTxOutput]]:
-    # BOLT-03: "Base commitment transaction fees are extracted from the funder's amount;
-    #           if that amount is insufficient, the entire amount of the funder's output is used."
-    #   -> if funder cannot afford feerate, their output might go negative, so take max(0, x) here:
-    to_local_amt = max(0, local_amount_msat - fees_per_participant[LOCAL])
-    to_local = PartialTxOutput(scriptpubkey=bfh(local_script), value=to_local_amt // 1000)
-    to_remote_amt = max(0, remote_amount_msat - fees_per_participant[REMOTE])
-    to_remote = PartialTxOutput(scriptpubkey=bfh(remote_script), value=to_remote_amt // 1000)
 
-    non_htlc_outputs = [to_local, to_remote]
+def make_commitment_outputs(
+    *,
+    fees_per_participant: Mapping[HTLCOwner, int],
+    local_amount_msat: int,
+    remote_amount_msat: int,
+    local_script: str,
+    remote_script: str,
+    htlcs: List[ScriptHtlc],
+    dust_limit_sat: int,
+    has_anchors: bool,
+    local_anchor_script: Optional[str],
+    remote_anchor_script: Optional[str]
+) -> Tuple[List[PartialTxOutput], List[PartialTxOutput]]:
+
+    # determine HTLC outputs and trim below dust to know if anchors need to be included
     htlc_outputs = []
     for script, htlc in htlcs:
         addr = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
-        htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(address_to_script(addr)),
-                                            value=htlc.amount_msat // 1000))
+        if htlc.amount_msat // 1000 > dust_limit_sat:
+            htlc_outputs.append(
+                PartialTxOutput(
+                    scriptpubkey=bfh(address_to_script(addr)),
+                    value=htlc.amount_msat // 1000
+                ))
 
-    # trim outputs
+    # BOLT-03: "Base commitment transaction fees are extracted from the funder's amount;
+    #           if that amount is insufficient, the entire amount of the funder's output is used."
+    non_htlc_outputs = []
+    to_local_amt_msat = local_amount_msat - fees_per_participant[LOCAL]
+    to_remote_amt_msat = remote_amount_msat - fees_per_participant[REMOTE]
+
+    anchor_outputs = []
+    # if no anchor scripts are set, we ignore anchor outputs, useful when this
+    # function is used to determine outputs for a collaborative close
+    if has_anchors and local_anchor_script and remote_anchor_script:
+        local_pays_anchors = bool(fees_per_participant[LOCAL])
+        # we always allocate for two anchor outputs even if they are not added
+        if local_pays_anchors:
+            to_local_amt_msat -= 2 * FIXED_ANCHOR_SAT * 1000
+        else:
+            to_remote_amt_msat -= 2 * FIXED_ANCHOR_SAT * 1000
+
+        # include anchors for outputs that materialize, include both if there are HTLCs present
+        if to_local_amt_msat // 1000 >= dust_limit_sat or htlc_outputs:
+            anchor_outputs.append(PartialTxOutput(scriptpubkey=bfh(local_anchor_script), value=FIXED_ANCHOR_SAT))
+        if to_remote_amt_msat // 1000 >= dust_limit_sat or htlc_outputs:
+            anchor_outputs.append(PartialTxOutput(scriptpubkey=bfh(remote_anchor_script), value=FIXED_ANCHOR_SAT))
+
+    # if funder cannot afford feerate, their output might go negative, so take max(0, x) here
+    to_local_amt_msat = max(0, to_local_amt_msat)
+    to_remote_amt_msat = max(0, to_remote_amt_msat)
+    non_htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(local_script), value=to_local_amt_msat // 1000))
+    non_htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(remote_script), value=to_remote_amt_msat // 1000))
+
     c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
-    return htlc_outputs, c_outputs_filtered
+    c_outputs = c_outputs_filtered + anchor_outputs
+    return htlc_outputs, c_outputs
 
 
 def effective_htlc_tx_weight(success: bool, has_anchors: bool):
@@ -1015,7 +1054,8 @@ def make_commitment(
         remote_amount: int,
         dust_limit_sat: int,
         fees_per_participant: Mapping[HTLCOwner, int],
-        htlcs: List[ScriptHtlc]
+        htlcs: List[ScriptHtlc],
+        has_anchors: bool
 ) -> PartialTransaction:
     c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
                                  funding_pos, funding_txid, funding_sat)
@@ -1028,7 +1068,12 @@ def make_commitment(
 
     # commitment tx outputs
     local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
-    remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
+    remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey, has_anchors)
+    local_anchor_address = None
+    remote_anchor_address = None
+    if has_anchors:
+        local_anchor_address = make_commitment_output_to_anchor_address(local_funding_pubkey)
+        remote_anchor_address = make_commitment_output_to_anchor_address(remote_funding_pubkey)
     # note: it is assumed that the given 'htlcs' are all non-dust (dust htlcs already trimmed)
 
     # BOLT-03: "Transaction Input and Output Ordering
@@ -1045,7 +1090,11 @@ def make_commitment(
         local_script=address_to_script(local_address),
         remote_script=address_to_script(remote_address),
         htlcs=htlcs,
-        dust_limit_sat=dust_limit_sat)
+        dust_limit_sat=dust_limit_sat,
+        has_anchors=has_anchors,
+        local_anchor_script=address_to_script(local_anchor_address) if local_anchor_address else None,
+        remote_anchor_script=address_to_script(remote_anchor_address) if remote_anchor_address else None
+    )
 
     assert sum(x.value for x in c_outputs_filtered) <= funding_sat, (c_outputs_filtered, funding_sat)
 
@@ -1077,8 +1126,39 @@ def make_commitment_output_to_local_address(
     local_script = make_commitment_output_to_local_witness_script(revocation_pubkey, to_self_delay, delayed_pubkey)
     return bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
 
-def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> str:
-    return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+def make_commitment_output_to_remote_witness_script(remote_payment_pubkey: bytes) -> bytes:
+    assert isinstance(remote_payment_pubkey, bytes)
+    script = bfh(construct_script([
+        remote_payment_pubkey,
+        opcodes.OP_CHECKSIGVERIFY,
+        opcodes.OP_1,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+    ]))
+    return script
+
+def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes, has_anchors: bool) -> str:
+    if has_anchors:
+        remote_script = make_commitment_output_to_remote_witness_script(remote_payment_pubkey)
+        return bitcoin.redeem_script_to_address('p2wsh', bh2u(remote_script))
+    else:
+        return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+
+def make_commitment_output_to_anchor_witness_script(funding_pubkey: bytes) -> bytes:
+    assert isinstance(funding_pubkey, bytes)
+    script = bfh(construct_script([
+        funding_pubkey,
+        opcodes.OP_CHECKSIG,
+        opcodes.OP_IFDUP,
+        opcodes.OP_NOTIF,
+        opcodes.OP_16,
+        opcodes.OP_CHECKSEQUENCEVERIFY,
+        opcodes.OP_ENDIF,
+    ]))
+    return script
+
+def make_commitment_output_to_anchor_address(funding_pubkey: bytes) -> str:
+    script = make_commitment_output_to_anchor_witness_script(funding_pubkey)
+    return bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
 
 def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
     tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})

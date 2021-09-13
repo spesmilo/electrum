@@ -52,7 +52,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
-                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address,
+                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ChannelType, LNProtocolWarning)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
@@ -759,7 +759,7 @@ class Channel(AbstractChannel):
         addr = None
         assert self.is_static_remotekey_enabled()
         our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-        addr = make_commitment_output_to_remote_address(our_payment_pubkey)
+        addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
         if self.lnworker:
             assert self.lnworker.wallet.is_mine(addr)
         return addr
@@ -771,7 +771,7 @@ class Channel(AbstractChannel):
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()
         our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=self.has_anchors())
         return [to_remote_address]
 
     def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
@@ -1214,7 +1214,7 @@ class Channel(AbstractChannel):
         return len(self.hm.htlcs(LOCAL)) + len(self.hm.htlcs(REMOTE)) > 0
 
     def available_to_spend(self, subject: HTLCOwner, *, strict: bool = True) -> int:
-        """The usable balance of 'subject' in msat, after taking reserve and fees into
+        """The usable balance of 'subject' in msat, after taking reserve and fees (and anchors) into
         consideration. Note that fees (and hence the result) fluctuate even without user interaction.
         """
         assert type(subject) is HTLCOwner
@@ -1240,25 +1240,42 @@ class Channel(AbstractChannel):
             htlc_fee_msat = fee_for_htlc_output(feerate=feerate)
             htlc_trim_func = received_htlc_trim_threshold_sat if ctx_owner == receiver else offered_htlc_trim_threshold_sat
             htlc_trim_threshold_msat = htlc_trim_func(dust_limit_sat=self.config[ctx_owner].dust_limit_sat, feerate=feerate, has_anchors=self.has_anchors()) * 1000
-            if sender == initiator == LOCAL:  # see https://github.com/lightningnetwork/lightning-rfc/pull/740
+
+            # the sender cannot spend below its reserve
+            max_send_msat = sender_balance_msat - sender_reserve_msat
+
+            # reserve a fee spike buffer
+            # see https://github.com/lightningnetwork/lightning-rfc/pull/740
+            if sender == initiator == LOCAL:
                 fee_spike_buffer = calc_fees_for_commitment_tx(
                     num_htlcs=num_htlcs_in_ctx + int(not is_htlc_dust) + 1,
                     feerate=2 * feerate,
                     is_local_initiator=self.constraints.is_initiator,
                     round_to_sat=False,
-                    has_anchors=self.has_anchors()
-                )[sender]
-                max_send_msat = sender_balance_msat - sender_reserve_msat - fee_spike_buffer
-            else:
-                max_send_msat = sender_balance_msat - sender_reserve_msat - ctx_fees_msat[sender]
+                    has_anchors=self.has_anchors())[sender]
+                max_send_msat -= fee_spike_buffer
+            # we can't enforce the fee spike buffer on the remote party
+            elif sender == initiator == REMOTE:
+                max_send_msat -= ctx_fees_msat[sender]
+
+            # initiator pays for anchor outputs
+            if sender == initiator and self.has_anchors():
+                max_send_msat -= 2 * FIXED_ANCHOR_SAT
+
+            # handle the transaction fees for the HTLC transaction
             if is_htlc_dust:
+                # nobody pays additional HTLC transaction fees
                 return min(max_send_msat, htlc_trim_threshold_msat - 1)
             else:
+                # somebody has to pay for the additonal HTLC transaction fees
                 if sender == initiator:
                     return max_send_msat - htlc_fee_msat
                 else:
-                    # the receiver is the initiator, so they need to be able to pay tx fees
-                    if receiver_balance_msat - receiver_reserve_msat - ctx_fees_msat[receiver] - htlc_fee_msat < 0:
+                    # check if the receiver can afford to pay for the HTLC transaction fees
+                    new_receiver_balance = receiver_balance_msat - receiver_reserve_msat - ctx_fees_msat[receiver] - htlc_fee_msat
+                    if self.has_anchors():
+                        new_receiver_balance -= 2 * FIXED_ANCHOR_SAT
+                    if new_receiver_balance < 0:
                         return 0
                     return max_send_msat
 
@@ -1507,22 +1524,27 @@ class Channel(AbstractChannel):
             dust_limit_sat=this_config.dust_limit_sat,
             fees_per_participant=onchain_fees,
             htlcs=htlcs,
+            has_anchors=self.has_anchors()
         )
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
                         fee_sat: int, *, drop_remote = False) -> Tuple[bytes, PartialTransaction]:
         """ cooperative close """
         _, outputs = make_commitment_outputs(
-                fees_per_participant={
-                    LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,
-                    REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
-                },
-                local_amount_msat=self.balance(LOCAL),
-                remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
-                local_script=bh2u(local_script),
-                remote_script=bh2u(remote_script),
-                htlcs=[],
-                dust_limit_sat=self.config[LOCAL].dust_limit_sat)
+            fees_per_participant={
+                LOCAL: fee_sat * 1000 if self.constraints.is_initiator else 0,
+                REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
+            },
+            local_amount_msat=self.balance(LOCAL),
+            remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
+            local_script=bh2u(local_script),
+            remote_script=bh2u(remote_script),
+            htlcs=[],
+            dust_limit_sat=self.config[LOCAL].dust_limit_sat,
+            has_anchors=self.has_anchors(),
+            local_anchor_script=None,
+            remote_anchor_script=None,
+        )
 
         closing_tx = make_closing_tx(self.config[LOCAL].multisig_key.pubkey,
                                      self.config[REMOTE].multisig_key.pubkey,
