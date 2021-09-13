@@ -222,7 +222,7 @@ class LNWatcher(Logger, EventListener):
         if closing_txid:
             closing_tx = self.adb.get_transaction(closing_txid)
             if closing_tx:
-                keep_watching = await self.do_breach_remedy(funding_outpoint, closing_tx, spenders)
+                keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx, spenders)
             else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 keep_watching = True
@@ -238,7 +238,7 @@ class LNWatcher(Logger, EventListener):
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders) -> bool:
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders) -> bool:
         raise NotImplementedError()  # implemented by subclasses
 
     async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
@@ -246,7 +246,7 @@ class LNWatcher(Logger, EventListener):
                                    closing_height: TxMinedInfo, keep_watching: bool) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
-    def inspect_tx_candidate(self, outpoint, n):
+    def inspect_tx_candidate(self, outpoint, n: int) -> Dict[str, str]:
         """
         returns a dict of spenders for a transaction of interest.
         subscribes to addresses as a side effect.
@@ -347,7 +347,7 @@ class WatchTower(LNWatcher):
         for outpoint, address in random_shuffled_copy(lst):
             self.add_channel(outpoint, address)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders):
         keep_watching = False
         for prevout, spender in spenders.items():
             if spender is not None:
@@ -434,15 +434,21 @@ class LNWalletWatcher(LNWatcher):
         await self.lnworker.handle_onchain_state(chan)
 
     @log_exceptions
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders) -> bool:
+        """This function is called when a channel was closed. In this case
+        we need to check for redeemable outputs of the commitment transaction
+        or spenders down the line (HTLC-timeout/success transactions).
+
+        Returns whether we should continue to monitor."""
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
         chan_id_for_log = chan.get_id_for_log()
-        # detect who closed and set sweep_info
+        # detect who closed and get information about how to claim outputs
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
-        # create and broadcast transaction
+
+        # create and broadcast transactions
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name + ' ' + chan.get_id_for_log()
             spender_txid = spenders.get(prevout)
