@@ -511,6 +511,9 @@ class Peer(Logger):
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
+    def use_anchors(self) -> bool:
+        return self.features.supports(LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT)
+
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
             raise ValueError("msg_identifier must be either 'accept' or 'open'")
@@ -770,6 +773,7 @@ class Peer(Logger):
             "unfulfilled_htlcs": {},  # htlc_id -> error_bytes, failure_message
             "revocation_store": {},
             "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
+            "has_anchors": self.use_anchors(),
         }
         return StoredDict(chan_dict, self.lnworker.db if self.lnworker else None, [])
 

@@ -400,6 +400,10 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
+    def has_anchors(self) -> bool:
+        pass
+
+    @abstractmethod
     def get_local_pubkey(self) -> bytes:
         """Returns our node ID."""
         pass
@@ -710,6 +714,9 @@ class Channel(AbstractChannel):
 
     def is_static_remotekey_enabled(self) -> bool:
         return bool(self.storage.get('static_remotekey_enabled'))
+
+    def has_anchors(self) -> bool:
+        return bool(self.storage.get('has_anchors'))
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         ret = []
