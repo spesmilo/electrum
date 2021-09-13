@@ -39,9 +39,16 @@ from electrum.lnutil import derive_payment_secret_from_payment_preimage
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 
-from .test_lnchannel import create_test_channels
+from .test_lnchannel import create_test_channels as create_test_channels_anchors
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 from . import TestCaseForTestnet
+
+TEST_ANCHOR_CHANNELS = False
+
+
+def create_test_channels(*args, **kwargs):
+    return create_test_channels_anchors(*args, **kwargs, anchor_outputs=TEST_ANCHOR_CHANNELS)
+
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -147,6 +154,9 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+        self.config = {'enable_anchor_channels': TEST_ANCHOR_CHANNELS}
+        self.maybe_enable_anchors_store_password(None)
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -253,6 +263,8 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
+    maybe_enable_anchors_store_password = LNWallet.maybe_enable_anchors_store_password
+    has_anchor_channels = LNWallet.has_anchor_channels
 
 
 class MockTransport:
