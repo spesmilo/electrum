@@ -878,6 +878,7 @@ class Peer(Logger, EventListener):
             initial_feerate_per_kw=feerate,
             config=self.network.config,
             peer_features=self.features,
+            has_anchors=self.use_anchors(),
         )
 
         # -> funding created
@@ -1048,6 +1049,7 @@ class Peer(Logger, EventListener):
             initial_feerate_per_kw=feerate,
             config=self.network.config,
             peer_features=self.features,
+            has_anchors=self.use_anchors(),
         )
 
         channel_flags = ord(payload['channel_flags'])
