@@ -1140,6 +1140,10 @@ class Channel(AbstractChannel):
                                                               commit=pending_remote_commitment,
                                                               ctx_output_idx=ctx_output_idx,
                                                               htlc=htlc)
+            if self.has_anchors():
+                # we send a signature with the following sighash flags
+                # for the peer to be able to replace inputs and outputs
+                htlc_tx.inputs()[0].sighash = Sighash.ANYONECANPAY | Sighash.SINGLE
             sig = htlc_tx.sign_txin(0, their_remote_htlc_privkey)
             htlc_sig = ecc.ecdsa_sig64_from_der_sig(sig[:-1])
             htlcsigs.append((ctx_output_idx, htlc_sig))
@@ -1208,6 +1212,9 @@ class Channel(AbstractChannel):
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
+        if self.has_anchors():
+            # peer sent us a signature for our ctx using anchor sighash flags
+            htlc_tx.inputs()[0].sighash = Sighash.ANYONECANPAY | Sighash.SINGLE
         pre_hash = htlc_tx.serialize_preimage(0)
         msg_hash = sha256d(pre_hash)
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
@@ -1227,7 +1234,8 @@ class Channel(AbstractChannel):
         data = self.config[LOCAL].current_htlc_signatures
         htlc_sigs = list(chunks(data, 64))
         htlc_sig = htlc_sigs[htlc_relative_idx]
-        remote_htlc_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(htlc_sig) + Sighash.to_sigbytes(Sighash.ALL)
+        remote_sighash = Sighash.ALL if not self.has_anchors() else Sighash.ANYONECANPAY | Sighash.SINGLE
+        remote_htlc_sig = ecc.ecdsa_der_sig_from_ecdsa_sig64(htlc_sig) + remote_sighash.to_sigbytes(1, 'big')
         return remote_htlc_sig
 
     def revoke_current_commitment(self):
@@ -1358,7 +1366,7 @@ class Channel(AbstractChannel):
             )
             htlc_fee_msat = fee_for_htlc_output(feerate=feerate)
             htlc_trim_func = received_htlc_trim_threshold_sat if ctx_owner == receiver else offered_htlc_trim_threshold_sat
-            htlc_trim_threshold_msat = htlc_trim_func(dust_limit_sat=self.config[ctx_owner].dust_limit_sat, feerate=feerate) * 1000
+            htlc_trim_threshold_msat = htlc_trim_func(dust_limit_sat=self.config[ctx_owner].dust_limit_sat, feerate=feerate, has_anchors=self.has_anchors()) * 1000
             if sender == initiator == LOCAL:  # see https://github.com/lightningnetwork/lightning-rfc/pull/740
                 fee_spike_buffer = calc_fees_for_commitment_tx(
                     num_htlcs=num_htlcs_in_ctx + int(not is_htlc_dust) + 1,
@@ -1396,7 +1404,7 @@ class Channel(AbstractChannel):
 
 
     def included_htlcs(self, subject: HTLCOwner, direction: Direction, ctn: int = None, *,
-                       feerate: int = None) -> Sequence[UpdateAddHtlc]:
+                       feerate: int = None) -> List[UpdateAddHtlc]:
         """Returns list of non-dust HTLCs for subject's commitment tx at ctn,
         filtered by direction (of HTLCs).
         """
@@ -1408,9 +1416,9 @@ class Channel(AbstractChannel):
             feerate = self.get_feerate(subject, ctn=ctn)
         conf = self.config[subject]
         if direction == RECEIVED:
-            threshold_sat = received_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
+            threshold_sat = received_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate, has_anchors=self.has_anchors())
         else:
-            threshold_sat = offered_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate)
+            threshold_sat = offered_htlc_trim_threshold_sat(dust_limit_sat=conf.dust_limit_sat, feerate=feerate, has_anchors=self.has_anchors())
         htlcs = self.hm.htlcs_by_direction(subject, direction, ctn=ctn).values()
         return list(filter(lambda htlc: htlc.amount_msat // 1000 >= threshold_sat, htlcs))
 
@@ -1591,7 +1599,8 @@ class Channel(AbstractChannel):
                     remote_htlc_pubkey=other_htlc_pubkey,
                     local_htlc_pubkey=this_htlc_pubkey,
                     payment_hash=htlc.payment_hash,
-                    cltv_abs=htlc.cltv_abs), htlc))
+                    cltv_abs=htlc.cltv_abs,
+                    has_anchors=self.has_anchors()), htlc))
         # note: maybe flip initiator here for fee purposes, we want LOCAL and REMOTE
         #       in the resulting dict to correspond to the to_local and to_remote *outputs* of the ctx
         onchain_fees = calc_fees_for_commitment_tx(
