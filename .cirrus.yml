@@ -51,7 +51,8 @@ task:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
     # following CI_* env vars are set up for coveralls
     CI_NAME: "CirrusCI"
-    CI_BUILD_NUMBER: $CIRRUS_TASK_ID
+    CI_BUILD_NUMBER: $CIRRUS_BUILD_ID
+    CI_JOB_ID: $CIRRUS_TASK_ID
     CI_BUILD_URL: "https://cirrus-ci.com/task/$CIRRUS_TASK_ID"
     CI_BRANCH: $CIRRUS_BRANCH
     CI_PULL_REQUEST: $CIRRUS_PR
