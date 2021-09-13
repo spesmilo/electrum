@@ -151,7 +151,7 @@ RUN chown ${USER} /opt
 USER ${USER}
 
 
-COPY requirements-build-android.txt /opt/deterministic-build/
+COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
 RUN python3 -m pip install --no-dependencies --user \
     -r /opt/deterministic-build/requirements-build-android.txt
 
