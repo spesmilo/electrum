@@ -527,6 +527,11 @@ class LNWalletWatcher(LNWatcher):
             if prev_height.height <= 0 or wanted_height - local_height > 0:
                 can_broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {})'.format(name, prev_height.conf, sweep_info.csv_delay)
+        if not (sweep_info.cltv_expiry or sweep_info.csv_delay):
+            # used to control settling of htlcs onchain for testing purposes
+            # careful, this prevents revocation as well
+            if not self.lnworker.enable_htlc_settle_onchain:
+                return
         if can_broadcast:
             self.logger.info(f'we can broadcast: {name}')
             tx_was_added = await self.network.try_broadcasting(new_tx, name)
