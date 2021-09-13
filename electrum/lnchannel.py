@@ -427,6 +427,9 @@ class AbstractChannel(Logger, ABC):
         """Returns channel capacity in satoshis, or None if unknown."""
         pass
 
+    @abstractmethod
+    def has_anchors(self) -> bool:
+        pass
 
 class ChannelBackup(AbstractChannel):
     """
@@ -753,6 +756,10 @@ class Channel(AbstractChannel):
         if self.lnworker:
             assert self.lnworker.wallet.is_mine(addr)
         return addr
+
+    def has_anchors(self) -> bool:
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        return bool(channel_type & ChannelType.OPTION_ANCHOR_OUTPUTS)
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()

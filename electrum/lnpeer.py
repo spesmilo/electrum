@@ -606,6 +606,9 @@ class Peer(Logger):
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
+    def use_anchors(self) -> bool:
+        return self.features.supports(LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT)
+
     def upfront_shutdown_script_from_payload(self, payload, msg_identifier: str) -> Optional[bytes]:
         if msg_identifier not in ['accept', 'open']:
             raise ValueError("msg_identifier must be either 'accept' or 'open'")
