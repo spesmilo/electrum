@@ -45,8 +45,15 @@ from electrum.invoices import PR_PAID, PR_UNPAID
 from electrum.interface import GracefulDisconnect
 from electrum.simple_config import SimpleConfig
 
-from .test_lnchannel import create_test_channels
+from .test_lnchannel import create_test_channels as create_test_channels_anchors
 from . import ElectrumTestCase
+
+TEST_ANCHOR_CHANNELS = True
+
+
+def create_test_channels(*args, **kwargs):
+    return create_test_channels_anchors(*args, **kwargs, anchor_outputs=TEST_ANCHOR_CHANNELS)
+
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -169,6 +176,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
         self.features |= LnFeatures.OPTION_SCID_ALIAS_OPT
+        self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -387,7 +395,7 @@ low_fee_channel = {
 }
 
 depleted_channel = {
-    'local_balance_msat': 0,
+    'local_balance_msat': 330 * 1000, # local pays anchors
     'remote_balance_msat': 10 * bitcoin.COIN * 1000,
     'local_base_fee_msat': 1_000,
     'local_fee_rate_millionths': 1,
