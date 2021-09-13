@@ -186,8 +186,8 @@ class LNWatcher(AddressSynchronizer):
         # early return if address has not been added yet
         if not self.is_mine(address):
             return
-        spenders = self.inspect_tx_candidate(funding_outpoint, 0)
-        # inspect_tx_candidate might have added new addresses, in which case we return ealy
+        spenders = self.inspect_tx_candidate(funding_outpoint, 0)  # outpoint -> txid
+        # inspect_tx_candidate might have added new addresses, in which case we return early
         if not self.is_up_to_date():
             return
         funding_txid = funding_outpoint.split(':')[0]
@@ -197,7 +197,7 @@ class LNWatcher(AddressSynchronizer):
         if closing_txid:
             closing_tx = self.db.get_transaction(closing_txid)
             if closing_tx:
-                keep_watching = await self.do_breach_remedy(funding_outpoint, closing_tx, spenders)
+                keep_watching = await self.sweep_commitment_transaction(funding_outpoint, closing_tx, spenders)
             else:
                 self.logger.info(f"channel {funding_outpoint} closed by {closing_txid}. still waiting for tx itself...")
                 keep_watching = True
@@ -213,7 +213,7 @@ class LNWatcher(AddressSynchronizer):
         if not keep_watching:
             await self.unwatch_channel(address, funding_outpoint)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders) -> bool:
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders) -> bool:
         raise NotImplementedError()  # implemented by subclasses
 
     async def update_channel_state(self, *, funding_outpoint: str, funding_txid: str,
@@ -221,7 +221,9 @@ class LNWatcher(AddressSynchronizer):
                                    closing_height: TxMinedInfo, keep_watching: bool) -> None:
         raise NotImplementedError()  # implemented by subclasses
 
-    def inspect_tx_candidate(self, outpoint, n):
+    def inspect_tx_candidate(self, outpoint, n: int) -> Dict[str, str]:
+        """Recursively retrieves spenders of outpoint with maximal depth of 1.
+        n is the starting level of the spender."""
         prev_txid, index = outpoint.split(':')
         txid = self.db.get_spent_outpoint(prev_txid, int(index))
         result = {outpoint:txid}
@@ -287,7 +289,7 @@ class WatchTower(LNWatcher):
         for outpoint, address in random_shuffled_copy(lst):
             self.add_channel(outpoint, address)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders):
         keep_watching = False
         for prevout, spender in spenders.items():
             if spender is not None:
@@ -372,44 +374,55 @@ class LNWalletWatcher(LNWatcher):
                                   keep_watching=keep_watching)
         await self.lnworker.on_channel_update(chan)
 
-    async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
+    async def sweep_commitment_transaction(self, funding_outpoint, closing_tx, spenders) -> bool:
+        """This function is called when a channel was closed. In this case
+        we need to check for redeemable outputs of the commitment transaction
+        or spenders down the line (HTLC-timeout/success transactions).
+
+        Returns whether we should continue to monitor."""
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
         chan_id_for_log = chan.get_id_for_log()
-        # detect who closed and set sweep_info
+        # detect who closed and get information about how to claim outputs
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
-        # create and broadcast transaction
-        for prevout, sweep_info in sweep_info_dict.items():
+
+        # create and broadcast transactions
+        for swept_output, sweep_info in sweep_info_dict.items():
             name = sweep_info.name + ' ' + chan.get_id_for_log()
-            spender_txid = spenders.get(prevout)
+            spender_txid = spenders.get(swept_output)
             if spender_txid is not None:
+                # TODO: spender should be the htlc transaction, but could also be a to_local/to_remote sweep
                 spender_tx = self.db.get_transaction(spender_txid)
                 if not spender_tx:
                     keep_watching = True
                     continue
-                e_htlc_tx = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
-                if e_htlc_tx:
+                htlc_revocation_sweep_info = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
+                if htlc_revocation_sweep_info:
+                    # check if we already redeemed revoked htlc
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
-                        await self.try_redeem(spender_txid+':0', e_htlc_tx, chan_id_for_log, name)
+                        await self.try_redeem(spender_txid+':0', htlc_revocation_sweep_info, chan_id_for_log, name)
                         keep_watching = True
                 else:
+                    # regular htlc transaction spending the htlc output of ctx,
+                    # check if we can extract preimage from the input
                     keep_watching |= not self.is_deeply_mined(spender_txid)
-                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
+                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(swept_output))
                     assert txin_idx is not None
                     spender_txin = spender_tx.inputs()[txin_idx]
                     chan.extract_preimage_from_htlc_txin(spender_txin)
-            else:
-                await self.try_redeem(prevout, sweep_info, chan_id_for_log, name)
+            else:  # we sweep either the to_local, to_remote, or HTLC transaction outputs
+                await self.try_redeem(swept_output, sweep_info, chan_id_for_log, name)
                 keep_watching = True
         return keep_watching
 
     @log_exceptions
     async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo', chan_id_for_log: str, name: str) -> None:
+        # prevout is needed to check if previous transaction has enough confirmations
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
         local_height = self.network.get_local_height()
