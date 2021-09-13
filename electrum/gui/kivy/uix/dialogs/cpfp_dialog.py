@@ -140,7 +140,7 @@ class CPFPDialog(FeeSliderDialog, Factory.Popup):
             comb_fee = self.fee + self.parent_fee
             comb_feerate = 1000 * comb_fee / self.total_size
             self.ids.fee_for_child.value = self.app.format_amount_and_units(self.fee)
-            self.ids.output_amount.value = self.app.format_amount_and_units(self.max_fee-self.fee)
+            self.ids.output_amount.value = self.app.format_amount_and_units(self.max_fee-self.fee) if self.max_fee > self.fee else ''
             self.ids.total_fee.value = self.app.format_amount_and_units(self.fee+self.parent_fee)
             self.ids.total_feerate.value = self.app.format_fee_rate(comb_feerate)
 
