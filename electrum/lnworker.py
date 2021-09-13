@@ -61,7 +61,7 @@ from .lnutil import (Outpoint, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner,
                      UpdateAddHtlc, Direction, LnFeatures, ShortChannelID,
                      HtlcLog, derive_payment_secret_from_payment_preimage,
-                     NoPathFound, InvalidGossipMsg)
+                     NoPathFound, InvalidGossipMsg, UserFacingException)
 from .lnutil import ln_dummy_address, ln_compare_features, IncompatibleLightningFeatures
 from .transaction import PartialTxOutput, PartialTransaction, PartialTxInput
 from .lnonion import OnionFailureCode, OnionRoutingFailure
@@ -651,6 +651,19 @@ class LNWallet(LNWorker):
         self.trampoline_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
+        self.wallet_password = None  # used for automatic signing in case of anchor channels
+
+    def maybe_enable_anchors_store_password(self, password):
+        # for anchor commitments we need the password to be able to spend wallet UTXOs
+        if self.config.get('enable_anchor_channels'):
+            if not self.wallet.can_sign_without_user_interaction_if_have_password():
+                raise UserFacingException("Wallets that don't support automatic signing cannot use anchor channels.")
+            self.logger.info("anchor channels are enabled")
+            self.features |= LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT
+            self.wallet_password = password
+        else:
+            if self.has_anchor_channels():
+                raise UserFacingException("Config option 'enable_anchor_channels' must be set with existing anchor channels.")
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -671,6 +684,9 @@ class LNWallet(LNWorker):
         """Returns a read-only copy of channels."""
         with self.lock:
             return self._channels.copy()
+
+    def has_anchor_channels(self) -> bool:
+        return any(channel.has_anchors() for channel in self.channels.values())
 
     @property
     def channel_backups(self) -> Mapping[bytes, ChannelBackup]:

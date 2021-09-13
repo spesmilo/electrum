@@ -346,6 +346,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return False
         return self.keystore.can_have_deterministic_lightning_xprv()
 
+    def can_sign_without_user_interaction_if_have_password(self) -> bool:
+        return False
+
     def init_lightning(self, *, password) -> None:
         assert self.can_have_lightning()
         assert self.db.get('lightning_xprv') is None
@@ -362,6 +365,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.network:
             self.network.run_from_another_thread(self.stop())
         self.lnworker = LNWallet(self, ln_xprv)
+        self.lnworker.maybe_enable_anchors_store_password(password)
         if self.network:
             self.start_network(self.network)
 
@@ -2429,6 +2433,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)
+        if self.lnworker:
+            self.lnworker.maybe_enable_anchors_store_password(new_pw)
         if self.storage:
             if encrypt_storage:
                 enc_version = self.get_available_storage_encryption_version()
@@ -3127,9 +3133,11 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def derive_pubkeys(self, c, i):
         return [self.keystore.derive_pubkey(c, i).hex()]
 
-
-
-
+    def can_sign_without_user_interaction_if_have_password(self) -> bool:
+        if (isinstance(self.keystore, keystore.Software_KeyStore)
+                and not self.keystore.is_watching_only()):
+            return True
+        return False
 
 
 class Standard_Wallet(Simple_Deterministic_Wallet):

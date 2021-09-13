@@ -539,6 +539,8 @@ class Daemon(Logger):
             return
         wallet = Wallet(db, storage, config=self.config)
         wallet.start_network(self.network)
+        if wallet.lnworker:
+            wallet.lnworker.maybe_enable_anchors_store_password(password)
         self._wallets[path] = wallet
         return wallet
 

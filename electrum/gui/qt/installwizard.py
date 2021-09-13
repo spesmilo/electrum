@@ -201,7 +201,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
+    def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage], Optional[str]]:
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -302,8 +302,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 get_new_wallet_name(wallet_folder)))
         name_e.textChanged.connect(on_filename)
         name_e.setText(os.path.basename(path))
+        password = None
 
-        def run_user_interaction_loop():
+        def run_user_interaction_loop() -> Optional[str]:
             while True:
                 if self.loop.exec_() != 2:  # 2 = next
                     raise UserCancelled()
@@ -320,7 +321,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         password = pw_e.text()
                         try:
                             temp_storage.decrypt(password)
-                            break
+                            return password
                         except InvalidPassword as e:
                             self.show_message(title=_('Error'), msg=str(e))
                             continue
@@ -351,14 +352,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         raise Exception('Unexpected encryption version')
 
         try:
-            run_user_interaction_loop()
+            password = run_user_interaction_loop()
         finally:
             try:
                 pw_e.clear()
             except RuntimeError:  # wrapped C/C++ object has been deleted.
                 pass              # happens when decrypting with hw device
 
-        return temp_storage.path, (temp_storage if temp_storage.file_exists() else None)
+        return temp_storage.path, (temp_storage if temp_storage.file_exists() else None), password
 
     def run_upgrades(self, storage: WalletStorage, db: 'WalletDB') -> None:
         path = storage.path

@@ -116,6 +116,12 @@ class MockWallet:
     def get_new_sweep_address_for_channel(self):
         return None
 
+    def is_watching_only(self):
+        return False
+
+    def can_sign_without_user_interaction_if_have_password(self):
+        return True
+
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
@@ -157,6 +163,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.preimages = {}
         self.stopping_soon = False
         self.downstream_htlc_to_upstream_peer_map = {}
+        self.wallet_password = None
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 

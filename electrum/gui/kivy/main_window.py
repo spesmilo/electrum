@@ -655,7 +655,7 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        
+
         if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
@@ -690,6 +690,8 @@ class ElectrumWindow(App, Logger):
         self.logger.info(f'use single password: {self._use_single_password}')
         wallet = Wallet(db, storage, config=self.electrum_config)
         wallet.start_network(self.daemon.network)
+        if wallet.lnworker:
+            wallet.lnworker.maybe_enable_anchors_store_password(password)
         self.daemon.add_wallet(wallet)
         self.load_wallet(wallet)
 
