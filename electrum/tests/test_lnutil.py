@@ -1,5 +1,7 @@
+import os
 import unittest
 import json
+from typing import Dict, List
 
 from electrum import bitcoin
 from electrum.json_db import StoredDict
@@ -17,8 +19,11 @@ from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 
 from . import ElectrumTestCase
+from .test_bitcoin import disable_ecdsa_r_value_grinding
 
 
+# test vectors for a single channel
+# https://github.com/lightningnetwork/lightning-rfc/blob/master/03-transactions.md#appendix-c-commitment-and-htlc-transaction-test-vectors
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'
 funding_output_index = 0
 funding_amount_satoshi = 10000000
@@ -39,6 +44,46 @@ local_delayedpubkey = bytes.fromhex('03fd5960528dc152014952efdb702a88f71e3c1653b
 local_revocation_pubkey = bytes.fromhex('0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19')
 # funding wscript = 5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae
 
+
+# anchor test vectors are from https://github.com/lightningnetwork/lightning-rfc/commit/1739746afa3863ca783df9be4b7b0338afb63b49
+anchor_test_vector_path = os.path.join(os.path.dirname(__file__), "anchor-vectors.json")
+with open(anchor_test_vector_path) as f:
+    ANCHOR_TEST_VECTORS = json.load(f)
+
+# in a commitment transaction with all the below htlcs, the order is different,
+# indices 1 and 2 are swapped
+TEST_HTLCS = [
+    {
+        'incoming': True,
+        'amount':   1000000,
+        'expiry':   500,
+        'preimage': "0000000000000000000000000000000000000000000000000000000000000000",
+    },
+    {
+        'incoming': True,
+        'amount':   2000000,
+        'expiry':   501,
+        'preimage': "0101010101010101010101010101010101010101010101010101010101010101",
+    },
+    {
+        'incoming': False,
+        'amount':   2000000,
+        'expiry':   502,
+        'preimage': "0202020202020202020202020202020202020202020202020202020202020202",
+    },
+    {
+        'incoming': False,
+        'amount':   3000000,
+        'expiry':   503,
+        'preimage': "0303030303030303030303030303030303030303030303030303030303030303",
+    },
+    {
+        'incoming': True,
+        'amount':   4000000,
+        'expiry':   504,
+        'preimage': "0404040404040404040404040404040404040404040404040404040404040404",
+    }
+]
 
 class TestLNUtil(ElectrumTestCase):
     def test_shachain_store(self):
@@ -742,6 +787,92 @@ class TestLNUtil(ElectrumTestCase):
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
+
+    @disable_ecdsa_r_value_grinding
+    def test_commitment_tx_anchors_test_vectors(self):
+        for test_vector in ANCHOR_TEST_VECTORS:
+            with self.subTest(test_vector['Name']):
+                to_local_msat = test_vector['LocalBalance']
+                to_remote_msat = test_vector['RemoteBalance']
+                local_feerate_per_kw = test_vector['FeePerKw']
+                ref_commit_tx_str = test_vector['ExpectedCommitmentTxHex']
+                remote_signature = test_vector['RemoteSigHex']
+                use_test_htlcs = test_vector['UseTestHtlcs']
+                htlc_descs = test_vector['HtlcDescs']  # type: List[Dict[str, str]]
+
+                remote_htlcpubkey = remotepubkey
+                local_htlcpubkey = localpubkey
+
+                # test of the commitment transaction, build htlc outputs first
+                test_htlcs = {}
+                if use_test_htlcs:
+                    # only consider htlcs whose sweep transaction creates outputs above dust limit
+                    threshold_sat_received = received_htlc_trim_threshold_sat(dust_limit_sat=local_dust_limit_satoshi, feerate=local_feerate_per_kw, has_anchors=True)
+                    threshold_sat_offered = offered_htlc_trim_threshold_sat(dust_limit_sat=local_dust_limit_satoshi, feerate=local_feerate_per_kw, has_anchors=True)
+                    for test_index, test_htlc in enumerate(TEST_HTLCS):
+                        if test_htlc['incoming']:
+                            htlc_script = make_received_htlc(
+                                local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey,
+                                bitcoin.sha256(bfh(test_htlc['preimage'])), test_htlc['expiry'],
+                                has_anchors=True)
+                        else:
+                            htlc_script = make_offered_htlc(
+                                local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey,
+                                bitcoin.sha256(bfh(test_htlc['preimage'])), has_anchors=True)
+                        update_add_htlc = UpdateAddHtlc(
+                            amount_msat=test_htlc['amount'],
+                            payment_hash=bitcoin.sha256(bfh(test_htlc['preimage'])),
+                            cltv_expiry=test_htlc['expiry'],
+                            htlc_id=None,
+                            timestamp=0)
+                        # only add htlcs whose spending transaction creates above-dust ouputs
+                        # TODO: should we include this check in make_commitment?
+                        if test_htlc['amount'] // 1000 >= (threshold_sat_received if test_htlc['incoming'] else threshold_sat_offered):
+                            test_htlcs[test_index] = ScriptHtlc(htlc_script, update_add_htlc)
+
+                our_commit_tx = make_commitment(
+                    ctn=commitment_number,
+                    local_funding_pubkey=local_funding_pubkey,
+                    remote_funding_pubkey=remote_funding_pubkey,
+                    remote_payment_pubkey=remote_payment_basepoint,  # no key rotation for anchors
+                    funder_payment_basepoint=local_payment_basepoint,
+                    fundee_payment_basepoint=remote_payment_basepoint,
+                    revocation_pubkey=local_revocation_pubkey,
+                    delayed_pubkey=local_delayedpubkey,
+                    to_self_delay=local_delay,
+                    funding_txid=funding_tx_id,
+                    funding_pos=funding_output_index,
+                    funding_sat=funding_amount_satoshi,
+                    local_amount=to_local_msat,
+                    remote_amount=to_remote_msat,
+                    dust_limit_sat=local_dust_limit_satoshi,
+                    fees_per_participant=calc_fees_for_commitment_tx(num_htlcs=len(test_htlcs), feerate=local_feerate_per_kw, is_local_initiator=True, has_anchors=True),
+                    htlcs=list(test_htlcs.values()),
+                    has_anchors=True
+                )
+                self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
+                self.assertEqual(str(our_commit_tx), ref_commit_tx_str)  # only works without r value grinding
+
+                # test the transactions spending the htlc outputs
+                # we need to keep track of the htlc order in order to compare to test vectors
+                sorted_htlcs = {h[0]: h[1] for h in sorted(test_htlcs.items(), key=lambda x: (x[1].htlc.amount_msat, -x[1].htlc.cltv_expiry))}
+                if use_test_htlcs:
+                    for output_index, (test_index, htlc) in enumerate(sorted_htlcs.items()):
+                        test_htlc = TEST_HTLCS[test_index]
+                        our_htlc = self.htlc_tx(
+                            htlc=htlc.redeem_script,
+                            htlc_output_index=output_index + 2,  # first two are anchors
+                            amount_msat=htlc.htlc.amount_msat,
+                            htlc_payment_preimage=bfh(test_htlc['preimage']),
+                            remote_htlc_sig=htlc_descs[output_index]['RemoteSigHex'],
+                            success=test_htlc['incoming'],
+                            cltv_timeout=test_htlc['expiry'] if not test_htlc['incoming'] else 0,  # expiry is for timeout transaction
+                            local_feerate_per_kw=local_feerate_per_kw,
+                            our_commit_tx=our_commit_tx,
+                            has_anchors=True
+                        )
+                        ref_htlc = htlc_descs[output_index]['ResolutionTxHex']
+                        self.assertEqual(our_htlc, ref_htlc)  # only works without r value grinding
 
     def sign_and_insert_remote_sig(self, tx: PartialTransaction, remote_pubkey, remote_signature, pubkey, privkey):
         assert type(remote_pubkey) is bytes
