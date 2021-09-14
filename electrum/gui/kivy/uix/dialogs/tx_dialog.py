@@ -194,7 +194,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
-            ActionButtonOption(text=_('Child pays\nfor parent'), func=lambda btn: self.do_cpfp(), enabled=self.can_cpfp),
+            ActionButtonOption(text=_('Child pays\nfor parent'), func=lambda btn: self.do_cpfp(), enabled=(not self.can_rbf and self.can_cpfp)),
             ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
