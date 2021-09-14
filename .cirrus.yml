@@ -81,6 +81,7 @@ task:
   env:
     ELECTRUM_IMAGE: python:3.7
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
     - Tox Python 3.9
   only_if: $CIRRUS_BRANCH == 'master'
