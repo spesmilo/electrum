@@ -187,6 +187,22 @@ class OpCodes(IntEnum):
     # additional byte string operations
     OP_REVERSEBYTES = 0xbc
 
+    # Native Introspection opcodes
+    OP_INPUTINDEX = 0xc0
+    OP_ACTIVEBYTECODE = 0xc1
+    OP_TXVERSION = 0xc2
+    OP_TXINPUTCOUNT = 0xc3
+    OP_TXOUTPUTCOUNT = 0xc4
+    OP_TXLOCKTIME = 0xc5
+    OP_UTXOVALUE = 0xc6
+    OP_UTXOBYTECODE = 0xc7
+    OP_OUTPOINTTXHASH = 0xc8
+    OP_OUTPOINTINDEX = 0xc9
+    OP_INPUTBYTECODE = 0xca
+    OP_INPUTSEQUENCENUMBER = 0xcb
+    OP_OUTPUTVALUE = 0xcc
+    OP_OUTPUTBYTECODE = 0xcd
+
 
 P2PKH_prefix = bytes([OpCodes.OP_DUP, OpCodes.OP_HASH160, 20])
 P2PKH_suffix = bytes([OpCodes.OP_EQUALVERIFY, OpCodes.OP_CHECKSIG])
