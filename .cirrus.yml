@@ -73,7 +73,7 @@ task:
     populate_script: mkdir -p /tmp/electrum-build
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-0
+    - apt-get -y install libsecp256k1-0 gettext
     - pip install -r $ELECTRUM_REQUIREMENTS
     - pip install requests
   locale_script:
