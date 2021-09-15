@@ -84,3 +84,4 @@ languages = {
     'zh_CN': _('Chinese Simplified'),
     'zh_TW': _('Chinese Traditional')
 }
+assert '' in languages
