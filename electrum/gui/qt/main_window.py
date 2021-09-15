@@ -3306,17 +3306,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         d = WindowModalDialog(self, _('Child Pays for Parent'))
         vbox = QVBoxLayout(d)
-        msg = (
+        msg = _(
             "A CPFP is a transaction that sends an unconfirmed output back to "
             "yourself, with a high fee. The goal is to have miners confirm "
             "the parent transaction in order to get the fee attached to the "
             "child transaction.")
-        vbox.addWidget(WWLabel(_(msg)))
-        msg2 = ("The proposed fee is computed using your "
+        vbox.addWidget(WWLabel(msg))
+        msg2 = _("The proposed fee is computed using your "
             "fee/kB settings, applied to the total size of both child and "
             "parent transactions. After you broadcast a CPFP transaction, "
             "it is normal to see a new unconfirmed transaction in your history.")
-        vbox.addWidget(WWLabel(_(msg2)))
+        vbox.addWidget(WWLabel(msg2))
         grid = QGridLayout()
         grid.addWidget(QLabel(_('Total size') + ':'), 0, 0)
         grid.addWidget(QLabel('%d bytes'% total_size), 0, 1)
