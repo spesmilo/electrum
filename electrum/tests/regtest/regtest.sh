@@ -2,6 +2,7 @@
 export HOME=~
 set -eu
 
+TEST_ANCHOR_CHANNELS=False
 # alice -> bob -> carol
 
 alice="./run_electrum --regtest -D /tmp/alice"
@@ -76,7 +77,7 @@ if [[ $1 == "init" ]]; then
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
-    $agent setconfig --offline enable_anchor_channels True
+    $agent setconfig --offline enable_anchor_channels $TEST_ANCHOR_CHANNELS
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t
@@ -84,6 +85,9 @@ if [[ $1 == "init" ]]; then
     # alice is funded, bob is listening
     if [[ $2 == "bob" ]]; then
         $bob setconfig --offline lightning_listen localhost:9735
+        echo "funding $2"
+        # add some funds to bob as anchor reserves
+        $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 0.1
     else
         echo "funding $2"
         $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
@@ -129,7 +133,7 @@ if [[ $1 == "breach" ]]; then
     new_blocks 1
     wait_until_channel_closed bob
     new_blocks 1
-    wait_for_balance bob 0.14
+    wait_for_balance bob 0.24
     $bob getbalance
 fi
 
@@ -259,7 +263,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     fi
     echo "alice breaches with old ctx"
     $bitcoin_cli sendrawtransaction $ctx
-    wait_for_balance bob 0.14
+    wait_for_balance bob 0.24
 fi
 
 
@@ -307,14 +311,22 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     $alice load_wallet -w /tmp/alice/regtest/wallets/toxic_wallet
     # wait until alice has spent both ctx outputs
     echo "alice spends to_local and htlc outputs"
-    wait_until_spent $ctx_id 0
-    wait_until_spent $ctx_id 1
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        # to_local_anchor/to_remote_anchor: 0 and 1 (both are present due to untrimmed htlcs)
+        # htlc: 2, to_local: 3
+        wait_until_spent $ctx_id 2
+        wait_until_spent $ctx_id 3
+    else
+        # htlc: 0, to_local: 1
+        wait_until_spent $ctx_id 0
+        wait_until_spent $ctx_id 1
+    fi
     new_blocks 1
     echo "bob comes back"
     $bob daemon -d
     sleep 1
     $bob load_wallet
-    wait_for_balance bob 0.039
+    wait_for_balance bob 0.139
     $bob getbalance
 fi
 
@@ -356,7 +368,12 @@ if [[ $1 == "watchtower" ]]; then
     ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     echo "watchtower publishes justice transaction"
-    wait_until_spent $ctx_id 1  # alice's to_local gets punished immediately
+    if [ $TEST_ANCHOR_CHANNELS = True ] ; then
+        output_index=3
+    else
+        output_index=1
+    fi
+    wait_until_spent $ctx_id $output_index  # alice's to_local gets punished
 fi
 
 if [[ $1 == "unixsockets" ]]; then
