@@ -21,7 +21,7 @@ from .util import format_short_id as format_short_channel_id
 
 from .crypto import sha256, pw_decode_with_version_and_mac
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
-                          PartialTxOutput, opcodes, TxOutput)
+                          PartialTxOutput, opcodes, TxOutput, OPPushDataPubkey)
 from . import bitcoin, crypto, transaction
 from . import descriptor
 from .bitcoin import (redeem_script_to_address, address_to_script,
@@ -56,6 +56,8 @@ FIXED_ANCHOR_SAT = 330
 
 LN_MAX_FUNDING_SAT_LEGACY = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
+
+SCRIPT_TEMPLATE_FUNDING = [opcodes.OP_2, OPPushDataPubkey, OPPushDataPubkey, opcodes.OP_2, opcodes.OP_CHECKMULTISIG]
 
 
 from .json_db import StoredObject, stored_in, stored_as
@@ -1263,6 +1265,14 @@ def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'AbstractChannel') -> in
     return extract_ctn_from_tx(tx, txin_index=0,
                                funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
                                fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)
+
+def ctx_has_anchors(tx: Transaction):
+    output_values = [output.value for output in tx.outputs()]
+    if FIXED_ANCHOR_SAT in output_values:
+        return True
+    else:
+        return False
+
 
 
 class LnFeatureContexts(enum.Flag):
