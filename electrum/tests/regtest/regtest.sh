@@ -154,7 +154,8 @@ if [[ $1 == "backup" ]]; then
     $alice request_force_close $channel1
     echo "request force close $channel2"
     $alice request_force_close $channel2
-    wait_for_balance alice 0.998
+    new_blocks 1
+    wait_for_balance alice 0.997
 fi
 
 
