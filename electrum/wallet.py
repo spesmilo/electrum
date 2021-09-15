@@ -54,7 +54,7 @@ from .crypto import sha256
 from . import util
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
+                   WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex, parse_max_spend)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
@@ -1342,7 +1342,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             weight = parse_max_spend(o.value)
             if weight:
                 i_max_sum += weight
-                i_max.append((weight,i))
+                i_max.append((weight, i))
 
         if fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
@@ -1412,8 +1412,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if amount < 0:
                 raise NotEnoughFunds()
             distr_amount = 0
-            for (x,i) in i_max:
-                val = int((amount/i_max_sum)*x)
+            for (weight, i) in i_max:
+                val = int((amount/i_max_sum) * weight)
                 outputs[i].value = val
                 distr_amount += val
 

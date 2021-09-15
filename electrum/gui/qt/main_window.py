@@ -62,7 +62,7 @@ from electrum.util import (format_time,
                            UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
-                           NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
+                           NoDynamicFeeEstimates,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
@@ -1351,8 +1351,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
         self.payto_e.addPasteButton(self.app)
-        msg = _('Recipient of the funds.') + '\n\n'\
-              + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
+        msg = (_("Recipient of the funds.") + "\n\n"
+               + _("You may enter a Bitcoin address, a label from your list of contacts "
+                   "(a list of completions will be proposed), "
+                   "or an alias (email-like address that forwards to a Bitcoin address)") + ". "
+               + _("Lightning invoices are also supported.") + "\n\n"
+               + _("You can also pay to many outputs in a single transaction, "
+                   "specifying one output per line.") + "\n" + _("Format: address, amount") + "\n"
+               + _("To set the amount to 'max', use the '!' special character.") + "\n"
+               + _("Integers weights can also be used in conjunction with '!', "
+                   "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
@@ -1451,10 +1459,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 # Check if we had enough funds excluding fees,
                 # if so, still provide opportunity to set lower fees.
                 tx = make_tx(0)
-        except MultipleSpendMaxTxOutputs as e:
-            self.max_button.setChecked(False)
-            self.show_error(str(e))
-            return
         except NotEnoughFunds as e:
             self.max_button.setChecked(False)
             text = self.get_text_not_enough_funds_mentioning_frozen()
