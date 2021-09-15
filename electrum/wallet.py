@@ -56,7 +56,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex, parse_max_spend)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
@@ -754,10 +754,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         height=self.get_local_height()
         if pr:
             return OnchainInvoice.from_bip70_payreq(pr, height)
-        if '!' in (x.value for x in outputs):
-            amount = '!'
-        else:
-            amount = sum(x.value for x in outputs)
+        amount = 0
+        for x in outputs:
+            if parse_max_spend(x.value):
+                amount = '!'
+                break
+            else:
+                amount += x.value
         timestamp = None
         exp = None
         if URI:
@@ -863,7 +866,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert isinstance(invoice, OnchainInvoice)
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in invoice.outputs:  # type: PartialTxOutput
-            invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
+            invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
         relevant_txs = []
         with self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
@@ -1333,12 +1336,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         outputs = copy.deepcopy(outputs)
 
         # check outputs
-        i_max = None
+        i_max = []
+        i_max_sum = 0
         for i, o in enumerate(outputs):
-            if o.value == '!':
-                if i_max is not None:
-                    raise MultipleSpendMaxTxOutputs()
-                i_max = i
+            weight = parse_max_spend(o.value)
+            if weight:
+                i_max_sum += weight
+                i_max.append((weight,i))
 
         if fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
@@ -1356,7 +1360,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             raise Exception(f'Invalid argument fee: {fee}')
 
-        if i_max is None:
+        if len(i_max) == 0:
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
@@ -1400,13 +1404,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # note: Actually it might be the case that not all UTXOs from the wallet are
             #       being spent if the user manually selected UTXOs.
             sendable = sum(map(lambda c: c.value_sats(), coins))
-            outputs[i_max].value = 0
+            for (_,i) in i_max:
+                outputs[i].value = 0
             tx = PartialTransaction.from_io(list(coins), list(outputs))
             fee = fee_estimator(tx.estimated_size())
             amount = sendable - tx.output_value() - fee
             if amount < 0:
                 raise NotEnoughFunds()
-            outputs[i_max].value = amount
+            distr_amount = 0
+            for (x,i) in i_max:
+                val = int((amount/i_max_sum)*x)
+                outputs[i].value = val
+                distr_amount += val
+
+            (x,i) = i_max[-1]
+            outputs[i].value += (amount - distr_amount)
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
         # Timelock tx to current height.

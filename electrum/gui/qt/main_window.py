@@ -64,7 +64,7 @@ from electrum.util import (format_time,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates, MultipleSpendMaxTxOutputs,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
-                           InvoiceError)
+                           InvoiceError, parse_max_spend)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
@@ -1709,11 +1709,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             fee=fee_est,
             is_sweep=is_sweep)
         output_values = [x.value for x in outputs]
-        if output_values.count('!') > 1:
-            self.show_error(_("More than one output set to spend max"))
-            return
-
-        output_value = '!' if '!' in output_values else sum(output_values)
+        if any(parse_max_spend(outval) for outval in output_values):
+            output_value = '!'
+        else:
+            output_value = sum(output_values)
         conf_dlg = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=output_value, is_sweep=is_sweep)
         if conf_dlg.not_enough_funds:
             # Check if we had enough funds excluding fees,
