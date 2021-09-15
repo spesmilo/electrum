@@ -16,7 +16,7 @@ from .util import bfh, bh2u, inv_dict, UserFacingException
 from .util import list_enabled_bits
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
-                          PartialTxOutput, opcodes, TxOutput)
+                          PartialTxOutput, opcodes, TxOutput, OPPushDataPubkey)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
 from .bitcoin import (push_script, redeem_script_to_address, address_to_script,
@@ -45,6 +45,8 @@ FIXED_ANCHOR_SAT = 330
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
+
+SCRIPT_TEMPLATE_FUNDING = [opcodes.OP_2, OPPushDataPubkey, OPPushDataPubkey, opcodes.OP_2, opcodes.OP_CHECKMULTISIG]
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -1119,6 +1121,15 @@ def extract_ctn_from_tx_and_chan(tx: Transaction, chan: 'AbstractChannel') -> in
     return extract_ctn_from_tx(tx, txin_index=0,
                                funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
                                fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)
+
+
+def ctx_has_anchors(tx: Transaction):
+    output_values = [output.value for output in tx.outputs()]
+    if FIXED_ANCHOR_SAT in output_values:
+        return True
+    else:
+        return False
+
 
 def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     pt = ECPubkey(pub) * string_to_number(priv)
