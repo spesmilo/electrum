@@ -2461,24 +2461,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
-        grid.addWidget(QLabel(_("Wallet name")+ ':'), 0, 0)
-        grid.addWidget(QLabel(basename), 0, 1)
-        grid.addWidget(QLabel(_("Wallet type")+ ':'), 1, 0)
-        grid.addWidget(QLabel(wallet_type), 1, 1)
-        grid.addWidget(QLabel(_("Script type")+ ':'), 2, 0)
-        grid.addWidget(QLabel(self.wallet.txin_type), 2, 1)
-        grid.addWidget(QLabel(_("Seed available") + ':'), 3, 0)
-        grid.addWidget(QLabel(str(seed_available)), 3, 1)
+        grid.addWidget(WWLabel(_("Wallet name")+ ':'), 0, 0)
+        grid.addWidget(WWLabel(basename), 0, 1)
+        grid.addWidget(WWLabel(_("Wallet type")+ ':'), 1, 0)
+        grid.addWidget(WWLabel(wallet_type), 1, 1)
+        grid.addWidget(WWLabel(_("Script type")+ ':'), 2, 0)
+        grid.addWidget(WWLabel(self.wallet.txin_type), 2, 1)
+        grid.addWidget(WWLabel(_("Seed available") + ':'), 3, 0)
+        grid.addWidget(WWLabel(str(seed_available)), 3, 1)
         if len(keystore_types) <= 1:
-            grid.addWidget(QLabel(_("Keystore type") + ':'), 4, 0)
+            grid.addWidget(WWLabel(_("Keystore type") + ':'), 4, 0)
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
-            grid.addWidget(QLabel(ks_type), 4, 1)
+            grid.addWidget(WWLabel(ks_type), 4, 1)
         # lightning
-        grid.addWidget(QLabel(_('Lightning') + ':'), 5, 0)
+        grid.addWidget(WWLabel(_('Lightning') + ':'), 5, 0)
         from .util import IconLabel
         if self.wallet.has_lightning():
             if self.wallet.lnworker.has_deterministic_node_id():
-                grid.addWidget(QLabel(_('Enabled')), 5, 1)
+                grid.addWidget(WWLabel(_('Enabled')), 5, 1)
             else:
                 label = IconLabel(text='Enabled, non-recoverable channels')
                 label.setIcon(read_QIcon('nocloud'))
@@ -2492,7 +2492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 grid.addWidget(HelpButton(msg), 5, 3)
-            grid.addWidget(QLabel(_('Lightning Node ID:')), 7, 0)
+            grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
             # TODO: ButtonsLineEdit should have a addQrButton method
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ButtonsLineEdit(nodeid_text)
@@ -2504,12 +2504,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(nodeid_e, 8, 0, 1, 4)
         else:
             if self.wallet.can_have_lightning():
-                grid.addWidget(QLabel('Not enabled'), 5, 1)
+                grid.addWidget(WWLabel('Not enabled'), 5, 1)
                 button = QPushButton(_("Enable"))
                 button.pressed.connect(lambda: self.init_lightning_dialog(dialog))
                 grid.addWidget(button, 5, 3)
             else:
-                grid.addWidget(QLabel(_("Not available for this wallet.")), 5, 1)
+                grid.addWidget(WWLabel(_("Not available for this wallet.")), 5, 1)
                 grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
         vbox.addLayout(grid)
 
@@ -2551,13 +2551,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 der_path_hbox = QHBoxLayout()
                 der_path_hbox.setContentsMargins(0, 0, 0, 0)
 
-                der_path_hbox.addWidget(QLabel(_("Derivation path") + ':'))
-                der_path_text = QLabel(ks.get_derivation_prefix() or _("unknown"))
+                der_path_hbox.addWidget(WWLabel(_("Derivation path") + ':'))
+                der_path_text = WWLabel(ks.get_derivation_prefix() or _("unknown"))
                 der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 der_path_hbox.addWidget(der_path_text)
                 der_path_hbox.addStretch()
 
-                ks_vbox.addWidget(QLabel(_("Master Public Key")))
+                ks_vbox.addWidget(WWLabel(_("Master Public Key")))
                 ks_vbox.addWidget(mpk_text)
                 ks_vbox.addLayout(der_path_hbox)
 
