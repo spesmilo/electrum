@@ -18,16 +18,17 @@ from electrum_grs.plugin import run_hook
 from electrum_grs import util
 from electrum_grs.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_bolt11_invoice)
+                           maybe_extract_bolt11_invoice, parse_max_spend)
 from electrum_grs.invoices import PR_PAID, PR_FAILED
 from electrum_grs import blockchain
 from electrum_grs.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
-from electrum_grs.logging import Logger
 from electrum_grs.bitcoin import COIN
+from electrum_grs.logging import Logger
 
 from electrum_grs.gui import messages
 from .i18n import _
+from .util import get_default_language
 from . import KIVY_GUI_PATH
 
 from kivy.app import App
@@ -402,7 +403,7 @@ class ElectrumWindow(App, Logger):
         Logger.__init__(self)
 
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
-        self.language = config.get('language', 'en')
+        self.language = config.get('language', get_default_language())
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
             self.num_blocks = self.network.get_local_height()
@@ -654,7 +655,7 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        
+
         if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
@@ -988,8 +989,8 @@ class ElectrumWindow(App, Logger):
     def format_amount_and_units(self, x) -> str:
         if x is None:
             return 'none'
-        if x == '!':
-            return 'max'
+        if parse_max_spend(x):
+            return f'max({x})'
         # FIXME this is using format_satoshis_plain instead of config.format_amount
         #       as we sometimes convert the returned string back to numbers,
         #       via self.get_amount()... the need for converting back should be removed

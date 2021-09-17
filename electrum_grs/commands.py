@@ -41,7 +41,7 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 
 from .import util, ecc
 from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes)
+                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -77,7 +77,7 @@ class NotSynchronizedException(Exception):
 
 
 def satoshis_or_max(amount):
-    return satoshis(amount) if amount != '!' else '!'
+    return satoshis(amount) if not parse_max_spend(amount) else amount
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
@@ -1354,7 +1354,7 @@ arg_types = {
     'inputs': json_loads,
     'outputs': json_loads,
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
+    'amount': lambda x: str(Decimal(x)) if not parse_max_spend(x) else x,
     'locktime': int,
     'addtransaction': eval_bool,
     'fee_method': str,

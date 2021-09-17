@@ -42,7 +42,7 @@ import copy
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
-from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
+from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
@@ -109,7 +109,9 @@ class TxOutput:
 
     def __init__(self, *, scriptpubkey: bytes, value: Union[int, str]):
         self.scriptpubkey = scriptpubkey
-        self.value = value  # str when the output is set to max: '!'  # in satoshis
+        if not (isinstance(value, int) or parse_max_spend(value) is not None):
+            raise ValueError(f"bad txout value: {value!r}")
+        self.value = value  # int in satoshis; or spend-max-like str
 
     @classmethod
     def from_address_and_value(cls, address: str, value: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
