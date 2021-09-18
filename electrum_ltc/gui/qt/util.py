@@ -1097,6 +1097,7 @@ class IconLabel(QWidget):
         self.setLayout(layout)
         self.icon = QLabel()
         self.label = QLabel(text)
+        self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.label)
         layout.addSpacing(self.HorizontalSpacing)
         layout.addWidget(self.icon)
