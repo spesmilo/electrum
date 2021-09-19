@@ -35,8 +35,8 @@ class _(str):
 
     @staticmethod
     def switch_lang(lang):
-        # get the right locales directory, and instanciate a gettext
-        from electrum.i18n import LOCALE_DIR
+        # get the right locales directory, and instantiate a gettext
+        from electrum.i18n import LOCALE_DIR, set_language
         locales = gettext.translation('electrum', LOCALE_DIR, languages=[lang], fallback=True)
         _.lang = locales.gettext
         for label in _.observers:
@@ -44,3 +44,7 @@ class _(str):
                 label.text = _(label.text.source_text)
             except:
                 pass
+        # Note that all invocations of _() inside the core electrum library
+        # use electrum.i18n instead of electrum.gui.kivy.i18n, so we should update the
+        # language there as well:
+        set_language(lang)

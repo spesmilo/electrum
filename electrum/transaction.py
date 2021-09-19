@@ -42,7 +42,7 @@ import copy
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
-from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
+from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
@@ -88,7 +88,19 @@ class MissingTxInputAmount(Exception):
     pass
 
 
-SIGHASH_ALL = 1
+class Sighash(IntEnum):
+    ALL = 1
+    NONE = 2
+    SINGLE = 3
+    ANYONECANPAY = 0x80
+
+    @classmethod
+    def is_valid(cls, sighash) -> bool:
+        for flag in Sighash:
+            for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
+                if (flag & ~0x1f | base_flag) == sighash:
+                    return True
+        return False
 
 
 class TxOutput:
@@ -97,7 +109,9 @@ class TxOutput:
 
     def __init__(self, *, scriptpubkey: bytes, value: Union[int, str]):
         self.scriptpubkey = scriptpubkey
-        self.value = value  # str when the output is set to max: '!'  # in satoshis
+        if not (isinstance(value, int) or parse_max_spend(value) is not None):
+            raise ValueError(f"bad txout value: {value!r}")
+        self.value = value  # int in satoshis; or spend-max-like str
 
     @classmethod
     def from_address_and_value(cls, address: str, value: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
@@ -1724,7 +1738,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None):
+                locktime: int = None, version: int = None, BIP69_sort: bool = True):
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -1732,7 +1746,8 @@ class PartialTransaction(Transaction):
             self.locktime = locktime
         if version is not None:
             self.version = version
-        self.BIP69_sort()
+        if BIP69_sort:
+            self.BIP69_sort()
         return self
 
     def _serialize_psbt(self, fd) -> None:
@@ -1851,17 +1866,28 @@ class PartialTransaction(Transaction):
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
-        if sighash != SIGHASH_ALL:
-            raise Exception("only SIGHASH_ALL signing is supported!")
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        if not Sighash.is_valid(sighash):
+            raise Exception("SIGHASH_FLAG not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
             if bip143_shared_txdigest_fields is None:
                 bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
-            hashSequence = bip143_shared_txdigest_fields.hashSequence
-            hashOutputs = bip143_shared_txdigest_fields.hashOutputs
+            if not(sighash & Sighash.ANYONECANPAY):
+                hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
+            else:
+                hashPrevouts = '00' * 32
+            if (not(sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+                hashSequence = bip143_shared_txdigest_fields.hashSequence
+            else:
+                hashSequence = '00' * 32
+            if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+                hashOutputs = bip143_shared_txdigest_fields.hashOutputs
+            elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
+                hashOutputs = bh2u(sha256d(outputs[txin_index].serialize_to_network()))
+            else:
+                hashOutputs = '00' * 32
             outpoint = txin.prevout.serialize_to_network().hex()
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
@@ -1895,11 +1921,13 @@ class PartialTransaction(Transaction):
     def sign_txin(self, txin_index, privkey_bytes, *, bip143_shared_txdigest_fields=None) -> str:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
+        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
+        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + '01'  # SIGHASH_ALL
+        sig = bh2u(sig) + sighash_type
         return sig
 
     def is_complete(self) -> bool:

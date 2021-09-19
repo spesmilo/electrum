@@ -108,6 +108,31 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+def parse_max_spend(amt: Any) -> Optional[int]:
+    """Checks if given amount is "spend-max"-like.
+    Returns None or the positive integer weight for "max". Never raises.
+
+    When creating invoices and on-chain txs, the user can specify to send "max".
+    This is done by setting the amount to '!'. Splitting max between multiple
+    tx outputs is also possible, and custom weights (positive ints) can also be used.
+    For example, to send 40% of all coins to address1, and 60% to address2:
+    ```
+    address1, 2!
+    address2, 3!
+    ```
+    """
+    if not (isinstance(amt, str) and amt and amt[-1] == '!'):
+        return None
+    if amt == '!':
+        return 1
+    x = amt[:-1]
+    try:
+        x = int(x)
+    except ValueError:
+        return None
+    if x > 0:
+        return x
+    return None
 
 class NotEnoughFunds(Exception):
     def __str__(self):
@@ -117,11 +142,6 @@ class NotEnoughFunds(Exception):
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
-
-
-class MultipleSpendMaxTxOutputs(Exception):
-    def __str__(self):
-        return _('At most one output can be set to spend max')
 
 
 class InvalidPassword(Exception):
@@ -634,8 +654,8 @@ def format_satoshis_plain(
 ) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if x == '!':
-        return 'max'
+    if parse_max_spend(x):
+        return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
@@ -663,8 +683,8 @@ def format_satoshis(
 ) -> str:
     if x is None:
         return 'unknown'
-    if x == '!':
-        return 'max'
+    if parse_max_spend(x):
+        return f'max({x})'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     # lose redundant precision
     x = Decimal(x).quantize(Decimal(10) ** (-precision))

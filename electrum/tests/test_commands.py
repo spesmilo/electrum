@@ -249,6 +249,34 @@ class TestCommandsTestnet(TestCaseForTestnet):
                          tx_str)
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_paytomany_multiple_max_spends(self, mock_save_db):
+        wallet = restore_wallet_from_text('kit virtual quantum festival fortune inform ladder saddle filter soldier start ghost',
+                                          gap_limit=2,
+                                          path='if_this_exists_mocking_failed_648151893',
+                                          config=self.config)['wallet']
+        # bootstrap wallet
+        funding_tx = Transaction('02000000000101f59876b1c65bbe3e182ccc7ea7224fe397bb9b70aadcbbf4f4074c75c8a074840000000000fdffffff021f351f00000000001600144eec851dd980cc36af1f629a32325f511604d6af56732d000000000016001439267bc7f3e3fabeae3bc3f73880de22d8b01ba50247304402207eac5f639806a00878488d58ca651d690292145bca5511531845ae21fab309d102207162708bd344840cc1bacff1092e426eb8484f83f5c068ba4ca579813de324540121020e0798c267ff06ee8b838cd465f3cfa6c843a122a04917364ce000c29ca205cae5f31f00')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('e8e977bd9c857d84ec1b8f154ae2ee5dfa49fffb7688942a586196c1ad15de15', funding_txid)
+        wallet.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        cmds = Commands(config=self.config)
+        tx_str = cmds._run(
+            'paytomany', (),
+            outputs=[["tb1qk3g0t9pw5wctkzz7gh6k3ljfuukn729s67y54e", 0.002],
+                     ["tb1qr7evucrllljtryam6y2k3ntmlptq208pghql2h", "2!"],
+                     ["tb1qs3msqp0n0qade2haanjw2dkaa5lm77vwvce00h", 0.003],
+                     ["tb1qar4ye43tdfj6y5n3yndp9adhs2wuz2v0wgqn5l", "3!"]],
+            fee="0.00005000",
+            locktime=2094054,
+            wallet=wallet)
+
+        tx = tx_from_any(tx_str)
+        self.assertEqual(4, len(tx.outputs()))
+        self.assertEqual("0200000000010115de15adc19661582a948876fbff49fa5deee24a158f1bec847d859cbd77e9e80100000000fdffffff04400d030000000000160014b450f5942ea3b0bb085e45f568fe49e72d3f28b0e09304000000000016001484770005f3783adcaafdece4e536dded3fbf798e12190f00000000001600141fb2ce607fffe4b193bbd11568cd7bf856053ce19ca5160000000000160014e8ea4cd62b6a65a2527124da12f5b7829dc1298f02473044022079570c62352d7c462ee50851d27f829f7ea5757d258b6b38a6b377a4910ba597022056653f1b15a9693ba790e89ebac60e33b7a1d8357e05cd3d7ecc1ae00e9ab4a8012102eed460ead0cbaa71ad52b70899acf4ea12682ab237207b045c5cf9c6d11c2bcfe6f31f00",
+                         tx_str)
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_signtransaction_without_wallet(self, mock_save_db):
         cmds = Commands(config=self.config)
         unsigned_tx = "70736274ff0100a0020000000221d3645ba44f33fff6fe2666dc080279bc34b531c66888729712a80b204a32a10100000000fdffffffdd7f90d51acf98dc45ad7489316a983868c75e16bf14ffeb9eae01603a7b4da40100000000fdffffff02e8030000000000001976a9149a9ec2b35a7660c80dae38dd806fdf9b0fde68fd88ac74c11000000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88aca79b1d00000100e102000000018ba8cf9f0ff0b44c389e4a1cd25c0770636d95ccef161e313542647d435a5fd0000000006a4730440220373b3989905177f2e36d7e3d02b967d03092747fe7bbd3ba7b2c24623a88538c02207be79ee1d981060c2be6783f4946ce1bda1f64671b349ef14a4a6fecc047a71e0121030de43c5ed4c6272d20ce3becf3fb7afd5c3ccfb5d58ddfdf3047981e0b005e0dfdffffff02c0010700000000001976a9141cd3eb65bce2cae9f54544b65e46b3ad1f0b187288ac40420f00000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000100e102000000014e39236158716e91b0b2170ebe9d6b359d139e9ebfff163f2bafd0bec9890d04000000006a473044022070340deb95ca25ef86c4c7a9539b5c8f7b8351941635450311f914cd9c2f45ea02203fa7576e032ab5ae4763c78f5c2124573213c956286fd766582d9462515dc6540121033f6737e40a3a6087bc58bc5b82b427f9ed26d710b8fe2f70bfdd3d62abebcf74fdffffff02e8030000000000001976a91490350959750b3b38e451df16bd5957b7649bf5d288acac840100000000001976a914f0dc093f7fb1b76cfd06610d5359d6595676cc2b88ac979b1d00000000"
