@@ -2276,7 +2276,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         expiration = expiration or 0
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
-            outputs=[(TYPE_ADDRESS, address, amount_sat)],
+            outputs=[PartialTxOutput.from_address_and_value(address, amount_sat)],
             message=message,
             time=timestamp,
             amount_sat=amount_sat,
