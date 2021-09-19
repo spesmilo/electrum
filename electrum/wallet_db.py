@@ -33,7 +33,7 @@ import binascii
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
-from .invoices import PR_TYPE_ONCHAIN, Invoice
+from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
@@ -557,6 +557,7 @@ class WalletDB(JsonDB):
         if not self._is_upgrade_method_needed(24, 24):
             return
         # add 'type' field to onchain requests
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         for k, r in list(requests.items()):
             if r.get('address') == k:
@@ -624,6 +625,7 @@ class WalletDB(JsonDB):
     def _convert_version_29(self):
         if not self._is_upgrade_method_needed(28, 28):
             return
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
@@ -659,8 +661,8 @@ class WalletDB(JsonDB):
     def _convert_version_30(self):
         if not self._is_upgrade_method_needed(29, 29):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN
+        PR_TYPE_ONCHAIN = 0
+        PR_TYPE_LN = 2
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
@@ -682,8 +684,7 @@ class WalletDB(JsonDB):
     def _convert_version_31(self):
         if not self._is_upgrade_method_needed(30, 30):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
