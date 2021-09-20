@@ -1357,6 +1357,14 @@ class WalletDB(JsonDB):
             v = dict((k, ShachainElement(bfh(x[0]), int(x[1]))) for k, x in v.items())
         elif key == 'data_loss_protect_remote_pcp':
             v = dict((k, bfh(x)) for k, x in v.items())
+        # convert htlc_id keys to int
+        if key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets']:
+            v = dict((int(k), x) for k, x in v.items())
+        # convert keys to HTLCOwner
+        if key == 'log' or (path and path[-1] in ['locked_in', 'fails', 'settles']):
+            if "1" in v:
+                v[LOCAL] = v.pop("1")
+                v[REMOTE] = v.pop("-1")
         return v
 
     def _convert_value(self, path, key, v):
