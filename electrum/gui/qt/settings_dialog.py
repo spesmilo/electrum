@@ -34,8 +34,6 @@ from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
 from electrum.i18n import _, languages
 from electrum import util, coinchooser, paymentrequest
 
-from electrum.gui import messages
-
 from electrum.util import base_units_list
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
