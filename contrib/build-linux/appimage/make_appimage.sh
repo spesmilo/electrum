@@ -14,7 +14,7 @@ PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.8.12
+PYTHON_VERSION=3.9.7
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
@@ -39,7 +39,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395c31f619d9aaf7030499a13"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "b1d3a76420375343b5e8a22fceb1ac65b77193e9ed27146524f0a9db058728ea"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "f8145616e68c00041d1a6399b76387390388f8359581abc24432bb969b5e3c57"
 
 
 
@@ -49,8 +49,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
-    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.8/python3.8_3.8.5-1~20.04.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.8-reproducible-buildinfo.diff"
+    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
     ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
@@ -64,7 +64,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # to result in a different output on macOS compared to Linux. We simply patch
     # sysconfigdata to remove the extension.
     # Some more info: https://bugs.python.org/issue27631
-    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.8/_sysconfigdata*
+    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.9/_sysconfigdata*
 )
 
 
@@ -86,7 +86,7 @@ appdir_python() {
   env \
     PYTHONNOUSERSITE=1 \
     LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
-    "$APPDIR/usr/bin/python3.8" "$@"
+    "$APPDIR/usr/bin/python3.9" "$@"
 }
 
 python='appdir_python'
@@ -164,7 +164,7 @@ info "finalizing AppDir."
     move_lib
 
     # apply global appimage blacklist to exclude stuff
-    # move usr/include out of the way to preserve usr/include/python3.8m.
+    # move usr/include out of the way to preserve usr/include/python3.9m.
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
@@ -187,7 +187,7 @@ strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
-    printf '%s\0' "$APPDIR/usr/bin/python3.8"
+    printf '%s\0' "$APPDIR/usr/bin/python3.9"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
@@ -202,11 +202,11 @@ remove_emptydirs
 
 info "removing some unneeded stuff to decrease binary size."
 rm -rf "$APPDIR"/usr/{share,include}
-PYDIR="$APPDIR"/usr/lib/python3.8
+PYDIR="$APPDIR"/usr/lib/python3.9
 rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
 rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}
-rm -rf "$PYDIR"/config-3.8m-x86_64-linux-gnu
+rm -rf "$PYDIR"/config-3.9m-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
