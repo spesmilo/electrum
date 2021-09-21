@@ -49,21 +49,34 @@ def locked(func):
     return wrapper
 
 
+def key_path(path, key):
+    def to_str(x):
+        if isinstance(x, int):
+            return str(int(x))
+        else:
+            assert isinstance(x, str)
+            return x
+    return '/' + '/'.join([to_str(x) for x in path + [to_str(key)]])
+
+
 class StoredObject:
 
     db = None
+    path = None
 
     def __setattr__(self, key, value):
-        if self.db:
-            self.db.set_modified(True)
+        if self.db and key not in ['path', 'db'] and not key.startswith('_'):
+            self.db.add_patch({'op': 'replace', 'path': key_path(self.path, key), 'value': value})
         object.__setattr__(self, key, value)
 
-    def set_db(self, db):
+    def set_db(self, db, path):
         self.db = db
+        self.path = path
 
     def to_json(self):
         d = dict(vars(self))
         d.pop('db', None)
+        d.pop('path', None)
         # don't expose/store private stuff
         d = {k: v for k, v in d.items()
              if not k.startswith('_')}
@@ -80,21 +93,22 @@ class StoredDict(dict):
         self.path = path
         # recursively convert dicts to StoredDict
         for k, v in list(data.items()):
-            self.__setitem__(k, v)
+            self.__setitem__(k, v, patch=False)
 
     @locked
-    def __setitem__(self, key, v):
+    def __setitem__(self, key, v, patch=True):
         is_new = key not in self
         # early return to prevent unnecessary disk writes
-        if not is_new:
+        if not is_new and patch:
             if json.dumps(v, cls=JsonDBJsonEncoder) == json.dumps(self[key], cls=JsonDBJsonEncoder):
                 return
         # recursively set db and path
         if isinstance(v, StoredDict):
+            assert v.db is None
             v.db = self.db
             v.path = self.path + [key]
             for k, vv in v.items():
-                v[k] = vv
+                v.__setitem__(k, vv, patch=False)
         # recursively convert dict to StoredDict.
         # _convert_dict is called breadth-first
         elif isinstance(v, dict):
@@ -108,26 +122,29 @@ class StoredDict(dict):
                 v = self.db._convert_value(self.path, key, v)
         # set parent of StoredObject
         if isinstance(v, StoredObject):
-            v.set_db(self.db)
+            v.set_db(self.db, self.path + [key])
         # set item
         dict.__setitem__(self, key, v)
-        if self.db:
-            self.db.set_modified(True)
+        if self.db and patch:
+            op = 'add' if is_new else 'replace'
+            self.db.add_patch({'op': op, 'path': key_path(self.path, key), 'value': v})
 
     @locked
     def __delitem__(self, key):
         dict.__delitem__(self, key)
         if self.db:
-            self.db.set_modified(True)
+            self.db.add_patch({'op': 'remove', 'path': key_path(self.path, key)})
 
     @locked
     def pop(self, key, v=_RaiseKeyError):
-        if v is _RaiseKeyError:
-            r = dict.pop(self, key)
-        else:
-            r = dict.pop(self, key, v)
+        if key not in self:
+            if v is _RaiseKeyError:
+                raise KeyError(key)
+            else:
+                return v
+        r = dict.pop(self, key)
         if self.db:
-            self.db.set_modified(True)
+            self.db.add_patch({'op': 'remove', 'path': key_path(self.path, key)})
         return r
 
     @locked
@@ -146,6 +163,7 @@ class JsonDB(Logger):
         Logger.__init__(self)
         self.lock = threading.RLock()
         self.data = data
+        self.pending_changes = []
         self._modified = False
 
     def set_modified(self, b):
@@ -155,6 +173,8 @@ class JsonDB(Logger):
     def modified(self):
         return self._modified
 
+    def add_patch(self, patch):
+        self.pending_changes.append(json.dumps(patch, cls=JsonDBJsonEncoder))
 
     @locked
     def get(self, key, default=None):
