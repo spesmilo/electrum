@@ -86,12 +86,10 @@ class WalletStorage(Logger):
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
-
         try:
             mode = os.stat(self.path).st_mode
         except FileNotFoundError:
             mode = stat.S_IREAD | stat.S_IWRITE
-
         # assert that wallet file does not exist, to prevent wallet corruption (see issue #5082)
         if not self.file_exists():
             assert not os.path.exists(self.path)
@@ -99,6 +97,15 @@ class WalletStorage(Logger):
         os_chmod(self.path, mode)
         self._file_exists = True
         self.logger.info(f"saved {self.path}")
+
+    def append(self, data: str) -> None:
+        """ append data to file. for the moment, only non-encrypted file"""
+        assert not self.is_encrypted()
+        with open(self.path, "r+") as f:
+            f.seek(0, os.SEEK_END)
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
 
     def file_exists(self) -> bool:
         return self._file_exists
@@ -179,6 +186,7 @@ class WalletStorage(Logger):
     def encrypt_before_writing(self, plaintext: str) -> str:
         s = plaintext
         if self.pubkey:
+            self.decrypted = plaintext
             s = bytes(s, 'utf8')
             c = zlib.compress(s, level=zlib.Z_BEST_SPEED)
             enc_magic = self._get_encryption_magic()

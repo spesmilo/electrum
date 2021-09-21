@@ -2828,7 +2828,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._update_password_for_keystore(old_pw, new_pw)
         encrypt_keystore = self.can_have_keystore_encryption()
         self.db.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
-        self.save_db()
+        ## save changes
+        if self.storage and self.storage.file_exists():
+            self.db._write()
         self.unlock(None)
 
     @abstractmethod
