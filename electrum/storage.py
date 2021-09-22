@@ -37,6 +37,12 @@ from .util import (profiler, InvalidPassword, WalletFileException, bfh, standard
 from .wallet_db import WalletDB
 from .logging import Logger
 
+import hmac
+from .crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
+from .crypto import strip_PKCS7_padding, InvalidPadding
+from .bitcoin import var_int
+from .transaction import BCDataStream
+
 
 def get_derivation_used_for_hw_device_encryption():
     return ("m"
@@ -48,6 +54,7 @@ class StorageEncryptionVersion(IntEnum):
     PLAINTEXT = 0
     USER_PASSWORD = 1
     XPUB_PASSWORD = 2
+    PASSWORD_V3 = 3
 
 
 class StorageReadWriteError(Exception): pass
@@ -68,20 +75,21 @@ class WalletStorage(Logger):
         except IOError as e:
             raise StorageReadWriteError(e) from e
         if self.file_exists():
-            with open(self.path, "r", encoding='utf-8') as f:
+            with open(self.path, "rb") as f:
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
         else:
-            self.raw = ''
+            self.raw = b''
             self._encryption_version = StorageEncryptionVersion.PLAINTEXT
 
     def read(self):
-        return self.decrypted if self.is_encrypted() else self.raw
+        return self.decrypted if self.is_encrypted() else self.raw.decode('utf-8')
 
     def write(self, data: str) -> None:
-        s = self.encrypt_before_writing(data)
+        """ rewrite the entire file """
+        s = self.encrypt_for_write(data)
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "w", encoding='utf-8') as f:
+        with open(temp_path, "wb") as f:
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
@@ -99,13 +107,13 @@ class WalletStorage(Logger):
 
     def append(self, data: str) -> None:
         """ append data to encrypted file"""
-        if self.is_encrypted():
-            self.decrypted += data
-            self.write(self.decrypted)
-            return
-        with open(self.path, "r+") as f:
+        s, mac = self.encrypt_for_append(data)
+        with open(self.path, "rb+") as f:
             f.seek(0, os.SEEK_END)
-            f.write(data)
+            f.write(s)
+            if mac is not None:
+                f.seek(self.mac_offset, 0)
+                f.write(mac)
             f.flush()
             os.fsync(f.fileno())
 
@@ -126,7 +134,7 @@ class WalletStorage(Logger):
         return self.get_encryption_version() != StorageEncryptionVersion.PLAINTEXT
 
     def is_encrypted_with_user_pw(self):
-        return self.get_encryption_version() == StorageEncryptionVersion.USER_PASSWORD
+        return self.get_encryption_version() in [StorageEncryptionVersion.USER_PASSWORD, StorageEncryptionVersion.PASSWORD_V3]
 
     def is_encrypted_with_hw_device(self):
         return self.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
@@ -144,14 +152,18 @@ class WalletStorage(Logger):
 
     def _init_encryption_version(self):
         try:
-            magic = base64.b64decode(self.raw)[0:4]
-            if magic == b'BIE1':
-                return StorageEncryptionVersion.USER_PASSWORD
-            elif magic == b'BIE2':
-                return StorageEncryptionVersion.XPUB_PASSWORD
-            else:
-                return StorageEncryptionVersion.PLAINTEXT
+            s = base64.b64decode(self.raw)
+            assert s.startswith(b'BIE')
+            magic = s[0:4]
         except:
+            magic = self.raw[0:8]
+        if magic == b'BIE1':
+            return StorageEncryptionVersion.USER_PASSWORD
+        elif magic == b'BIE2':
+            return StorageEncryptionVersion.XPUB_PASSWORD
+        elif magic == b'Electrum':
+            return StorageEncryptionVersion.PASSWORD_V3
+        else:
             return StorageEncryptionVersion.PLAINTEXT
 
     @staticmethod
@@ -166,33 +178,99 @@ class WalletStorage(Logger):
             return b'BIE1'
         elif v == StorageEncryptionVersion.XPUB_PASSWORD:
             return b'BIE2'
+        elif v == StorageEncryptionVersion.PASSWORD_V3:
+            return b'Electrum'
         else:
             raise WalletFileException('no encryption magic for version: %s' % v)
 
     def decrypt(self, password) -> None:
         if self.is_past_initial_decryption():
             return
-        ec_key = self.get_eckey_from_password(password)
         if self.raw:
-            enc_magic = self._get_encryption_magic()
-            s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
-            s = s.decode('utf8')
+            if self._encryption_version in [StorageEncryptionVersion.USER_PASSWORD, StorageEncryptionVersion.XPUB_PASSWORD]:
+                ec_key = self.get_eckey_from_password(password)
+                enc_magic = self._get_encryption_magic()
+                s = ec_key.decrypt_message(self.raw, enc_magic)
+                s = zlib.decompress(s)
+                # convert to new scheme
+                self._encryption_version = StorageEncryptionVersion.PASSWORD_V3
+                # FIXME: new scheme will use new pbkdf
+                self.pubkey = ec_key.get_public_key_hex()
+            elif self._encryption_version in [StorageEncryptionVersion.PASSWORD_V3]:
+                s = self._decrypt_password_v3(self.raw, password)
         else:
-            s = ''
-        self.pubkey = ec_key.get_public_key_hex()
+            s = b''
+        s = s.decode('utf8')
         self.decrypted = s
 
-    def encrypt_before_writing(self, plaintext: str) -> str:
-        s = plaintext
-        if self.pubkey:
-            self.decrypted = plaintext
-            s = bytes(s, 'utf8')
-            c = zlib.compress(s, level=zlib.Z_BEST_SPEED)
-            enc_magic = self._get_encryption_magic()
-            public_key = ecc.ECPubkey(bfh(self.pubkey))
-            s = public_key.encrypt_message(c, enc_magic)
-            s = s.decode('utf8')
+    def _decrypt_password_v3(self, encrypted, password):
+        ec_key = self.get_eckey_from_password(password)
+        magic_found = encrypted[:8]
+        ephemeral_pubkey_bytes = encrypted[8:8+33]
+        mac = encrypted[8+33:8+33+32]
+        ciphertext = encrypted[8+33+32:]
+        self.key_e, self.key_m, self.iv = ec_key.get_key_from_ephemeral_pubkey(ephemeral_pubkey_bytes)
+        self.pubkey = ec_key.get_public_key_hex()
+        decrypted = aes_decrypt_with_iv(self.key_e, self.iv, ciphertext, strip_pkcs7=False)
+        vds = BCDataStream()
+        vds.write(decrypted)
+        s = b''
+        self.mac = hmac.new(self.key_m, b'', hashlib.sha256)
+        # break if the remaining bytes have not been commited
+        while self.mac.digest() != mac:
+            n = vds.read_compact_size()
+            n_size = len(bytes.fromhex(var_int(n)))
+            vds.read_cursor -= n_size
+            # this may raise if the file has been corrupted
+            blob = vds.read_bytes(n*16)
+            try:
+                blob = strip_PKCS7_padding(blob)
+            except InvalidPadding:
+                raise InvalidPassword()
+            blob = blob[n_size:]
+            s += blob
+            self.mac.update(blob)
         return s
+
+    def block_size(self, s: bytes) -> bytes:
+        """ number of 16 bytes blocks required, including bytes used for size and the padding"""
+        for x in [1,3,5,9]:
+            size = len(s) + x
+            n = size // 16 + 1 # add one for pkcs7 padding
+            header = bytes.fromhex(var_int(n))
+            if len(header)==x:
+                return header
+        else:
+            raise Exception('block too large for var_int')
+
+    def encrypt_for_write(self, plaintext: str) -> str:
+        s = bytes(plaintext, 'utf8')
+        if self.pubkey:
+            magic = self._get_encryption_magic()
+            public_key = ecc.ECPubkey(bfh(self.pubkey))
+            blob = self.block_size(s) + s
+            ciphertext, ephemeral_pubkey_bytes, key_e, key_m, iv = public_key._encrypt_message(blob, magic)
+            # save mac, key_e, key_m, and iv, for subsequent writes
+            self.key_e = key_e
+            self.key_m = key_m
+            self.iv = ciphertext[-16:]
+            self.mac_offset = len(magic + ephemeral_pubkey_bytes)
+            self.mac = hmac.new(self.key_m, s, hashlib.sha256)
+            mac = self.mac.digest()
+            s = magic + ephemeral_pubkey_bytes + mac + ciphertext
+        return s
+
+    def encrypt_for_append(self, plaintext: str) -> str:
+        s = bytes(plaintext, 'utf8')
+        if self.pubkey:
+            self.mac.update(s)
+            mac = self.mac.digest()
+            blob = self.block_size(s) + s
+            ciphertext = aes_encrypt_with_iv(self.key_e, self.iv, blob)
+            self.iv = ciphertext[-16:]
+            return ciphertext, mac
+        else:
+            return s, None
 
     def check_password(self, password) -> None:
         """Raises an InvalidPassword exception on invalid password"""

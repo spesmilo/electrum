@@ -1800,16 +1800,16 @@ def test_read_write_permissions(path) -> None:
     # note: There might already be a file at 'path'.
     #       Make sure we do NOT overwrite/corrupt that!
     temp_path = "%s.tmptest.%s" % (path, os.getpid())
-    echo = "fs r/w test"
+    echo = b"fs r/w test"
     try:
         # test READ permissions for actual path
         if os.path.exists(path):
             with open(path, "rb") as f:
                 f.read(1)  # read 1 byte
         # test R/W sanity for "similar" path
-        with open(temp_path, "w", encoding='utf-8') as f:
+        with open(temp_path, "wb") as f:
             f.write(echo)
-        with open(temp_path, "r", encoding='utf-8') as f:
+        with open(temp_path, "rb") as f:
             echo2 = f.read()
         os.remove(temp_path)
     except Exception as e:

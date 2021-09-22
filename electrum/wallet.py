@@ -2569,6 +2569,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if isinstance(self.keystore, Hardware_KeyStore):
             return StorageEncryptionVersion.XPUB_PASSWORD
         else:
+            return StorageEncryptionVersion.PASSWORD_V3
             return StorageEncryptionVersion.USER_PASSWORD
 
     def has_keystore_encryption(self):
