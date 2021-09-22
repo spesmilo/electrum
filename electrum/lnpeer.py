@@ -631,11 +631,16 @@ class Peer(Logger):
         # flexibility to decide an address at closing time
         upfront_shutdown_script = b''
 
-        assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
-        wallet = self.lnworker.wallet
-        assert wallet.txin_type == 'p2wpkh'
-        addr = wallet.get_new_sweep_address_for_channel()
-        static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
+        if self.use_anchors():
+            static_payment_key = self.lnworker.static_payment_key
+            static_remotekey = None
+        else:
+            assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
+            wallet = self.lnworker.wallet
+            assert wallet.txin_type == 'p2wpkh'
+            addr = wallet.get_new_sweep_address_for_channel()
+            static_payment_key = None
+            static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
 
         dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
@@ -646,6 +651,7 @@ class Peer(Logger):
         local_config = LocalConfig.from_seed(
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
+            static_payment_key=static_payment_key,
             upfront_shutdown_script=upfront_shutdown_script,
             to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
             dust_limit_sat=dust_limit_sat,
