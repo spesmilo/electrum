@@ -212,7 +212,6 @@ class LocalConfig(ChannelConfig):
     @classmethod
     def from_seed(cls, **kwargs):
         channel_seed = kwargs['channel_seed']
-        static_remotekey = kwargs.pop('static_remotekey')
         node = BIP32Node.from_rootseed(channel_seed, xtype='standard')
         keypair_generator = lambda family: generate_keypair(node, family)
         kwargs['per_commitment_secret_seed'] = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
@@ -220,11 +219,23 @@ class LocalConfig(ChannelConfig):
         kwargs['htlc_basepoint'] = keypair_generator(LnKeyFamily.HTLC_BASE)
         kwargs['delayed_basepoint'] = keypair_generator(LnKeyFamily.DELAY_BASE)
         kwargs['revocation_basepoint'] = keypair_generator(LnKeyFamily.REVOCATION_BASE)
-        if static_remotekey:
+        static_remotekey = kwargs.pop('static_remotekey')
+        static_payment_key = kwargs.pop('static_payment_key')
+        if static_payment_key:
+            # We derive the payment_basepoint from a static secret (derived from
+            # the wallet seed) and a public nonce that is revealed
+            # when the funding transaction is spent. This way we can restore the
+            # payment_basepoint, needed for sweeping in the event of a force close.
+            kwargs['payment_basepoint'] = derive_payment_basepoint(
+                static_payment_secret=static_payment_key.privkey,
+                funding_pubkey=kwargs['multisig_key'].pubkey
+            )
+        elif static_remotekey:  # we automatically sweep to a wallet address
             kwargs['payment_basepoint'] = OnlyPubkeyKeypair(static_remotekey)
         else:
             # we expect all our channels to use option_static_remotekey, so ending up here likely indicates an issue...
             kwargs['payment_basepoint'] = keypair_generator(LnKeyFamily.PAYMENT_BASE)
+
         return LocalConfig(**kwargs)
 
     def validate_params(self, *, funding_sat: int, config: 'SimpleConfig', peer_features: 'LnFeatures') -> None:
@@ -584,6 +595,16 @@ def derive_blinded_privkey(basepoint_secret: bytes, per_commitment_secret: bytes
     k2 = ecc.string_to_number(per_commitment_secret) * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     sum = (k1 + k2) % ecc.CURVE_ORDER
     return int.to_bytes(sum, length=32, byteorder='big', signed=False)
+
+
+def derive_payment_basepoint(static_payment_secret: bytes, funding_pubkey: bytes) -> Keypair:
+    assert isinstance(static_payment_secret, bytes)
+    assert isinstance(funding_pubkey, bytes)
+    payment_basepoint = ecc.ECPrivkey(sha256(static_payment_secret + funding_pubkey))
+    return Keypair(
+        pubkey=payment_basepoint.get_public_key_bytes(),
+        privkey=payment_basepoint.get_secret_bytes()
+    )
 
 
 def make_htlc_tx_output(
