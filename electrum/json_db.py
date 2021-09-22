@@ -132,8 +132,8 @@ class JsonDB(BaseDB):
     def supports_file_encryption(self):
         return bool(self.storage)
 
-    def get_encryption_version(self):
-        return self.storage.get_encryption_version()
+    def get_encryption_versions(self):
+        return self.storage.get_encryption_versions()
 
     def is_encrypted(self):
         return self.storage and self.storage.is_encrypted()
@@ -144,8 +144,17 @@ class JsonDB(BaseDB):
     def is_encrypted_with_hw_device(self) -> bool:
         return self.storage and self.storage.is_encrypted_with_hw_device()
 
-    def set_password(self, password: str, enc_version=None):
-        self.storage.set_password(password, enc_version=enc_version)
+    def add_password(self, password: str, password_type=None):
+        self.storage.add_password(password, password_type=password_type)
+        self.set_modified(True)
+
+    def update_password(self, password: str, new_password: str, new_password_type):
+        self.storage.update_password(password, new_password, new_password_type)
+        self.set_modified(True)
+
+    def remove_password(self, password: str):
+        self.storage.remove_password(password)
+        self.set_modified(True)
 
     def file_exists(self):
         return self.storage and self.storage.file_exists()

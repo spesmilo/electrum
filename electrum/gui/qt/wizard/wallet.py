@@ -15,7 +15,7 @@ from electrum.daemon import Daemon
 from electrum.i18n import _
 from electrum.keystore import bip44_derivation, bip39_to_seed, purpose48_derivation, ScriptTypeNotSupported
 from electrum.plugin import run_hook, HardwarePluginLibraryUnavailable
-from electrum.storage import StorageReadWriteError
+from electrum.storage import StorageReadWriteError, StorageException
 from electrum.util import WalletFileException, get_new_wallet_name, UserFacingException, InvalidPassword
 from electrum.util import is_subpath, ChoiceItem, multisig_type, UserCancelled, standardize_path
 from electrum.wallet import wallet_types
@@ -318,7 +318,7 @@ class WCWalletName(WalletWizardComponent, Logger):
                     else:
                         temp_storage = DictStorage(_path, init_db=False)
                     self.wallet_exists = temp_storage.file_exists()
-                except (StorageReadWriteError, WalletFileException) as e:
+                except (StorageReadWriteError, StorageException) as e:
                     msg = _('Cannot read file') + f'\n{repr(e)}'
                 except Exception as e:
                     self.logger.exception('')
