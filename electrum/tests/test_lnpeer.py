@@ -113,6 +113,9 @@ class MockWallet:
     def is_mine(self, addr):
         return True
 
+    def get_new_sweep_address_for_channel(self):
+        return None
+
 
 class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1

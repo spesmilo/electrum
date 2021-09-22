@@ -323,9 +323,11 @@ class AbstractChannel(Logger, ABC):
     def sweep_address(self) -> str:
         # TODO: in case of unilateral close with pending HTLCs, this address will be reused
         addr = None
-        if self.is_static_remotekey_enabled():
+        if self.has_anchors():
+            addr = self.lnworker.wallet.get_new_sweep_address_for_channel()
+        elif self.is_static_remotekey_enabled():
             our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-            addr = make_commitment_output_to_remote_address(our_payment_pubkey)
+            addr = make_commitment_output_to_remote_address(our_payment_pubkey, has_anchors=False)
         if addr is None:
             addr = self._fallback_sweep_address
         assert addr
@@ -442,8 +444,13 @@ class ChannelBackup(AbstractChannel):
         self.config[LOCAL] = LocalConfig.from_seed(
             channel_seed=cb.channel_seed,
             to_self_delay=cb.local_delay,
+            # there are three cases of backups:
+            # 1. legacy: payment_basepoint will be derived
+            # 2. static_remotekey: to_remote sweep not necessary due to wallet address
+            # 3. anchor outputs: sweep to_remote by deriving the key from the funding pubkeys
             # dummy values
             static_remotekey=None,
+            static_payment_key=None,
             dust_limit_sat=None,
             max_htlc_value_in_flight_msat=None,
             max_accepted_htlcs=None,
@@ -529,6 +536,9 @@ class ChannelBackup(AbstractChannel):
         # Since channel backups do not save the static_remotekey, payment_basepoint in
         # their local config is not static)
         return False
+
+    def has_anchors(self) -> Optional[bool]:
+        return None
 
     def get_local_pubkey(self) -> bytes:
         cb = self.cb
