@@ -1955,14 +1955,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.password_button.setVisible(self.wallet.may_have_password())
 
     def change_password_dialog(self):
-        from electrum.storage import StorageEncryptionVersion
-        if StorageEncryptionVersion.XPUB_PASSWORD in self.wallet.get_available_storage_encryption_versions():
+        if self.wallet.is_hw_encryption_available():
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
             ok, old_password, new_password, encrypt_with_xpub = d.run()
             if not ok:
                 return
-            has_xpub_encryption = self.wallet.storage.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
+            has_xpub_encryption = self.wallet.storage.is_encrypted_with_hw_device()
             def on_password(hw_dev_pw):
                 self._update_wallet_password(
                     old_password = hw_dev_pw if has_xpub_encryption else old_password,
