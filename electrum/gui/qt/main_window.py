@@ -51,6 +51,7 @@ import electrum
 from electrum.gui import messages
 from electrum import (keystore, constants, util, bitcoin, commands,
                       lnutil)
+from electrum.stored_dict import PasswordType
 from electrum.bitcoin import COIN, is_address, DummyAddress
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -698,6 +699,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.config.WALLET_BACKUP_DIRECTORY = dirname
             self.backup_dir_e.setText(dirname)
 
+    def get_storage_password(self):
+        if self.wallet.has_storage_encryption():
+            if self.wallet.storage.is_encrypted_with_hw_device():
+                password = self.wallet.keystore.get_password_for_storage_encryption()
+                password_type = PasswordType.XPUB
+            else:
+                password_type = PasswordType.USER
+                while True:
+                    password = self.password_dialog(parent=self, msg='')
+                    if not password:
+                        raise UserCancelled
+                    try:
+                        self.wallet.storage.check_password(password)
+                    except InvalidPassword:
+                        continue
+                    break
+        else:
+            password, password_type = None, None
+        return password, password_type
+
     def backup_wallet(self):
         d = WindowModalDialog(self, _("File Backup"))
         vbox = QVBoxLayout(d)
@@ -725,8 +746,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if backup_dir is None:
             self.show_message(_("You need to configure a backup directory in your preferences"), title=_("Backup not configured"))
             return
+        new_path = os.path.join(backup_dir, self.wallet.basename() + '.backup')
+        if os.path.exists(new_path):
+            self.show_message(f'File already exists: {new_path}')
+            return
         try:
-            new_path = self.wallet.save_backup(backup_dir)
+            password, password_type = self.get_storage_password()
+        except UserCancelled:
+            return
+        try:
+            self.wallet.save_backup(new_path, password, password_type)
         except BaseException as reason:
             self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
             return
@@ -1922,14 +1951,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.password_button.setVisible(self.wallet.may_have_password())
 
     def change_password_dialog(self):
-        from electrum.stored_dict import StorageEncryptionVersion
-        if StorageEncryptionVersion.XPUB_PASSWORD in self.wallet.get_available_storage_encryption_versions():
+        if self.wallet.is_hw_encryption_available():
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
             ok, old_password, new_password, encrypt_with_xpub = d.run()
             if not ok:
                 return
-            has_xpub_encryption = self.wallet.storage.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
+            has_xpub_encryption = self.wallet.storage.is_encrypted_with_hw_device()
             def on_password(hw_dev_pw):
                 self._update_wallet_password(
                     old_password = hw_dev_pw if has_xpub_encryption else old_password,

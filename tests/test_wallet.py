@@ -17,7 +17,7 @@ from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo, InvalidPassword
 from electrum.bitcoin import COIN
 from electrum.wallet_db import WalletDB
-from electrum.stored_dict import DictStorage
+from electrum.stored_dict import DictStorage, PasswordType
 from electrum.simple_config import SimpleConfig
 from electrum import util, storage
 from electrum.daemon import Daemon
@@ -88,6 +88,26 @@ class TestWalletStorage(WalletTestCase):
         d = json.loads(contents)
         for key, value in some_dict.items():
             self.assertEqual(d[key], value)
+
+    def test_add_update_remove_password(self):
+        storage = DictStorage(self.wallet_path)
+        pw1 = "123456"
+        pw2 = "789012"
+        pw3 = "tttttt"
+        storage.add_password(pw1, PasswordType.USER)
+        storage.add_password(pw2, PasswordType.USER)
+        self.assertTrue(storage.is_encrypted())
+        with self.assertRaises(InvalidPassword):
+            storage.remove_password(pw3)
+        storage.remove_password(pw1)
+        self.assertTrue(storage.is_encrypted())
+        with self.assertRaises(InvalidPassword):
+            storage.remove_password(pw1)
+        with self.assertRaises(InvalidPassword):
+            storage.update_password(pw1, pw3, PasswordType.USER)
+        storage.update_password(pw2, pw3, PasswordType.USER)
+        storage.remove_password(pw3)
+        self.assertFalse(storage.is_encrypted())
 
     async def test_storage_imported_add_privkeys_persistence_test(self):
         text = ' '.join([

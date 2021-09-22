@@ -81,7 +81,7 @@ from .lntransport import extract_nodeid
 from .descriptor import Descriptor
 from .txbatcher import TxBatcher
 from .submarine_swaps import MIN_SWAP_AMOUNT_SAT
-from .stored_dict import DictStorage, StorageEncryptionVersion
+from .stored_dict import DictStorage, PasswordType
 
 if TYPE_CHECKING:
     from .network import Network
@@ -460,8 +460,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         assert self.db.get('genesis_blockhash') == constants.net.GENESIS, self.db.get('genesis_blockhash')
         if self.has_storage_encryption():
-            if (se := self.storage.get_encryption_version()) not in (ae := self.get_available_storage_encryption_versions()):
-                raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
+            ae = self.get_available_storage_encryption_versions()
+            for se in self.storage.get_encryption_versions():
+                if se not in ae:
+                    raise WalletFileException(f"unexpected storage encryption type. found: {se!r}. allowed: {ae!r}")
 
         self.register_callbacks()
 
@@ -498,7 +500,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.storage:
             self.storage.write()
 
-    def save_backup(self, backup_dir):
+    def save_backup(self, new_path, password, password_type: PasswordType):
         import json
         from .stored_dict import to_default
         # create data
@@ -515,15 +517,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             indent=4,
             sort_keys=True,
         )
-        new_path = os.path.join(backup_dir, self.basename() + '.backup')
+        assert not os.path.exists(new_path)
         new_storage = DictStorage(path=new_path)
-        if self.storage.is_encrypted():
-            new_storage._db.storage._encryption_version = self.storage._db.storage._encryption_version
-            new_storage._db.storage.pubkey = self.storage._db.storage.pubkey
+        if password:
+            new_storage.add_password(password, password_type)
         new_storage.set_data(json_str)
         new_storage.set_modified(True)
         new_storage.write_and_force_consolidation()
-        return new_path
 
     def has_lightning(self) -> bool:
         return bool(self.lnworker)
@@ -3172,16 +3172,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
 
-    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
+    def get_available_storage_encryption_versions(self) -> Sequence[PasswordType]:
         """Returns the type of storage encryption offered to the user.
 
         A wallet file (storage) is either encrypted with this version
         or is stored in plaintext.
         """
-        out = [StorageEncryptionVersion.USER_PASSWORD]
+        out = [PasswordType.USER]
         if isinstance(self.keystore, Hardware_KeyStore):
-            out.append(StorageEncryptionVersion.XPUB_PASSWORD)
+            out.append(PasswordType.XPUB)
         return out
+
+    def is_hw_encryption_available(self):
+        return PasswordType.XPUB in self.get_available_storage_encryption_versions()
 
     def has_keystore_encryption(self) -> bool:
         """Returns whether encryption is enabled for the keystore.
@@ -3215,15 +3218,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if old_pw is None and self.has_password():
             raise InvalidPassword()
         self.check_password(old_pw)
+
         if encrypt_storage:
             assert self.storage.supports_file_encryption()
         if self.storage.supports_file_encryption():
-            if encrypt_storage:
-                enc_version = StorageEncryptionVersion.XPUB_PASSWORD if xpub_encrypt else StorageEncryptionVersion.USER_PASSWORD
-                assert enc_version in self.get_available_storage_encryption_versions()
+            if encrypt_storage and new_pw:
+                password_type = PasswordType.XPUB if xpub_encrypt else PasswordType.USER
+                assert password_type in self.get_available_storage_encryption_versions()
+                if self.storage.is_encrypted():
+                    self.storage.update_password(old_pw, new_pw, password_type)
+                else:
+                    # we never add more than one password
+                    self.storage.add_password(new_pw, password_type)
             else:
-                enc_version = StorageEncryptionVersion.PLAINTEXT
-            self.storage.set_password(new_pw, enc_version)
+                if self.storage.is_encrypted():
+                    self.storage.remove_password(old_pw)
         # make sure next storage.write() saves changes
         self.storage.set_modified(True)
 
@@ -4376,9 +4385,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         if self.has_storage_encryption():
             self.storage.check_password(password)
 
-    def get_available_storage_encryption_versions(self) -> Sequence[StorageEncryptionVersion]:
+    def get_available_storage_encryption_versions(self) -> Sequence[PasswordType]:
         # multisig wallets are not offered hw device encryption
-        return [StorageEncryptionVersion.USER_PASSWORD]
+        return [PasswordType.USER]
 
     def has_seed(self):
         return self.keystore.has_seed()
@@ -4451,8 +4460,8 @@ def create_new_wallet(
     if os.path.exists(standardize_path(path)):
         raise UserFacingException("Remove the existing wallet first!")
     storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
-    if encrypt_file:
-        storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
+    if encrypt_file and password:
+        storage.add_password(password, PasswordType.USER)
     db = WalletDB(storage)
     seed = Mnemonic('en').make_seed(seed_type=seed_type)
     k = keystore.from_seed(seed, passphrase=passphrase)
@@ -4496,8 +4505,8 @@ def restore_wallet_from_text(
         if os.path.exists(standardize_path(path)):
             raise UserFacingException("Remove the existing wallet first!")
         storage = DictStorage(path, allow_partial_writes=config.WALLET_PARTIAL_WRITES)
-        if encrypt_file:
-            storage.set_password(password, StorageEncryptionVersion.USER_PASSWORD)
+        if encrypt_file and password:
+            storage.add_password(password, PasswordType.USER)
 
     db = WalletDB(storage)
     db.set_keystore_encryption(bool(password))

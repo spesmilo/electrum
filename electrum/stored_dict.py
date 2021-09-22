@@ -36,11 +36,11 @@ _FLEX_KEY = str | int | None
 _RaiseKeyError = object() # singleton for no-default behavior
 
 class StorageReadWriteError(Exception): pass
+class StorageException(Exception): pass
 
-class StorageEncryptionVersion(IntEnum):
-    PLAINTEXT = 0
-    USER_PASSWORD = 1
-    XPUB_PASSWORD = 2
+class PasswordType(IntEnum):
+    USER = 1
+    XPUB = 2
 
 
 def normalize_key(x: _FLEX_KEY) -> str:
@@ -486,8 +486,14 @@ class DictStorage(StoredDict):
     def get_path(self):
         return self._db.get_path()
 
-    def set_password(self, password:str, enc_version=None):
-        return self._db.set_password(password, enc_version)
+    def add_password(self, password: str, password_type=None):
+        return self._db.add_password(password, password_type)
+
+    def remove_password(self, password: str):
+        return self._db.remove_password(password)
+
+    def update_password(self, password: str, new_password: str, new_password_type: PasswordType):
+        return self._db.update_password(password, new_password, new_password_type)
 
     def set_data(self, data:str):
         return self._db.set_data(data)
@@ -498,8 +504,8 @@ class DictStorage(StoredDict):
     def write_and_force_consolidation(self):
         self._db.write_and_force_consolidation()
 
-    def get_encryption_version(self) -> StorageEncryptionVersion:
-        return self._db.get_encryption_version()
+    def get_encryption_versions(self) -> PasswordType:
+        return self._db.get_encryption_versions()
 
     def check_password(self, password):
         self._db.check_password(password)
