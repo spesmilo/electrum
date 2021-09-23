@@ -45,15 +45,12 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.value_change()
         self.open()
 
-    def __init__(self, parent):
+    def __init__(self, parent, min_amount=1):
         super().__init__(parent)
         self.parent = parent
-        self.MIN_AMOUNT = 5
+        self.min_amount = min_amount
         self.stake_value = 0
-        self.period = {
-            'days': 30,
-            'blocks': 144 * 30,
-        }
+        self.period_days = 30
         self.setEnabled(True)
         self.setMinimumSize(QtCore.QSize(440, 400))
         self.setMaximumSize(QtCore.QSize(440, 400))
@@ -105,7 +102,6 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.title.setText(_("Create New Stake"))
         self.title.setMinimumSize(QtCore.QSize(300, 0))
         self.title.setMaximumSize(QtCore.QSize(16777215, 25))
-        self.title.setBaseSize(QtCore.QSize(0, 25))
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
@@ -129,7 +125,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.period_label.setText(_("Period"))
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount.setDecimals(8)
-        self.spinBox_amount.setRange(self.MIN_AMOUNT, self.get_spendable_coins())
+        self.spinBox_amount.setRange(self.min_amount, self.get_spendable_coins())
         self.spinBox_amount.valueChanged.connect(self.value_change)
 
         self.gridLayout.addWidget(self.spinBox_amount, 0, 1, 1, 4)
@@ -139,7 +135,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.amount_value_error_label.setText(_("The minimum stake value is 5 ELCASH"))
         self.amount_value_error_label.setStyleSheet('color: red')
 
-        if self.valid_enough_coins(min_coins=self.MIN_AMOUNT):
+        if self.valid_enough_coins(min_coins=self.min_amount):
             self.amount_value_error_label.hide()
 
         self.gridLayout.addWidget(self.amount_value_error_label, 1, 0, 1, 5)
@@ -170,11 +166,11 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.rewords_text_label.setMaximumSize(QtCore.QSize(16777215, 20))
         self.vl_rewords.addWidget(self.rewords_text_label)
         self.gp_value_label.setText(
-            _("Governance Power: ") + str(self.spinBox_amount.value() * self.period['days'] * 0.008) +' GP')
+            _("Governance Power: ") + str(self.spinBox_amount.value() * self.period_days * 0.008) + ' GP')
         self.gp_value_label.setMaximumSize(QtCore.QSize(16777215, 20))
         self.vl_rewords.addWidget(self.gp_value_label)
         self.free_trans_label.setText(
-            _("Daily free transactions limit:") + str(self.spinBox_amount.value() * self.period['days'] * 0.01) +
+            _("Daily free transactions limit:") + str(self.spinBox_amount.value() * self.period_days * 0.01) +
             ' bytes')
         self.free_trans_label.setMaximumSize(QtCore.QSize(16777215, 20))
         self.vl_rewords.addWidget(self.free_trans_label)
@@ -185,7 +181,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.pred_rew.setBaseSize(QtCore.QSize(0, 30))
         self.vl_rewords.addWidget(self.pred_rew)
         self.estimate_label.setText(
-            _("Estimated payout: ") + str(self.spinBox_amount.value() * self.period['days'] * 0.21) + ' ELCASH')
+            _("Estimated payout: ") + str(self.spinBox_amount.value() * self.period_days * 0.21) + ' ELCASH')
         self.estimate_label.setMaximumSize(QtCore.QSize(16777215, 20))
         self.vl_rewords.addWidget(self.estimate_label)
         self.Main_v_layout.addLayout(self.vl_rewords)
@@ -216,7 +212,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.horizontalLayout.addWidget(self.cancel_button)
         self.next_button.setText(_("Next"))
 
-        if not self.valid_enough_coins(self.MIN_AMOUNT):
+        if not self.valid_enough_coins(self.min_amount):
             self.next_button.setEnabled(False)
 
         self.next_button.setMaximumSize(QtCore.QSize(60, 16777215))
@@ -236,8 +232,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.close()
 
     def value_change(self):
-
-        self.spinBox_amount.setRange(self.MIN_AMOUNT, self.get_spendable_coins())
+        self.spinBox_amount.setRange(self.min_amount, self.get_spendable_coins())
 
         if self.valid_enough_coins(min_coins=self.spinBox_amount.value()):
             self.amount_value_error_label.hide()
@@ -248,52 +243,40 @@ class CreateNewStakingWindow(WindowModalDialog):
 
         self.estimate_label.setText(
             _("Estimated payout: ") +
-            str(self.spinBox_amount.value() * self.period['days'] * 0.21) +
+            str(self.spinBox_amount.value() * self.period_days * 0.21) +
             ' ELCASH')
 
         self.free_trans_label.setText(
             _("Daily free transactions limit:") +
-            str(self.spinBox_amount.value() * self.period['days'] * 0.017) +
+            str(self.spinBox_amount.value() * self.period_days * 0.017) +
             ' bytes')
 
         self.gp_value_label.setText(
             _("Governance Power: ") +
-            str(self.spinBox_amount.value() * self.period['days'] * 0.008) +
+            str(self.spinBox_amount.value() * self.period_days * 0.008) +
             ' GP')
 
+    @property
+    def period_blocks(self):
+        return self.days * 144
+
     def radio_state(self, b):
-        if b.text() == "30 Days" and b.isChecked():
-            self.period = {
-                'days': 30,
-                'blocks': 144 * 30,
-            }
-        elif b.text() == "90 Days" and b.isChecked():
-            self.period = {
-                'days': 90,
-                'blocks': 144 * 90,
-            }
-        elif b.text() == "180 Days" and b.isChecked():
-            self.period = {
-                'days': 180,
-                'blocks': 144 * 180,
-            }
-        elif b.text() == "360 Days" and b.isChecked():
-            self.period = {
-                'days': 360,
-                'blocks': 144 * 360,
-            }
+        if not b.isChecked():
+            return
+        elif b.text() == "30 Days":
+            self.period_days = 30
+        elif b.text() == "90 Days":
+            self.period_days = 90
+        elif b.text() == "180 Days":
+            self.period_days = 180
+        elif b.text() == "360 Days":
+            self.period_days = 360
 
     def valid_enough_coins(self, min_coins):
-        coins = self.get_spendable_coins()
-        if not coins >= min_coins:
-            return False
-        else:
-            return True
+        return self.get_spendable_coins() >= min_coins
 
     def get_spendable_coins(self):
-        coins = 0
-        for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True):
-            coins += i._trusted_value_sats
+        coins = sum((i._trusted_value_sats for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True)))
         return coins * 0.00000001
 
 
@@ -370,11 +353,11 @@ class CreateNewStakingTwo(WindowModalDialog):
 
     def setup_detail(self):
         self.payout_label_2.setText(
-            str(self.parent.spinBox_amount.value() * self.parent.period['days'] * 0.021) +
+            str(self.parent.spinBox_amount.value() * self.parent.period_days * 0.021) +
             ' ELCASH'
         )
         self.data_grid_box.addWidget(self.payout_label_2, 7, 1, 1, 1)
-        self.gp_label_2.setText(str(self.parent.spinBox_amount.value() * self.parent.period['days'] * 0.008) + ' GP')
+        self.gp_label_2.setText(str(self.parent.spinBox_amount.value() * self.parent.period_days * 0.008) + ' GP')
         self.data_grid_box.addWidget(self.gp_label_2, 4, 1, 1, 1)
         self.payout_label.setText(_("Estimated payout:"))
         self.data_grid_box.addWidget(self.payout_label, 7, 0, 1, 1)
@@ -392,7 +375,7 @@ class CreateNewStakingTwo(WindowModalDialog):
         self.data_grid_box.addWidget(self.fee_label_2, 5, 0, 1, 1)
 
         self.fee_label.setText(
-            str(self.parent.spinBox_amount.value() * self.parent.period['days'] * 0.017) +
+            str(self.parent.spinBox_amount.value() * self.parent.period_days * 0.017) +
             ' bytes')
         self.data_grid_box.addWidget(self.fee_label, 5, 1, 1, 1)
         amount = self.parent.spinBox_amount.value()
@@ -406,12 +389,12 @@ class CreateNewStakingTwo(WindowModalDialog):
     def setup_rewords(self):
         self.g_reword.setText(_("Guaranted rewords:"))
         self.data_grid_box.addWidget(self.g_reword, 3, 0, 1, 1)
-        blocks_period = self.parent.period['blocks']
+        blocks_period = self.parent.period_blocks
         self.block_label_2.setText(str(blocks_period))
         self.data_grid_box.addWidget(self.block_label_2, 2, 1, 1, 1)
         self.period_text_label.setText(_("Period:"))
         self.data_grid_box.addWidget(self.period_text_label, 1, 0, 1, 1)
-        self.period_label.setText(str(self.parent.period['days']) + _(" days"))
+        self.period_label.setText(str(self.parent.period_days) + _(" days"))
         self.data_grid_box.addWidget(self.period_label, 1, 1, 1, 1)
         self.amount_label.setText(_("Amount to be staked:"))
         self.data_grid_box.addWidget(self.amount_label, 0, 0, 1, 1)
