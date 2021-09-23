@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.4](https://github.com/electric-cash/elcash-wallet/compare/v5.0.3...v5.0.4) (2021-09-23)
+
+
+### Bug Fixes
+
+* remove unused import ([632e6ba](https://github.com/electric-cash/elcash-wallet/commit/632e6bac858574638a95fb125b450f5363c769fd))
+
 ## [5.0.3](https://github.com/electric-cash/elcash-wallet/compare/v5.0.2...v5.0.3) (2021-09-14)
 
 
