@@ -256,9 +256,8 @@ class CreateNewStakingWindow(WindowModalDialog):
             str(self.spinBox_amount.value() * self.period_days * 0.008) +
             ' GP')
 
-    @property
-    def period_blocks(self):
-        return self.days * 144
+    def get_period_blocks(self):
+        return self.period_days * 144
 
     def radio_state(self, b):
         if not b.isChecked():
@@ -389,8 +388,7 @@ class CreateNewStakingTwo(WindowModalDialog):
     def setup_rewords(self):
         self.g_reword.setText(_("Guaranted rewords:"))
         self.data_grid_box.addWidget(self.g_reword, 3, 0, 1, 1)
-        blocks_period = self.parent.period_blocks
-        self.block_label_2.setText(str(blocks_period))
+        self.block_label_2.setText(str(self.parent.get_period_blocks()))
         self.data_grid_box.addWidget(self.block_label_2, 2, 1, 1, 1)
         self.period_text_label.setText(_("Period:"))
         self.data_grid_box.addWidget(self.period_text_label, 1, 0, 1, 1)

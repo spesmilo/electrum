@@ -33,6 +33,8 @@ from electrum.gui.qt.history_list import HistoryModel, HistoryList
 from electrum.gui.qt.staking.staking_sort_model import StakingModel
 from electrum.i18n import _
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
+from .create_new_stake_window import CreateNewStakingWindow
+from .staking_detail_tx_window import StakingTxDialog
 
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 
@@ -48,7 +50,7 @@ class CustomButton(QPushButton):
         self.func = trigger
         self.setIconSize(QSize(20, 20))
 
-    def on_press(self, checked=False):
+    def on_press(self,):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 
@@ -58,17 +60,14 @@ class CustomButton(QPushButton):
 
 
 def staking_dialog(window):
-
     window.receive_grid = grid = QGridLayout()
-
-    from .create_new_stake_window import CreateNewStakingWindow
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
     window.stake_button = CustomButton(
         text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
     )
-
-    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
+    window.tx_detail_dialog = StakingTxDialog(window)
+    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=window.tx_detail_dialog)
 
     window.staking_header = buttons = QHBoxLayout()
     buttons.addStretch(1)
