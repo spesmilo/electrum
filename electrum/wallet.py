@@ -1190,7 +1190,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+                                  change_addr: str = None, fee_estis_sweep=False) -> PartialTransaction:
 
         if any([c.already_has_some_signatures() for c in coins]):
             raise Exception("Some inputs already contain signatures!")
