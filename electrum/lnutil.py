@@ -66,7 +66,7 @@ class Keypair(OnlyPubkeyKeypair):
     privkey = attr.ib(type=bytes, converter=hex_to_bytes)
 
 @attr.s
-class Config(StoredObject):
+class ChannelConfig(StoredObject):
     # shared channel config fields
     payment_basepoint = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
     multisig_key = attr.ib(type=OnlyPubkeyKeypair, converter=json_to_keypair)
@@ -93,6 +93,14 @@ class Config(StoredObject):
         ):
             if not (len(key.pubkey) == 33 and ecc.ECPubkey.is_pubkey_bytes(key.pubkey)):
                 raise Exception(f"{conf_name}. invalid pubkey in channel config")
+        if funding_sat < MIN_FUNDING_SAT:
+            raise Exception(f"funding_sat too low: {funding_sat} sat < {MIN_FUNDING_SAT}")
+        # MUST set funding_satoshis to less than 2^24 satoshi
+        if funding_sat > LN_MAX_FUNDING_SAT:
+            raise Exception(f"funding_sat too high: {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
+        # MUST set push_msat to equal or less than 1000 * funding_satoshis
+        if not (0 <= self.initial_msat <= 1000 * funding_sat):
+            raise Exception(f"{conf_name}. insane initial_msat={self.initial_msat}. (funding_sat={funding_sat})")
         if self.reserve_sat < self.dust_limit_sat:
             raise Exception(f"{conf_name}. MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
         # technically this could be using the lower DUST_LIMIT_DEFAULT_SAT_SEGWIT
@@ -106,7 +114,7 @@ class Config(StoredObject):
         HTLC_MINIMUM_MSAT_MIN = 0  # should be at least 1 really, but apparently some nodes are sending zero...
         if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
             raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
-        if self.max_accepted_htlcs < 1:
+        if self.max_accepted_htlcs < 5:
             raise Exception(f"{conf_name}. max_accepted_htlcs too low: {self.max_accepted_htlcs}")
         if self.max_accepted_htlcs > 483:
             raise Exception(f"{conf_name}. max_accepted_htlcs too high: {self.max_accepted_htlcs}")
@@ -115,9 +123,56 @@ class Config(StoredObject):
         if self.max_htlc_value_in_flight_msat < min(1000 * funding_sat, 100_000_000):
             raise Exception(f"{conf_name}. max_htlc_value_in_flight_msat is too small: {self.max_htlc_value_in_flight_msat}")
 
+    @classmethod
+    def cross_validate_params(
+            cls,
+            *,
+            local_config: 'LocalConfig',
+            remote_config: 'RemoteConfig',
+            funding_sat: int,
+            is_local_initiator: bool,  # whether we are the funder
+            initial_feerate_per_kw: int,
+    ) -> None:
+        # first we validate the configs separately
+        local_config.validate_params(funding_sat=funding_sat)
+        remote_config.validate_params(funding_sat=funding_sat)
+        # now do tests that need access to both configs
+        if is_local_initiator:
+            funder, fundee = LOCAL, REMOTE
+            funder_config, fundee_config = local_config, remote_config
+        else:
+            funder, fundee = REMOTE, LOCAL
+            funder_config, fundee_config = remote_config, local_config
+        # if channel_reserve_satoshis is less than dust_limit_satoshis within the open_channel message:
+        #     MUST reject the channel.
+        if remote_config.reserve_sat < local_config.dust_limit_sat:
+            raise Exception("violated constraint: remote_config.reserve_sat < local_config.dust_limit_sat")
+        # if channel_reserve_satoshis from the open_channel message is less than dust_limit_satoshis:
+        #     MUST reject the channel.
+        if local_config.reserve_sat < remote_config.dust_limit_sat:
+            raise Exception("violated constraint: local_config.reserve_sat < remote_config.dust_limit_sat")
+        # The receiving node MUST fail the channel if:
+        #     the funder's amount for the initial commitment transaction is not
+        #     sufficient for full fee payment.
+        if funder_config.initial_msat < calc_fees_for_commitment_tx(
+                num_htlcs=0,
+                feerate=initial_feerate_per_kw,
+                is_local_initiator=is_local_initiator)[funder]:
+            raise Exception(
+                "the funder's amount for the initial commitment transaction "
+                "is not sufficient for full fee payment")
+        # The receiving node MUST fail the channel if:
+        #     both to_local and to_remote amounts for the initial commitment transaction are
+        #     less than or equal to channel_reserve_satoshis (see BOLT 3).
+        if (max(local_config.initial_msat, remote_config.initial_msat)
+                <= 1000 * max(local_config.reserve_sat, remote_config.reserve_sat)):
+            raise Exception(
+                "both to_local and to_remote amounts for the initial commitment "
+                "transaction are less than or equal to channel_reserve_satoshis")
+
 
 @attr.s
-class LocalConfig(Config):
+class LocalConfig(ChannelConfig):
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
     funding_locked_received = attr.ib(type=bool)
     was_announced = attr.ib(type=bool)
@@ -150,7 +205,7 @@ class LocalConfig(Config):
             raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
 @attr.s
-class RemoteConfig(Config):
+class RemoteConfig(ChannelConfig):
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 
