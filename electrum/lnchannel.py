@@ -61,6 +61,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
+from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -1346,6 +1347,8 @@ class Channel(AbstractChannel):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
+        if feerate < FEERATE_PER_KW_MIN_RELAY_LIGHTNING:
+            raise Exception(f"Cannot update_fee: feerate lower than min relay fee. {feerate} sat/kw. us: {from_us}")
         sender = LOCAL if from_us else REMOTE
         ctx_owner = -sender
         ctn = self.get_next_ctn(ctx_owner)
