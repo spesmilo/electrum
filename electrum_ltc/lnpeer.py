@@ -770,6 +770,8 @@ class Peer(Logger):
             'onion_keys': {},
             'data_loss_protect_remote_pcp': {},
             "log": {},
+            "fail_htlc_reasons": {},  # htlc_id -> onion_packet
+            "unfulfilled_htlcs": {},  # htlc_id -> error_bytes, failure_message
             "revocation_store": {},
             "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
         }
@@ -1862,7 +1864,7 @@ class Peer(Logger):
                     continue
                 self.maybe_send_commitment(chan)
                 done = set()
-                unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
+                unfulfilled = chan.unfulfilled_htlcs
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue

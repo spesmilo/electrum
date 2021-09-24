@@ -145,7 +145,7 @@ class TxOutput:
             return cls.from_address_and_value(addr, val)
         if _type == TYPE_SCRIPT:
             return cls(scriptpubkey=bfh(addr), value=val)
-        raise Exception(f"unexptected legacy address type: {_type}")
+        raise Exception(f"unexpected legacy address type: {_type}")
 
     @property
     def address(self) -> Optional[str]:
