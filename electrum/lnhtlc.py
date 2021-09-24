@@ -284,7 +284,7 @@ class HTLCManager:
     @with_lock
     def get_unacked_local_updates(self) -> Dict[int, Sequence[bytes]]:
         #return self.log[LOCAL]['unacked_updates']
-        return {int(ctn): [bfh(msg) for msg in messages]
+        return {ctn: [bfh(msg) for msg in messages]
                 for ctn, messages in self.log[LOCAL]['unacked_updates'].items()}
 
     ##### Queries re HTLCs:
@@ -340,7 +340,6 @@ class HTLCManager:
             htlc_proposer: HTLCOwner,
             htlc_id: int,
     ) -> bool:
-        htlc_id = int(htlc_id)
         if htlc_id >= self.get_next_htlc_id(htlc_proposer):
             return False
         ctns = self.log[htlc_proposer]['locked_in'][htlc_id]
@@ -381,7 +380,6 @@ class HTLCManager:
             htlc_proposer: HTLCOwner,
             htlc_id: int,
     ) -> bool:
-        htlc_id = int(htlc_id)
         if htlc_id >= self.get_next_htlc_id(htlc_proposer):
             return False
         if htlc_id in self.log[htlc_proposer]['settles']:
