@@ -150,7 +150,9 @@ if [[ $1 == "backup" ]]; then
     $alice daemon -d
     $alice load_wallet
     $alice import_channel_backup $backup
+    echo "request force close $channel1"
     $alice request_force_close $channel1
+    echo "request force close $channel2"
     $alice request_force_close $channel2
     wait_for_balance alice 0.998
 fi
