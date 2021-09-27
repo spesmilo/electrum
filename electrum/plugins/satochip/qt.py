@@ -448,7 +448,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             return False, txt_ca, txt_subca, txt_device, txt_error
         
         # perform challenge-response with the card to ensure that the key is correctly loaded in the device
-        is_valid_chalresp, txt_error = self.cc.card_challenge_response_pki(device_pubkey)
+        is_valid_chalresp, txt_error = client.cc.card_challenge_response_pki(device_pubkey)
        
         return is_valid_chalresp, txt_ca, txt_subca, txt_device, txt_error
 

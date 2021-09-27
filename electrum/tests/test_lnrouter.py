@@ -1,22 +1,34 @@
+from math import inf
 import unittest
 import tempfile
 import shutil
 import asyncio
 
 from electrum.util import bh2u, bfh, create_and_start_event_loop
+from electrum.lnutil import ShortChannelID
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode, OnionPacket)
 from electrum import bitcoin, lnrouter
 from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
-from electrum.lnrouter import PathEdge
+from electrum.lnrouter import PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH, DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat
 
 from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
+def channel(number: int) -> ShortChannelID:
+    return ShortChannelID(bfh(format(number, '016x')))
+
+
+def node(character: str) -> bytes:
+    return b'\x02' + f'{character}'.encode() * 32
+
+
 class Test_LNRouter(TestCaseForTestnet):
+
+    cdb = None
 
     def setUp(self):
         super().setUp()
@@ -24,11 +36,32 @@ class Test_LNRouter(TestCaseForTestnet):
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
     def tearDown(self):
+        # if the test called prepare_graph(), channeldb needs to be cleaned up
+        if self.cdb:
+            self.cdb.stop()
+            asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
         super().tearDown()
 
-    def test_find_path_for_payment(self):
+    def prepare_graph(self):
+        """
+        Network topology with channel ids:
+                3
+            A  ---  B
+            |    2/ |
+          6 |   E   | 1
+            | /5 \7 |
+            D  ---  C
+                4
+        valid routes from A -> E:
+        A -3-> B -2-> E
+        A -6-> D -5-> E
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
         class fake_network:
             config = self.config
             asyncio_loop = asyncio.get_event_loop()
@@ -37,65 +70,231 @@ class Test_LNRouter(TestCaseForTestnet):
             interface = None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         fake_network.channel_db.data_loaded.set()
-        cdb = fake_network.channel_db
-        path_finder = lnrouter.LNPathFinder(cdb)
-        self.assertEqual(cdb.num_channels, 0)
-        cdb.add_channel_announcement({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02cccccccccccccccccccccccccccccccc',
-                                     'bitcoin_key_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'bitcoin_key_2': b'\x02cccccccccccccccccccccccccccccccc',
-                                     'short_channel_id': bfh('0000000000000001'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        self.assertEqual(cdb.num_channels, 1)
-        cdb.add_channel_announcement({'node_id_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-                                     'bitcoin_key_1': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'bitcoin_key_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-                                     'short_channel_id': bfh('0000000000000002'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-                                     'bitcoin_key_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bitcoin_key_2': b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-                                     'short_channel_id': bfh('0000000000000003'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02cccccccccccccccccccccccccccccccc', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
-                                     'bitcoin_key_1': b'\x02cccccccccccccccccccccccccccccccc', 'bitcoin_key_2': b'\x02dddddddddddddddddddddddddddddddd',
-                                     'short_channel_id': bfh('0000000000000004'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02dddddddddddddddddddddddddddddddd', 'node_id_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-                                     'bitcoin_key_1': b'\x02dddddddddddddddddddddddddddddddd', 'bitcoin_key_2': b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-                                     'short_channel_id': bfh('0000000000000005'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        cdb.add_channel_announcement({'node_id_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'node_id_2': b'\x02dddddddddddddddddddddddddddddddd',
-                                     'bitcoin_key_1': b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bitcoin_key_2': b'\x02dddddddddddddddddddddddddddddddd',
-                                     'short_channel_id': bfh('0000000000000006'),
-                                     'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
-                                     'len': 0, 'features': b''}, trusted=True)
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000001'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 99, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000002'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000003'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000004'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000005'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 99999999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        cdb.add_channel_update({'short_channel_id': bfh('0000000000000006'), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
-        path = path_finder.find_path_for_payment(b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 100000)
-        self.assertEqual([PathEdge(node_id=b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', short_channel_id=bfh('0000000000000003')),
-                          PathEdge(node_id=b'\x02eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', short_channel_id=bfh('0000000000000002')),
-                         ], path)
-        start_node = b'\x02aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-        route = path_finder.create_route_from_path(path, start_node)
-        self.assertEqual(b'\x02bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', route[0].node_id)
-        self.assertEqual(bfh('0000000000000003'),                 route[0].short_channel_id)
+        self.cdb = fake_network.channel_db
+        self.path_finder = lnrouter.LNPathFinder(self.cdb)
+        self.assertEqual(self.cdb.num_channels, 0)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('b'), 'node_id_2': node('c'),
+            'bitcoin_key_1': node('b'), 'bitcoin_key_2': node('c'),
+            'short_channel_id': channel(1),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.assertEqual(self.cdb.num_channels, 1)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('b'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('b'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': channel(2),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('b'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('b'),
+            'short_channel_id': channel(3),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('c'), 'node_id_2': node('d'),
+            'bitcoin_key_1': node('c'), 'bitcoin_key_2': node('d'),
+            'short_channel_id': channel(4),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('d'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('d'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': channel(5),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('a'), 'node_id_2': node('d'),
+            'bitcoin_key_1': node('a'), 'bitcoin_key_2': node('d'),
+            'short_channel_id': channel(6),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        self.cdb.add_channel_announcements({
+            'node_id_1': node('c'), 'node_id_2': node('e'),
+            'bitcoin_key_1': node('c'), 'bitcoin_key_2': node('e'),
+            'short_channel_id': channel(7),
+            'chain_hash': BitcoinTestnet.rev_genesis_bytes(),
+            'len': 0, 'features': b''
+        }, trusted=True)
+        def add_chan_upd(payload):
+            self.cdb.add_channel_update(payload, verify=False)
+        add_chan_upd({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(1), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(2), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 99, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(2), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(3), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(3), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(4), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(4), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(5), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(5), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 999, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(6), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 200, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(6), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x00', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
+        add_chan_upd({'short_channel_id': channel(7), 'message_flags': b'\x00', 'channel_flags': b'\x01', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150, 'chain_hash': BitcoinTestnet.rev_genesis_bytes(), 'timestamp': 0})
 
-        # need to duplicate tear_down here, as we also need to wait for the sql thread to stop
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        cdb.sql_thread.join(timeout=1)
+    def test_find_path_for_payment(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual([
+            PathEdge(start_node=node('a'), end_node=node('b'), short_channel_id=channel(3)),
+            PathEdge(start_node=node('b'), end_node=node('e'), short_channel_id=channel(2)),
+        ], path)
+
+        route = self.path_finder.create_route_from_path(path)
+        self.assertEqual(node('b'), route[0].node_id)
+        self.assertEqual(channel(3), route[0].short_channel_id)
+
+    def test_find_path_liquidity_hints(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        """
+        assume failure over channel 2, B -> E
+        A -3-> B |-2-> E
+        A -6-> D -5-> E  <= chosen path
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.update_cannot_send(node('b'), node('e'), channel(2), amount_to_send - 1)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(5), path[1].short_channel_id)
+
+        """
+        assume failure over channel 5, D -> E
+        A -3-> B |-2-> E
+        A -6-> D |-5-> E
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E  <= chosen path
+        A -6-> D -4-> C -1-> B |-2-> E
+        A -3-> B -1-> C -4-> D |-5-> E
+        """
+        self.path_finder.liquidity_hints.update_cannot_send(node('d'), node('e'), channel(5), amount_to_send - 1)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(3), path[0].short_channel_id)
+        self.assertEqual(channel(1), path[1].short_channel_id)
+        self.assertEqual(channel(7), path[2].short_channel_id)
+
+        """
+        assume success over channel 4, D -> C
+        A -3-> B |-2-> E
+        A -6-> D |-5-> E
+        A -6-> D -4-> C -7-> E  <= smaller penalty: chosen path
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B |-2-> E
+        A -3-> B -1-> C -4-> D |-5-> E
+        """
+        self.path_finder.liquidity_hints.update_can_send(node('d'), node('c'), channel(4), amount_to_send + 1000)
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(4), path[1].short_channel_id)
+        self.assertEqual(channel(7), path[2].short_channel_id)
+
+    def test_find_path_liquidity_hints_inflight_htlcs(self):
+        self.prepare_graph()
+        amount_to_send = 100000
+
+        """
+        add inflight htlc to channel 2, B -> E
+        A -3-> B -2(1)-> E
+        A -6-> D -5-> E <= chosen path
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.add_htlc(node('b'), node('e'), channel(2))
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(6), path[0].short_channel_id)
+        self.assertEqual(channel(5), path[1].short_channel_id)
+
+        """
+        remove inflight htlc from channel 2, B -> E
+        A -3-> B -2(0)-> E <= chosen path
+        A -6-> D -5-> E
+        A -6-> D -4-> C -7-> E
+        A -3-> B -1-> C -7-> E
+        A -6-> D -4-> C -1-> B -2-> E
+        A -3-> B -1-> C -4-> D -5-> E
+        """
+        self.path_finder.liquidity_hints.remove_htlc(node('b'), node('e'), channel(2))
+        path = self.path_finder.find_path_for_payment(
+            nodeA=node('a'),
+            nodeB=node('e'),
+            invoice_amount_msat=amount_to_send)
+        self.assertEqual(channel(3), path[0].short_channel_id)
+        self.assertEqual(channel(2), path[1].short_channel_id)
+
+    def test_liquidity_hints(self):
+        liquidity_hints = LiquidityHintMgr()
+        node_from = bytes(0)
+        node_to = bytes(1)
+        channel_id = ShortChannelID.from_components(0, 0, 0)
+        amount_to_send = 1_000_000
+
+        # check default penalty
+        self.assertEqual(
+            fee_for_edge_msat(amount_to_send, DEFAULT_PENALTY_BASE_MSAT, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH),
+            liquidity_hints.penalty(node_from, node_to, channel_id, amount_to_send)
+        )
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 1_000_000)
+        liquidity_hints.update_cannot_send(node_from, node_to, channel_id, 2_000_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
+        self.assertEqual(None, hint.cannot_send(node_to < node_from))
+        self.assertEqual(2_000_000, hint.cannot_send(node_from < node_to))
+        # the can_send backward hint is set automatically
+        self.assertEqual(2_000_000, hint.can_send(node_to < node_from))
+
+        # check penalties
+        self.assertEqual(0., liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
+        self.assertEqual(650, liquidity_hints.penalty(node_from, node_to, channel_id, 1_500_000))
+        self.assertEqual(inf, liquidity_hints.penalty(node_from, node_to, channel_id, 2_000_000))
+
+        # test that we don't overwrite significant info with less significant info
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 500_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(1_000_000, hint.can_send(node_from < node_to))
+
+        # test case when can_send > cannot_send
+        liquidity_hints.update_can_send(node_from, node_to, channel_id, 3_000_000)
+        hint = liquidity_hints.get_hint(channel_id)
+        self.assertEqual(3_000_000, hint.can_send(node_from < node_to))
+        self.assertEqual(None, hint.cannot_send(node_from < node_to))
+
+        # test inflight htlc
+        liquidity_hints.reset_liquidity_hints()
+        liquidity_hints.add_htlc(node_from, node_to, channel_id)
+        liquidity_hints.get_hint(channel_id)
+        # we have got 600 (attempt) + 600 (inflight) penalty
+        self.assertEqual(1200, liquidity_hints.penalty(node_from, node_to, channel_id, 1_000_000))
 
     @needs_test_with_all_chacha20_implementations
     def test_new_onion_packet_legacy(self):

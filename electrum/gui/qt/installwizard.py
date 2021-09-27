@@ -182,6 +182,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         scroll_widget = QWidget()
         scroll_widget.setLayout(inner_vbox)
         scroll = QScrollArea()
+        scroll.setFocusPolicy(Qt.NoFocus)
         scroll.setWidget(scroll_widget)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setWidgetResizable(True)
@@ -262,7 +263,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     self.logger.exception('')
                     msg = _('Cannot read file') + f'\n{repr(e)}'
             else:
-                msg = _('')
+                msg = ""
             self.next_button.setEnabled(temp_storage is not None)
             user_needs_to_enter_password = False
             if temp_storage:
@@ -425,8 +426,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.please_wait.setVisible(False)
 
     def exec_layout(self, layout, title=None, raise_on_cancel=True,
-                        next_enabled=True):
+                        next_enabled=True, focused_widget=None):
         self.set_layout(layout, title, next_enabled)
+        if focused_widget:
+            focused_widget.setFocus()
         result = self.loop.exec_()
         if not result and raise_on_cancel:
             raise UserCancelled()
@@ -463,7 +466,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             config=self.config,
         )
         self.exec_layout(slayout, title, next_enabled=False)
-        return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
+        return slayout.get_seed(), slayout.seed_type, slayout.is_ext
 
     @wizard_dialog
     def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False, show_wif_help=False):
@@ -491,6 +494,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             options.append('ext')
         if self.opt_bip39:
             options.append('bip39')
+        if self.opt_slip39:
+            options.append('slip39')
         title = _('Enter Seed')
         message = _('Please enter your seed phrase in order to restore your wallet.')
         return self.seed_input(title, message, test, options)
@@ -504,7 +509,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('If you lose your seed, your money will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
-        seed, is_bip39, is_ext = self.seed_input(title, message, test, None)
+        seed, seed_type, is_ext = self.seed_input(title, message, test, None)
         return seed
 
     @wizard_dialog
@@ -521,14 +526,15 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.is_ext
 
     def pw_layout(self, msg, kind, force_disable_encrypt_cb):
-        playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
-                                 force_disable_encrypt_cb=force_disable_encrypt_cb)
-        playout.encrypt_cb.setChecked(True)
+        pw_layout = PasswordLayout(
+            msg=msg, kind=kind, OK_button=self.next_button,
+            force_disable_encrypt_cb=force_disable_encrypt_cb)
+        pw_layout.encrypt_cb.setChecked(True)
         try:
-            self.exec_layout(playout.layout())
-            return playout.new_password(), playout.encrypt_cb.isChecked()
+            self.exec_layout(pw_layout.layout(), focused_widget=pw_layout.new_pw)
+            return pw_layout.new_password(), pw_layout.encrypt_cb.isChecked()
         finally:
-            playout.clear_password_fields()
+            pw_layout.clear_password_fields()
 
     @wizard_dialog
     def request_password(self, run_next, force_disable_encrypt_cb=False):
@@ -748,8 +754,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def multisig_dialog(self, run_next):
         cw = CosignWidget(2, 2)
-        m_edit = QSlider(Qt.Horizontal, self)
         n_edit = QSlider(Qt.Horizontal, self)
+        m_edit = QSlider(Qt.Horizontal, self)
         n_edit.setMinimum(2)
         n_edit.setMaximum(15)
         m_edit.setMinimum(1)

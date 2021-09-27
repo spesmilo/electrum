@@ -25,6 +25,9 @@ import electrum.ecc as ecc
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 
 
+_logger = get_logger(__name__)
+
+
 try:
     from bitbox02 import bitbox02
     from bitbox02 import util
@@ -36,11 +39,10 @@ try:
         FirmwareVersionOutdatedException,
     )
     requirements_ok = True
-except ImportError:
+except ImportError as e:
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'bitbox02'):
+        _logger.exception('error importing bitbox02 plugin deps')
     requirements_ok = False
-
-
-_logger = get_logger(__name__)
 
 
 class BitBox02Client(HardwareClientBase):
@@ -627,7 +629,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (5, 0, 0)
+    minimum_library = (5, 2, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")

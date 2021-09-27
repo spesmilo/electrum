@@ -1,3 +1,182 @@
+# Release 4.1.5 - (July 19, 2021)
+ * Builds/binaries:
+   - macOS: the .dmg binary should now be reproducible
+ * Kivy/Android: fix paying bip70 invoices (regression) (90579ccf)
+ * fix: payment requests not saved if process is killed (6a049d99)
+ * Lightning: improve payment success when using trampoline (3a7f5373)
+ * add support for signet test network (#7282)
+ * Qt GUI:
+   - allow restoring from SLIP39 seeds (#6917)
+   - rework QR code scanning on Windows and macOS (#7365)
+   - support smaller window sizes, decrease minimums (#7385)
+ * GUIs: add "funded or unused" filter option to Addresses tab (#5823)
+
+
+# Release 4.1.4 - (June 17, 2021)
+ * Kivy/Android: fix a regression where a non-LN wallet
+   could not open the settings (c49d6995)
+ * CLI/RPC: fix "close_wallet" command (#7348)
+
+
+# Release 4.1.3 - (June 16, 2021)
+ * Builds/binaries:
+   - Android: the binaries (APKs) should now be reproducible (#7263)
+   - AppImage: fix some startup issues by including libxcb deps (#7198)
+ * Lightning:
+   - smarter LN pathfinding (if trampoline is disabled):
+     - estimate liquidity in channels using previous attempts (#7152)
+     - consider inflight HTLCs and try to route around them (#7292)
+   - bugfix: add more safety checks to avoid "batch RBF" feature
+     merging LN funding txs (#7298)
+   - remove HTLC value upper limit of ~42 mBTC (#7328)
+   - Kivy GUI: implement freezing LN channels (11bb39ee)
+ * imported wallets: when enabling the "Use change addresses" option,
+   change will now be sent to a random unused imported address. (#7330)
+   As before, by default, change is sent back to the "from address".
+ * seed generation: make sure newly created electrum seeds don't have
+   correct bip39 checksum by chance (#6001)
+ * other minor fixes
+
+
+# Release 4.1.2 - (April 8, 2021)
+ * Qt GUI:
+    - fix some crashes when exiting (#6889)
+    - make sure pressing Ctrl-C always quits (c41cd4ae)
+ * Kivy GUI (Android):
+    - fix bug with scrollbar, again (#7155)
+    - 2fa wallets: fix making transactions (#7190)
+    - implement freezing addresses (#7178)
+ * Android: use more modern application launcher/icon (#7187)
+
+
+# Release 4.1.1 - (April 2, 2021)
+ * fix Qt crash with the swap dialog
+ * fix Kivy bug with scrollbar (#7155)
+ * fix localization issues (#7158 #4621)
+ * fix python crash with swaps (#7160)
+ * other minor fixes
+
+
+# Release 4.1.0 - Kangaroo (March 30, 2021)
+
+This version is our second major release with support for the
+Lightning Network. While our initial Lightning release was mostly
+about implementing the protocol, this release brings features that are
+specifically aimed at keeping Electrum lightweight and trustless,
+while avoiding single points of failure. Most of the features listed
+below are user-visible.
+ * The wallet creation wizard no longer asks for a seed type, and
+   creates segwit wallets with bech32 addresses. Older seed types can
+   still be created with the command line.
+ * Paid invoices (both incoming and outgoing) are automatically
+   removed from the send/receive lists of the GUI (one confirmation is
+   needed for onchain invoices). Once removed from the list, invoice
+   details can still be accessed from the transaction history. In Qt,
+   invoice lists have been renamed to 'Sending queue' and 'Receiving
+   queue'.
+ * Lightning:
+    - recoverable channels (see below)
+    - trampoline payments (see below)
+    - support multi-part-payment
+    - support upfront-shutdown-script
+ * Recoverable channels (option):
+   - Recovery data is added to the channel funding transaction using
+     an OP_RETURN. This makes it possible to recover a static backup
+     of the channel from the wallet seed. Please note that static
+     backups only allow users to request a force-close of the channel
+     with the remote node, so that funds not locked in HTLCs can be
+     recovered. This assumes that the remote node is still online, did
+     not lose its data, and accepts to force close the channel.
+   - This option is only available for standard wallets with an
+     Electrum seed. It is not available for hardware wallets, because
+     it requires a deterministic derivation of the nodeID. It is also
+     not available in watching-only wallets, for the same reason. If a
+     wallet can have recoverable channels but has an old nodeID, users
+     who want to use that feature need to close all their existing
+     channels, and to restore their wallet from seed.
+   - Channel recovery data uses 20 bytes (16 bytes of the remote
+     NodeID plus 4 magic bytes) and is encrypted so that only the
+     wallet that owns it can decrypt it. However, blockchain analysis
+     will be able to tell that the transaction was probably created by
+     Electrum.
+   - If the 'use recoverable channels' option is enabled, other nodes
+     cannot open a channel to Electrum.
+   - If a channel is force-closed, the information in the on-chain
+     backup is not sufficient to retrieve the funds in the to_local
+     output, in case the wallet is lost in a boating accident before
+     expiration of the CSV delay. For that reason, an additional
+     backup is presented to the user if they force-close a channel.
+ * Trampoline routing (option): Trampoline is a solution that allows
+   light clients to delegate path-finding on the Lightning Network, so
+   that they do not have to download the entire network
+   graph. Trampoline routing was originally proposed by Bastien
+   Teinturier and is used in the Phoenix wallet. Here is how
+   Trampoline works in Electrum:
+   - Trampoline is enabled by default, in order to prevent unwanted
+     download of the network gossip. If trampoline is disabled, the
+     gossip will be downloaded, regardless of the existence of
+     channels.
+   - Because there is no discovery mechanism for trampoline nodes, the
+     list of available trampolines is hardcoded in the client (it will
+     remain so until support for trampoline routing is announced in
+     gossip). 3 trampoline nodes are currently available on mainnet:
+     ACINQ, Electrum and Hodlister.
+   - If Trampoline is enabled:
+      - payments use trampoline routing.
+      - gossip is disabled.
+      - the wallet can only open channels with trampoline nodes.
+      - pre-existing channels with non-trampoline nodes are frozen for
+        sending.
+   - There are two types of trampoline payments: legacy and trampoline
+     end-to-end. Legacy payments are possible with any receiver, but
+     they offer less privacy than end-to-end trampoline
+     payments. Electrum decides whether to perform legacy or
+     end-to-end based on the features in the invoice:
+       - OPTION_TRAMPOLINE_ROUTING_OPT (bit 25) for Electrum
+       - OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR (bit 51) for Eclair/Phoenix
+   - When performing a legacy payment, Electrum will add a second
+     trampoline node to the route in order to protect the privacy of
+     the payer and payee. It will fall back to a single trampoline if
+     the two-trampoline strategy has failed for all trampolines.
+     (Note: two-trampoline payments are currently not possible if the
+     first trampoline is the ACINQ node, and is disabled for that
+     node.)
+   - Similar to Phoenix, the fee and CLTV delay are found by
+     trial-and-error. If there is a second trampoline in the route, we
+     use the same fee/CLTV for both. This trial-and-error is
+     temporary; the final specification should add fee information in
+     the failure messages, so that we will be able to better fine-tune
+     trampoline fees.
+ * Qt: The increase fee dialog now has advanced options, and offers
+   the choice between different RBF strategies.
+ * Watchtowers: The 'use_local_watchtower' feature is deprecated, and
+   it has been removed from the Qt GUI. The 'use_remote_watchtower'
+   setting has been renamed to 'use_watchtower'.
+ * Password unification (Android only): When the Android app is
+   started, the entered password is checked against all wallets in
+   the directory. If the test passes:
+    - all wallets are encrypted
+    - new wallets will use the unified password
+    - password updates are performed on all wallets
+   Whether the password is unified can be seen in the GUI: In the
+   'Settings' dialog, the description for the password setting is
+   'Change password for this wallet' if the password is not unified,
+   and becomes 'Change password' if password is unified.
+ * Submarine swaps are now available on kivy/android.
+ * Android PIN reset: If the password is unified, the PIN can be reset
+   by providing the password.
+ * Android: on-chain fees have been removed from the settings
+   dialog. Instead, the fee slider is shown to the user everytime an
+   on-chain transaction will be performed (sending a payment, opening
+   a channel, initiating a submarine swap)
+ * BIP-0350: use bech32m for witness version 1+ addresses (4315fa43).
+   We have supported sending to any witness version since Electrum
+   3.0, using BIP-0173 (bech32) addresses. BIP-0350 makes a breaking
+   change in address encoding, and recommends using a new encoding
+   (bech32m) for sending to witness version 1 and later.
+ * Block explorer: allow setting a custom URL in Qt GUI (#6965)
+
+
 # Release 4.0.9 - (Dec 18, 2020)
  * fixes a regression introduced in 4.0.8, that prevents from
    paying BIP70 invoices (#6859)
@@ -328,6 +507,11 @@
  * Several other minor bugfixes and usability improvements.
 
 
+# Release 3.2.4 - (December 30, 2018)
+
+ * backport anti-phishing measures from master
+
+
 # Release 3.2.3 - (September 3, 2018)
 
  * hardware wallet: the Safe-T mini from Archos is now supported.
@@ -641,6 +825,10 @@ issue #3374. Users should upgrade to 3.0.5.
     current block. Other values of locktime may be passed using the
     command line.
 
+
+# Release 2.9.4 (security update)
+  * Backport security fixes from 3.0.5 after vulnerability was
+    discovered in JSONRPC interface.
 
 # Release 2.9.3
   * fix configuration file issue #2719

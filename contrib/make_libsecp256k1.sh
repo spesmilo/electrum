@@ -65,4 +65,7 @@ info "Building $pkgname..."
     host_strip "$here/$pkgname/dist/lib/$dlname"
     cp -fpv "$here/$pkgname/dist/lib/$dlname" "$PROJECT_ROOT/electrum" || fail "Could not copy the $pkgname binary to its destination"
     info "$dlname has been placed in the inner 'electrum' folder."
+    if [ -n "$DLL_TARGET_DIR" ] ; then
+        cp -fpv "$here/$pkgname/dist/lib/$dlname" "$DLL_TARGET_DIR" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
+    fi
 )

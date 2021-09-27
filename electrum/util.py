@@ -24,7 +24,7 @@ import binascii
 import os, sys, re, json
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
-                    Sequence, Dict, Generic, TypeVar, List, Iterable)
+                    Sequence, Dict, Generic, TypeVar, List, Iterable, Set)
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -45,6 +45,8 @@ import ipaddress
 from ipaddress import IPv4Address, IPv6Address
 import random
 import secrets
+import functools
+from abc import abstractmethod, ABC
 
 import attr
 import aiohttp
@@ -68,6 +70,14 @@ _logger = get_logger(__name__)
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
+
+
+def all_subclasses(cls) -> Set:
+    """Return all (transitive) subclasses of cls."""
+    res = set(cls.__subclasses__())
+    for sub in res.copy():
+        res |= all_subclasses(sub)
+    return res
 
 
 ca_path = certifi.where()
@@ -98,6 +108,31 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+def parse_max_spend(amt: Any) -> Optional[int]:
+    """Checks if given amount is "spend-max"-like.
+    Returns None or the positive integer weight for "max". Never raises.
+
+    When creating invoices and on-chain txs, the user can specify to send "max".
+    This is done by setting the amount to '!'. Splitting max between multiple
+    tx outputs is also possible, and custom weights (positive ints) can also be used.
+    For example, to send 40% of all coins to address1, and 60% to address2:
+    ```
+    address1, 2!
+    address2, 3!
+    ```
+    """
+    if not (isinstance(amt, str) and amt and amt[-1] == '!'):
+        return None
+    if amt == '!':
+        return 1
+    x = amt[:-1]
+    try:
+        x = int(x)
+    except ValueError:
+        return None
+    if x > 0:
+        return x
+    return None
 
 class NotEnoughFunds(Exception):
     def __str__(self):
@@ -107,11 +142,6 @@ class NotEnoughFunds(Exception):
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
-
-
-class MultipleSpendMaxTxOutputs(Exception):
-    def __str__(self):
-        return _('At most one output can be set to spend max')
 
 
 class InvalidPassword(Exception):
@@ -315,6 +345,7 @@ class DaemonThread(threading.Thread, Logger):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
+        self.stopped_event = threading.Event()  # set when fully stopped
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -355,6 +386,7 @@ class DaemonThread(threading.Thread, Logger):
             jnius.detach()
             self.logger.info("jnius detach")
         self.logger.info("stopped")
+        self.stopped_event.set()
 
 
 def print_stderr(*args):
@@ -422,12 +454,6 @@ def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
-
-def get_backup_dir(config):
-    if 'ANDROID_DATA' in os.environ:
-        return android_backup_dir() if config.get('android_backups') else None
-    else:
-        return config.get('backup_dir')
 
 def ensure_sparse_file(filename):
     # On modern Linux, no need to do anything.
@@ -584,8 +610,11 @@ def is_hash256_str(text: Any) -> bool:
 def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
-        bytes.fromhex(text)
+        b = bytes.fromhex(text)
     except:
+        return False
+    # forbid whitespaces in text:
+    if len(text) != 2 * len(b):
         return False
     return True
 
@@ -618,53 +647,82 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, *, decimal_point=8) -> str:
+def format_satoshis_plain(
+        x: Union[int, float, Decimal, str],  # amount in satoshis,
+        *,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if x == '!':
-        return 'max'
+    if parse_max_spend(x):
+        return f'max({x})'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
+
+# Check that Decimal precision is sufficient.
+# We need at the very least ~20, as we deal with msat amounts, and
+# log10(21_000_000 * 10**8 * 1000) ~= 18.3
+# decimal.DefaultContext.prec == 28 by default, but it is mutable.
+# We enforce that we have at least that available.
+assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
 
 DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
 def format_satoshis(
-        x,  # in satoshis
+        x: Union[int, float, Decimal, str, None],  # amount in satoshis
         *,
-        num_zeros=0,
-        decimal_point=8,
-        precision=None,
-        is_diff=False,
-        whitespaces=False,
+        num_zeros: int = 0,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        precision: int = 0,  # extra digits after satoshi precision
+        is_diff: bool = False,  # if True, enforce a leading sign (+/-)
+        whitespaces: bool = False,  # if True, add whitespaces, to align numbers in a column
+        add_thousands_sep: bool = False,  # if True, add whitespaces, for better readability of the numbers
 ) -> str:
     if x is None:
         return 'unknown'
-    if x == '!':
-        return 'max'
-    if precision is None:
-        precision = decimal_point
+    if parse_max_spend(x):
+        return f'max({x})'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # lose redundant precision
+    x = Decimal(x).quantize(Decimal(10) ** (-precision))
     # format string
-    decimal_format = "." + str(precision) if precision > 0 else ""
+    overall_precision = decimal_point + precision  # max digits after final decimal point
+    decimal_format = "." + str(overall_precision) if overall_precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
     # initial result
     scale_factor = pow(10, decimal_point)
-    if not isinstance(x, Decimal):
-        x = Decimal(x).quantize(Decimal('1E-8'))
     result = ("{:" + decimal_format + "f}").format(x / scale_factor)
     if "." not in result: result += "."
     result = result.rstrip('0')
-    # extra decimal places
+    # add extra decimal places (zeros)
     integer_part, fract_part = result.split(".")
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
+    # add whitespaces as thousands' separator for better readability of numbers
+    if add_thousands_sep:
+        sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
+        if sign == "-":
+            integer_part = integer_part[1:]
+        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = sign + integer_part
+        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
-    # leading/trailing whitespaces
+    # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
-        result += " " * (decimal_point - len(fract_part))
-        result = " " * (15 - len(result)) + result
+        target_fract_len = overall_precision
+        target_integer_len = 14 - decimal_point  # should be enough for up to unsigned 999999 BTC
+        if add_thousands_sep:
+            target_fract_len += max(0, (target_fract_len - 1) // 3)
+            target_integer_len += max(0, (target_integer_len - 1) // 3)
+        # add trailing whitespaces
+        result += " " * (target_fract_len - len(fract_part))
+        # add leading whitespaces
+        target_total_len = target_integer_len + 1 + target_fract_len
+        result = " " * (target_total_len - len(result)) + result
     return result
 
 
@@ -686,7 +744,7 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp):
+def timestamp_to_datetime(timestamp: Optional[int]) -> Optional[datetime]:
     if timestamp is None:
         return None
     return datetime.fromtimestamp(timestamp)
@@ -768,7 +826,7 @@ mainnet_block_explorers = {
     'mempool.space': ('https://mempool.space/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.emzy.de': ('https://mempool.emzy.de/',
-                        {'tx': 'tx/', 'addr': 'address/'}),  
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://www.smartbit.com.au/',
@@ -789,26 +847,67 @@ testnet_block_explorers = {
     'Blockstream.info': ('https://blockstream.info/testnet/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'mempool.space': ('https://mempool.space/testnet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),    
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'smartbit.com.au': ('https://testnet.smartbit.com.au/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
+signet_block_explorers = {
+    'bc-2.jp': ('https://explorer.bc-2.jp/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'mempool.space': ('https://mempool.space/signet/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'bitcoinexplorer.org': ('https://signet.bitcoinexplorer.org/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'wakiyamap.dev': ('https://signet-explorer.wakiyamap.dev/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'system default': ('blockchain:/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+}
+
+_block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
+
+
 def block_explorer_info():
     from . import constants
-    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
+    if constants.net.NET_NAME == "testnet":
+        return testnet_block_explorers
+    elif constants.net.NET_NAME == "signet":
+        return signet_block_explorers
+    return mainnet_block_explorers
 
-def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
+
+def block_explorer(config: 'SimpleConfig') -> Optional[str]:
+    """Returns name of selected block explorer,
+    or None if a custom one (not among hardcoded ones) is configured.
+    """
+    if config.get('block_explorer_custom') is not None:
+        return None
     default_ = 'Blockstream.info'
     be_key = config.get('block_explorer', default_)
-    be = block_explorer_info().get(be_key)
-    return be_key if be is not None else default_
+    be_tuple = block_explorer_info().get(be_key)
+    if be_tuple is None:
+        be_key = default_
+    assert isinstance(be_key, str), f"{be_key!r} should be str"
+    return be_key
+
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    return block_explorer_info().get(block_explorer(config))
+    custom_be = config.get('block_explorer_custom')
+    if custom_be:
+        if isinstance(custom_be, str):
+            return custom_be, _block_explorer_default_api_loc
+        if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
+            return tuple(custom_be)
+        _logger.warning(f"not using 'block_explorer_custom' from config. "
+                        f"expected a str or a pair but got {custom_be!r}")
+        return None
+    else:
+        # using one of the hardcoded block explorers
+        return block_explorer_info().get(block_explorer(config))
+
 
 def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
@@ -818,6 +917,8 @@ def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional
     kind_str = explorer_dict.get(kind)
     if kind_str is None:
         return
+    if explorer_url[-1] != "/":
+        explorer_url += "/"
     url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
@@ -838,7 +939,7 @@ class InvalidBitcoinURI(Exception): pass
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
-    from .bitcoin import COIN
+    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -875,9 +976,11 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             m = re.match(r'([0-9.]+)X([0-9])', am)
             if m:
                 k = int(m.group(2)) - 8
-                amount = Decimal(m.group(1)) * pow(  Decimal(10) , k)
+                amount = Decimal(m.group(1)) * pow(Decimal(10), k)
             else:
                 amount = Decimal(am) * COIN
+            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
@@ -1050,6 +1153,7 @@ def make_dir(path, allow_symlink=True):
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         self = args[0] if len(args) > 0 else None
         try:
@@ -1069,6 +1173,7 @@ def log_exceptions(func):
 def ignore_exceptions(func):
     """Decorator to silently swallow all exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
@@ -1078,6 +1183,14 @@ def ignore_exceptions(func):
         except Exception as e:
             pass
     return wrapper
+
+
+def with_lock(func):
+    """Decorator to enforce a lock on a function call."""
+    def func_wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return func_wrapper
 
 
 class TxMinedInfo(NamedTuple):
@@ -1124,7 +1237,7 @@ class SilentTaskGroup(TaskGroup):
         return super().spawn(*args, **kwargs)
 
 
-class NetworkJobOnDefaultServer(Logger):
+class NetworkJobOnDefaultServer(Logger, ABC):
     """An abstract base class for a job that runs on the main network
     interface. Every time the main interface changes, the job is
     restarted, and some of its internals are reset.
@@ -1135,9 +1248,15 @@ class NetworkJobOnDefaultServer(Logger):
         self.network = network
         self.interface = None  # type: Interface
         self._restart_lock = asyncio.Lock()
+        # Ensure fairness between NetworkJobs. e.g. if multiple wallets
+        # are open, a large wallet's Synchronizer should not starve the small wallets:
+        self._network_request_semaphore = asyncio.Semaphore(100)
+
         self._reset()
-        asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
+        # every time the main interface changes, restart:
         register_callback(self._restart, ['default_server_changed'])
+        # also schedule a one-off restart now, as there might already be a main interface:
+        asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
 
     def _reset(self):
         """Initialise fields. Called every time the underlying
@@ -1147,19 +1266,21 @@ class NetworkJobOnDefaultServer(Logger):
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
-        await interface.taskgroup.spawn(self._start_tasks)
+        await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
-    async def _start_tasks(self):
-        """Start tasks in self.taskgroup. Called every time the underlying
+    @abstractmethod
+    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
+        """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """
-        raise NotImplementedError()  # implemented by subclasses
+        # If self.taskgroup changed, don't start tasks. This can happen if we have
+        # been restarted *just now*, i.e. after the _run_tasks coroutine object was created.
+        if taskgroup != self.taskgroup:
+            raise asyncio.CancelledError()
 
-    async def stop(self):
-        unregister_callback(self._restart)
-        await self._stop()
-
-    async def _stop(self):
+    async def stop(self, *, full_shutdown: bool = True):
+        if full_shutdown:
+            unregister_callback(self._restart)
         await self.taskgroup.cancel_remaining()
 
     @log_exceptions
@@ -1169,7 +1290,7 @@ class NetworkJobOnDefaultServer(Logger):
             return  # we should get called again soon
 
         async with self._restart_lock:
-            await self._stop()
+            await self.stop(full_shutdown=False)
             self._reset()
             await self._start(interface)
 
@@ -1200,7 +1321,6 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
-    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1330,7 +1450,9 @@ def randrange(bound: int) -> int:
 
 
 class CallbackManager:
-        # callbacks set by the GUI
+    # callbacks set by the GUI or any thread
+    # guarantee: the callbacks will always get triggered from the asyncio thread.
+
     def __init__(self):
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
@@ -1348,6 +1470,10 @@ class CallbackManager:
                     callbacks.remove(callback)
 
     def trigger_callback(self, event, *args):
+        """Trigger a callback with given arguments.
+        Can be called from any thread. The callback itself will get scheduled
+        on the event loop.
+        """
         if self.asyncio_loop is None:
             self.asyncio_loop = asyncio.get_event_loop()
             assert self.asyncio_loop.is_running(), "event loop not running"
@@ -1520,3 +1646,33 @@ def test_read_write_permissions(path) -> None:
         raise IOError(e) from e
     if echo != echo2:
         raise IOError('echo sanity-check failed')
+
+
+class nullcontext:
+    """Context manager that does no additional processing.
+    This is a ~backport of contextlib.nullcontext from Python 3.10
+    """
+
+    def __init__(self, enter_result=None):
+        self.enter_result = enter_result
+
+    def __enter__(self):
+        return self.enter_result
+
+    def __exit__(self, *excinfo):
+        pass
+
+    async def __aenter__(self):
+        return self.enter_result
+
+    async def __aexit__(self, *excinfo):
+        pass
+
+def get_running_loop():
+    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
+    if sys.version_info < (3, 7):
+        return asyncio._get_running_loop()
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None

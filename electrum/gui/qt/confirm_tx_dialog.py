@@ -26,7 +26,8 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Union
 
-from PyQt5.QtWidgets import  QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QPushButton, QLineEdit
 
 from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -101,6 +102,9 @@ class TxEditor:
             self.tx = None
             try:
                 self.tx = self.make_tx(0)
+            except NotEnoughFunds:
+                self.not_enough_funds = True
+                return
             except BaseException:
                 return
         except InternalAddressCorruption as e:
@@ -108,8 +112,7 @@ class TxEditor:
             self.main_window.show_error(str(e))
             raise
         use_rbf = bool(self.config.get('use_rbf', True))
-        if use_rbf:
-            self.tx.set_rbf(True)
+        self.tx.set_rbf(use_rbf)
 
     def have_enough_funds_assuming_zero_fees(self) -> bool:
         try:
@@ -133,20 +136,26 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self.setLayout(vbox)
         grid = QGridLayout()
         vbox.addLayout(grid)
+
+        msg = (_('The amount to be received by the recipient.') + ' '
+               + _('Fees are paid by the sender.'))
         self.amount_label = QLabel('')
-        grid.addWidget(QLabel(_("Amount to be sent") + ": "), 0, 0)
+        self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        grid.addWidget(HelpLabel(_("Amount to be sent") + ": ", msg), 0, 0)
         grid.addWidget(self.amount_label, 0, 1)
 
         msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_label = QLabel('')
+        self.fee_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         grid.addWidget(HelpLabel(_("Mining fee") + ": ", msg), 1, 0)
         grid.addWidget(self.fee_label, 1, 1)
 
         self.extra_fee_label = QLabel(_("Additional fees") + ": ")
         self.extra_fee_label.setVisible(False)
         self.extra_fee_value = QLabel('')
+        self.extra_fee_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.extra_fee_value.setVisible(False)
         grid.addWidget(self.extra_fee_label, 2, 0)
         grid.addWidget(self.extra_fee_value, 2, 1)
@@ -158,6 +167,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.fee_combo, 5, 2)
 
         self.message_label = QLabel(self.default_message())
+        self.message_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         grid.addWidget(self.message_label, 6, 0, 1, -1)
         self.pw_label = QLabel(_('Password'))
         self.pw_label.setVisible(self.password_required)
@@ -229,12 +239,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self._update_amount_label()
 
         if self.not_enough_funds:
-            text = _("Not enough funds")
-            c, u, x = self.wallet.get_frozen_balance()
-            if c+u+x:
-                text += " ({} {} {})".format(
-                    self.main_window.format_amount(c + u + x).strip(), self.main_window.base_unit(), _("are frozen")
-                )
+            text = self.main_window.get_text_not_enough_funds_mentioning_frozen()
             self.toggle_send_button(False, message=text)
             return
 
@@ -242,6 +247,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             return
 
         fee = tx.get_fee()
+        assert fee is not None
         self.fee_label.setText(self.main_window.format_amount_and_units(fee))
         x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
         if x_fee:
@@ -251,21 +257,11 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
             self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
 
         amount = tx.output_value() if self.output_value == '!' else self.output_value
-        feerate = Decimal(fee) / tx.estimated_size()  # sat/byte
-        fee_ratio = Decimal(fee) / amount if amount else 1
-        if feerate < self.wallet.relayfee() / 1000:
-            msg = '\n'.join([
-                _("This transaction requires a higher fee, or it will not be propagated by your current server"),
-                _("Try to raise your transaction fee, or use a server with a lower relay fee.")
-            ])
-            self.toggle_send_button(False, message=msg)
-        elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
-            self.toggle_send_button(True,
-                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                                            + f'\n({fee_ratio*100:.2f}% of amount)')
-        elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
-            self.toggle_send_button(True,
-                                    message=_('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
-                                            + f'\n(feerate: {feerate:.2f} sat/byte)')
+        tx_size = tx.estimated_size()
+        fee_warning_tuple = self.wallet.get_tx_fee_warning(
+            invoice_amt=amount, tx_size=tx_size, fee=fee)
+        if fee_warning_tuple:
+            allow_send, long_warning, short_warning = fee_warning_tuple
+            self.toggle_send_button(allow_send, message=long_warning)
         else:
             self.toggle_send_button(True)

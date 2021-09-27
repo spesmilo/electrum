@@ -24,13 +24,14 @@
 # SOFTWARE.
 
 import re
+import decimal
 from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME
+from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
@@ -127,10 +128,16 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return script
 
     def parse_amount(self, x):
-        if x.strip() == '!':
-            return '!'
+        x = x.strip()
+        if not x:
+            raise Exception("Amount is empty")
+        if parse_max_spend(x):
+            return x
         p = pow(10, self.amount_edit.decimal_point())
-        return int(p * Decimal(x.strip()))
+        try:
+            return int(p * Decimal(x))
+        except decimal.InvalidOperation:
+            raise Exception("Invalid amount")
 
     def parse_address(self, line):
         r = line.strip()
@@ -159,12 +166,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             # try LN invoice
             bolt11_invoice = maybe_extract_bolt11_invoice(data)
             if bolt11_invoice is not None:
-                try:
-                    self.win.parse_lightning_invoice(bolt11_invoice)
-                except LnDecodeException as e:
-                    self.errors.append(PayToLineError(line_content=data, exc=e))
-                else:
-                    self.lightning_invoice = bolt11_invoice
+                self.win.set_ln_invoice(bolt11_invoice)
                 return
             # try "address, amount" on-chain format
             try:
@@ -201,7 +203,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                         idx=i, line_content=line.strip(), exc=e, is_multiline=True))
                     continue
             outputs.append(output)
-            if output.value == '!':
+            if parse_max_spend(output.value):
                 is_max = True
             else:
                 total += output.value
@@ -224,12 +226,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def get_destination_scriptpubkey(self) -> Optional[bytes]:
         return self.payto_scriptpubkey
 
-    def get_outputs(self, is_max):
+    def get_outputs(self, is_max: bool) -> List[PartialTxOutput]:
         if self.payto_scriptpubkey:
             if is_max:
                 amount = '!'
             else:
                 amount = self.amount_edit.get_amount()
+                if amount is None:
+                    return []
             self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
 
         return self.outputs[:]
@@ -253,11 +257,12 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
 
-    def qr_input(self):
-        data = super(PayToEdit,self).qr_input()
-        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-            self.win.pay_to_URI(data)
-            # TODO: update fee
+    def qr_input(self, *, callback=None):
+        def _on_qr_success(data):
+            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
+                self.win.pay_to_URI(data)
+                # TODO: update fee
+        super(PayToEdit, self).qr_input(callback=_on_qr_success)
 
     def resolve(self):
         self.is_alias = False

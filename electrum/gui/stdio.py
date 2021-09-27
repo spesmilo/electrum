@@ -10,7 +10,6 @@ from electrum.util import format_satoshis
 from electrum.bitcoin import is_address, COIN
 from electrum.transaction import PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.logging import console_stderr_handler
 
 _ = lambda x:x  # i18n
 
@@ -36,8 +35,6 @@ class ElectrumGui:
         self.done = 0
         self.last_balance = ""
 
-        console_stderr_handler.setLevel(logging.CRITICAL)
-
         self.str_recipient = ""
         self.str_description = ""
         self.str_amount = ""
@@ -56,7 +53,7 @@ class ElectrumGui:
                          _("[r] - show own receipt addresses"), \
                          _("[c] - display contacts"), \
                          _("[b] - print server banner"), \
-                         _("[q] - quit") ]
+                         _("[q] - quit")]
         self.num_commands = len(self.commands)
 
     def on_network(self, event, *args):
@@ -112,7 +109,7 @@ class ElectrumGui:
             messages.append(format_str % (time_str, label, format_satoshis(delta, whitespaces=True),
                                           format_satoshis(hist_item.balance, whitespaces=True)))
 
-        self.print_list(messages[::-1], format_str%( _("Date"), _("Description"), _("Amount"), _("Balance")))
+        self.print_list(messages[::-1], format_str%(_("Date"), _("Description"), _("Amount"), _("Balance")))
 
 
     def print_balance(self):
@@ -121,7 +118,7 @@ class ElectrumGui:
     def get_balance(self):
         if self.wallet.network.is_connected():
             if not self.wallet.up_to_date:
-                msg = _( "Synchronizing..." )
+                msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()
                 msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
@@ -130,7 +127,7 @@ class ElectrumGui:
                 if x:
                     msg += "  [%f unmatured]"%(Decimal(x) / COIN)
         else:
-                msg = _( "Not connected" )
+                msg = _("Not connected")
 
         return(msg)
 
@@ -157,8 +154,8 @@ class ElectrumGui:
         self.do_send()
 
     def print_banner(self):
-        for i, x in enumerate( self.wallet.network.banner.split('\n') ):
-            print( x )
+        for i, x in enumerate(self.wallet.network.banner.split('\n')):
+            print(x)
 
     def print_list(self, lst, firstline):
         lst = list(lst)

@@ -98,6 +98,26 @@
         id: lbl2
         text: root.value
 
+<BoxButton@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+        pos_hint: {'top':1}
+    Button
+        id: lbl2
+        text: root.value
+        background_color: (0,0,0,0)
+        bold: True
+        size_hint_y: None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        on_release:
+            root.callback()
+
 <OutputItem>
     address: ''
     value: ''
@@ -157,7 +177,8 @@
     touched: False
     padding: '10dp', '10dp'
     background_color: .3, .3, .3, 1
-    touch_callback: lambda: app.on_ref_label(self)
+    show_text_with_qr: True
+    touch_callback: lambda: app.on_ref_label(self, show_text_with_qr=self.show_text_with_qr)
     on_touch_down:
         touch = args[1]
         touched = bool(self.collide_point(*touch.pos))
@@ -212,7 +233,7 @@
         Color:
             rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -226,7 +247,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
 		BorderImage:
-			source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
+			source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/card_bottom'
 			size: self.size
 			pos: self.pos
 
@@ -239,7 +260,7 @@
 		Color:
 			rgba: 0.192, .498, 0.745, 1
         BorderImage:
-            source: f'atlas://{KIVY_GUI_PATH}/theming/light/card_bottom'
+            source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/card_bottom'
             size: self.size
             pos: self.pos
 
@@ -327,8 +348,8 @@
     valign: 'middle'
     bold: True
     font_size: '12.5sp'
-    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn'
-    background_down: f'atlas://{KIVY_GUI_PATH}/theming/light/tab_btn_pressed'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/tab_btn'
+    background_down: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/tab_btn_pressed'
 
 
 <ColoredLabel@Label>:
@@ -409,6 +430,59 @@
         Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
         self.state = 'normal'
 
+<NetworkDialog@BoxLayout>
+    orientation: 'vertical'
+    ScrollView:
+        GridLayout:
+            id: scrollviewlayout
+            cols:1
+            size_hint: 1, None
+            height: self.minimum_height
+            padding: '10dp'
+            SettingsItem:
+                value: _("{} connections.").format(app.num_nodes) if app.num_nodes else _("Not connected")
+                title: _("Status") + ': ' + self.value
+                description: _("Connections with Electrum servers")
+
+            CardSeparator
+            SettingsItem:
+                title: _("Server") + ': ' + app.server_host
+                description: _("Server used to query your history.")
+                action: lambda x: app.popup_dialog('server')
+
+            CardSeparator
+            SettingsItem:
+                title: _("Proxy") + ': ' + app.proxy_str
+                description: _('Proxy configuration')
+                action: lambda x: app.popup_dialog('proxy')
+
+            CardSeparator
+            SettingsItem:
+                title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
+                description: _("Select your server automatically")
+                action: app.toggle_auto_connect
+
+            CardSeparator
+            SettingsItem:
+                title: _("One-server mode") + ': ' + ('ON' if app.oneserver else 'OFF')
+                description: _("Only connect to a single server")
+                action: app.toggle_oneserver
+                disabled: app.auto_connect and not app.oneserver
+
+            CardSeparator
+            SettingsItem:
+                value: "%d blocks" % app.num_blocks
+                title: _("Blockchain") + ': ' + self.value
+                description: _('Verified block headers')
+
+            CardSeparator
+            SettingsItem:
+                title: _('Fork detected at block {}').format(app.blockchain_forkpoint) if app.num_chains>1 else _('No fork detected')
+                fork_description: (_('You are following branch') if app.auto_connect else _("Your server is on branch")) + ' ' + app.blockchain_name
+                description: self.fork_description if app.num_chains>1 else _('Connected nodes are on the same chain')
+                action: app.choose_blockchain_dialog
+                disabled: app.num_chains == 1
+
 
 BoxLayout:
     orientation: 'vertical'
@@ -456,6 +530,7 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'network'
                     text: _('Network')
+                    disabled: app.network is None
                 ActionOvrButton:
                     name: 'addresses_dialog'
                     text: _('Addresses')

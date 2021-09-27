@@ -13,7 +13,7 @@ def sql(func):
     """wrapper for sql methods"""
     def wrapper(self: 'SqlDB', *args, **kwargs):
         assert threading.currentThread() != self.sql_thread
-        f = asyncio.Future()
+        f = self.asyncio_loop.create_future()
         self.db_requests.put((f, func, args, kwargs))
         return f
     return wrapper
@@ -24,12 +24,17 @@ class SqlDB(Logger):
     def __init__(self, asyncio_loop: asyncio.BaseEventLoop, path, commit_interval=None):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
+        self.stopping = False
+        self.stopped_event = asyncio.Event()
         self.path = path
         test_read_write_permissions(path)
         self.commit_interval = commit_interval
         self.db_requests = queue.Queue()
         self.sql_thread = threading.Thread(target=self.run_sql)
         self.sql_thread.start()
+
+    def stop(self):
+        self.stopping = True
 
     def filesize(self):
         return os.stat(self.path).st_size
@@ -40,7 +45,7 @@ class SqlDB(Logger):
         self.logger.info("Creating database")
         self.create_database()
         i = 0
-        while self.asyncio_loop.is_running():
+        while not self.stopping and self.asyncio_loop.is_running():
             try:
                 future, func, args, kwargs = self.db_requests.get(timeout=0.1)
             except queue.Empty:
@@ -61,7 +66,9 @@ class SqlDB(Logger):
         # write
         self.conn.commit()
         self.conn.close()
+
         self.logger.info("SQL thread terminated")
+        self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
 
     def create_database(self):
         raise NotImplementedError()

@@ -3,10 +3,13 @@ import tempfile
 import os
 import json
 from typing import Optional
+import asyncio
 
+import electrum
 from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum import constants
+from electrum import util
 
 from .test_wallet import WalletTestCase
 
@@ -14,6 +17,15 @@ from .test_wallet import WalletTestCase
 # TODO add other wallet types: 2fa, xpub-only
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
 class TestStorageUpgrade(WalletTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
+
+    def tearDown(self):
+        super().tearDown()
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
 
     def testnet_wallet(func):
         # note: it's ok to modify global network constants in subclasses of SequentialTestCase
@@ -281,7 +293,7 @@ class TestStorageUpgrade(WalletTestCase):
         # to simulate ks.opportunistically_fill_in_missing_info_from_device():
         ks._root_fingerprint = "deadbeef"
         ks.is_requesting_to_be_rewritten_to_wallet_file = True
-        wallet.stop()
+        asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop).result()
 
     def test_upgrade_from_client_2_9_3_importedkeys_keystore_changes(self):
         # see #6401
@@ -292,7 +304,7 @@ class TestStorageUpgrade(WalletTestCase):
             ["p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY"],
             password=None
         )
-        wallet.stop()
+        asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop).result()
 
     @testnet_wallet
     def test_upgrade_from_client_3_3_8_xpub_with_realistic_history(self):
@@ -300,6 +312,8 @@ class TestStorageUpgrade(WalletTestCase):
         self._upgrade_storage(wallet_str)
 
 ##########
+
+    plugins: 'electrum.plugin.Plugins'
 
     @classmethod
     def setUpClass(cls):
@@ -312,12 +326,14 @@ class TestStorageUpgrade(WalletTestCase):
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        Plugins(config, gui_name)
+        cls.plugins = Plugins(config, gui_name)
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         shutil.rmtree(cls.__electrum_path)
+        cls.plugins.stop()
+        cls.plugins.stopped_event.wait()
 
     def _upgrade_storage(self, wallet_json, accounts=1) -> Optional[WalletDB]:
         if accounts == 1:
@@ -347,8 +363,8 @@ class TestStorageUpgrade(WalletTestCase):
     def _sanity_check_upgraded_db(self, db):
         self.assertFalse(db.requires_split())
         self.assertFalse(db.requires_upgrade())
-        w = Wallet(db, None, config=self.config)
-        w.stop()
+        wallet = Wallet(db, None, config=self.config)
+        asyncio.run_coroutine_threadsafe(wallet.stop(), self.asyncio_loop).result()
 
     @staticmethod
     def _load_db_from_json_string(*, wallet_json, manual_upgrades):

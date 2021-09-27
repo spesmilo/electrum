@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-import os
-import getpass
+import os, sys
 
 if __name__ == '__main__':
-
+    username = sys.argv[1]
     os.chdir("dist")
-    password = getpass.getpass("Password:")
-    for f in os.listdir('.'):
-        if f.endswith('asc'):
+    for fname in os.listdir('.'):
+        if fname.endswith('asc'):
             continue
-        os.system( "gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f) )
-
+        sig_name = fname + '.' + username + '.asc'
+        os.system(f"gpg --sign --armor --detach --output {sig_name} {fname}")
     os.chdir("..")
-
-
-
