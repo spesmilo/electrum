@@ -226,12 +226,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def get_destination_scriptpubkey(self) -> Optional[bytes]:
         return self.payto_scriptpubkey
 
-    def get_outputs(self, is_max):
+    def get_outputs(self, is_max: bool) -> List[PartialTxOutput]:
         if self.payto_scriptpubkey:
             if is_max:
                 amount = '!'
             else:
                 amount = self.amount_edit.get_amount()
+                if amount is None:
+                    return []
             self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
 
         return self.outputs[:]

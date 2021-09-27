@@ -322,7 +322,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
-            new_db.put('lightning_xprv', None)
             new_db.put('lightning_privkey2', None)
 
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
@@ -2276,7 +2275,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         expiration = expiration or 0
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
-            outputs=[(TYPE_ADDRESS, address, amount_sat)],
+            outputs=[PartialTxOutput.from_address_and_value(address, amount_sat)],
             message=message,
             time=timestamp,
             amount_sat=amount_sat,
