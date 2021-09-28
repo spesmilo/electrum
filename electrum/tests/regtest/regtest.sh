@@ -342,10 +342,17 @@ if [[ $1 == "watchtower" ]]; then
     invoice2=$($bob add_lightning_request 0.01 -m "invoice2" | jq -r ".invoice")
     $alice lnpay $invoice2
     msg="waiting until watchtower is synchronized"
-    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [ $watchtower_ctn != "3" ]; do
+    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != "3" ]]; do
         sleep 1
-	msg="$msg."
-	printf "$msg\r"
+        msg="$msg."
+        printf "$msg\r"
     done
     printf "\n"
+    echo "alice and bob do nothing"
+    $bob stop
+    $alice stop
+    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
+    echo "alice breaches with old ctx:" $ctx_id
+    echo "watchtower publishes justice transaction"
+    wait_until_spent $ctx_id 1  # alice's to_local gets punished immediately
 fi
