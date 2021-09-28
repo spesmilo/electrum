@@ -46,7 +46,7 @@ task:
   tox_script:
     - tox
   coveralls_script:
-    - coveralls
+    - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
   env:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
     # following CI_* env vars are set up for coveralls
