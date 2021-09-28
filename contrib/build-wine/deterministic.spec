@@ -22,8 +22,7 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
-hiddenimports += collect_submodules('satochip') 
-hiddenimports += collect_submodules('smartcard') 
+hiddenimports += collect_submodules('smartcard') # satochip
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -35,9 +34,6 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 binaries += [('C:/tmp/libzbar-0.dll', '.')]
-
-# pyscard binaries for Satochip
-binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp38-win32.pyd', '.')] #satochip
 
 datas = [
     (home+'electrum/*.json', 'electrum'),
@@ -54,6 +50,7 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
+datas += collect_data_files('pysatochip')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',
