@@ -619,29 +619,25 @@ class Blockchain(Logger):
         return running_total + work_in_last_partial_chunk
 
     def can_connect(self, header: dict, check_height: bool=True) -> bool:
-        print ("start {}",header['block_height'] )
         if header is None:
-            print ("no header")
             return False
         height = header['block_height']
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
-            #print ("genesis: ",constants.net.GENESIS)
+            print ("genesis: ",constants.net.GENESIS)
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-            #print(prev_hash,"\n\n")
         except: 
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
             # target = self.(height, None)
-            print ("getting target")
             target = self.get_target(height)
+           
         except MissingHeader:
-            print ("MissingHeader: ",height)
             return False
         try:
             self.verify_header(header, prev_hash, target)

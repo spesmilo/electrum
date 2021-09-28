@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+#import pdb
 import os
 import re
 import ssl
@@ -374,7 +375,7 @@ class Interface(Logger):
         self.fee_estimates_eta = {}  # type: Dict[int, int]
 
         # Dump network messages (only for this interface).  Set at runtime from the console.
-        self.debug = False
+        self.debug = True
 
         self.taskgroup = SilentTaskGroup()
 
@@ -597,7 +598,6 @@ class Interface(Logger):
         if can_return_early and index in self._requested_chunks:
             return
         self.logger.info(f"requesting chunk from height {height}")
-        size = 2016
         if tip is not None:
             size = min(size, tip - index * 2016 + 1)
             size = max(size, 0)
@@ -794,15 +794,16 @@ class Interface(Logger):
         self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
         good = height
         while True:
+            
             assert good < bad, (good, bad)
             height = (good + bad) // 2
-            print ("height: ",height)
+            print ("height: ",height," good: ", good, " Bad: ",bad)
             self.logger.info(f"binary step. good {good}, bad {bad}, height {height}")
             header = await self.get_block_header(height, 'binary')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
                 print ("chain found",height)
-                self.blockchain = chain #if isinstance(chain, Blockchain) else self.blockchain
+                self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
                 good = height
             else:
                 bad = height
@@ -810,7 +811,6 @@ class Interface(Logger):
                 print("header: {}".format(bad_header))
             if good + 1 == bad:
                 break
-
         mock = 'mock' in bad_header and bad_header['mock']['connect'](height)
         real = not mock and self.blockchain.can_connect(bad_header, check_height=False)
         if not real and not mock:
@@ -849,7 +849,7 @@ class Interface(Logger):
             checkp = False
             if height <= constants.net.max_checkpoint():
                 height = constants.net.max_checkpoint()
-                checkp = True
+                #checkp = True
             header = await self.get_block_header(height, 'backward')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
