@@ -51,11 +51,11 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
     patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
     ./configure \
+      --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
       --enable-ipv6 \
       --enable-shared \
       -q
-	# --cache-file="$CACHEDIR/python.config.cache" \ # error  
     make -j4 -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Could not install Python"
     # When building in docker on macOS, python builds with .exe extension because the

@@ -9,14 +9,6 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
 # ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
 
-# pyscard prebuilt binaries for Satochip 
-# PYSCARD_FILENAME=pyscard-1.9.9-cp36-cp36m-win32.whl  # python 3.6, 32-bit
-# PYSCARD_URL=https://github.com/cculianu/Electron-Cash-Build-Tools/releases/download/v1.0/pyscard-1.9.9-cp36-cp36m-win32.whl
-# PYSCARD_SHA256=99d2b450f322f9ed9682fd2a99d95ce781527e371006cded38327efca8158fe7
-# PYSCARD_FILENAME=pyscard-1.9.9-cp37-cp37m-win32.whl # python 3.7, 32-bit
-# PYSCARD_URL=https://ci.appveyor.com/api/buildjobs/f9cmce4j8hkau9n4/artifacts/dist/pyscard-1.9.9-cp37-cp37m-win32.whl
-# PYSCARD_SHA256=3f7d52dd6694dd369b02e797fe1a3e39b63cf1d1c4b5fc0e1341aafa24f87e7a
-
 PYTHON_VERSION=3.8.8
 
 
@@ -62,12 +54,6 @@ info "Installing build dependencies."
 $WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
 
-
-#Satochip install pyscard
-# info "Installing pyscard..."
-# download_if_not_exist $PYSCARD_FILENAME "$PYSCARD_URL"
-# verify_hash $PYSCARD_FILENAME "$PYSCARD_SHA256"
-# $PYTHON -m pip install "$CACHEDIR/$PYSCARD_FILENAME"
 info "Installing NSIS."
 download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
 verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
