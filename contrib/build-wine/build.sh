@@ -1,49 +1,56 @@
 #!/bin/bash
+#
+# env vars:
+# - ELECBUILD_NOCACHE: if set, forces rebuild of docker image
+# - ELECBUILD_COMMIT: if set, do a fresh clone and git checkout
 
 set -e
 
-here="$(dirname "$(readlink -e "$0")")"
-test -n "$here" -a -d "$here" || exit
-
-export CONTRIB="$here/.."
-export PROJECT_ROOT="$CONTRIB/.."
-export CACHEDIR="$here/.cache"
-export PIP_CACHE_DIR="$CACHEDIR/pip_cache"
-
-export BUILD_TYPE="wine"
-export GCC_TRIPLET_HOST="i686-w64-mingw32"  # make sure to clear caches if changing this
-export GCC_TRIPLET_BUILD="x86_64-pc-linux-gnu"
-export GCC_STRIP_BINARIES="1"
+PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../.."
+PROJECT_ROOT_OR_FRESHCLONE_ROOT="$PROJECT_ROOT"
+CONTRIB="$PROJECT_ROOT/contrib"
+CONTRIB_WINE="$CONTRIB/build-wine"
 
 . "$CONTRIB"/build_tools_util.sh
 
-info "Clearing $here/build and $here/dist..."
-rm "$here"/build/* -rf
-rm "$here"/dist/* -rf
 
-mkdir -p "$CACHEDIR" "$PIP_CACHE_DIR"
-
-if [ -f "$PROJECT_ROOT/electrum/libsecp256k1-0.dll" ]; then
-    info "libsecp256k1 already built, skipping"
-else
-    "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+DOCKER_BUILD_FLAGS=""
+if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
+    info "ELECBUILD_NOCACHE is set. forcing rebuild of docker image."
+    DOCKER_BUILD_FLAGS="--pull --no-cache"
 fi
 
-if [ -f "$PROJECT_ROOT/electrum/libzbar-0.dll" ]; then
-    info "libzbar already built, skipping"
+info "building docker image."
+sudo docker build \
+    $DOCKER_BUILD_FLAGS \
+    -t electrum-wine-builder-img \
+    "$CONTRIB_WINE"
+
+# maybe do fresh clone
+if [ ! -z "$ELECBUILD_COMMIT" ] ; then
+    info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
+    FRESH_CLONE="$CONTRIB_WINE/fresh_clone/electrum" && \
+        sudo rm -rf "$FRESH_CLONE" && \
+        umask 0022 && \
+        git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
+        cd "$FRESH_CLONE"
+    git checkout "$ELECBUILD_COMMIT"
+    PROJECT_ROOT_OR_FRESHCLONE_ROOT="$FRESH_CLONE"
 else
-    "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
+    info "not doing fresh clone."
 fi
 
-$here/prepare-wine.sh || fail "prepare-wine failed"
+info "building binary..."
+sudo docker run -it \
+    --name electrum-wine-builder-cont \
+    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/wine64/drive_c/electrum \
+    --rm \
+    --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
+    electrum-wine-builder-img \
+    ./make_win.sh
 
-info "Resetting modification time in C:\Python..."
-# (Because of some bugs in pyinstaller)
-pushd /opt/wine64/drive_c/python*
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-popd
-ls -l /opt/wine64/drive_c/python*
-
-$here/build-electrum-git.sh || fail "build-electrum-git failed"
-
-info "Done."
+# make sure resulting binary location is independent of fresh_clone
+if [ ! -z "$ELECBUILD_COMMIT" ] ; then
+    mkdir --parents "$PROJECT_ROOT/contrib/build-wine/dist/"
+    sudo cp -f "$FRESH_CLONE/contrib/build-wine/dist"/*.exe "$PROJECT_ROOT/contrib/build-wine/dist/"
+fi

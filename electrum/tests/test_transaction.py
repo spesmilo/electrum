@@ -3,11 +3,12 @@ from typing import NamedTuple, Union
 from electrum import transaction, bitcoin
 from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
-                                  PartialTxOutput)
+                                  PartialTxOutput, Sighash)
 from electrum.util import bh2u, bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
 from electrum.ecc import ECPrivkey
+from .test_bitcoin import disable_ecdsa_r_value_grinding
 
 from . import ElectrumTestCase, TestCaseForTestnet
 
@@ -15,7 +16,7 @@ signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
 signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
-signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
+signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501',]
 
 class TestBCDataStream(ElectrumTestCase):
 
@@ -126,7 +127,7 @@ class TestTransaction(ElectrumTestCase):
         self.assertEqual(tx.estimated_size(), 193)
 
     def test_estimated_output_size(self):
-        estimated_output_size = transaction.Transaction.estimated_output_size
+        estimated_output_size = transaction.Transaction.estimated_output_size_for_address
         self.assertEqual(estimated_output_size('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), 34)
         self.assertEqual(estimated_output_size('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 32)
         self.assertEqual(estimated_output_size('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af'), 31)
@@ -158,12 +159,13 @@ class TestTransaction(ElectrumTestCase):
         # the inverse of this test is in test_bitcoin: test_address_to_script
         addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
 
-        # bech32 native segwit
-        # test vectors from BIP-0173
+        # bech32/bech32m native segwit
+        # test vectors from BIP-0173/BIP-0350
         self.assertEqual('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
-        self.assertEqual('bc1sw50qa3jx3s', addr_from_script('6002751e'))
-        self.assertEqual('bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y', addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual('bc1sw50qgdz25j', addr_from_script('6002751e'))
+        self.assertEqual('bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs', addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+        self.assertEqual('bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0', addr_from_script('512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'))
         # almost but not quite
         self.assertEqual(None, addr_from_script('0013751e76e8199196d454941c45d1b3a323f1433b'))
 
@@ -916,3 +918,74 @@ class TestTransactionTestnet(TestCaseForTestnet):
                          tx.txid())
         self.assertEqual('020000000001019ad573c69e60c209e0ff36f281ae4f700a8d59f846e7ff5c020352fd1e97808600000000000000000001fa840100000000001600145a209b202bc19b3d345a75cf8ab51cb471913a790247304402207b191c1e3ff1a2d3541770b496c9f871406114746b3aa7347ec4ef0423d3a975022043d3a746fa7a794d97e95d74b6d17d618dfc4cd7644476813e08006f271e51bd012a046c4f855fb1752102aec53aa5f347219a7378b13006eb16ce48125f9cf14f04a5509a565ad5e51507ac6c4f855f',
                          tx.serialize())
+
+class TestSighashTypes(ElectrumTestCase):
+    #These tests are taken from bip143, https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki
+    #Input of transaction
+    locktime=0
+    prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
+    txin = PartialTxInput(prevout=prevout)
+    txin.nsequence=0xffffffff
+    txin.script_type='p2sh-p2wsh'
+    txin.witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae') 
+    txin.redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
+    txin._trusted_value_sats = 987654321
+    #Output of Transaction
+    txout1 = PartialTxOutput(scriptpubkey=bfh('76a914389ffce9cd9ae88dcc0631e88a821ffdbe9bfe2688ac'), value=900000000)
+    txout2 = PartialTxOutput(scriptpubkey=bfh('76a9147480a33f950689af511e6e84c138dbbd3c3ee41588ac'), value=87000000)
+
+    def test_check_sighash_types_sighash_all(self):
+        self.txin.sighash=Sighash.ALL
+        self.txin.pubkeys = [bfh('0307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba3')]
+        privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('304402206ac44d672dac41f9b00e28f4df20c52eeb087207e8d758d76d92c6fab3b73e2b0220367750dbbe19290069cba53d096f44530e4f98acaa594810388cf7409a1870ce01',
+                        sig)
+
+    def test_check_sighash_types_sighash_none(self):
+        self.txin.sighash=Sighash.NONE
+        self.txin.pubkeys = [bfh('03b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b')]
+        privkey = bfh('11fa3d25a17cbc22b29c44a484ba552b5a53149d106d3d853e22fdd05a2d8bb3')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3044022068c7946a43232757cbdf9176f009a928e1cd9a1a8c212f15c1e11ac9f2925d9002205b75f937ff2f9f3c1246e547e54f62e027f64eefa2695578cc6432cdabce271502',
+                        sig)
+
+    def test_check_sighash_types_sighash_single(self):
+        self.txin.sighash=Sighash.SINGLE
+        self.txin.pubkeys = [bfh('034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a')]
+        privkey = bfh('77bf4141a87d55bdd7f3cd0bdccf6e9e642935fec45f2f30047be7b799120661')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3044022059ebf56d98010a932cf8ecfec54c48e6139ed6adb0728c09cbe1e4fa0915302e022007cd986c8fa870ff5d2b3a89139c9fe7e499259875357e20fcbb15571c76795403',
+                        sig)
+
+    @disable_ecdsa_r_value_grinding
+    def test_check_sighash_types_sighash_all_anyonecanpay(self):
+        self.txin.sighash=Sighash.ALL|Sighash.ANYONECANPAY
+        self.txin.pubkeys = [bfh('033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f4')]
+        privkey = bfh('14af36970f5025ea3e8b5542c0f8ebe7763e674838d08808896b63c3351ffe49')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3045022100fbefd94bd0a488d50b79102b5dad4ab6ced30c4069f1eaa69a4b5a763414067e02203156c6a5c9cf88f91265f5a942e96213afae16d83321c8b31bb342142a14d16381',
+                         sig)
+
+    @disable_ecdsa_r_value_grinding
+    def test_check_sighash_types_sighash_none_anyonecanpay(self):
+        self.txin.sighash=Sighash.NONE|Sighash.ANYONECANPAY
+        self.txin.pubkeys = [bfh('03a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac16')]
+        privkey = bfh('fe9a95c19eef81dde2b95c1284ef39be497d128e2aa46916fb02d552485e0323')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('3045022100a5263ea0553ba89221984bd7f0b13613db16e7a70c549a86de0cc0444141a407022005c360ef0ae5a5d4f9f2f87a56c1546cc8268cab08c73501d6b3be2e1e1a8a0882',
+                         sig)
+
+    def test_check_sighash_types_sighash_single_anyonecanpay(self):
+        self.txin.sighash=Sighash.SINGLE|Sighash.ANYONECANPAY
+        self.txin.pubkeys = [bfh('02d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b')]
+        privkey = bfh('428a7aee9f0c2af0cd19af3cf1c78149951ea528726989b2e83e4778d2c3f890')
+        tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
+        sig = tx.sign_txin(0,privkey)
+        self.assertEqual('30440220525406a1482936d5a21888260dc165497a90a15669636d8edca6b9fe490d309c022032af0c646a34a44d1f4576bf6a4a74b67940f8faa84c7df9abe12a01a11e2b4783',
+                         sig)

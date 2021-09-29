@@ -3,6 +3,8 @@ import threading
 import tempfile
 import shutil
 
+import electrum
+import electrum.logging
 from electrum import constants
 
 
@@ -11,6 +13,9 @@ from electrum import constants
 # will only be run once, using the fastest implementation.
 # e.g. libsecp256k1 vs python-ecdsa. pycryptodomex vs pyaes.
 FAST_TESTS = False
+
+
+electrum.logging._configure_stderr_logging()
 
 
 # some unit tests are modifying globals...
@@ -31,11 +36,11 @@ class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
     def setUp(self):
-        super().setUpClass()
+        super().setUp()
         self.electrum_path = tempfile.mkdtemp()
 
     def tearDown(self):
-        super().tearDownClass()
+        super().tearDown()
         shutil.rmtree(self.electrum_path)
 
 

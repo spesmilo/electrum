@@ -147,8 +147,8 @@ class LNWatcher(AddressSynchronizer):
         # status gets populated when we run
         self.channel_status = {}
 
-    def stop(self):
-        super().stop()
+    async def stop(self):
+        await super().stop()
         util.unregister_callback(self.on_network_update)
 
     def get_channel_status(self, outpoint):
@@ -234,6 +234,8 @@ class LNWatcher(AddressSynchronizer):
             self.channel_status[outpoint] = 'closed (deep)'
         tx = self.db.get_transaction(txid)
         for i, o in enumerate(tx.outputs()):
+            if o.address is None:
+                continue
             if not self.is_mine(o.address):
                 self.add_address(o.address)
             elif n < 2:
@@ -373,10 +375,10 @@ class LNWalletWatcher(LNWatcher):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return False
+        chan_id_for_log = chan.get_id_for_log()
         # detect who closed and set sweep_info
         sweep_info_dict = chan.sweep_ctx(closing_tx)
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
-        self.logger.info(f'(chan {chan.get_id_for_log()}) sweep_info_dict {[x.name for x in sweep_info_dict.values()]}')
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name + ' ' + chan.get_id_for_log()
@@ -390,56 +392,64 @@ class LNWalletWatcher(LNWatcher):
                 if e_htlc_tx:
                     spender2 = spenders.get(spender_txid+':0')
                     if spender2:
-                        self.logger.info(f'(chan {chan.get_id_for_log()}) htlc is already spent {name}: {prevout}')
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
-                        self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem htlc {name}: {prevout}')
-                        await self.try_redeem(spender_txid+':0', e_htlc_tx, name)
+                        await self.try_redeem(spender_txid+':0', e_htlc_tx, chan_id_for_log, name)
                         keep_watching = True
                 else:
-                    self.logger.info(f'(chan {chan.get_id_for_log()}) outpoint already spent {name}: {prevout}')
                     keep_watching |= not self.is_deeply_mined(spender_txid)
                     txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
                     assert txin_idx is not None
                     spender_txin = spender_tx.inputs()[txin_idx]
                     chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
-                self.logger.info(f'(chan {chan.get_id_for_log()}) trying to redeem {name}: {prevout}')
-                await self.try_redeem(prevout, sweep_info, name)
+                await self.try_redeem(prevout, sweep_info, chan_id_for_log, name)
                 keep_watching = True
         return keep_watching
 
     @log_exceptions
-    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo', name: str) -> None:
+    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo', chan_id_for_log: str, name: str) -> None:
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
+        local_height = self.network.get_local_height()
         if sweep_info.cltv_expiry:
-            local_height = self.network.get_local_height()
-            remaining = sweep_info.cltv_expiry - local_height
-            if remaining > 0:
-                self.logger.info('waiting for {}: CLTV ({} > {}), prevout {}'
-                                 .format(name, local_height, sweep_info.cltv_expiry, prevout))
+            wanted_height = sweep_info.cltv_expiry - local_height
+            if wanted_height - local_height > 0:
                 broadcast = False
+                reason = 'waiting for {}: CLTV ({} > {}), prevout {}'.format(name, local_height, sweep_info.cltv_expiry, prevout)
         if sweep_info.csv_delay:
             prev_height = self.get_tx_height(prev_txid)
-            remaining = sweep_info.csv_delay - prev_height.conf
-            if remaining > 0:
-                self.logger.info('waiting for {}: CSV ({} >= {}), prevout: {}'
-                                 .format(name, prev_height.conf, sweep_info.csv_delay, prevout))
+            wanted_height = sweep_info.csv_delay + prev_height.height - 1
+            if wanted_height - local_height > 0:
                 broadcast = False
+                reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
         tx = sweep_info.gen_tx()
         if tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
-        self.lnworker.wallet.set_label(tx.txid(), name)
+            return
+        txid = tx.txid()
+        self.lnworker.wallet.set_label(txid, name)
         if broadcast:
             await self.network.try_broadcasting(tx, name)
         else:
+            if txid in self.lnworker.wallet.future_tx:
+                return
+            self.logger.debug(f'(chan {chan_id_for_log}) trying to redeem {name}: {prevout}')
+            self.logger.info(reason)
             # it's OK to add local transaction, the fee will be recomputed
             try:
-                tx_was_added = self.lnworker.wallet.add_future_tx(tx, remaining)
+                tx_was_added = self.lnworker.wallet.add_future_tx(tx, wanted_height)
             except Exception as e:
                 self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
                 tx_was_added = False
             if tx_was_added:
                 self.logger.info(f'added future tx: {name}. prevout: {prevout}')
                 util.trigger_callback('wallet_updated', self.lnworker.wallet)
+
+    def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
+        # this method is overloaded so that we have the GUI refreshed
+        # TODO: LNWatcher should not be an AddressSynchronizer,
+        # we should use the existing wallet instead, and results would be persisted
+        super().add_verified_tx(tx_hash, info)
+        tx_mined_status = self.get_tx_height(tx_hash)
+        util.trigger_callback('verified', self.lnworker.wallet, tx_hash, tx_mined_status)

@@ -104,6 +104,7 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         self.ids.crash_message.text = BaseCrashReporter.CRASH_MESSAGE
         self.ids.request_help_message.text = BaseCrashReporter.REQUEST_HELP_MESSAGE
         self.ids.describe_error_message.text = BaseCrashReporter.DESCRIBE_ERROR_MESSAGE
+        self.ids.user_message.hint_text = BaseCrashReporter.USER_COMMENT_PLACEHOLDER
 
     def show_contents(self):
         details = CrashReportDetails(self.get_report_string())
@@ -122,13 +123,15 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
             # FIXME network request in GUI thread...
             response = json.loads(BaseCrashReporter.send_report(self, loop, proxy,
                                                                 "/crash.json", timeout=10))
-        except (ValueError, ClientError):
-            #self.logger.debug("", exc_info=True)
+        except (ValueError, ClientError) as e:
+            self.logger.warning(f"Error sending crash report. exc={e!r}")
             self.show_popup(_('Unable to send report'), _("Please check your network connection."))
         else:
             self.show_popup(_('Report sent'), response["text"])
-            if response["location"]:
-                self.open_url(response["location"])
+            location = response["location"]
+            if location:
+                self.logger.info(f"Crash report sent. location={location!r}")
+                self.open_url(location)
         self.dismiss()
 
     def on_dismiss(self):

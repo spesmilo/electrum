@@ -172,8 +172,8 @@ def DecodeAES_bytes(secret: bytes, ciphertext: bytes) -> bytes:
 
 
 PW_HASH_VERSION_LATEST = 1
-KNOWN_PW_HASH_VERSIONS = (1, 2, )
-SUPPORTED_PW_HASH_VERSIONS = (1, )
+KNOWN_PW_HASH_VERSIONS = (1, 2,)
+SUPPORTED_PW_HASH_VERSIONS = (1,)
 assert PW_HASH_VERSION_LATEST in KNOWN_PW_HASH_VERSIONS
 assert PW_HASH_VERSION_LATEST in SUPPORTED_PW_HASH_VERSIONS
 
@@ -315,6 +315,10 @@ def ripemd(x):
         md.update(x)
         return md.digest()
     except BaseException:
+        # ripemd160 is not guaranteed to be available in hashlib on all platforms.
+        # Historically, our Android builds had hashlib/openssl which did not have it.
+        # see https://github.com/spesmilo/electrum/issues/7093
+        # We bundle a pure python implementation as fallback that gets used now:
         from . import ripemd
         md = ripemd.new(x)
         return md.digest()
@@ -338,6 +342,8 @@ def chacha20_poly1305_encrypt(
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(key)} (expected: 32)"
+    assert len(nonce) == 12, f"unexpected nonce size: {len(nonce)} (expected: 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
         if associated_data is not None:
@@ -361,6 +367,8 @@ def chacha20_poly1305_decrypt(
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(associated_data, (bytes, bytearray, type(None)))
     assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(key)} (expected: 32)"
+    assert len(nonce) == 12, f"unexpected nonce size: {len(nonce)} (expected: 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20_Poly1305.new(key=key, nonce=nonce)
         if associated_data is not None:
@@ -380,14 +388,33 @@ def chacha20_encrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
     assert isinstance(key, (bytes, bytearray))
     assert isinstance(nonce, (bytes, bytearray))
     assert isinstance(data, (bytes, bytearray))
-    assert len(nonce) == 8, f"unexpected nonce size: {len(nonce)} (expected: 8)"
+    assert len(key) == 32, f"unexpected key size: {len(key)} (expected: 32)"
+    assert len(nonce) in (8, 12), f"unexpected nonce size: {len(nonce)} (expected: 8 or 12)"
     if HAS_CRYPTODOME:
         cipher = CD_ChaCha20.new(key=key, nonce=nonce)
         return cipher.encrypt(data)
     if HAS_CRYPTOGRAPHY:
-        nonce = bytes(8) + nonce  # cryptography wants 16 byte nonces
+        nonce = bytes(16 - len(nonce)) + nonce  # cryptography wants 16 byte nonces
         algo = CG_algorithms.ChaCha20(key=key, nonce=nonce)
         cipher = CG_Cipher(algo, mode=None, backend=CG_default_backend())
         encryptor = cipher.encryptor()
         return encryptor.update(data)
+    raise Exception("no chacha20 backend found")
+
+
+def chacha20_decrypt(*, key: bytes, nonce: bytes, data: bytes) -> bytes:
+    assert isinstance(key, (bytes, bytearray))
+    assert isinstance(nonce, (bytes, bytearray))
+    assert isinstance(data, (bytes, bytearray))
+    assert len(key) == 32, f"unexpected key size: {len(key)} (expected: 32)"
+    assert len(nonce) in (8, 12), f"unexpected nonce size: {len(nonce)} (expected: 8 or 12)"
+    if HAS_CRYPTODOME:
+        cipher = CD_ChaCha20.new(key=key, nonce=nonce)
+        return cipher.decrypt(data)
+    if HAS_CRYPTOGRAPHY:
+        nonce = bytes(16 - len(nonce)) + nonce  # cryptography wants 16 byte nonces
+        algo = CG_algorithms.ChaCha20(key=key, nonce=nonce)
+        cipher = CG_Cipher(algo, mode=None, backend=CG_default_backend())
+        decryptor = cipher.decryptor()
+        return decryptor.update(data)
     raise Exception("no chacha20 backend found")

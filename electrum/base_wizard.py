@@ -377,8 +377,10 @@ class BaseWizard(Logger):
                 # will need to re-pair
                 devmgr.unpair_id(device_info.device.id_)
             raise ChooseHwDeviceAgain()
-        except (UserCancelled, GoBack):
+        except GoBack:
             raise ChooseHwDeviceAgain()
+        except (UserCancelled, ReRunDialog):
+            raise
         except UserFacingException as e:
             self.show_error(str(e))
             raise ChooseHwDeviceAgain()
@@ -506,16 +508,24 @@ class BaseWizard(Logger):
 
     def restore_from_seed(self):
         self.opt_bip39 = True
+        self.opt_slip39 = True
         self.opt_ext = True
         is_cosigning_seed = lambda x: mnemonic.seed_type(x) in ['standard', 'segwit']
         test = mnemonic.is_seed if self.wallet_type == 'standard' else is_cosigning_seed
         f = lambda *args: self.run('on_restore_seed', *args)
         self.restore_seed_dialog(run_next=f, test=test)
 
-    def on_restore_seed(self, seed, is_bip39, is_ext):
-        self.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
+    def on_restore_seed(self, seed, seed_type, is_ext):
+        self.seed_type = seed_type if seed_type != 'electrum' else mnemonic.seed_type(seed)
         if self.seed_type == 'bip39':
-            f = lambda passphrase: self.run('on_restore_bip39', seed, passphrase)
+            def f(passphrase):
+                root_seed = bip39_to_seed(seed, passphrase)
+                self.on_restore_bip43(root_seed)
+            self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+        elif self.seed_type == 'slip39':
+            def f(passphrase):
+                root_seed = seed.decrypt(passphrase)
+                self.on_restore_bip43(root_seed)
             self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
@@ -528,13 +538,12 @@ class BaseWizard(Logger):
         else:
             raise Exception('Unknown seed type', self.seed_type)
 
-    def on_restore_bip39(self, seed, passphrase):
+    def on_restore_bip43(self, root_seed):
         def f(derivation, script_type):
             derivation = normalize_bip32_derivation(derivation)
-            self.run('on_bip43', seed, passphrase, derivation, script_type)
+            self.run('on_bip43', root_seed, derivation, script_type)
         if self.wallet_type == 'standard':
             def get_account_xpub(account_path):
-                root_seed = bip39_to_seed(seed, passphrase)
                 root_node = BIP32Node.from_rootseed(root_seed, xtype="standard")
                 account_node = root_node.subkey_at_private_derivation(account_path)
                 account_xpub = account_node.to_xpub()
@@ -545,10 +554,12 @@ class BaseWizard(Logger):
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
+        if k.can_have_deterministic_lightning_xprv():
+            self.data['lightning_xprv'] = k.get_lightning_xprv(None)
         self.on_keystore(k)
 
-    def on_bip43(self, seed, passphrase, derivation, script_type):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
+    def on_bip43(self, root_seed, derivation, script_type):
+        k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script_type)
         self.on_keystore(k)
 
     def get_script_type_of_wallet(self) -> Optional[str]:
@@ -685,30 +696,17 @@ class BaseWizard(Logger):
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
-    def choose_seed_type(self, message=None, choices=None):
-        title = _('Choose Seed type')
-        if message is None:
-            message = ' '.join([
-                _("The type of addresses used by your wallet will depend on your seed."),
-                _("Segwit wallets use bech32 addresses, defined in BIP173."),
-                _("Please note that websites and other wallets may not support these addresses yet."),
-                _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
-            ])
-        if choices is None:
-            choices = [
-                ('create_segwit_seed', _('Segwit')),
-                ('create_standard_seed', _('Legacy')),
-            ]
-        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
-
-    def create_segwit_seed(self): self.create_seed('segwit')
-    def create_standard_seed(self): self.create_seed('standard')
+    def choose_seed_type(self):
+        seed_type = 'standard' if self.config.get('nosegwit') else 'segwit'
+        self.create_seed(seed_type)
 
     def create_seed(self, seed_type):
         from . import mnemonic
         self.seed_type = seed_type
         seed = mnemonic.Mnemonic('en').make_seed(seed_type=self.seed_type)
         self.opt_bip39 = False
+        self.opt_ext = True
+        self.opt_slip39 = False
         f = lambda x: self.request_passphrase(seed, x)
         self.show_seed_dialog(run_next=f, seed_text=seed)
 

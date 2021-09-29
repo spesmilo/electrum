@@ -25,6 +25,7 @@
 
 import os
 import sys
+import time
 import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
@@ -39,6 +40,7 @@ from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
                              QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
+from electrum.gui import messages
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
@@ -49,7 +51,7 @@ from electrum.logging import get_logger, Logger
 from .custom_model import CustomNode, CustomModel
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
                    filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
-                   CloseButton, webopen)
+                   CloseButton, webopen, WWLabel)
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -69,7 +71,7 @@ except:
 TX_ICONS = [
     "unconfirmed.png",
     "warning.png",
-    "unconfirmed.png",
+    "offline_tx.png",
     "offline_tx.png",
     "clock1.png",
     "clock2.png",
@@ -78,6 +80,10 @@ TX_ICONS = [
     "clock5.png",
     "confirmed.png",
 ]
+
+
+ROLE_SORT_ORDER = Qt.UserRole + 1000
+
 
 class HistoryColumns(IntEnum):
     STATUS = 0
@@ -91,8 +97,8 @@ class HistoryColumns(IntEnum):
 
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
-        item1 = self.sourceModel().data(source_left, Qt.UserRole)
-        item2 = self.sourceModel().data(source_right, Qt.UserRole)
+        item1 = self.sourceModel().data(source_left, ROLE_SORT_ORDER)
+        item2 = self.sourceModel().data(source_right, ROLE_SORT_ORDER)
         if item1 is None or item2 is None:
             raise Exception(f'UserRole not set for column {source_left.column()}')
         v1 = item1.value()
@@ -134,8 +140,7 @@ class HistoryNode(CustomNode):
                 tx_mined_info = self.model.tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
-        if role == Qt.UserRole:
-            # for sorting
+        if role == ROLE_SORT_ORDER:
             d = {
                 HistoryColumns.STATUS:
                     # respect sort order of self.transactions (wallet.get_full_history)
@@ -156,6 +161,8 @@ class HistoryNode(CustomNode):
                 HistoryColumns.TXID: tx_hash if not is_lightning else None,
             }
             return QVariant(d[col])
+        if role == MyTreeView.ROLE_EDIT_KEY:
+            return QVariant(get_item_key(tx_item))
         if role not in (Qt.DisplayRole, Qt.EditRole):
             if col == HistoryColumns.STATUS and role == Qt.DecorationRole:
                 icon = "lightning" if is_lightning else TX_ICONS[status]
@@ -356,10 +363,11 @@ class HistoryModel(CustomModel, Logger):
 
     def update_fiat(self, idx):
         tx_item = idx.internalPointer().get_data()
-        key = tx_item['txid']
+        txid = tx_item['txid']
         fee = tx_item.get('fee')
         value = tx_item['value'].value
-        fiat_fields = self.parent.wallet.get_tx_item_fiat(key, value, self.parent.fx, fee.value if fee else None)
+        fiat_fields = self.parent.wallet.get_tx_item_fiat(
+            tx_hash=txid, amount_sat=value, fx=self.parent.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
         self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
 
@@ -437,17 +445,19 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         return hm_idx.internalPointer().get_data()
 
     def should_hide(self, proxy_row):
-        if self.start_timestamp and self.end_timestamp:
+        if self.start_date and self.end_date:
             tx_item = self.tx_item_from_proxy_row(proxy_row)
             date = tx_item['date']
             if date:
-                in_interval = self.start_timestamp <= date <= self.end_timestamp
+                in_interval = self.start_date <= date <= self.end_date
                 if not in_interval:
                     return True
             return False
 
     def __init__(self, parent, model: HistoryModel):
-        super().__init__(parent, self.create_menu, stretch_column=HistoryColumns.DESCRIPTION)
+        super().__init__(parent, self.create_menu,
+                         stretch_column=HistoryColumns.DESCRIPTION,
+                         editable_columns=[HistoryColumns.DESCRIPTION, HistoryColumns.FIAT_VALUE])
         self.config = parent.config
         self.hm = model
         self.proxy = HistorySortModel(self)
@@ -455,13 +465,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.setModel(self.proxy)
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
-        self.start_timestamp = None
-        self.end_timestamp = None
+        self.start_date = None
+        self.end_date = None
         self.years = []
         self.create_toolbar_buttons()
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
         self.sortByColumn(HistoryColumns.STATUS, Qt.AscendingOrder)
-        self.editable_columns |= {HistoryColumns.FIAT_VALUE}
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
         for col in HistoryColumns:
@@ -480,8 +489,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_button.setEnabled(x)
         self.end_button.setEnabled(x)
         if s == _('All'):
-            self.start_timestamp = None
-            self.end_timestamp = None
+            self.start_date = None
+            self.end_date = None
             self.start_button.setText("-")
             self.end_button.setText("-")
         else:
@@ -489,10 +498,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 year = int(s)
             except:
                 return
-            self.start_timestamp = start_date = datetime.datetime(year, 1, 1)
-            self.end_timestamp = end_date = datetime.datetime(year+1, 1, 1)
-            self.start_button.setText(_('From') + ' ' + self.format_date(start_date))
-            self.end_button.setText(_('To') + ' ' + self.format_date(end_date))
+            self.start_date = datetime.datetime(year, 1, 1)
+            self.end_date = datetime.datetime(year+1, 1, 1)
+            self.start_button.setText(_('From') + ' ' + self.format_date(self.start_date))
+            self.end_button.setText(_('To') + ' ' + self.format_date(self.end_date))
         self.hide_rows()
 
     def create_toolbar_buttons(self):
@@ -510,19 +519,19 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         return self.period_combo, self.start_button, self.end_button
 
     def on_hide_toolbar(self):
-        self.start_timestamp = None
-        self.end_timestamp = None
+        self.start_date = None
+        self.end_date = None
         self.hide_rows()
 
     def save_toolbar_state(self, state, config):
         config.set_key('show_toolbar_history', state)
 
     def select_start_date(self):
-        self.start_timestamp = self.select_date(self.start_button)
+        self.start_date = self.select_date(self.start_button)
         self.hide_rows()
 
     def select_end_date(self):
-        self.end_timestamp = self.select_date(self.end_button)
+        self.end_date = self.select_date(self.end_button)
         self.hide_rows()
 
     def select_date(self, button):
@@ -546,40 +555,75 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return datetime.datetime(date.year, date.month, date.day)
 
     def show_summary(self):
-        h = self.parent.wallet.get_detailed_history()['summary']
-        if not h:
+        fx = self.parent.fx
+        show_fiat = fx and fx.is_enabled() and fx.get_history_config()
+        if not show_fiat:
+            self.parent.show_message(_("Enable fiat exchange rate with history."))
+            return
+        h = self.wallet.get_detailed_history(
+            from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
+            to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,
+            fx=fx)
+        summary = h['summary']
+        if not summary:
             self.parent.show_message(_("Nothing to summarize."))
             return
-        start_date = h.get('start_date')
-        end_date = h.get('end_date')
+        start = summary['begin']
+        end = summary['end']
+        flow = summary['flow']
+        start_date = start.get('date')
+        end_date = end.get('date')
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
+        format_fiat = lambda x: str(x) + ' ' + self.parent.fx.ccy
+
         d = WindowModalDialog(self, _("Summary"))
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
+        msg = messages.to_rtf(messages.MSG_CAPITAL_GAINS)
+        vbox.addWidget(WWLabel(msg))
         grid = QGridLayout()
-        grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(self.format_date(start_date)), 0, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_start_value')) + '/BTC'), 0, 2)
-        grid.addWidget(QLabel(_("Initial balance")), 1, 0)
-        grid.addWidget(QLabel(format_amount(h['start_balance'])), 1, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_start_balance'))), 1, 2)
-        grid.addWidget(QLabel(_("End")), 2, 0)
-        grid.addWidget(QLabel(self.format_date(end_date)), 2, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_end_value')) + '/BTC'), 2, 2)
-        grid.addWidget(QLabel(_("Final balance")), 4, 0)
-        grid.addWidget(QLabel(format_amount(h['end_balance'])), 4, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_end_balance'))), 4, 2)
-        grid.addWidget(QLabel(_("Income")), 5, 0)
-        grid.addWidget(QLabel(format_amount(h.get('incoming'))), 5, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_incoming'))), 5, 2)
-        grid.addWidget(QLabel(_("Expenditures")), 6, 0)
-        grid.addWidget(QLabel(format_amount(h.get('outgoing'))), 6, 1)
-        grid.addWidget(QLabel(str(h.get('fiat_outgoing'))), 6, 2)
-        grid.addWidget(QLabel(_("Capital gains")), 7, 0)
-        grid.addWidget(QLabel(str(h.get('fiat_capital_gains'))), 7, 2)
-        grid.addWidget(QLabel(_("Unrealized gains")), 8, 0)
-        grid.addWidget(QLabel(str(h.get('fiat_unrealized_gains', ''))), 8, 2)
+        grid.addWidget(QLabel(_("Begin")), 0, 1)
+        grid.addWidget(QLabel(_("End")), 0, 2)
+        #
+        grid.addWidget(QLabel(_("Date")), 1, 0)
+        grid.addWidget(QLabel(self.format_date(start_date)), 1, 1)
+        grid.addWidget(QLabel(self.format_date(end_date)), 1, 2)
+        #
+        grid.addWidget(QLabel(_("BTC balance")), 2, 0)
+        grid.addWidget(QLabel(format_amount(start['BTC_balance'])), 2, 1)
+        grid.addWidget(QLabel(format_amount(end['BTC_balance'])), 2, 2)
+        #
+        grid.addWidget(QLabel(_("BTC Fiat price")), 3, 0)
+        grid.addWidget(QLabel(format_fiat(start.get('BTC_fiat_price'))), 3, 1)
+        grid.addWidget(QLabel(format_fiat(end.get('BTC_fiat_price'))), 3, 2)
+        #
+        grid.addWidget(QLabel(_("Fiat balance")), 4, 0)
+        grid.addWidget(QLabel(format_fiat(start.get('fiat_balance'))), 4, 1)
+        grid.addWidget(QLabel(format_fiat(end.get('fiat_balance'))), 4, 2)
+        #
+        grid.addWidget(QLabel(_("Acquisition price")), 5, 0)
+        grid.addWidget(QLabel(format_fiat(start.get('acquisition_price', ''))), 5, 1)
+        grid.addWidget(QLabel(format_fiat(end.get('acquisition_price', ''))), 5, 2)
+        #
+        grid.addWidget(QLabel(_("Unrealized capital gains")), 6, 0)
+        grid.addWidget(QLabel(format_fiat(start.get('unrealized_gains', ''))), 6, 1)
+        grid.addWidget(QLabel(format_fiat(end.get('unrealized_gains', ''))), 6, 2)
+        #
+        grid2 = QGridLayout()
+        grid2.addWidget(QLabel(_("BTC incoming")), 0, 0)
+        grid2.addWidget(QLabel(format_amount(flow['BTC_incoming'])), 0, 1)
+        grid2.addWidget(QLabel(_("Fiat incoming")), 1, 0)
+        grid2.addWidget(QLabel(format_fiat(flow.get('fiat_incoming'))), 1, 1)
+        grid2.addWidget(QLabel(_("BTC outgoing")), 2, 0)
+        grid2.addWidget(QLabel(format_amount(flow['BTC_outgoing'])), 2, 1)
+        grid2.addWidget(QLabel(_("Fiat outgoing")), 3, 0)
+        grid2.addWidget(QLabel(format_fiat(flow.get('fiat_outgoing'))), 3, 1)
+        #
+        grid2.addWidget(QLabel(_("Realized capital gains")), 4, 0)
+        grid2.addWidget(QLabel(format_fiat(flow.get('realized_capital_gains'))), 4, 1)
         vbox.addLayout(grid)
+        vbox.addWidget(QLabel(_('Cash flow')))
+        vbox.addLayout(grid2)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
@@ -596,8 +640,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         except NothingToPlotException as e:
             self.parent.show_message(str(e))
 
-    def on_edited(self, index, user_role, text):
-        index = self.model().mapToSource(index)
+    def on_edited(self, idx, edit_key, *, text):
+        index = self.model().mapToSource(idx)
         tx_item = index.internalPointer().get_data()
         column = index.column()
         key = get_item_key(tx_item)
@@ -663,6 +707,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
             cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
+            key = tx_item['payment_hash']
+            log = self.wallet.lnworker.logs.get(key)
+            if log:
+                menu.addAction(_("View log"), lambda: self.parent.invoice_list.show_log(key, log))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
@@ -694,9 +742,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             if tx_details.can_bump:
                 menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
             else:
-                child_tx = self.wallet.cpfp(tx, 0)
-                if child_tx:
-                    menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
+                if tx_details.can_cpfp:
+                    menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp_dialog(tx))
             if tx_details.can_dscancel:
                 menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
         invoices = self.wallet.get_relevant_invoices_for_tx(tx)
@@ -711,17 +758,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, tx_hash: str):
-        to_delete = {tx_hash}
-        to_delete |= self.wallet.get_depending_transactions(tx_hash)
+        num_child_txs = len(self.wallet.get_depending_transactions(tx_hash))
         question = _("Are you sure you want to remove this transaction?")
-        if len(to_delete) > 1:
+        if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+                        .format(num_child_txs))
         if not self.parent.question(msg=question,
                                     title=_("Please confirm")):
             return
-        for tx in to_delete:
-            self.wallet.remove_transaction(tx)
+        self.wallet.remove_transaction(tx_hash)
         self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
@@ -795,7 +840,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 from electrum.util import json_encode
                 f.write(json_encode(txns))
 
-    def get_text_and_userrole_from_coordinate(self, row, col):
+    def get_text_from_coordinate(self, row, col):
+        return self.get_role_data_from_coordinate(row, col, role=Qt.DisplayRole)
+
+    def get_role_data_from_coordinate(self, row, col, *, role):
         idx = self.model().mapToSource(self.model().index(row, col))
-        tx_item = idx.internalPointer().get_data()
-        return self.hm.data(idx, Qt.DisplayRole).value(), get_item_key(tx_item)
+        return self.hm.data(idx, role).value()

@@ -105,29 +105,31 @@ class LNTransportBase:
         self.writer.write(lc+c)
 
     async def read_messages(self):
-        read_buffer = b''
+        buffer = bytearray()
         while True:
             rn_l, rk_l = self.rn()
             rn_m, rk_m = self.rn()
             while True:
-                if len(read_buffer) >= 18:
-                    lc = read_buffer[:18]
+                if len(buffer) >= 18:
+                    lc = bytes(buffer[:18])
                     l = aead_decrypt(rk_l, rn_l, b'', lc)
                     length = int.from_bytes(l, 'big')
                     offset = 18 + length + 16
-                    if len(read_buffer) >= offset:
-                        c = read_buffer[18:offset]
-                        read_buffer = read_buffer[offset:]
+                    if len(buffer) >= offset:
+                        c = bytes(buffer[18:offset])
+                        del buffer[:offset]  # much faster than: buffer=buffer[offset:]
                         msg = aead_decrypt(rk_m, rn_m, b'', c)
                         yield msg
                         break
                 try:
                     s = await self.reader.read(2**10)
-                except:
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
                     s = None
                 if not s:
                     raise LightningPeerConnectionClosed()
-                read_buffer += s
+                buffer += s
 
     def rn(self):
         o = self._rn, self.rk
@@ -155,6 +157,9 @@ class LNTransportBase:
     def close(self):
         self.writer.close()
 
+    def remote_pubkey(self) -> Optional[bytes]:
+        raise NotImplementedError()
+
 
 class LNResponderTransport(LNTransportBase):
     """Transport initiated by remote party."""
@@ -164,9 +169,12 @@ class LNResponderTransport(LNTransportBase):
         self.reader = reader
         self.writer = writer
         self.privkey = privkey
+        self._pubkey = None  # remote pubkey
 
     def name(self):
-        return "responder"
+        pubkey = self.remote_pubkey()
+        pubkey_hex = pubkey.hex() if pubkey else pubkey
+        return f"{pubkey_hex}(in)"
 
     async def handshake(self, **kwargs):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
@@ -219,7 +227,11 @@ class LNResponderTransport(LNTransportBase):
         _p = aead_decrypt(temp_k3, 0, hs.update(c), t)
         self.rk, self.sk = get_bolt8_hkdf(ck, b'')
         self.init_counters(ck)
+        self._pubkey = rs
         return rs
+
+    def remote_pubkey(self) -> Optional[bytes]:
+        return self._pubkey
 
 
 class LNTransport(LNTransportBase):
@@ -274,3 +286,6 @@ class LNTransport(LNTransportBase):
         self.writer.write(msg)
         self.sk, self.rk = get_bolt8_hkdf(hs.ck, b'')
         self.init_counters(ck)
+
+    def remote_pubkey(self) -> Optional[bytes]:
+        return self.peer_addr.pubkey

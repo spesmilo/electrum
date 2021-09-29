@@ -315,11 +315,17 @@ class Wallet_2fa(Multisig_Wallet):
             raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
-    def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
-                                  outputs: List[PartialTxOutput], fee=None,
-                                  change_addr: str = None, is_sweep=False) -> PartialTransaction:
+    def make_unsigned_transaction(
+            self, *,
+            coins: Sequence[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            fee=None,
+            change_addr: str = None,
+            is_sweep=False,
+            rbf=False) -> PartialTransaction:
+
         mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr)
+            self, coins=coins, outputs=o, fee=fee, change_addr=change_addr, rbf=rbf)
         extra_fee = self.extra_fee() if not is_sweep else 0
         if extra_fee:
             address = self.billing_info['billing_address_segwit']
@@ -545,18 +551,14 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def choose_seed_type(self, wizard):
-        choices = [
-            ('create_2fa_segwit_seed', _('Segwit 2FA')),
-            ('create_2fa_seed', _('Legacy 2FA')),
-        ]
-        wizard.choose_seed_type(choices=choices)
-
-    def create_2fa_seed(self, wizard): self.create_seed(wizard, '2fa')
-    def create_2fa_segwit_seed(self, wizard): self.create_seed(wizard, '2fa_segwit')
+        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
+        self.create_seed(wizard, seed_type)
 
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)
+        wizard.opt_bip39 = False
+        wizard.opt_ext = True
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod
@@ -615,9 +617,10 @@ class TrustedCoinPlugin(BasePlugin):
 
     def restore_wallet(self, wizard):
         wizard.opt_bip39 = False
+        wizard.opt_slip39 = False
         wizard.opt_ext = True
         title = _("Restore two-factor Wallet")
-        f = lambda seed, is_bip39, is_ext: wizard.run('on_restore_seed', seed, is_ext)
+        f = lambda seed, seed_type, is_ext: wizard.run('on_restore_seed', seed, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
 
     def on_restore_seed(self, wizard, seed, is_ext):
@@ -708,8 +711,9 @@ class TrustedCoinPlugin(BasePlugin):
             self.do_auth(wizard, short_id, otp, xpub3)
         elif reset:
             wizard.opt_bip39 = False
+            wizard.opt_slip39 = False
             wizard.opt_ext = True
-            f = lambda seed, is_bip39, is_ext: wizard.run('on_reset_seed', short_id, seed, is_ext, xpub3)
+            f = lambda seed, seed_type, is_ext: wizard.run('on_reset_seed', short_id, seed, is_ext, xpub3)
             wizard.restore_seed_dialog(run_next=f, test=self.is_valid_seed)
 
     def on_reset_seed(self, wizard, short_id, seed, is_ext, xpub3):

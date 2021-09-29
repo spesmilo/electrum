@@ -1,4 +1,13 @@
+SHELL := /bin/bash
 PYTHON = python3
+
+# for reproducible builds
+export LC_ALL             := C
+export TZ                 := UTC
+export SOURCE_DATE_EPOCH  := $(shell git log -1 --pretty=%ct)
+export PYTHONHASHSEED     := $(SOURCE_DATE_EPOCH)
+export BUILD_DATE         := $(shell LC_ALL=C TZ=UTC date +'%b %e %Y' -d @$(SOURCE_DATE_EPOCH))
+export BUILD_TIME         := $(shell LC_ALL=C TZ=UTC date +'%H:%M:%S' -d @$(SOURCE_DATE_EPOCH))
 
 # needs kivy installed or in PYTHONPATH
 
@@ -6,7 +15,7 @@ PYTHON = python3
 
 theming:
 	#bash -c 'for i in network lightning; do convert -background none theming/light/$i.{svg,png}; done'
-	$(PYTHON) -m kivy.atlas ../../electrum/gui/kivy/theming/light 1024 ../../electrum/gui/kivy/theming/light/*.png
+	$(PYTHON) -m kivy.atlas ../../electrum/gui/kivy/theming/atlas/light 1024 ../../electrum/gui/kivy/theming/light/*.png
 prepare:
 	# running pre build setup
 	@cp buildozer.spec ../../buildozer.spec
@@ -19,7 +28,7 @@ prepare:
 	fi
 apk:
 	@make prepare
-	@-cd ../..; buildozer android debug deploy run
+	@-cd ../..; buildozer android debug
 	@make clean
 release:
 	@make prepare

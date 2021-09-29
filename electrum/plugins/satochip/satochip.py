@@ -540,9 +540,6 @@ class SatochipPlugin(HW_PluginBase):
                                 + f'    Supported version: {SATOCHIP_PROTOCOL_MAJOR_VERSION}.{SATOCHIP_PROTOCOL_MINOR_VERSION}')
                     client.handler.show_error(msg)
                 
-                if (client.cc.needs_secure_channel):
-                    client.cc.card_initiate_secure_channel()
-                
                 break 
                 
             # setup device (done only once)
@@ -587,29 +584,29 @@ class SatochipPlugin(HW_PluginBase):
                 authentikey=client.cc.card_bip32_get_authentikey()
             except UninitializedSeedError:
                 
-                # Option: setup 2-Factor-Authentication (2FA)
-                if not client.cc.needs_2FA:
-                    #use_2FA= client.handler.yes_no_question(MSG_USE_2FA)
-                    use_2FA= False # we put 2FA activation in advanced options as it confuses some users
-                    if (use_2FA):
-                        secret_2FA= urandom(20)
-                        #secret_2FA=b'\0'*20 #for debug purpose
-                        secret_2FA_hex=secret_2FA.hex()
-                        # the secret must be shared with the second factor app (eg on a smartphone)
-                        try:
-                            help_txt="Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: "+ secret_2FA_hex
-                            d = QRDialog(secret_2FA_hex, None, "Secret_2FA", False, help_text=help_txt, show_copy_text_btn=True)
-                            d.exec_()
-                        except Exception as e:
-                            _logger.info("[satochip] SatochipPlugin: setup_device(): setup 2FA: "+str(e))
-                            return
-                        # further communications will require an id and an encryption key (for privacy). 
-                        # Both are derived from the secret_2FA using a one-way function inside the Satochip
-                        amount_limit= 0 # i.e. always use 
-                        (response, sw1, sw2)=client.cc.card_set_2FA_key(secret_2FA, amount_limit)
-                        if sw1!=0x90 or sw2!=0x00:                 
-                            _logger.info("setup_device(): unable to set 2FA!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
-                            raise RuntimeError('Unable to setup 2FA with error code:'+hex(sw1)+' '+hex(sw2))
+                # # Option: setup 2-Factor-Authentication (2FA)
+                # if not client.cc.needs_2FA:
+                    # #use_2FA= client.handler.yes_no_question(MSG_USE_2FA)
+                    # use_2FA= False # we put 2FA activation in advanced options as it confuses some users
+                    # if (use_2FA):
+                        # secret_2FA= urandom(20)
+                        # #secret_2FA=b'\0'*20 #for debug purpose
+                        # secret_2FA_hex=secret_2FA.hex()
+                        # # the secret must be shared with the second factor app (eg on a smartphone)
+                        # try:
+                            # help_txt="Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: "+ secret_2FA_hex
+                            # d = QRDialog(secret_2FA_hex, None, "Secret_2FA", False, help_text=help_txt, show_copy_text_btn=True)
+                            # d.exec_()
+                        # except Exception as e:
+                            # _logger.info("[satochip] SatochipPlugin: setup_device(): setup 2FA: "+str(e))
+                            # return
+                        # # further communications will require an id and an encryption key (for privacy). 
+                        # # Both are derived from the secret_2FA using a one-way function inside the Satochip
+                        # amount_limit= 0 # i.e. always use 
+                        # (response, sw1, sw2)=client.cc.card_set_2FA_key(secret_2FA, amount_limit)
+                        # if sw1!=0x90 or sw2!=0x00:                 
+                            # _logger.info("setup_device(): unable to set 2FA!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
+                            # raise RuntimeError('Unable to setup 2FA with error code:'+hex(sw1)+' '+hex(sw2))
                 
                 # seed dialog...
                 _logger.info(f"[SatochipPlugin] setup_device(): import seed") #debugSatochip
@@ -681,6 +678,7 @@ class SatochipPlugin(HW_PluginBase):
     def create_seed(self, wizard):
         wizard.seed_type = 'bip39'
         wizard.opt_bip39 = True
+        wizard.opt_slip39 = False
         #seed = mnemonic.Mnemonic('en').make_seed(wizard.seed_type) # Electrum seed
         seed= self.to_bip39_mnemonic(128)
         f = lambda x: self.request_passphrase(wizard, seed, x)
@@ -712,18 +710,20 @@ class SatochipPlugin(HW_PluginBase):
     #restore from seed
     def restore_from_seed(self, wizard):
         wizard.opt_bip39 = True
+        wizard.opt_slip39 = False
         wizard.opt_ext = True
         test = mnemonic.is_seed 
-        f= lambda seed, is_bip39, is_ext: self.on_restore_seed(wizard, seed, is_bip39, is_ext)
+        f= lambda seed, seed_type, is_ext: self.on_restore_seed(wizard, seed, seed_type, is_ext)
         wizard.restore_seed_dialog(run_next=f, test=test)
         
         
-    def on_restore_seed(self, wizard, seed, is_bip39, is_ext):
-        wizard.seed_type = 'bip39' if is_bip39 else mnemonic.seed_type(seed)
+    def on_restore_seed(self, wizard, seed, seed_type, is_ext):
+        wizard.seed_type = seed_type
+        
         if wizard.seed_type == 'bip39':
             f = lambda passphrase: self.derive_bip39_seed(seed, passphrase)
             wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
-        elif wizard.seed_type in ['standard', 'segwit']:
+        elif wizard.seed_type== 'electrum': # in ['standard', 'segwit']:
             # warning message as Electrum seed on hardware is not standard and incompatible with other hw
             message= '  '.join([
                 _("You are trying to import an Electrum seed to a Satochip hardware wallet."),

@@ -23,23 +23,24 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import ast
 from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox,  QTabWidget,
                              QSpinBox,  QFileDialog, QCheckBox, QLabel,
                              QVBoxLayout, QGridLayout, QLineEdit,
-                             QPushButton, QWidget)
+                             QPushButton, QWidget, QHBoxLayout)
 
-from electrum.i18n import _
+from electrum.i18n import _, languages
 from electrum import util, coinchooser, paymentrequest
 from electrum.util import base_units_list
+
+from electrum.gui import messages
 
 from .util import (ColorScheme, WindowModalDialog, HelpLabel, Buttons,
                    CloseButton)
 
-from electrum.i18n import languages
-from electrum import qrscanner
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -97,8 +98,7 @@ class SettingsDialog(WindowModalDialog):
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
-                self.window.history_list.update()
-                self.window.address_list.update()
+                self.window.need_update.set()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
@@ -129,31 +129,42 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        help_local_wt = _("""If this option is checked, Electrum will
-run a local watchtower and protect your channels even if your wallet is not
-open. For this to work, your computer needs to be online regularly.""")
-        local_wt_cb = QCheckBox(_("Run a local watchtower"))
-        local_wt_cb.setToolTip(help_local_wt)
-        local_wt_cb.setChecked(bool(self.config.get('run_local_watchtower', False)))
-        def on_local_wt_checked(x):
-            self.config.set_key('run_local_watchtower', bool(x))
-        local_wt_cb.stateChanged.connect(on_local_wt_checked)
-        lightning_widgets.append((local_wt_cb, None))
+        if self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id():
+            help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
+            recov_cb = QCheckBox(_("Create recoverable channels"))
+            recov_cb.setToolTip(messages.to_rtf(help_recov))
+            recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)))
+            def on_recov_checked(x):
+                self.config.set_key('use_recoverable_channels', bool(x))
+            recov_cb.stateChanged.connect(on_recov_checked)
+            recov_cb.setEnabled(not bool(self.config.get('lightning_listen')))
+            lightning_widgets.append((recov_cb, None))
 
-        help_persist = _("""If this option is checked, Electrum will persist after
-you close all your wallet windows, and the Electrum icon will be visible in the taskbar.
-Use this if you want your local watchtower to keep running after you close your wallet.""")
-        persist_cb = QCheckBox(_("Persist after all windows are closed"))
-        persist_cb.setToolTip(help_persist)
-        persist_cb.setChecked(bool(self.config.get('persist_daemon', False)))
-        def on_persist_checked(x):
-            self.config.set_key('persist_daemon', bool(x))
-        persist_cb.stateChanged.connect(on_persist_checked)
-        lightning_widgets.append((persist_cb, None))
+        help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
+        trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
+        trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
+        trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
+        def on_trampoline_checked(use_trampoline):
+            use_gossip = not bool(use_trampoline)
+            self.config.set_key('use_gossip', use_gossip)
+            if use_gossip:
+                self.window.network.start_gossip()
+            else:
+                self.window.network.run_from_another_thread(
+                    self.window.network.stop_gossip())
+            util.trigger_callback('ln_gossip_sync_progress')
+            # FIXME: update all wallet windows
+            util.trigger_callback('channels_updated', self.wallet)
+        trampoline_cb.stateChanged.connect(on_trampoline_checked)
+        lightning_widgets.append((trampoline_cb, None))
 
-        help_remote_wt = _("""To use a remote watchtower, enter the corresponding URL here""")
+        help_remote_wt = ' '.join([
+            _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
+            _("If you have private a watchtower, enter its URL here."),
+            _("Check our online documentation if you want to configure Electrum as a watchtower."),
+        ])
         remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
-        remote_wt_cb.setToolTip(help_remote_wt)
+        remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
         remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
         def on_remote_wt_checked(x):
             self.config.set_key('use_watchtower', bool(x))
@@ -179,6 +190,17 @@ Use this if you want your local watchtower to keep running after you close your 
         self.alias_e.editingFinished.connect(self.on_alias_edit)
         oa_widgets.append((alias_label, self.alias_e))
 
+        msat_cb = QCheckBox(_("Show amounts with msat precision"))
+        msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
+        def on_msat_checked(v):
+            prec = 3 if v == Qt.Checked else 0
+            if self.config.amt_precision_post_satoshi != prec:
+                self.config.amt_precision_post_satoshi = prec
+                self.config.set_key('amt_precision_post_satoshi', prec)
+                self.window.need_update.set()
+        msat_cb.stateChanged.connect(on_msat_checked)
+        lightning_widgets.append((msat_cb, None))
+
         # units
         units = base_units_list
         msg = (_('Base unit of your wallet.')
@@ -196,26 +218,35 @@ Use this if you want your local watchtower to keep running after you close your 
             amounts = [edit.get_amount() for edit in edits]
             self.config.set_base_unit(unit_result)
             nz.setMaximum(self.config.decimal_point)
-            self.window.history_list.update()
-            self.window.request_list.update()
-            self.window.address_list.update()
+            self.window.update_tabs()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
             self.window.update_status()
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
 
-        system_cameras = qrscanner._find_system_cameras()
+        thousandsep_cb = QCheckBox(_("Add thousand separators to bitcoin amounts"))
+        thousandsep_cb.setChecked(bool(self.config.get('amt_add_thousands_sep', False)))
+        def on_set_thousandsep(v):
+            checked = v == Qt.Checked
+            if self.config.amt_add_thousands_sep != checked:
+                self.config.amt_add_thousands_sep = checked
+                self.config.set_key('amt_add_thousands_sep', checked)
+                self.window.need_update.set()
+        thousandsep_cb.stateChanged.connect(on_set_thousandsep)
+        gui_widgets.append((thousandsep_cb, None))
+
         qr_combo = QComboBox()
-        qr_combo.addItem("Default","default")
-        for camera, device in system_cameras.items():
-            qr_combo.addItem(camera, device)
-        #combo.addItem("Manually specify a device", config.get("video_device"))
+        qr_combo.addItem("Default", "default")
+        msg = (_("For scanning QR codes.") + "\n"
+               + _("Install the zbar package to enable this."))
+        qr_label = HelpLabel(_('Video Device') + ':', msg)
+        from .qrreader import find_system_cameras
+        system_cameras = find_system_cameras()
+        for cam_desc, cam_path in system_cameras.items():
+            qr_combo.addItem(cam_desc, cam_path)
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        msg = _("Install the zbar package to enable this.")
-        qr_label = HelpLabel(_('Video Device') + ':', msg)
-        qr_combo.setEnabled(qrscanner.libzbar is not None)
         on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
@@ -328,16 +359,45 @@ Use this if you want your local watchtower to keep running after you close your 
         tx_widgets.append((outrounding_cb, None))
 
         block_explorers = sorted(util.block_explorer_info().keys())
+        BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
+        if BLOCK_EX_CUSTOM_ITEM in block_explorers:  # malicious translation?
+            block_explorers.remove(BLOCK_EX_CUSTOM_ITEM)
+        block_explorers.append(BLOCK_EX_CUSTOM_ITEM)
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
+        block_ex_custom_e = QLineEdit(str(self.config.get('block_explorer_custom') or ''))
         block_ex_combo.addItems(block_explorers)
-        block_ex_combo.setCurrentIndex(block_ex_combo.findText(util.block_explorer(self.config)))
-        def on_be(x):
-            be_result = block_explorers[block_ex_combo.currentIndex()]
-            self.config.set_key('block_explorer', be_result, True)
-        block_ex_combo.currentIndexChanged.connect(on_be)
-        tx_widgets.append((block_ex_label, block_ex_combo))
+        block_ex_combo.setCurrentIndex(
+            block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
+        def showhide_block_ex_custom_e():
+            block_ex_custom_e.setVisible(block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM)
+        showhide_block_ex_custom_e()
+        def on_be_combo(x):
+            if block_ex_combo.currentText() == BLOCK_EX_CUSTOM_ITEM:
+                on_be_edit()
+            else:
+                be_result = block_explorers[block_ex_combo.currentIndex()]
+                self.config.set_key('block_explorer_custom', None, False)
+                self.config.set_key('block_explorer', be_result, True)
+            showhide_block_ex_custom_e()
+        block_ex_combo.currentIndexChanged.connect(on_be_combo)
+        def on_be_edit():
+            val = block_ex_custom_e.text()
+            try:
+                val = ast.literal_eval(val)  # to also accept tuples
+            except:
+                pass
+            self.config.set_key('block_explorer_custom', val)
+        block_ex_custom_e.editingFinished.connect(on_be_edit)
+        block_ex_hbox = QHBoxLayout()
+        block_ex_hbox.setContentsMargins(0, 0, 0, 0)
+        block_ex_hbox.setSpacing(0)
+        block_ex_hbox.addWidget(block_ex_combo)
+        block_ex_hbox.addWidget(block_ex_custom_e)
+        block_ex_hbox_w = QWidget()
+        block_ex_hbox_w.setLayout(block_ex_hbox)
+        tx_widgets.append((block_ex_label, block_ex_hbox_w))
 
         # Fiat Currency
         hist_checkbox = QCheckBox()

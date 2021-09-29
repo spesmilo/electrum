@@ -12,15 +12,16 @@ from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
-from .question import Question
-from electrum.gui.kivy.i18n import _
-
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx
+from electrum.wallet import CannotBumpFee, CannotCPFP, CannotDoubleSpendTx
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.network import NetworkException
-from ...util import address_colors
+
+from electrum.gui.kivy.i18n import _
+from electrum.gui.kivy.util import address_colors
+from ..actiondropdown import ActionDropdown, ActionButtonOption
+from .question import Question
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
@@ -36,6 +37,7 @@ Builder.load_string('''
     can_sign: False
     can_broadcast: False
     can_rbf: False
+    can_cpfp: False
     fee_str: ''
     feerate_str: ''
     date_str: ''
@@ -94,18 +96,14 @@ Builder.load_string('''
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            Button:
-                id: action_button
+            ActionDropdown:
+                id: action_dropdown
                 size_hint: 0.5, None
                 height: '48dp'
-                text: ''
-                disabled: True
-                opacity: 0
-                on_release: root.on_action_button_clicked()
             IconButton:
                 size_hint: 0.5, None
                 height: '48dp'
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/light/qrcode'
+                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/qrcode'
                 on_release: root.show_qr()
             Button:
                 size_hint: 0.5, None
@@ -120,12 +118,6 @@ Builder.load_string('''
 ''')
 
 
-class ActionButtonOption(NamedTuple):
-    text: str
-    func: Callable
-    enabled: bool
-
-
 class TxDialog(Factory.Popup):
 
     def __init__(self, app, tx):
@@ -133,7 +125,6 @@ class TxDialog(Factory.Popup):
         self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
         self.tx = tx  # type: Transaction
-        self._action_button_fn = lambda btn: None
 
         # If the wallet can populate the inputs with more info, do it now.
         # As a result, e.g. we might learn an imported address tx is segwit,
@@ -155,6 +146,7 @@ class TxDialog(Factory.Popup):
         self.description = tx_details.label
         self.can_broadcast = tx_details.can_broadcast
         self.can_rbf = tx_details.can_bump
+        self.can_cpfp = tx_details.can_cpfp
         self.can_dscancel = tx_details.can_dscancel
         self.tx_hash = tx_details.txid or ''
         if tx_mined_status.timestamp:
@@ -193,46 +185,20 @@ class TxDialog(Factory.Popup):
             dict_entry['color'], dict_entry['background_color'] = address_colors(self.wallet, dict_entry['address'])
 
         self.can_remove_tx = tx_details.can_remove
-        self.update_action_button()
+        self.update_action_dropdown()
 
-    def update_action_button(self):
-        action_button = self.ids.action_button
+    def update_action_dropdown(self):
+        action_dropdown = self.ids.action_dropdown  # type: ActionDropdown
+        # note: button texts need to be short; there is only horizontal space for ~13 chars
         options = (
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
-            ActionButtonOption(text=_('Cancel (double-spend)'), func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
+            ActionButtonOption(text=_('Child pays\nfor parent'), func=lambda btn: self.do_cpfp(), enabled=(not self.can_rbf and self.can_cpfp)),
+            ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
-        num_options = sum(map(lambda o: bool(o.enabled), options))
-        # if no options available, hide button
-        if num_options == 0:
-            action_button.disabled = True
-            action_button.opacity = 0
-            return
-        action_button.disabled = False
-        action_button.opacity = 1
-
-        if num_options == 1:
-            # only one option, button will correspond to that
-            for option in options:
-                if option.enabled:
-                    action_button.text = option.text
-                    self._action_button_fn = option.func
-        else:
-            # multiple options. button opens dropdown which has one sub-button for each
-            dropdown = DropDown()
-            action_button.text = _('Options')
-            self._action_button_fn = dropdown.open
-            for option in options:
-                if option.enabled:
-                    btn = Button(text=option.text, size_hint_y=None, height='48dp')
-                    btn.bind(on_release=option.func)
-                    dropdown.add_widget(btn)
-
-    def on_action_button_clicked(self):
-        action_button = self.ids.action_button
-        self._action_button_fn(action_button)
+        action_dropdown.update(options=options)
 
     def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
         """Returns whether successful."""
@@ -282,11 +248,44 @@ class TxDialog(Factory.Popup):
         except CannotBumpFee as e:
             self.app.show_error(str(e))
             return
-        if is_final:
-            new_tx.set_rbf(False)
+        new_tx.set_rbf(not is_final)
         self.tx = new_tx
         self.update()
         self.do_sign()
+
+    def do_cpfp(self):
+        from .cpfp_dialog import CPFPDialog
+        parent_tx = self.tx
+        new_tx = self.wallet.cpfp(parent_tx, 0)
+        total_size = parent_tx.estimated_size() + new_tx.estimated_size()
+        parent_txid = parent_tx.txid()
+        assert parent_txid
+        parent_fee = self.wallet.get_tx_fee(parent_txid)
+        if parent_fee is None:
+            self.app.show_error(_("Can't CPFP: unknown fee for parent transaction."))
+            return
+        cb = partial(self._do_cpfp, parent_tx=parent_tx)
+        d = CPFPDialog(self.app, parent_fee, total_size, new_tx=new_tx, callback=cb)
+        d.open()
+
+    def _do_cpfp(
+            self,
+            fee,
+            max_fee,
+            *,
+            parent_tx: Transaction,
+    ):
+        if fee is None:
+            return  # fee left empty, treat is as "cancel"
+        if fee > max_fee:
+            self.show_error(_('Max fee exceeded'))
+            return
+        try:
+            new_tx = self.wallet.cpfp(parent_tx, fee)
+        except CannotCPFP as e:
+            self.app.show_error(str(e))
+            return
+        self.app.tx_dialog(new_tx)
 
     def do_dscancel(self):
         from .dscancel_dialog import DSCancelDialog
@@ -348,17 +347,15 @@ class TxDialog(Factory.Popup):
 
     def remove_local_tx(self):
         txid = self.tx.txid()
-        to_delete = {txid}
-        to_delete |= self.wallet.get_depending_transactions(txid)
+        num_child_txs = len(self.wallet.get_depending_transactions(txid))
         question = _("Are you sure you want to remove this transaction?")
-        if len(to_delete) > 1:
+        if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
-                        .format(len(to_delete) - 1))
+                        .format(num_child_txs))
 
         def on_prompt(b):
             if b:
-                for tx in to_delete:
-                    self.wallet.remove_transaction(tx)
+                self.wallet.remove_transaction(txid)
                 self.wallet.save_db()
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()

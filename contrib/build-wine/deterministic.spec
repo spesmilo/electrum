@@ -10,8 +10,6 @@ for i, x in enumerate(sys.argv):
 else:
     raise Exception('no name')
 
-PYHOME = 'c:/python3'
-
 home = 'C:\\electrum\\'
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
@@ -24,8 +22,7 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
-hiddenimports += collect_submodules('satochip') 
-hiddenimports += collect_submodules('smartcard') 
+hiddenimports += collect_submodules('smartcard') # satochip
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -38,13 +35,11 @@ binaries += [('C:/tmp/libsecp256k1-0.dll', '.')]
 binaries += [('C:/tmp/libusb-1.0.dll', '.')]
 binaries += [('C:/tmp/libzbar-0.dll', '.')]
 
-# pyscard binaries for Satochip
-binaries += [('C:/python*/Lib/site-packages/smartcard/scard/_scard.cp38-win32.pyd', '.')] #satochip
-
 datas = [
     (home+'electrum/*.json', 'electrum'),
     (home+'electrum/lnwire/*.csv', 'electrum/lnwire'),
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
+    (home+'electrum/wordlist/slip39.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
     (home+'electrum/gui/icons', 'electrum/gui/icons'),
@@ -55,10 +50,12 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 datas += collect_data_files('bitbox02')
+datas += collect_data_files('pysatochip')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'run_electrum',
               home+'electrum/gui/qt/main_window.py',
+              home+'electrum/gui/qt/qrreader/qtmultimedia/camera_dialog.py',
               home+'electrum/gui/text.py',
               home+'electrum/util.py',
               home+'electrum/wallet.py',
@@ -100,7 +97,7 @@ for x in a.binaries.copy():
             a.binaries.remove(x)
             print('----> Removed x =', x)
 
-qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales', )
+qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales',)
 print("Removing Qt datas:", *qt_data2remove)
 for x in a.datas.copy():
     for r in qt_data2remove:
@@ -134,7 +131,7 @@ exe_portable = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.datas + [ ('is_portable', 'README.md', 'DATA' ) ],
+    a.datas + [('is_portable', 'README.md', 'DATA')],
     name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + "-portable.exe"),
     debug=False,
     strip=None,

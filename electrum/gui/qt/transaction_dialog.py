@@ -28,7 +28,7 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional, List
+from typing import TYPE_CHECKING, Callable, Optional, List, Union
 from functools import partial
 from decimal import Decimal
 
@@ -53,7 +53,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog, getSaveFileName)
+                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -68,6 +68,9 @@ class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
 
+class TxFiatLabel(QLabel):
+    def setAmount(self, fiat_fee):
+        self.setText(('≈  %s' % fiat_fee) if fiat_fee else '')
 
 class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
@@ -107,7 +110,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
-        self.setMinimumWidth(950)
+        self.setMinimumWidth(640)
+        self.resize(1200,600)
         self.set_title()
 
         self.psbt_only_widgets = []  # type: List[QWidget]
@@ -131,10 +135,27 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(self.inputs_header)
         self.inputs_textedit = QTextEditWithDefaultSize()
         vbox.addWidget(self.inputs_textedit)
+
+        self.txo_color_recv = TxOutputColoring(
+            legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
+        self.txo_color_change = TxOutputColoring(
+            legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
+        self.txo_color_2fa = TxOutputColoring(
+            legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
+
+        outheader_hbox = QHBoxLayout()
+        outheader_hbox.setContentsMargins(0, 0, 0, 0)
+        vbox.addLayout(outheader_hbox)
         self.outputs_header = QLabel()
-        vbox.addWidget(self.outputs_header)
+        outheader_hbox.addWidget(self.outputs_header)
+        outheader_hbox.addStretch(2)
+        outheader_hbox.addWidget(self.txo_color_recv.legend_label)
+        outheader_hbox.addWidget(self.txo_color_change.legend_label)
+        outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
+
         self.outputs_textedit = QTextEditWithDefaultSize()
         vbox.addWidget(self.outputs_textedit)
+
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
 
@@ -215,7 +236,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        tx.add_info_from_wallet(self.wallet)
+        BlockingWaitingDialog(
+            self,
+            _("Adding info to tx, from wallet and network..."),
+            lambda: tx.add_info_from_wallet(self.wallet),
+        )
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
@@ -322,15 +347,15 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             tx = self.tx
         if isinstance(tx, PartialTransaction):
             tx.finalize_psbt()
+        txid = tx.txid()
+        suffix = txid[0:8] if txid is not None else time.strftime('%Y%m%d-%H%M')
         if tx.is_complete():
-            name = 'signed_%s' % (tx.txid()[0:8])
             extension = 'txn'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX
         else:
-            name = self.wallet.basename() + time.strftime('-%Y%m%d-%H%M')
             extension = 'psbt'
             default_filter = TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX
-        name = f'{name}.{extension}'
+        name = f'{self.wallet.basename()}-{suffix}.{extension}'
         fileName = getSaveFileName(
             parent=self,
             title=_("Select where to save your transaction"),
@@ -408,12 +433,19 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
+        format_fiat_and_units = self.main_window.format_fiat_and_units
         tx_details = self.wallet.get_tx_info(self.tx)
         tx_mined_status = tx_details.tx_mined_status
         exp_n = tx_details.mempool_depth_bytes
         amount, fee = tx_details.amount, tx_details.fee
         size = self.tx.estimated_size()
         txid = self.tx.txid()
+        fx = self.main_window.fx
+        tx_item_fiat = None
+        if (self.finalized  # ensures we don't use historical rates for tx being constructed *now*
+                and txid is not None and fx.is_enabled() and amount is not None):
+            tx_item_fiat = self.wallet.get_tx_item_fiat(
+                tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
         lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
         if txid in lnworker_history:
             item = lnworker_history[txid]
@@ -470,22 +502,48 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             amount_str = _("Transaction unrelated to your wallet")
         elif amount is None:
             amount_str = ''
-        elif amount > 0:
-            amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
         else:
-            amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
+            if amount > 0:
+                amount_str = _("Amount received:") + ' %s'% format_amount(amount) + ' ' + base_unit
+            else:
+                amount_str = _("Amount sent:") + ' %s' % format_amount(-amount) + ' ' + base_unit
+            if fx.is_enabled():
+                if tx_item_fiat:
+                    amount_str += ' (%s)' % tx_item_fiat['fiat_value'].to_ui_string()
+                else:
+                    amount_str += ' (%s)' % format_fiat_and_units(abs(amount))
         if amount_str:
             self.amount_label.setText(amount_str)
         else:
             self.amount_label.hide()
         size_str = _("Size:") + ' %d bytes'% size
-        fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        if fee is None:
+            fee_str = _("Fee") + ': ' + _("unknown")
+        else:
+            fee_str = _("Fee") + f': {format_amount(fee)} {base_unit}'
+            if fx.is_enabled():
+                if tx_item_fiat:
+                    fiat_fee_str = tx_item_fiat['fiat_fee'].to_ui_string()
+                else:
+                    fiat_fee_str = format_fiat_and_units(fee)
+                fee_str += f' ({fiat_fee_str})'
         if fee is not None:
-            fee_rate = fee/size*1000
-            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
-            feerate_warning = simple_config.FEERATE_WARNING_HIGH_FEE
-            if fee_rate > feerate_warning:
-                fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
+            fee_rate = Decimal(fee) / size  # sat/byte
+            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
+            if isinstance(self.tx, PartialTransaction):
+                if isinstance(self, PreviewTxDialog):
+                    invoice_amt = self.tx.output_value() if self.output_value == '!' else self.output_value
+                else:
+                    invoice_amt = amount
+                fee_warning_tuple = self.wallet.get_tx_fee_warning(
+                    invoice_amt=invoice_amt, tx_size=size, fee=fee)
+                if fee_warning_tuple:
+                    allow_send, long_warning, short_warning = fee_warning_tuple
+                    fee_str += " - <font color={color}>{header}: {body}</font>".format(
+                        header=_('Warning'),
+                        body=short_warning,
+                        color=ColorScheme.RED.as_color().name(),
+                    )
         if isinstance(self.tx, PartialTransaction):
             risk_of_burning_coins = (can_sign and fee is not None
                                      and self.wallet.get_warning_for_risk_of_burning_coins_as_fees(self.tx))
@@ -497,7 +555,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             ln_amount_str = ''
         elif ln_amount > 0:
             ln_amount_str = _('Amount received in channels') + ': ' + format_amount(ln_amount) + ' ' + base_unit
-        elif ln_amount < 0:
+        else:
+            assert ln_amount < 0, f"{ln_amount!r}"
             ln_amount_str = _('Amount withdrawn from channels') + ': ' + format_amount(-ln_amount) + ' ' + base_unit
         if ln_amount_str:
             self.ln_amount_label.setText(ln_amount_str)
@@ -527,22 +586,21 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             if selected_coins is not None:
                 inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
         self.inputs_header.setText(inputs_header_text)
-        ext = QTextCharFormat()
-        rec = QTextCharFormat()
-        rec.setBackground(QBrush(ColorScheme.GREEN.as_color(background=True)))
-        rec.setToolTip(_("Wallet receive address"))
-        chg = QTextCharFormat()
-        chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(background=True)))
-        chg.setToolTip(_("Wallet change address"))
-        twofactor = QTextCharFormat()
-        twofactor.setBackground(QBrush(ColorScheme.BLUE.as_color(background=True)))
-        twofactor.setToolTip(_("TrustedCoin (2FA) fee for the next batch of transactions"))
 
+        ext = QTextCharFormat()
+        tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
         def text_format(addr):
+            nonlocal tf_used_recv, tf_used_change, tf_used_2fa
             if self.wallet.is_mine(addr):
-                return chg if self.wallet.is_change(addr) else rec
+                if self.wallet.is_change(addr):
+                    tf_used_change = True
+                    return self.txo_color_change.text_char_format
+                else:
+                    tf_used_recv = True
+                    return self.txo_color_recv.text_char_format
             elif self.wallet.is_billing_address(addr):
-                return twofactor
+                tf_used_2fa = True
+                return self.txo_color_2fa.text_char_format
             return ext
 
         def format_amount(amt):
@@ -582,6 +640,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText('\t', ext)
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
+
+        self.txo_color_recv.legend_label.setVisible(tf_used_recv)
+        self.txo_color_change.legend_label.setVisible(tf_used_change)
+        self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()
@@ -640,7 +702,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         locktime_setter_hbox.setSpacing(0)
         locktime_setter_label = TxDetailLabel()
         locktime_setter_label.setText("LockTime: ")
-        self.locktime_e = LockTimeEdit()
+        self.locktime_e = LockTimeEdit(self)
         locktime_setter_hbox.addWidget(locktime_setter_label)
         locktime_setter_hbox.addWidget(self.locktime_e)
         locktime_setter_hbox.addStretch(1)
@@ -686,6 +748,31 @@ class TxDetailLabel(QLabel):
             self.setWordWrap(word_wrap)
 
 
+class TxOutputColoring:
+    # used for both inputs and outputs
+
+    def __init__(
+            self,
+            *,
+            legend: str,
+            color: ColorSchemeItem,
+            tooltip: str,
+    ):
+        self.color = color.as_color(background=True)
+        self.legend_label = QLabel("<font color={color}>{box_char}</font> = {label}".format(
+            color=self.color.name(),
+            box_char="█",
+            label=legend,
+        ))
+        font = self.legend_label.font()
+        font.setPointSize(font.pointSize() - 1)
+        self.legend_label.setFont(font)
+        self.legend_label.setVisible(False)
+        self.text_char_format = QTextCharFormat()
+        self.text_char_format.setBackground(QBrush(self.color))
+        self.text_char_format.setToolTip(tooltip)
+
+
 class TxDialog(BaseTxDialog):
     def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
         BaseTxDialog.__init__(self, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved, finalized=True)
@@ -693,11 +780,23 @@ class TxDialog(BaseTxDialog):
         self.update()
 
 
-
 class PreviewTxDialog(BaseTxDialog, TxEditor):
 
-    def __init__(self, *, make_tx, external_keypairs, window: 'ElectrumWindow'):
-        TxEditor.__init__(self, window=window, make_tx=make_tx, is_sweep=bool(external_keypairs))
+    def __init__(
+            self,
+            *,
+            make_tx,
+            external_keypairs,
+            window: 'ElectrumWindow',
+            output_value: Union[int, str],
+    ):
+        TxEditor.__init__(
+            self,
+            window=window,
+            make_tx=make_tx,
+            is_sweep=bool(external_keypairs),
+            output_value=output_value,
+        )
         BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
                               finalized=False, external_keypairs=external_keypairs)
         BlockingWaitingDialog(window, _("Preparing transaction..."),
@@ -710,6 +809,11 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         self.size_e.setAlignment(Qt.AlignCenter)
         self.size_e.setAmount(0)
         self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
+
+        self.fiat_fee_label = TxFiatLabel()
+        self.fiat_fee_label.setAlignment(Qt.AlignCenter)
+        self.fiat_fee_label.setAmount(0)
+        self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
 
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(self.config.fee_per_byte())
@@ -751,6 +855,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         grid.addWidget(self.size_e, 0, 2)
         grid.addWidget(self.fee_e, 0, 3)
         grid.addWidget(self.feerounding_icon, 0, 4)
+        grid.addWidget(self.fiat_fee_label, 0, 5)
         grid.addWidget(self.fee_slider, 1, 1)
         grid.addWidget(self.fee_combo, 1, 2)
         hbox.addLayout(grid)
@@ -827,8 +932,9 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
     def update_fee_fields(self):
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
-        if self.no_dynfee_estimates:
-            size = self.tx.estimated_size()
+        tx = self.tx
+        if self.no_dynfee_estimates and tx:
+            size = tx.estimated_size()
             self.size_e.setAmount(size)
         if self.not_enough_funds or self.no_dynfee_estimates:
             if not freeze_fee:
@@ -838,11 +944,13 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             self.feerounding_icon.setVisible(False)
             return
 
-        tx = self.tx
+        assert tx is not None
         size = tx.estimated_size()
         fee = tx.get_fee()
 
         self.size_e.setAmount(size)
+        fiat_fee = self.main_window.format_fiat_and_units(fee)
+        self.fiat_fee_label.setAmount(fiat_fee)
 
         # Displayed fee/fee_rate values are set according to user input.
         # Due to rounding or dropping dust in CoinChooser,

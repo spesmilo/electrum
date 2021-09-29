@@ -1,5 +1,6 @@
+.git/
 ####-*.patch
-*.pyc
+**/*.pyc
 *.swp
 build/
 dist/
@@ -17,11 +18,7 @@ bin/
 .mypy_cache
 .vscode
 electrum_data
-
-# icons
-electrum/gui/kivy/theming/light-0.png
-electrum/gui/kivy/theming/light-1.png
-electrum/gui/kivy/theming/light.atlas
+.DS_Store
 
 # tests/tox
 .tox/
@@ -31,17 +28,26 @@ electrum/gui/kivy/theming/light.atlas
 
 # build workspaces
 contrib/build-wine/tmp/
+contrib/build-wine/build/
+contrib/build-wine/.cache/
+contrib/build-wine/dist/
+contrib/build-wine/signed/
 contrib/build-wine/fresh_clone/
 contrib/build-linux/sdist/fresh_clone/
 contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
-contrib/android_debug.keystore
+contrib/build-linux/appimage/fresh_clone/
+contrib/osx/.cache/
+contrib/osx/build-venv/
+contrib/android/fresh_clone
 contrib/android/android_debug.keystore
 contrib/secp256k1/
 contrib/zbar/
+contrib/libusb/
 
 # shared objects
 electrum/*.so
 electrum/*.so.0
 electrum/*.dll
 electrum/*.dylib
+contrib/osx/*.dylib

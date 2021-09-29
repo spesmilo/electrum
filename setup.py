@@ -72,24 +72,20 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum',
+        'electrum.qrreader',
         'electrum.gui',
         'electrum.gui.qt',
+        'electrum.gui.qt.qrreader',
+        'electrum.gui.qt.qrreader.qtmultimedia',
         'electrum.plugins',
     ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={
         'electrum': 'electrum'
     },
-    package_data={
-        '': ['*.txt', '*.json', '*.ttf', '*.otf', '*.csv'],
-        'electrum': [
-            'wordlist/*.txt',
-            'locale/*/LC_MESSAGES/electrum.mo',
-            'lnwire/*.csv',
-        ],
-        'electrum.gui': [
-            'icons/*',
-        ],
-    },
+    # Note: MANIFEST.in lists what gets included in the tar.gz, and the
+    # package_data kwarg lists what gets put in site-packages when pip installing the tar.gz.
+    # By specifying include_package_data=True, MANIFEST.in becomes responsible for both.
+    include_package_data=True,
     scripts=['electrum/electrum'],
     data_files=data_files,
     description="Lightweight Bitcoin Wallet",

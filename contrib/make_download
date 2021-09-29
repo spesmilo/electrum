@@ -14,6 +14,10 @@ APK_VERSION = version_module.APK_VERSION
 print("version", ELECTRUM_VERSION)
 
 dirname = sys.argv[1]
+
+# GPG names of extra signers
+extra_signers = sys.argv[2:]
+
 print("directory", dirname)
 
 download_page = os.path.join(dirname, "panel-download.html")
@@ -32,12 +36,14 @@ string = string.replace("##VERSION_APK##", APK_VERSION)
 files = {
     'tgz': "Electrum-%s.tar.gz" % version,
     'appimage': "electrum-%s-x86_64.AppImage" % version,
-    'zip': "Electrum-%s.zip" % version,
     'mac': "electrum-%s.dmg" % version_mac,
     'win': "electrum-%s.exe" % version_win,
     'win_setup': "electrum-%s-setup.exe" % version_win,
     'win_portable': "electrum-%s-portable.exe" % version_win,
+    'apk_arm64': "Electrum-%s-arm64-v8a-release.apk" % APK_VERSION,
+    'apk_armeabi': "Electrum-%s-armeabi-v7a-release.apk" % APK_VERSION,
 }
+
 
 for k, n in files.items():
     path = "dist/%s"%n
@@ -45,21 +51,26 @@ for k, n in files.items():
     if not os.path.exists(path):
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):
-        os.unlink(path)
-        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
-        continue
-    sigpath = path + '.asc'
-    siglink = link + '.asc'
-    if not os.path.exists(sigpath):
-        os.system("wget -q %s -O %s" % (siglink, sigpath))
-    if not os.path.getsize(sigpath):
-        os.unlink(sigpath)
-        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
-        continue
-    if os.system("gpg --verify %s"%sigpath) != 0:
-        raise Exception(sigpath)
-    string = string.replace("##link_%s##"%k, link)
+        raise Exception(path)
 
+    string = string.replace("##link_%s##"%k, link)
+    sig_ThomasV = link + '.ThomasV.asc'
+    sig_SomberNight = link + '.sombernight_releasekey.asc'
+    sigs = [
+        "<a href=\"%s\">%s</a>"%(sig_ThomasV, 'ThomasV'),
+        "<a href=\"%s\">%s</a>"%(sig_SomberNight, 'SomberNight'),
+    ]
+
+    for signer in extra_signers:
+        sig_name = n + '.'+signer+'.asc'
+        sig_url = "https://raw.githubusercontent.com/spesmilo/electrum-signatures/master/%s/%s/%s"%(version, n, sig_name)
+        sig_path = "dist/%s"% sig_name
+        os.system("wget %s -O %s"%(sig_url, sig_path))
+        if os.system("gpg --verify %s %s"%(sig_path, path)) != 0:
+            raise Exception(sig_name)
+        sigs.append( "<a href=\"%s\">%s</a>"%(sig_url, signer) )
+    sigs = '\n'+',\n'.join(sigs)+'\n'
+    string = string.replace("##sigs_%s##"%k, sigs)
 
 with open(download_page,'w') as f:
     f.write(string)

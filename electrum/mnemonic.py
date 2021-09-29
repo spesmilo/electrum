@@ -45,7 +45,7 @@ CJK_INTERVALS = [
     (0x2B740, 0x2B81F, 'CJK Unified Ideographs Extension D'),
     (0xF900, 0xFAFF, 'CJK Compatibility Ideographs'),
     (0x2F800, 0x2FA1D, 'CJK Compatibility Ideographs Supplement'),
-    (0x3190, 0x319F , 'Kanbun'),
+    (0x3190, 0x319F, 'Kanbun'),
     (0x2E80, 0x2EFF, 'CJK Radicals Supplement'),
     (0x2F00, 0x2FDF, 'CJK Radicals'),
     (0x31C0, 0x31EF, 'CJK Strokes'),
@@ -188,6 +188,7 @@ class Mnemonic(Logger):
         return i
 
     def make_seed(self, *, seed_type=None, num_bits=None) -> str:
+        from .keystore import bip39_is_checksum_valid
         if seed_type is None:
             seed_type = 'segwit'
         if num_bits is None:
@@ -209,6 +210,11 @@ class Mnemonic(Logger):
             if i != self.mnemonic_decode(seed):
                 raise Exception('Cannot extract same entropy from mnemonic!')
             if is_old_seed(seed):
+                continue
+            # Make sure the mnemonic we generate is not also a valid bip39 seed
+            # by accident. Note that this test has not always been done historically,
+            # so it cannot be relied upon.
+            if bip39_is_checksum_valid(seed, wordlist=self.wordlist) == (True, True):
                 continue
             if is_new_seed(seed, prefix):
                 break

@@ -33,7 +33,9 @@ language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
 #       So this does not work:   _(f"My name: {name}")
 #       instead use .format:     _("My name: {}").format(name)
-def _(x):
+def _(x: str) -> str:
+    if x == "":
+        return ""  # empty string must not be translated. see #7158
     global language
     return language.gettext(x)
 
@@ -67,7 +69,7 @@ languages = {
     'nb_NO': _('Norwegian Bokmal'),
     'nl_NL': _('Dutch'),
     'pl_PL': _('Polish'),
-    'pt_BR': _('Brasilian'),
+    'pt_BR': _('Portuguese (Brazil)'),
     'pt_PT': _('Portuguese'),
     'ro_RO': _('Romanian'),
     'ru_RU': _('Russian'),
@@ -82,3 +84,4 @@ languages = {
     'zh_CN': _('Chinese Simplified'),
     'zh_TW': _('Chinese Traditional')
 }
+assert '' in languages

@@ -6,15 +6,26 @@ import time
 from hashlib import sha256
 from binascii import hexlify
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Type
 
+import random
 import bitstring
 
-from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
+from .bitcoin import hash160_to_b58_address, b58_address_to_hash160, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .segwit_addr import bech32_encode, bech32_decode, CHARSET
+from . import segwit_addr
 from . import constants
+from .constants import AbstractNet
 from . import ecc
 from .bitcoin import COIN
+
+if TYPE_CHECKING:
+    from .lnutil import LnFeatures
+
+
+class LnInvoiceException(Exception): pass
+class LnDecodeException(LnInvoiceException): pass
+class LnEncodeException(LnInvoiceException): pass
 
 
 # BOLT #11:
@@ -26,12 +37,14 @@ def shorten_amount(amount):
     """
     # Convert to pico initially
     amount = int(amount * 10**12)
-    units = ['p', 'n', 'u', 'm', '']
+    units = ['p', 'n', 'u', 'm']
     for unit in units:
         if amount % 1000 == 0:
             amount //= 1000
         else:
             break
+    else:
+        unit = ''
     return str(amount) + unit
 
 def unshorten_amount(amount) -> Decimal:
@@ -55,19 +68,19 @@ def unshorten_amount(amount) -> Decimal:
     # A reader SHOULD fail if `amount` contains a non-digit, or is followed by
     # anything except a `multiplier` in the table above.
     if not re.fullmatch("\\d+[pnum]?", str(amount)):
-        raise ValueError("Invalid amount '{}'".format(amount))
+        raise LnDecodeException("Invalid amount '{}'".format(amount))
 
     if unit in units.keys():
         return Decimal(amount[:-1]) / units[unit]
     else:
         return Decimal(amount)
 
+_INT_TO_BINSTR = {a: '0' * (5-len(bin(a)[2:])) + bin(a)[2:] for a in range(32)}
+
 # Bech32 spits out array of 5-bit values.  Shim here.
 def u5_to_bitarray(arr):
-    ret = bitstring.BitArray()
-    for a in arr:
-        ret += bitstring.pack("uint:5", a)
-    return ret
+    b = ''.join(_INT_TO_BINSTR[a] for a in arr)
+    return bitstring.BitArray(bin=b)
 
 def bitarray_to_u5(barr):
     assert barr.len % 5 == 0
@@ -77,58 +90,43 @@ def bitarray_to_u5(barr):
         ret.append(s.read(5).uint)
     return ret
 
-def encode_fallback(fallback, currency):
+
+def encode_fallback(fallback: str, net: Type[AbstractNet]):
     """ Encode all supported fallback addresses.
     """
-    if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
-        fbhrp, witness = bech32_decode(fallback, ignore_long_length=True)
-        if fbhrp:
-            if fbhrp != currency:
-                raise ValueError("Not a bech32 address for this currency")
-            wver = witness[0]
-            if wver > 16:
-                raise ValueError("Invalid witness version {}".format(witness[0]))
-            wprog = u5_to_bitarray(witness[1:])
-        else:
-            addrtype, addr = b58_address_to_hash160(fallback)
-            if is_p2pkh(currency, addrtype):
-                wver = 17
-            elif is_p2sh(currency, addrtype):
-                wver = 18
-            else:
-                raise ValueError("Unknown address type for {}".format(currency))
-            wprog = addr
-        return tagged('f', bitstring.pack("uint:5", wver) + wprog)
+    wver, wprog_ints = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, fallback)
+    if wver is not None:
+        wprog = bytes(wprog_ints)
     else:
-        raise NotImplementedError("Support for currency {} not implemented".format(currency))
+        addrtype, addr = b58_address_to_hash160(fallback)
+        if addrtype == net.ADDRTYPE_P2PKH:
+            wver = 17
+        elif addrtype == net.ADDRTYPE_P2SH:
+            wver = 18
+        else:
+            raise LnEncodeException(f"Unknown address type {addrtype} for {net}")
+        wprog = addr
+    return tagged('f', bitstring.pack("uint:5", wver) + wprog)
 
-def parse_fallback(fallback, currency):
-    if currency in [constants.BitcoinMainnet.SEGWIT_HRP, constants.BitcoinTestnet.SEGWIT_HRP]:
-        wver = fallback[0:5].uint
-        if wver == 17:
-            addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][0])
-        elif wver == 18:
-            addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][1])
-        elif wver <= 16:
-            addr=bech32_encode(currency, bitarray_to_u5(fallback))
-        else:
-            return None
+
+def parse_fallback(fallback, net: Type[AbstractNet]):
+    wver = fallback[0:5].uint
+    if wver == 17:
+        addr = hash160_to_b58_address(fallback[5:].tobytes(), net.ADDRTYPE_P2PKH)
+    elif wver == 18:
+        addr = hash160_to_b58_address(fallback[5:].tobytes(), net.ADDRTYPE_P2SH)
+    elif wver <= 16:
+        witprog = fallback[5:]  # cut witver
+        witprog = witprog[:len(witprog) // 8 * 8]  # can only be full bytes
+        witprog = witprog.tobytes()
+        addr = segwit_addr.encode_segwit_address(net.SEGWIT_HRP, wver, witprog)
     else:
-        addr=fallback.tobytes()
+        return None
     return addr
 
 
-# Map of classical and witness address prefixes
-base58_prefix_map = {
-    constants.BitcoinMainnet.SEGWIT_HRP : (constants.BitcoinMainnet.ADDRTYPE_P2PKH, constants.BitcoinMainnet.ADDRTYPE_P2SH),
-    constants.BitcoinTestnet.SEGWIT_HRP : (constants.BitcoinTestnet.ADDRTYPE_P2PKH, constants.BitcoinTestnet.ADDRTYPE_P2SH)
-}
+BOLT11_HRP_INV_DICT = {net.BOLT11_HRP: net for net in constants.NETS_LIST}
 
-def is_p2pkh(currency, prefix):
-    return prefix == base58_prefix_map[currency][0]
-
-def is_p2sh(currency, prefix):
-    return prefix == base58_prefix_map[currency][1]
 
 # Tagged field containing BitArray
 def tagged(char, l):
@@ -174,15 +172,9 @@ def pull_tagged(stream):
 
 def lnencode(addr: 'LnAddr', privkey) -> str:
     if addr.amount:
-        amount = Decimal(str(addr.amount))
-        # We can only send down to millisatoshi.
-        if amount * 10**12 % 10:
-            raise ValueError("Cannot encode {}: too many decimal places".format(
-                addr.amount))
-
-        amount = addr.currency + shorten_amount(amount)
+        amount = addr.net.BOLT11_HRP + shorten_amount(addr.amount)
     else:
-        amount = addr.currency if addr.currency else ''
+        amount = addr.net.BOLT11_HRP if addr.net else ''
 
     hrp = 'ln' + amount
 
@@ -206,7 +198,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
         if k in ('d', 'h', 'n', 'x', 'p', 's'):
             if k in tags_set:
-                raise ValueError("Duplicate '{}' tag".format(k))
+                raise LnEncodeException("Duplicate '{}' tag".format(k))
 
         if k == 'r':
             route = bitstring.BitArray()
@@ -214,8 +206,12 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
                 pubkey, channel, feebase, feerate, cltv = step
                 route.append(bitstring.BitArray(pubkey) + bitstring.BitArray(channel) + bitstring.pack('intbe:32', feebase) + bitstring.pack('intbe:32', feerate) + bitstring.pack('intbe:16', cltv))
             data += tagged('r', route)
+        elif k == 't':
+            pubkey, feebase, feerate, cltv = v
+            route = bitstring.BitArray(pubkey) + bitstring.pack('intbe:32', feebase) + bitstring.pack('intbe:32', feerate) + bitstring.pack('intbe:16', cltv)
+            data += tagged('t', route)
         elif k == 'f':
-            data += encode_fallback(v, addr.currency)
+            data += encode_fallback(v, addr.net)
         elif k == 'd':
             # truncate to max length: 1024*5 bits = 639 bytes
             data += tagged_bytes('d', v.encode()[0:639])
@@ -239,7 +235,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
             data += tagged('9', feature_bits)
         else:
             # FIXME: Support unknown tags?
-            raise ValueError("Unknown tag {}".format(k))
+            raise LnEncodeException("Unknown tag {}".format(k))
 
         tags_set.add(k)
 
@@ -260,10 +256,11 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
     sig = bytes(sig[1:]) + recovery_flag
     data += sig
 
-    return bech32_encode(hrp, bitarray_to_u5(data))
+    return bech32_encode(segwit_addr.Encoding.BECH32, hrp, bitarray_to_u5(data))
+
 
 class LnAddr(object):
-    def __init__(self, *, paymenthash: bytes = None, amount=None, currency=None, tags=None, date=None,
+    def __init__(self, *, paymenthash: bytes = None, amount=None, net: Type[AbstractNet] = None, tags=None, date=None,
                  payment_secret: bytes = None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
@@ -272,9 +269,28 @@ class LnAddr(object):
         self.payment_secret = payment_secret
         self.signature = None
         self.pubkey = None
-        self.currency = constants.net.SEGWIT_HRP if currency is None else currency
-        self.amount = amount  # type: Optional[Decimal]  # in bitcoins
+        self.net = constants.net if net is None else net  # type: Type[AbstractNet]
+        self._amount = amount  # type: Optional[Decimal]  # in bitcoins
         self._min_final_cltv_expiry = 18
+
+    @property
+    def amount(self) -> Optional[Decimal]:
+        return self._amount
+
+    @amount.setter
+    def amount(self, value):
+        if not (isinstance(value, Decimal) or value is None):
+            raise LnInvoiceException(f"amount must be Decimal or None, not {value!r}")
+        if value is None:
+            self._amount = None
+            return
+        assert isinstance(value, Decimal)
+        if value.is_nan() or not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC):
+            raise LnInvoiceException(f"amount is out-of-bounds: {value!r} BTC")
+        if value * 10**12 % 10:
+            # max resolution is millisatoshi
+            raise LnInvoiceException(f"Cannot encode {value!r}: too many decimal places")
+        self._amount = value
 
     def get_amount_sat(self) -> Optional[Decimal]:
         # note that this has msat resolution potentially
@@ -282,15 +298,29 @@ class LnAddr(object):
             return None
         return self.amount * COIN
 
+    def get_routing_info(self, tag):
+        # note: tag will be 't' for trampoline
+        r_tags = list(filter(lambda x: x[0] == tag, self.tags))
+        # strip the tag type, it's implicitly 'r' now
+        r_tags = list(map(lambda x: x[1], r_tags))
+        # if there are multiple hints, we will use the first one that works,
+        # from a random permutation
+        random.shuffle(r_tags)
+        return r_tags
+
     def get_amount_msat(self) -> Optional[int]:
         if self.amount is None:
             return None
         return int(self.amount * COIN * 1000)
 
+    def get_features(self) -> 'LnFeatures':
+        from .lnutil import LnFeatures
+        return LnFeatures(self.get_tag('9') or 0)
+
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
             hexlify(self.pubkey.serialize()).decode('utf-8') if self.pubkey else None,
-            self.amount, self.currency,
+            self.amount, self.net.BOLT11_HRP,
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )
 
@@ -319,35 +349,37 @@ class LnAddr(object):
         return now > self.get_expiry() + self.date
 
 
-class LnDecodeException(Exception): pass
-
 class SerializableKey:
     def __init__(self, pubkey):
         self.pubkey = pubkey
     def serialize(self):
         return self.pubkey.get_public_key_bytes(True)
 
-def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
-    if expected_hrp is None:
-        expected_hrp = constants.net.SEGWIT_HRP
-    hrp, data = bech32_decode(invoice, ignore_long_length=True)
-    if not hrp:
-        raise ValueError("Bad bech32 checksum")
+def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
+    if net is None:
+        net = constants.net
+    decoded_bech32 = bech32_decode(invoice, ignore_long_length=True)
+    hrp = decoded_bech32.hrp
+    data = decoded_bech32.data
+    if decoded_bech32.encoding is None:
+        raise LnDecodeException("Bad bech32 checksum")
+    if decoded_bech32.encoding != segwit_addr.Encoding.BECH32:
+        raise LnDecodeException("Bad bech32 encoding: must be using vanilla BECH32")
 
     # BOLT #11:
     #
     # A reader MUST fail if it does not understand the `prefix`.
     if not hrp.startswith('ln'):
-        raise ValueError("Does not start with ln")
+        raise LnDecodeException("Does not start with ln")
 
-    if not hrp[2:].startswith(expected_hrp):
-        raise ValueError("Wrong Lightning invoice HRP " + hrp[2:] + ", should be " + expected_hrp)
+    if not hrp[2:].startswith(net.BOLT11_HRP):
+        raise LnDecodeException(f"Wrong Lightning invoice HRP {hrp[2:]}, should be {net.BOLT11_HRP}")
 
     data = u5_to_bitarray(data)
 
     # Final signature 65 bytes, split it off.
     if len(data) < 65*8:
-        raise ValueError("Too short to contain signature")
+        raise LnDecodeException("Too short to contain signature")
     sigdecoded = data[-65*8:].tobytes()
     data = bitstring.ConstBitStream(data[:-65*8])
 
@@ -356,7 +388,7 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
 
     m = re.search("[^\\d]+", hrp[2:])
     if m:
-        addr.currency = m.group(0)
+        addr.net = BOLT11_HRP_INV_DICT[m.group(0)]
         amountstr = hrp[2+m.end():]
         # BOLT #11:
         #
@@ -398,8 +430,15 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
                               s.read(32).uintbe,
                               s.read(16).uintbe))
             addr.tags.append(('r',route))
+        elif tag == 't':
+            s = bitstring.ConstBitStream(tagdata)
+            e = (s.read(264).tobytes(),
+                 s.read(32).uintbe,
+                 s.read(32).uintbe,
+                 s.read(16).uintbe)
+            addr.tags.append(('t', e))
         elif tag == 'f':
-            fallback = parse_fallback(tagdata, addr.currency)
+            fallback = parse_fallback(tagdata, addr.net)
             if fallback:
                 addr.tags.append(('f', fallback))
             else:
@@ -478,13 +517,3 @@ def lndecode(invoice: str, *, verbose=False, expected_hrp=None) -> LnAddr:
         addr.pubkey = SerializableKey(ecc.ECPubkey.from_sig_string(sigdecoded[:64], sigdecoded[64], hrp_hash))
 
     return addr
-
-
-
-
-if __name__ == '__main__':
-    # run using
-    # python3 -m electrum.lnaddr <invoice> <expected hrp>
-    # python3 -m electrum.lnaddr lntb1n1pdlcakepp5e7rn0knl0gm46qqp9eqdsza2c942d8pjqnwa5903n39zu28sgk3sdq423jhxapqv3hkuct5d9hkucqp2rzjqwyx8nu2hygyvgc02cwdtvuxe0lcxz06qt3lpsldzcdr46my5epmj9vk9sqqqlcqqqqqqqlgqqqqqqgqjqdhnmkgahfaynuhe9md8k49xhxuatnv6jckfmsjq8maxta2l0trh5sdrqlyjlwutdnpd5gwmdnyytsl9q0dj6g08jacvthtpeg383k0sq542rz2 tb1n
-    import sys
-    print(lndecode(sys.argv[1], expected_hrp=sys.argv[2]))

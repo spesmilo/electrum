@@ -13,6 +13,7 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
 from electrum.gui.kivy.i18n import _
+from electrum.invoices import LNInvoice
 
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ Builder.load_string('''
     date_str: ''
     payment_hash: ''
     description: ''
+    invoice: ''
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
@@ -69,6 +71,13 @@ Builder.load_string('''
                 TxHashLabel:
                     data: root.preimage
                     name: _('Preimage')
+                TopLabel:
+                    text: _('Lightning Invoice')
+                RefLabel:
+                    data: root.invoice
+                    text: root.invoice[:40] + "..."
+                    name: _('Lightning Invoice')
+                    show_text_with_qr: False
 
         Widget:
             size_hint: 1, 0.1
@@ -109,3 +118,10 @@ class LightningTxDialog(Factory.Popup):
         self.amount_str = format_amount(-self.amount if self.is_sent else self.amount)
         if tx_item.get('fee_msat'):
             self.fee_str = format_amount(Decimal(tx_item['fee_msat']) / 1000)
+        invoice = (self.app.wallet.get_invoice(self.payment_hash)
+                   or self.app.wallet.get_request(self.payment_hash))
+        if invoice:
+            assert isinstance(invoice, LNInvoice), f"{self.invoice!r}"
+            self.invoice = invoice.invoice
+        else:
+            self.invoice = ''

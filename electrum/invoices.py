@@ -6,10 +6,10 @@ import attr
 
 from .json_db import StoredObject
 from .i18n import _
-from .util import age
+from .util import age, InvoiceError
 from .lnaddr import lndecode, LnAddr
 from . import constants
-from .bitcoin import COIN
+from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .transaction import PartialTxOutput
 
 if TYPE_CHECKING:
@@ -22,13 +22,14 @@ PR_TYPE_ONCHAIN = 0
 PR_TYPE_LN = 2
 
 # status of payment requests
-PR_UNPAID   = 0
-PR_EXPIRED  = 1
-PR_UNKNOWN  = 2     # sent but not propagated
-PR_PAID     = 3     # send and propagated
-PR_INFLIGHT = 4     # unconfirmed
-PR_FAILED   = 5
-PR_ROUTING  = 6
+PR_UNPAID   = 0     # if onchain: invoice amt not reached by txs in mempool+chain. if LN: invoice not paid.
+PR_EXPIRED  = 1     # invoice is unpaid and expiry time reached
+PR_UNKNOWN  = 2     # e.g. invoice not found
+PR_PAID     = 3     # if onchain: paid and mined (1 conf). if LN: invoice is paid.
+PR_INFLIGHT = 4     # only for LN. payment attempt in progress
+PR_FAILED   = 5     # only for LN. we attempted to pay it, but all attempts failed
+PR_ROUTING  = 6     # only for LN. *unused* atm.
+PR_UNCONFIRMED = 7  # only onchain. invoice is satisfied but tx is not mined yet.
 
 pr_color = {
     PR_UNPAID:   (.7, .7, .7, 1),
@@ -38,6 +39,7 @@ pr_color = {
     PR_INFLIGHT: (.9, .6, .3, 1),
     PR_FAILED:   (.9, .2, .2, 1),
     PR_ROUTING: (.9, .6, .3, 1),
+    PR_UNCONFIRMED: (.9, .6, .3, 1),
 }
 
 pr_tooltips = {
@@ -48,6 +50,7 @@ pr_tooltips = {
     PR_INFLIGHT:_('In progress'),
     PR_FAILED:_('Failed'),
     PR_ROUTING: _('Computing route...'),
+    PR_UNCONFIRMED: _('Unconfirmed'),
 }
 
 PR_DEFAULT_EXPIRATION_WHEN_CREATING = 24*60*60  # 1 day
@@ -127,6 +130,17 @@ class OnchainInvoice(Invoice):
     def get_amount_sat(self) -> Union[int, str]:
         return self.amount_sat or 0
 
+    @amount_sat.validator
+    def _validate_amount(self, attribute, value):
+        if isinstance(value, int):
+            if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN):
+                raise InvoiceError(f"amount is out-of-bounds: {value!r} sat")
+        elif isinstance(value, str):
+            if value != '!':
+                raise InvoiceError(f"unexpected amount: {value!r}")
+        else:
+            raise InvoiceError(f"unexpected amount: {value!r}")
+
     @classmethod
     def from_bip70_payreq(cls, pr: 'PaymentRequest', height:int) -> 'OnchainInvoice':
         return OnchainInvoice(
@@ -150,8 +164,18 @@ class LNInvoice(Invoice):
     __lnaddr = None
 
     @invoice.validator
-    def check(self, attribute, value):
+    def _validate_invoice_str(self, attribute, value):
         lndecode(value)  # this checks the str can be decoded
+
+    @amount_msat.validator
+    def _validate_amount(self, attribute, value):
+        if value is None:
+            return
+        if isinstance(value, int):
+            if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN * 1000):
+                raise InvoiceError(f"amount is out-of-bounds: {value!r} msat")
+        else:
+            raise InvoiceError(f"unexpected amount: {value!r}")
 
     @property
     def _lnaddr(self) -> LnAddr:
@@ -188,7 +212,14 @@ class LNInvoice(Invoice):
 
     @classmethod
     def from_bech32(cls, invoice: str) -> 'LNInvoice':
-        amount_msat = lndecode(invoice).get_amount_msat()
+        """Constructs LNInvoice object from BOLT-11 string.
+        Might raise InvoiceError.
+        """
+        try:
+            lnaddr = lndecode(invoice)
+        except Exception as e:
+            raise InvoiceError(e) from e
+        amount_msat = lnaddr.get_amount_msat()
         return LNInvoice(
             type=PR_TYPE_LN,
             invoice=invoice,
@@ -199,7 +230,7 @@ class LNInvoice(Invoice):
         d = self.to_json()
         d.update({
             'pubkey': self._lnaddr.pubkey.serialize().hex(),
-            'amount_BTC': self._lnaddr.amount,
+            'amount_BTC': str(self._lnaddr.amount),
             'rhash': self._lnaddr.paymenthash.hex(),
             'description': self._lnaddr.get_description(),
             'exp': self._lnaddr.get_expiry(),
@@ -207,4 +238,3 @@ class LNInvoice(Invoice):
             # 'tags': str(lnaddr.tags),
         })
         return d
-

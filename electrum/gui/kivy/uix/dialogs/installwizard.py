@@ -44,8 +44,8 @@ Builder.load_string('''
     background_color: (1, 1, 1, 1) if self.focus else (0.454, 0.698, 0.909, 1)
     foreground_color: (0.31, 0.31, 0.31, 1) if self.focus else (0.835, 0.909, 0.972, 1)
     hint_text_color: self.foreground_color
-    background_active: f'atlas://{KIVY_GUI_PATH}/theming/light/create_act_text_active'
-    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/create_act_text_active'
+    background_active: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/create_act_text_active'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/create_act_text_active'
     size_hint_y: None
     height: '48sp'
 
@@ -130,7 +130,6 @@ Builder.load_string('''
     Widget
         size_hint: 1, 1
     GridLayout:
-        orientation: 'vertical'
         cols: 2
         spacing: '14dp'
         size_hint: 1, 1
@@ -179,7 +178,6 @@ Builder.load_string('''
         size_hint: 1, 1
     GridLayout:
         row_default_height: '48dp'
-        orientation: 'vertical'
         id: choices
         cols: 1
         spacing: '14dp'
@@ -315,7 +313,7 @@ Builder.load_string('''
     font_size: '18dp'
     text_size: self.width - dp(24), self.height - dp(12)
     color: .1, .1, .1, 1
-    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/light/white_bg_round_top'
+    background_normal: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/white_bg_round_top'
     background_down: self.background_normal
     size_hint_y: None
 
@@ -333,7 +331,6 @@ Builder.load_string('''
     text: ''
     options_dialog: None
     rows: 1
-    orientation: 'horizontal'
     size_hint: 1, None
     height: self.minimum_height
     BigLabel:
@@ -344,7 +341,7 @@ Builder.load_string('''
         height: '30dp'
         width: '30dp'
         size_hint: 1, None
-        icon: f'atlas://{KIVY_GUI_PATH}/theming/light/gear'
+        icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/gear'
         on_release:
             root.options_dialog() if root.options_dialog else None
 
@@ -358,7 +355,6 @@ Builder.load_string('''
     GridLayout:
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -461,7 +457,6 @@ Builder.load_string('''
     GridLayout
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -480,7 +475,7 @@ Builder.load_string('''
             id: scan
             height: '48sp'
             on_release: root.scan_xpub()
-            icon: f'atlas://{KIVY_GUI_PATH}/theming/light/camera'
+            icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/camera'
             size_hint: 1, None
         WizardButton:
             text: _('Paste')
@@ -498,7 +493,6 @@ Builder.load_string('''
     GridLayout
         cols: 1
         padding: 0, '12dp'
-        orientation: 'vertical'
         spacing: '12dp'
         size_hint: 1, None
         height: self.minimum_height
@@ -534,7 +528,6 @@ Builder.load_string('''
         pos_hint: {'center_y': .5}
         size_hint_y: None
         height: self.minimum_height
-        orientation: 'vertical'
         spacing: '12dp'
         SeedButton:
             text: root.seed_text
@@ -551,6 +544,7 @@ Builder.load_string('''
         multiline: False
         size_hint: 1, None
         height: '48dp'
+        on_text: Clock.schedule_once(root.on_text)
     SeedLabel:
         text: root.warning
 
@@ -561,7 +555,6 @@ Builder.load_string('''
         text: root.message1
     GridLayout:
         row_default_height: '48dp'
-        orientation: 'vertical'
         id: choices
         cols: 1
         spacing: '14dp'
@@ -792,10 +785,17 @@ class LineDialog(WizardDialog):
         WizardDialog.__init__(self, wizard, **kwargs)
         self.title = kwargs.get('title', '')
         self.message = kwargs.get('message', '')
-        self.ids.next.disabled = False
+        self.ids.next.disabled = True
+        self.test = kwargs['test']
+
+    def get_text(self):
+        return self.ids.passphrase_input.text
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not self.test(self.get_text())
 
     def get_params(self, b):
-        return (self.ids.passphrase_input.text,)
+        return (self.get_text(),)
 
 class CLButton(ToggleButton):
     def on_release(self):
@@ -834,12 +834,18 @@ class ChoiceLineDialog(WizardChoiceDialog):
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')
-    message = _("If you forget your PIN or lose your device, your seed phrase will be the only way to recover your funds.")
-    ext = False
+    message = (_("Write your seed phrase down on paper.") + " " +
+               _("The seed phrase will allow you to recover your wallet in case you forget your password or lose your device.") + "\n\n" +
+               _("WARNING") + ":\n" +
+               "- " + _("Never disclose your seed.") + "\n" +
+               "- " + _("Never type it on a website.") + "\n" +
+               "- " + _("Do not store it electronically."))
 
     def __init__(self, wizard, **kwargs):
         super(ShowSeedDialog, self).__init__(wizard, **kwargs)
         self.seed_text = kwargs['seed_text']
+        self.opt_ext = True
+        self.is_ext = False
 
     def on_parent(self, instance, value):
         if value:
@@ -848,12 +854,12 @@ class ShowSeedDialog(WizardDialog):
     def options_dialog(self):
         from .seed_options import SeedOptionsDialog
         def callback(ext, _):
-            self.ext = ext
-        d = SeedOptionsDialog(self.ext, None, callback)
+            self.is_ext = ext
+        d = SeedOptionsDialog(self.opt_ext, False, self.is_ext, False, callback)
         d.open()
 
     def get_params(self, b):
-        return (self.ext,)
+        return (self.is_ext,)
 
 
 class WordButton(Button):
@@ -988,7 +994,8 @@ class RestoreSeedDialog(WizardDialog):
             tis.focus = False
 
     def get_params(self, b):
-        return (self.get_text(), self.is_bip39, self.is_ext)
+        seed_type = 'bip39' if self.is_bip39 else 'electrum'
+        return (self.get_text(), seed_type, self.is_ext)
 
 
 class ConfirmSeedDialog(RestoreSeedDialog):
@@ -1099,6 +1106,8 @@ class InstallWizard(BaseWizard, Widget):
     def confirm_seed_dialog(self, **kwargs):
         kwargs['title'] = _('Confirm Seed')
         kwargs['message'] = _('Please retype your seed phrase, to confirm that you properly saved it')
+        kwargs['opt_bip39'] = self.opt_bip39
+        kwargs['opt_ext'] = self.opt_ext
         ConfirmSeedDialog(self, **kwargs).open()
 
     def restore_seed_dialog(self, **kwargs):
@@ -1138,9 +1147,8 @@ class InstallWizard(BaseWizard, Widget):
         Clock.schedule_once(lambda dt: self.app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):
-        if force_disable_encrypt_cb:
-            # do not request PIN for watching-only wallets
-            run_next(None, False)
+        if self.app.password is not None:
+            run_next(self.app.password, True)
             return
         def on_success(old_pw, pw):
             assert old_pw is None

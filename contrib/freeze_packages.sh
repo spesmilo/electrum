@@ -20,13 +20,19 @@ which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 
 
 ${SYSTEM_PYTHON} -m hashin -h > /dev/null 2>&1 || { ${SYSTEM_PYTHON} -m pip install hashin; }
 
-for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage'; do
+for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage' '-build-android'; do
     rm -rf "$venv_dir"
     virtualenv -p ${SYSTEM_PYTHON} $venv_dir
 
     source $venv_dir/bin/activate
 
     echo "Installing dependencies... (requirements${i}.txt)"
+
+    # We pin all python packaging tools (pip and friends). Some of our dependencies might
+    # pull some of them in (e.g. protobuf->setuptools), and all transitive dependencies
+    # must be pinned, so we might as well pin all packaging tools. This however means
+    # that we should explicitly install them now, so that we pin latest versions if possible.
+    python -m pip install --upgrade pip setuptools wheel
 
     python -m pip install -r "$contrib/requirements/requirements${i}.txt" --upgrade
 

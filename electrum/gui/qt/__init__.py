@@ -39,25 +39,26 @@ except Exception:
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
                              QMessageBox)
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, profiler,
+from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
-from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
+from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
+from .exception_window import Exception_Hook
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -73,7 +74,7 @@ class OpenFileEventFilter(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.FileOpen:
             if len(self.windows) >= 1:
-                self.windows[0].pay_to_URI(event.url().toEncoded())
+                self.windows[0].pay_to_URI(event.url().toString())
                 return True
         return False
 
@@ -87,6 +88,10 @@ class QNetworkUpdatedSignalObject(QObject):
 
 
 class ElectrumGui(Logger):
+
+    network_dialog: Optional['NetworkDialog']
+    lightning_dialog: Optional['LightningDialog']
+    watchtower_dialog: Optional['WatchtowerDialog']
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
@@ -111,6 +116,7 @@ class ElectrumGui(Logger):
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.app.setWindowIcon(read_QIcon("electrum.png"))
+        self._cleaned_up = False
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
@@ -122,16 +128,19 @@ class ElectrumGui(Logger):
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
-        # init tray
         self.dark_icon = self.config.get("dark_icon", False)
+        self.tray = None
+        self._init_tray()
+        self.app.new_window_signal.connect(self.start_new_window)
+        self.set_dark_theme_if_needed()
+        run_hook('init_qt', self)
+
+    def _init_tray(self):
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
         self.tray.setToolTip('Electrum')
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
-        self.app.new_window_signal.connect(self.start_new_window)
-        self.set_dark_theme_if_needed()
-        run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
@@ -150,6 +159,8 @@ class ElectrumGui(Logger):
         ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
 
     def build_tray_menu(self):
+        if not self.tray:
+            return
         # Avoid immediate GC of old menu when window closed via its action
         if self.tray.contextMenu() is None:
             m = QMenu()
@@ -170,7 +181,7 @@ class ElectrumGui(Logger):
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
         m.addSeparator()
-        m.addAction(_("Exit Electrum"), self.close)
+        m.addAction(_("Exit Electrum"), self.app.quit)
 
     def tray_icon(self):
         if self.dark_icon:
@@ -179,6 +190,8 @@ class ElectrumGui(Logger):
             return read_QIcon('electrum_light_icon.png')
 
     def toggle_tray_icon(self):
+        if not self.tray:
+            return
         self.dark_icon = not self.dark_icon
         self.config.set_key("dark_icon", self.dark_icon, True)
         self.tray.setIcon(self.tray_icon())
@@ -192,15 +205,47 @@ class ElectrumGui(Logger):
                 for w in self.windows:
                     w.hide()
 
-    def close(self):
-        for window in self.windows:
+    def _cleanup_before_exit(self):
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+        self.app.new_window_signal.disconnect()
+        self.efilter = None
+        # If there are still some open windows, try to clean them up.
+        for window in list(self.windows):
             window.close()
+            window.clean_up()
         if self.network_dialog:
             self.network_dialog.close()
+            self.network_dialog.clean_up()
+            self.network_dialog = None
+        self.network_updated_signal_obj = None
         if self.lightning_dialog:
             self.lightning_dialog.close()
+            self.lightning_dialog = None
         if self.watchtower_dialog:
             self.watchtower_dialog.close()
+            self.watchtower_dialog = None
+        # Shut down the timer cleanly
+        self.timer.stop()
+        self.timer = None
+        # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
+        event = QtCore.QEvent(QtCore.QEvent.Clipboard)
+        self.app.sendEvent(self.app.clipboard(), event)
+        if self.tray:
+            self.tray.hide()
+            self.tray.deleteLater()
+            self.tray = None
+
+    def _maybe_quit_if_no_windows_open(self) -> None:
+        """Check if there are any open windows and decide whether we should quit."""
+        # keep daemon running after close
+        if self.config.get('daemon'):
+            return
+        # check if a wizard is in progress
+        with self._num_wizards_lock:
+            if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                return
         self.app.quit()
 
     def new_window(self, path, uri=None):
@@ -225,8 +270,10 @@ class ElectrumGui(Logger):
             self.network_dialog.show()
             self.network_dialog.raise_()
             return
-        self.network_dialog = NetworkDialog(self.daemon.network, self.config,
-                                self.network_updated_signal_obj)
+        self.network_dialog = NetworkDialog(
+            network=self.daemon.network,
+            config=self.config,
+            network_updated_signal_obj=self.network_updated_signal_obj)
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
@@ -246,16 +293,17 @@ class ElectrumGui(Logger):
             finally:
                 with self._num_wizards_lock:
                     self._num_wizards_in_progress -= 1
+                self._maybe_quit_if_no_windows_open()
         return wrapper
 
     @count_wizards_in_progress
-    def start_new_window(self, path, uri, *, app_is_starting=False):
+    def start_new_window(self, path, uri, *, app_is_starting=False) -> Optional[ElectrumWindow]:
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
         wallet = None
         try:
             wallet = self.daemon.load_wallet(path, None)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -282,7 +330,7 @@ class ElectrumGui(Logger):
                     break
             else:
                 window = self._create_window_for_wallet(wallet)
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
@@ -329,7 +377,7 @@ class ElectrumGui(Logger):
 
     def close_window(self, window: ElectrumWindow):
         if window in self.windows:
-           self.windows.remove(window)
+            self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if not self.windows:
@@ -346,48 +394,38 @@ class ElectrumGui(Logger):
                 wizard.terminate()
 
     def main(self):
+        # setup Ctrl-C handling and tear-down code first, so that user can easily exit whenever
+        self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
+        self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
+        self.app.aboutToQuit.connect(self._cleanup_before_exit)
+        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
+        # hook for crash reporter
+        Exception_Hook.maybe_setup(config=self.config)
+        # first-start network-setup
         try:
             self.init_network()
         except UserCancelled:
             return
         except GoBack:
             return
-        except BaseException as e:
+        except Exception as e:
             self.logger.exception('')
             return
+        # start wizard to select/create wallet
         self.timer.start()
-
         path = self.config.get_wallet_path(use_gui_last_wallet=True)
-        if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
-            return
-        signal.signal(signal.SIGINT, lambda *args: self.app.quit())
-
-        def quit_after_last_window():
-            # keep daemon running after close
-            if self.config.get('daemon'):
+        try:
+            if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
                 return
-            # check if a wizard is in progress
-            with self._num_wizards_lock:
-                if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
-                    return
-                if self.config.get('persist_daemon'):
-                    return
-            self.app.quit()
-        self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
-        self.app.lastWindowClosed.connect(quit_after_last_window)
-
-        def clean_up():
-            # Shut down the timer cleanly
-            self.timer.stop()
-            # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
-            event = QtCore.QEvent(QtCore.QEvent.Clipboard)
-            self.app.sendEvent(self.app.clipboard(), event)
-            self.tray.hide()
-        self.app.aboutToQuit.connect(clean_up)
-
+        except Exception as e:
+            self.logger.error("error loading wallet (or creating window for it)")
+            send_exception_to_crash_reporter(e)
+            # Let Qt event loop start properly so that crash reporter window can appear.
+            # We will shutdown when the user closes that window, via lastWindowClosed signal.
         # main loop
+        self.logger.info("starting Qt main loop")
         self.app.exec_()
-        # on some platforms the exec_ call may not return, so use clean_up()
+        # on some platforms the exec_ call may not return, so use _cleanup_before_exit
 
     def stop(self):
         self.logger.info('closing GUI')
