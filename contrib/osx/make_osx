@@ -127,7 +127,7 @@ info "generating locale"
 
 
 info "Installing some build-time deps for compilation..."
-brew install autoconf automake libtool gettext coreutils pkgconfig
+brew install autoconf automake libtool gettext coreutils pkgconfig swig
 
 if [ ! -f "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib ]; then
     info "Building libsecp256k1 dylib..."
