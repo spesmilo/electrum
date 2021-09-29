@@ -34,6 +34,12 @@ FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
                          50000, 70000, 100000, 150000, 200000, 300000]
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
+# The min feerate_per_kw that can be used in lightning so that
+# the resulting onchain tx pays the min relay fee.
+# This would be FEERATE_DEFAULT_RELAY / 4 if not for rounding errors,
+# see https://github.com/ElementsProject/lightning/commit/2e687b9b352c9092b5e8bd4a688916ac50b44af0
+FEERATE_PER_KW_MIN_RELAY_LIGHTNING = 253
+
 FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
 
 

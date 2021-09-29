@@ -1358,7 +1358,8 @@ class WalletDB(JsonDB):
         elif key == 'data_loss_protect_remote_pcp':
             v = dict((k, bfh(x)) for k, x in v.items())
         # convert htlc_id keys to int
-        if key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets']:
+        if key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
+                   'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
             v = dict((int(k), x) for k, x in v.items())
         # convert keys to HTLCOwner
         if key == 'log' or (path and path[-1] in ['locked_in', 'fails', 'settles']):

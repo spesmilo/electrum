@@ -306,7 +306,7 @@ class WatchTowerServer(AuthenticatedServer):
         await site.start()
 
     async def get_ctn(self, *args):
-        return await self.lnwatcher.sweepstore.get_ctn(*args)
+        return await self.lnwatcher.get_ctn(*args)
 
     async def add_sweep_tx(self, *args):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)

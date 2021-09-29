@@ -532,7 +532,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
 
 
-    def alice_to_bob_fee_update(self, fee=111):
+    def alice_to_bob_fee_update(self, fee=1111):
         aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.alice_channel.update_fee(fee, True)
         anewctx = self.alice_channel.get_next_commitment(REMOTE).outputs()

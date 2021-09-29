@@ -33,7 +33,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       OnionFailureCodeMetaFlag)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
+from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
@@ -42,7 +42,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx,
                      UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
@@ -600,17 +599,6 @@ class Peer(Logger):
         if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(
-                f"MUST set funding_satoshis to less than 2^24 satoshi. "
-                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
-        if push_msat > 1000 * funding_sat:
-            raise Exception(
-                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
-                f"{push_msat} msat > {1000 * funding_sat} msat")
-        if funding_sat < lnutil.MIN_FUNDING_SAT:
-            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
-
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
 
@@ -676,15 +664,13 @@ class Peer(Logger):
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script
         )
-        remote_config.validate_params(funding_sat=funding_sat)
-        # if channel_reserve_satoshis is less than dust_limit_satoshis within the open_channel message:
-        #     MUST reject the channel.
-        if remote_config.reserve_sat < local_config.dust_limit_sat:
-            raise Exception("violated constraint: remote_config.reserve_sat < local_config.dust_limit_sat")
-        # if channel_reserve_satoshis from the open_channel message is less than dust_limit_satoshis:
-        #     MUST reject the channel.
-        if local_config.reserve_sat < remote_config.dust_limit_sat:
-            raise Exception("violated constraint: local_config.reserve_sat < remote_config.dust_limit_sat")
+        ChannelConfig.cross_validate_params(
+            local_config=local_config,
+            remote_config=remote_config,
+            funding_sat=funding_sat,
+            is_local_initiator=True,
+            initial_feerate_per_kw=feerate,
+        )
 
         # -> funding created
         # replace dummy output in funding tx
@@ -798,16 +784,6 @@ class Peer(Logger):
         feerate = payload['feerate_per_kw']  # note: we are not validating this
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(
-                f"MUST set funding_satoshis to less than 2^24 satoshi. "
-                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
-        if push_msat > 1000 * funding_sat:
-            raise Exception(
-                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
-                f"{push_msat} msat > {1000 * funding_sat} msat")
-        if funding_sat < lnutil.MIN_FUNDING_SAT:
-            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
@@ -829,26 +805,14 @@ class Peer(Logger):
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script,
         )
+        ChannelConfig.cross_validate_params(
+            local_config=local_config,
+            remote_config=remote_config,
+            funding_sat=funding_sat,
+            is_local_initiator=False,
+            initial_feerate_per_kw=feerate,
+        )
 
-        remote_config.validate_params(funding_sat=funding_sat)
-        # The receiving node MUST fail the channel if:
-        #     the funder's amount for the initial commitment transaction is not
-        #     sufficient for full fee payment.
-        if remote_config.initial_msat < calc_fees_for_commitment_tx(
-                num_htlcs=0,
-                feerate=feerate,
-                is_local_initiator=False)[REMOTE]:
-            raise Exception(
-                "the funder's amount for the initial commitment transaction "
-                "is not sufficient for full fee payment")
-        # The receiving node MUST fail the channel if:
-        #     both to_local and to_remote amounts for the initial commitment transaction are
-        #     less than or equal to channel_reserve_satoshis (see BOLT 3).
-        if (local_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']
-                and remote_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']):
-            raise Exception(
-                "both to_local and to_remote amounts for the initial commitment "
-                "transaction are less than or equal to channel_reserve_satoshis")
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
         #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
         #       but we will not play along with actually announcing the channel (so we keep it private).
