@@ -999,6 +999,8 @@ def is_address_list(text):
 
 
 def get_private_keys(text, *, allow_spaces_inside_key=True, raise_on_error=False):
+    # automatically replace non-base58check characters
+    text = text.replace('O', 'o').replace('0', 'o').replace('I', 'i').replace('l', 'i')
     if allow_spaces_inside_key:  # see #1612
         parts = text.split('\n')
         parts = map(lambda x: ''.join(x.split()), parts)
@@ -1010,7 +1012,7 @@ def get_private_keys(text, *, allow_spaces_inside_key=True, raise_on_error=False
 
 
 def is_private_key_list(text, *, allow_spaces_inside_key=True, raise_on_error=False):
-    return bool(get_private_keys(text,
+    return bool(get_private_keys(text.replace('O', 'o').replace('0', 'o').replace('I', 'i').replace('l', 'i'),
                                  allow_spaces_inside_key=allow_spaces_inside_key,
                                  raise_on_error=raise_on_error))
 
