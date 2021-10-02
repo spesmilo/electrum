@@ -66,7 +66,7 @@ from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
                        AddressIndexGeneric, CannotDerivePubkey)
 from .util import multisig_type
-from .storage import StorageEncryptionVersion, WalletStorage
+from .storage import StorageEncryptionType, WalletStorage
 from .wallet_db import WalletDB
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
@@ -2560,17 +2560,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_have_keystore_encryption(self):
         return self.keystore and self.keystore.may_have_password()
 
-    def get_available_storage_encryption_version(self) -> StorageEncryptionVersion:
+    def get_available_storage_encryption_type(self) -> StorageEncryptionType:
         """Returns the type of storage encryption offered to the user.
 
         A wallet file (storage) is either encrypted with this version
         or is stored in plaintext.
         """
         if isinstance(self.keystore, Hardware_KeyStore):
-            return StorageEncryptionVersion.XPUB_PASSWORD
+            return StorageEncryptionType.XPUB_PASSWORD
         else:
-            return StorageEncryptionVersion.PASSWORD_V3
-            return StorageEncryptionVersion.USER_PASSWORD
+            return StorageEncryptionType.USER_PASSWORD
 
     def has_keystore_encryption(self):
         """Returns whether encryption is enabled for the keystore.
@@ -2601,9 +2600,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.check_password(old_pw)
         if self.storage:
             if encrypt_storage:
-                enc_version = self.get_available_storage_encryption_version()
+                enc_version = self.get_available_storage_encryption_type()
             else:
-                enc_version = StorageEncryptionVersion.PLAINTEXT
+                enc_version = StorageEncryptionType.PLAINTEXT
             self.storage.set_password(new_pw, enc_version)
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
@@ -3399,9 +3398,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         if self.has_storage_encryption():
             self.storage.check_password(password)
 
-    def get_available_storage_encryption_version(self):
+    def get_available_storage_encryption_type(self):
         # multisig wallets are not offered hw device encryption
-        return StorageEncryptionVersion.USER_PASSWORD
+        return StorageEncryptionType.USER_PASSWORD
 
     def has_seed(self):
         return self.keystore.has_seed()

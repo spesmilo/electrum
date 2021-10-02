@@ -37,7 +37,7 @@ from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation, B
 from .keystore import bip44_derivation, purpose48_derivation, Hardware_KeyStore, KeyStore, bip39_to_seed
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
-from .storage import WalletStorage, StorageEncryptionVersion
+from .storage import WalletStorage, StorageEncryptionType
 from .wallet_db import WalletDB
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException, UserFacingException
@@ -76,7 +76,7 @@ class WizardStackItem(NamedTuple):
 class WizardWalletPasswordSetting(NamedTuple):
     password: Optional[str]
     encrypt_storage: bool
-    storage_enc_version: StorageEncryptionVersion
+    storage_enc_version: StorageEncryptionType
     encrypt_keystore: bool
 
 
@@ -632,7 +632,7 @@ class BaseWizard(Logger):
                 run_next=lambda encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=StorageEncryptionVersion.XPUB_PASSWORD,
+                    storage_enc_version=StorageEncryptionType.XPUB_PASSWORD,
                     encrypt_keystore=False))
         else:
             # reset stack to disable 'back' button in password dialog
@@ -642,12 +642,12 @@ class BaseWizard(Logger):
                 run_next=lambda password, encrypt_storage: self.on_password(
                     password,
                     encrypt_storage=encrypt_storage,
-                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
+                    storage_enc_version=StorageEncryptionType.USER_PASSWORD,
                     encrypt_keystore=encrypt_keystore),
                 force_disable_encrypt_cb=not encrypt_keystore)
 
     def on_password(self, password, *, encrypt_storage: bool,
-                    storage_enc_version=StorageEncryptionVersion.USER_PASSWORD,
+                    storage_enc_version=StorageEncryptionType.USER_PASSWORD,
                     encrypt_keystore: bool):
         for k in self.keystores:
             if k.may_have_password():

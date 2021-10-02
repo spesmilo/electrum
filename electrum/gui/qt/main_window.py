@@ -2630,8 +2630,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.password_button.setVisible(self.wallet.may_have_password())
 
     def change_password_dialog(self):
-        from electrum.storage import StorageEncryptionVersion
-        if self.wallet.get_available_storage_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD:
+        from electrum.storage import StorageEncryptionType
+        if self.wallet.get_available_storage_encryption_type() == StorageEncryptionType.XPUB_PASSWORD:
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
             ok, encrypt_file = d.run()

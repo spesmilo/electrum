@@ -128,9 +128,10 @@ def strip_PKCS7_padding(data: bytes) -> bytes:
     return data[0:-padlen]
 
 
-def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
+def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes, append_pkcs7=True) -> bytes:
     assert_bytes(key, iv, data)
-    data = append_PKCS7_padding(data)
+    if append_pkcs7:
+        data = append_PKCS7_padding(data)
     if HAS_CRYPTODOME:
         e = CD_AES.new(key, CD_AES.MODE_CBC, iv).encrypt(data)
     elif HAS_CRYPTOGRAPHY:
