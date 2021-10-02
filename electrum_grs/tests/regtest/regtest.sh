@@ -351,7 +351,7 @@ if [[ $1 == "watchtower" ]]; then
     echo "alice and bob do nothing"
     $bob stop
     $alice stop
-    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
+    ctx_id=$($groestlcoin_cli sendrawtransaction $ctx)
     echo "alice breaches with old ctx:" $ctx_id
     echo "watchtower publishes justice transaction"
     wait_until_spent $ctx_id 1  # alice's to_local gets punished immediately
