@@ -43,6 +43,7 @@ from .crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from .crypto import strip_PKCS7_padding, InvalidPadding
 from .bitcoin import var_int
 from .transaction import BCDataStream
+from .bip32 import convert_bip32_path_to_list_of_uint32, convert_bip32_intpath_to_strpath
 
 
 def get_derivation_used_for_hw_device_encryption():
@@ -129,13 +130,13 @@ class WalletStorage(Logger):
 
     def is_encrypted(self):
         """Return if storage encryption is currently enabled."""
-        return self.get_encryption_type() != StorageEncryptionType.PLAINTEXT
+        return bool(self._encryption_type)
 
     def is_encrypted_with_user_pw(self):
-        return self.get_encryption_type() == StorageEncryptionType.USER_PASSWORD
+        return bool(self._encryption_type & StorageEncryptionType.USER_PASSWORD)
 
     def is_encrypted_with_hw_device(self):
-        return self.get_encryption_type() == StorageEncryptionType.XPUB_PASSWORD
+        return bool(self._encryption_type & StorageEncryptionType.XPUB_PASSWORD)
 
     def get_encryption_type(self):
         """Return the type of encryption used for this storage.
@@ -166,7 +167,7 @@ class WalletStorage(Logger):
                 self._encryption_type = StorageEncryptionType.PLAINTEXT
                 self.raw = first_bytes + f.read()
             else:
-                self._encryption_type = StorageEncryptionType.USER_PASSWORD
+                self._encryption_type = StorageEncryptionType.PLAINTEXT
                 version = f.read(1)
                 assert version == b'\x00', version
                 flags = f.read(1)
@@ -174,33 +175,49 @@ class WalletStorage(Logger):
                 assert num_passwords == 1, num_passwords
                 self.encrypted_keys = []
                 for i in range(num_passwords):
-                    kdf_flags = f.read(1)
+                    pw_type = ord(f.read(1))
+                    if pw_type == XPUB_PASSWORD:
+                        n = ord(f.read(1))
+                        derivation = []
+                        for i in range(n):
+                            
+                            x = f.read(4)
+                            derivation.append(p)
+                    else:
+                        derivation = None
                     kdf_rounds = ord(f.read(1))
                     encrypted_master_key = f.read(32)
-                    self.encrypted_keys.append((kdf_flags, kdf_rounds, encrypted_master_key))
+                    self._encryption_type |= pw_type
+                    self.encrypted_keys.append((pw_type, derivation, kdf_rounds, encrypted_master_key))
                 self.master_key_mac = f.read(32)
                 header_size = f.tell()
                 f.seek(0)
                 self.header = f.read(header_size)
         f.close()
 
-    def create_header(self, pw_list, is_zipped=False) -> bytes:
+    def get_header(self, is_zipped=False) -> bytes:
+        # todo: add derivation path
         magic = b'Electrum'
         version = 0
         flags = 0 # TODO: add is_zipped
-        N = len(pw_list)
+        N = len(self.encrypted_keys)
         header = magic + bytes([version, flags]) + bytes([N])
-        for pw in pw_list:
-            kdf_flags = 0
-            kdf_rounds = 10
-            password_key = self.get_secret_from_password(pw, pow(2, kdf_rounds))
-            encrypted_master_key = aes_encrypt_with_iv(password_key[0:16], password_key[16:32], self.master_key, append_pkcs7=False)
-            assert len(encrypted_master_key) == 32
-            header += bytes([kdf_flags, kdf_rounds]) + encrypted_master_key
+        for item in self.encrypted_keys:
+            pw_type, derivation, kdf_rounds, encrypted_master_key = item
+            header += bytes([pw_type])
+            if pw_type == XPUB_PASSWORD:
+                derivation_size = len(derivation)
+                header += bytes([derivation_size])
+                header += derivation
+            header += bytes([kdf_rounds])
+            header += encrypted_master_key
         mac = hmac.new(self.master_key, None, hashlib.sha256).digest()
         assert len(mac) == 32
         header += mac
-        self.header = header
+        return header
+    #self.header = header
+        # todo: write new header to disk
+        
 
     @staticmethod
     def get_eckey_from_password(password):
@@ -222,7 +239,9 @@ class WalletStorage(Logger):
         s = ec_key.decrypt_message(self.raw, enc_magic)
         s = zlib.decompress(s)
         # convert to new scheme
-        self.init_master_key(password)
+        # fixme: convert xpub too
+        self.init_master_key()
+        self.init_headers([(password, self._encryption_type)])
         self.decrypted = s.decode('utf8')
         self.write(self.decrypted)
 
@@ -268,9 +287,31 @@ class WalletStorage(Logger):
         else:
             raise Exception('block too large for var_int')
 
-    def init_master_key(self, password):
+    def init_master_key(self):
         self.master_key = token_bytes(32)
-        self.create_header([password])
+
+    def init_headers(self, pw_list):
+        self.encrypted_keys = []
+        for password, pw_type in pw_list:
+            print(password, pw_type)
+            if pw_type == StorageEncryptionType.USER_PASSWORD:
+                flags = pw_type
+                derivation = None
+                kdf_exp = 10
+                password_key = self.get_secret_from_password(password, pow(2, kdf_exp))
+            elif pw_type == StorageEncryptionType.XPUB_PASSWORD:
+                flags = pw_type
+                derivation = get_derivation_used_for_hw_device_encryption() # how this password was derived from root..
+                derivation = convert_bip32_path_to_list_of_uint32(derivation)
+                kdf_exp = 10
+                password_key = self.get_secret_from_password(password, pow(2, kdf_exp))
+            else:
+                raise Exception('xx')
+            encrypted_master_key = aes_encrypt_with_iv(password_key[0:16], password_key[16:32], self.master_key, append_pkcs7=False)
+            assert len(encrypted_master_key) == 32
+            self.encrypted_keys.append((flags, derivation, kdf_exp, encrypted_master_key))
+        
+        self.update_header()
 
     def encrypt_for_write(self, plaintext: str) -> str:
         s = bytes(plaintext, 'utf8')
@@ -307,32 +348,54 @@ class WalletStorage(Logger):
         if self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
+    def _check_password_from_header(self, password):
+        # decrypt master_key and compare mac
+        for i in range(len(self.encrypted_keys)):
+            kdf_flags, kdf_rounds, encrypted_master_key = self.encrypted_keys[i]
+            password_key = self.get_secret_from_password(password, pow(2, kdf_rounds))
+            decrypted_master_key = aes_decrypt_with_iv(password_key[0:16], password_key[16:32], encrypted_master_key, strip_pkcs7=False)
+            if hmac.new(decrypted_master_key, None, hashlib.sha256).digest() == self.master_key_mac:
+                return i, decrypted_master_key
+                break
+        else:
+            raise InvalidPassword()
+
     def check_password(self, password) -> None:
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
             return
         if self._is_old_base64:
             self.check_password_old(password)
-        # decrypt master_key and compare mac
-        for item in self.encrypted_keys:
-            kdf_flags, kdf_rounds, encrypted_master_key = item
-            password_key = self.get_secret_from_password(password, pow(2, kdf_rounds))
-            decrypted_master_key = aes_decrypt_with_iv(password_key[0:16], password_key[16:32], encrypted_master_key, strip_pkcs7=False)
-            if hmac.new(decrypted_master_key, None, hashlib.sha256).digest() == self.master_key_mac:
-                self.master_key = decrypted_master_key
-                break
-        else:
-            raise InvalidPassword()
+        i, self.master_key = self._check_password_from_header(password)
 
-    def set_password(self, password, enc_version=None):
+    def change_password(self, old_password, new_password):
+        i, self.master_key = self._check_password_from_header(password)
+        decrypted_master_key = aes_encrypt_with_iv(new_password_key[0:16], new_password_key[16:32], self.master_key, append_pkcs7=False)
+        self.encrypted_keys[i] = kdf_flags, kdf_rounds, encrypted_master_key_new
+        self.update_header()
+
+    def add_password(self):
+        # rewrites
+        pass
+
+    def remove_password(self):
+        # rewrites
+        pass
+
+    def set_password(self, password, enc_type=None):
         """Set a password to be used for encrypting this storage."""
         if not self.is_past_initial_decryption():
             raise Exception("storage needs to be decrypted before changing password")
-        if enc_version is None:
-            enc_version = self._encryption_type
-        if password and enc_version != StorageEncryptionType.PLAINTEXT:
-            self.init_master_key(password)
-            self._encryption_version = enc_version
+        if enc_type is None:
+            enc_type = self._encryption_type
+        
+        if enc_type == StorageEncryptionType.PLAINTEXT:
+            assert password is None
+
+        if password and enc_type != StorageEncryptionType.PLAINTEXT:
+            self.init_master_key()
+            self.init_headers([(password, enc_type)])
+            self._encryption_type = enc_type
         else:
             self.master_key = None
             self._encryption_type = StorageEncryptionType.PLAINTEXT

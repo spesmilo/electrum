@@ -2600,10 +2600,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.check_password(old_pw)
         if self.storage:
             if encrypt_storage:
-                enc_version = self.get_available_storage_encryption_type()
+                enc_type = self.get_available_storage_encryption_type()
             else:
-                enc_version = StorageEncryptionType.PLAINTEXT
-            self.storage.set_password(new_pw, enc_version)
+                enc_type = StorageEncryptionType.PLAINTEXT
+            self.storage.set_password(new_pw, enc_type)
         # make sure next storage.write() saves changes
         self.db.set_modified(True)
 
