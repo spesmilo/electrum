@@ -320,15 +320,15 @@ class Blockchain(Logger):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
-        bits = cls.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+        if header.get('block_height') >= len(constants.net.CHECKPOINTS) * 2016:
+            bits = cls.target_to_bits(target)
+            if bits != header.get('bits'):
+                raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+            block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
+            if block_hash_as_num > target:
+                raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
-        print("verify_chunk")
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
@@ -542,26 +542,106 @@ class Blockchain(Logger):
             return 0
         if index == -1:
             return MAX_TARGET
-        if index < len(self.checkpoints):
-            h, t = self.checkpoints[index]
-            print(h,", ",t,", index: ",index)
-            return t
-        # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
-        if not first or not last:
-            print("first: ",first," last: ",last)
-            raise MissingHeader(index)
+        if height < len(self.checkpoints) * 2016:
+            # return pessimistic value to detect if check is unintentionally performed
+            return 0
+        bridge_index = height - len(self.checkpoints) * 2016
+        if bridge_index >= 0 and bridge_index < len(self.target_bridge):
+            # The block headers are not fetched by default for headers with
+            # height less than len(self.checkpoints) * 2016. To bridge into
+            # on-the-fly target computation the target from previous headers
+            # must be known. Therefore, the necessary target values from local
+            # storage are used here.
+            return self.target_bridge[bridge_index]
+        elif height == HEIGHT_FORK_FOUR:
+            return MAX_TARGET_NEOSCRYPT
+        elif height >= HEIGHT_FORK_THREE:
+            return self.__fork_three_target(height, headers)
+        elif height >= HEIGHT_FORK_TWO:
+            return self.__fork_two_target(height, headers)
+        elif height >= HEIGHT_FORK_ONE:
+            return self.__fork_one_target(height, headers)
+        else:
+            return self.__vanilla_target(height, headers)
+
+    @staticmethod
+    def __damp(nActualTimespan, nTargetTimespan):
+        return int((nActualTimespan + 3 * nTargetTimespan) / 4)
+
+    def __fork_three_target(self, height, headers):
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        target = self.bits_to_target(last.get('bits'))
+        first = self.get_header(last_height - 15, height, headers)
+        nActualTimespanShort = int((last.get('timestamp') - first.get('timestamp')) / 15)
+        first = self.get_header(last_height - 120, height, headers)
+        nActualTimespanMedium = int((last.get('timestamp') - first.get('timestamp')) / 120)
+        first = self.get_header(last_height - 480, height, headers)
+        nActualTimespanLong = int((last.get('timestamp') - first.get('timestamp')) / 480)
+        nActualTimespan = (nActualTimespanShort + nActualTimespanMedium + nActualTimespanLong) // 3
+        nTargetTimespan = 60
+        nActualTimespan = Blockchain.__damp(nActualTimespan, nTargetTimespan)
+        return Blockchain.__get_target(target, nActualTimespan, nTargetTimespan, 453, 494)
+
+    def __fork_two_target(self, height, headers):
+        interval = 126
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        target = self.bits_to_target(last.get('bits'))
+        if height % interval != 0 and height != HEIGHT_FORK_TWO:
+            return target
+        first = self.get_header(last_height - interval, height, headers)
+        nActualTimespanShort = last.get('timestamp') - first.get('timestamp')
+        first = self.get_header(last_height - interval * 4, height, headers)
+        nActualTimespanLong = (last.get('timestamp') - first.get('timestamp')) // 4
+        nActualTimespan = (nActualTimespanShort + nActualTimespanLong) // 2
+        nTargetTimespan = SEVEN_DAYS // 32
+        nActualTimespan = Blockchain.__damp(nActualTimespan, nTargetTimespan)
+        return Blockchain.__get_target(target, nActualTimespan, nTargetTimespan, 453, 494)
+
+    def __fork_one_target(self, height, headers):
+        interval = 504
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        if not last:
+            raise MissingHeader()
+        target = self.bits_to_target(last.get('bits'))
+        if height % interval != 0 and height != HEIGHT_FORK_ONE:
+            return target
+        first = self.get_header(last_height - interval, height, headers)
+        if not first:
+            raise MissingHeader()
+        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 8, 70, 99)
+
+    def __vanilla_target(self, height, headers):
+        interval = 2016
+        last_height = height - 1
+        last = self.get_header(last_height, height, headers)
+        if not last:
+            raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
+        if height % interval != 0:
+            return target
+        first = self.get_header(max(0, last_height - interval), height, headers)
+        if not first:
+            raise MissingHeader()
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        # not any target can be represented in 32 bits:
-        new_target = self.bits_to_target(self.target_to_bits(new_target))
+        return Blockchain.__get_target(target, nActualTimespan, SEVEN_DAYS // 2, 1, 4)
+
+    @staticmethod
+    def __get_target(target, nActualTimespan, nTargetTimespan, numerator, denominator):
+        nActualTimespan = max(nActualTimespan, int(nTargetTimespan * numerator / denominator))
+        nActualTimespan = min(nActualTimespan, int(nTargetTimespan * denominator / numerator))
+        new_target = min(MAX_TARGET, int(target * nActualTimespan / nTargetTimespan))
         return new_target
+
+    def get_header(self, height, ref_height, headers):
+        delta = ref_height % 2016
+        if height < ref_height - delta or headers is None:
+            return self.read_header(height)
+        return headers[delta - (ref_height - height)]
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
