@@ -38,12 +38,9 @@ from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
-from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, ChannelType
-from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
-from .lnutil import ChannelConstraints, Outpoint, ShachainElement
-from .json_db import StoredDict, JsonDB, locked, modifier
+from .lnutil import LOCAL, REMOTE, HTLCOwner
+from .json_db import StoredDict, JsonDB, locked, modifier, stored_in
 from .plugin import run_hook, plugin_loaders
-from .submarine_swaps import SwapData
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
@@ -57,6 +54,7 @@ FINAL_SEED_VERSION = 48     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
+@stored_in('tx_fees', tuple)
 class TxFeesValue(NamedTuple):
     fee: Optional[int] = None
     is_calculated_by_us: bool = False
@@ -67,6 +65,21 @@ class WalletDB(JsonDB):
 
     def __init__(self, raw, *, manual_upgrades: bool):
         JsonDB.__init__(self, {})
+        # register conversions from json
+        self.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
+        self.register_dict('prevouts_by_scripthash', lambda x: {(prevout, value) for (prevout, value) in x}, None)
+        self.register_dict('data_loss_protect_remote_pcp', lambda x: bfh(x), None)
+        self.register_dict('change_addresses',    str, None)
+        self.register_dict('receiving_addresses', str, None)
+        #
+        for key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
+                    'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
+            self.register_dict_key(key, int)
+        for key in ['log']:
+            self.register_dict_key(key, lambda x: HTLCOwner(int(x)))
+        for key in ['locked_in', 'fails', 'settles']:
+            self.register_parent_key(key, lambda x: HTLCOwner(int(x)))
+
         self._manual_upgrades = manual_upgrades
         self._called_after_upgrade_tasks = False
         if raw:  # loading existing db
@@ -1452,58 +1465,6 @@ class WalletDB(JsonDB):
         self.verified_tx.clear()
         self.tx_fees.clear()
         self._prevouts_by_scripthash.clear()
-
-    def _convert_dict(self, path, key, v):
-        if key == 'transactions':
-            # note: for performance, "deserialize=False" so that we will deserialize these on-demand
-            v = dict((k, tx_from_any(x, deserialize=False)) for k, x in v.items())
-        if key == 'invoices':
-            v = dict((k, Invoice(**x)) for k, x in v.items())
-        if key == 'payment_requests':
-            v = dict((k, Invoice(**x)) for k, x in v.items())
-        elif key == 'adds':
-            v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
-        elif key == 'fee_updates':
-            v = dict((k, FeeUpdate(**x)) for k, x in v.items())
-        elif key == 'submarine_swaps':
-            v = dict((k, SwapData(**x)) for k, x in v.items())
-        elif key == 'imported_channel_backups':
-            v = dict((k, ImportedChannelBackupStorage(**x)) for k, x in v.items())
-        elif key == 'onchain_channel_backups':
-            v = dict((k, OnchainChannelBackupStorage(**x)) for k, x in v.items())
-        elif key == 'tx_fees':
-            v = dict((k, TxFeesValue(*x)) for k, x in v.items())
-        elif key == 'prevouts_by_scripthash':
-            v = dict((k, {(prevout, value) for (prevout, value) in x}) for k, x in v.items())
-        elif key == 'buckets':
-            v = dict((k, ShachainElement(bfh(x[0]), int(x[1]))) for k, x in v.items())
-        elif key == 'data_loss_protect_remote_pcp':
-            v = dict((k, bfh(x)) for k, x in v.items())
-        # convert htlc_id keys to int
-        if key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-                   'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
-            v = dict((int(k), x) for k, x in v.items())
-        # convert keys to HTLCOwner
-        if key == 'log' or (path and path[-1] in ['locked_in', 'fails', 'settles']):
-            if "1" in v:
-                v[LOCAL] = v.pop("1")
-                v[REMOTE] = v.pop("-1")
-        return v
-
-    def _convert_value(self, path, key, v):
-        if key == 'local_config':
-            v = LocalConfig(**v)
-        elif key in ['change_addresses', 'receiving_addresses']:
-            v = StoredDict(v, self, path + [key])
-        elif key == 'remote_config':
-            v = RemoteConfig(**v)
-        elif key == 'constraints':
-            v = ChannelConstraints(**v)
-        elif key == 'funding_outpoint':
-            v = Outpoint(**v)
-        elif key == 'channel_type':
-            v = ChannelType(v)
-        return v
 
     def _should_convert_to_stored_dict(self, key) -> bool:
         if key == 'keystore':

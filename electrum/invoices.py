@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import attr
 
-from .json_db import StoredObject
+from .json_db import StoredObject, stored_in
 from .i18n import _
 from .util import age, InvoiceError
 from .lnaddr import lndecode, LnAddr
@@ -82,6 +82,8 @@ LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
 
 
 
+@stored_in('invoices')
+@stored_in('payment_requests')
 @attr.s
 class Invoice(StoredObject):
 

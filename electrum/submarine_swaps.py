@@ -18,7 +18,7 @@ from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
-from .json_db import StoredObject
+from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
 
@@ -79,6 +79,7 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
 ]
 
 
+@stored_in('submarine_swaps')
 @attr.s
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)
