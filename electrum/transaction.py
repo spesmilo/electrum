@@ -53,6 +53,7 @@ from .crypto import sha256d
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
+from .json_db import stored_in
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
