@@ -26,32 +26,18 @@
 from typing import Callable, Optional, List
 
 import qrcode
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QFrame, QAction,
-                             QToolButton, QMenu, QCheckBox)
+                             QMenu)
 from qrcode import exceptions
 
 from electrum.i18n import _
-from electrum.plugin import run_hook
 from electrum.transaction import Transaction
-from ..locktimeedit import LockTimeEdit
-from ..transaction_dialog import QTextEditWithDefaultSize
-from ..util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
-                    ColorScheme, ButtonsLineEdit, char_width_in_lineedit)
-
-dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+from ..util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit)
 
 
-class TxDetailLabel(QLabel):
-    def __init__(self, *, word_wrap=None):
-        super().__init__()
-        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        if word_wrap is not None:
-            self.setWordWrap(word_wrap)
-
-
-class StakingTxDialog(QDialog, MessageBoxMixin):
+class BaseStakingTxDialog(QDialog, MessageBoxMixin):
     def __call__(self, *args, **kwargs):
         self.open()
 
@@ -62,69 +48,33 @@ class StakingTxDialog(QDialog, MessageBoxMixin):
         self.main_window = parent
         self.config = parent.config
         self.wallet = parent.wallet
-        self.finalized = True
 
         self.setMinimumWidth(950)
         self.psbt_only_widgets = []  # type: List[QWidget]
 
-        vbox = QVBoxLayout()
+        self.vbox = vbox = QVBoxLayout()
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
+
+        hbox_hash_explorer = QHBoxLayout()
+        tx_hash = '0957fdfb1b7e9467fdef6d1951f5d6a7809d428846e06e5d7193ce3d7c0a022f'  # hash in qr code and label
         self.tx_hash_e = ButtonsLineEdit()
+        self.tx_hash_e.setText(tx_hash)
         self.tx_hash_e.setFixedHeight(35)
-        tx_hash = '0957fdfb1b7e9467fdef6d1951f5d6a7809d428846e06e5d7193ce3d7c0a022f'  # hash in qr code
         qr_show = lambda: parent.show_qrcode(str(tx_hash), 'Transaction ID', parent=self)
         qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
-        vbox.addWidget(self.tx_hash_e)
+        hbox_hash_explorer.addWidget(self.tx_hash_e)
 
-        self.add_tx_stats(vbox)
+        self.explorer_button = QPushButton()
+        self.explorer_button.setText(_("View in explorer"))
+        self.explorer_button.clicked.connect(self.on_push_explorer_button)
+        hbox_hash_explorer.addWidget(self.explorer_button)
 
+        vbox.addLayout(hbox_hash_explorer)
         vbox.addSpacing(10)
-
-        self.inputs_header = QLabel()
-        vbox.addWidget(self.inputs_header)
-        self.inputs_textedit = QTextEditWithDefaultSize()
-        vbox.addWidget(self.inputs_textedit)
-        self.outputs_header = QLabel()
-        vbox.addWidget(self.outputs_header)
-        self.outputs_textedit = QTextEditWithDefaultSize()
-        vbox.addWidget(self.outputs_textedit)
-
-        self.unstake_button = QPushButton(_("Unstake"))
-        self.claim_reword_button = QPushButton(_("Claim Reward"))
-        self.restake_button = QPushButton(_("Restake"))
-        self.cancel_button = QPushButton(_("Close"))
-
-        self.export_actions_menu = export_actions_menu = QMenu()
-        self.add_export_actions_to_menu(export_actions_menu)
-        export_actions_menu.addSeparator()
-        export_submenu = export_actions_menu.addMenu(_("For CoinJoin; strip privates"))
-        self.psbt_only_widgets.append(export_submenu)
-        export_submenu = export_actions_menu.addMenu(_("For hardware device; include xpubs"))
-        self.psbt_only_widgets.append(export_submenu)
-
-        # Action buttons (right side)
-        self.buttons = [self.unstake_button, self.claim_reword_button, self.restake_button, self.cancel_button]
-
-        run_hook('transaction_dialog', self)
-        if not self.finalized:
-            self.create_fee_controls()
-            vbox.addWidget(self.feecontrol_fields)
-        self.hbox = hbox = QHBoxLayout()
-
-        hbox.addStretch(1)
-        hbox.addLayout(Buttons(*self.buttons))
-        vbox.addLayout(hbox)
-        self.set_buttons_visibility()
-
-        dialogs.append(self)
-
-    def set_buttons_visibility(self):
-        for b in [self.restake_button, self.unstake_button, self.claim_reword_button]:
-            b.setVisible(self.finalized)
 
     def add_export_actions_to_menu(self, menu: QMenu, *, gettx: Callable[[], Transaction] = None) -> None:
         if gettx is None:
@@ -155,32 +105,51 @@ class StakingTxDialog(QDialog, MessageBoxMixin):
         except Exception as e:
             self.show_error(_('Failed to display QR code.') + '\n' + repr(e))
 
-    def add_tx_stats(self, vbox):
+    def on_push_explorer_button(self):
+        url = QUrl("https://explorer.electriccash.global/")
+        QDesktopServices.openUrl(url)
+
+
+class StakedDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
         hbox_stats = QHBoxLayout()
 
         # left column
         vbox_left = QVBoxLayout()
-        self.tx_desc = TxDetailLabel(word_wrap=True)
-        vbox_left.addWidget(self.tx_desc)
-        self.status_label = TxDetailLabel()
-        vbox_left.addWidget(self.status_label)
-        self.date_label = TxDetailLabel()
-        vbox_left.addWidget(self.date_label)
-        self.amount_label = TxDetailLabel()
-        vbox_left.addWidget(self.amount_label)
 
-        fee_hbox = QHBoxLayout()
-        self.fee_label = TxDetailLabel()
-        fee_hbox.addWidget(self.fee_label)
-        self.fee_warning_icon = QLabel()
-        pixmap = QPixmap(icon_path("warning"))
-        pixmap_size = round(2 * char_width_in_lineedit())
-        pixmap = pixmap.scaled(pixmap_size, pixmap_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.fee_warning_icon.setPixmap(pixmap)
-        self.fee_warning_icon.setVisible(False)
-        fee_hbox.addWidget(self.fee_warning_icon)
-        fee_hbox.addStretch(1)
-        vbox_left.addLayout(fee_hbox)
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_period = QHBoxLayout()
+        period_lab = QLabel('Staking period:')
+        period_lab_data = QLabel('90 Days')
+        hbox_period.addWidget(period_lab)
+        hbox_period.addWidget(period_lab_data)
+        vbox_left.addLayout(hbox_period)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Blocks:')
+        blocks_lab_data = QLabel('99 / 12960')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_left.addLayout(hbox_blocks)
 
         vbox_left.addStretch(1)
         hbox_stats.addLayout(vbox_left, 50)
@@ -194,43 +163,557 @@ class StakingTxDialog(QDialog, MessageBoxMixin):
 
         # right column
         vbox_right = QVBoxLayout()
-        self.size_label = TxDetailLabel()
-        vbox_right.addWidget(self.size_label)
-        self.rbf_label = TxDetailLabel()
-        vbox_right.addWidget(self.rbf_label)
-        self.rbf_cb = QCheckBox(_('Replace by fee'))
-        self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
-        vbox_right.addWidget(self.rbf_cb)
 
-        self.locktime_final_label = TxDetailLabel()
-        vbox_right.addWidget(self.locktime_final_label)
+        hbox_reword = QHBoxLayout()
+        reword_lab = QLabel("<b>" + _("Guaranteed rewards:") + "</b>")
+        hbox_reword.addWidget(reword_lab)
+        vbox_right.addLayout(hbox_reword)
 
-        locktime_setter_hbox = QHBoxLayout()
-        locktime_setter_hbox.setContentsMargins(0, 0, 0, 0)
-        locktime_setter_hbox.setSpacing(0)
-        locktime_setter_label = TxDetailLabel()
-        locktime_setter_label.setText("LockTime: ")
-        self.locktime_e = LockTimeEdit(self)
-        locktime_setter_hbox.addWidget(locktime_setter_label)
-        locktime_setter_hbox.addWidget(self.locktime_e)
-        locktime_setter_hbox.addStretch(1)
-        self.locktime_setter_widget = QWidget()
-        self.locktime_setter_widget.setLayout(locktime_setter_hbox)
-        vbox_right.addWidget(self.locktime_setter_widget)
+        hbox_gp = QHBoxLayout()
+        gp_lab = QLabel(_("Governance Power:"))
+        hbox_gp.addWidget(gp_lab)
+        gp_lab_data = QLabel(_("123 GP"))
+        hbox_gp.addWidget(gp_lab_data)
+        vbox_right.addLayout(hbox_gp)
 
-        self.block_height_label = TxDetailLabel()
-        vbox_right.addWidget(self.block_height_label)
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Daily free transaction limit:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("200000 bytes"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        hbox_rh = QHBoxLayout()
+        rh_lab = QLabel("<b>" + _("Predicted rewards:") + "</b>")
+        hbox_rh.addWidget(rh_lab)
+        vbox_right.addLayout(hbox_rh)
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Estimated payout:"))
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
 
         # below columns
-        self.block_hash_label = TxDetailLabel(word_wrap=True)
-        vbox.addWidget(self.block_hash_label)
+        # todo: dodac tabele Michała
 
-        # set visibility after parenting can be determined by Qt
-        self.rbf_label.setVisible(self.finalized)
-        self.rbf_cb.setVisible(not self.finalized)
-        self.locktime_final_label.setVisible(self.finalized)
-        self.locktime_setter_widget.setVisible(not self.finalized)
+    def add_buttons(self):
+        self.unstake_button = QPushButton(_("Unstake"))
+        self.close_button = QPushButton(_("Close"))
+
+        # Action buttons (right side)
+        self.buttons = [self.unstake_button, self.close_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)
+
+
+class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_period = QHBoxLayout()
+        period_lab = QLabel('Staking period:')
+        period_lab_data = QLabel('90 Days')
+        hbox_period.addWidget(period_lab)
+        hbox_period.addWidget(period_lab_data)
+        vbox_left.addLayout(hbox_period)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('End date:')
+        start_date_lab_data = QLabel('2021-10-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Blocks:')
+        blocks_lab_data = QLabel('12960 / 12960')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_left.addLayout(hbox_blocks)
+
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+
+        hbox_reword = QHBoxLayout()
+        reword_lab = QLabel("<b>" + _("Rewards:") + "</b>")
+        hbox_reword.addWidget(reword_lab)
+        vbox_right.addLayout(hbox_reword)
+
+        hbox_gp = QHBoxLayout()
+        gp_lab = QLabel(_("Governance Power:"))
+        hbox_gp.addWidget(gp_lab)
+        gp_lab_data = QLabel(_("123 GP"))
+        hbox_gp.addWidget(gp_lab_data)
+        vbox_right.addLayout(hbox_gp)
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Payout:"))
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
+
+        hbox_rh = QHBoxLayout()
+        rh_lab = QLabel("<b>" + _("Rewards history:") + "</b>")
+        hbox_rh.addWidget(rh_lab)
+        vbox_right.addLayout(hbox_rh)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Daily free transaction limit:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("200000 bytes"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
+
+        # below columns
+        # todo: dodac tabele Michała
+
+    def add_buttons(self):
+        self.claim_reword_button = QPushButton(_("Claim Reward"))
+        self.explorer_button = QPushButton(_("Close"))
+
+        self.buttons = [self.claim_reword_button, self.explorer_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)
+
+
+class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('End date:')
+        start_date_lab_data = QLabel('2021-10-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Block time:')
+        blocks_lab_data = QLabel('15:11')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_left.addLayout(hbox_blocks)
+
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Payout") + ':')
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Number od tx:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("3"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
+
+        # below columns
+        # todo: dodac tabele Michała
+
+    def add_buttons(self):
+        self.close_button = QPushButton(_("Close"))
+
+        # Action buttons (right side)
+        self.buttons = [self.close_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)
+
+
+class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('End date:')
+        start_date_lab_data = QLabel('2021-10-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Block time:')
+        blocks_lab_data = QLabel('15:11')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_left.addLayout(hbox_blocks)
+
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Payout") + ':')
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Number od tx:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("3"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
+
+        # below columns
+        # todo: dodac tabele Michała
+
+    def add_buttons(self):
+        self.close_button = QPushButton(_("Close"))
+        self.restake_button = QPushButton(_("Restake"))
+
+        # Action buttons (right side)
+        self.buttons = [self.restake_button, self.close_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)
+
+
+class UnstakedMultiStakeDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('End date:')
+        start_date_lab_data = QLabel('2021-10-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Payout") + ':')
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Block time:')
+        blocks_lab_data = QLabel('15:11')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_right.addLayout(hbox_blocks)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Number od tx:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("-3"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Penalty:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("-3.001 ELCASH"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
+
+        # below columns
+        # todo: dodac tabele Michała
+
+    def add_buttons(self):
+        self.close_button = QPushButton(_("Close"))
+
+        # Action buttons (right side)
+        self.buttons = [self.close_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)
+
+
+class UnstakedSingleStakeDialog(BaseStakingTxDialog):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.insert_data(self.vbox)
+        self.add_buttons()
+
+    def insert_data(self, vbox):
+        hbox_stats = QHBoxLayout()
+
+        # left column
+        vbox_left = QVBoxLayout()
+
+        hbox_status = QHBoxLayout()
+        status_lab = QLabel('Status:')
+        status_lab_data = QLabel('Stake')
+        hbox_status.addWidget(status_lab)
+        hbox_status.addWidget(status_lab_data)
+        vbox_left.addLayout(hbox_status)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('Start date:')
+        start_date_lab_data = QLabel('2021-01-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        hbox_start_date = QHBoxLayout()
+        start_date_lab = QLabel('End date:')
+        start_date_lab_data = QLabel('2021-10-01')
+        hbox_start_date.addWidget(start_date_lab)
+        hbox_start_date.addWidget(start_date_lab_data)
+        vbox_left.addLayout(hbox_start_date)
+
+        vbox_left.addStretch(1)
+        hbox_stats.addLayout(vbox_left, 50)
+
+        # vertical line separator
+        line_separator = QFrame()
+        line_separator.setFrameShape(QFrame.VLine)
+        line_separator.setFrameShadow(QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # right column
+        vbox_right = QVBoxLayout()
+
+        hbox_payout = QHBoxLayout()
+        p_lab = QLabel(_("Payout") + ':')
+        hbox_payout.addWidget(p_lab)
+        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        hbox_payout.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_payout)
+
+        hbox_blocks = QHBoxLayout()
+        blocks_lab = QLabel('Block time:')
+        blocks_lab_data = QLabel('15:11')
+        hbox_blocks.addWidget(blocks_lab)
+        hbox_blocks.addWidget(blocks_lab_data)
+        vbox_right.addLayout(hbox_blocks)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Number od tx:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("-3"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        hbox_fee = QHBoxLayout()
+        p_lab = QLabel(_("Penalty:"))
+        hbox_fee.addWidget(p_lab)
+        p_lab_data = QLabel(_("-3.001 ELCASH"))
+        hbox_fee.addWidget(p_lab_data)
+        vbox_right.addLayout(hbox_fee)
+
+        vbox_right.addStretch(1)
+        hbox_stats.addLayout(vbox_right, 50)
+
+        vbox.addLayout(hbox_stats)
+
+        # below columns
+        # todo: dodac tabele Michała
+
+    def add_buttons(self):
+        self.close_button = QPushButton(_("Close"))
+        self.restake_button = QPushButton(_("Restake"))
+
+        # Action buttons (right side)
+        self.buttons = [self.restake_button, self.close_button]
+
+        for b in self.buttons:
+            b.setVisible(True)
+
+        self.hbox = hbox = QHBoxLayout()
+
+        hbox.addStretch(1)
+        hbox.addLayout(Buttons(*self.buttons))
+        self.vbox.addLayout(hbox)

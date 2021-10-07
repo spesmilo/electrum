@@ -29,12 +29,11 @@ from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBo
                              QTextBrowser)
 from PyQt5 import QtCore, QtGui
 
-from electrum.gui.qt.history_list import HistoryModel, HistoryList
-from electrum.gui.qt.staking.staking_sort_model import StakingModel
 from electrum.i18n import _
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
 from .create_new_stake_window import CreateNewStakingWindow
-from .staking_detail_tx_window import StakingTxDialog
+from .staking_detail_tx_window import StakedDialog, UnstakedMultiStakeDialog, UnstakedSingleStakeDialog, \
+    CompletedSingleClaimedStakeDialog, CompletedReadyToClaimStakeDialog, CompletedMultiClaimedStakeDialog
 
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 
@@ -66,7 +65,7 @@ def staking_dialog(window):
     window.stake_button = CustomButton(
         text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
     )
-    window.tx_detail_dialog = StakingTxDialog(window)
+    window.tx_detail_dialog = UnstakedSingleStakeDialog(window)  # todo: currently used for test staked view (window)
     window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=window.tx_detail_dialog)
 
     window.staking_header = buttons = QHBoxLayout()
@@ -76,12 +75,6 @@ def staking_dialog(window):
     grid.addLayout(buttons, 4, 3, 1, 2)
 
     window.receive_requests_label = QLabel(_('Staking History'))
-
-    from .staking_list import StakingList
-
-    # window.history_model = HistoryModel(window)
-    # window.staking_list = l = HistoryList(window, window.history_model)
-    window.staking_list = StakingList(window, StakingModel(window))
 
     font = QtGui.QFont()
     font.setUnderline(True)
@@ -102,15 +95,13 @@ def staking_dialog(window):
     hbox.addStretch()
 
     w = QWidget()
-    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
     vbox.addStretch(1)
     vbox.addWidget(window.receive_requests_label)
-    vbox.addWidget(window.staking_list)
+    # vbox.addWidget() todo: add history tab
     vbox.addWidget(window.terms_button)
-    vbox.setStretchFactor(window.staking_list, 1000)
 
     return w
 
