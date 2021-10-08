@@ -25,17 +25,14 @@
 
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QToolButton,
-                             QTextBrowser)
-from PyQt5 import QtCore, QtGui
+from PyQt5.QtGui import QCursor
+from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser)
 
-from electrum.i18n import _
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
-from .create_new_stake_window import CreateNewStakingWindow
-from .staking_detail_tx_window import StakedDialog, UnstakedMultiStakeDialog, UnstakedSingleStakeDialog, \
-    CompletedSingleClaimedStakeDialog, CompletedReadyToClaimStakeDialog, CompletedMultiClaimedStakeDialog
-
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
+from electrum.i18n import _
+from .create_new_stake_window import CreateNewStakingWindow
+from .staking_detail_tx_window import UnstakedSingleStakeDialog
 
 
 class CustomButton(QPushButton):
@@ -81,8 +78,8 @@ def staking_dialog(window):
     window.terms_button = QPushButton()
     window.terms_button.setFont(font)
     window.terms_button.setText(_("Terms & Conditions"))
-    window.terms_button.setMaximumSize(QtCore.QSize(140, 16777215))
-    window.terms_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+    window.terms_button.setMaximumSize(QSize(140, 16777215))
+    window.terms_button.setCursor(QCursor(Qt.PointingHandCursor))
     window.terms_button.setStyleSheet("border: none;")
     window.terms_button.setAutoDefault(True)
     window.terms_button.clicked.connect(terms_and_conditions_view)
