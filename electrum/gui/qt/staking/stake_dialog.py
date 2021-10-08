@@ -25,8 +25,8 @@
 
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtGui import QCursor
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser)
+from PyQt5.QtGui import QCursor, QFont
+from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser
 
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
@@ -73,7 +73,7 @@ def staking_dialog(window):
 
     window.receive_requests_label = QLabel(_('Staking History'))
 
-    font = QtGui.QFont()
+    font = QFont()
     font.setUnderline(True)
     window.terms_button = QPushButton()
     window.terms_button.setFont(font)
