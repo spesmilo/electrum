@@ -55,44 +55,16 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.setContentsMargins(10, 10, 10, 10)
         self.Main_v_layout.setSpacing(10)
 
-        self.title = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.setup_title()
-
-        self.description_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.setup_description()
-
-        self.amount_value_error_label = QtWidgets.QLabel()
-        self.amount_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.spinBox_amount = QtWidgets.QDoubleSpinBox(self.verticalLayoutWidget)
-        self.period_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.gridLayout = QtWidgets.QGridLayout()
         self.setup_amount()
-
-        self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
-        self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
         self.setup_radios()
-
-        self.estimate_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.pred_rew = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.free_trans_label = QtWidgets.QLabel()
-        self.gp_value_label = QtWidgets.QLabel()
-        self.rewards_text_label = QtWidgets.QLabel(self.verticalLayoutWidget)
-        self.vl_rewards = QtWidgets.QVBoxLayout()
         self.setup_rewards()
-
-        self.gridLayout_2 = QtWidgets.QGridLayout()
-        self.description2_label = QtWidgets.QLabel()
-        self.terms_button = QtWidgets.QPushButton()
         self.setup_description2()
-
-        self.next_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
-        self.cancel_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
-        self.horizontalLayout = QtWidgets.QHBoxLayout()
         self.setup_next_cancel_buttons()
 
     def setup_title(self):
+        self.title = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.title.setText(_("Create New Stake"))
         self.title.setMinimumSize(QtCore.QSize(300, 0))
         self.title.setMaximumSize(QtCore.QSize(16777215, 25))
@@ -104,6 +76,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.addWidget(self.title)
 
     def setup_description(self):
+        self.description_label = QtWidgets.QLabel(self.verticalLayoutWidget)
         self.description_label.setText(
             _("Sed ut perspiciatis, unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, "
               "totam rem aperiam eaque ipsa, "))
@@ -116,6 +89,11 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.addWidget(self.description_label)
 
     def setup_amount(self):
+        self.amount_value_error_label = QtWidgets.QLabel()
+        self.amount_label = QtWidgets.QLabel(self.verticalLayoutWidget)
+        self.spinBox_amount = QtWidgets.QDoubleSpinBox(self.verticalLayoutWidget)
+        self.period_label = QtWidgets.QLabel(self.verticalLayoutWidget)
+        self.gridLayout = QtWidgets.QGridLayout()
         self.period_label.setText(_("Period"))
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount.setDecimals(8)
@@ -136,6 +114,11 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.gridLayout.addWidget(self.amount_value_error_label, 1, 0, 1, 5)
 
     def setup_radios(self):
+        self.radio30 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio90 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio180 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+        self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
+
         self.radio30.setText(_("30 Days"))
         self.radio30.setChecked(True)
         self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
@@ -156,6 +139,13 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.addLayout(self.gridLayout)
 
     def setup_rewards(self):
+        self.estimate_label = QtWidgets.QLabel(self.verticalLayoutWidget)
+        self.pred_rew = QtWidgets.QLabel(self.verticalLayoutWidget)
+        self.free_trans_label = QtWidgets.QLabel()
+        self.gp_value_label = QtWidgets.QLabel()
+        self.rewards_text_label = QtWidgets.QLabel(self.verticalLayoutWidget)
+        self.vl_rewards = QtWidgets.QVBoxLayout()
+
         self.vl_rewards.setSizeConstraint(QtWidgets.QLayout.SetMinimumSize)
         self.rewards_text_label.setText(_("Guaranteed rewards:"))
         self.rewards_text_label.setMaximumSize(QtCore.QSize(16777215, 20))
@@ -182,6 +172,10 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.Main_v_layout.addLayout(self.vl_rewards)
 
     def setup_description2(self):
+        self.gridLayout_2 = QtWidgets.QGridLayout()
+        self.description2_label = QtWidgets.QLabel()
+        self.terms_button = QtWidgets.QPushButton()
+
         self.description2_label.setText(_("Click Next to go confirmation view. "))
         self.description2_label.setMaximumSize(QtCore.QSize(16777215, 50))
         self.Main_v_layout.addWidget(self.description2_label)
@@ -198,6 +192,9 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.gridLayout_2.addWidget(self.terms_button, 0, 1, 1, 1)
 
     def setup_next_cancel_buttons(self):
+        self.next_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
+        self.cancel_button = QtWidgets.QPushButton(self.verticalLayoutWidget)
+        self.horizontalLayout = QtWidgets.QHBoxLayout()
         spacer_item1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacer_item1)
         self.cancel_button.setText(_("Cancel"))
