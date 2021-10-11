@@ -441,6 +441,13 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
         return read_QIcon("nocloud")
 
 
+class ChanFeatAnchors(ChannelFeature):
+    def tooltip(self) -> str:
+        return _("This channel uses anchor outputs.")
+    def icon(self) -> QIcon:
+        return read_QIcon("anchor")
+
+
 class ChannelFeatureIcons:
 
     def __init__(self, features: Sequence['ChannelFeature']):
@@ -461,6 +468,8 @@ class ChannelFeatureIcons:
                 feats.append(ChanFeatTrampoline())
             if not chan.has_onchain_backup():
                 feats.append(ChanFeatNoOnchainBackup())
+            if chan.has_anchors():
+                feats.append(ChanFeatAnchors())
         return ChannelFeatureIcons(feats)
 
     def paint(self, painter: QPainter, rect: QRect) -> None:
