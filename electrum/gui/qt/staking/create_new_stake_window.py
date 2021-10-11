@@ -30,6 +30,8 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 from electrum.gui.qt.util import WindowModalDialog, PasswordLineEdit
 from electrum.i18n import _
 from electrum.logging import get_logger
+
+
 _logger = get_logger(__name__)
 
 
