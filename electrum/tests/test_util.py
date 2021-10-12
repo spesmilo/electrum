@@ -107,9 +107,6 @@ class TestUtil(ElectrumTestCase):
     def test_parse_URI_invalid_address(self):
         self.assertRaises(BaseException, parse_URI, 'bitcoin:invalidaddress')
 
-    def test_parse_URI_invalid(self):
-        self.assertRaises(BaseException, parse_URI, 'notbitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma')
-
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
 

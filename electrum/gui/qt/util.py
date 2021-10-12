@@ -12,17 +12,19 @@ from functools import partial, lru_cache
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
                     Sequence, Iterable)
 
-from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
-                         QPalette, QIcon, QFontMetrics, QShowEvent)
+from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
+                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
-                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel)
+                          QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
+                            QEvent, QRect, QPoint, QObject)
 from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QAbstractItemView, QVBoxLayout, QLineEdit,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu)
+                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem,
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -1065,6 +1067,128 @@ def webopen(url: str):
             os._exit(0)
     else:
         webbrowser.open(url)
+class FixedAspectRatioLayout(QLayout):
+    def __init__(self, parent: QWidget = None, aspect_ratio: float = 1.0):
+        super().__init__(parent)
+        self.aspect_ratio = aspect_ratio
+        self.items: List[QLayoutItem] = []
+
+    def set_aspect_ratio(self, aspect_ratio: float = 1.0):
+        self.aspect_ratio = aspect_ratio
+        self.update()
+
+    def addItem(self, item: QLayoutItem):
+        self.items.append(item)
+
+    def count(self) -> int:
+        return len(self.items)
+
+    def itemAt(self, index: int) -> QLayoutItem:
+        if index >= len(self.items):
+            return None
+        return self.items[index]
+
+    def takeAt(self, index: int) -> QLayoutItem:
+        if index >= len(self.items):
+            return None
+        return self.items.pop(index)
+
+    def _get_contents_margins_size(self) -> QSize:
+        margins = self.contentsMargins()
+        return QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+
+    def setGeometry(self, rect: QRect):
+        super().setGeometry(rect)
+        if not self.items:
+            return
+
+        contents = self.contentsRect()
+        if contents.height() > 0:
+            c_aratio = contents.width() / contents.height()
+        else:
+            c_aratio = 1
+        s_aratio = self.aspect_ratio
+        item_rect = QRect(QPoint(0, 0), QSize(
+            contents.width() if c_aratio < s_aratio else contents.height() * s_aratio,
+            contents.height() if c_aratio > s_aratio else contents.width() / s_aratio
+        ))
+
+        content_margins = self.contentsMargins()
+        free_space = contents.size() - item_rect.size()
+
+        for item in self.items:
+            if free_space.width() > 0 and not item.alignment() & Qt.AlignLeft:
+                if item.alignment() & Qt.AlignRight:
+                    item_rect.moveRight(contents.width() + content_margins.right())
+                else:
+                    item_rect.moveLeft(content_margins.left() + (free_space.width() / 2))
+            else:
+                item_rect.moveLeft(content_margins.left())
+
+            if free_space.height() > 0 and not item.alignment() & Qt.AlignTop:
+                if item.alignment() & Qt.AlignBottom:
+                    item_rect.moveBottom(contents.height() + content_margins.bottom())
+                else:
+                    item_rect.moveTop(content_margins.top() + (free_space.height() / 2))
+            else:
+                item_rect.moveTop(content_margins.top())
+
+            item.widget().setGeometry(item_rect)
+
+    def sizeHint(self) -> QSize:
+        result = QSize()
+        for item in self.items:
+            result = result.expandedTo(item.sizeHint())
+        return self._get_contents_margins_size() + result
+
+    def minimumSize(self) -> QSize:
+        result = QSize()
+        for item in self.items:
+            result = result.expandedTo(item.minimumSize())
+        return self._get_contents_margins_size() + result
+
+    def expandingDirections(self) -> Qt.Orientations:
+        return Qt.Horizontal | Qt.Vertical
+
+
+def QColorLerp(a: QColor, b: QColor, t: float):
+    """
+    Blends two QColors. t=0 returns a. t=1 returns b. t=0.5 returns evenly mixed.
+    """
+    t = max(min(t, 1.0), 0.0)
+    i_t = 1.0 - t
+    return QColor(
+        (a.red()   * i_t) + (b.red()   * t),
+        (a.green() * i_t) + (b.green() * t),
+        (a.blue()  * i_t) + (b.blue()  * t),
+        (a.alpha() * i_t) + (b.alpha() * t),
+    )
+
+
+class ImageGraphicsEffect(QObject):
+    """
+    Applies a QGraphicsEffect to a QImage
+    """
+
+    def __init__(self, parent: QObject, effect: QGraphicsEffect):
+        super().__init__(parent)
+        assert effect, 'effect must be set'
+        self.effect = effect
+        self.graphics_scene = QGraphicsScene()
+        self.graphics_item = QGraphicsPixmapItem()
+        self.graphics_item.setGraphicsEffect(effect)
+        self.graphics_scene.addItem(self.graphics_item)
+
+    def apply(self, image: QImage):
+        assert image, 'image must be set'
+        result = QImage(image.size(), QImage.Format_ARGB32)
+        result.fill(Qt.transparent)
+        painter = QPainter(result)
+        self.graphics_item.setPixmap(QPixmap.fromImage(image))
+        self.graphics_scene.render(painter)
+        self.graphics_item.setPixmap(QPixmap())
+        return result
+
 
 
 if __name__ == "__main__":

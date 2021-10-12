@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.0.4](https://github.com/electric-cash/elcash-wallet/compare/v5.0.3...v5.0.4) (2021-09-23)
+
+
+### Bug Fixes
+
+* remove unused import ([632e6ba](https://github.com/electric-cash/elcash-wallet/commit/632e6bac858574638a95fb125b450f5363c769fd))
+
+## [5.0.3](https://github.com/electric-cash/elcash-wallet/compare/v5.0.2...v5.0.3) (2021-09-14)
+
+
+### Bug Fixes
+
+* update building scripts and BIP21 scheme ([#57](https://github.com/electric-cash/elcash-wallet/issues/57)) ([0b9b400](https://github.com/electric-cash/elcash-wallet/commit/0b9b400128b7c17937bd7d53b918262b38ac4945)), closes [#56](https://github.com/electric-cash/elcash-wallet/issues/56) [#58](https://github.com/electric-cash/elcash-wallet/issues/58)
+
 ## [5.0.2](https://github.com/electric-cash/elcash-wallet/compare/v5.0.1...v5.0.2) (2021-06-21)
 
 
