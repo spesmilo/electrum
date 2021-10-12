@@ -31,7 +31,6 @@ from electrum.gui.qt.util import WindowModalDialog, PasswordLineEdit
 from electrum.i18n import _
 from electrum.logging import get_logger
 
-
 _logger = get_logger(__name__)
 
 
@@ -41,12 +40,14 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.value_change()
         self.open()
 
-    def __init__(self, parent, min_amount=5, default_period=30):
+    def __init__(self, parent, min_amount=5, default_period=30, default_amount=5):
+
         super().__init__(parent)
         self.parent = parent
         self.min_amount = min_amount
         self.stake_value = 0
         self.period_days = default_period
+        self.default_amount = default_amount
         self.setEnabled(True)
         self.setMinimumSize(QtCore.QSize(440, 400))
         self.setMaximumSize(QtCore.QSize(440, 400))
@@ -100,6 +101,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.gridLayout.addWidget(self.period_label, 3, 0, 1, 1)
         self.spinBox_amount.setDecimals(8)
         self.spinBox_amount.setRange(self.min_amount, self.get_spendable_coins())
+        self.spinBox_amount.setValue(self.default_amount)
         self.spinBox_amount.valueChanged.connect(self.value_change)
 
         self.gridLayout.addWidget(self.spinBox_amount, 0, 1, 1, 4)
@@ -122,22 +124,30 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.radio360 = QtWidgets.QRadioButton(self.verticalLayoutWidget)
 
         self.radio30.setText(_("30 Days"))
-        self.radio30.setChecked(True)
+        if self.period_days == 30:
+            self.radio30.setChecked(True)
         self.radio30.toggled.connect(lambda: self.radio_state(self.radio30))
         self.radio30.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio30, 3, 1, 1, 1)
         self.radio90.setText(_("90 Days"))
+        if self.period_days == 90:
+            self.radio90.setChecked(True)
         self.radio90.toggled.connect(lambda: self.radio_state(self.radio90))
         self.radio90.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio90, 3, 2, 1, 1)
         self.radio180.setText(_("180 Days"))
+        if self.period_days == 180:
+            self.radio180.setChecked(True)
         self.radio180.toggled.connect(lambda: self.radio_state(self.radio180))
         self.radio180.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio180, 3, 3, 1, 1)
         self.radio360.setText(_("360 Days"))
+        if self.period_days == 360:
+            self.radio360.setChecked(True)
         self.radio360.toggled.connect(lambda: self.radio_state(self.radio360))
         self.radio360.toggled.connect(self.value_change)
         self.gridLayout.addWidget(self.radio360, 3, 4, 1, 1)
+
         self.Main_v_layout.addLayout(self.gridLayout)
 
     def setup_rewards(self):

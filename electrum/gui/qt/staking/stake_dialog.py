@@ -32,7 +32,7 @@ from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 from electrum.i18n import _
 from .create_new_stake_window import CreateNewStakingWindow
-from .staking_detail_tx_window import UnstakedSingleStakeDialog
+from .staking_detail_tx_window import UnstakedSingleStakeDialog, CompletedSingleClaimedStakeDialog
 
 
 class CustomButton(QPushButton):
@@ -62,7 +62,7 @@ def staking_dialog(window):
     window.stake_button = CustomButton(
         text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
     )
-    window.tx_detail_dialog = UnstakedSingleStakeDialog(window)  # todo: currently used for test staked view (window)
+    window.tx_detail_dialog = CompletedSingleClaimedStakeDialog(window)  # todo: currently used for test staked view (window)
     window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=window.tx_detail_dialog)
 
     window.staking_header = buttons = QHBoxLayout()

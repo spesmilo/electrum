@@ -34,6 +34,7 @@ from qrcode import exceptions
 
 from electrum.i18n import _
 from electrum.transaction import Transaction
+from .create_new_stake_window import CreateNewStakingWindow
 from ..util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit)
 
 
@@ -506,6 +507,7 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
         self.restake_button = QPushButton(_("Restake"))
+        self.restake_button.clicked.connect(self.on_push_restake)
 
         # Action buttons (right side)
         self.buttons = [self.restake_button, self.close_button]
@@ -518,6 +520,11 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         self.vbox.addLayout(hbox)
+
+    def on_push_restake(self):
+        self.restake_window = CreateNewStakingWindow(self, default_amount=10, default_period=99)
+        self.restake_window.show()
+
 
 
 class UnstakedMultiStakeDialog(BaseStakingTxDialog):
