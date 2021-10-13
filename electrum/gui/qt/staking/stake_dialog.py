@@ -74,7 +74,10 @@ def staking_dialog(window):
 
     window.receive_requests_label = QLabel(_('Staking History'))
 
-    font = QFont()
+    from .staking_list import staking_list, staking_list_controller
+    window.staking_list = staking_list
+
+    font = QtGui.QFont()
     font.setUnderline(True)
     window.terms_button = QPushButton()
     window.terms_button.setFont(font)
@@ -93,13 +96,18 @@ def staking_dialog(window):
     hbox.addStretch()
 
     w = QWidget()
+    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
     vbox.addStretch(1)
     vbox.addWidget(window.receive_requests_label)
-    # vbox.addWidget() todo: add history tab
+    vbox.addWidget(window.staking_list)
     vbox.addWidget(window.terms_button)
+    vbox.setStretchFactor(window.staking_list, 1000)
+
+    # here use staking_list_controller to init fixture data in table
+    # TODO - remove this comment in upcoming PR's
 
     return w
 
