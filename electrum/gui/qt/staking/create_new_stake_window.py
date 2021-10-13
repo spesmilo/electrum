@@ -490,7 +490,7 @@ class CreateNewStakingFinish(WindowModalDialog):
     def __call__(self, *args, **kwargs):
         self.show()
 
-    def __init__(self, parent):
+    def __init__(self, parent, transaction_id='(this should be tx hash)'):
         super().__init__(parent)
         self.setWindowModality(QtCore.Qt.WindowModal)
         self.setEnabled(True)
@@ -502,7 +502,6 @@ class CreateNewStakingFinish(WindowModalDialog):
         self.info_label.setText(_("Succes!"))
         self.main_box.addWidget(self.info_label)
         self.info_label1 = QtWidgets.QLabel()
-        transaction_id = 'ab56766804280c622dedb5d608e9a43df027409686de77e417d0b74ea32b5f3c'  # todo
         self.info_label1.setText(_("Transaction ID:") + transaction_id)
         self.main_box.addWidget(self.info_label1)
         self.button_layout = QtWidgets.QHBoxLayout()

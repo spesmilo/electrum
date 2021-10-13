@@ -26,16 +26,17 @@
 from typing import Callable, Optional, List
 
 import qrcode
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import Qt, QUrl, QSize, QRect
+from PyQt5.QtGui import QDesktopServices, QFont, QBrush, QPalette
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QFrame, QAction,
-                             QMenu)
+                             QMenu, QGridLayout, QSizePolicy, QSpacerItem)
 from qrcode import exceptions
 
 from electrum.i18n import _
 from electrum.transaction import Transaction
-from .create_new_stake_window import CreateNewStakingWindow
-from ..util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit)
+from .create_new_stake_window import CreateNewStakingWindow, CreateNewStakingFinish
+from ..util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit, WindowModalDialog,
+                    PasswordLineEdit)
 
 
 class BaseStakingTxDialog(QDialog, MessageBoxMixin):
@@ -205,7 +206,10 @@ class StakedDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.unstake_button = QPushButton(_("Unstake"))
+        self.unstake_button.clicked.connect(self.on_push_unstake)
         self.close_button = QPushButton(_("Close"))
+        self.close_button.clicked.connect(self.on_push_close)
+
 
         # Action buttons (right side)
         self.buttons = [self.unstake_button, self.close_button]
@@ -218,6 +222,18 @@ class StakedDialog(BaseStakingTxDialog):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         self.vbox.addLayout(hbox)
+
+    def on_push_unstake(self):
+        password_required = self.wallet.has_keystore_encryption()
+        if password_required:
+            unstake_dialog = UnstakeDialog(self)
+            unstake_dialog.show()
+        else:
+            dialog = CreateNewStakingFinish(parent=self)
+            dialog.show()
+
+    def on_push_close(self):
+        self.close()
 
 
 class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
@@ -322,7 +338,11 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.claim_reword_button = QPushButton(_("Claim Reward"))
-        self.explorer_button = QPushButton(_("Close"))
+        self.claim_reword_button.clicked.connect(self.on_push_claim)
+
+        self.close_button = QPushButton(_("Close"))
+        self.close_button.clicked.connect(self.on_push_close)
+
 
         self.buttons = [self.claim_reword_button, self.explorer_button]
 
@@ -334,6 +354,18 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         self.vbox.addLayout(hbox)
+
+    def on_push_claim(self):
+        password_required = self.wallet.has_keystore_encryption()
+        if password_required:
+            unstake_dialog = ClaimReward(self)
+            unstake_dialog.show()
+        else:
+            dialog = CreateNewStakingFinish(parent=self)
+            dialog.show()
+
+    def on_push_close(self):
+        self.close()
 
 
 class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
@@ -524,7 +556,6 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
     def on_push_restake(self):
         self.restake_window = CreateNewStakingWindow(self, default_amount=10, default_period=99)
         self.restake_window.show()
-
 
 
 class UnstakedMultiStakeDialog(BaseStakingTxDialog):
@@ -724,3 +755,228 @@ class UnstakedSingleStakeDialog(BaseStakingTxDialog):
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         self.vbox.addLayout(hbox)
+
+
+class UnstakeDialog(WindowModalDialog):
+
+    def __call__(self, *args, **kwargs):
+        self.show()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.wallet = parent.wallet
+        self.setEnabled(True)
+        self.setMinimumSize(QSize(420, 300))
+        self.setMaximumSize(QSize(420, 300))
+        self.setWindowTitle("Create New Stake")
+        self.main_box = QVBoxLayout(self)
+
+        self.title = QLabel()
+        self.setup_txt()
+
+        self.data_grid_box = QGridLayout()
+        self.payout_label_2 = QLabel()
+
+        self.amount_label = QLabel()
+        self.period_label = QLabel()
+
+        self.password_layout = QHBoxLayout()
+        self.password_label = QLabel()
+        self.password_lineEdit = PasswordLineEdit()
+        self.password_error_label = QLabel()
+        self.setup_password_label()
+
+        self.text_tabel = QLabel()
+        self.button_layout = QHBoxLayout()
+        self.cancel_button = QPushButton()
+        self.send_button = QPushButton()
+        self.setup_buttons()
+
+    def setup_txt(self):
+        self.title.setText(_("Are you sure?"))
+        size_policy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum)
+        size_policy.setHorizontalStretch(0)
+        size_policy.setVerticalStretch(0)
+        size_policy.setHeightForWidth(self.title.sizePolicy().hasHeightForWidth())
+        self.title.setSizePolicy(size_policy)
+        self.title.setMaximumSize(QSize(600, 35))
+        font = QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.title.setFont(font)
+        self.title.setAlignment(Qt.AlignCenter)
+        self.main_box.addWidget(self.title)
+
+        self.verticalLayout = QVBoxLayout()
+        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.label_2 = QLabel()
+        self.label_2.setText(
+            _("If you unstake this transaction earlier, you will be charged 3% as penality,"
+              " and you will lose your daily fee"))
+        self.label_2.setWordWrap(True)
+        self.label_2.setObjectName("label_2")
+        self.verticalLayout.addWidget(self.label_2)
+        self.verticalLayout_2 = QVBoxLayout()
+        self.verticalLayout_2.setObjectName("verticalLayout_2")
+        self.horizontalLayout = QHBoxLayout()
+        self.horizontalLayout.setObjectName("horizontalLayout")
+        self.label_4 = QLabel()
+        self.label_4.setText(_("Total unstaked amount:"))
+        self.horizontalLayout.addWidget(self.label_4)
+        self.label_3 = QLabel()
+        self.label_3.setText(_("2.00000000 ELCASH"))
+        self.horizontalLayout.addWidget(self.label_3)
+        self.verticalLayout_2.addLayout(self.horizontalLayout)
+        self.verticalLayout.addLayout(self.verticalLayout_2)
+        self.horizontalLayout_2 = QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.label_5 = QLabel()
+        self.label_5.setText(_("Penality:"))
+        self.horizontalLayout_2.addWidget(self.label_5)
+        self.label_6 = QLabel()
+        self.label_6.setText(_("2.00000000 ELCASH"))
+        self.horizontalLayout_2.addWidget(self.label_6)
+        self.verticalLayout.addLayout(self.horizontalLayout_2)
+        self.main_box.addLayout(self.verticalLayout)
+
+
+    def setup_password_label(self):
+        self.password_label.setText(_("Password:"))
+        self.password_label.setMaximumSize(QSize(16777215, 40))
+        self.password_layout.addWidget(self.password_label)
+        self.password_lineEdit.setText("")
+        self.password_layout.addWidget(self.password_lineEdit)
+        self.main_box.addLayout(self.password_layout)
+        self.password_error_label.setText(_("incorrect password"))
+        self.password_error_label.setStyleSheet('color: red')
+        self.main_box.addWidget(self.password_error_label)
+        self.password_error_label.hide()
+
+    def setup_buttons(self):
+        self.text_tabel.setText(_("Click Send to proceed"))
+        self.main_box.addWidget(self.text_tabel)
+        spacer_item = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.button_layout.addItem(spacer_item)
+        self.cancel_button.setText(_("Cancel"))
+        self.cancel_button.clicked.connect(self.on_push_cancel_button)
+        self.button_layout.addWidget(self.cancel_button)
+        self.send_button.setText(_("Send"))
+        self.send_button.clicked.connect(self.on_push_send_window)
+        self.button_layout.addWidget(self.send_button)
+        self.main_box.addLayout(self.button_layout)
+
+    def on_push_cancel_button(self):
+        self.close()
+
+    def on_push_send_window(self):
+        password = self.password_lineEdit.text() or None
+        if password is None:
+            return
+        try:
+            self.wallet.check_password(password)
+        except Exception:
+            self.password_error_label.show()
+            self.password_lineEdit.setStyleSheet("background-color: red;")
+            return
+
+        self.hide()
+        dialog = CreateNewStakingFinish(parent=self)
+        dialog.show()
+
+
+class ClaimReward(WindowModalDialog):
+
+    def __call__(self, *args, **kwargs):
+        self.show()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.wallet = parent.wallet
+        self.setEnabled(True)
+        self.setMinimumSize(QSize(420, 200))
+        self.setMaximumSize(QSize(420, 200))
+        self.setWindowTitle("Claim reward")
+        self.main_box = QVBoxLayout(self)
+
+        self.title = QLabel()
+        self.setup_txt()
+
+        self.data_grid_box = QGridLayout()
+        self.payout_label_2 = QLabel()
+
+        self.amount_label = QLabel()
+        self.period_label = QLabel()
+
+        self.password_layout = QHBoxLayout()
+        self.password_label = QLabel()
+        self.password_lineEdit = PasswordLineEdit()
+        self.password_error_label = QLabel()
+        self.setup_password_label()
+
+        self.text_tabel = QLabel()
+        self.button_layout = QHBoxLayout()
+        self.cancel_button = QPushButton()
+        self.send_button = QPushButton()
+        self.setup_buttons()
+
+    def setup_txt(self):
+        self.title.setText(_("Enter your password to proceed"))
+        size_policy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Maximum)
+        size_policy.setHorizontalStretch(0)
+        size_policy.setVerticalStretch(0)
+        size_policy.setHeightForWidth(self.title.sizePolicy().hasHeightForWidth())
+        self.title.setSizePolicy(size_policy)
+        self.title.setMaximumSize(QSize(600, 35))
+        font = QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        self.title.setFont(font)
+        self.title.setAlignment(Qt.AlignCenter)
+        self.main_box.addWidget(self.title)
+
+    def setup_password_label(self):
+        self.password_label.setText(_("Password:"))
+        self.password_label.setMaximumSize(QSize(16777215, 40))
+        self.password_layout.addWidget(self.password_label)
+        self.password_lineEdit.setText("")
+        self.password_layout.addWidget(self.password_lineEdit)
+        self.main_box.addLayout(self.password_layout)
+        self.password_error_label.setText(_("incorrect password"))
+        self.password_error_label.setStyleSheet('color: red')
+        self.main_box.addWidget(self.password_error_label)
+        self.password_error_label.hide()
+
+    def setup_buttons(self):
+        self.text_tabel.setText(_("Click Send to proceed"))
+        self.main_box.addWidget(self.text_tabel)
+        spacer_item = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.button_layout.addItem(spacer_item)
+        self.cancel_button.setText(_("Cancel"))
+        self.cancel_button.clicked.connect(self.on_push_cancel_button)
+        self.button_layout.addWidget(self.cancel_button)
+        self.send_button.setText(_("Send"))
+        self.send_button.clicked.connect(self.on_push_send_window)
+        self.button_layout.addWidget(self.send_button)
+        self.main_box.addLayout(self.button_layout)
+
+    def on_push_cancel_button(self):
+        self.close()
+
+    def on_push_send_window(self):
+        password = self.password_lineEdit.text() or None
+        if password is None:
+            return
+        try:
+            self.wallet.check_password(password)
+        except Exception:
+            self.password_error_label.show()
+            self.password_lineEdit.setStyleSheet("background-color: red;")
+            return
+
+        self.hide()
+        dialog = CreateNewStakingFinish(parent=self)
+        dialog.show()
+
