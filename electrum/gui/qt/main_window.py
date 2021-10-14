@@ -2011,7 +2011,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def create_staking_tab(self):
-        from electrum.gui.qt.staking.stake_dialog import staking_dialog
+        from electrum.gui.qt.stake_dialog import staking_dialog
         self.staking_tab = l = staking_dialog(self)
         return self.create_list_tab(l)
 

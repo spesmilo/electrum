@@ -26,17 +26,17 @@
 from typing import Callable, Optional, List
 
 import qrcode
-from PyQt5.QtCore import Qt, QUrl, QSize, QRect
-from PyQt5.QtGui import QDesktopServices, QFont, QBrush, QPalette
+from PyQt5.QtCore import Qt, QUrl, QSize
+from PyQt5.QtGui import QDesktopServices, QFont
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QFrame, QAction,
                              QMenu, QGridLayout, QSizePolicy, QSpacerItem)
 from qrcode import exceptions
 
 from electrum.i18n import _
 from electrum.transaction import Transaction
-from .create_new_stake_window import CreateNewStakingWindow, CreateNewStakingFinish
-from ..util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit, WindowModalDialog,
-                    PasswordLineEdit)
+from electrum.gui.qt.create_new_stake_window import CreateNewStakingWindow, CreateNewStakingFinish
+from electrum.gui.qt.util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit, WindowModalDialog,
+                                  PasswordLineEdit)
 
 
 class BaseStakingTxDialog(QDialog, MessageBoxMixin):

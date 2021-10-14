@@ -17,7 +17,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
 # BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -31,9 +31,8 @@ from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBox
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 from electrum.i18n import _
-from .create_new_stake_window import CreateNewStakingWindow
-from .staking_detail_tx_window import UnstakedSingleStakeDialog, CompletedSingleClaimedStakeDialog, StakedDialog, \
-    CompletedReadyToClaimStakeDialog
+from electrum.gui.qt.create_new_stake_window import CreateNewStakingWindow
+from electrum.gui.qt.staking_detail_tx_window import CompletedReadyToClaimStakeDialog
 
 
 class CustomButton(QPushButton):
@@ -47,7 +46,7 @@ class CustomButton(QPushButton):
         self.func = trigger
         self.setIconSize(QSize(20, 20))
 
-    def on_press(self,):
+    def on_press(self, checked=False):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 
@@ -93,14 +92,31 @@ def staking_dialog(window):
     hbox.addStretch()
 
     w = QWidget()
+
+    from .staking_list import staking_list_controller, staking_list
+    window.staking_list = staking_list
+    a = {
+        'Start Date': [1, 2, 3],
+        'Amount': [1, 2, 3],
+        'Staking Period': [1, 2, 3],
+        'Blocks Left': [1, 2, 3],
+        'Type': [1, 2, 3],
+
+    }
+    staking_list_controller.insert_data(table_data=a)
+
+    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
     vbox.addStretch(1)
     vbox.addWidget(window.receive_requests_label)
-    # vbox.addWidget() todo: add history tab
+    vbox.addWidget(window.staking_list)
     vbox.addWidget(window.terms_button)
+    vbox.setStretchFactor(window.staking_list, 1000)
 
+    # here use staking_list_controller to init fixture data in table
+    # TODO - remove this comment in upcoming PR's
     return w
 
 
