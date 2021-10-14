@@ -38,6 +38,21 @@ from electrum.gui.qt.create_new_stake_window import CreateNewStakingWindow, Crea
 from electrum.gui.qt.util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit, WindowModalDialog,
                                   PasswordLineEdit)
 
+from electrum.common.widgets import CustomTableWidget
+from electrum.common.services import CustomTableWidgetController
+
+
+class TxList(CustomTableWidget):
+    pass
+
+
+tx_list = TxList(
+    starting_empty_cells=0,
+    column_names=['Tx ID', 'Staked Amount', 'Payout', 'GP', 'Daily Tx Limit'],
+)
+
+tx_list_controller = CustomTableWidgetController(table_widget=tx_list)
+
 
 class BaseStakingTxDialog(QDialog, MessageBoxMixin):
     def __call__(self, *args, **kwargs):
@@ -51,7 +66,7 @@ class BaseStakingTxDialog(QDialog, MessageBoxMixin):
         self.config = parent.config
         self.wallet = parent.wallet
 
-        self.setMinimumWidth(950)
+        self.setMinimumWidth(1100)
         self.psbt_only_widgets = []  # type: List[QWidget]
 
         self.vbox = vbox = QVBoxLayout()
@@ -441,8 +456,7 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
         vbox.addLayout(hbox_stats)
 
-        # below columns
-        # todo: dodac tabele Michała
+        vbox.addWidget(tx_list)
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -532,9 +546,7 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-
-        # below columns
-        # todo: dodac tabele Michała
+        vbox.addWidget(tx_list)
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -638,8 +650,7 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
         vbox.addLayout(hbox_stats)
 
-        # below columns
-        # todo: dodac tabele Michała
+        vbox.addWidget(tx_list)
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -737,8 +748,7 @@ class UnstakedSingleStakeDialog(BaseStakingTxDialog):
 
         vbox.addLayout(hbox_stats)
 
-        # below columns
-        # todo: dodac tabele Michała
+        vbox.addWidget(tx_list)
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
