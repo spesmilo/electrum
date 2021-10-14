@@ -30,14 +30,6 @@ from electrum.common.services import CustomTableWidgetController
 class StakingList(CustomTableWidget):
     pass
 
-a = {
-    'Start Date': [1, 2, 3],
-    'Amount':  [1, 2, 3],
-    'Staking Period':  [1, 2, 3],
-    'Blocks Left':  [1, 2, 3],
-    'Type':  [1, 2, 3],
-
-}
 
 staking_list = StakingList(
     starting_empty_cells=0,

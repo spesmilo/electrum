@@ -17,7 +17,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# NONINFINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
 # BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -31,8 +31,9 @@ from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBox
 from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
 from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 from electrum.i18n import _
-from electrum.gui.qt.create_new_stake_window import CreateNewStakingWindow
-from electrum.gui.qt.staking_detail_tx_window import CompletedReadyToClaimStakeDialog
+from .create_new_stake_window import CreateNewStakingWindow
+from .staking_detail_tx_window import UnstakedSingleStakeDialog, CompletedSingleClaimedStakeDialog, StakedDialog, \
+    CompletedReadyToClaimStakeDialog
 
 
 class CustomButton(QPushButton):
@@ -46,7 +47,7 @@ class CustomButton(QPushButton):
         self.func = trigger
         self.setIconSize(QSize(20, 20))
 
-    def on_press(self, checked=False):
+    def on_press(self,):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 
@@ -73,6 +74,9 @@ def staking_dialog(window):
 
     window.receive_requests_label = QLabel(_('Staking History'))
 
+    from .staking_list import staking_list, staking_list_controller
+    window.staking_list = staking_list
+
     font = QFont()
     font.setUnderline(True)
     window.terms_button = QPushButton()
@@ -92,20 +96,6 @@ def staking_dialog(window):
     hbox.addStretch()
 
     w = QWidget()
-
-    from .staking_list import staking_list_controller, staking_list
-    window.staking_list = staking_list
-    a = {
-        'Start Date': [1, 2, 3],
-        'Amount': [1, 2, 3],
-        'Staking Period': [1, 2, 3],
-        'Blocks Left': [1, 2, 3],
-        'Type': [1, 2, 3],
-
-    }
-    staking_list_controller.insert_data(table_data=a)
-
-    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
@@ -117,6 +107,7 @@ def staking_dialog(window):
 
     # here use staking_list_controller to init fixture data in table
     # TODO - remove this comment in upcoming PR's
+
     return w
 
 
