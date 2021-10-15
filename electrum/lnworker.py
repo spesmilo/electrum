@@ -629,7 +629,7 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         features = LNWALLET_FEATURES
         if wallet.config.get('enable_anchor_channels'):
-            features |= LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT
+            features |= LnFeatures.OPTION_ANCHOR_ZERO_FEE_HTLC_OPT
         LNWorker.__init__(self, xprv, features)
         self.config = wallet.config
         self.lnwatcher = None

@@ -5,9 +5,10 @@
 from typing import Optional, Dict, List, Tuple, TYPE_CHECKING, NamedTuple, Callable
 from enum import Enum, auto
 
-from .util import bfh, bh2u
+from .util import bfh, bh2u, UneconomicFee
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from .invoices import PR_PAID
+from . import coinchooser
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -27,6 +28,9 @@ if TYPE_CHECKING:
 
 
 _logger = get_logger(__name__)
+
+HTLC_TRANSACTION_DEADLINE_FRACTION = 4
+HTLC_TRANSACTION_SWEEP_TARGET = 10
 
 
 class SweepInfo(NamedTuple):
@@ -308,12 +312,15 @@ def create_sweeptxs_for_our_ctx(
                 continue
         else:
             preimage = None
-        create_txns_for_htlc(
-            htlc=htlc,
-            htlc_direction=direction,
-            ctx_output_idx=ctx_output_idx,
-            htlc_relative_idx=htlc_relative_idx,
-            preimage=preimage)
+        try:
+            create_txns_for_htlc(
+                htlc=htlc,
+                htlc_direction=direction,
+                ctx_output_idx=ctx_output_idx,
+                htlc_relative_idx=htlc_relative_idx,
+                preimage=preimage)
+        except UneconomicFee:
+            continue
     return txs
 
 
@@ -569,7 +576,7 @@ def create_htlctx_that_spends_from_our_ctx(
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
-    witness_script, htlc_tx = make_htlc_tx_with_open_channel(
+    witness_script, maybe_zero_fee_htlc_tx = make_htlc_tx_with_open_channel(
         chan=chan,
         pcp=our_pcp,
         subject=LOCAL,
@@ -579,12 +586,87 @@ def create_htlctx_that_spends_from_our_ctx(
         htlc=htlc,
         ctx_output_idx=ctx_output_idx,
         name=f'our_ctx_{ctx_output_idx}_htlc_tx_{bh2u(htlc.payment_hash)}')
+
+    # we need to attach inputs that pay for the transaction fee
+    if chan.has_anchors():
+        wallet = chan.lnworker.wallet
+        coins = wallet.get_spendable_coins(None)
+
+        def fee_estimator(size):
+            if htlc_direction == SENT:
+                # we deal with an offered HTLC and therefore with a timeout transaction
+                # in this case it is not time critical for us to sweep unless we
+                # become a forwarding node
+                fee_per_kb = wallet.config.eta_target_to_fee(HTLC_TRANSACTION_SWEEP_TARGET)
+            else:
+                # in the case of a received HTLC, if we have the hash preimage,
+                # we should sweep before the timelock expires
+                expiry_height = htlc.cltv_expiry
+                current_height = wallet.network.blockchain().height()
+                deadline_blocks = expiry_height - current_height
+                # target block inclusion with a safety buffer
+                target = int(deadline_blocks / HTLC_TRANSACTION_DEADLINE_FRACTION)
+                fee_per_kb = wallet.config.eta_target_to_fee(target)
+            if not fee_per_kb:  # testnet and other cases
+                fee_per_kb = wallet.config.fee_per_kb()
+            fee = wallet.config.estimate_fee_for_feerate(fee_per_kb=fee_per_kb, size=size)
+            # we only sweep if it is makes sense economically
+            if fee > htlc.amount_msat // 1000:
+                raise UneconomicFee
+            return fee
+
+        coin_chooser = coinchooser.get_coin_chooser(wallet.config)
+        change_address = wallet.get_single_change_address_for_new_transaction()
+        funded_htlc_tx = coin_chooser.make_tx(
+            coins=coins,
+            inputs=maybe_zero_fee_htlc_tx.inputs(),
+            outputs=maybe_zero_fee_htlc_tx.outputs(),
+            change_addrs=[change_address],
+            fee_estimator_vb=fee_estimator,
+            dust_threshold=wallet.dust_threshold())
+
+        # place htlc input/output at corresponding indices (due to sighash single)
+        htlc_outpoint = TxOutpoint(txid=bfh(ctx.txid()), out_idx=ctx_output_idx)
+        htlc_input_idx = funded_htlc_tx.get_input_idx_that_spent_prevout(htlc_outpoint)
+
+        htlc_out_address = maybe_zero_fee_htlc_tx.outputs()[0].address
+        htlc_output_idx = funded_htlc_tx.get_output_idxs_from_address(htlc_out_address).pop()
+        inputs = funded_htlc_tx.inputs()
+        outputs = funded_htlc_tx.outputs()
+        if htlc_input_idx != 0:
+            htlc_txin = inputs.pop(htlc_input_idx)
+            inputs.insert(0, htlc_txin)
+        if htlc_output_idx != 0:
+            htlc_txout = outputs.pop(htlc_output_idx)
+            outputs.insert(0, htlc_txout)
+        final_htlc_tx = PartialTransaction.from_io(
+            inputs,
+            outputs,
+            locktime=maybe_zero_fee_htlc_tx.locktime,
+            version=maybe_zero_fee_htlc_tx.version,
+            BIP69_sort=False
+        )
+
+        for fee_input_idx in range(1, len(funded_htlc_tx.inputs())):
+            txin = final_htlc_tx.inputs()[fee_input_idx]
+            pubkey = wallet.get_public_key(txin.address)
+            index = wallet.get_address_index(txin.address)
+            privkey, _ = wallet.keystore.get_private_key(index, chan.lnworker.wallet_password) # FIXME
+            txin.num_sig = 1
+            txin.script_type = 'p2wpkh'
+            txin.pubkeys = [bfh(pubkey)]
+            fee_input_sig = final_htlc_tx.sign_txin(fee_input_idx, privkey)
+            final_htlc_tx.add_signature_to_txin(txin_idx=fee_input_idx, signing_pubkey=pubkey, sig=fee_input_sig)
+    else:
+        final_htlc_tx = maybe_zero_fee_htlc_tx
+
+    # sign HTLC output
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc_relative_idx=htlc_relative_idx)
-    local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_privkey))
-    txin = htlc_tx.inputs()[0]
+    local_htlc_sig = bfh(final_htlc_tx.sign_txin(0, local_htlc_privkey))
+    txin = final_htlc_tx.inputs()[0]
     witness_program = bfh(Transaction.get_preimage_script(txin))
     txin.witness = make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program)
-    return witness_script, htlc_tx
+    return witness_script, final_htlc_tx
 
 
 def create_sweeptx_their_ctx_htlc(

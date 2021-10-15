@@ -772,7 +772,7 @@ class Channel(AbstractChannel):
 
     def has_anchors(self) -> bool:
         channel_type = ChannelType(self.storage.get('channel_type'))
-        return bool(channel_type & ChannelType.OPTION_ANCHOR_OUTPUTS)
+        return bool(channel_type & ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX)
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         assert self.is_static_remotekey_enabled()
