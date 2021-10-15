@@ -834,7 +834,7 @@ class LNWallet(LNWorker):
         Logger.__init__(self)
         features = LNWALLET_FEATURES
         if self.config.ENABLE_ANCHOR_CHANNELS:
-            features |= LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT
+            features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
         if self.config.ACCEPT_ZEROCONF_CHANNELS:
             features |= LnFeatures.OPTION_ZEROCONF_OPT
         LNWorker.__init__(self, self.node_keypair, features, config=self.config)

@@ -1061,7 +1061,7 @@ def effective_htlc_tx_weight(success: bool, has_anchors: bool):
     # the fees for the hltc transaction don't need to be subtracted from
     # the htlc output, but fees are taken from extra attached inputs
     if has_anchors:
-        return HTLC_SUCCESS_WEIGHT_ANCHORS if success else HTLC_TIMEOUT_WEIGHT_ANCHORS
+        return 0 * HTLC_SUCCESS_WEIGHT_ANCHORS if success else 0 * HTLC_TIMEOUT_WEIGHT_ANCHORS
     else:
         return HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
 
@@ -1552,7 +1552,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
         | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
-        | LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT | LnFeatures.OPTION_ANCHOR_OUTPUTS_REQ
+        | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT | LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_REQ
 )
 
 
