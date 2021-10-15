@@ -659,7 +659,7 @@ class LNWallet(LNWorker):
             if not self.wallet.can_sign_without_user_interaction_if_have_password():
                 raise UserFacingException("Wallets that don't support automatic signing cannot use anchor channels.")
             self.logger.info("anchor channels are enabled")
-            self.features |= LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT
+            self.features |= LnFeatures.OPTION_ANCHORS_ZERO_FEE_HTLC_OPT
             self.wallet_password = password
         else:
             if self.has_anchor_channels():

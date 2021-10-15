@@ -139,6 +139,11 @@ class NotEnoughFunds(Exception):
         return _("Insufficient funds")
 
 
+class UneconomicFee(Exception):
+    def __str__(self):
+        return _("The fee for the transaction is higher than the funds gained from it.")
+
+
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
