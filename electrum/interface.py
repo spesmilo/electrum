@@ -959,7 +959,7 @@ class Interface(Logger):
             if height in (-1, 0):
                 assert_dict_contains_field(tx_item, field_name='fee')
                 assert_non_negative_integer(tx_item['fee'])
-                prev_height = - float("inf")  # this ensures confirmed txs can't follow mempool txs
+                prev_height = float("inf")  # this ensures confirmed txs can't follow mempool txs
             else:
                 # check monotonicity of heights
                 if height < prev_height:
