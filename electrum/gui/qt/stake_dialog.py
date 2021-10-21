@@ -26,14 +26,32 @@
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QCursor, QFont
-from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser
+from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser)
 
-from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
-from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
 from electrum.i18n import _
 from .create_new_stake_window import CreateNewStakingWindow
-from .staking_detail_tx_window import UnstakedSingleStakeDialog, CompletedSingleClaimedStakeDialog, StakedDialog, \
-    CompletedReadyToClaimStakeDialog, CompletedMultiClaimedStakeDialog
+from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog
+from .staking_list import staking_list_controller
+from .terms_and_conditions_mixin import load_terms_and_conditions
+from .util import read_QIcon, WindowModalDialog, OkButton
+from ...stake import stake_api
+
+
+def refresh_stake_dialog_window(wallet):
+    """
+    Call this function to refresh stake dialog window
+    TODO
+    """
+    current_staking_data = stake_api.get_detailed_stakes_data_for_addresses(addresses=wallet.get_addresses())
+    current_height = wallet.get_local_height()
+
+    staking_list_controller.insert_data(table_data={
+        'Type': ['what is type ??' for data in current_staking_data],
+        'Start Date': [data['timestamp'] for data in current_staking_data],
+        'Amount': [data['staking_amount'] for data in current_staking_data],
+        'Staking Period': [data['staking_period'] for data in current_staking_data],
+        'Blocks Left': [current_height - data['deposit_height'] for data in current_staking_data],
+    })
 
 
 class CustomButton(QPushButton):
@@ -74,7 +92,7 @@ def staking_dialog(window):
 
     window.receive_requests_label = QLabel(_('Staking History'))
 
-    from .staking_list import staking_list, staking_list_controller
+    from .staking_list import staking_list
     window.staking_list = staking_list
 
     font = QFont()
@@ -105,8 +123,7 @@ def staking_dialog(window):
     vbox.addWidget(window.terms_button)
     vbox.setStretchFactor(window.staking_list, 1000)
 
-    # here use staking_list_controller to init fixture data in table
-    # TODO - remove this comment in upcoming PR's
+    refresh_stake_dialog_window(wallet=window.wallet)
 
     return w
 
