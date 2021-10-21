@@ -47,7 +47,7 @@ class CustomButton(QPushButton):
         self.func = trigger
         self.setIconSize(QSize(20, 20))
 
-    def on_press(self,):
+    def on_press(self):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 

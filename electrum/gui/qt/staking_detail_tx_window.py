@@ -40,6 +40,7 @@ from electrum.gui.qt.util import (MessageBoxMixin, read_QIcon, Buttons, ColorSch
 
 from electrum.common.widgets import CustomTableWidget
 from electrum.common.services import CustomTableWidgetController
+from electrum.util import InvalidPassword
 
 
 class TxList(CustomTableWidget):
@@ -49,6 +50,7 @@ class TxList(CustomTableWidget):
 tx_list = TxList(
     starting_empty_cells=0,
     column_names=['Tx ID', 'Staked Amount', 'Payout', 'GP', 'Daily Tx Limit'],
+    resize_column=0
 )
 
 tx_list_controller = CustomTableWidgetController(table_widget=tx_list)
@@ -221,17 +223,15 @@ class StakedDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.unstake_button = QPushButton(_("Unstake"))
+        self.unstake_button.setVisible(True)
         self.unstake_button.clicked.connect(self.on_push_unstake)
         self.close_button = QPushButton(_("Close"))
+        self.close_button.setVisible(True)
         self.close_button.clicked.connect(self.on_push_close)
 
 
         # Action buttons (right side)
         self.buttons = [self.unstake_button, self.close_button]
-
-        for b in self.buttons:
-            b.setVisible(True)
-
         self.hbox = hbox = QHBoxLayout()
 
         hbox.addStretch(1)
@@ -460,13 +460,10 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
+        self.setVisible(True)
 
         # Action buttons (right side)
         self.buttons = [self.close_button]
-
-        for b in self.buttons:
-            b.setVisible(True)
-
         self.hbox = hbox = QHBoxLayout()
 
         hbox.addStretch(1)
@@ -550,15 +547,13 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
+        self.close_button.setVisible(True)
         self.restake_button = QPushButton(_("Restake"))
+        self.restake_button.setVisible(True)
         self.restake_button.clicked.connect(self.on_push_restake)
 
         # Action buttons (right side)
         self.buttons = [self.restake_button, self.close_button]
-
-        for b in self.buttons:
-            b.setVisible(True)
-
         self.hbox = hbox = QHBoxLayout()
 
         hbox.addStretch(1)
@@ -654,13 +649,10 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
+        self.close_button.setVisible(True)
 
         # Action buttons (right side)
         self.buttons = [self.close_button]
-
-        for b in self.buttons:
-            b.setVisible(True)
-
         self.hbox = hbox = QHBoxLayout()
 
         hbox.addStretch(1)
@@ -750,16 +742,15 @@ class UnstakedSingleStakeDialog(BaseStakingTxDialog):
 
         vbox.addWidget(tx_list)
 
+
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
+        self.close_button.setVisible(True)
         self.restake_button = QPushButton(_("Restake"))
+        self.restake_button.setVisible(True)
 
         # Action buttons (right side)
         self.buttons = [self.restake_button, self.close_button]
-
-        for b in self.buttons:
-            b.setVisible(True)
-
         self.hbox = hbox = QHBoxLayout()
 
         hbox.addStretch(1)
@@ -882,11 +873,11 @@ class UnstakeDialog(WindowModalDialog):
 
     def on_push_send_window(self):
         password = self.password_lineEdit.text() or None
-        if password is None:
+        if not password:
             return
         try:
             self.wallet.check_password(password)
-        except Exception:
+        except InvalidPassword:
             self.password_error_label.show()
             self.password_lineEdit.setStyleSheet("background-color: red;")
             return

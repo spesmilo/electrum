@@ -89,8 +89,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, BlockingWaitingDialog)
-from .util import ButtonsTextEdit, ButtonsLineEdit
+                   getOpenFileName, getSaveFileName, BlockingWaitingDialog, ButtonsTextEdit, ButtonsLineEdit)
 from .installwizard import get_wif_help_text
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
