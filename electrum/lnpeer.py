@@ -1346,6 +1346,8 @@ class Peer(Logger):
         #        - for example; atm we forward first and then persist "forwarding_info",
         #          so if we segfault in-between and restart, we might forward an HTLC twice...
         #          (same for trampoline forwarding)
+        #        - we could check for the exposure to dust HTLCs, see:
+        #          https://github.com/ACINQ/eclair/pull/1985
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
