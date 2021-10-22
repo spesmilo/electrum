@@ -40,6 +40,7 @@ COMMITMENT_TX_WEIGHT = 724
 HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
+DUST_LIMIT_MAX = 1000
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -103,10 +104,10 @@ class ChannelConfig(StoredObject):
             raise Exception(f"{conf_name}. insane initial_msat={self.initial_msat}. (funding_sat={funding_sat})")
         if self.reserve_sat < self.dust_limit_sat:
             raise Exception(f"{conf_name}. MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
-        # technically this could be using the lower DUST_LIMIT_DEFAULT_SAT_SEGWIT
-        # but other implementations are checking against this value too; also let's be conservative
-        if self.dust_limit_sat < bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY:
+        if self.dust_limit_sat < bitcoin.DUST_LIMIT_UNKNOWN_SEGWIT:
             raise Exception(f"{conf_name}. dust limit too low: {self.dust_limit_sat} sat")
+        if self.dust_limit_sat > DUST_LIMIT_MAX:
+            raise Exception(f"{conf_name}. dust limit too high: {self.dust_limit_sat} sat")
         if self.reserve_sat > funding_sat // 100:
             raise Exception(f"{conf_name}. reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}")
         if self.htlc_minimum_msat > 1_000:

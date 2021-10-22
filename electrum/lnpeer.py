@@ -534,7 +534,7 @@ class Peer(Logger):
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
-        dust_limit_sat = bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY
+        dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
         # for comparison of defaults, see
         # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
@@ -1697,12 +1697,7 @@ class Peer(Logger):
                 raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
         else:
             # BOLT-02 restrict the scriptpubkey to some templates:
-            # order by decreasing dust limit
-            if match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2PKH):
-                pass
-            elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH):
-                pass
-            elif self.is_shutdown_anysegwit() and match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
+            if self.is_shutdown_anysegwit() and match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
                 pass
             elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
                 pass
@@ -1765,9 +1760,9 @@ class Peer(Logger):
         # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
         max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
         our_fee = min(our_fee, max_fee)
-        drop_remote = False
+        drop_to_remote = False
         def send_closing_signed():
-            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_to_remote)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
         def verify_signature(tx, sig):
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
@@ -1788,13 +1783,22 @@ class Peer(Logger):
             # verify their sig: they might have dropped their output
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
-                drop_remote = False
+                drop_to_remote = False
             else:
                 our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
                 if verify_signature(closing_tx, their_sig):
-                    drop_remote = True
+                    drop_to_remote = True
                 else:
+                    # this can happen if we consider our output too valuable to drop,
+                    # but the remote drops it because it violates their dust limit
                     raise Exception('failed to verify their signature')
+            # at this point we know how the closing tx looks like
+            # check that their output is above their scriptpubkey's network dust limit
+            if not drop_to_remote:
+                to_remote_idx = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey.hex()).pop()
+                to_remote_amount = closing_tx.outputs()[to_remote_idx].value
+                transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
+
             # Agree if difference is lower or equal to one (see below)
             if abs(our_fee - their_fee) < 2:
                 our_fee = their_fee

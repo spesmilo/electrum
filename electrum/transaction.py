@@ -459,6 +459,21 @@ SCRIPTPUBKEY_TEMPLATE_P2WSH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 32
 SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT = [OP_ANYSEGWIT_VERSION, OPPushDataGeneric(lambda x: x in list(range(2, 40 + 1)))]
 
 
+def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
+    if match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2PKH):
+        dust_limit = bitcoin.DUST_LIMIT_P2PKH
+    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2SH):
+        dust_limit = bitcoin.DUST_LIMIT_P2SH
+    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2WSH):
+        dust_limit = bitcoin.DUST_LIMIT_P2WSH
+    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2WPKH):
+        dust_limit = bitcoin.DUST_LIMIT_P2WPKH
+    else:
+        raise Exception(f'scriptpubkey does not conform to any template: {scriptpubkey.hex()}')
+    if amount < dust_limit:
+        raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
+
+
 def match_script_against_template(script, template) -> bool:
     """Returns whether 'script' matches 'template'."""
     if script is None:
