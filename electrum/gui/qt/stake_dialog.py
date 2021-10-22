@@ -17,7 +17,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# NONINFINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
 # BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -25,13 +25,15 @@
 
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QToolButton,
-                             QTextBrowser)
-from PyQt5 import QtCore, QtGui
-from electrum.i18n import _
-from .terms_and_conditions_mixin import load_terms_and_conditions
+from PyQt5.QtGui import QCursor, QFont
+from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser
 
-from .util import read_QIcon, WindowModalDialog, OkButton
+from electrum.gui.qt.terms_and_conditions_mixin import load_terms_and_conditions
+from electrum.gui.qt.util import read_QIcon, WindowModalDialog, OkButton
+from electrum.i18n import _
+from .create_new_stake_window import CreateNewStakingWindow
+from .staking_detail_tx_window import UnstakedSingleStakeDialog, CompletedSingleClaimedStakeDialog, StakedDialog, \
+    CompletedReadyToClaimStakeDialog, CompletedMultiClaimedStakeDialog
 
 
 class CustomButton(QPushButton):
@@ -45,7 +47,7 @@ class CustomButton(QPushButton):
         self.func = trigger
         self.setIconSize(QSize(20, 20))
 
-    def on_press(self, checked=False):
+    def on_press(self):
         """Drops the unwanted PyQt5 "checked" argument"""
         self.func()
 
@@ -55,15 +57,14 @@ class CustomButton(QPushButton):
 
 
 def staking_dialog(window):
-
     window.receive_grid = grid = QGridLayout()
-
-    from .create_new_stake_window import CreateNewStakingWindow
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
-    window.stake_button = CustomButton(text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png"))
-
-    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'))
+    window.stake_button = CustomButton(
+        text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
+    )
+    window.tx_detail_dialog = CompletedMultiClaimedStakeDialog(window)  # todo: currently used for test staked view (window)
+    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=window.tx_detail_dialog)
 
     window.staking_header = buttons = QHBoxLayout()
     buttons.addStretch(1)
@@ -76,13 +77,13 @@ def staking_dialog(window):
     from .staking_list import staking_list, staking_list_controller
     window.staking_list = staking_list
 
-    font = QtGui.QFont()
+    font = QFont()
     font.setUnderline(True)
     window.terms_button = QPushButton()
     window.terms_button.setFont(font)
     window.terms_button.setText(_("Terms & Conditions"))
-    window.terms_button.setMaximumSize(QtCore.QSize(140, 16777215))
-    window.terms_button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
+    window.terms_button.setMaximumSize(QSize(140, 16777215))
+    window.terms_button.setCursor(QCursor(Qt.PointingHandCursor))
     window.terms_button.setStyleSheet("border: none;")
     window.terms_button.setAutoDefault(True)
     window.terms_button.clicked.connect(terms_and_conditions_view)
@@ -95,7 +96,6 @@ def staking_dialog(window):
     hbox.addStretch()
 
     w = QWidget()
-    w.searchable_list = window.staking_list
     vbox = QVBoxLayout(w)
     vbox.addLayout(hbox)
 
