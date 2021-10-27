@@ -23,20 +23,22 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from electrum.common.services import CustomTableWidgetController
 from electrum.common.widgets import CustomTableWidget
 
 
-def staking_list_copy_context_menu_on_click(row_data):
-    print(row_data)
+def staking_list_copy_context_menu_on_click(row_data, **context):
+    print('row data ', row_data)
+    print('my context is ', context)
 
 
-def staking_list_view_transaction_context_menu_on_click(row_data):
-    print(row_data)
+def staking_list_view_transaction_context_menu_on_click(row_data, **context):
+    print('row data ', row_data)
+    print('my context is ', context)
 
 
-def staking_list_view_on_block_explorer_context_menu_on_click(row_data):
-    print(row_data)
+def staking_list_view_on_block_explorer_context_menu_on_click(row_data, **context):
+    print('row data ', row_data)
+    print('my context is ', context)
 
 
 STAKING_LIST_CONTEXT_MENU_OPTIONS = {
@@ -53,7 +55,5 @@ class StakingList(CustomTableWidget):
 staking_list = StakingList(
     starting_empty_cells=0,
     context_menu_options=STAKING_LIST_CONTEXT_MENU_OPTIONS,
-    column_names=['Start Date', 'Amount', 'Staking Period', 'Blocks Left', 'Type'],  # TODO - move to enum
+    column_names=['Start Date', 'Amount', 'Staking Period', 'Blocks Left', 'Type'],
 )
-
-staking_list_controller = CustomTableWidgetController(table_widget=staking_list)

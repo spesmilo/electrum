@@ -38,3 +38,4 @@ electrum/*.so
 electrum/*.so.0
 electrum/*.dll
 electrum/*.dylib
+.venv/
