@@ -73,22 +73,32 @@ class StakeElectrumXAPIDataService:
     def get_detailed_data_for_tx(self, tx_hash):
         stake_data = self._connector.send_and_receive_data(
             data_string=self.generate_api_payload(
-                method=self.TRANSACTION_GET_STAKE_METHOD_NAME, params=[tx_hash]
+                method=self.BLOCK_TRANSACTION_METHOD_NAME, params=[tx_hash, 1]
             )
         )
-        detailed_stake_data = stake_data['result']
-
+        # etailed_stake_data = stake_data['result']['stakingInfo']
+        no_staking_info = {
+            'deposit_height': 0,
+            'staking_period': 0,
+            'staking_amount': 0,
+            'accumulated_reward': 0,
+            'fulfilled': True,
+            'paid_out': False
+        }
+        detailed_stake_data = stake_data['result'].get('stakingInfo', no_staking_info)
         header_data = self._connector.send_and_receive_data(
             data_string=self.generate_api_payload(
                 method=self.BLOCK_HEADER_METHOD_NAME,
-                params=[int(stake_data['result']['deposit_height'])],
+                params=[int(detailed_stake_data['deposit_height'])],
             )
         )
+        try:
+            detailed_stake_data['timestamp'] = self.extract_timestamp_from_block_header_hash(
+                block_hash=header_data['result']
+            )
 
-        detailed_stake_data['timestamp'] = self.extract_timestamp_from_block_header_hash(
-            block_hash=header_data['result']
-        )
-
+        except KeyError:  # todo: get normal tx and sent to UI as not stake yet
+            detailed_stake_data['timestamp'] = 'Pending'
         return detailed_stake_data
 
     def get_tx_details(self, tx_hash):
@@ -116,22 +126,26 @@ class StakeElectrumXAPIDataService:
         detailed_stakes_data = [
             self.get_detailed_data_for_tx(tx_hash=data['tx_hash']) for data in stakes_data
         ]
-
-        return [
-            {**stake_data, **detailed_stake_data}
-            for stake_data, detailed_stake_data in zip(stakes_data, detailed_stakes_data)
-        ]
+        try:
+            return [
+                {**stake_data, **detailed_stake_data}
+                for stake_data, detailed_stake_data in zip(stakes_data, detailed_stakes_data)
+            ]
+        except TypeError:
+            print('Jeszcze nie uznany przez electrum X za stake')
 
     def get_detailed_stakes_data_for_addresses(self, addresses):
-        return list(
-            itertools.chain(
-                *[
-                    self.get_detailed_stakes_data_for_address(address=address)
-                    for address in addresses
-                ]
+        try:  # todo przenieść do środka bo inaczej nie pokzuje stakeów prawidłowych
+            return list(
+                itertools.chain(
+                    *[
+                        self.get_detailed_stakes_data_for_address(address=address)
+                        for address in addresses
+                    ]
+                )
             )
-        )
-
+        except TypeError:
+            print('prawdopodobnie jeszcze nie uznany za stake w electrumX')
 
 connector = SocketConnector(
     host='electrumx.testnet.ec.stage.rnd.land', port=443, use_ssl=True  # TODO
