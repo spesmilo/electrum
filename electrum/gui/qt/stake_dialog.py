@@ -45,28 +45,45 @@ from ...stake import stake_api
 from .staking_list import staking_list
 
 
-def refresh_stake_dialog_window(wallet):
+def refresh_stake_dialog_window(window):
     """
     Call this function to refresh stake dialog window
+    TODO
     """
     current_staking_data = stake_api.get_detailed_stakes_data_for_addresses(
-        addresses=wallet.get_addresses()
+        addresses=window.wallet.get_addresses()
     )
-    current_height = wallet.get_local_height()
+    current_height = window.wallet.get_local_height()
 
     staking_list.insert_data(
         table_data={
-            'Type': ['what is type ??' for data in current_staking_data],
+            'Type': [get_verbal_type_name(stack_data=data) for data in current_staking_data],
             'Start Date': [data['timestamp'] for data in current_staking_data],
             'Amount': [data['staking_amount'] for data in current_staking_data],
             'Staking Period': [data['staking_period'] for data in current_staking_data],
-            'Blocks Left': [
-                current_height - data['deposit_height'] for data in current_staking_data
-            ],
+            'Deposit Height': [data['deposit_height'] for data in current_staking_data],
+            'Blocks Left': [get_block_left(data, current_height) for data in current_staking_data],
             'tx_hash': [data['tx_hash'] for data in current_staking_data],
         },
-        context_menu_kwargs={'wallet': wallet},
+        context_menu_kwargs={'window': window, },
     )
+
+
+def get_verbal_type_name(stack_data):
+    if not stack_data['fulfilled'] and not stack_data['paid_out']:
+        return 'Staked'
+    if stack_data['fulfilled'] and stack_data['paid_out']:
+        return 'Unstaked'
+    elif stack_data['fulfilled']:
+        return 'Completed'
+
+
+def get_block_left(data, current_height):
+    blocks_left = (data['deposit_height'] + data['staking_period']) - current_height
+    if blocks_left > 0:
+        return blocks_left
+    else:
+        return 0
 
 
 class CustomButton(QPushButton):
@@ -94,16 +111,10 @@ def staking_dialog(window):
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
     window.stake_button = CustomButton(
-        text=_('Stake'),
-        trigger=window.create_stake_dialog,
-        icon=read_QIcon("electrum.png"),
+        text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
     )
-    window.tx_detail_dialog = CompletedMultiClaimedStakeDialog(
-        window
-    )  # todo: currently used for test staked view (window)
-    window.claim_rewords_button = CustomButton(
-        text=_('Claim Rewords'), trigger=window.tx_detail_dialog
-    )
+    window.tx_detail_dialog = None
+    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=None)
 
     window.staking_header = buttons = QHBoxLayout()
     buttons.addStretch(1)
@@ -143,7 +154,7 @@ def staking_dialog(window):
     vbox.addWidget(window.terms_button)
     vbox.setStretchFactor(window.staking_list, 1000)
 
-    refresh_stake_dialog_window(wallet=window.wallet)
+    refresh_stake_dialog_window(window=window)
 
     return w
 

@@ -47,6 +47,7 @@ class StakeElectrumXAPIDataService:
     LIST_UNSPEND_METHOD_NAME = 'blockchain.scripthash.listunspent'
     TRANSACTION_GET_STAKE_METHOD_NAME = 'blockchain.transaction.get_stake'
     BLOCK_HEADER_METHOD_NAME = 'blockchain.block.header'
+    BLOCK_TRANSACTION_METHOD_NAME = 'blockchain.transaction.get'
 
     def __init__(self, connector):
         self._connector = connector
@@ -89,6 +90,15 @@ class StakeElectrumXAPIDataService:
         )
 
         return detailed_stake_data
+
+    def get_tx_details(self, tx_hash):
+        tx_data = self._connector.send_and_receive_data(
+            data_string=self.generate_api_payload(
+                method=self.BLOCK_TRANSACTION_METHOD_NAME,
+                params=[tx_hash, 1]
+            )
+        )
+        return tx_data
 
     def get_detailed_stakes_data_for_address(self, address: str):
         listunspent_data = self._connector.send_and_receive_data(

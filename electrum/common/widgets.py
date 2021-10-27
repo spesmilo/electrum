@@ -99,6 +99,10 @@ class CustomTableWidget(QTableWidget):
         self.setRowCount(new_number_of_rows)
         self.clearContents()
 
+    def _clear_table_for_new_data(self, new_number_of_rows):
+        self.setRowCount(new_number_of_rows)
+        self.clearContents()
+
     def show_context_menu(self, *args, **kwargs):
         self.context_menu.popup(QCursor.pos())
 

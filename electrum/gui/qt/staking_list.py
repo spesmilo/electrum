@@ -24,6 +24,9 @@
 # SOFTWARE.
 
 from electrum.common.widgets import CustomTableWidget
+from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog, CompletedSingleClaimedStakeDialog, \
+    CompletedReadyToClaimStakeDialog, UnstakedMultiStakeDialog, UnstakedSingleStakeDialog, StakedDialog
+from ...stake import stake_api
 
 
 def staking_list_copy_context_menu_on_click(row_data, **context):
@@ -32,8 +35,17 @@ def staking_list_copy_context_menu_on_click(row_data, **context):
 
 
 def staking_list_view_transaction_context_menu_on_click(row_data, **context):
-    print('row data ', row_data)
-    print('my context is ', context)
+    details_tx_data = stake_api.get_tx_details(tx_hash=row_data['tx_hash'])
+    if row_data['Type'] == 'Staked':
+        dialog = StakedDialog(row_data['wallet'])
+        dialog.show()
+
+    elif row_data['Type'] == 'Unstaked':
+        print(row_data)
+
+    elif row_data['Type'] == 'Completed':
+        dialog = CompletedReadyToClaimStakeDialog(parent=context['window'], data=row_data, detail_tx=details_tx_data)
+        dialog.show()
 
 
 def staking_list_view_on_block_explorer_context_menu_on_click(row_data, **context):
