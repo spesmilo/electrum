@@ -215,12 +215,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
         self.staking_tab = self.create_staking_tab()
+        self.rewards_tab = self.create_rewards_tab()
         # todo uncomment when turn on lightning
         self.channels_tab = self.create_channels_tab()
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
         tabs.addTab(self.staking_tab, read_QIcon("tab_receive.png"), _('Staking'))
+        tabs.addTab(self.rewards_tab, read_QIcon("tab_history.png"), _('Rewards'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -2012,6 +2014,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_staking_tab(self):
         from electrum.gui.qt.stake_dialog import staking_dialog
         self.staking_tab = l = staking_dialog(self)
+        return self.create_list_tab(l)
+
+    def create_rewards_tab(self):
+        from electrum.gui.qt.rewards_tab import RewardsWindow
+
+        self.rewards_tab = l = RewardsWindow()
+
+        # TODO - remove this it's MOCKUP
+        self.rewards_tab.set_available_rewards_text(value=3.2)
+        self.rewards_tab.set_total_predicted_staking_reward_text(value=5.2)
+        self.rewards_tab.set_governance_power_text(value=14200)
+        self.rewards_tab.set_daily_free_transaction_limit(value='980/20000')
+
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
