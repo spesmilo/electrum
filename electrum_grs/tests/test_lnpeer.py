@@ -970,7 +970,7 @@ class TestPeer(TestCaseForTestnet):
             assert graph.w_a.network.channel_db is not None
             lnaddr, pay_req = await self.prepare_invoice(graph.w_d, include_routing_hints=True, amount_msat=amount_to_pay)
             try:
-                async with timeout_after(0.5):
+                async with timeout_after(1.0):
                     result, log = await graph.w_a.pay_invoice(pay_req, attempts=1)
             except TaskTimeout:
                 # by now Dave hopefully received some HTLCs:

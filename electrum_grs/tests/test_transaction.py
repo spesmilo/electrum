@@ -3,7 +3,8 @@ from typing import NamedTuple, Union
 from electrum_grs import transaction, bitcoin
 from electrum_grs.transaction import (convert_raw_tx_to_hex, tx_from_any, Transaction,
                                   PartialTransaction, TxOutpoint, PartialTxInput,
-                                  PartialTxOutput, Sighash)
+                                  PartialTxOutput, Sighash, match_script_against_template,
+                                  SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
 from electrum_grs.util import bh2u, bfh
 from electrum_grs.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
@@ -78,6 +79,13 @@ class TestBCDataStream(ElectrumTestCase):
 
 
 class TestTransaction(ElectrumTestCase):
+    def test_match_against_script_template(self):
+        script = bfh(construct_script([opcodes.OP_5, bytes(29)]))
+        self.assertTrue(match_script_against_template(script, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT))
+        script = bfh(construct_script([opcodes.OP_NOP, bytes(30)]))
+        self.assertFalse(match_script_against_template(script, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT))
+        script = bfh(construct_script([opcodes.OP_0, bytes(50)]))
+        self.assertFalse(match_script_against_template(script, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT))
 
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
