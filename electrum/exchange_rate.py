@@ -159,7 +159,7 @@ class BitcoinAverage(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
-        return dict([(r.replace("BTC", ""), Decimal(json[r]['last']))
+        return dict([(r.replace("FTC", ""), Decimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
 
@@ -174,8 +174,8 @@ class BitcoinVenezuela(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.bitcoinvenezuela.com', '/')
-        rates = [(r, json['BTC'][r]) for r in json['BTC']
-                 if json['BTC'][r] is not None]  # Giving NULL for LTC
+        rates = [(r, json['FTC'][r]) for r in json['FTC']
+                 if json['FTC'][r] is not None]  # Giving NULL for LTC
         return dict(rates)
 
     def history_ccys(self):
@@ -183,8 +183,8 @@ class BitcoinVenezuela(ExchangeBase):
 
     async def request_history(self, ccy):
         json = await self.get_json('api.bitcoinvenezuela.com',
-                             "/historical/index.php?coin=BTC")
-        return json[ccy +'_BTC']
+                             "/historical/index.php?coin=FTC")
+        return json[ccy +'_FTC']
 
 
 class Bitbank(ExchangeBase):
@@ -244,7 +244,7 @@ class BlockchainInfo(ExchangeBase):
 class Bylls(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('bylls.com', '/api/price?from_currency=BTC&to_currency=CAD')
+        json = await self.get_json('bylls.com', '/api/price?from_currency=FTC&to_currency=CAD')
         return {'CAD': Decimal(json['public_price']['to_price'])}
 
 
@@ -252,7 +252,7 @@ class Coinbase(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.coinbase.com',
-                             '/v2/exchange-rates?currency=BTC')
+                             '/v2/exchange-rates?currency=FTC')
         return {ccy: Decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
 
 
@@ -370,7 +370,7 @@ class TheRockTrading(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.therocktrading.com',
-                             '/v1/funds/BTCEUR/ticker')
+                             '/v1/funds/FTCEUR/ticker')
         return {'EUR': Decimal(json['last'])}
 
 
@@ -400,14 +400,14 @@ class Zaif(ExchangeBase):
 class Bitragem(ExchangeBase):
 
     async def get_rates(self,ccy):
-        json = await self.get_json('api.bitragem.com', '/v1/index?asset=BTC&market=BRL')
+        json = await self.get_json('api.bitragem.com', '/v1/index?asset=FTC&market=BRL')
         return {'BRL': Decimal(json['response']['index'])}
 
 
 class Biscoint(ExchangeBase):
 
     async def get_rates(self,ccy):
-        json = await self.get_json('api.biscoint.io', '/v1/ticker?base=BTC&quote=BRL')
+        json = await self.get_json('api.biscoint.io', '/v1/ticker?base=FTC&quote=BRL')
         return {'BRL': Decimal(json['data']['last'])}
 
 

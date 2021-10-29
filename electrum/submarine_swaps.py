@@ -242,7 +242,7 @@ class SwapManager(Logger):
             password,
             tx: PartialTransaction = None,
     ) -> str:
-        """send on-chain BTC, receive on Lightning
+        """send on-chain FTC, receive on Lightning
 
         - User generates an LN invoice with RHASH, and knows preimage.
         - User creates on-chain output locked to RHASH.
@@ -262,7 +262,7 @@ class SwapManager(Logger):
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
             "type": "submarine",
-            "pairId": "BTC/BTC",
+            "pairId": "FTC/FTC",
             "orderSide": "sell",
             "invoice": invoice,
             "refundPublicKey": pubkey.hex()
@@ -354,7 +354,7 @@ class SwapManager(Logger):
         preimage_hash = sha256(preimage)
         request_data = {
             "type": "reversesubmarine",
-            "pairId": "BTC/BTC",
+            "pairId": "FTC/FTC",
             "orderSide": "buy",
             "invoiceAmount": lightning_amount_sat,
             "preimageHash": preimage_hash.hex(),
@@ -441,11 +441,11 @@ class SwapManager(Logger):
             self.api_url + '/getpairs',
             timeout=30)
         pairs = json.loads(response)
-        fees = pairs['pairs']['BTC/BTC']['fees']
+        fees = pairs['pairs']['FTC/FTC']['fees']
         self.percentage = fees['percentage']
         self.normal_fee = fees['minerFees']['baseAsset']['normal']
         self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
-        limits = pairs['pairs']['BTC/BTC']['limits']
+        limits = pairs['pairs']['FTC/FTC']['limits']
         self.min_amount = limits['minimal']
         self._max_amount = limits['maximal']
 

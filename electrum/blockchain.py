@@ -535,24 +535,15 @@ class Blockchain(Logger):
                 raise MissingHeader(height)
             return hash_header(header)
 
-    def get_target(self, index: int) -> int:
+    def get_target(self, height: int,headers= None) -> int:
         # compute target from chunk x, used in chunk x+1
-        print ("Index: ",index)
         if constants.net.TESTNET:
             return 0
-        if index == -1:
+        if height == -1:
             return MAX_TARGET
-        if height < len(self.checkpoints) * 2016:
+        if height < len(self.checkpoints):
             # return pessimistic value to detect if check is unintentionally performed
             return 0
-        bridge_index = height - len(self.checkpoints) * 2016
-        if bridge_index >= 0 and bridge_index < len(self.target_bridge):
-            # The block headers are not fetched by default for headers with
-            # height less than len(self.checkpoints) * 2016. To bridge into
-            # on-the-fly target computation the target from previous headers
-            # must be known. Therefore, the necessary target values from local
-            # storage are used here.
-            return self.target_bridge[bridge_index]
         elif height == HEIGHT_FORK_FOUR:
             return MAX_TARGET_NEOSCRYPT
         elif height >= HEIGHT_FORK_THREE:
@@ -705,7 +696,6 @@ class Blockchain(Logger):
         if check_height and self.height() != height - 1:
             return False
         if height == 0:
-            print ("genesis: ",constants.net.GENESIS)
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)

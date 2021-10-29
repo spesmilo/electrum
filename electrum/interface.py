@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-#import pdb
+
 import os
 import re
 import ssl
@@ -585,8 +585,9 @@ class Interface(Logger):
         self.logger.info("cert fingerprint verification passed")
 
     async def get_block_header(self, height, assert_mode):
+       
         self.logger.info(f'requesting block header {height} in mode {assert_mode}')
-        # use lower timeout as we usually have network.bhi_lock here
+        # use lower timeout as we usually have blockchain network.bhi_lock here
         timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Urgent)
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
@@ -598,6 +599,7 @@ class Interface(Logger):
         if can_return_early and index in self._requested_chunks:
             return
         self.logger.info(f"requesting chunk from height {height}")
+        size = 2016
         if tip is not None:
             size = min(size, tip - index * 2016 + 1)
             size = max(size, 0)
@@ -797,18 +799,16 @@ class Interface(Logger):
             
             assert good < bad, (good, bad)
             height = (good + bad) // 2
-            print ("height: ",height," good: ", good, " Bad: ",bad)
             self.logger.info(f"binary step. good {good}, bad {bad}, height {height}")
             header = await self.get_block_header(height, 'binary')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
-                print ("chain found",height)
                 self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
                 good = height
             else:
                 bad = height
                 bad_header = header
-                print("header: {}".format(bad_header))
+              
             if good + 1 == bad:
                 break
         mock = 'mock' in bad_header and bad_header['mock']['connect'](height)

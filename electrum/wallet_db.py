@@ -762,8 +762,8 @@ class WalletDB(JsonDB):
             return
         PR_TYPE_ONCHAIN = 0
         PR_TYPE_LN = 2
-        from .bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN
-        max_sats = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        from .bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_FTC, COIN
+        max_sats = TOTAL_COIN_SUPPLY_LIMIT_IN_FTC * COIN
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:

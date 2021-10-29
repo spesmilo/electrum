@@ -83,18 +83,18 @@ def all_subclasses(cls) -> Set:
 ca_path = certifi.where()
 
 
-base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
+base_units = {'FTC':8, 'mFTC':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['FTC', 'mFTC', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+DECIMAL_POINT_DEFAULT = 5  # mFTC
 
 
 class UnknownBaseUnit(Exception): pass
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
-    # e.g. 8 -> "BTC"
+    # e.g. 8 -> "FTC"
     try:
         return base_units_inverse[dp]
     except KeyError:
@@ -102,7 +102,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
-    # e.g. "BTC" -> 8
+    # e.g. "FTC" -> 8
     try:
         return base_units[unit_name]
     except KeyError:
@@ -767,10 +767,10 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Bitaps.com': ('https://btc.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://btc.com/',
+    'FTC.com': ('https://btc.com/',
                         {'tx': '', 'addr': ''}),
     'Chain.so': ('https://www.chain.so/',
-                        {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
+                        {'tx': 'tx/FTC/', 'addr': 'address/FTC/'}),
     'Insight.is': ('https://insight.bitpay.com/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'TradeBlock.com': ('https://tradeblock.com/blockchain/',
@@ -897,7 +897,7 @@ class InvalidBitcoinURI(Exception): pass
 def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
-    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+    from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_FTC
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -937,8 +937,8 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
                 amount = Decimal(m.group(1)) * pow(Decimal(10), k)
             else:
                 amount = Decimal(am) * COIN
-            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
+            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_FTC * COIN:
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} FTC")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
