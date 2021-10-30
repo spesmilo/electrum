@@ -40,6 +40,7 @@ COMMITMENT_TX_WEIGHT = 724
 HTLC_OUTPUT_WEIGHT = 172
 
 LN_MAX_FUNDING_SAT = pow(2, 24) - 1
+DUST_LIMIT_MAX = 1000
 
 # dummy address for fee estimation of funding tx
 def ln_dummy_address():
@@ -103,10 +104,10 @@ class ChannelConfig(StoredObject):
             raise Exception(f"{conf_name}. insane initial_msat={self.initial_msat}. (funding_sat={funding_sat})")
         if self.reserve_sat < self.dust_limit_sat:
             raise Exception(f"{conf_name}. MUST set channel_reserve_satoshis greater than or equal to dust_limit_satoshis")
-        # technically this could be using the lower DUST_LIMIT_DEFAULT_SAT_SEGWIT
-        # but other implementations are checking against this value too; also let's be conservative
-        if self.dust_limit_sat < bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY:
+        if self.dust_limit_sat < bitcoin.DUST_LIMIT_UNKNOWN_SEGWIT:
             raise Exception(f"{conf_name}. dust limit too low: {self.dust_limit_sat} sat")
+        if self.dust_limit_sat > DUST_LIMIT_MAX:
+            raise Exception(f"{conf_name}. dust limit too high: {self.dust_limit_sat} sat")
         if self.reserve_sat > funding_sat // 100:
             raise Exception(f"{conf_name}. reserve too high: {self.reserve_sat}, funding_sat: {funding_sat}")
         if self.htlc_minimum_msat > 1_000:
@@ -1026,6 +1027,12 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
 
+    OPTION_SHUTDOWN_ANYSEGWIT_REQ = 1 << 26
+    OPTION_SHUTDOWN_ANYSEGWIT_OPT = 1 << 27
+
+    _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     # temporary
     OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 50
     OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR = 1 << 51
@@ -1114,6 +1121,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.PAYMENT_SECRET_OPT | LnFeatures.PAYMENT_SECRET_REQ
         | LnFeatures.BASIC_MPP_OPT | LnFeatures.BASIC_MPP_REQ
         | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ
+        | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
 )
 
 

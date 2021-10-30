@@ -93,6 +93,7 @@ Builder.load_string('''
                 id: final_cb
                 opacity: int(root.show_final)
                 disabled: not root.show_final
+                on_release: root.update_tx()
         Label:
             text: root.warning
             text_size: self.width, None
