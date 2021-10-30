@@ -75,3 +75,6 @@ done
 
 # Staple the notary ticket
 xcrun stapler staple "$APP_BUNDLE"
+
+# rm zip
+rm "${APP_BUNDLE}.zip"

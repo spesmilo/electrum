@@ -108,6 +108,31 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
+def parse_max_spend(amt: Any) -> Optional[int]:
+    """Checks if given amount is "spend-max"-like.
+    Returns None or the positive integer weight for "max". Never raises.
+
+    When creating invoices and on-chain txs, the user can specify to send "max".
+    This is done by setting the amount to '!'. Splitting max between multiple
+    tx outputs is also possible, and custom weights (positive ints) can also be used.
+    For example, to send 40% of all coins to address1, and 60% to address2:
+    ```
+    address1, 2!
+    address2, 3!
+    ```
+    """
+    if not (isinstance(amt, str) and amt and amt[-1] == '!'):
+        return None
+    if amt == '!':
+        return 1
+    x = amt[:-1]
+    try:
+        x = int(x)
+    except ValueError:
+        return None
+    if x > 0:
+        return x
+    return None
 
 class NotEnoughFunds(Exception):
     def __str__(self):
@@ -117,11 +142,6 @@ class NotEnoughFunds(Exception):
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
-
-
-class MultipleSpendMaxTxOutputs(Exception):
-    def __str__(self):
-        return _('At most one output can be set to spend max')
 
 
 class InvalidPassword(Exception):
@@ -627,11 +647,16 @@ def chunks(items, size: int):
         yield items[i: i + size]
 
 
-def format_satoshis_plain(x, *, decimal_point=8) -> str:
+def format_satoshis_plain(
+        x: Union[int, float, Decimal, str],  # amount in satoshis,
+        *,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if x == '!':
-        return 'max'
+    if parse_max_spend(x):
+        return f'max({x})'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
@@ -647,40 +672,57 @@ DECIMAL_POINT = localeconv()['decimal_point']  # type: str
 
 
 def format_satoshis(
-        x,  # in satoshis
+        x: Union[int, float, Decimal, str, None],  # amount in satoshis
         *,
-        num_zeros=0,
-        decimal_point=8,
-        precision=None,
-        is_diff=False,
-        whitespaces=False,
+        num_zeros: int = 0,
+        decimal_point: int = 8,  # how much to shift decimal point to left (default: sat->BTC)
+        precision: int = 0,  # extra digits after satoshi precision
+        is_diff: bool = False,  # if True, enforce a leading sign (+/-)
+        whitespaces: bool = False,  # if True, add whitespaces, to align numbers in a column
+        add_thousands_sep: bool = False,  # if True, add whitespaces, for better readability of the numbers
 ) -> str:
     if x is None:
         return 'unknown'
-    if x == '!':
-        return 'max'
-    if precision is None:
-        precision = decimal_point
+    if parse_max_spend(x):
+        return f'max({x})'
+    assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
+    # lose redundant precision
+    x = Decimal(x).quantize(Decimal(10) ** (-precision))
     # format string
-    decimal_format = "." + str(precision) if precision > 0 else ""
+    overall_precision = decimal_point + precision  # max digits after final decimal point
+    decimal_format = "." + str(overall_precision) if overall_precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
     # initial result
     scale_factor = pow(10, decimal_point)
-    if not isinstance(x, Decimal):
-        x = Decimal(x).quantize(Decimal('1E-8'))
     result = ("{:" + decimal_format + "f}").format(x / scale_factor)
     if "." not in result: result += "."
     result = result.rstrip('0')
-    # extra decimal places
+    # add extra decimal places (zeros)
     integer_part, fract_part = result.split(".")
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
+    # add whitespaces as thousands' separator for better readability of numbers
+    if add_thousands_sep:
+        sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
+        if sign == "-":
+            integer_part = integer_part[1:]
+        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = sign + integer_part
+        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
-    # leading/trailing whitespaces
+    # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
-        result += " " * (decimal_point - len(fract_part))
-        result = " " * (15 - len(result)) + result
+        target_fract_len = overall_precision
+        target_integer_len = 14 - decimal_point  # should be enough for up to unsigned 999999 BTC
+        if add_thousands_sep:
+            target_fract_len += max(0, (target_fract_len - 1) // 3)
+            target_integer_len += max(0, (target_integer_len - 1) // 3)
+        # add trailing whitespaces
+        result += " " * (target_fract_len - len(fract_part))
+        # add leading whitespaces
+        target_total_len = target_integer_len + 1 + target_fract_len
+        result = " " * (target_total_len - len(result)) + result
     return result
 
 
@@ -1279,7 +1321,6 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                          args=(stopping_fut,),
                                          name='EventLoop')
     loop_thread.start()
-    loop._mythread = loop_thread
     return loop, stopping_fut, loop_thread
 
 
@@ -1626,3 +1667,12 @@ class nullcontext:
 
     async def __aexit__(self, *excinfo):
         pass
+
+def get_running_loop():
+    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
+    if sys.version_info < (3, 7):
+        return asyncio._get_running_loop()
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None

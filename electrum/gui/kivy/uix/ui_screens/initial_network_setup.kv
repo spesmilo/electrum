@@ -1,0 +1,20 @@
+Popup:
+    id: nd
+    title: _('Network Setup')
+    was_cancelled: True
+    on_dismiss: app.stop() if nd.was_cancelled else None
+    NetworkDialog
+        BoxLayout:
+            orientation:'horizontal'
+            size_hint: 1, 0.2
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Next')
+                on_release:
+                    app.set_auto_connect(app.auto_connect)  # make sure config setting is persisted
+                    app.load_wallet_on_start()
+                    nd.was_cancelled = False
+                    nd.dismiss()

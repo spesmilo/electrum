@@ -14,7 +14,7 @@ from kivy.uix.button import Button
 
 from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx
+from electrum.wallet import CannotBumpFee, CannotCPFP, CannotDoubleSpendTx
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.network import NetworkException
 
@@ -37,6 +37,7 @@ Builder.load_string('''
     can_sign: False
     can_broadcast: False
     can_rbf: False
+    can_cpfp: False
     fee_str: ''
     feerate_str: ''
     date_str: ''
@@ -145,6 +146,7 @@ class TxDialog(Factory.Popup):
         self.description = tx_details.label
         self.can_broadcast = tx_details.can_broadcast
         self.can_rbf = tx_details.can_bump
+        self.can_cpfp = tx_details.can_cpfp
         self.can_dscancel = tx_details.can_dscancel
         self.tx_hash = tx_details.txid or ''
         if tx_mined_status.timestamp:
@@ -192,6 +194,7 @@ class TxDialog(Factory.Popup):
             ActionButtonOption(text=_('Sign'), func=lambda btn: self.do_sign(), enabled=self.can_sign),
             ActionButtonOption(text=_('Broadcast'), func=lambda btn: self.do_broadcast(), enabled=self.can_broadcast),
             ActionButtonOption(text=_('Bump fee'), func=lambda btn: self.do_rbf(), enabled=self.can_rbf),
+            ActionButtonOption(text=_('Child pays\nfor parent'), func=lambda btn: self.do_cpfp(), enabled=(not self.can_rbf and self.can_cpfp)),
             ActionButtonOption(text=_('Cancel') + '\n(double-spend)', func=lambda btn: self.do_dscancel(), enabled=self.can_dscancel),
             ActionButtonOption(text=_('Remove'), func=lambda btn: self.remove_local_tx(), enabled=self.can_remove_tx),
         )
@@ -249,6 +252,40 @@ class TxDialog(Factory.Popup):
         self.tx = new_tx
         self.update()
         self.do_sign()
+
+    def do_cpfp(self):
+        from .cpfp_dialog import CPFPDialog
+        parent_tx = self.tx
+        new_tx = self.wallet.cpfp(parent_tx, 0)
+        total_size = parent_tx.estimated_size() + new_tx.estimated_size()
+        parent_txid = parent_tx.txid()
+        assert parent_txid
+        parent_fee = self.wallet.get_tx_fee(parent_txid)
+        if parent_fee is None:
+            self.app.show_error(_("Can't CPFP: unknown fee for parent transaction."))
+            return
+        cb = partial(self._do_cpfp, parent_tx=parent_tx)
+        d = CPFPDialog(self.app, parent_fee, total_size, new_tx=new_tx, callback=cb)
+        d.open()
+
+    def _do_cpfp(
+            self,
+            fee,
+            max_fee,
+            *,
+            parent_tx: Transaction,
+    ):
+        if fee is None:
+            return  # fee left empty, treat is as "cancel"
+        if fee > max_fee:
+            self.show_error(_('Max fee exceeded'))
+            return
+        try:
+            new_tx = self.wallet.cpfp(parent_tx, fee)
+        except CannotCPFP as e:
+            self.app.show_error(str(e))
+            return
+        self.app.tx_dialog(new_tx)
 
     def do_dscancel(self):
         from .dscancel_dialog import DSCancelDialog

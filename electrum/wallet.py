@@ -54,9 +54,9 @@ from .crypto import sha256
 from . import util
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
+                   WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex)
+                   Fiat, bfh, bh2u, TxMinedInfo, quantize_feerate, create_bip21_uri, OrderedDictWithIndex, parse_max_spend)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
 from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
@@ -322,7 +322,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
-            new_db.put('lightning_xprv', None)
             new_db.put('lightning_privkey2', None)
 
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
@@ -754,10 +753,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         height=self.get_local_height()
         if pr:
             return OnchainInvoice.from_bip70_payreq(pr, height)
-        if '!' in (x.value for x in outputs):
-            amount = '!'
-        else:
-            amount = sum(x.value for x in outputs)
+        amount = 0
+        for x in outputs:
+            if parse_max_spend(x.value):
+                amount = '!'
+                break
+            else:
+                amount += x.value
         timestamp = None
         exp = None
         if URI:
@@ -863,7 +865,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert isinstance(invoice, OnchainInvoice)
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in invoice.outputs:  # type: PartialTxOutput
-            invoice_amounts[txo.scriptpubkey] += 1 if txo.value == '!' else txo.value
+            invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
         relevant_txs = []
         with self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
@@ -1333,12 +1335,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         outputs = copy.deepcopy(outputs)
 
         # check outputs
-        i_max = None
+        i_max = []
+        i_max_sum = 0
         for i, o in enumerate(outputs):
-            if o.value == '!':
-                if i_max is not None:
-                    raise MultipleSpendMaxTxOutputs()
-                i_max = i
+            weight = parse_max_spend(o.value)
+            if weight:
+                i_max_sum += weight
+                i_max.append((weight, i))
 
         if fee is None and self.config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
@@ -1356,7 +1359,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         else:
             raise Exception(f'Invalid argument fee: {fee}')
 
-        if i_max is None:
+        if len(i_max) == 0:
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
@@ -1400,13 +1403,21 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # note: Actually it might be the case that not all UTXOs from the wallet are
             #       being spent if the user manually selected UTXOs.
             sendable = sum(map(lambda c: c.value_sats(), coins))
-            outputs[i_max].value = 0
+            for (_,i) in i_max:
+                outputs[i].value = 0
             tx = PartialTransaction.from_io(list(coins), list(outputs))
             fee = fee_estimator(tx.estimated_size())
             amount = sendable - tx.output_value() - fee
             if amount < 0:
                 raise NotEnoughFunds()
-            outputs[i_max].value = amount
+            distr_amount = 0
+            for (weight, i) in i_max:
+                val = int((amount/i_max_sum) * weight)
+                outputs[i].value = val
+                distr_amount += val
+
+            (x,i) = i_max[-1]
+            outputs[i].value += (amount - distr_amount)
             tx = PartialTransaction.from_io(list(coins), list(outputs))
 
         # Timelock tx to current height.
@@ -2074,7 +2085,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_onchain_request_status(self, r):
+    def get_onchain_request_status(self, r: OnchainInvoice) -> Tuple[bool, Optional[int]]:
         address = r.get_address()
         amount = r.get_amount_sat()
         received, sent = self.get_addr_io(address)
@@ -2231,6 +2242,24 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         super().receive_tx_callback(tx_hash, tx, tx_height)
+        self._update_request_statuses_touched_by_tx(tx_hash)
+
+    def add_verified_tx(self, tx_hash, info):
+        super().add_verified_tx(tx_hash, info)
+        self._update_request_statuses_touched_by_tx(tx_hash)
+
+    def undo_verifications(self, blockchain, above_height):
+        reorged_txids = super().undo_verifications(blockchain, above_height)
+        for txid in reorged_txids:
+            self._update_request_statuses_touched_by_tx(txid)
+
+    def _update_request_statuses_touched_by_tx(self, tx_hash: str) -> None:
+        # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
+        #       For a given receive request, if tx1 touches it but tx2 does not, then
+        #       we were called when tx1 was added, but we will not get called when tx2 replaces tx1.
+        tx = self.db.get_transaction(tx_hash)
+        if tx is None:
+            return
         for txo in tx.outputs():
             addr = txo.address
             if addr in self.receive_requests:
@@ -2246,7 +2275,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         expiration = expiration or 0
         return OnchainInvoice(
             type=PR_TYPE_ONCHAIN,
-            outputs=[(TYPE_ADDRESS, address, amount_sat)],
+            outputs=[PartialTxOutput.from_address_and_value(address, amount_sat)],
             message=message,
             time=timestamp,
             amount_sat=amount_sat,
@@ -2295,11 +2324,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             key = req.rhash
         return key
 
-    def add_payment_request(self, req: Invoice):
+    def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):
         key = self.get_key_for_receive_request(req, sanity_checks=True)
         message = req.message
         self.receive_requests[key] = req
         self.set_label(key, message)  # should be a default label
+        if write_to_disk:
+            self.save_db()
         return req
 
     def delete_request(self, key):
@@ -2316,11 +2347,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         elif self.lnworker:
             self.lnworker.delete_payment(key)
 
-    def remove_payment_request(self, addr):
-        if addr not in self.receive_requests:
-            return False
-        self.receive_requests.pop(addr)
-        return True
+    def remove_payment_request(self, addr) -> bool:
+        found = False
+        if addr in self.receive_requests:
+            found = True
+            self.receive_requests.pop(addr)
+            self.save_db()
+        return found
 
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """

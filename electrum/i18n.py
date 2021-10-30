@@ -69,7 +69,7 @@ languages = {
     'nb_NO': _('Norwegian Bokmal'),
     'nl_NL': _('Dutch'),
     'pl_PL': _('Polish'),
-    'pt_BR': _('Brasilian'),
+    'pt_BR': _('Portuguese (Brazil)'),
     'pt_PT': _('Portuguese'),
     'ro_RO': _('Romanian'),
     'ru_RU': _('Russian'),
@@ -84,3 +84,4 @@ languages = {
     'zh_CN': _('Chinese Simplified'),
     'zh_TW': _('Chinese Traditional')
 }
+assert '' in languages

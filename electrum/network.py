@@ -275,11 +275,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.asyncio_loop = asyncio.get_event_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
-        try:
-            self._loop_thread = self.asyncio_loop._mythread  # type: threading.Thread  # only used for sanity checks
-        except AttributeError as e:
-            self.logger.warning(f"asyncio loop does not have _mythread set: {e!r}")
-            self._loop_thread = None
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
@@ -387,7 +382,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.path_finder = None
 
     def run_from_another_thread(self, coro, *, timeout=None):
-        assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
+        assert util.get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
         return fut.result(timeout)
 
@@ -912,6 +907,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # server_msg is untrusted input so it should not be shown to the user. see #4968
         server_msg = str(server_msg)
         server_msg = server_msg.replace("\n", r"\n")
+
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/policy/policy.cpp
         # grep "reason ="
         policy_error_messages = {
@@ -933,6 +929,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             if substring in server_msg:
                 msg = policy_error_messages[substring]
                 return msg if msg else substring
+
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/script/script_error.cpp
         script_error_messages = {
             r"Script evaluated without error but finished with a false/empty top stack element",
@@ -994,7 +991,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/validation.cpp
         # grep "REJECT_"
         # grep "TxValidationResult"
-        # should come after script_error.cpp (due to e.g. non-mandatory-script-verify-flag)
+        # should come after script_error.cpp (due to e.g. "non-mandatory-script-verify-flag")
         validation_error_messages = {
             r"coinbase": None,
             r"tx-size-small": None,
@@ -1075,6 +1072,29 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         for substring in tx_verify_error_messages:
             if substring in server_msg:
                 msg = tx_verify_error_messages[substring]
+                return msg if msg else substring
+        # https://github.com/bitcoin/bitcoin/blob/5bb64acd9d3ced6e6f95df282a1a0f8b98522cb0/src/policy/policy.cpp
+        # grep "reason ="
+        # should come after validation.cpp (due to "tx-size" vs "tx-size-small")
+        # should come after script_error.cpp (due to e.g. "version")
+        policy_error_messages = {
+            r"version": _("Transaction uses non-standard version."),
+            r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
+            r"scriptsig-size": None,
+            r"scriptsig-not-pushonly": None,
+            r"scriptpubkey":
+                ("scriptpubkey\n" +
+                 _("Some of the outputs pay to a non-standard script.")),
+            r"bare-multisig": None,
+            r"dust":
+                (_("Transaction could not be broadcast due to dust outputs.\n"
+                   "Some of the outputs are too small in value, probably lower than 1000 satoshis.\n"
+                   "Check the units, make sure you haven't confused e.g. mBTC and BTC.")),
+            r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
+        }
+        for substring in policy_error_messages:
+            if substring in server_msg:
+                msg = policy_error_messages[substring]
                 return msg if msg else substring
         # otherwise:
         return _("Unknown error")
@@ -1318,7 +1338,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     def send_http_on_proxy(cls, method, url, **kwargs):
         network = cls.get_instance()
         if network:
-            assert network._loop_thread is not threading.currentThread()
+            assert util.get_running_loop() != network.asyncio_loop
             loop = network.asyncio_loop
         else:
             loop = asyncio.get_event_loop()

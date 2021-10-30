@@ -88,7 +88,7 @@ from electrum.wallet_db import WalletDB
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME
+from electrum.util import InvalidPassword, BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
@@ -166,7 +166,7 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
 
     config_options['password'] = config_options.get('password') or password
 
-    if cmd.name == 'password':
+    if cmd.name == 'password' and 'new_password' not in config_options:
         new_password = prompt_password('New password:')
         config_options['new_password'] = new_password
 
@@ -341,10 +341,12 @@ def main():
 
     # check uri
     uri = config_options.get('url')
-    if uri:
-        if not uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-            print_stderr('unknown command:', uri)
-            sys.exit(1)
+    if uri and not (
+        uri.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':') or
+        uri.lower().startswith(LIGHTNING_URI_SCHEME + ':')
+    ):
+        print_stderr('unknown command:', uri)
+        sys.exit(1)
 
     config = SimpleConfig(config_options)
 

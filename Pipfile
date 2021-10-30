@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pyaes = ">=0.1a1"
+ecdsa = ">=0.13"
+qrcode = "*"
+protobuf = ">=3.12"
+dnspython = ">=2.0,<2.1"
+jsonrpclib-pelix = "*"
+aiohttp = ">=3.3.0,<4.0.0"
+aiohttp-socks = ">=0.3"
+certifi = "*"
+scrypt = "*"
+QDarkStyle = "<2.9"
+aiorpcX = "<0.19,>=0.18.7"
+PyQt5 = "*"
+bitstring = "*"
+attrs = ">=19.2.0"
+cryptography = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"

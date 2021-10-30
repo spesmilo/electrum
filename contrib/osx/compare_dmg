@@ -1,0 +1,61 @@
+#!/usr/bin/env bash                                                                                                                                                                                               
+set -e
+
+if [ $(uname) != "Darwin" ]; then
+    echo "This script needs to be run on macOS."
+    exit 1
+fi
+
+UNSIGNED_DMG="$1"
+RELEASE_DMG="$2"
+CONTRIB_OSX="$(dirname "$(grealpath "$0")")"
+PROJECT_ROOT="$CONTRIB_OSX/../.."
+WORKSPACE="/tmp/electrum_compare_dmg"
+
+if [ -z "$UNSIGNED_DMG" ]; then
+    echo "usage: $0 <unsigned dmg> <release dmg>"
+    exit 1
+fi
+
+if [ -z "$RELEASE_DMG" ]; then
+    echo "usage: $0 <unsigned dmg> <release dmg>"
+    exit 1
+fi
+
+UNSIGNED_DMG=$(grealpath "$UNSIGNED_DMG")
+RELEASE_DMG=$(grealpath "$RELEASE_DMG")
+
+cd "$PROJECT_ROOT"
+rm -rf "$WORKSPACE" && mkdir -p "$WORKSPACE"
+
+DMG_UNSIGNED_UNPACKED="$WORKSPACE/dmg1"
+DMG_RELEASE_UNPACKED="$WORKSPACE/dmg2"
+
+hdiutil attach "$UNSIGNED_DMG"
+cp -r /Volumes/Electrum "$DMG_UNSIGNED_UNPACKED"
+hdiutil detach /Volumes/Electrum
+
+hdiutil attach "$RELEASE_DMG"
+cp -r /Volumes/Electrum "$DMG_RELEASE_UNPACKED"
+hdiutil detach /Volumes/Electrum
+
+# copy signatures from RELEASE_DMG to UNSIGNED_DMG
+echo "Extracting signatures from release app..."
+QUIET="1" "$CONTRIB_OSX/extract_sigs.sh" "$DMG_RELEASE_UNPACKED"/Electrum.app
+echo "Applying extracted signatures to unsigned app..."
+QUIET="1" "$CONTRIB_OSX/apply_sigs.sh" "$DMG_UNSIGNED_UNPACKED"/Electrum.app mac_extracted_sigs.tar.gz
+
+rm mac_extracted_sigs.tar.gz
+rm -rf "$DMG_UNSIGNED_UNPACKED"
+
+diff=$(diff -qr "$WORKSPACE/signed_app" "$DMG_RELEASE_UNPACKED") || diff="diff errored"
+echo $diff
+if [ "$diff" ]; then
+    echo "DMGs do *not* match."
+    echo "failure"
+    exit 1
+else
+    echo "DMGs match."
+    echo "success"
+    exit 0
+fi

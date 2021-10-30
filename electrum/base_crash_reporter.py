@@ -55,6 +55,8 @@ class BaseCrashReporter(Logger):
                              'useful debug information:')
     DESCRIBE_ERROR_MESSAGE = _("Please briefly describe what led to the error (optional):")
     ASK_CONFIRM_SEND = _("Do you want to send this report?")
+    USER_COMMENT_PLACEHOLDER = _("Do not enter sensitive/private information here. "
+                                 "The report will be visible on the public issue tracker.")
 
     def __init__(self, exctype, value, tb):
         Logger.__init__(self)
@@ -79,7 +81,7 @@ class BaseCrashReporter(Logger):
     def get_traceback_info(self):
         exc_string = str(self.exc_args[1])
         stack = traceback.extract_tb(self.exc_args[2])
-        readable_trace = "".join(traceback.format_list(stack))
+        readable_trace = self.__get_traceback_str_to_send()
         id = {
             "file": stack[-1].filename,
             "name": stack[-1].name,
@@ -107,12 +109,19 @@ class BaseCrashReporter(Logger):
             pass
         return args
 
-    def _get_traceback_str(self) -> str:
+    def __get_traceback_str_to_send(self) -> str:
+        # make sure that traceback sent to crash reporter contains
+        # e.__context__ and e.__cause__, i.e. if there was a chain of
+        # exceptions, we want the full traceback for the whole chain.
         return "".join(traceback.format_exception(*self.exc_args))
+
+    def _get_traceback_str_to_display(self) -> str:
+        # overridden in Qt subclass
+        return self.__get_traceback_str_to_send()
 
     def get_report_string(self):
         info = self.get_additional_info()
-        info["traceback"] = self._get_traceback_str()
+        info["traceback"] = self._get_traceback_str_to_display()
         return self.issue_template.format(**info)
 
     def get_user_description(self):

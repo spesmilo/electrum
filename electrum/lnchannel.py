@@ -24,7 +24,7 @@ import binascii
 import json
 from enum import IntEnum
 from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
-                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union)
+                    Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
 import time
 import threading
 from abc import ABC, abstractmethod
@@ -61,6 +61,7 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
+from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -138,6 +139,13 @@ class RemoteCtnTooFarInFuture(Exception): pass
 
 def htlcsum(htlcs: Iterable[UpdateAddHtlc]):
     return sum([x.amount_msat for x in htlcs])
+
+
+class HTLCWithStatus(NamedTuple):
+    channel_id: bytes
+    htlc: UpdateAddHtlc
+    direction: Direction
+    status: str
 
 
 class AbstractChannel(Logger, ABC):
@@ -556,6 +564,8 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
+        self.fail_htlc_reasons = state["fail_htlc_reasons"]
+        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._sweep_info = {}
@@ -722,7 +732,7 @@ class Channel(AbstractChannel):
     def get_next_feerate(self, subject: HTLCOwner) -> int:
         return self.hm.get_feerate_in_next_ctx(subject)
 
-    def get_payments(self, status=None):
+    def get_payments(self, status=None) -> Mapping[bytes, List[HTLCWithStatus]]:
         out = defaultdict(list)
         for direction, htlc in self.hm.all_htlcs_ever():
             htlc_proposer = LOCAL if direction is SENT else REMOTE
@@ -734,7 +744,9 @@ class Channel(AbstractChannel):
                 _status = 'inflight'
             if status and status != _status:
                 continue
-            out[htlc.payment_hash].append((self.channel_id, htlc, direction, _status))
+            htlc_with_status = HTLCWithStatus(
+                channel_id=self.channel_id, htlc=htlc, direction=direction, status=_status)
+            out[htlc.payment_hash].append(htlc_with_status)
         return out
 
     def open_with_first_pcp(self, remote_pcp: bytes, remote_sig: bytes) -> None:
@@ -903,7 +915,7 @@ class Channel(AbstractChannel):
             remote_ctn = self.get_latest_ctn(REMOTE)
             if onion_packet:
                 # TODO neither local_ctn nor remote_ctn are used anymore... no point storing them.
-                self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
+                self.unfulfilled_htlcs[htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
 
         self.logger.info("receive_htlc")
         return htlc
@@ -1053,8 +1065,7 @@ class Channel(AbstractChannel):
                 # if we are forwarding, save error message to disk
                 if self.lnworker.get_payment_info(htlc.payment_hash) is None:
                     self.save_fail_htlc_reason(htlc.htlc_id, error_bytes, failure_message)
-                else:
-                    self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
+                self.lnworker.htlc_failed(self, htlc.payment_hash, htlc.htlc_id, error_bytes, failure_message)
 
     def save_fail_htlc_reason(
             self,
@@ -1063,10 +1074,10 @@ class Channel(AbstractChannel):
             failure_message: Optional['OnionRoutingFailure']):
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
-        self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)
+        self.fail_htlc_reasons[htlc_id] = (error_hex, failure_hex)
 
     def pop_fail_htlc_reason(self, htlc_id):
-        error_hex, failure_hex = self.hm.log['fail_htlc_reasons'].pop(htlc_id, (None, None))
+        error_hex, failure_hex = self.fail_htlc_reasons.pop(htlc_id, (None, None))
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
@@ -1336,6 +1347,8 @@ class Channel(AbstractChannel):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
+        if feerate < FEERATE_PER_KW_MIN_RELAY_LIGHTNING:
+            raise Exception(f"Cannot update_fee: feerate lower than min relay fee. {feerate} sat/kw. us: {from_us}")
         sender = LOCAL if from_us else REMOTE
         ctx_owner = -sender
         ctn = self.get_next_ctn(ctx_owner)

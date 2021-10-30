@@ -45,7 +45,7 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, profiler,
+from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
@@ -58,6 +58,7 @@ from .network_dialog import NetworkDialog
 from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
+from .exception_window import Exception_Hook
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -296,7 +297,7 @@ class ElectrumGui(Logger):
         return wrapper
 
     @count_wizards_in_progress
-    def start_new_window(self, path, uri, *, app_is_starting=False):
+    def start_new_window(self, path, uri, *, app_is_starting=False) -> Optional[ElectrumWindow]:
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
         wallet = None
@@ -398,6 +399,8 @@ class ElectrumGui(Logger):
         self.app.lastWindowClosed.connect(self._maybe_quit_if_no_windows_open)
         self.app.aboutToQuit.connect(self._cleanup_before_exit)
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
+        # hook for crash reporter
+        Exception_Hook.maybe_setup(config=self.config)
         # first-start network-setup
         try:
             self.init_network()
@@ -411,11 +414,18 @@ class ElectrumGui(Logger):
         # start wizard to select/create wallet
         self.timer.start()
         path = self.config.get_wallet_path(use_gui_last_wallet=True)
-        if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
-            return
+        try:
+            if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
+                return
+        except Exception as e:
+            self.logger.error("error loading wallet (or creating window for it)")
+            send_exception_to_crash_reporter(e)
+            # Let Qt event loop start properly so that crash reporter window can appear.
+            # We will shutdown when the user closes that window, via lastWindowClosed signal.
         # main loop
+        self.logger.info("starting Qt main loop")
         self.app.exec_()
-        # on some platforms the exec_ call may not return, so use clean_up()
+        # on some platforms the exec_ call may not return, so use _cleanup_before_exit
 
     def stop(self):
         self.logger.info('closing GUI')

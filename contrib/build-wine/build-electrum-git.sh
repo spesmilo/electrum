@@ -2,7 +2,7 @@
 
 NAME_ROOT=electrum
 
-export PYTHONDONTWRITEBYTECODE=1
+export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
 
 
 # Let's begin!

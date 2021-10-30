@@ -1,0 +1,230 @@
+task:
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  matrix:
+    - name: Tox Python $ELECTRUM_PYTHON_VERSION
+      env:
+        ELECTRUM_IMAGE: python:$ELECTRUM_PYTHON_VERSION
+        TOXENV: py3
+        ELECTRUM_PYTHON_NAME: python3
+      matrix:
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.6
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.7
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.8
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.9
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3
+       - env:
+           ELECTRUM_PYTHON_VERSION: rc
+    - name: Tox PyPy
+      allow_failures: true
+      env:
+        ELECTRUM_IMAGE: pypy:3
+        TOXENV: pypy3
+        ELECTRUM_PYTHON_NAME: pypy3
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  version_script:
+    - $ELECTRUM_PYTHON_NAME --version
+  tag_script:
+    - git tag
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0
+    - pip install -r $ELECTRUM_REQUIREMENTS
+  tox_script:
+    - tox
+  coveralls_script:
+    - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
+  env:
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    # following CI_* env vars are set up for coveralls
+    CI_NAME: "CirrusCI"
+    CI_BUILD_NUMBER: $CIRRUS_BUILD_ID
+    CI_JOB_ID: $CIRRUS_TASK_ID
+    CI_BUILD_URL: "https://cirrus-ci.com/task/$CIRRUS_TASK_ID"
+    CI_BRANCH: $CIRRUS_BRANCH
+    CI_PULL_REQUEST: $CIRRUS_PR
+    # in addition, COVERALLS_REPO_TOKEN is set as an "override" in https://cirrus-ci.com/settings/...
+
+task:
+  name: Locale
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0 gettext
+    - pip install -r $ELECTRUM_REQUIREMENTS
+    - pip install requests
+  locale_script:
+    - contrib/push_locale
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
+  depends_on:
+    - Tox Python 3.9
+  only_if: $CIRRUS_BRANCH == 'master'
+
+task:
+  name: Regtest functional tests
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Regtest && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  bitcoind_cache:
+    folder: /tmp/bitcoind
+    populate_script: mkdir -p /tmp/bitcoind
+  install_script:
+    - apt-get update
+    - apt-get -y install libsecp256k1-0 curl jq bc
+    - pip3 install .[tests]
+    - pip3 install electrumx
+    - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
+    - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
+    - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
+    - BITCOIND_URL=https://bitcoincore.org/bin/bitcoin-core-$BITCOIND_VERSION/$BITCOIND_FILENAME
+    - tar -xaf $BITCOIND_PATH || (rm -f /tmp/bitcoind/* && curl --output $BITCOIND_PATH $BITCOIND_URL && tar -xaf $BITCOIND_PATH)
+    - cp -a bitcoin-$BITCOIND_VERSION/* /usr/
+  bitcoind_service_background_script:
+    - electrum/tests/regtest/run_bitcoind.sh
+  electrumx_service_background_script:
+    - electrum/tests/regtest/run_electrumx.sh
+  regtest_script:
+    - sleep 10s
+    - python3 -m unittest electrum/tests/regtest.py
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    # ElectrumX exits with an error without this:
+    ALLOW_ROOT: 1
+
+task:
+  container:
+    image: $ELECTRUM_IMAGE
+    cpu: 1
+    memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    populate_script: mkdir -p ~/.cache/pip
+  electrum_cache:
+    folder: /tmp/electrum-build
+    populate_script: mkdir -p /tmp/electrum-build
+  install_script:
+    - pip install flake8
+  flake8_script:
+    - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
+  env:
+    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+  matrix:
+    - name: Flake8 Mandatory
+      env:
+        ELECTRUM_LINTERS: E9,F63,F7,F82
+    - name: Flake8 Non-Mandatory
+      env:
+        ELECTRUM_LINTERS: E,F,W,C90
+      allow_failures: true
+
+task:
+  name: Windows build
+  container:
+    dockerfile: contrib/build-wine/Dockerfile
+    cpu: 1
+    memory: 2G
+  build_script:
+    - cd contrib/build-wine
+    - ./make_win.sh
+  binaries_artifacts:
+    path: "contrib/build-wine/dist/*"
+  env:
+    CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
+
+task:
+  name: Android build
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 2
+    memory: 2G
+  build_script:
+    - ./contrib/android/make_apk
+  binaries_artifacts:
+    path: "dist/*"
+
+task:
+  name: MacOS build
+  macos_instance:
+    image: catalina-xcode-11.3.1
+  env:
+    TARGET_OS: macOS
+  install_script:
+    - git fetch --all --tags
+  build_script:
+    - ./contrib/osx/make_osx
+  sum_script:
+    - ls -lah dist
+    - shasum -a 256 dist/*.dmg
+  binaries_artifacts:
+    path: "dist/*"
+
+task:
+  name: AppImage build
+  container:
+    dockerfile: contrib/build-linux/appimage/Dockerfile
+    cpu: 2
+    memory: 1G
+  build_script:
+    - ./contrib/build-linux/appimage/make_appimage.sh
+  binaries_artifacts:
+    path: "dist/*"
+
+task:
+  name: tarball build
+  container:
+    dockerfile: contrib/build-linux/sdist/Dockerfile
+    cpu: 1
+    memory: 1G
+  build_script:
+    - ./contrib/build-linux/sdist/make_sdist.sh
+  binaries_artifacts:
+    path: "dist/*"
+
+task:
+  name: Submodules
+  container:
+    image: python:3.7
+    cpu: 1
+    memory: 1G
+  fetch_script:
+    - git fetch --all --tags
+  check_script:
+    - ./contrib/deterministic-build/check_submodules.sh
+  only_if: $CIRRUS_TAG != ''
