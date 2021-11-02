@@ -33,7 +33,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       OnionFailureCodeMetaFlag)
 from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState
 from . import lnutil
-from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
+from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, PaymentFailure, LnFeatures,
@@ -42,7 +42,6 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     LN_MAX_FUNDING_SAT, calc_fees_for_commitment_tx,
                      UpfrontShutdownScriptViolation)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
@@ -496,6 +495,9 @@ class Peer(Logger):
         self.lnworker.peer_closed(self)
         self.got_disconnected.set()
 
+    def is_shutdown_anysegwit(self):
+        return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
+
     def is_static_remotekey(self):
         return self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
@@ -532,7 +534,7 @@ class Peer(Logger):
             static_remotekey = bfh(wallet.get_public_key(addr))
         else:
             static_remotekey = None
-        dust_limit_sat = bitcoin.DUST_LIMIT_DEFAULT_SAT_LEGACY
+        dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
         # for comparison of defaults, see
         # https://github.com/ACINQ/eclair/blob/afa378fbb73c265da44856b4ad0f2128a88ae6c6/eclair-core/src/main/resources/reference.conf#L66
@@ -600,17 +602,6 @@ class Peer(Logger):
         if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(
-                f"MUST set funding_satoshis to less than 2^24 satoshi. "
-                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
-        if push_msat > 1000 * funding_sat:
-            raise Exception(
-                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
-                f"{push_msat} msat > {1000 * funding_sat} msat")
-        if funding_sat < lnutil.MIN_FUNDING_SAT:
-            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
-
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
 
@@ -676,15 +667,13 @@ class Peer(Logger):
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script
         )
-        remote_config.validate_params(funding_sat=funding_sat)
-        # if channel_reserve_satoshis is less than dust_limit_satoshis within the open_channel message:
-        #     MUST reject the channel.
-        if remote_config.reserve_sat < local_config.dust_limit_sat:
-            raise Exception("violated constraint: remote_config.reserve_sat < local_config.dust_limit_sat")
-        # if channel_reserve_satoshis from the open_channel message is less than dust_limit_satoshis:
-        #     MUST reject the channel.
-        if local_config.reserve_sat < remote_config.dust_limit_sat:
-            raise Exception("violated constraint: local_config.reserve_sat < remote_config.dust_limit_sat")
+        ChannelConfig.cross_validate_params(
+            local_config=local_config,
+            remote_config=remote_config,
+            funding_sat=funding_sat,
+            is_local_initiator=True,
+            initial_feerate_per_kw=feerate,
+        )
 
         # -> funding created
         # replace dummy output in funding tx
@@ -770,6 +759,8 @@ class Peer(Logger):
             'onion_keys': {},
             'data_loss_protect_remote_pcp': {},
             "log": {},
+            "fail_htlc_reasons": {},  # htlc_id -> onion_packet
+            "unfulfilled_htlcs": {},  # htlc_id -> error_bytes, failure_message
             "revocation_store": {},
             "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
         }
@@ -796,16 +787,6 @@ class Peer(Logger):
         feerate = payload['feerate_per_kw']  # note: we are not validating this
         temp_chan_id = payload['temporary_channel_id']
         local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(
-                f"MUST set funding_satoshis to less than 2^24 satoshi. "
-                f"{funding_sat} sat > {LN_MAX_FUNDING_SAT}")
-        if push_msat > 1000 * funding_sat:
-            raise Exception(
-                f"MUST set push_msat to equal or less than 1000 * funding_satoshis: "
-                f"{push_msat} msat > {1000 * funding_sat} msat")
-        if funding_sat < lnutil.MIN_FUNDING_SAT:
-            raise Exception(f"funding_sat too low: {funding_sat} < {lnutil.MIN_FUNDING_SAT}")
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
@@ -827,26 +808,14 @@ class Peer(Logger):
             current_per_commitment_point=None,
             upfront_shutdown_script=upfront_shutdown_script,
         )
+        ChannelConfig.cross_validate_params(
+            local_config=local_config,
+            remote_config=remote_config,
+            funding_sat=funding_sat,
+            is_local_initiator=False,
+            initial_feerate_per_kw=feerate,
+        )
 
-        remote_config.validate_params(funding_sat=funding_sat)
-        # The receiving node MUST fail the channel if:
-        #     the funder's amount for the initial commitment transaction is not
-        #     sufficient for full fee payment.
-        if remote_config.initial_msat < calc_fees_for_commitment_tx(
-                num_htlcs=0,
-                feerate=feerate,
-                is_local_initiator=False)[REMOTE]:
-            raise Exception(
-                "the funder's amount for the initial commitment transaction "
-                "is not sufficient for full fee payment")
-        # The receiving node MUST fail the channel if:
-        #     both to_local and to_remote amounts for the initial commitment transaction are
-        #     less than or equal to channel_reserve_satoshis (see BOLT 3).
-        if (local_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']
-                and remote_config.initial_msat <= 1000 * payload['channel_reserve_satoshis']):
-            raise Exception(
-                "both to_local and to_remote amounts for the initial commitment "
-                "transaction are less than or equal to channel_reserve_satoshis")
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
         #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
         #       but we will not play along with actually announcing the channel (so we keep it private).
@@ -1377,6 +1346,8 @@ class Peer(Logger):
         #        - for example; atm we forward first and then persist "forwarding_info",
         #          so if we segfault in-between and restart, we might forward an HTLC twice...
         #          (same for trampoline forwarding)
+        #        - we could check for the exposure to dust HTLCs, see:
+        #          https://github.com/ACINQ/eclair/pull/1985
         forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
@@ -1726,11 +1697,15 @@ class Peer(Logger):
         if their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
                 raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
-        # BOLT-02 restrict the scriptpubkey to some templates:
-        if not (match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0)
-                or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2SH)
-                or match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_P2PKH)):
-            raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
+        else:
+            # BOLT-02 restrict the scriptpubkey to some templates:
+            if self.is_shutdown_anysegwit() and match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
+                pass
+            elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
+                pass
+            else:
+                raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
+
         chan_id = chan.channel_id
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
@@ -1787,9 +1762,9 @@ class Peer(Logger):
         # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
         max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
         our_fee = min(our_fee, max_fee)
-        drop_remote = False
+        drop_to_remote = False
         def send_closing_signed():
-            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_to_remote)
             self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
         def verify_signature(tx, sig):
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
@@ -1810,13 +1785,22 @@ class Peer(Logger):
             # verify their sig: they might have dropped their output
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
-                drop_remote = False
+                drop_to_remote = False
             else:
                 our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
                 if verify_signature(closing_tx, their_sig):
-                    drop_remote = True
+                    drop_to_remote = True
                 else:
+                    # this can happen if we consider our output too valuable to drop,
+                    # but the remote drops it because it violates their dust limit
                     raise Exception('failed to verify their signature')
+            # at this point we know how the closing tx looks like
+            # check that their output is above their scriptpubkey's network dust limit
+            if not drop_to_remote:
+                to_remote_idx = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey.hex()).pop()
+                to_remote_amount = closing_tx.outputs()[to_remote_idx].value
+                transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
+
             # Agree if difference is lower or equal to one (see below)
             if abs(our_fee - their_fee) < 2:
                 our_fee = their_fee
@@ -1862,7 +1846,7 @@ class Peer(Logger):
                     continue
                 self.maybe_send_commitment(chan)
                 done = set()
-                unfulfilled = chan.hm.log.get('unfulfilled_htlcs', {})
+                unfulfilled = chan.unfulfilled_htlcs
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
                     if not chan.hm.is_htlc_irrevocably_added_yet(htlc_proposer=REMOTE, htlc_id=htlc_id):
                         continue

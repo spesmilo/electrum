@@ -14,11 +14,8 @@ PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-# note: compiling python 3.8.x requires at least glibc 2.27,
-#       which is first available on ubuntu 18.04
-PYTHON_VERSION=3.7.10
+PYTHON_VERSION=3.9.7
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
-SQUASHFSKIT_COMMIT="ae0d656efa2d0df2fcac795b6823b44462f19386"
 
 
 VERSION=`git describe --tags --dirty --always`
@@ -37,11 +34,11 @@ info "downloading some dependencies."
 download_if_not_exist "$CACHEDIR/functions.sh" "https://raw.githubusercontent.com/AppImage/pkg2appimage/$PKG2APPIMAGE_COMMIT/functions.sh"
 verify_hash "$CACHEDIR/functions.sh" "78b7ee5a04ffb84ee1c93f0cb2900123773bc6709e5d1e43c37519f590f86918"
 
-download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/12/appimagetool-x86_64.AppImage"
-verify_hash "$CACHEDIR/appimagetool" "d918b4df547b388ef253f3c9e7f6529ca81a885395c31f619d9aaf7030499a13"
+download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
+verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "f8d82e7572c86ec9d55c8627aae5040124fd2203af400c383c821b980306ee6b"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "f8145616e68c00041d1a6399b76387390388f8359581abc24432bb969b5e3c57"
 
 
 
@@ -51,8 +48,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
-    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.7/python3.7_3.7.6-1.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.7-reproducible-buildinfo.diff"
+    # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
+    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
     ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
@@ -66,18 +63,8 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # to result in a different output on macOS compared to Linux. We simply patch
     # sysconfigdata to remove the extension.
     # Some more info: https://bugs.python.org/issue27631
-    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.7/_sysconfigdata*
+    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.9/_sysconfigdata*
 )
-
-
-info "Building squashfskit"
-git clone "https://github.com/squashfskit/squashfskit.git" "$BUILDDIR/squashfskit"
-(
-    cd "$BUILDDIR/squashfskit"
-    git checkout "${SQUASHFSKIT_COMMIT}^{commit}"
-    make -C squashfs-tools mksquashfs || fail "Could not build squashfskit"
-)
-MKSQUASHFS="$BUILDDIR/squashfskit/squashfs-tools/mksquashfs"
 
 
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
@@ -88,7 +75,7 @@ appdir_python() {
   env \
     PYTHONNOUSERSITE=1 \
     LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
-    "$APPDIR/usr/bin/python3.7" "$@"
+    "$APPDIR/usr/bin/python3.9" "$@"
 }
 
 python='appdir_python'
@@ -166,7 +153,7 @@ info "finalizing AppDir."
     move_lib
 
     # apply global appimage blacklist to exclude stuff
-    # move usr/include out of the way to preserve usr/include/python3.7m.
+    # move usr/include out of the way to preserve usr/include/python3.9m.
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
@@ -189,7 +176,7 @@ strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
-    printf '%s\0' "$APPDIR/usr/bin/python3.7"
+    printf '%s\0' "$APPDIR/usr/bin/python3.9"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
@@ -204,11 +191,11 @@ remove_emptydirs
 
 info "removing some unneeded stuff to decrease binary size."
 rm -rf "$APPDIR"/usr/{share,include}
-PYDIR="$APPDIR"/usr/lib/python3.7
+PYDIR="$APPDIR"/usr/lib/python3.9
 rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
 rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}
-rm -rf "$PYDIR"/config-3.7m-x86_64-linux-gnu
+rm -rf "$PYDIR"/config-3.9m-x86_64-linux-gnu
 rm -rf "$PYDIR"/site-packages/{opt,pip,setuptools,wheel}
 rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
@@ -247,14 +234,16 @@ info "creating the AppImage."
     sed -i 's|AI\x02|\x00\x00\x00|' "$CACHEDIR/appimagetool_copy"
     chmod +x "$CACHEDIR/appimagetool_copy"
     "$CACHEDIR/appimagetool_copy" --appimage-extract
-    # We build a small wrapper for mksquashfs that removes the -mkfs-fixed-time option
-    # that mksquashfs from squashfskit does not support. It is not needed for squashfskit.
-    cat > ./squashfs-root/usr/lib/appimagekit/mksquashfs << EOF
+    # We build a small wrapper for mksquashfs that removes the -mkfs-time option
+    # as it conflicts with SOURCE_DATE_EPOCH.
+    mv "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs" "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs_orig"
+    cat > "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs" << EOF
 #!/bin/sh
-args=\$(echo "\$@" | sed -e 's/-mkfs-fixed-time 0//')
-"$MKSQUASHFS" \$args
+args=\$(echo "\$@" | sed -e 's/-mkfs-time 0//')
+"$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs_orig" \$args
 EOF
-    env VERSION="$VERSION" ARCH=x86_64 SOURCE_DATE_EPOCH=1530212462 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
+    chmod +x "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs"
+    env VERSION="$VERSION" ARCH=x86_64 ./squashfs-root/AppRun --no-appstream --verbose "$APPDIR" "$APPIMAGE"
 )
 
 

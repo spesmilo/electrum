@@ -11,8 +11,8 @@ assert HostPython3Recipe.python_depends == []
 
 
 class HostPython3RecipePinned(util.InheritedRecipeMixin, HostPython3Recipe):
-    version = "3.8.8"
-    sha512sum = "1c6742cdc92ba6d3c03c63fd025bc348462517a503343685a42e22838aedc94ab2e438f1d1623b91ca1be5f39f327d76385d66b785ff93f0f3737b9870e9a003"
+    version = "3.8.12"
+    sha512sum = "f7227c9d82c37a3f21d4e4ec352b75424d8103b5144e7accec13dca626c79268db76143782629131525a07bb026630e55fccd4381bd78990b3561cc565681190"
 
 
 recipe = HostPython3RecipePinned()

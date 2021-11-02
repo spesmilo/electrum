@@ -33,7 +33,7 @@ import binascii
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
-from .invoices import PR_TYPE_ONCHAIN, Invoice
+from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 41     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 43     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -190,6 +190,8 @@ class WalletDB(JsonDB):
         self._convert_version_39()
         self._convert_version_40()
         self._convert_version_41()
+        self._convert_version_42()
+        self._convert_version_43()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -557,6 +559,7 @@ class WalletDB(JsonDB):
         if not self._is_upgrade_method_needed(24, 24):
             return
         # add 'type' field to onchain requests
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         for k, r in list(requests.items()):
             if r.get('address') == k:
@@ -624,6 +627,7 @@ class WalletDB(JsonDB):
     def _convert_version_29(self):
         if not self._is_upgrade_method_needed(28, 28):
             return
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
@@ -659,8 +663,8 @@ class WalletDB(JsonDB):
     def _convert_version_30(self):
         if not self._is_upgrade_method_needed(29, 29):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN
+        PR_TYPE_ONCHAIN = 0
+        PR_TYPE_LN = 2
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
@@ -682,8 +686,7 @@ class WalletDB(JsonDB):
     def _convert_version_31(self):
         if not self._is_upgrade_method_needed(30, 30):
             return
-
-        from .invoices import PR_TYPE_ONCHAIN
+        PR_TYPE_ONCHAIN = 0
         requests = self.data.get('payment_requests', {})
         invoices = self.data.get('invoices', {})
         for d in [invoices, requests]:
@@ -820,6 +823,32 @@ class WalletDB(JsonDB):
         imported_channel_backups.update(self.data.get('imported_channel_backups', {}))
         self.data['imported_channel_backups'] = imported_channel_backups
         self.data['seed_version'] = 41
+
+    def _convert_version_42(self):
+        # in OnchainInvoice['outputs'], convert values from None to 0
+        if not self._is_upgrade_method_needed(41, 41):
+            return
+        PR_TYPE_ONCHAIN = 0
+        requests = self.data.get('payment_requests', {})
+        invoices = self.data.get('invoices', {})
+        for d in [invoices, requests]:
+            for key, item in list(d.items()):
+                if item['type'] == PR_TYPE_ONCHAIN:
+                    item['outputs'] = [(_type, addr, (val or 0))
+                                       for _type, addr, val in item['outputs']]
+        self.data['seed_version'] = 42
+
+    def _convert_version_43(self):
+        if not self._is_upgrade_method_needed(42, 42):
+            return
+        channels = self.data.pop('channels', {})
+        for k, c in channels.items():
+            log = c['log']
+            c['fail_htlc_reasons'] = log.pop('fail_htlc_reasons', {})
+            c['unfulfilled_htlcs'] = log.pop('unfulfilled_htlcs', {})
+            log["1"]['unacked_updates'] = log.pop('unacked_local_updates2', {})
+        self.data['channels'] = channels
+        self.data['seed_version'] = 43
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -1328,6 +1357,15 @@ class WalletDB(JsonDB):
             v = dict((k, ShachainElement(bfh(x[0]), int(x[1]))) for k, x in v.items())
         elif key == 'data_loss_protect_remote_pcp':
             v = dict((k, bfh(x)) for k, x in v.items())
+        # convert htlc_id keys to int
+        if key in ['adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
+                   'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
+            v = dict((int(k), x) for k, x in v.items())
+        # convert keys to HTLCOwner
+        if key == 'log' or (path and path[-1] in ['locked_in', 'fails', 'settles']):
+            if "1" in v:
+                v[LOCAL] = v.pop("1")
+                v[REMOTE] = v.pop("-1")
         return v
 
     def _convert_value(self, path, key, v):
