@@ -26,7 +26,15 @@
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QCursor, QFont
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QTextBrowser)
+from PyQt5.QtWidgets import (
+    QGridLayout,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+    QTextBrowser,
+)
 
 from electrum.i18n import _
 from .create_new_stake_window import CreateNewStakingWindow
@@ -34,24 +42,32 @@ from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog
 from .staking_list import staking_list_controller
 from .terms_and_conditions_mixin import load_terms_and_conditions
 from .util import read_QIcon, WindowModalDialog, OkButton
-from ...stake import stake_api
+from ...stake import SocketConnector, StakeElectrumXAPIDataService
 
 
 def refresh_stake_dialog_window(wallet):
     """
-    Call this function to refresh stake dialog window
-    TODO
+    Call this function to refresh stake dialog window.
     """
-    current_staking_data = stake_api.get_detailed_stakes_data_for_addresses(addresses=wallet.get_addresses())
     current_height = wallet.get_local_height()
+    stake_api = StakeElectrumXAPIDataService(
+        connector=SocketConnector.setup_from_wallet(wallet=wallet)
+    )
+    current_staking_data = stake_api.get_detailed_stakes_data_for_addresses(
+        addresses=wallet.get_addresses()
+    )
 
-    staking_list_controller.insert_data(table_data={
-        'Type': ['what is type ??' for data in current_staking_data],
-        'Start Date': [data['timestamp'] for data in current_staking_data],
-        'Amount': [data['staking_amount'] for data in current_staking_data],
-        'Staking Period': [data['staking_period'] for data in current_staking_data],
-        'Blocks Left': [current_height - data['deposit_height'] for data in current_staking_data],
-    })
+    staking_list_controller.insert_data(
+        table_data={
+            'Type': ['what is type ??' for data in current_staking_data],
+            'Start Date': [data['timestamp'] for data in current_staking_data],
+            'Amount': [data['staking_amount'] for data in current_staking_data],
+            'Staking Period': [data['staking_period'] for data in current_staking_data],
+            'Blocks Left': [
+                current_height - data['deposit_height'] for data in current_staking_data
+            ],
+        }
+    )
 
 
 class CustomButton(QPushButton):
@@ -79,10 +95,16 @@ def staking_dialog(window):
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
     window.stake_button = CustomButton(
-        text=_('Stake'), trigger=window.create_stake_dialog, icon=read_QIcon("electrum.png")
+        text=_('Stake'),
+        trigger=window.create_stake_dialog,
+        icon=read_QIcon("electrum.png"),
     )
-    window.tx_detail_dialog = CompletedMultiClaimedStakeDialog(window)  # todo: currently used for test staked view (window)
-    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=window.tx_detail_dialog)
+    window.tx_detail_dialog = CompletedMultiClaimedStakeDialog(
+        window
+    )  # todo: currently used for test staked view (window)
+    window.claim_rewords_button = CustomButton(
+        text=_('Claim Rewords'), trigger=window.tx_detail_dialog
+    )
 
     window.staking_header = buttons = QHBoxLayout()
     buttons.addStretch(1)
@@ -93,6 +115,7 @@ def staking_dialog(window):
     window.receive_requests_label = QLabel(_('Staking History'))
 
     from .staking_list import staking_list
+
     window.staking_list = staking_list
 
     font = QFont()
