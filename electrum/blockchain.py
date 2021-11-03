@@ -315,7 +315,7 @@ class Blockchain(Logger):
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = pow_hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
-            raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
+           raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
@@ -335,13 +335,14 @@ class Blockchain(Logger):
         target = self.get_target(index-1)
         for i in range(num):
             height = start_height + i
+            print ("verirfy height: ",height)
             try:
                 expected_header_hash = self.get_hash(height)
             except MissingHeader:
                 expected_header_hash = None
             raw_header = data[i*HEADER_SIZE : (i+1)*HEADER_SIZE]
             header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_hash, target, expected_header_hash)
+           # self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
     @with_lock
