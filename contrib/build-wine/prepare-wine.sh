@@ -5,9 +5,9 @@ NSIS_FILENAME=nsis-3.08-setup.exe
 NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.08/$NSIS_FILENAME
 NSIS_SHA256=bbc76be36ecb2fc00d493c91befdaf71654226ad8a4fc4dc338458916bf224d0
 
-PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="6eae2c7cf93a968ddc054339e0cb3063f90d0e64"
-# ^ tag 4.6
+PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
+PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
+# ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
 
 PYTHON_VERSION=3.9.7
 
