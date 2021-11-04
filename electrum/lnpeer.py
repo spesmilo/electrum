@@ -14,7 +14,7 @@ from datetime import datetime
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, ignore_after
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
@@ -109,6 +109,7 @@ class Peer(Logger):
         self.received_htlc_removed_event = asyncio.Event()
         self._htlc_switch_iterstart_event = asyncio.Event()
         self._htlc_switch_iterdone_event = asyncio.Event()
+        self._received_revack_event = asyncio.Event()
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
@@ -1629,6 +1630,8 @@ class Peer(Logger):
         chan.receive_revocation(rev)
         self.lnworker.save_channel(chan)
         self.maybe_send_commitment(chan)
+        self._received_revack_event.set()
+        self._received_revack_event.clear()
 
     def on_update_fee(self, chan: Channel, payload):
         feerate = payload["feerate_per_kw"]
@@ -1836,7 +1839,12 @@ class Peer(Logger):
         while True:
             self._htlc_switch_iterdone_event.set()
             self._htlc_switch_iterdone_event.clear()
-            await asyncio.sleep(0.1)  # TODO maybe make this partly event-driven
+            # We poll every 0.1 sec to check if there is work to do,
+            # or we can be woken up when receiving a revack.
+            # TODO when forwarding, we should also be woken up when there are
+            #      certain events with the downstream peer
+            async with ignore_after(0.1):
+                await self._received_revack_event.wait()
             self._htlc_switch_iterstart_event.set()
             self._htlc_switch_iterstart_event.clear()
             self.ping_if_required()
