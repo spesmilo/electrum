@@ -61,9 +61,14 @@ _logger = get_logger(__name__)
 class DaemonNotRunning(Exception):
     pass
 
+def get_rpcsock_defaultpath(config: SimpleConfig):
+    return os.path.join(config.path, 'daemon_rpc_socket')
+
+def get_rpcsock_default_type(osname):
+    return 'tcp'
+
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
-
 
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
@@ -96,7 +101,15 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         create_time = None
         try:
             with open(lockfile) as f:
-                (host, port), create_time = ast.literal_eval(f.read())
+                socktype, address, create_time = ast.literal_eval(f.read())
+                if socktype == 'unix':
+                    path = address
+                    (host, port) = "127.0.0.1", 0
+                    # We still need a host and port for e.g. HTTP Host header
+                elif socktype == 'tcp':
+                    (host, port) = address
+                else:
+                    raise Exception(f"corrupt lockfile; socktype={socktype!r}")
         except Exception:
             raise DaemonNotRunning()
         rpc_user, rpc_password = get_rpc_credentials(config)
@@ -104,7 +117,13 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = asyncio.get_event_loop()
         async def request_coroutine():
-            async with aiohttp.ClientSession(auth=auth) as session:
+            if socktype == 'unix':
+                connector = aiohttp.UnixConnector(path=path)
+            elif socktype == 'tcp':
+                connector = None # This will transform into TCP.
+            else:
+                raise Exception(f"impossible socktype ({socktype!r})")
+            async with aiohttp.ClientSession(auth=auth, connector=connector) as session:
                 c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
         try:
@@ -225,6 +244,9 @@ class CommandsServer(AuthenticatedServer):
         self.daemon = daemon
         self.fd = fd
         self.config = daemon.config
+        sockettype = self.config.get('rpcsock', 'auto')
+        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(os.name)
+        self.sockpath = self.config.get('rpcsockpath', get_rpcsock_defaultpath(self.config))
         self.host = self.config.get('rpchost', '127.0.0.1')
         self.port = self.config.get('rpcport', 0)
         self.app = web.Application()
@@ -239,10 +261,21 @@ class CommandsServer(AuthenticatedServer):
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
+        if self.socktype == 'unix':
+            site = web.UnixSite(self.runner, self.sockpath)
+        elif self.socktype == 'tcp':
+            site = web.TCPSite(self.runner, self.host, self.port)
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
         await site.start()
         socket = site._server.sockets[0]
-        os.write(self.fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
+        if self.socktype == 'unix':
+            addr = self.sockpath
+        elif self.socktype == 'tcp':
+            addr = socket.getsockname()
+        else:
+            raise Exception(f"impossible socktype ({self.socktype!r})")
+        os.write(self.fd, bytes(repr((self.socktype, addr, time.time())), 'utf8'))
         os.close(self.fd)
 
     async def ping(self):
