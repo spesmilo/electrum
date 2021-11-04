@@ -153,6 +153,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.inflight_payments = set()
         self.preimages = {}
         self.stopping_soon = False
+        self.downstream_htlc_to_upstream_peer_map = {}
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
@@ -241,6 +242,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     on_proxy_changed = LNWallet.on_proxy_changed
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
+    _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
 
 
 class MockTransport:

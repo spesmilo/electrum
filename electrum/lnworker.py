@@ -647,6 +647,8 @@ class LNWallet(LNWorker):
             self.set_invoice_status(payment_hash.hex(), PR_INFLIGHT)
 
         self.trampoline_forwarding_failures = {} # todo: should be persisted
+        # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
+        self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
 
     def has_deterministic_node_id(self):
         return bool(self.db.get('lightning_xprv'))
@@ -1847,8 +1849,23 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
+    def _on_maybe_forwarded_htlc_resolved(self, chan: Channel, htlc_id: int) -> None:
+        """Called when an HTLC we offered on chan gets irrevocably fulfilled or failed.
+        If we find this was a forwarded HTLC, the upstream peer is notified.
+        """
+        fw_info = chan.short_channel_id.hex(), htlc_id
+        upstream_peer_pubkey = self.downstream_htlc_to_upstream_peer_map.get(fw_info)
+        if not upstream_peer_pubkey:
+            return
+        upstream_peer = self.peers.get(upstream_peer_pubkey)
+        if not upstream_peer:
+            return
+        upstream_peer.downstream_htlc_resolved_event.set()
+        upstream_peer.downstream_htlc_resolved_event.clear()
+
     def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
         util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
+        self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
             route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
@@ -1871,6 +1888,7 @@ class LNWallet(LNWorker):
             failure_message: Optional['OnionRoutingFailure']):
 
         util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
+        self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
             # detect if it is part of a bucket
