@@ -1847,8 +1847,8 @@ class LNWallet(LNWorker):
         info = info._replace(status=status)
         self.save_payment_info(info)
 
-    def htlc_fulfilled(self, chan, payment_hash: bytes, htlc_id:int):
-        util.trigger_callback('htlc_fulfilled', payment_hash, chan.channel_id)
+    def htlc_fulfilled(self, chan: Channel, payment_hash: bytes, htlc_id: int):
+        util.trigger_callback('htlc_fulfilled', payment_hash, chan, htlc_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
             route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
@@ -1870,7 +1870,7 @@ class LNWallet(LNWorker):
             error_bytes: Optional[bytes],
             failure_message: Optional['OnionRoutingFailure']):
 
-        util.trigger_callback('htlc_failed', payment_hash, chan.channel_id)
+        util.trigger_callback('htlc_failed', payment_hash, chan, htlc_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
             # detect if it is part of a bucket
