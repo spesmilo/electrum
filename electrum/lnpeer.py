@@ -69,6 +69,8 @@ class Peer(Logger):
     SPAMMY_MESSAGES = (
         'ping', 'pong', 'channel_announcement', 'node_announcement', 'channel_update',)
 
+    DELAY_INC_MSG_PROCESSING_SLEEP = 0.01
+
     def __init__(
             self,
             lnworker: Union['LNGossip', 'LNWallet'],
@@ -479,7 +481,10 @@ class Peer(Logger):
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
             self.process_message(msg)
-            await asyncio.sleep(.01)
+            if self.DELAY_INC_MSG_PROCESSING_SLEEP:
+                # rate-limit message-processing a bit, to make it harder
+                # for a single peer to bog down the event loop / cpu:
+                await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
 
     def on_reply_short_channel_ids_end(self, payload):
         self.querying.set()

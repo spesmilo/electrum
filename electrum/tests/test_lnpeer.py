@@ -283,6 +283,10 @@ def transport_pair(k1, k2, name1, name2):
     return t1, t2
 
 
+class PeerInTests(Peer):
+    DELAY_INC_MSG_PROCESSING_SLEEP = 0  # disable rate-limiting
+
+
 class SquareGraph(NamedTuple):
     #                A
     #     high fee /   \ low fee
@@ -354,8 +358,8 @@ class TestPeer(TestCaseForTestnet):
         w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name)
         w2 = MockLNWallet(local_keypair=k2, chans=[bob_channel], tx_queue=q2, name=alice_channel.name)
         self._lnworkers_created.extend([w1, w2])
-        p1 = Peer(w1, k2.pubkey, t1)
-        p2 = Peer(w2, k1.pubkey, t2)
+        p1 = PeerInTests(w1, k2.pubkey, t1)
+        p2 = PeerInTests(w2, k1.pubkey, t2)
         w1._peers[p1.pubkey] = p1
         w2._peers[p2.pubkey] = p2
         # mark_open won't work if state is already OPEN.
@@ -409,14 +413,14 @@ class TestPeer(TestCaseForTestnet):
         w_c = MockLNWallet(local_keypair=key_c, chans=[chan_ca, chan_cd], tx_queue=txq_c, name="carol")
         w_d = MockLNWallet(local_keypair=key_d, chans=[chan_db, chan_dc], tx_queue=txq_d, name="dave")
         self._lnworkers_created.extend([w_a, w_b, w_c, w_d])
-        peer_ab = Peer(w_a, key_b.pubkey, trans_ab)
-        peer_ac = Peer(w_a, key_c.pubkey, trans_ac)
-        peer_ba = Peer(w_b, key_a.pubkey, trans_ba)
-        peer_bd = Peer(w_b, key_d.pubkey, trans_bd)
-        peer_ca = Peer(w_c, key_a.pubkey, trans_ca)
-        peer_cd = Peer(w_c, key_d.pubkey, trans_cd)
-        peer_db = Peer(w_d, key_b.pubkey, trans_db)
-        peer_dc = Peer(w_d, key_c.pubkey, trans_dc)
+        peer_ab = PeerInTests(w_a, key_b.pubkey, trans_ab)
+        peer_ac = PeerInTests(w_a, key_c.pubkey, trans_ac)
+        peer_ba = PeerInTests(w_b, key_a.pubkey, trans_ba)
+        peer_bd = PeerInTests(w_b, key_d.pubkey, trans_bd)
+        peer_ca = PeerInTests(w_c, key_a.pubkey, trans_ca)
+        peer_cd = PeerInTests(w_c, key_d.pubkey, trans_cd)
+        peer_db = PeerInTests(w_d, key_b.pubkey, trans_db)
+        peer_dc = PeerInTests(w_d, key_c.pubkey, trans_dc)
         w_a._peers[peer_ab.pubkey] = peer_ab
         w_a._peers[peer_ac.pubkey] = peer_ac
         w_b._peers[peer_ba.pubkey] = peer_ba
