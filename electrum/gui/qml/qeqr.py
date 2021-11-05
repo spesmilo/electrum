@@ -2,7 +2,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
 
 from electrum.logging import get_logger
 
-from PIL import Image
+#from PIL import Image
 from ctypes import *
 
 class QEQR(QObject):
@@ -34,7 +34,7 @@ class QEQR(QObject):
         self._logger.info('depth: ' + str(image.depth()))
         self._logger.info('format: ' + str(image.format()))
 
-    def convertToPILImage(self, image) -> Image:
+    def convertToPILImage(self, image): # -> Image:
         self.logImageStats(image)
 
         rawimage = image.constBits()
@@ -47,7 +47,7 @@ class QEQR(QObject):
         memmove(c_buf, c_void_p(rawimage.__int__()), numbytes)
         buf2 = bytes(buf)
 
-        return Image.frombytes('RGBA', (image.width(), image.height()), buf2, 'raw')
+        return None #Image.frombytes('RGBA', (image.width(), image.height()), buf2, 'raw')
 
     def parseQR(self, image):
         # TODO
