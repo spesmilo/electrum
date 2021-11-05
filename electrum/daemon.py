@@ -487,8 +487,8 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
-        self.stopping_soon = threading.Event()
-        self.stopped_event = asyncio.Event()
+        self._stopping_soon = threading.Event()
+        self._stopped_event = threading.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
@@ -507,7 +507,7 @@ class Daemon(Logger):
             self.logger.exception("taskgroup died.")
         finally:
             self.logger.info("taskgroup stopped.")
-            self.stopping_soon.set()
+            await self.stop()
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -571,41 +571,35 @@ class Daemon(Logger):
 
     def run_daemon(self):
         try:
-            self.stopping_soon.wait()
+            self._stopping_soon.wait()
         except KeyboardInterrupt:
-            self.stopping_soon.set()
-        self.on_stop()
+            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+        self._stopped_event.wait()
 
     async def stop(self):
-        self.stopping_soon.set()
-        await self.stopped_event.wait()
-
-    def on_stop(self):
+        if self._stopping_soon.is_set():
+            return
+        self._stopping_soon.set()
+        self.logger.info("stop() entered. initiating shutdown")
         try:
-            self.logger.info("on_stop() entered. initiating shutdown")
             if self.gui_object:
                 self.gui_object.stop()
-
-            async def stop_async():
-                self.logger.info("stopping all wallets")
+            self.logger.info("stopping all wallets")
+            async with TaskGroup() as group:
+                for k, wallet in self._wallets.items():
+                    await group.spawn(wallet.stop())
+            self.logger.info("stopping network and taskgroup")
+            async with ignore_after(2):
                 async with TaskGroup() as group:
-                    for k, wallet in self._wallets.items():
-                        await group.spawn(wallet.stop())
-                self.logger.info("stopping network and taskgroup")
-                async with ignore_after(2):
-                    async with TaskGroup() as group:
-                        if self.network:
-                            await group.spawn(self.network.stop(full_shutdown=True))
-                        await group.spawn(self.taskgroup.cancel_remaining())
-
-            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
-            fut.result()
+                    if self.network:
+                        await group.spawn(self.network.stop(full_shutdown=True))
+                    await group.spawn(self.taskgroup.cancel_remaining())
         finally:
             if self.listen_jsonrpc:
                 self.logger.info("removing lockfile")
                 remove_lockfile(get_lockfile(self.config))
             self.logger.info("stopped")
-            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
+            self._stopped_event.set()
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')
@@ -616,10 +610,14 @@ class Daemon(Logger):
         try:
             gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
             self.gui_object = gui.ElectrumGui(config, self, plugins)
-            self.gui_object.main()
+            if not self._stopping_soon.is_set():
+                self.gui_object.main()
+            else:
+                # If daemon.stop() was called before gui_object got created, stop gui now.
+                self.gui_object.stop()
         except BaseException as e:
             self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')
             raise
         finally:
             # app will exit now
-            self.on_stop()
+            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()

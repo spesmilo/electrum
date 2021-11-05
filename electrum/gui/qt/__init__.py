@@ -81,6 +81,7 @@ class OpenFileEventFilter(QObject):
 
 class QElectrumApplication(QApplication):
     new_window_signal = pyqtSignal(str, object)
+    quit_signal = pyqtSignal()
 
 
 class QNetworkUpdatedSignalObject(QObject):
@@ -132,6 +133,7 @@ class ElectrumGui(Logger):
         self.tray = None
         self._init_tray()
         self.app.new_window_signal.connect(self.start_new_window)
+        self.app.quit_signal.connect(self.app.quit, Qt.QueuedConnection)
         self.set_dark_theme_if_needed()
         run_hook('init_qt', self)
 
@@ -428,5 +430,8 @@ class ElectrumGui(Logger):
         # on some platforms the exec_ call may not return, so use _cleanup_before_exit
 
     def stop(self):
+        """Stops the GUI.
+        This method is thread-safe.
+        """
         self.logger.info('closing GUI')
-        self.app.quit()
+        self.app.quit_signal.emit()

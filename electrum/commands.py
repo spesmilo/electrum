@@ -217,7 +217,6 @@ class Commands:
     @command('n')
     async def stop(self):
         """Stop daemon"""
-        # TODO it would be nice if this could stop the GUI too
         await self.daemon.stop()
         return "Daemon stopped"
 
