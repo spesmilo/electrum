@@ -325,9 +325,9 @@ def main():
         from jnius import autoclass
         build_config = autoclass("org.electrum.electrum.BuildConfig")
         config_options = {
-            'verbosity': '*' if build_config.DEBUG else '',
+            'verbosity': '*', #if build_config.DEBUG else '',
             'cmd': 'gui',
-            'gui': 'kivy',
+            'gui': 'qml',
             'single_password':True,
         }
     else:
