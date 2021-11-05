@@ -487,7 +487,10 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
-        self._stopping_soon = threading.Event()
+        self.exception = None  # type: Optional[Exception]
+
+        self._stop_entered = False
+        self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
@@ -505,9 +508,13 @@ class Daemon(Logger):
             raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
+            self.exception = e
+            util.send_exception_to_crash_reporter(e)
         finally:
             self.logger.info("taskgroup stopped.")
-            await self.stop()
+            # note: we could just "await self.stop()", but in that case GUI users would
+            #       not see the exception (especially if the GUI did not start yet).
+            self._stopping_soon_or_errored.set()
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -571,15 +578,16 @@ class Daemon(Logger):
 
     def run_daemon(self):
         try:
-            self._stopping_soon.wait()
+            self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
             asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
         self._stopped_event.wait()
 
     async def stop(self):
-        if self._stopping_soon.is_set():
+        if self._stop_entered:
             return
-        self._stopping_soon.set()
+        self._stop_entered = True
+        self._stopping_soon_or_errored.set()
         self.logger.info("stop() entered. initiating shutdown")
         try:
             if self.gui_object:
@@ -610,7 +618,7 @@ class Daemon(Logger):
         try:
             gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
             self.gui_object = gui.ElectrumGui(config, self, plugins)
-            if not self._stopping_soon.is_set():
+            if not self._stop_entered:
                 self.gui_object.main()
             else:
                 # If daemon.stop() was called before gui_object got created, stop gui now.

@@ -403,6 +403,8 @@ class ElectrumGui(Logger):
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         # hook for crash reporter
         Exception_Hook.maybe_setup(config=self.config)
+        if self.daemon.exception:  # if daemon errored too early, replay that now:
+            send_exception_to_crash_reporter(self.daemon.exception)
         # first-start network-setup
         try:
             self.init_network()
