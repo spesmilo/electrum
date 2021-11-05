@@ -441,7 +441,7 @@ class PayServer(Logger):
 class Daemon(Logger):
 
     network: Optional[Network]
-    gui_object: Optional[Union['gui.qt.ElectrumGui', 'gui.kivy.ElectrumGui']]
+    gui_object: Optional['gui.BaseElectrumGui']
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
@@ -614,7 +614,7 @@ class Daemon(Logger):
         self.logger.info(f'launching GUI: {gui_name}')
         try:
             gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
-            self.gui_object = gui.ElectrumGui(config, self, plugins)
+            self.gui_object = gui.ElectrumGui(config=config, daemon=self, plugins=plugins)
             if not self._stop_entered:
                 self.gui_object.main()
             else:

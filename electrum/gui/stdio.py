@@ -3,6 +3,7 @@ import getpass
 import datetime
 import logging
 
+from electrum.gui import BaseElectrumGui
 from electrum import util
 from electrum import WalletStorage, Wallet
 from electrum.wallet_db import WalletDB
@@ -17,10 +18,10 @@ _ = lambda x:x  # i18n
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
 
 
-class ElectrumGui:
+class ElectrumGui(BaseElectrumGui):
 
-    def __init__(self, config, daemon, plugins):
-        self.config = config
+    def __init__(self, *, config, daemon, plugins):
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:

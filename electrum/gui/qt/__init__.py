@@ -50,6 +50,7 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
+from electrum.gui import BaseElectrumGui
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
@@ -88,15 +89,16 @@ class QNetworkUpdatedSignalObject(QObject):
     network_updated_signal = pyqtSignal(str, object)
 
 
-class ElectrumGui(Logger):
+class ElectrumGui(BaseElectrumGui, Logger):
 
     network_dialog: Optional['NetworkDialog']
     lightning_dialog: Optional['LightningDialog']
     watchtower_dialog: Optional['WatchtowerDialog']
 
     @profiler
-    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+    def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', get_default_language()))
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
         self.logger.info(f"Qt GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         # Uncomment this call to verify objects are being properly
@@ -109,9 +111,6 @@ class ElectrumGui(Logger):
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
         self.gui_thread = threading.current_thread()
-        self.config = config
-        self.daemon = daemon
-        self.plugins = plugins
         self.windows = []  # type: List[ElectrumWindow]
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
@@ -430,8 +429,5 @@ class ElectrumGui(Logger):
         # on some platforms the exec_ call may not return, so use _cleanup_before_exit
 
     def stop(self):
-        """Stops the GUI.
-        This method is thread-safe.
-        """
         self.logger.info('closing GUI')
         self.app.quit_signal.emit()

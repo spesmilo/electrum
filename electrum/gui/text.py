@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import electrum
+from electrum.gui import BaseElectrumGui
 from electrum import util
 from electrum.util import format_satoshis
 from electrum.bitcoin import is_address, COIN
@@ -28,11 +29,10 @@ if TYPE_CHECKING:
 _ = lambda x:x  # i18n
 
 
-class ElectrumGui:
+class ElectrumGui(BaseElectrumGui):
 
-    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-
-        self.config = config
+    def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists():
@@ -341,9 +341,6 @@ class ElectrumGui:
             self.stdscr.keypad(0)
             curses.echo()
             curses.endwin()
-
-    def stop(self):
-        pass
 
     def do_clear(self):
         self.str_amount = ''
