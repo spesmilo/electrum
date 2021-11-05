@@ -487,8 +487,6 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
-        self.exception = None  # type: Optional[Exception]
-
         self._stop_entered = False
         self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
@@ -508,7 +506,6 @@ class Daemon(Logger):
             raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
-            self.exception = e
             util.send_exception_to_crash_reporter(e)
         finally:
             self.logger.info("taskgroup stopped.")

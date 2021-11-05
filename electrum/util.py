@@ -1112,7 +1112,8 @@ def setup_thread_excepthook():
 
 
 def send_exception_to_crash_reporter(e: BaseException):
-    sys.excepthook(type(e), e, e.__traceback__)
+    from .base_crash_reporter import send_exception_to_crash_reporter
+    send_exception_to_crash_reporter(e)
 
 
 def versiontuple(v):
