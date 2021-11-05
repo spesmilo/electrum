@@ -29,7 +29,7 @@ from electrum.util import (UserCancelled, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
-from electrum.logging import Logger
+from electrum.logging import Logger, get_logger
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -45,10 +45,22 @@ class ElectrumQmlApplication(QGuiApplication):
     def __init__(self, args, daemon):
         super().__init__(args)
 
+        self.logger = get_logger(__name__)
+
         qmlRegisterType(QEWalletListModel, 'Electrum', 1, 0, 'WalletListModel')
         qmlRegisterType(QEWallet, 'Electrum', 1, 0, 'Wallet')
 
         self.engine = QQmlApplicationEngine(parent=self)
+        self.engine.addImportPath('./qml')
+
+        self.logger.info('importPathList() :')
+        for i in self.engine.importPathList():
+            self.logger.info(i)
+
+        self.logger.info('pluginPathList() :')
+        for i in self.engine.pluginPathList():
+            self.logger.info(i)
+
         self.context = self.engine.rootContext()
         self._singletons['network'] = QENetwork(daemon.network)
         self._singletons['daemon'] = QEDaemon(daemon)
@@ -76,7 +88,11 @@ class ElectrumGui(Logger):
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', self.get_default_language()))
         Logger.__init__(self)
+        os.environ['QML_IMPORT_TRACE'] = '1'
+        os.environ['QT_DEBUG_PLUGINS'] = '1'
+
         self.logger.info(f"Qml GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
+        self.logger.info("CWD=%s" % os.getcwd())
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
