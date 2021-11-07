@@ -61,9 +61,14 @@ _logger = get_logger(__name__)
 class DaemonNotRunning(Exception):
     pass
 
+def get_rpcsock_defaultpath(config: SimpleConfig):
+    return os.path.join(config.path, 'daemon_rpc_socket')
+
+def get_rpcsock_default_type(osname):
+    return 'tcp'
+
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
-
 
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
@@ -96,7 +101,15 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         create_time = None
         try:
             with open(lockfile) as f:
-                (host, port), create_time = ast.literal_eval(f.read())
+                socktype, address, create_time = ast.literal_eval(f.read())
+                if socktype == 'unix':
+                    path = address
+                    (host, port) = "127.0.0.1", 0
+                    # We still need a host and port for e.g. HTTP Host header
+                elif socktype == 'tcp':
+                    (host, port) = address
+                else:
+                    raise Exception(f"corrupt lockfile; socktype={socktype!r}")
         except Exception:
             raise DaemonNotRunning()
         rpc_user, rpc_password = get_rpc_credentials(config)
@@ -104,7 +117,13 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = asyncio.get_event_loop()
         async def request_coroutine():
-            async with aiohttp.ClientSession(auth=auth) as session:
+            if socktype == 'unix':
+                connector = aiohttp.UnixConnector(path=path)
+            elif socktype == 'tcp':
+                connector = None # This will transform into TCP.
+            else:
+                raise Exception(f"impossible socktype ({socktype!r})")
+            async with aiohttp.ClientSession(auth=auth, connector=connector) as session:
                 c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
         try:
@@ -225,6 +244,9 @@ class CommandsServer(AuthenticatedServer):
         self.daemon = daemon
         self.fd = fd
         self.config = daemon.config
+        sockettype = self.config.get('rpcsock', 'auto')
+        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(os.name)
+        self.sockpath = self.config.get('rpcsockpath', get_rpcsock_defaultpath(self.config))
         self.host = self.config.get('rpchost', '127.0.0.1')
         self.port = self.config.get('rpcport', 0)
         self.app = web.Application()
@@ -239,10 +261,21 @@ class CommandsServer(AuthenticatedServer):
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
+        if self.socktype == 'unix':
+            site = web.UnixSite(self.runner, self.sockpath)
+        elif self.socktype == 'tcp':
+            site = web.TCPSite(self.runner, self.host, self.port)
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
         await site.start()
         socket = site._server.sockets[0]
-        os.write(self.fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
+        if self.socktype == 'unix':
+            addr = self.sockpath
+        elif self.socktype == 'tcp':
+            addr = socket.getsockname()
+        else:
+            raise Exception(f"impossible socktype ({self.socktype!r})")
+        os.write(self.fd, bytes(repr((self.socktype, addr, time.time())), 'utf8'))
         os.close(self.fd)
 
     async def ping(self):
@@ -408,7 +441,7 @@ class PayServer(Logger):
 class Daemon(Logger):
 
     network: Optional[Network]
-    gui_object: Optional[Union['gui.qt.ElectrumGui', 'gui.kivy.ElectrumGui']]
+    gui_object: Optional['gui.BaseElectrumGui']
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
@@ -454,8 +487,9 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
-        self.stopping_soon = threading.Event()
-        self.stopped_event = asyncio.Event()
+        self._stop_entered = False
+        self._stopping_soon_or_errored = threading.Event()
+        self._stopped_event = threading.Event()
         self.taskgroup = TaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
@@ -472,9 +506,12 @@ class Daemon(Logger):
             raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
+            util.send_exception_to_crash_reporter(e)
         finally:
             self.logger.info("taskgroup stopped.")
-            self.stopping_soon.set()
+            # note: we could just "await self.stop()", but in that case GUI users would
+            #       not see the exception (especially if the GUI did not start yet).
+            self._stopping_soon_or_errored.set()
 
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
@@ -538,41 +575,36 @@ class Daemon(Logger):
 
     def run_daemon(self):
         try:
-            self.stopping_soon.wait()
+            self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
-            self.stopping_soon.set()
-        self.on_stop()
+            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+        self._stopped_event.wait()
 
     async def stop(self):
-        self.stopping_soon.set()
-        await self.stopped_event.wait()
-
-    def on_stop(self):
+        if self._stop_entered:
+            return
+        self._stop_entered = True
+        self._stopping_soon_or_errored.set()
+        self.logger.info("stop() entered. initiating shutdown")
         try:
-            self.logger.info("on_stop() entered. initiating shutdown")
             if self.gui_object:
                 self.gui_object.stop()
-
-            async def stop_async():
-                self.logger.info("stopping all wallets")
+            self.logger.info("stopping all wallets")
+            async with TaskGroup() as group:
+                for k, wallet in self._wallets.items():
+                    await group.spawn(wallet.stop())
+            self.logger.info("stopping network and taskgroup")
+            async with ignore_after(2):
                 async with TaskGroup() as group:
-                    for k, wallet in self._wallets.items():
-                        await group.spawn(wallet.stop())
-                self.logger.info("stopping network and taskgroup")
-                async with ignore_after(2):
-                    async with TaskGroup() as group:
-                        if self.network:
-                            await group.spawn(self.network.stop(full_shutdown=True))
-                        await group.spawn(self.taskgroup.cancel_remaining())
-
-            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
-            fut.result()
+                    if self.network:
+                        await group.spawn(self.network.stop(full_shutdown=True))
+                    await group.spawn(self.taskgroup.cancel_remaining())
         finally:
             if self.listen_jsonrpc:
                 self.logger.info("removing lockfile")
                 remove_lockfile(get_lockfile(self.config))
             self.logger.info("stopped")
-            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
+            self._stopped_event.set()
 
     def run_gui(self, config, plugins):
         threading.current_thread().setName('GUI')
@@ -582,11 +614,15 @@ class Daemon(Logger):
         self.logger.info(f'launching GUI: {gui_name}')
         try:
             gui = __import__('electrum_grs.gui.' + gui_name, fromlist=['electrum_grs'])
-            self.gui_object = gui.ElectrumGui(config, self, plugins)
-            self.gui_object.main()
+            self.gui_object = gui.ElectrumGui(config=config, daemon=self, plugins=plugins)
+            if not self._stop_entered:
+                self.gui_object.main()
+            else:
+                # If daemon.stop() was called before gui_object got created, stop gui now.
+                self.gui_object.stop()
         except BaseException as e:
             self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')
             raise
         finally:
             # app will exit now
-            self.on_stop()
+            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()

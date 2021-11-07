@@ -217,7 +217,6 @@ class Commands:
     @command('n')
     async def stop(self):
         """Stop daemon"""
-        # TODO it would be nice if this could stop the GUI too
         await self.daemon.stop()
         return "Daemon stopped"
 
@@ -1475,6 +1474,8 @@ def get_parser():
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
     parser_daemon.add_argument("-d", "--detached", action="store_true", dest="detach", default=False, help="run daemon in detached mode")
+    parser_daemon.add_argument("--rpcsock", dest="rpcsock", default=None, help="what socket type to which to bind RPC daemon", choices=['unix', 'tcp', 'auto'])
+    parser_daemon.add_argument("--rpcsockpath", dest="rpcsockpath", help="where to place RPC file socket")
     add_network_options(parser_daemon)
     add_global_options(parser_daemon)
     # commands

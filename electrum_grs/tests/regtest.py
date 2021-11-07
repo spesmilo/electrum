@@ -34,6 +34,13 @@ class TestLightning(unittest.TestCase):
             self.run_shell(['stop', agent])
 
 
+class TestUnixSockets(TestLightning):
+    agents = []
+
+    def test_unixsockets(self):
+        self.run_shell(['unixsockets'])
+
+
 class TestLightningAB(TestLightning):
     agents = ['alice', 'bob']
 
