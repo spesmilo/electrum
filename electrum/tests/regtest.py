@@ -3,11 +3,17 @@ import sys
 import unittest
 import subprocess
 
-class TestLightning(unittest.TestCase):
 
-    @staticmethod
-    def run_shell(args, timeout=30):
-        process = subprocess.Popen(['electrum/tests/regtest/regtest.sh'] + args, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
+class TestLightning(unittest.TestCase):
+    TEST_ANCHOR_CHANNELS = False
+
+    def run_shell(self, args, timeout=30):
+        process = subprocess.Popen(
+            ['electrum/tests/regtest/regtest.sh'] + args,
+            stderr=subprocess.STDOUT, stdout=subprocess.PIPE,
+            universal_newlines=True,
+            env=os.environ.update({'TEST_ANCHOR_CHANNELS': str(self.TEST_ANCHOR_CHANNELS)}),
+        )
         for line in iter(process.stdout.readline, ''):
             sys.stdout.write(line)
             sys.stdout.flush()
@@ -66,8 +72,16 @@ class TestLightningAB(TestLightning):
         self.run_shell(['breach_with_spent_htlc'])
 
 
+class TestLightningABAnchors(TestLightningAB):
+    TEST_ANCHOR_CHANNELS = True
+
+
 class TestLightningABC(TestLightning):
     agents = ['alice', 'bob', 'carol']
 
     def test_watchtower(self):
         self.run_shell(['watchtower'])
+
+
+class TestLightningABCAnchors(TestLightningABC):
+    TEST_ANCHOR_CHANNELS = True

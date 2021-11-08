@@ -41,17 +41,20 @@ from electrum.coinchooser import PRNG
 
 from . import ElectrumTestCase
 
-TEST_ANCHOR_CHANNELS = False
-
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
 
 def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                          local_amount, remote_amount, privkeys, other_pubkeys,
                          seed, cur, nex, other_node_id, l_dust, r_dust, l_csv,
-                         r_csv, anchor_outputs=TEST_ANCHOR_CHANNELS):
+                         r_csv, anchor_outputs):
     #assert local_amount > 0
     #assert remote_amount > 0
+
+    channel_type = lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
+    if anchor_outputs:
+        channel_type |= lnutil.ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX
+
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     state = {
             "channel_id":channel_id.hex(),
@@ -108,7 +111,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             'fail_htlc_reasons': {},
             'unfulfilled_htlcs': {},
             'revocation_store': {},
-            'channel_type': lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
+            'channel_type': channel_type
     }
     return StoredDict(state, None, [])
 
@@ -122,7 +125,7 @@ def bip32(sequence):
 def create_test_channels(*, feerate=6000, local_msat=None, remote_msat=None,
                          alice_name="alice", bob_name="bob",
                          alice_pubkey=b"\x01"*33, bob_pubkey=b"\x02"*33, random_seed=None,
-                         anchor_outputs=TEST_ANCHOR_CHANNELS):
+                         anchor_outputs=False):
     if random_seed is None:  # needed for deterministic randomness
         random_seed = os.urandom(32)
     random_gen = PRNG(random_seed)
@@ -208,9 +211,10 @@ class TestFee(ElectrumTestCase):
     def test_fee(self):
         alice_channel, bob_channel = create_test_channels(feerate=253,
                                                           local_msat=10000000000,
-                                                          remote_msat=5000000000, anchor_outputs=TEST_ANCHOR_CHANNELS)
-        expected_value = 9999056 if TEST_ANCHOR_CHANNELS else 9999817
+                                                          remote_msat=5000000000, anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+        expected_value = 9999056 if self.TEST_ANCHOR_CHANNELS else 9999817
         self.assertIn(expected_value, [x.value for x in alice_channel.get_latest_commitment(LOCAL).outputs()])
+
 
 class TestChannel(ElectrumTestCase):
     maxDiff = 999
@@ -223,7 +227,7 @@ class TestChannel(ElectrumTestCase):
             self.assertFalse()
 
     def assertNumberNonAnchorOutputs(self, number, tx):
-        self.assertEqual(number, len(tx.outputs()) - (2 if TEST_ANCHOR_CHANNELS else 0))
+        self.assertEqual(number, len(tx.outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
 
     @classmethod
     def setUpClass(cls):
@@ -235,7 +239,7 @@ class TestChannel(ElectrumTestCase):
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
         # and Bob having 5 BTC.
-        self.alice_channel, self.bob_channel = create_test_channels(anchor_outputs=TEST_ANCHOR_CHANNELS)
+        self.alice_channel, self.bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
 
         self.paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(self.paymentPreimage)
@@ -558,7 +562,6 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.total_msat(RECEIVED), one_bitcoin_in_msat, "bob satoshis received incorrect")
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
 
-
     def alice_to_bob_fee_update(self, fee=1111):
         aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.alice_channel.update_fee(fee, True)
@@ -662,9 +665,13 @@ class TestChannel(ElectrumTestCase):
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
 
+class TestChannelAnchors(TestChannel):
+    TEST_ANCHOR_CHANNELS = True
+
+
 class TestAvailableToSpend(ElectrumTestCase):
     def test_DesyncHTLCs(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         self.assertEqual(499986152000 if not alice_channel.has_anchors() else 499981351340, alice_channel.available_to_spend(LOCAL))
         self.assertEqual(500000000000, bob_channel.available_to_spend(LOCAL))
 
@@ -710,9 +717,13 @@ class TestAvailableToSpend(ElectrumTestCase):
         alice_channel.add_htlc(htlc_dict)
 
 
+class TestAvailableToSpendAnchors(TestAvailableToSpend):
+    TEST_ANCHOR_CHANNELS = True
+
+
 class TestChanReserve(ElectrumTestCase):
     def setUp(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=False)
         alice_min_reserve = int(.5 * one_bitcoin_in_msat // 1000)
         # We set Bob's channel reserve to a value that is larger than
         # his current balance in the channel. This will ensure that
@@ -839,10 +850,15 @@ class TestChanReserve(ElectrumTestCase):
         self.assertEqual(self.alice_channel.available_to_spend(REMOTE), amt2)
         self.assertEqual(self.bob_channel.available_to_spend(LOCAL), amt2)
 
+
+class TestChanReserveAnchors(TestChanReserve):
+    TEST_ANCHOR_CHANNELS = True
+
+
 class TestDust(ElectrumTestCase):
     def test_DustLimit(self):
         """Test that addition of an HTLC below the dust limit changes the balances."""
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         dust_limit_alice = alice_channel.config[LOCAL].dust_limit_sat
         dust_limit_bob = bob_channel.config[LOCAL].dust_limit_sat
         self.assertLess(dust_limit_alice, dust_limit_bob)
@@ -852,7 +868,7 @@ class TestDust(ElectrumTestCase):
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
         fee_per_kw = alice_channel.get_next_feerate(LOCAL)
-        success_weight = effective_htlc_tx_weight(success=True, has_anchors=TEST_ANCHOR_CHANNELS)
+        success_weight = effective_htlc_tx_weight(success=True, has_anchors=self.TEST_ANCHOR_CHANNELS)
         # we put a single sat less into the htlc than bob can afford
         # to pay for his htlc success transaction
         below_dust_for_bob = dust_limit_bob - 1
@@ -874,13 +890,13 @@ class TestDust(ElectrumTestCase):
         self.assertNotEqual(bobs_original_outputs, bobs_second_outputs)
         # the htlc appears as an output in alice's ctx, as she has a lower
         # dust limit (also because her timeout tx costs less)
-        self.assertEqual(3, len(alice_ctx.outputs()) - (2 if TEST_ANCHOR_CHANNELS else 0))
+        self.assertEqual(3, len(alice_ctx.outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
         # htlc in bob's case goes to miner fees
-        self.assertEqual(2, len(bob_ctx.outputs()) - (2 if TEST_ANCHOR_CHANNELS else 0))
+        self.assertEqual(2, len(bob_ctx.outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
         self.assertEqual(htlc_amt, sum(bobs_original_outputs) - sum(bobs_second_outputs))
         empty_ctx_fee = lnutil.calc_fees_for_commitment_tx(
             num_htlcs=0, feerate=fee_per_kw, is_local_initiator=True,
-            round_to_sat=True, has_anchors=TEST_ANCHOR_CHANNELS)[LOCAL] // 1000
+            round_to_sat=True, has_anchors=self.TEST_ANCHOR_CHANNELS)[LOCAL] // 1000
         self.assertEqual(empty_ctx_fee + htlc_amt, bob_channel.get_next_fee(LOCAL))
 
         bob_channel.settle_htlc(paymentPreimage, bob_htlc_id)
@@ -891,10 +907,14 @@ class TestDust(ElectrumTestCase):
         # htlc is added back into the balance
         self.assertEqual(sum(bobs_original_outputs), sum(bobs_third_outputs))
         # balance shifts in bob's direction after settlement
-        self.assertEqual(htlc_amt, bobs_third_outputs[1 + (2 if TEST_ANCHOR_CHANNELS else 0)] - bobs_original_outputs[1 + (2 if TEST_ANCHOR_CHANNELS else 0)])
-        self.assertEqual(2, len(alice_channel.get_next_commitment(LOCAL).outputs()) - (2 if TEST_ANCHOR_CHANNELS else 0))
-        self.assertEqual(2, len(bob_channel.get_next_commitment(LOCAL).outputs()) - (2 if TEST_ANCHOR_CHANNELS else 0))
+        self.assertEqual(htlc_amt, bobs_third_outputs[1 + (2 if self.TEST_ANCHOR_CHANNELS else 0)] - bobs_original_outputs[1 + (2 if self.TEST_ANCHOR_CHANNELS else 0)])
+        self.assertEqual(2, len(alice_channel.get_next_commitment(LOCAL).outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
+        self.assertEqual(2, len(bob_channel.get_next_commitment(LOCAL).outputs()) - (2 if self.TEST_ANCHOR_CHANNELS else 0))
         self.assertEqual(htlc_amt, alice_channel.total_msat(SENT) // 1000)
+
+
+class TestDustAnchors(TestDust):
+    TEST_ANCHOR_CHANNELS = True
 
 
 def force_state_transition(chanA, chanB):
