@@ -18,6 +18,17 @@ class SocketConnector:
         self._connection = self._create_connection()
         self._connection.connect((self._host, self._port))
 
+    @classmethod
+    def setup_from_wallet(cls, wallet):
+        wallet_network_settings = wallet.network.config.user_config
+        host, port, ssl_flag = wallet_network_settings['server'].split(':')
+        if ssl_flag.lower() == 's':
+            use_ssl = True
+        else:
+            use_ssl = False
+
+        return cls(host=host, port=int(port), use_ssl=use_ssl)
+
     def _create_connection(self):
         connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connection.settimeout(self._timeout)
@@ -121,10 +132,3 @@ class StakeElectrumXAPIDataService:
                 ]
             )
         )
-
-
-connector = SocketConnector(
-    host='electrumx.testnet.ec.stage.rnd.land', port=443, use_ssl=True  # TODO
-)
-
-stake_api = StakeElectrumXAPIDataService(connector=connector)
