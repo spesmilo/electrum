@@ -34,6 +34,7 @@ class SequentialTestCase(unittest.TestCase):
 
 class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
+    TEST_ANCHOR_CHANNELS = False
 
     def setUp(self):
         super().setUp()

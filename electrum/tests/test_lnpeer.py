@@ -39,15 +39,10 @@ from electrum.lnutil import derive_payment_secret_from_payment_preimage
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 
-from .test_lnchannel import create_test_channels as create_test_channels_anchors
+from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
+
 from . import TestCaseForTestnet
-
-TEST_ANCHOR_CHANNELS = False
-
-
-def create_test_channels(*args, **kwargs):
-    return create_test_channels_anchors(*args, **kwargs, anchor_outputs=TEST_ANCHOR_CHANNELS)
 
 
 def keypair():
@@ -135,7 +130,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
     INITIAL_TRAMPOLINE_FEE_LEVEL = 0
 
-    def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name):
+    def __init__(self, *, local_keypair: Keypair, chans: Iterable['Channel'], tx_queue, name, has_anchors):
         self.name = name
         Logger.__init__(self)
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
@@ -155,7 +150,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
         self.features |= LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
-        self.config = {'enable_anchor_channels': TEST_ANCHOR_CHANNELS}
+        self.config = {'enable_anchor_channels': has_anchors}
         self.maybe_enable_anchors_store_password(None)
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
@@ -379,8 +374,8 @@ class TestPeer(TestCaseForTestnet):
         bob_channel.node_id = k1.pubkey
         t1, t2 = transport_pair(k1, k2, alice_channel.name, bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
-        w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name)
-        w2 = MockLNWallet(local_keypair=k2, chans=[bob_channel], tx_queue=q2, name=alice_channel.name)
+        w1 = MockLNWallet(local_keypair=k1, chans=[alice_channel], tx_queue=q1, name=bob_channel.name, has_anchors=self.TEST_ANCHOR_CHANNELS)
+        w2 = MockLNWallet(local_keypair=k2, chans=[bob_channel], tx_queue=q2, name=alice_channel.name, has_anchors=self.TEST_ANCHOR_CHANNELS)
         self._lnworkers_created.extend([w1, w2])
         p1 = PeerInTests(w1, k2.pubkey, t1)
         p2 = PeerInTests(w2, k1.pubkey, t2)
@@ -405,6 +400,7 @@ class TestPeer(TestCaseForTestnet):
             alice_pubkey=key_a.pubkey, bob_pubkey=key_b.pubkey,
             local_msat=local_balance,
             remote_msat=remote_balance,
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS
         )
         local_balance, remote_balance = funds_distribution.get('ac') or (None, None)
         chan_ac, chan_ca = create_test_channels(
@@ -412,6 +408,7 @@ class TestPeer(TestCaseForTestnet):
             alice_pubkey=key_a.pubkey, bob_pubkey=key_c.pubkey,
             local_msat=local_balance,
             remote_msat=remote_balance,
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS
         )
         local_balance, remote_balance = funds_distribution.get('bd') or (None, None)
         chan_bd, chan_db = create_test_channels(
@@ -419,6 +416,7 @@ class TestPeer(TestCaseForTestnet):
             alice_pubkey=key_b.pubkey, bob_pubkey=key_d.pubkey,
             local_msat=local_balance,
             remote_msat=remote_balance,
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS
         )
         local_balance, remote_balance = funds_distribution.get('cd') or (None, None)
         chan_cd, chan_dc = create_test_channels(
@@ -426,16 +424,17 @@ class TestPeer(TestCaseForTestnet):
             alice_pubkey=key_c.pubkey, bob_pubkey=key_d.pubkey,
             local_msat=local_balance,
             remote_msat=remote_balance,
+            anchor_outputs=self.TEST_ANCHOR_CHANNELS
         )
         trans_ab, trans_ba = transport_pair(key_a, key_b, chan_ab.name, chan_ba.name)
         trans_ac, trans_ca = transport_pair(key_a, key_c, chan_ac.name, chan_ca.name)
         trans_bd, trans_db = transport_pair(key_b, key_d, chan_bd.name, chan_db.name)
         trans_cd, trans_dc = transport_pair(key_c, key_d, chan_cd.name, chan_dc.name)
         txq_a, txq_b, txq_c, txq_d = [asyncio.Queue() for i in range(4)]
-        w_a = MockLNWallet(local_keypair=key_a, chans=[chan_ab, chan_ac], tx_queue=txq_a, name="alice")
-        w_b = MockLNWallet(local_keypair=key_b, chans=[chan_ba, chan_bd], tx_queue=txq_b, name="bob")
-        w_c = MockLNWallet(local_keypair=key_c, chans=[chan_ca, chan_cd], tx_queue=txq_c, name="carol")
-        w_d = MockLNWallet(local_keypair=key_d, chans=[chan_db, chan_dc], tx_queue=txq_d, name="dave")
+        w_a = MockLNWallet(local_keypair=key_a, chans=[chan_ab, chan_ac], tx_queue=txq_a, name="alice", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        w_b = MockLNWallet(local_keypair=key_b, chans=[chan_ba, chan_bd], tx_queue=txq_b, name="bob", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        w_c = MockLNWallet(local_keypair=key_c, chans=[chan_ca, chan_cd], tx_queue=txq_c, name="carol", has_anchors=self.TEST_ANCHOR_CHANNELS)
+        w_d = MockLNWallet(local_keypair=key_d, chans=[chan_db, chan_dc], tx_queue=txq_d, name="dave", has_anchors=self.TEST_ANCHOR_CHANNELS)
         self._lnworkers_created.extend([w_a, w_b, w_c, w_d])
         peer_ab = PeerInTests(w_a, key_b.pubkey, trans_ab)
         peer_ac = PeerInTests(w_a, key_c.pubkey, trans_ac)
@@ -547,7 +546,7 @@ class TestPeer(TestCaseForTestnet):
         return lnaddr2, invoice
 
     def test_reestablish(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         for chan in (alice_channel, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
@@ -567,8 +566,8 @@ class TestPeer(TestCaseForTestnet):
     @needs_test_with_all_chacha20_implementations
     def test_reestablish_with_old_state(self):
         random_seed = os.urandom(32)
-        alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
-        alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
+        alice_channel, bob_channel = create_test_channels(random_seed=random_seed, anchor_outputs=self.TEST_ANCHOR_CHANNELS)
+        alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed, anchor_outputs=self.TEST_ANCHOR_CHANNELS)  # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
@@ -602,7 +601,7 @@ class TestPeer(TestCaseForTestnet):
     @needs_test_with_all_chacha20_implementations
     def test_payment(self):
         """Alice pays Bob a single HTLC via direct channel."""
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
@@ -631,7 +630,7 @@ class TestPeer(TestCaseForTestnet):
         before sending 'commitment_signed'. Neither party should fulfill
         the respective HTLCs until those are irrevocably committed to.
         """
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         async def pay():
             await asyncio.wait_for(p1.initialized, 1)
@@ -695,10 +694,8 @@ class TestPeer(TestCaseForTestnet):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    #@unittest.skip("too expensive")
-    #@needs_test_with_all_chacha20_implementations
     def test_payments_stresstest(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         alice_init_balance_msat = alice_channel.balance(HTLCOwner.LOCAL)
         bob_init_balance_msat = bob_channel.balance(HTLCOwner.LOCAL)
@@ -1025,7 +1022,7 @@ class TestPeer(TestCaseForTestnet):
 
     @needs_test_with_all_chacha20_implementations
     def test_close(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
         w1.network.config.set_key('dynamic_fees', False)
         w2.network.config.set_key('dynamic_fees', False)
@@ -1059,7 +1056,7 @@ class TestPeer(TestCaseForTestnet):
 
     @needs_test_with_all_chacha20_implementations
     def test_close_upfront_shutdown_script(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
 
         # create upfront shutdown script for bob, alice doesn't use upfront
         # shutdown script
@@ -1128,7 +1125,7 @@ class TestPeer(TestCaseForTestnet):
             run(test())
 
     def test_channel_usage_after_closing(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
         lnaddr, pay_req = run(self.prepare_invoice(w2))
 
@@ -1164,7 +1161,7 @@ class TestPeer(TestCaseForTestnet):
 
     @needs_test_with_all_chacha20_implementations
     def test_sending_weird_messages_that_should_be_ignored(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
@@ -1195,7 +1192,7 @@ class TestPeer(TestCaseForTestnet):
 
     @needs_test_with_all_chacha20_implementations
     def test_sending_weird_messages__unknown_even_type(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
@@ -1224,7 +1221,7 @@ class TestPeer(TestCaseForTestnet):
 
     @needs_test_with_all_chacha20_implementations
     def test_sending_weird_messages__known_msg_with_insufficient_length(self):
-        alice_channel, bob_channel = create_test_channels()
+        alice_channel, bob_channel = create_test_channels(anchor_outputs=self.TEST_ANCHOR_CHANNELS)
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
 
         async def send_weird_messages():
@@ -1250,6 +1247,10 @@ class TestPeer(TestCaseForTestnet):
         with self.assertRaises(lnmsg.UnexpectedEndOfStream):
             run(f())
         self.assertTrue(isinstance(failing_task.exception(), lnmsg.UnexpectedEndOfStream))
+
+
+class TestPeerAnchors(TestCaseForTestnet):
+    TEST_ANCHOR_CHANNELS = True
 
 
 def run(coro):

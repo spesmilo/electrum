@@ -2,7 +2,6 @@
 export HOME=~
 set -eu
 
-TEST_ANCHOR_CHANNELS=False
 # alice -> bob -> carol
 
 alice="./run_electrum --regtest -D /tmp/alice"
@@ -73,6 +72,7 @@ if [[ $1 == "new_block" ]]; then
 fi
 
 if [[ $1 == "init" ]]; then
+    echo "testing anchor channels: $TEST_ANCHOR_CHANNELS"
     echo "initializing $2"
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
