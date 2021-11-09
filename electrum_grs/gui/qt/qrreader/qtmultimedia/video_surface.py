@@ -60,7 +60,7 @@ class QrReaderVideoSurface(QAbstractVideoSurface):
             return False
 
         try:
-            img = QImage(frame.bits(), frame.width(), frame.height(), image_format)
+            img = QImage(int(frame.bits()), frame.width(), frame.height(), image_format)
 
             # Check whether we need to flip the image on any axis
             surface_format = self.surfaceFormat()

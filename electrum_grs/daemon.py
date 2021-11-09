@@ -607,7 +607,7 @@ class Daemon(Logger):
             self._stopped_event.set()
 
     def run_gui(self, config, plugins):
-        threading.current_thread().setName('GUI')
+        threading.current_thread().name = 'GUI'
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
