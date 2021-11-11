@@ -63,7 +63,7 @@ class QrReaderVideoOverlay(QWidget):
         self.bg_rect_pen = QPen()
         self.bg_rect_pen.setColor(Qt.black)
         self.bg_rect_pen.setStyle(Qt.DotLine)
-        self.bg_rect_fill = QColor(255, 255, 255, 255 * self.BG_RECT_OPACITY)
+        self.bg_rect_fill = QColor(255, 255, 255, int(255 * self.BG_RECT_OPACITY))
 
     def set_results(self, results: List[QrCodeResult], flip_x: bool,
                     validator_results: QrReaderValidatorResult):

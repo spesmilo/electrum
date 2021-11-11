@@ -1393,7 +1393,7 @@ class WalletDB(JsonDB):
 
     @profiler
     def _write(self, storage: 'WalletStorage'):
-        if threading.currentThread().isDaemon():
+        if threading.current_thread().daemon:
             self.logger.warning('daemon thread cannot write db')
             return
         if not self.modified():
