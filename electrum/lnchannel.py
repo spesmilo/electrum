@@ -54,9 +54,9 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ctx_has_anchors)
-from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
-from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
-from .lnsweep import create_sweeptx_their_backup_ctx
+from .lnsweep import txs_our_ctx, txs_their_ctx
+from .lnsweep import tx_their_htlctx_justice, SweepInfo
+from .lnsweep import tx_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -223,10 +223,10 @@ class AbstractChannel(Logger, ABC):
         self.storage.pop('closing_height', None)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
-        return create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+        return txs_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
 
     def create_sweeptxs_for_their_ctx(self, ctx):
-        return create_sweeptxs_for_their_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+        return txs_their_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
 
     def is_backup(self):
         return False
@@ -494,11 +494,11 @@ class ChannelBackup(AbstractChannel):
         return True
 
     def create_sweeptxs_for_their_ctx(self, ctx):
-        return create_sweeptx_their_backup_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+        return tx_their_ctx_to_remote_backup(chan=self, ctx=ctx, sweep_address=self.sweep_address)
 
     def create_sweeptxs_for_our_ctx(self, ctx):
         if self.is_imported:
-            return create_sweeptxs_for_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
+            return txs_our_ctx(chan=self, ctx=ctx, sweep_address=self.sweep_address)
         else:
             return
 
@@ -1316,9 +1316,9 @@ class Channel(AbstractChannel):
         return self.get_commitment(subject, ctn=ctn)
 
     def create_sweeptxs(self, ctn: int) -> List[Transaction]:
-        from .lnsweep import create_sweeptxs_for_watchtower
+        from .lnsweep import txs_their_ctx_watchtower
         secret, ctx = self.get_secret_and_commitment(REMOTE, ctn=ctn)
-        return create_sweeptxs_for_watchtower(self, ctx, secret, self.sweep_address)
+        return txs_their_ctx_watchtower(self, ctx, secret, self.sweep_address)
 
     def get_oldest_unrevoked_ctn(self, subject: HTLCOwner) -> int:
         return self.hm.ctn_oldest_unrevoked(subject)
@@ -1543,7 +1543,7 @@ class Channel(AbstractChannel):
 
     def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
         # look at the output address, check if it matches
-        return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
+        return tx_their_htlctx_justice(self, ctx, htlc_tx, self.sweep_address)
 
     def has_pending_changes(self, subject: HTLCOwner) -> bool:
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
