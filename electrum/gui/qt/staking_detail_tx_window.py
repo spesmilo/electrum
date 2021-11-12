@@ -47,8 +47,24 @@ class TxList(CustomTableWidget):
     pass
 
 
+def refresh_stake_dialog_window(data):
+    """
+    Call this function to refresh
+    """
+
+    tx_list.insert_data(
+        table_data={
+            'Tx ID': ['aaaaaaa'],
+            'Staked Amount': '2',
+            'Payout': '2',
+            'GP': '1',
+            'Daily Tx Limit': '1',
+        },
+    )
+
+
 tx_list = TxList(
-    starting_empty_cells=0,
+    starting_empty_cells=1,
     column_names=['Tx ID', 'Staked Amount', 'Payout', 'GP', 'Daily Tx Limit'],
     resize_column=0
 )
@@ -390,8 +406,12 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
 class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -458,10 +478,11 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
-
         vbox.addLayout(hbox_stats)
 
-        vbox.addWidget(tx_list)
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -478,8 +499,12 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
 class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -548,7 +573,10 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-        vbox.addWidget(tx_list)
+
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -572,8 +600,12 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
 
 class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -649,8 +681,9 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-
-        vbox.addWidget(tx_list)
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -667,8 +700,12 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
 class UnstakedSingleStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -744,9 +781,9 @@ class UnstakedSingleStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-
-        vbox.addWidget(tx_list)
-
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))

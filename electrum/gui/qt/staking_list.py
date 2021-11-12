@@ -44,7 +44,8 @@ def staking_list_view_transaction_context_menu_on_click(row_data, **context):
         print(row_data)
 
     elif row_data['Type'] == 'Completed':
-        dialog = CompletedReadyToClaimStakeDialog(parent=context['window'], data=row_data, detail_tx=details_tx_data)
+        # dialog = CompletedReadyToClaimStakeDialog(parent=context['window'], data=row_data, detail_tx=details_tx_data)
+        dialog = CompletedMultiClaimedStakeDialog(parent=context['window'], data=row_data, detail_tx=details_tx_data)
         dialog.show()
 
 
