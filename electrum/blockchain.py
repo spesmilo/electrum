@@ -552,10 +552,11 @@ class Blockchain(Logger):
 
     @classmethod
     def target_to_bits(cls, target: int) -> int:
-        c = ("%064x" % target)[2:]
-        while c[:2] == '00' and len(c) > 6:
-            c = c[2:]
-        bitsN, bitsBase = len(c) // 2, int.from_bytes(bfh(c[:6]), byteorder='big')
+        c = target.to_bytes(length=32, byteorder='big')
+        c = c[1:]  # FIXME why is this done unconditionally?
+        while c[0] == 0 and len(c) > 3:
+            c = c[1:]
+        bitsN, bitsBase = len(c), int.from_bytes(c[:3], byteorder='big')
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
