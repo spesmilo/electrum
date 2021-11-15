@@ -1,6 +1,9 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 
+from .rewards_list import available_predicted_rewards_list, refresh_available_rewards_window, \
+    refresh_predicted_rewards_window, governance_power_controller, refresh_governance_power_window, \
+    governance_power_list, free_limit_list, free_limit_window
 from .util import WindowModalDialog
 
 
@@ -97,7 +100,7 @@ class Section:
 
 
 class RewardPopup(WindowModalDialog):
-    def __init__(self, parent, title, text):
+    def __init__(self, parent, title, text, table=None):
         super().__init__(parent)
         self.setEnabled(True)
         self._setup_window()
@@ -105,6 +108,8 @@ class RewardPopup(WindowModalDialog):
         self.main_layout = self.create_main_layout()
         self.title_label = self._setup_title(title=title)
         self.text_label = self._setup_text(main_text=text)
+        if table is not None:
+            self._setup_table(table=table)
 
     def create_main_layout(self):
         vertical_layout_widget = QtWidgets.QWidget(self)
@@ -146,6 +151,9 @@ class RewardPopup(WindowModalDialog):
 
         return text_label
 
+    def _setup_table(self, table):
+        self.main_layout.addWidget(table)
+
 
 class AvailableRewardsSection(Section):
     TITLE_LABEL = 'Available reward'
@@ -159,7 +167,10 @@ class AvailableRewardsSection(Section):
             These are your guaranteed payouts, so you can already
             start thinking about what you will spend them on.
             """,
+            table=available_predicted_rewards_list
         )
+
+        refresh_available_rewards_window()
         available_reward_popup.open()
 
 
@@ -176,7 +187,9 @@ class TotalPredictedStakingRewardSection(Section):
             may change dynamically, so don't plan what you will 
             buy with it just yet.
             """,
+            table=available_predicted_rewards_list
         )
+        refresh_predicted_rewards_window()
         predicted_staking_popup.open()
 
 
@@ -198,7 +211,9 @@ class GovernancePowerSection(Section):
             staking. You will see and use them here when Governance 
             Power become available.
             """,
+            table=governance_power_list
         )
+        refresh_governance_power_window()
         governance_power_popup.open()
 
 
@@ -216,7 +231,9 @@ class DailyFreeTransactionLimitSection(Section):
             you go over this limit, you will have to pay the network 
             fees.
             """,
+            table=free_limit_list
         )
+        free_limit_window()
         daily_free_transactions.open()
 
 
