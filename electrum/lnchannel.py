@@ -58,7 +58,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ChannelType, LNProtocolWarning, ctx_has_anchors)
 from .lnsweep import txs_our_ctx, txs_their_ctx
-from .lnsweep import tx_their_htlctx_justice, SweepInfo
+from .lnsweep import txs_their_htlctx_justice, SweepInfo
 from .lnsweep import tx_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
@@ -284,10 +284,10 @@ class AbstractChannel(Logger, ABC):
     def delete_closing_height(self):
         self.storage.pop('closing_height', None)
 
-    def create_sweeptxs_for_our_ctx(self, ctx):
+    def create_sweeptxs_for_our_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
         return txs_our_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
 
-    def create_sweeptxs_for_their_ctx(self, ctx):
+    def create_sweeptxs_for_their_ctx(self, ctx: Transaction) -> Optional[Dict[str, SweepInfo]]:
         return txs_their_ctx(chan=self, ctx=ctx, sweep_address=self.get_sweep_address())
 
     def is_backup(self) -> bool:
@@ -603,8 +603,8 @@ class ChannelBackup(AbstractChannel):
         else:
             return
 
-    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
-        return None
+    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
+        return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
         return None
@@ -1726,9 +1726,9 @@ class Channel(AbstractChannel):
         assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"
         return ret
 
-    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
+    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
         # look at the output address, check if it matches
-        return tx_their_htlctx_justice(self, ctx, htlc_tx, self.get_sweep_address())
+        return txs_their_htlctx_justice(self, ctx, htlc_tx, self.get_sweep_address())
 
     def has_pending_changes(self, subject: HTLCOwner) -> bool:
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)
