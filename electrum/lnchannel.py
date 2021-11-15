@@ -55,7 +55,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address, FIXED_ANCHOR_SAT,
                      ctx_has_anchors)
 from .lnsweep import txs_our_ctx, txs_their_ctx
-from .lnsweep import tx_their_htlctx_justice, SweepInfo
+from .lnsweep import txs_their_htlctx_justice, SweepInfo
 from .lnsweep import tx_their_ctx_to_remote_backup
 from .lnhtlc import HTLCManager
 from .lnmsg import encode_msg, decode_msg
@@ -502,8 +502,8 @@ class ChannelBackup(AbstractChannel):
         else:
             return
 
-    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
-        return None
+    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
+        return {}
 
     def extract_preimage_from_htlc_txin(self, txin: TxInput) -> None:
         return None
@@ -1541,9 +1541,8 @@ class Channel(AbstractChannel):
         assert tx.is_complete()
         return tx
 
-    def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
-        # look at the output address, check if it matches
-        return tx_their_htlctx_justice(self, ctx, htlc_tx, self.sweep_address)
+    def maybe_sweep_revoked_htlcs(self, ctx: Transaction, htlc_tx: Transaction) -> Dict[int, SweepInfo]:
+        return txs_their_htlctx_justice(self, ctx, htlc_tx, self.sweep_address)
 
     def has_pending_changes(self, subject: HTLCOwner) -> bool:
         next_htlcs = self.hm.get_htlcs_in_next_ctx(subject)

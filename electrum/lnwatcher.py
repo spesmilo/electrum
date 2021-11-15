@@ -385,36 +385,46 @@ class LNWalletWatcher(LNWatcher):
             return False
         chan_id_for_log = chan.get_id_for_log()
         # detect who closed and get information about how to claim outputs
-        sweep_info_dict = chan.sweep_ctx(closing_tx)
+        sweep_info_dict = chan.sweep_ctx(closing_tx)  # output -> SweepInfo
+        # spenders: output -> txid
         keep_watching = False if sweep_info_dict else not self.is_deeply_mined(closing_tx.txid())
 
         # create and broadcast transactions
-        for swept_output, sweep_info in sweep_info_dict.items():
+        for swept_output, sweep_info in sweep_info_dict.items():  # can be any sweep (l, r, htlc, second-htlc)
             name = sweep_info.name + ' ' + chan.get_id_for_log()
+            # the output is swept by a certain txid that we know of
             spender_txid = spenders.get(swept_output)
             if spender_txid is not None:
-                # TODO: spender should be the htlc transaction, but could also be a to_local/to_remote sweep
+                # was output already swept and published?
                 spender_tx = self.db.get_transaction(spender_txid)
                 if not spender_tx:
                     keep_watching = True
                     continue
-                htlc_revocation_sweep_info = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
-                if htlc_revocation_sweep_info:
+
+                # TODO: type SweepInfos?
+                if not 'htlc' in name:
+                    continue
+                # we check the scenario when the peer force closes and an HTLC transaction
+                # was published, whether the HTLC transaction includes revoked outputs
+                htlc_tx = spender_tx
+                htlc_txid = spender_txid
+
+                # check if we can extract preimages from an HTLC transaction
+                # a peer could have combined several HTLC-output spending inputs
+                for txin in htlc_tx.inputs():
+                    chan.extract_preimage_from_htlc_txin(txin)
+                keep_watching |= not self.is_deeply_mined(htlc_txid)
+
+                # check if the HTLC transaction contains revoked outputs and redeem
+                htlc_idx_to_sweepinfo = chan.maybe_sweep_revoked_htlcs(closing_tx, htlc_tx)
+                for idx, htlc_revocation_sweep_info in htlc_idx_to_sweepinfo.items():
                     # check if we already redeemed revoked htlc
-                    spender2 = spenders.get(spender_txid+':0')
-                    if spender2:
-                        keep_watching |= not self.is_deeply_mined(spender2)
+                    htlc_tx_spender = spenders.get(spender_txid + f':{idx}')
+                    if htlc_tx_spender:
+                        keep_watching |= not self.is_deeply_mined(htlc_tx_spender)
                     else:
-                        await self.try_redeem(spender_txid+':0', htlc_revocation_sweep_info, chan_id_for_log, name)
+                        await self.try_redeem(spender_txid + f':{idx}', htlc_revocation_sweep_info, chan_id_for_log, name)
                         keep_watching = True
-                else:
-                    # regular htlc transaction spending the htlc output of ctx,
-                    # check if we can extract preimage from the input
-                    keep_watching |= not self.is_deeply_mined(spender_txid)
-                    txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(swept_output))
-                    assert txin_idx is not None
-                    spender_txin = spender_tx.inputs()[txin_idx]
-                    chan.extract_preimage_from_htlc_txin(spender_txin)
             else:  # we sweep either the to_local, to_remote, or HTLC transaction outputs
                 await self.try_redeem(swept_output, sweep_info, chan_id_for_log, name)
                 keep_watching = True
