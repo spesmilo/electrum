@@ -549,16 +549,19 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
     # prep
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)
     pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-    this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
-    other_revocation_privkey = derive_blinded_privkey(other_conf.revocation_basepoint.privkey,
-                                                      per_commitment_secret)
-    to_self_delay = other_conf.to_self_delay
-    this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, pcp)
+    breacher_conf, watcher_conf = get_ordered_channel_configs(chan=chan, for_us=False)
+    watcher_revocation_privkey = derive_blinded_privkey(
+        watcher_conf.revocation_basepoint.privkey,
+        per_commitment_secret
+    )
+    to_self_delay = watcher_conf.to_self_delay
+    breacher_delayed_pubkey = derive_pubkey(breacher_conf.delayed_basepoint.pubkey, pcp)
     txs = []
-    # to_local
-    revocation_pubkey = ecc.ECPrivkey(other_revocation_privkey).get_public_key_bytes(compressed=True)
+
+    # create justice tx for breacher's to_local output
+    revocation_pubkey = ecc.ECPrivkey(watcher_revocation_privkey).get_public_key_bytes(compressed=True)
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
-        revocation_pubkey, to_self_delay, this_delayed_pubkey))
+        revocation_pubkey, to_self_delay, breacher_delayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
     output_idxs = ctx.get_output_idxs_from_address(to_local_address)
     if output_idxs:
@@ -568,14 +571,67 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
             ctx=ctx,
             output_idx=output_idx,
             witness_script=bfh(witness_script),
-            privkey=other_revocation_privkey,
+            privkey=watcher_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
         if sweep_tx:
             txs.append(sweep_tx)
-    # HTLCs
-    def txs_their_htlctx_justice(*, htlc: 'UpdateAddHtlc', htlc_direction: Direction,
-                                ctx_output_idx: int) -> Optional[Transaction]:
+
+    # create justice txs for breacher's HTLC outputs
+    breacher_htlc_pubkey = derive_pubkey(breacher_conf.htlc_basepoint.pubkey, pcp)
+    watcher_htlc_pubkey = derive_pubkey(watcher_conf.htlc_basepoint.pubkey, pcp)
+    def tx_htlc(
+            htlc: 'UpdateAddHtlc', is_received_htlc: bool,
+            ctx_output_idx: int) -> None:
+        htlc_output_witness_script = make_htlc_output_witness_script(
+            is_received_htlc=is_received_htlc,
+            remote_revocation_pubkey=revocation_pubkey,
+            remote_htlc_pubkey=watcher_htlc_pubkey,
+            local_htlc_pubkey=breacher_htlc_pubkey,
+            payment_hash=htlc.payment_hash,
+            cltv_expiry=htlc.cltv_expiry,
+            has_anchors=chan.has_anchors()
+        )
+
+        cltv_expiry = htlc.cltv_expiry if is_received_htlc else 0
+        return tx_their_ctx_htlc(
+            ctx=ctx,
+            witness_script=htlc_output_witness_script,
+            sweep_address=sweep_address,
+            preimage=None,
+            output_idx=ctx_output_idx,
+            privkey=watcher_revocation_privkey,
+            is_revocation=True,
+            cltv_expiry=cltv_expiry,
+            config=chan.lnworker.config,
+            has_anchors=chan.has_anchors()
+        )
+    htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
+        chan=chan,
+        ctx=ctx,
+        pcp=pcp,
+        subject=REMOTE,
+        ctn=ctn)
+    for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        txs.append(
+            tx_htlc(
+                htlc=htlc,
+                is_received_htlc=direction == RECEIVED,
+                ctx_output_idx=ctx_output_idx)
+        )
+
+    # for anchor channels we don't know the HTLC transaction's txid beforehand due
+    # to malleability because of ANYONECANPAY
+    if chan.has_anchors():
+        return txs
+
+    # create justice transactions for HTLC transaction's outputs
+    def txs_their_htlctx_justice(
+            *,
+            htlc: 'UpdateAddHtlc',
+            htlc_direction: Direction,
+            ctx_output_idx: int
+    ) -> Optional[Transaction]:
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(
             chan=chan,
             pcp=pcp,
@@ -590,7 +646,7 @@ def txs_their_ctx_watchtower(chan: 'Channel', ctx: Transaction, per_commitment_s
             output_idx=HTLCTX_INPUT_OUTPUT_INDEX,
             htlctx_witness_script=htlc_tx_witness_script,
             sweep_address=sweep_address,
-            privkey=other_revocation_privkey,
+            privkey=watcher_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
     htlc_to_ctx_output_idx_map = map_htlcs_to_ctx_output_idxs(
