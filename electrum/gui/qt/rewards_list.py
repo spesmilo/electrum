@@ -24,7 +24,6 @@ def refresh_predicted_rewards_window():
 
 
 available_predicted_rewards_list = AvailablePredictedRewardsList(
-    starting_empty_cells=0,
     column_names=['Payout date', 'Amount', 'Status'],
 )
 

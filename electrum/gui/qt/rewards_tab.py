@@ -129,7 +129,6 @@ class RewardPopup(WindowModalDialog):
         title_label.setMinimumSize(QtCore.QSize(0, 40))
         title_label.setMaximumSize(QtCore.QSize(16777215, 40))
         title_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        title_label.setContentsMargins(30, 0, 0, 0)
 
         title_label_text = QtGui.QFont()
         title_label_text.setBold(True)
