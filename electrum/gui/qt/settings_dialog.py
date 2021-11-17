@@ -129,16 +129,16 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        if self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id():
-            help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
-            recov_cb = QCheckBox(_("Create recoverable channels"))
-            recov_cb.setToolTip(messages.to_rtf(help_recov))
-            recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)))
-            def on_recov_checked(x):
-                self.config.set_key('use_recoverable_channels', bool(x))
-            recov_cb.stateChanged.connect(on_recov_checked)
-            recov_cb.setEnabled(not bool(self.config.get('lightning_listen')))
-            lightning_widgets.append((recov_cb, None))
+        help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
+        recov_cb = QCheckBox(_("Create recoverable channels"))
+        enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
+        recov_cb.setEnabled(enable_toggle_use_recoverable_channels)
+        recov_cb.setToolTip(messages.to_rtf(help_recov))
+        recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)) and enable_toggle_use_recoverable_channels)
+        def on_recov_checked(x):
+            self.config.set_key('use_recoverable_channels', bool(x))
+        recov_cb.stateChanged.connect(on_recov_checked)
+        lightning_widgets.append((recov_cb, None))
 
         help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
         trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
