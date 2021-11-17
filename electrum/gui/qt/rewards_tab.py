@@ -5,6 +5,7 @@ from .rewards_list import available_predicted_rewards_list, refresh_available_re
     refresh_predicted_rewards_window, governance_power_controller, refresh_governance_power_window, \
     governance_power_list, free_limit_list, free_limit_window
 from .util import WindowModalDialog
+from ...i18n import _
 
 
 class Section:
@@ -112,8 +113,7 @@ class RewardPopup(WindowModalDialog):
             self._setup_table(table=table)
 
     def create_main_layout(self):
-        vertical_layout_widget = QtWidgets.QWidget(self)
-        main_layout = QtWidgets.QVBoxLayout(vertical_layout_widget)
+        main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 
@@ -162,11 +162,11 @@ class AvailableRewardsSection(Section):
         available_reward_popup = RewardPopup(
             parent=self._root_widget,
             title='Available Rewards',
-            text="""
-            Check the details of the rewards you can already claim.
-            These are your guaranteed payouts, so you can already
-            start thinking about what you will spend them on.
-            """,
+            text=_(
+                "Check the details of the rewards you can already claim. "
+                "These are your guaranteed payouts, so you can already "
+                "start thinking about what you will spend them on."
+            ),
             table=available_predicted_rewards_list
         )
 
@@ -181,12 +181,12 @@ class TotalPredictedStakingRewardSection(Section):
         predicted_staking_popup = RewardPopup(
             parent=self._root_widget,
             title='Predicted staking rewards',
-            text="""
-            Check the details of your predicted rewards. The 
-            payout amount is dependent on multiple factors and 
-            may change dynamically, so don't plan what you will 
-            buy with it just yet.
-            """,
+            text=_(
+                "Check the details of your predicted rewards. The "
+                "payout amount is dependent on multiple factors and "
+                "may change dynamically, so don't plan what you will "
+                "buy with it just yet."
+            ),
             table=available_predicted_rewards_list
         )
         refresh_predicted_rewards_window()
@@ -200,17 +200,15 @@ class GovernancePowerSection(Section):
         governance_power_popup = RewardPopup(
             parent=self._root_widget,
             title='Governance Power',
-            text="""
-            Governance Power lets you decide on the future of 
-            Electric Cash.
-
-            You can use it to vote on important community issues 
-            and propose your own improvements.
-
-            To cast a vote, you need GP points earned through 
-            staking. You will see and use them here when Governance 
-            Power become available.
-            """,
+            text=_(
+                "Governance Power lets you decide on the future of"
+                "Electric Cash.\n\n"
+                "You can use it to vote on important community issues"
+                "and propose your own improvements.\n\n"
+                "To cast a vote, you need GP points earned through"
+                "staking. You will see and use them here when Governance"
+                "Power become available."
+            ),
             table=governance_power_list
         )
         refresh_governance_power_window()
@@ -224,13 +222,13 @@ class DailyFreeTransactionLimitSection(Section):
         daily_free_transactions = RewardPopup(
             parent=self._root_widget,
             title='Daily free transactions limit',
-            text="""
-            This is the number of bytes you can use every day to 
-            make free transactions. It's one of the rewards that 
-            you can enjoy as long as you're staking. Note that if 
-            you go over this limit, you will have to pay the network 
-            fees.
-            """,
+            text=_(
+                "This is the number of bytes you can use every day to "
+                "make free transactions. It's one of the rewards that "
+                "you can enjoy as long as you're staking. Note that if "
+                "you go over this limit, you will have to pay the network "
+                "fees."
+            ),
             table=free_limit_list
         )
         free_limit_window()
