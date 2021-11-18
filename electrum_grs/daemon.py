@@ -277,6 +277,7 @@ class CommandsServer(AuthenticatedServer):
             raise Exception(f"impossible socktype ({self.socktype!r})")
         os.write(self.fd, bytes(repr((self.socktype, addr, time.time())), 'utf8'))
         os.close(self.fd)
+        self.logger.info(f"now running and listening. socktype={self.socktype}, addr={addr}")
 
     async def ping(self):
         return True
@@ -337,6 +338,7 @@ class WatchTowerServer(AuthenticatedServer):
         await self.runner.setup()
         site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
+        self.logger.info(f"now running and listening. addr={self.addr}")
 
     async def get_ctn(self, *args):
         return await self.lnwatcher.get_ctn(*args)
@@ -379,6 +381,7 @@ class PayServer(Logger):
         await runner.setup()
         site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
+        self.logger.info(f"now running and listening. addr={self.addr}")
 
     async def create_request(self, request):
         params = await request.post()
