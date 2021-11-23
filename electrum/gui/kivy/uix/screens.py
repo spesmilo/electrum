@@ -16,7 +16,7 @@ from electrum.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                pr_expiration_values, Invoice)
 from electrum import bitcoin, constants
 from electrum.transaction import tx_from_any, PartialTxOutput
-from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
+from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
                            InvoiceError, format_time, parse_max_spend)
 from electrum.lnaddr import lndecode, LnInvoiceException
 from electrum.logging import Logger
@@ -172,7 +172,7 @@ class SendScreen(CScreen, Logger):
         if not self.app.wallet:
             return
         # interpret as lighting URI
-        bolt11_invoice = maybe_extract_bolt11_invoice(text)
+        bolt11_invoice = maybe_extract_lightning_payment_identifier(text)
         if bolt11_invoice:
             self.set_ln_invoice(bolt11_invoice)
         # interpret as BIP21 URI
@@ -287,7 +287,7 @@ class SendScreen(CScreen, Logger):
             self.app.tx_dialog(tx)
             return
         # try to decode as URI/address
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        bolt11_invoice = maybe_extract_lightning_payment_identifier(data)
         if bolt11_invoice is not None:
             self.set_ln_invoice(bolt11_invoice)
         else:

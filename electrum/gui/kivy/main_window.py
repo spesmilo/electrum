@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_bolt11_invoice, parse_max_spend)
+                           maybe_extract_lightning_payment_identifier, parse_max_spend)
 from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum import blockchain
@@ -491,7 +491,7 @@ class ElectrumWindow(App, Logger, EventListener):
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        bolt11_invoice = maybe_extract_lightning_payment_identifier(data)
         if bolt11_invoice is not None:
             self.set_ln_invoice(bolt11_invoice)
             return

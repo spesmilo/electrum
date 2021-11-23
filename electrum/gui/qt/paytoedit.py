@@ -29,13 +29,14 @@ from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
+from PyQt5.QtCore import QTimer
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, parse_max_spend
+from electrum.util import bfh, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
-from electrum.lnaddr import LnDecodeException
+from electrum.lnurl import LNURLError
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -84,7 +85,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
 
         self.c = None
-        self.textChanged.connect(self.check_text)
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.textChanged.connect(self.start_timer)
+        self.timer.timeout.connect(self.check_text)
         self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: List[PayToLineError]
         self.is_pr = False
@@ -94,10 +98,22 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.lightning_invoice = None
         self.previous_payto = ''
 
+    def start_timer(self):
+        # we insert a timer between textChanged and check_text to not immediately
+        # resolve lightning addresses, but rather to wait until the address is typed out fully
+        delay_time_msec = 300  # about the average typing time in msec a person types a character
+        self.logger.info("timer fires")
+        self.timer.start(delay_time_msec)
+
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
         self.overlay_widget.setHidden(b)
+
+    def setTextNosignal(self, text: str):
+        self.blockSignals(True)
+        self.setText(text)
+        self.blockSignals(False)
 
     def setGreen(self):
         self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
@@ -170,14 +186,13 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
         if len(lines) == 1:
             data = lines[0]
-            # try bip21 URI
-            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-                self.win.pay_to_URI(data)
-                return
-            # try LN invoice
-            bolt11_invoice = maybe_extract_bolt11_invoice(data)
-            if bolt11_invoice is not None:
-                self.win.set_ln_invoice(bolt11_invoice)
+            try:
+                self.win.handle_payment_identifier(data)
+            except LNURLError as e:
+                self.show_error(e)
+            except ValueError:
+                pass
+            else:
                 return
             # try "address, amount" on-chain format
             try:
