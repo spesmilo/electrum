@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import datetime
 from typing import Callable, Optional, List
 
 import qrcode
@@ -47,8 +47,24 @@ class TxList(CustomTableWidget):
     pass
 
 
+def refresh_stake_dialog_window(data):
+    """
+    Call this function to refresh
+    """
+
+    tx_list.insert_data(
+        table_data={
+            'Tx ID': ['aaaaaaa'],
+            'Staked Amount': '2',
+            'Payout': '2',
+            'GP': '1',
+            'Daily Tx Limit': '1',
+        },
+    )
+
+
 tx_list = TxList(
-    starting_empty_cells=0,
+    starting_empty_cells=1,
     column_names=['Tx ID', 'Staked Amount', 'Payout', 'GP', 'Daily Tx Limit'],
     resize_column=0
 )
@@ -60,10 +76,11 @@ class BaseStakingTxDialog(QDialog, MessageBoxMixin):
     def __call__(self, *args, **kwargs):
         self.open()
 
-    def __init__(self, parent, tx=None):
+    def __init__(self, parent, data, detail_tx):
         # We want to be a top-level window
         QDialog.__init__(self, parent=parent)
-        self.tx = tx  # type: Optional[Transaction]
+        self.data = data
+        self.detail_tx = detail_tx
         self.main_window = parent
         self.config = parent.config
         self.wallet = parent.wallet
@@ -77,7 +94,7 @@ class BaseStakingTxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_("Transaction ID:")))
 
         hbox_hash_explorer = QHBoxLayout()
-        tx_hash = '0957fdfb1b7e9467fdef6d1951f5d6a7809d428846e06e5d7193ce3d7c0a022f'  # hash in qr code and label
+        tx_hash = detail_tx['result']['txid']
         self.tx_hash_e = ButtonsLineEdit()
         self.tx_hash_e.setText(tx_hash)
         self.tx_hash_e.setFixedHeight(35)
@@ -253,8 +270,11 @@ class StakedDialog(BaseStakingTxDialog):
 
 class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -266,35 +286,36 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
         hbox_status = QHBoxLayout()
         status_lab = QLabel('Status:')
-        status_lab_data = QLabel('Stake')
+        status_lab_data = QLabel(f"{self.data['Type']}")
         hbox_status.addWidget(status_lab)
         hbox_status.addWidget(status_lab_data)
         vbox_left.addLayout(hbox_status)
 
         hbox_period = QHBoxLayout()
         period_lab = QLabel('Staking period:')
-        period_lab_data = QLabel('90 Days')
+        period_lab_data = QLabel(f"{self.data['Staking Period']/144} Days")
         hbox_period.addWidget(period_lab)
         hbox_period.addWidget(period_lab_data)
         vbox_left.addLayout(hbox_period)
 
         hbox_start_date = QHBoxLayout()
         start_date_lab = QLabel('Start date:')
-        start_date_lab_data = QLabel('2021-01-01')
+        start_date_lab_data = QLabel(self.data['Start Date'])
         hbox_start_date.addWidget(start_date_lab)
         hbox_start_date.addWidget(start_date_lab_data)
         vbox_left.addLayout(hbox_start_date)
-
         hbox_start_date = QHBoxLayout()
         start_date_lab = QLabel('End date:')
-        start_date_lab_data = QLabel('2021-10-01')
+        start_date_lab_data = QLabel(str(datetime.datetime.fromtimestamp(self.detail_tx['result']['time'])))
         hbox_start_date.addWidget(start_date_lab)
         hbox_start_date.addWidget(start_date_lab_data)
         vbox_left.addLayout(hbox_start_date)
 
         hbox_blocks = QHBoxLayout()
         blocks_lab = QLabel('Blocks:')
-        blocks_lab_data = QLabel('12960 / 12960')
+        blocks_lab_data = QLabel(
+            f"{self.main_window.wallet.get_local_height()}/{self.data['Deposit Height']+self.data['Staking Period']}"
+        )
         hbox_blocks.addWidget(blocks_lab)
         hbox_blocks.addWidget(blocks_lab_data)
         vbox_left.addLayout(hbox_blocks)
@@ -320,14 +341,14 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         hbox_gp = QHBoxLayout()
         gp_lab = QLabel(_("Governance Power:"))
         hbox_gp.addWidget(gp_lab)
-        gp_lab_data = QLabel(_("123 GP"))
+        gp_lab_data = QLabel(_("????"))
         hbox_gp.addWidget(gp_lab_data)
         vbox_right.addLayout(hbox_gp)
 
         hbox_payout = QHBoxLayout()
         p_lab = QLabel(_("Payout:"))
         hbox_payout.addWidget(p_lab)
-        p_lab_data = QLabel(_("0.000000003 ELCASH"))
+        p_lab_data = QLabel(_(f"{self.data['Amount']} ELCASH"))
         hbox_payout.addWidget(p_lab_data)
         vbox_right.addLayout(hbox_payout)
 
@@ -339,7 +360,7 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         hbox_fee = QHBoxLayout()
         p_lab = QLabel(_("Daily free transaction limit:"))
         hbox_fee.addWidget(p_lab)
-        p_lab_data = QLabel(_("200000 bytes"))
+        p_lab_data = QLabel(_("????"))
         hbox_fee.addWidget(p_lab_data)
         vbox_right.addLayout(hbox_fee)
 
@@ -359,7 +380,7 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         self.close_button.clicked.connect(self.on_push_close)
 
 
-        self.buttons = [self.claim_reword_button, self.explorer_button]
+        self.buttons = [self.claim_reword_button, self.close_button]
 
         for b in self.buttons:
             b.setVisible(True)
@@ -385,8 +406,12 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
 class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -453,10 +478,11 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
-
         vbox.addLayout(hbox_stats)
 
-        vbox.addWidget(tx_list)
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -473,8 +499,12 @@ class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
 
 class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -543,7 +573,10 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-        vbox.addWidget(tx_list)
+
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -567,8 +600,12 @@ class CompletedSingleClaimedStakeDialog(BaseStakingTxDialog):
 
 class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -644,8 +681,9 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-
-        vbox.addWidget(tx_list)
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
@@ -662,8 +700,12 @@ class UnstakedMultiStakeDialog(BaseStakingTxDialog):
 
 class UnstakedSingleStakeDialog(BaseStakingTxDialog):
 
-    def __init__(self, parent):
-        super().__init__(parent)
+    def __init__(self, parent, data, detail_tx):
+        self.data = data
+        self.detail_tx = detail_tx
+        self.main_window = parent
+        self.tx_table = tx_list
+        super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
 
@@ -739,9 +781,9 @@ class UnstakedSingleStakeDialog(BaseStakingTxDialog):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addLayout(hbox_stats)
-
-        vbox.addWidget(tx_list)
-
+        vbox.addStretch(1)
+        vbox.addWidget(self.tx_table)
+        refresh_stake_dialog_window(data=[])
 
     def add_buttons(self):
         self.close_button = QPushButton(_("Close"))
