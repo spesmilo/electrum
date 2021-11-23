@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_bolt11_invoice, parse_max_spend)
+                           maybe_extract_lightning_payment_identifier, parse_max_spend)
 from electrum.invoices import PR_PAID, PR_FAILED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
@@ -473,7 +473,7 @@ class ElectrumWindow(App, Logger):
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
+        bolt11_invoice = maybe_extract_lightning_payment_identifier(data)
         if bolt11_invoice is not None:
             self.set_ln_invoice(bolt11_invoice)
             return
@@ -655,7 +655,7 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        
+
         if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
