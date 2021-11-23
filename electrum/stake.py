@@ -77,20 +77,21 @@ class StakeElectrumXAPIDataService:
             )
         )
 
-        if stake_data['result'].get('stakingInfo') is not None:
-            detailed_stake_data = stake_data['result'].get('stakingInfo')
-            header_data = self._connector.send_and_receive_data(
-                data_string=self.generate_api_payload(
-                    method=self.BLOCK_HEADER_METHOD_NAME,
-                    params=[int(detailed_stake_data['deposit_height'])],
-                )
-            )
-            detailed_stake_data['timestamp'] = self.extract_timestamp_from_block_header_hash(
-                block_hash=header_data['result']
-            )
+        if stake_data['result'].get('stakingInfo') is None:
+            return
 
-            return detailed_stake_data
-        return
+        detailed_stake_data = stake_data['result'].get('stakingInfo')
+        header_data = self._connector.send_and_receive_data(
+            data_string=self.generate_api_payload(
+                method=self.BLOCK_HEADER_METHOD_NAME,
+                params=[int(detailed_stake_data['deposit_height'])],
+            )
+        )
+        detailed_stake_data['timestamp'] = self.extract_timestamp_from_block_header_hash(
+            block_hash=header_data['result']
+        )
+
+        return detailed_stake_data
 
     def get_tx_details(self, tx_hash):
         tx_data = self._connector.send_and_receive_data(
