@@ -1051,7 +1051,7 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
-def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
     if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
@@ -1059,6 +1059,14 @@ def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     if data.startswith('ln'):
         return data
     return None
+
+
+def is_uri(data: str) -> bool:
+    data = data.lower()
+    if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
+        data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
+        return True
+    return False
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
