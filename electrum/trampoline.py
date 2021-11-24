@@ -63,6 +63,7 @@ TRAMPOLINE_NODES_MAINNET = {
 
 TRAMPOLINE_NODES_TESTNET = {
     'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
+    'Electrum trampoline': LNPeerAddr(host='lightning.electrum.org', port=9739, pubkey=bytes.fromhex('02bf82e22f99dcd7ac1de4aad5152ce48f0694c46ec582567f379e0adbf81e2d0f')),
 }
 
 TRAMPOLINE_NODES_SIGNET = {
