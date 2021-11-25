@@ -1030,6 +1030,25 @@ class Interface(Logger):
             res = int(res * bitcoin.COIN)
         return res
 
+    async def get_staking_info(self):
+        """
+        """
+        res = await self.session.send_request('blockchain.staking.get_info')
+
+        return res
+
+    async def get_stake(self, tx_hash):
+        """
+        """
+        res = await self.session.send_request('blockchain.transaction.get_stake', [tx_hash])
+        return res
+
+    async def get_listunspent(self, scripthash):
+        """
+        """
+        res = await self.session.send_request('blockchain.scripthash.listunspent', [scripthash])
+        return res
+
 
 def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
     chain_bad = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)

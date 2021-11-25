@@ -189,6 +189,25 @@ class Commands:
         """List of commands"""
         return ' '.join(sorted(known_commands.keys()))
 
+    @command('')
+    async def stakeinfo(self):
+        """Stakeinfo"""
+        a = await self.network.interface.get_staking_info()
+
+        return a
+
+    @command('')
+    async def getstake(self, tx_hash):  # todo: add try except?
+        """Get information about stake fot tx"""
+        data = await self.network.interface.get_stake(tx_hash=tx_hash)
+        return data
+
+    @command('')
+    async def getlistunspent(self, scripthash):  # todo: add try except?
+        """Get listunspent """
+        data = await self.network.interface.get_listunspent(scripthash)
+        return data
+
     @command('n')
     async def getinfo(self):
         """ network info """
