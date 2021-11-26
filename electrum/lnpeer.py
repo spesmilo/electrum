@@ -51,6 +51,7 @@ from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
 from .json_db import StoredDict
 from .invoices import PR_PAID
+from .simple_config import FEE_LN_ETA_TARGET
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -1840,30 +1841,68 @@ class Peer(Logger):
         assert our_scriptpubkey
         # estimate fee of closing tx
         our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
-        fee_rate = self.network.config.fee_per_kb()
-        our_fee = fee_rate * closing_tx.estimated_size() // 1000
+        fee_rate_per_kb = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+        if not fee_rate_per_kb:  # fallback
+            fee_rate_per_kb = self.network.config.fee_per_kb()
+        our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+        # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
         # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
         max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
         our_fee = min(our_fee, max_fee)
-        drop_to_remote = False
+
+        drop_to_remote = False  # does the peer drop its to_local output or not?
         def send_closing_signed():
+            MODERN_FEE = True
+            if MODERN_FEE:
+                nonlocal fee_range_sent  # we change fee_range_sent in outer scope
+                fee_range_sent = fee_range
+                closing_signed_tlvs = {'fee_range': fee_range}
+            else:
+                closing_signed_tlvs = {}
+
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_to_remote)
-            self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+            self.logger.info(f"Sending fee range: {closing_signed_tlvs} and fee: {our_fee}")
+            self.send_message(
+                'closing_signed',
+                channel_id=chan.channel_id,
+                fee_satoshis=our_fee,
+                signature=our_sig,
+                closing_signed_tlvs=closing_signed_tlvs,
+            )
         def verify_signature(tx, sig):
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
             preimage_hex = tx.serialize_preimage(0)
             pre_hash = sha256d(bfh(preimage_hex))
             return ecc.verify_signature(their_pubkey, sig, pre_hash)
+
+        # this is the fee range we initially try to enforce
+        # we aim at a fee between next block inclusion and some lower value
+        fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
+        their_fee = None
+        fee_range_sent = {}
+        is_initiator = chan.constraints.is_initiator
         # the funder sends the first 'closing_signed' message
-        if chan.constraints.is_initiator:
+        if is_initiator:
             send_closing_signed()
+
         # negotiate fee
         while True:
-            # FIXME: the remote SHOULD send closing_signed, but some don't.
-            cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
+            try:
+                cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
+            except asyncio.exceptions.TimeoutError:
+                if not is_initiator and not their_fee:  # we only force close if a peer doesn't reply
+                    self.lnworker.schedule_force_closing(chan.channel_id)
+                    raise Exception("Peer didn't reply with closing signed, force closed.")
+                else:
+                    # situation when we as an initiator send a fee and the recipient
+                    # already agrees with that fee, but doens't tell us
+                    raise Exception("Peer didn't reply, probably already closed.")
+
+            their_previous_fee = their_fee
             their_fee = cs_payload['fee_satoshis']
-            if their_fee > max_fee:
-                raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
+
+            # 0. integrity checks
+            # determine their closing transaction
             their_sig = cs_payload['signature']
             # verify their sig: they might have dropped their output
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
@@ -1885,17 +1924,98 @@ class Peer(Logger):
                 to_remote_amount = closing_tx.outputs()[to_remote_idx].value
                 transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
 
-            # Agree if difference is lower or equal to one (see below)
-            if abs(our_fee - their_fee) < 2:
+            # 1. check fees
+            # if fee_satoshis is equal to its previously sent fee_satoshis:
+            if our_fee == their_fee:
+                # SHOULD sign and broadcast the final closing transaction.
+                break  # we publish
+
+            # 2. at start, adapt our fee range if we are not the channel initiator
+            fee_range_received = cs_payload['closing_signed_tlvs'].get('fee_range')
+            self.logger.info(f"Received fee range: {fee_range_received} and fee: {their_fee}")
+            # The sending node: if it is not the funder:
+            if fee_range_received and not is_initiator and not fee_range_sent:
+                # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
+                fee_range['max_fee_satoshis'] = max(fee_range_received['max_fee_satoshis'], fee_range['max_fee_satoshis'])
+                # SHOULD set min_fee_satoshis to a fairly low value
+                # TODO: what's fairly low value? allows the initiator to go to low values
+                fee_range['min_fee_satoshis'] = fee_range['max_fee_satoshis'] // 2
+
+            # 3. if fee_satoshis matches its previously sent fee_range:
+            if fee_range_sent and (fee_range_sent['min_fee_satoshis'] <= their_fee <= fee_range_sent['max_fee_satoshis']):
+                # SHOULD reply with a closing_signed with the same fee_satoshis value if it is different from its previously sent fee_satoshis
+                if our_fee != their_fee:
+                    our_fee = their_fee
+                    send_closing_signed()  # peer publishes
+                    break
+                # SHOULD use `fee_satoshis` to sign and broadcast the final closing transaction
+                else:
+                    our_fee = their_fee
+                    break  # we publish
+
+            # 4. if the message contains a fee_range
+            if fee_range_received:
+                overlap_min = max(fee_range['min_fee_satoshis'], fee_range_received['min_fee_satoshis'])
+                overlap_max = min(fee_range['max_fee_satoshis'], fee_range_received['max_fee_satoshis'])
+                # if there is no overlap between that and its own fee_range
+                if overlap_min > overlap_max:
+                    raise Exception("There is no overlap between between their and our fee range.")
+                    # TODO: MUST fail the channel if it doesn't receive a satisfying fee_range after a reasonable amount of time
+                # otherwise:
+                else:
+                    if is_initiator:
+                        # if fee_satoshis is not in the overlap between the sent and received fee_range:
+                        if not (overlap_min <= their_fee <= overlap_max):
+                            # MUST fail the channel
+                            self.lnworker.schedule_force_closing(chan.channel_id)
+                            raise Exception("Their fee is not in the overlap region, we force closed.")
+                        # otherwise:
+                        else:
+                            our_fee = their_fee
+                            # MUST reply with the same fee_satoshis.
+                            send_closing_signed()  # peer publishes
+                            break
+                    # otherwise (it is not the funder):
+                    else:
+                        # if it has already sent a closing_signed:
+                        if fee_range_sent:
+                            # if fee_satoshis is not the same as the value it sent:
+                            if their_fee != our_fee:
+                                # MUST fail the channel
+                                self.lnworker.schedule_force_closing(chan.channel_id)
+                                raise Exception("Expected the same fee as ours, we force closed.")
+                        # otherwise:
+                        else:
+                            # MUST propose a fee_satoshis in the overlap between received and (about-to-be) sent fee_range.
+                            our_fee = (overlap_min + overlap_max) // 2
+                            send_closing_signed()
+                            continue
+            # otherwise, if fee_satoshis is not strictly between its last-sent fee_satoshis
+            # and its previously-received fee_satoshis, UNLESS it has since reconnected:
+            elif their_previous_fee and not (min(our_fee, their_previous_fee) < their_fee < max(our_fee, their_previous_fee)):
+                # SHOULD fail the connection.
+                raise Exception('Their fee is not between our last sent and their last sent fee.')
+            # otherwise, if the receiver agrees with the fee:
+            elif abs(their_fee - our_fee) <= 1:  # we cannot have another strictly in-between value
+                # SHOULD reply with a closing_signed with the same fee_satoshis value.
                 our_fee = their_fee
+                send_closing_signed()  # peer publishes
                 break
-            # this will be "strictly between" (as in BOLT2) previous values because of the above
-            our_fee = (our_fee + their_fee) // 2
-            # another round
+            # otherwise:
+            else:
+                # MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
+                our_fee_proposed = (our_fee + their_fee) // 2
+                if not (min(our_fee, their_fee) < our_fee_proposed < max(our_fee, their_fee)):
+                    our_fee_proposed += (their_fee - our_fee) // 2
+                else:
+                    our_fee = our_fee_proposed
+                send_closing_signed()
+
+        # reaching this part of the code means that we have reached agreement; to make
+        # sure the peer doesn't force close, send a last closing_signed
+        if not is_initiator:
             send_closing_signed()
-        # the non-funder replies
-        if not chan.constraints.is_initiator:
-            send_closing_signed()
+
         # add signatures
         closing_tx.add_signature_to_txin(
             txin_idx=0,
