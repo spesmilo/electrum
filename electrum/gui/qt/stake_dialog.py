@@ -34,6 +34,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QTextBrowser,
+    QSpacerItem,
+    QSizePolicy
 )
 
 from electrum.i18n import _
@@ -107,7 +109,7 @@ class CustomButton(QPushButton):
 
 
 def staking_dialog(window):
-    window.receive_grid = grid = QGridLayout()
+    window.top_h_label = QHBoxLayout()
     window.create_stake_dialog = CreateNewStakingWindow(window)
 
     window.stake_button = CustomButton(
@@ -118,13 +120,18 @@ def staking_dialog(window):
     window.tx_detail_dialog = None
     window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=None)
 
+    window.stake_balance_label = QLabel('Staked balance: 100')
+    window.stake_balance_label.setAlignment(Qt.AlignRight | Qt.AlignRight)
+
     window.staking_header = buttons = QHBoxLayout()
-    buttons.addStretch(1)
     buttons.addWidget(window.stake_button)
     buttons.addWidget(window.claim_rewords_button)
-    grid.addLayout(buttons, 4, 3, 1, 2)
 
-    window.receive_requests_label = QLabel(_('Staking History'))
+    verticalSpacer = QSpacerItem(400, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+    window.top_h_label.addLayout(buttons)
+    window.top_h_label.addItem(verticalSpacer)
+    window.top_h_label.addWidget(window.stake_balance_label)
 
     window.staking_list = staking_list
 
@@ -139,19 +146,12 @@ def staking_dialog(window):
     window.terms_button.setAutoDefault(True)
     window.terms_button.clicked.connect(terms_and_conditions_view)
 
-    vbox_g = QVBoxLayout()
-    vbox_g.addLayout(grid)
-    vbox_g.addStretch()
-    hbox = QHBoxLayout()
-    hbox.addLayout(vbox_g)
-    hbox.addStretch()
 
     w = QWidget()
     vbox = QVBoxLayout(w)
-    vbox.addLayout(hbox)
 
     vbox.addStretch(1)
-    vbox.addWidget(window.receive_requests_label)
+    vbox.addLayout(window.top_h_label)
     vbox.addWidget(window.staking_list)
     vbox.addWidget(window.terms_button)
     vbox.setStretchFactor(window.staking_list, 1000)
