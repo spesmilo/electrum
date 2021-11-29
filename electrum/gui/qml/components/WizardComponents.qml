@@ -6,7 +6,11 @@ Item {
     property Component walletname: Component {
         WizardComponent {
             valid: wallet_name.text.length > 0
-            property alias wallet_name: wallet_name.text
+            //property alias wallet_name: wallet_name.text
+            onAccept: {
+                wizard_data['wallet_name'] = wallet_name.text
+            }
+
             GridLayout {
                 columns: 1
                 Label { text: qsTr('Wallet name') }
@@ -20,13 +24,13 @@ Item {
     property Component wallettype: Component {
         WizardComponent {
             valid: wallettypegroup.checkedButton !== null
-            property string wallet_type
+
+            onAccept: {
+                wizard_data['wallet_type'] = wallettypegroup.checkedButton.wallettype
+            }
 
             ButtonGroup {
                 id: wallettypegroup
-                onCheckedButtonChanged: {
-                    wallet_type = checkedButton.wallettype
-                }
             }
 
             GridLayout {
@@ -63,13 +67,13 @@ Item {
     property Component keystore: Component {
         WizardComponent {
             valid: keystoregroup.checkedButton !== null
-            property string keystore_type
+
+            onAccept: {
+                wizard_data['keystore_type'] = keystoregroup.checkedButton.keystoretype
+            }
 
             ButtonGroup {
                 id: keystoregroup
-                onCheckedButtonChanged: {
-                    keystore_type = checkedButton.keystoretype
-                }
             }
 
             GridLayout {
@@ -106,8 +110,12 @@ Item {
     property Component createseed: Component {
         WizardComponent {
             valid: true
-            property alias seed: seedtext.text
-            property alias extend: extendcb.checked
+
+            onAccept: {
+                wizard_data['seed'] = seedtext.text
+                wizard_data['seed_extend'] = extendcb.checked
+            }
+
             GridLayout {
                 columns: 1
                 Label { text: qsTr('Generating seed') }
@@ -129,9 +137,13 @@ Item {
     property Component haveseed: Component {
         WizardComponent {
             valid: true
-            property alias seed: seedtext.text
-            property alias extend: extendcb.checked
-            property alias bip39: bip39cb.checked
+
+            onAccept: {
+                wizard_data['seed'] = seedtext.text
+                wizard_data['seed_extend'] = extendcb.checked
+                wizard_data['seed_bip39'] = bip39cb.checked
+            }
+
             GridLayout {
                 columns: 1
                 Label { text: qsTr('Enter your seed') }
@@ -179,8 +191,11 @@ Item {
         WizardComponent {
             valid: password1.text === password2.text
 
-            property alias password: password1.text
-            property alias encrypt: doencrypt.checked
+            onAccept: {
+                wizard_data['password'] = password1.text
+                wizard_data['encrypt'] = doencrypt.checked
+            }
+
             GridLayout {
                 columns: 1
                 Label { text: qsTr('Password protect wallet?') }
