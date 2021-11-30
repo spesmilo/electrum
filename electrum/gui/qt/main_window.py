@@ -2209,6 +2209,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.balance_label.setStyleSheet("""QLabel { padding: 0 }""")
         sb.addWidget(self.balance_label)
 
+        self.free_label = QLabel("Daily free transaction limit: 200/1000 bytes")
+        self.free_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.free_label.setStyleSheet("""QLabel { padding: 0 }""")
+        sb.addWidget(self.free_label)
+
         self.search_box = QLineEdit()
         self.search_box.textChanged.connect(self.do_search)
         self.search_box.hide()
