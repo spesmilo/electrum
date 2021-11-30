@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.5](https://github.com/electric-cash/elcash-wallet/compare/v5.0.4...v5.0.5) (2021-11-30)
+
+
+### Bug Fixes
+
+* Replace non-existant Coinbene exchange with Coingecko ([#75](https://github.com/electric-cash/elcash-wallet/issues/75)) ([f6c1514](https://github.com/electric-cash/elcash-wallet/commit/f6c1514a6de85f9acb3ad196a779a2c64a75ab72))
+
 ## [5.0.4](https://github.com/electric-cash/elcash-wallet/compare/v5.0.3...v5.0.4) (2021-09-23)
 
 
