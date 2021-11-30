@@ -25,7 +25,7 @@ from .logging import Logger
 
 DEFAULT_ENABLED = False
 DEFAULT_CURRENCY = "USDT"
-DEFAULT_EXCHANGE = "CoinBene"  # default exchange should ideally provide historical rates
+DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -149,14 +149,32 @@ class ExchangeBase(Logger):
         rates = await self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
+class CoinGecko(ExchangeBase):
 
-class CoinBene(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json(
-            'openapi-exchange.coinbene.com',
-            '/api/v3/spot/instruments/ticker_one?instrument_id=ELCASH%2FUSDT'
+            'api.coingecko.com',
+            f'/api/v3/simple/price'
+            f'?ids=electric-cash'
+            f'&vs_currencies={",".join(cname.lower() for cname in CURRENCIES[self.name()])}'
         )
-        return {'USDT': json['data']['last_price']}
+        return dict([(ccy.upper(), Decimal(value))
+                     for ccy, value in json['electric-cash'].items()])
+
+    def history_ccys(self):
+        # CoinGecko seems to have historical data for all ccys it supports
+        return CURRENCIES[self.name()]
+
+    async def request_history(self, ccy):
+        history = await self.get_json(
+            'api.coingecko.com',
+            f'/api/v3/coins/electric-cash/market_chart'
+            f'?vs_currency={ccy}'
+            f'&days=max'
+        )
+
+        return dict([(datetime.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
+                     for h in history['prices']])
 
 
 def dictinvert(d):
@@ -363,8 +381,12 @@ class FxThread(ThreadJob):
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
-            self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
+        return (
+            _("  (No FX rate available)")
+            if rate.is_nan()
+            else
+            f" 1 {base_unit}~{self.value_str(COIN / (10**(8 - decimal_point)), rate)} {self.ccy}"
+        )
 
     def fiat_value(self, satoshis, rate):
         return Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
