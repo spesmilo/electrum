@@ -6,7 +6,7 @@ Item {
     property Component walletname: Component {
         WizardComponent {
             valid: wallet_name.text.length > 0
-            //property alias wallet_name: wallet_name.text
+
             onAccept: {
                 wizard_data['wallet_name'] = wallet_name.text
             }

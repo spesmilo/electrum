@@ -15,7 +15,7 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QLocale, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QLocale, QTimer, qInstallMessageHandler
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtQml import qmlRegisterType, QQmlComponent, QQmlApplicationEngine
 from PyQt5.QtQuick import QQuickView
@@ -36,38 +36,35 @@ if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
+from .qeconfig import QEConfig
 from .qedaemon import QEDaemon, QEWalletListModel
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
 from .qeqr import QEQR
 
 class ElectrumQmlApplication(QGuiApplication):
-    def __init__(self, args, daemon):
+    def __init__(self, args, config, daemon):
         super().__init__(args)
 
-        self.logger = get_logger(__name__)
+        self.logger = get_logger(__name__ + '.engine')
 
-        qmlRegisterType(QEWalletListModel, 'Electrum', 1, 0, 'WalletListModel')
-        qmlRegisterType(QEWallet, 'Electrum', 1, 0, 'Wallet')
+        qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
+        qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
 
-        self.logger.info('importPathList() :')
-        for i in self.engine.importPathList():
-            self.logger.info(i)
-
-        self.logger.info('pluginPathList() :')
-        for i in self.engine.pluginPathList():
-            self.logger.info(i)
-
         self.context = self.engine.rootContext()
+        self._singletons['config'] = QEConfig(config)
         self._singletons['network'] = QENetwork(daemon.network)
         self._singletons['daemon'] = QEDaemon(daemon)
         self._singletons['qr'] = QEQR()
+        self.context.setContextProperty('Config', self._singletons['config'])
         self.context.setContextProperty('Network', self._singletons['network'])
         self.context.setContextProperty('Daemon', self._singletons['daemon'])
         self.context.setContextProperty('QR', self._singletons['qr'])
+
+        qInstallMessageHandler(self.message_handler)
 
         # get notified whether root QML document loads or not
         self.engine.objectCreated.connect(self.objectCreated)
@@ -82,14 +79,17 @@ class ElectrumQmlApplication(QGuiApplication):
             self._valid = False
         self.engine.objectCreated.disconnect(self.objectCreated)
 
+    def message_handler(self, line, funct, file):
+        self.logger.warning(file)
+
 class ElectrumGui(Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', self.get_default_language()))
         Logger.__init__(self)
-        os.environ['QML_IMPORT_TRACE'] = '1'
-        os.environ['QT_DEBUG_PLUGINS'] = '1'
+        #os.environ['QML_IMPORT_TRACE'] = '1'
+        #os.environ['QT_DEBUG_PLUGINS'] = '1'
 
         self.logger.info(f"Qml GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         self.logger.info("CWD=%s" % os.getcwd())
@@ -112,7 +112,7 @@ class ElectrumGui(Logger):
         self.config = config
         self.daemon = daemon
         self.plugins = plugins
-        self.app = ElectrumQmlApplication(sys.argv, self.daemon)
+        self.app = ElectrumQmlApplication(sys.argv, self.config, self.daemon)
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
@@ -124,14 +124,6 @@ class ElectrumGui(Logger):
         self.app.engine.load('electrum/gui/qml/components/main.qml')
 
     def close(self):
-#        for window in self.windows:
-#            window.close()
-#        if self.network_dialog:
-#            self.network_dialog.close()
-#        if self.lightning_dialog:
-#            self.lightning_dialog.close()
-#        if self.watchtower_dialog:
-#            self.watchtower_dialog.close()
         self.app.quit()
 
     def main(self):

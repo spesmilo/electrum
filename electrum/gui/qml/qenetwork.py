@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.util import register_callback
 from electrum.logging import get_logger
 from electrum import constants
+from electrum.interface import ServerAddr
 
 class QENetwork(QObject):
     def __init__(self, network, parent=None):
@@ -20,6 +21,7 @@ class QENetwork(QObject):
     blockchainUpdated = pyqtSignal()
     defaultServerChanged = pyqtSignal()
     proxySet = pyqtSignal()
+    proxyChanged = pyqtSignal()
     statusUpdated = pyqtSignal()
 
     dataChanged = pyqtSignal() # dummy to silence warnings
@@ -64,6 +66,17 @@ class QENetwork(QObject):
     def server(self):
         return self._server
 
+    @server.setter
+    def server(self, server):
+        net_params = self.network.get_parameters()
+        try:
+            server = ServerAddr.from_str_with_inference(server)
+            if not server: raise Exception("failed to parse")
+        except Exception:
+            return
+        net_params = net_params._replace(server=server)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
     @pyqtProperty('QString',notify=statusUpdated)
     def status(self):
         return self._status
@@ -76,3 +89,16 @@ class QENetwork(QObject):
     def networkName(self):
         return constants.net.__name__.replace('Bitcoin','')
 
+    @pyqtProperty('QVariantMap', notify=proxyChanged)
+    def proxy(self):
+        net_params = self.network.get_parameters()
+        return net_params
+
+    @proxy.setter
+    def proxy(self, proxy_settings):
+        net_params = self.network.get_parameters()
+        if not proxy_settings['enabled']:
+            proxy_settings = None
+        net_params = net_params._replace(proxy=proxy_settings)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        self.proxyChanged.emit()

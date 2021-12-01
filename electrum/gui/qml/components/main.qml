@@ -1,5 +1,5 @@
 import QtQuick 2.6
-import QtQuick.Controls 2.3
+import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Controls.Material 2.0
 
@@ -10,6 +10,8 @@ ApplicationWindow
 {
     id: app
     visible: true
+
+    // dimensions ignored on android
     width: 480
     height: 800
 
@@ -55,7 +57,7 @@ ApplicationWindow
                     Label {
                         id: networkNameLabel
                         text: Network.networkName
-                        color: Material.accentColor //'orange'
+                        color: Material.accentColor
                         font.pointSize: 5
                     }
                 }
@@ -85,7 +87,7 @@ ApplicationWindow
         id: mainStackView
         anchors.fill: parent
 
-        initialItem: Qt.resolvedUrl('landing.qml')
+        initialItem: Qt.resolvedUrl('WalletMainView.qml')
     }
 
     Timer {
@@ -124,6 +126,22 @@ ApplicationWindow
         }
     }
 
+    property alias serverConnectWizard: _serverConnectWizard
+    Component {
+        id: _serverConnectWizard
+        ServerConnectWizard {
+            parent: Overlay.overlay
+            x: 12
+            y: 12
+            width: parent.width - 24
+            height: parent.height - 24
+
+            Overlay.modal: Rectangle {
+                color: "#aa000000"
+            }
+        }
+    }
+
     property alias messageDialog: _messageDialog
     Component {
         id: _messageDialog
@@ -144,8 +162,17 @@ ApplicationWindow
     }
 
     Component.onCompleted: {
-        Daemon.load_wallet()
+        //Daemon.load_wallet()
         splashTimer.start()
+        if (!Config.autoConnectDefined) {
+            var dialog = serverConnectWizard.createObject(app)
+            // without completed serverConnectWizard we can't start
+            dialog.rejected.connect(function() {
+                app.visible = false
+                Qt.callLater(Qt.quit)
+            })
+            dialog.open()
+        }
     }
 
     onClosing: {
