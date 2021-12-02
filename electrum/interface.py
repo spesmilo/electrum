@@ -1035,6 +1035,12 @@ class Interface(Logger):
         """
         res = await self.session.send_request('blockchain.staking.get_info')
 
+        assert_dict_contains_field(res, field_name='interestInfo')
+        assert_dict_contains_field(res, field_name='num_stakes')
+        assert_dict_contains_field(res, field_name='penalty')
+        assert_dict_contains_field(res, field_name='staking_pool')
+        assert_dict_contains_field(res, field_name='total_staked')
+
         return res
 
     async def get_stake(self, tx_hash):
