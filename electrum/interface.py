@@ -1030,6 +1030,7 @@ class Interface(Logger):
             res = int(res * bitcoin.COIN)
         return res
 
+    @command('n')
     async def get_staking_info(self):
         """
         """
@@ -1040,8 +1041,13 @@ class Interface(Logger):
     async def get_stake(self, tx_hash):
         """
         """
+        if not is_hash256_str(tx_hash):
+            raise Exception(f"{repr(tx_hash)} is not a txid")
         res = await self.session.send_request('blockchain.transaction.get_stake', [tx_hash])
-        return res
+        if 'deposit_height' not in res.keys():
+            raise Exception('This is not stake')
+        else:
+            return res
 
     async def get_listunspent(self, scripthash):
         """
