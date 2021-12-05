@@ -264,7 +264,6 @@ class Commands:
         or bitcoin private keys.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
-        # TODO create a separate command that blocks until wallet is synced
         d = restore_wallet_from_text(text,
                                      path=wallet_path,
                                      passphrase=passphrase,
@@ -275,6 +274,27 @@ class Commands:
             'path': d['wallet'].storage.path,
             'msg': d['msg'],
         }
+
+    @command('n')
+    async def restore_sync(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
+        """Restore a wallet from text and waits for it to synchronize with the network.
+        Text can be a seed phrase, a master public key, a master private key,
+        a list of bitcoin addresses or bitcoin private keys.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
+        network = self.network
+        d = restore_wallet_from_text(text,
+                                     path=wallet_path,
+                                     passphrase=passphrase,
+                                     password=password,
+                                     encrypt_file=encrypt_file,
+                                     config=self.config,
+                                     wait_for_sync=True, sync_network=network)
+        return {
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
+
 
     @command('wp')
     async def password(self, password=None, new_password=None, wallet: Abstract_Wallet = None):

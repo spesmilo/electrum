@@ -3300,7 +3300,7 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
 
 def restore_wallet_from_text(text, *, path, config: SimpleConfig,
                              passphrase=None, password=None, encrypt_file=True,
-                             gap_limit=None) -> dict:
+                             gap_limit=None, wait_for_sync=False, sync_network=None) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
@@ -3342,6 +3342,12 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
     assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
+    if wait_for_sync:
+        if not sync_network:
+            raise Exception('sync_network is required if wait_for_sync is True')
+        wallet.start_network(sync_network)
+        while not wallet.network.is_connected:
+            time.sleep(0.1)
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
            "Start a daemon and use load_wallet to sync its history.")
     wallet.save_db()
