@@ -14,6 +14,7 @@ from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wa
 from electrum.util import bfh, bh2u, create_and_start_event_loop
 from electrum.transaction import TxOutput, Transaction, PartialTransaction, PartialTxOutput, PartialTxInput, tx_from_any
 from electrum.mnemonic import seed_type
+from electrum.staking.transaction import TypeAwareTransaction
 
 from electrum.plugins.trustedcoin import trustedcoin
 
@@ -2842,30 +2843,30 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         w = self.create_wallet()
         w.db.put('stored_height', 1316917 + 100)
         for txid in self.transactions:
-            tx = Transaction(self.transactions[txid])
+            tx = TypeAwareTransaction.from_tx(Transaction(self.transactions[txid]))
             w.add_transaction(tx)
         # txn A is an external incoming txn paying to addr (3) and (15)
         # txn B is an external incoming txn paying to addr (4) and (25)
         # txn C is an internal transfer txn from addr (25) -- to -- (1) and (25)
         w.receive_history_callback('tb1qgh5c088he4d559wl0hw27hrdeg8p2z96pefn4q',  # HD index 1
-                                   [('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917)],
+                                   [('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917, 'NONE', None)],
                                    {})
         w.synchronize()
         w.receive_history_callback('tb1qm0ejr6g964zt2jux5te7m9ds43n28hdsdz9ull',  # HD index 3
-                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912)],
+                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912, 'NONE', None)],
                                    {})
         w.synchronize()
         w.receive_history_callback('tb1qj4pnq958k89zcem3342lhcgyz0rnmhkzl6x0cl',  # HD index 4
-                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917)],
+                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917, 'NONE', None)],
                                    {})
         w.synchronize()
         w.receive_history_callback('tb1q3pyjwpm8wxgvquak240mprfhaydmkawcsl25je',  # HD index 15
-                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912)],
+                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912, 'NONE', None)],
                                    {})
         w.synchronize()
         w.receive_history_callback('tb1qr0qjp99ygawul0eylxfqmt7alygye22mj33vej',  # HD index 25
-                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917),
-                                    ('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917)],
+                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917, 'NONE', None),
+                                    ('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917, 'NONE', None)],
                                    {})
         w.synchronize()
         self.assertEqual(9999788, sum(w.get_balance()))

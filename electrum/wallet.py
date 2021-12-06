@@ -50,6 +50,7 @@ from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from . import util
+from .staking.utils import get_tx_type_aware_tx_status
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
@@ -80,6 +81,7 @@ from .mnemonic import Mnemonic
 from .logging import get_logger
 from .lnworker import LNWallet, LNBackups
 from .paymentrequest import PaymentRequest
+from .staking.tx_type import TxType
 from .util import read_json_file, write_json_file, UserFacingException
 
 if TYPE_CHECKING:
@@ -700,6 +702,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 'date': timestamp_to_datetime(hist_item.tx_mined_status.timestamp),
                 'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
+                'staking_info': hist_item.tx_mined_status.staking_info,
             }
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
@@ -868,6 +871,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         lnworker_history = self.lnworker.get_onchain_history() if self.lnworker and include_lightning else {}
         for tx_item in onchain_history:
             txid = tx_item['txid']
+            tx = self.db.get_transaction(txid)
+            tx_item['txtype'] = tx.tx_type.name
+            if self.network:
+                if tx.tx_type == TxType.STAKING_DEPOSIT:
+                    tx.update_staking_info(self.network)
+                    tx_item['staking_info'] = tx.staking_info
             transactions_tmp[txid] = tx_item
             # add lnworker info here
             if txid in lnworker_history:
@@ -904,6 +913,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             # note: 'value' and 'balance' has msat precision (as LN has msat precision)
             item['value'] = Satoshis(value)
             balance += value
+            # TODO: differentiate by tx type and adjust item['balance'] accordingly
             item['balance'] = Satoshis(balance)
             if fx and fx.is_enabled() and fx.get_history_config():
                 txid = item.get('txid')
@@ -1088,7 +1098,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         status_str = transaction_statuses[status] if status < 4 else time_str
         if extra:
             status_str += ' [%s]'%(', '.join(extra))
-        return status, status_str
+        return get_tx_type_aware_tx_status(
+            tx_hash=tx_hash,
+            tx_mined_info=tx_mined_info,
+            status=status,
+            status_str=status_str,
+            db=self.db
+        )
 
     def relayfee(self):
         return relayfee(self.network)
@@ -1348,7 +1364,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         max_conf = -1
         h = self.db.get_addr_history(address)
         needs_spv_check = not self.config.get("skipmerklecheck", False)
-        for tx_hash, tx_height in h:
+        for tx_hash, tx_height, *__ in h:
             if needs_spv_check:
                 tx_age = self.get_tx_height(tx_hash).conf
             else:
@@ -1672,6 +1688,31 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 if k.can_sign_txin(txin):
                     return True
         return False
+
+    def update_stakes(self, *, ignore_network_issues=False):
+        if self.network and self.network.has_internet_connection():
+            try:
+                txs = self.db.list_transactions()
+                for txid in txs:
+                    tx = self.db.get_transaction(txid)
+                    if not tx:
+                        continue
+                    if not hasattr(tx, 'tx_type'):
+                        self.logger.warning(f'tx_type not found in {tx.txid()} but it should be there')
+                        continue
+                    # TODO: use filter in future when verbose logging won't be required
+                    # filter(lambda tx: tx.tx_type...)
+                    if tx.tx_type == TxType.STAKING_DEPOSIT:
+                        tx.update_staking_info(self.network)
+
+            except NetworkException as e:
+                self.logger.info(f'got network eror: {repr(e)}. '
+                                 f'if you are intentionally offline, consider using the --offline flag')
+                if not ignore_network_issues:
+                    raise e
+            else:
+                self.logger.info(f'staking transaction statuses updated!')
+
 
     def get_input_tx(self, tx_hash, *, ignore_network_issues=False) -> Optional[Transaction]:
         # First look up an input transaction in the wallet where it
@@ -2390,7 +2431,7 @@ class Imported_Wallet(Simple_Wallet):
             for addr in self.db.get_history():
                 details = self.get_address_history(addr)
                 if addr == address:
-                    for tx_hash, height in details:
+                    for tx_hash, height, *__ in details:
                         transactions_to_remove.add(tx_hash)
                 else:
                     for tx_hash, height in details:

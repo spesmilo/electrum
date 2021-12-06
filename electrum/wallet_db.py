@@ -32,6 +32,8 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 import binascii
 
 from . import util, bitcoin
+from .staking.transaction import TypeAwareTransaction
+from .staking.tx_type import TxType
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
 from .invoices import PR_TYPE_ONCHAIN, Invoice
 from .keystore import bip44_derivation
@@ -984,18 +986,20 @@ class WalletDB(JsonDB):
         assert isinstance(txid, str)
         if txid not in self.verified_tx:
             return None
-        height, timestamp, txpos, header_hash = self.verified_tx[txid]
+        height, timestamp, txpos, header_hash, txtype, staking_info = self.verified_tx[txid]
         return TxMinedInfo(height=height,
                            conf=None,
                            timestamp=timestamp,
                            txpos=txpos,
-                           header_hash=header_hash)
+                           header_hash=header_hash,
+                           txtype=txtype,
+                           staking_info=staking_info)
 
     @modifier
     def add_verified_tx(self, txid: str, info: TxMinedInfo):
         assert isinstance(txid, str)
         assert isinstance(info, TxMinedInfo)
-        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
+        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash, info.txtype, info.staking_info)
 
     @modifier
     def remove_verified_tx(self, txid: str):
@@ -1161,7 +1165,7 @@ class WalletDB(JsonDB):
         self.transactions = self.get_dict('transactions')        # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_dict('spent_outpoints')  # txid -> output_index -> next_txid
         self.history = self.get_dict('addr_history')             # address -> list of (txid, height)
-        self.verified_tx = self.get_dict('verified_tx3')         # txid -> (height, timestamp, txpos, header_hash)
+        self.verified_tx = self.get_dict('verified_tx3')         # txid -> (height, timestamp, txpos, header_hash, txtype)
         self.tx_fees = self.get_dict('tx_fees')                  # type: Dict[str, TxFeesValue]
         # scripthash -> set of (outpoint, value)
         self._prevouts_by_scripthash = self.get_dict('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
@@ -1177,6 +1181,55 @@ class WalletDB(JsonDB):
                 if spending_txid not in self.transactions:
                     self.logger.info("removing unreferenced spent outpoint")
                     d.pop(prevout_n)
+
+        # TODO: Move two below method calls to self.upgrade under specific walletdb upgrade revision
+        self._upgrade_tx_to_type_aware_tx()
+        self._upgrade_verifier_by_tx_type()
+
+    def _upgrade_tx_to_type_aware_tx(self):
+        """ Make wallet db aware of staking tx and upgrade transactions to new type """
+        upgraded_transactions = []
+        for tx_history in self.history.values():
+            for item in tx_history:
+                tx_hash = item[0]
+                if len(item) < 3:
+                    item.append(TxType.NONE.name)
+
+                tx = self.transactions.get(tx_hash, None)
+                if tx:
+                    tx = self._upgrade_single_tx(tx)
+                    item[2] = tx.tx_type.name
+                    upgraded_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(upgraded_transactions)
+        for tx_hash in non_updated_txs:
+            tx = self.transactions.get(tx_hash, None)
+            self._upgrade_single_tx(tx)
+            upgraded_transactions.append(tx_hash)
+
+        non_updated_txs = set(self.transactions.keys()) - set(upgraded_transactions)
+        assert len(non_updated_txs) == 0, f'Transactions {non_updated_txs} not updated to ThreeKeys'
+
+    def _upgrade_single_tx(self, tx: Transaction) -> TypeAwareTransaction:
+        type_aware_tx = TypeAwareTransaction.from_tx(tx)
+        self.transactions[type_aware_tx.txid()] = type_aware_tx
+        if tx.txid() in self.verified_tx.keys():
+            existing_verified_tx = self.verified_tx[tx.txid()]
+            info = TxMinedInfo(
+                height=existing_verified_tx[0],
+                timestamp=existing_verified_tx[1],
+                txpos=existing_verified_tx[2],
+                header_hash=existing_verified_tx[3],
+                txtype=type_aware_tx.tx_type.name,
+                staking_info=existing_verified_tx[5] if len(existing_verified_tx) > 5 else None
+            )
+            self.add_verified_tx(tx.txid(), info)
+        return type_aware_tx
+
+    def _upgrade_verifier_by_tx_type(self):
+        for key, value in self.verified_tx.items():
+            if len(value) == 4:
+                value.append(TxType.NONE)
 
     @modifier
     def clear_history(self):

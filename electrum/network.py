@@ -449,6 +449,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 
+        async def get_staking_info():
+            self.staking_info = await interface.get_staking_info()
+
         async with TaskGroup() as group:
             await group.spawn(get_banner)
             await group.spawn(get_donation_address)
@@ -1048,6 +1051,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @catch_server_exceptions
     async def get_txid_from_txpos(self, tx_height, tx_pos, merkle):
         return await self.interface.get_txid_from_txpos(tx_height, tx_pos, merkle)
+
+    @best_effort_reliable
+    @catch_server_exceptions
+    async def get_stake(self, tx_hash: str, *, timeout=None) -> str:
+        return await self.interface.get_stake(tx_hash=tx_hash, timeout=timeout)
 
     def blockchain(self) -> Blockchain:
         interface = self.interface

@@ -141,6 +141,7 @@ class TxOutput:
         addr = self.address
         if addr is not None:
             return addr
+        # TODO: detect if scriptpubkey is staking and adjust response
         return f"SCRIPT {self.scriptpubkey.hex()}"
 
     def __repr__(self):

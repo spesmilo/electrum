@@ -1043,12 +1043,12 @@ class Interface(Logger):
 
         return res
 
-    async def get_stake(self, tx_hash):
+    async def get_stake(self, tx_hash, *, timeout=None):
         """
         """
         if not is_hash256_str(tx_hash):
             raise Exception(f"{repr(tx_hash)} is not a txid")
-        res = await self.session.send_request('blockchain.transaction.get_stake', [tx_hash])
+        res = await self.session.send_request('blockchain.transaction.get_stake', [tx_hash], timeout=timeout)
 
         assert_dict_contains_field(res, field_name='deposit_height')
         assert_dict_contains_field(res, field_name='staking_period')

@@ -404,7 +404,7 @@ Use this if you want your local watchtower to keep running after you close your 
             if not self.fx: return
             self.fx.set_history_config(checked)
             update_exchanges()
-            self.window.history_model.refresh('on_history')
+            self.window.history_list.update('on_history')
             if self.fx.is_enabled() and checked:
                 self.fx.trigger_update()
             update_history_capgains_cb()
@@ -412,7 +412,7 @@ Use this if you want your local watchtower to keep running after you close your 
         def on_history_capgains(checked):
             if not self.fx: return
             self.fx.set_history_capital_gains_config(checked)
-            self.window.history_model.refresh('on_history_capgains')
+            self.window.history_list.update('on_history_capgains')
 
         def on_fiat_address(checked):
             if not self.fx: return
@@ -443,7 +443,7 @@ Use this if you want your local watchtower to keep running after you close your 
             (gui_widgets, _('General')),
             (tx_widgets, _('Transactions')),
             # todo uncomment when turn on lightning
-#            (lightning_widgets, _('Lightning')),
+            # (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
             (oa_widgets, _('OpenAlias')),
         ]

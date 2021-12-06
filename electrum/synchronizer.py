@@ -31,6 +31,7 @@ import logging
 from aiorpcx import TaskGroup, run_in_thread, RPCError
 
 from . import util
+from .staking.tx_type import TxType
 from .transaction import Transaction, PartialTransaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy
 from .bitcoin import address_to_scripthash, is_address
@@ -49,7 +50,7 @@ def history_status(h):
     if not h:
         return None
     status = ''
-    for tx_hash, height in h:
+    for tx_hash, height, *__ in h:
         status += tx_hash + ':%d:' % height
     return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
@@ -171,7 +172,11 @@ class Synchronizer(SynchronizerBase):
         self._requests_answered += 1
         self.logger.info(f"receiving history {addr} {len(result)}")
         hashes = set(map(lambda item: item['tx_hash'], result))
-        hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
+        hist = list(map(lambda item: (
+            item['tx_hash'],
+            item['height'],
+            item.get('tx_type', TxType.NONE.name)
+        ), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
@@ -193,7 +198,7 @@ class Synchronizer(SynchronizerBase):
     async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
         # "hist" is a list of [tx_hash, tx_height] lists
         transaction_hashes = []
-        for tx_hash, tx_height in hist:
+        for tx_hash, tx_height, *__ in hist:
             if tx_hash in self.requested_tx:
                 continue
             tx = self.wallet.db.get_transaction(tx_hash)
