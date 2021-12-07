@@ -650,14 +650,19 @@ class LNWallet(LNWorker):
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
 
-    def has_deterministic_node_id(self):
+    def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
 
-    def has_recoverable_channels(self):
-        # TODO: expose use_recoverable_channels in preferences
-        return self.has_deterministic_node_id() \
-            and self.config.get('use_recoverable_channels', True) \
-            and not (self.config.get('lightning_listen'))
+    def can_have_recoverable_channels(self) -> bool:
+        return (self.has_deterministic_node_id()
+                and not (self.config.get('lightning_listen')))
+
+    def has_recoverable_channels(self) -> bool:
+        """Whether *future* channels opened by this wallet would be recoverable
+        from seed (via putting OP_RETURN outputs into funding txs).
+        """
+        return (self.can_have_recoverable_channels()
+                and self.config.get('use_recoverable_channels', True))
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
