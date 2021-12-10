@@ -19,18 +19,26 @@ break_legacy_easy_install
 # (make_packages will later install a pinned version of pip in a venv)
 python3 -m pip install --upgrade pip
 
-"$CONTRIB"/make_packages || fail "make_packages failed"
+if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
+  "$CONTRIB"/make_packages || fail "make_packages failed"
+fi
 
 git submodule update --init
 
 (
-    # We include both source (.po) and compiled (.mo) locale files in the source dist.
-    # Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
-    # (also see MANIFEST.in)
+    # By default, include both source (.po) and compiled (.mo) locale files in the source dist.
+    # Set option OMIT_UNCLEAN_FILES=1 to exclude the compiled locale files
+    # see https://askubuntu.com/a/144139 (also see MANIFEST.in)
     rm -rf "$LOCALE"
     cp -r "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE/"
-    "$CONTRIB/build_locale.sh" "$LOCALE"
+    if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
+      "$CONTRIB/build_locale.sh" "$LOCALE"
+    fi
 )
+
+if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+  rm "$PROJECT_ROOT/electrum/paymentrequest_pb2.py"
+fi
 
 (
     cd "$PROJECT_ROOT"
