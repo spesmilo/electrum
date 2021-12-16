@@ -2,7 +2,7 @@
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
-#
+#Zpub6xb5a96NuQXta5ZBAwHKYvCqykbURMjGd9Wi3EuJLQwiavP9okpS9aHauXWqccq8ZLv5ispc7BBwuv9wPbyLPcdfxqx9MwF3rvHxG4THtf2
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
 # (the "Software"), to deal in the Software without restriction,
@@ -25,9 +25,9 @@
 
 import sys
 import datetime
-import copy
+import copy 
 import argparse
-import json
+import json 
 import ast
 import base64
 import operator
