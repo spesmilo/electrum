@@ -268,8 +268,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
     # ========= UI methods ==========
 
-    def button_request(self, code):
-        message = self.msg or MESSAGES.get(code) or MESSAGES['default']
+    def button_request(self, br):
+        message = self.msg or MESSAGES.get(br.code) or MESSAGES['default']
         self.handler.show_message(message.format(self.device), self.client.cancel)
 
     def get_pin(self, code=None):

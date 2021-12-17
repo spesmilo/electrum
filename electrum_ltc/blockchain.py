@@ -44,7 +44,9 @@ except ImportError:
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
-MAX_TARGET = 0x00000FFFFF000000000000000000000000000000000000000000000000000000
+
+# see https://github.com/bitcoin/bitcoin/blob/feedb9c84e72e4fff489810a2bbeec09bcda5763/src/chainparams.cpp#L76
+MAX_TARGET = 0x00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 
 class MissingHeader(Exception):
@@ -559,20 +561,37 @@ class Blockchain(Logger):
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
+        # arith_uint256::SetCompact in Bitcoin Core
+        if not (0 <= bits < (1 << 32)):
+            raise Exception(f"bits should be uint32. got {bits!r}")
         bitsN = (bits >> 24) & 0xff
-        if not (0x03 <= bitsN <= 0x1e):
-            raise Exception("First part of bits should be in [0x03, 0x1e]")
-        bitsBase = bits & 0xffffff
-        if not (0x8000 <= bitsBase <= 0x7fffff):
-            raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
-        return bitsBase << (8 * (bitsN-3))
+        bitsBase = bits & 0x7fffff
+        if bitsN <= 3:
+            target = bitsBase >> (8 * (3-bitsN))
+        else:
+            target = bitsBase << (8 * (bitsN-3))
+        if target != 0 and bits & 0x800000 != 0:
+            # Bit number 24 (0x800000) represents the sign of N
+            raise Exception("target cannot be negative")
+        if (target != 0 and
+                (bitsN > 34 or
+                 (bitsN > 33 and bitsBase > 0xff) or
+                 (bitsN > 32 and bitsBase > 0xffff))):
+            raise Exception("target has overflown")
+        return target
 
     @classmethod
     def target_to_bits(cls, target: int) -> int:
-        c = ("%064x" % target)[2:]
-        while c[:2] == '00' and len(c) > 6:
-            c = c[2:]
-        bitsN, bitsBase = len(c) // 2, int.from_bytes(bfh(c[:6]), byteorder='big')
+        # arith_uint256::GetCompact in Bitcoin Core
+        # see https://github.com/bitcoin/bitcoin/blob/7fcf53f7b4524572d1d0c9a5fdc388e87eb02416/src/arith_uint256.cpp#L223
+        c = target.to_bytes(length=32, byteorder='big')
+        bitsN = len(c)
+        while bitsN > 0 and c[0] == 0:
+            c = c[1:]
+            bitsN -= 1
+            if len(c) < 3:
+                c += b'\x00'
+        bitsBase = int.from_bytes(c[:3], byteorder='big')
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
