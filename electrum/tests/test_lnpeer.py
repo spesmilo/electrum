@@ -205,7 +205,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
             invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_levels=defaultdict[int],
+            trampoline_fee_levels=defaultdict(int),
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
