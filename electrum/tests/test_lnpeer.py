@@ -205,7 +205,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
             invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_level=0,
+            trampoline_fee_levels=defaultdict[int],
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
@@ -888,15 +888,18 @@ class TestPeer(TestCaseForTestnet):
         with self.assertRaises(PaymentDone):
             run(f())
 
-    def _run_mpp(self, graph, kwargs1, kwargs2):
+    def _run_mpp(self, graph, fail_kwargs, success_kwargs):
+        """Tests a multipart payment scenario for failing and successful cases."""
         self.assertEqual(500_000_000_000, graph.chan_ab.balance(LOCAL))
         self.assertEqual(500_000_000_000, graph.chan_ac.balance(LOCAL))
         amount_to_pay = 600_000_000_000
         peers = graph.all_peers()
-        async def pay(attempts=1,
-                      alice_uses_trampoline=False,
-                      bob_forwarding=True,
-                      mpp_invoice=True):
+        async def pay(
+                attempts=1,
+                alice_uses_trampoline=False,
+                bob_forwarding=True,
+                mpp_invoice=True
+        ):
             if mpp_invoice:
                 graph.w_d.features |= LnFeatures.BASIC_MPP_OPT
             if not bob_forwarding:
@@ -930,22 +933,22 @@ class TestPeer(TestCaseForTestnet):
                 await group.spawn(pay(**kwargs))
 
         with self.assertRaises(NoPathFound):
-            run(f(kwargs1))
+            run(f(fail_kwargs))
         with self.assertRaises(PaymentDone):
-            run(f(kwargs2))
+            run(f(success_kwargs))
 
     @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment_with_timeout(self):
+    def test_payment_multipart_with_timeout(self):
         graph = self.prepare_chans_and_peers_in_square()
-        self._run_mpp(graph, {'bob_forwarding':False}, {'bob_forwarding':True})
+        self._run_mpp(graph, {'bob_forwarding': False}, {'bob_forwarding': True})
 
     @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment(self):
+    def test_payment_multipart(self):
         graph = self.prepare_chans_and_peers_in_square()
-        self._run_mpp(graph, {'mpp_invoice':False}, {'mpp_invoice':True})
+        self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
     @needs_test_with_all_chacha20_implementations
-    def test_multipart_payment_with_trampoline(self):
+    def test_payment_multipart_trampoline(self):
         # single attempt will fail with insufficient trampoline fee
         graph = self.prepare_chans_and_peers_in_square()
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
@@ -953,7 +956,10 @@ class TestPeer(TestCaseForTestnet):
             graph.w_c.name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.w_c.node_keypair.pubkey),
         }
         try:
-            self._run_mpp(graph, {'alice_uses_trampoline':True, 'attempts':1}, {'alice_uses_trampoline':True, 'attempts':30})
+            self._run_mpp(
+                graph,
+                {'alice_uses_trampoline': True, 'attempts': 1},
+                {'alice_uses_trampoline': True, 'attempts': 30})
         finally:
             electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
 

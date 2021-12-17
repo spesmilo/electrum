@@ -2,7 +2,7 @@ import os
 import bitstring
 import random
 
-from typing import Mapping
+from typing import Mapping, DefaultDict
 
 from .logging import get_logger, Logger
 from .lnutil import LnFeatures
@@ -108,7 +108,7 @@ def create_trampoline_route(
         my_pubkey: bytes,
         trampoline_node_id: bytes,  # the first trampoline in the path; which we are directly connected to
         r_tags,
-        trampoline_fee_level: int,
+        trampoline_fee_levels: DefaultDict[bytes, int],
         use_two_trampolines: bool) -> LNPaymentRoute:
 
     # figure out whether we can use end-to-end trampoline, or fallback to pay-to-legacy
@@ -141,7 +141,8 @@ def create_trampoline_route(
         if pubkey == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
             is_legacy = True
             use_two_trampolines = False
-    # fee level. the same fee is used for all trampolines
+    # fee level
+    trampoline_fee_level = trampoline_fee_levels[trampoline_node_id]
     if trampoline_fee_level < len(TRAMPOLINE_FEES):
         params = TRAMPOLINE_FEES[trampoline_fee_level]
     else:
@@ -270,7 +271,7 @@ def create_trampoline_route_and_onion(
         payment_hash,
         payment_secret,
         local_height:int,
-        trampoline_fee_level: int,
+        trampoline_fee_levels: DefaultDict[bytes, int],
         use_two_trampolines: bool):
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
@@ -281,7 +282,7 @@ def create_trampoline_route_and_onion(
         invoice_features=invoice_features,
         trampoline_node_id=node_id,
         r_tags=r_tags,
-        trampoline_fee_level=trampoline_fee_level,
+        trampoline_fee_levels=trampoline_fee_levels,
         use_two_trampolines=use_two_trampolines)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
