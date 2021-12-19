@@ -1807,8 +1807,9 @@ class Peer(Logger):
                     raise Exception('failed to verify their signature')
             # at this point we know how the closing tx looks like
             # check that their output is above their scriptpubkey's network dust limit
-            if not drop_to_remote:
-                to_remote_idx = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey.hex()).pop()
+            to_remote_set = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey.hex())
+            if not drop_to_remote and to_remote_set:
+                to_remote_idx = to_remote_set.pop()
                 to_remote_amount = closing_tx.outputs()[to_remote_idx].value
                 transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
 

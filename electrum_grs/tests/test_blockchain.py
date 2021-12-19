@@ -384,6 +384,47 @@ class TestBlockchain(ElectrumTestCase):
         self.assertEqual([chain_u], self.get_chains_that_contain_header_helper(self.HEADERS['O']))
         self.assertEqual([chain_z, chain_l], self.get_chains_that_contain_header_helper(self.HEADERS['I']))
 
+    def test_target_to_bits(self):
+        # https://github.com/bitcoin/bitcoin/blob/7fcf53f7b4524572d1d0c9a5fdc388e87eb02416/src/arith_uint256.h#L269
+        self.assertEqual(0x05123456, Blockchain.target_to_bits(0x1234560000))
+        self.assertEqual(0x0600c0de, Blockchain.target_to_bits(0xc0de000000))
+
+        # tests from https://github.com/bitcoin/bitcoin/blob/a7d17daa5cd8bf6398d5f8d7e77290009407d6ea/src/test/arith_uint256_tests.cpp#L411
+        tuples = (
+            (0, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x00123456, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x01003456, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x02000056, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x03000000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x04000000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x00923456, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x01803456, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x02800056, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x03800000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x04800000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0),
+            (0x01123456, 0x0000000000000000000000000000000000000000000000000000000000000012, 0x01120000),
+            (0x02123456, 0x0000000000000000000000000000000000000000000000000000000000001234, 0x02123400),
+            (0x03123456, 0x0000000000000000000000000000000000000000000000000000000000123456, 0x03123456),
+            (0x04123456, 0x0000000000000000000000000000000000000000000000000000000012345600, 0x04123456),
+            (0x05009234, 0x0000000000000000000000000000000000000000000000000000000092340000, 0x05009234),
+            (0x20123456, 0x1234560000000000000000000000000000000000000000000000000000000000, 0x20123456),
+        )
+        for nbits1, target, nbits2 in tuples:
+            with self.subTest(original_compact_nbits=nbits1.to_bytes(length=4, byteorder="big").hex()):
+                num = Blockchain.bits_to_target(nbits1)
+                self.assertEqual(target, num)
+                self.assertEqual(nbits2, Blockchain.target_to_bits(num))
+
+        # Make sure that we don't generate compacts with the 0x00800000 bit set
+        self.assertEqual(0x02008000, Blockchain.target_to_bits(0x80))
+
+        with self.assertRaises(Exception):  # target cannot be negative
+            Blockchain.bits_to_target(0x01fedcba)
+        with self.assertRaises(Exception):  # target cannot be negative
+            Blockchain.bits_to_target(0x04923456)
+        with self.assertRaises(Exception):  # overflow
+            Blockchain.bits_to_target(0xff123456)
+
 
 class TestVerifyHeader(ElectrumTestCase):
 
