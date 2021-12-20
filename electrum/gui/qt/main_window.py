@@ -216,14 +216,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
         self.staking_tab = self.create_staking_tab()
-        self.rewards_tab = self.create_rewards_tab()
+        # self.rewards_tab = self.create_rewards_tab()
         # todo uncomment when turn on lightning
         self.channels_tab = self.create_channels_tab()
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
         tabs.addTab(self.staking_tab, read_QIcon("tab_receive.png"), _('Staking'))
-        tabs.addTab(self.rewards_tab, read_QIcon("tab_history.png"), _('Rewards'))
+        tabs.addTab(self.create_rewards_tab(), read_QIcon("tab_history.png"), _('Rewards'))
         tabs.addTab(self.create_staking_tab2(), read_QIcon("tab_receive.png"), _('Staking2'))
 
         def add_optional_tab(tabs, tab, icon, description, name):
@@ -1018,9 +1018,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_list.update()
         self.contact_list.update()
         self.invoice_list.update()
+        self.rewards_tab.update()
         # todo uncomment when turn on lightning
 #        self.channels_list.update_rows.emit(wallet)
         self.update_completions()
+
 
     def create_channels_tab(self):
         self.channels_list = ChannelsList(self)
@@ -2033,15 +2035,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def create_rewards_tab(self):
         from electrum.gui.qt.rewards_tab import RewardsWindow
 
-        self.rewards_tab = l = RewardsWindow()
-
-        # TODO - remove this it's MOCKUP
-        self.rewards_tab.set_available_rewards_text(value=3.2)
-        self.rewards_tab.set_total_predicted_staking_reward_text(value=5.2)
-        self.rewards_tab.set_governance_power_text(value=14200)
-        self.rewards_tab.set_daily_free_transaction_limit(value='980/20000')
+        self.rewards_tab = l = RewardsWindow(self.wallet)
 
         return self.create_list_tab(l)
+
 
     def remove_address(self, addr):
         if not self.question(_("Do you want to remove {} from your wallet?").format(addr)):
@@ -2086,6 +2083,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.history_list.update()
         self.staking_list_2.update()
         self.update_completions()
+        self.rewards_tab.update()
         return True
 
     def delete_contacts(self, labels):
@@ -2098,6 +2096,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.staking_list_2.update()
         self.contact_list.update()
         self.update_completions()
+
+        self.rewards_tab.update()
 
     def show_onchain_invoice(self, invoice: OnchainInvoice):
         amount_str = self.format_amount(invoice.amount_sat) + ' ' + self.base_unit()
@@ -3063,6 +3063,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.address_list.update()
         self.history_list.update()
         self.staking_list_2.update()
+        self.rewards_tab.update()
 
     def import_addresses(self):
         if not self.wallet.can_import_address():
@@ -3089,6 +3090,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.address_list.refresh_headers()
         self.address_list.update()
         self.update_status()
+        self.rewards_tab.update()
 
     def settings_dialog(self):
         from .settings_dialog import SettingsDialog

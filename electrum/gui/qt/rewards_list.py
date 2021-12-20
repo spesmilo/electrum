@@ -1,25 +1,34 @@
+from datetime import datetime, timedelta
 
+from .staking.utils import get_data_for_available_rewards_tab, get_predicted_rewards_data
 from ...common.services import CustomTableWidgetController
 from ...common.widgets import CustomTableWidget
+from ...staking.tx_type import TxType
+from ...wallet import Abstract_Wallet
 
 
 class AvailablePredictedRewardsList(CustomTableWidget):
     pass
 
 
-def refresh_available_rewards_window():
-    available_predicted_rewards_controller.insert_data(table_data={
-        'Payout date': ['2021-12-12', '2021-12-12'],
-        'Amount': ['1000111111.00000001', '1'],
-        'Status': ['Ready to Claim', 'b']
-    })
+def refresh_available_rewards_window(wallet: Abstract_Wallet):
+    payoudates, amounts, status = get_data_for_available_rewards_tab(wallet)
+
+    available_predicted_rewards_controller.insert_data(
+        table_data={
+            'Payout date': payoudates,
+            'Amount': amounts,
+            'Status': status
+        }
+    )
 
 
-def refresh_predicted_rewards_window():
+def refresh_predicted_rewards_window(wallet: Abstract_Wallet):
+    payout_dates, amounts, status = get_predicted_rewards_data(wallet=wallet)
     available_predicted_rewards_controller.insert_data(table_data={
-        'Payout date': ['2021-12-12', '2021-12-12'],
-        'Amount': ['1000111111.00000001', '555'],
-        'Status': ['Staked', 'Staked']
+        'Payout date': payout_dates,
+        'Amount': amounts,
+        'Status': status,
     })
 
 

@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import QSpacerItem, QSizePolicy, QVBoxLayout, QLabel, QPush
 from .rewards_list import available_predicted_rewards_list, refresh_available_rewards_window, \
     refresh_predicted_rewards_window, governance_power_controller, refresh_governance_power_window, \
     governance_power_list, free_limit_list, free_limit_window
+from .staking.utils import get_sum_available_rewards, get_sum_predicted_rewards
 from .util import WindowModalDialog
 from ...i18n import _
 
@@ -12,7 +13,9 @@ from ...i18n import _
 class Section:
     TITLE_LABEL = None
 
-    def __init__(self, root_widget):
+    def __init__(self, root_widget, wallet, predicted_rewards=None):
+        self._wallet = wallet
+        self.predicted_rewards = predicted_rewards
         self._text = None
         self._root_widget = root_widget
 
@@ -116,8 +119,8 @@ class RewardPopup(WindowModalDialog):
 class AvailableRewardsSection(Section):
     TITLE_LABEL = 'Available reward'
 
-    def __init__(self, root_widget):
-        super().__init__(root_widget)
+    def __init__(self, root_widget, wallet):
+        super().__init__(root_widget, wallet)
         self.add_claim_button()
 
     def add_claim_button(self):
@@ -139,7 +142,7 @@ class AvailableRewardsSection(Section):
             table=available_predicted_rewards_list
         )
 
-        refresh_available_rewards_window()
+        refresh_available_rewards_window(wallet=self._wallet)
         available_reward_popup.open()
 
 
@@ -158,7 +161,7 @@ class TotalPredictedStakingRewardSection(Section):
             ),
             table=available_predicted_rewards_list
         )
-        refresh_predicted_rewards_window()
+        refresh_predicted_rewards_window(wallet=self._wallet)
         predicted_staking_popup.open()
 
 
@@ -205,25 +208,26 @@ class DailyFreeTransactionLimitSection(Section):
 
 
 class RewardsWindow(QWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, wallet, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._main_layout = QHBoxLayout(self)
+        self.wallet = wallet
         spacer_item = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         self._main_layout.addItem(spacer_item)
-        self._available_section = AvailableRewardsSection(root_widget=self)
+        self._available_section = AvailableRewardsSection(root_widget=self, wallet=self.wallet)
         self._main_layout.addLayout(self._available_section.layout)
         self._main_layout.addItem(spacer_item)
 
-        self._predicted_section = TotalPredictedStakingRewardSection(root_widget=self)
+        self._predicted_section = TotalPredictedStakingRewardSection(root_widget=self, wallet=self.wallet, )
         self._main_layout.addLayout(self._predicted_section.layout)
         self._main_layout.addItem(spacer_item)
 
-        self._governance_power_section = GovernancePowerSection(root_widget=self)
+        self._governance_power_section = GovernancePowerSection(root_widget=self, wallet=self.wallet)
         self._main_layout.addLayout(self._governance_power_section.layout)
         self._main_layout.addItem(spacer_item)
 
-        self._daily_free_section = DailyFreeTransactionLimitSection(root_widget=self)
+        self._daily_free_section = DailyFreeTransactionLimitSection(root_widget=self, wallet=self.wallet)
         self._main_layout.addLayout(self._daily_free_section.layout)
         self._main_layout.addItem(spacer_item)
 
@@ -238,3 +242,9 @@ class RewardsWindow(QWidget):
 
     def set_daily_free_transaction_limit(self, value):
         self._daily_free_section.text = f'{value} bytes'
+
+    def update(self):
+        self.set_available_rewards_text(value=get_sum_available_rewards(self.wallet))
+        self.set_total_predicted_staking_reward_text(value=get_sum_predicted_rewards(self.wallet))
+        self.set_governance_power_text(value=14200)
+        self.set_daily_free_transaction_limit(value='980/20000')

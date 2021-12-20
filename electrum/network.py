@@ -1057,6 +1057,18 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     async def get_stake(self, tx_hash: str, *, timeout=None) -> str:
         return await self.interface.get_stake(tx_hash=tx_hash, timeout=timeout)
 
+    @best_effort_reliable
+    @catch_server_exceptions
+    async def get_block_header(self, height, assert_mode):
+        data = await self.interface.get_block_header(height=height, assert_mode=assert_mode)
+        return data
+
+    @best_effort_reliable
+    @catch_server_exceptions
+    async def get_staking_info(self):
+        data = await self.interface.get_staking_info()
+        return data
+
     def blockchain(self) -> Blockchain:
         interface = self.interface
         if interface and interface.blockchain is not None:
