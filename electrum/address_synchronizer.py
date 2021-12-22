@@ -186,7 +186,7 @@ class AddressSynchronizer(Logger):
         # review transactions that are in the history
         for addr in self.db.get_history():
             hist = self.db.get_addr_history(addr)
-            for tx_hash, tx_height, tx_type in hist:
+            for tx_hash, tx_height, tx_type, *__ in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height, tx_type)
 
@@ -251,6 +251,8 @@ class AddressSynchronizer(Logger):
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
         """Returns whether the tx was successfully added to the wallet history."""
         assert tx, tx
+        if not isinstance(tx, TypeAwareTransaction):
+            tx = TypeAwareTransaction.from_tx(tx)
         # note: tx.is_complete() is not necessarily True; tx might be partial
         # but it *needs* to have a txid:
         tx_hash = tx.txid()

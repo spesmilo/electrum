@@ -31,6 +31,7 @@ import logging
 from aiorpcx import TaskGroup, run_in_thread, RPCError
 
 from . import util
+from .staking.transaction import StakingInfo
 from .staking.tx_type import TxType
 from .transaction import Transaction, PartialTransaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy
@@ -175,7 +176,8 @@ class Synchronizer(SynchronizerBase):
         hist = list(map(lambda item: (
             item['tx_hash'],
             item['height'],
-            item.get('tx_type', TxType.NONE.name)
+            item.get('tx_type', TxType.NONE.name),
+            item.get('staking_info', None),
         ), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]

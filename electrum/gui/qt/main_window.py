@@ -962,6 +962,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # Server height can be 0 after switching to a new server
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
+            self.wallet.update_stakes()
+
             if not self.wallet.up_to_date or server_height == 0:
                 num_sent, num_answered = self.wallet.get_history_sync_state_details()
                 text = ("{} ({}/{})"
@@ -971,7 +973,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 text = _("Server is lagging ({} blocks)").format(server_lag)
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
-                self.wallet.update_stakes()
                 c, u, x = self.wallet.get_balance()
                 text = _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:

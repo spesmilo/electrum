@@ -84,6 +84,7 @@ from .paymentrequest import PaymentRequest
 from .staking.tx_type import TxType
 from .util import read_json_file, write_json_file, UserFacingException
 
+from .network import UntrustedServerReturnedError
 if TYPE_CHECKING:
     from .network import Network
 
@@ -650,7 +651,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                                mature_only=True,
                                confirmed_only=confirmed_only,
                                nonlocal_only=nonlocal_only)
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and not self.is_staked_coin(utxo)]
         return utxos
 
     @abstractmethod
@@ -875,7 +876,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             tx_item['txtype'] = tx.tx_type.name
             if self.network:
                 if tx.tx_type == TxType.STAKING_DEPOSIT:
-                    tx.update_staking_info(self.network)
                     tx_item['staking_info'] = tx.staking_info
             transactions_tmp[txid] = tx_item
             # add lnworker info here
@@ -1340,6 +1340,10 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             self.frozen_coins -= set(utxos)
         self.db.put('frozen_coins', list(self.frozen_coins))
 
+    def is_staked_coin(self, utxo: PartialTxInput) -> bool:
+        funding_tx = self.db.get_transaction(utxo.prevout.txid.hex())
+        return funding_tx.tx_type == TxType.STAKING_DEPOSIT
+
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
         return addr in self._reserved_addresses
@@ -1703,7 +1707,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     # TODO: use filter in future when verbose logging won't be required
                     # filter(lambda tx: tx.tx_type...)
                     if tx.tx_type == TxType.STAKING_DEPOSIT:
-                        tx.update_staking_info(self.network)
+                        try:
+                            tx.update_staking_info(self.network)
+                        except UntrustedServerReturnedError as error:
+                            self.logger.info(f'detected not confirmed staking tx - ignoring for now...')
+                            self.logger.info(error.original_exception)
 
             except NetworkException as e:
                 self.logger.info(f'got network eror: {repr(e)}. '

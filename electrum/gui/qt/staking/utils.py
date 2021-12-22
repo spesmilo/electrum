@@ -53,8 +53,12 @@ def get_sum_available_rewards(wallet: Abstract_Wallet):
     transactions = wallet.db.transactions
     av = 0
     for t in transactions:
-        if transactions[t].tx_type == TxType.STAKING_DEPOSIT \
-                and transactions[t].staking_info.fulfilled and not transactions[t].staking_info.paid_out:
+        if (
+                transactions[t].tx_type == TxType.STAKING_DEPOSIT
+                and transactions[t].staking_info
+                and transactions[t].staking_info.fulfilled
+                and not transactions[t].staking_info.paid_out
+        ):
             av += transactions[t].staking_info.accumulated_reward
     return av
 
@@ -68,7 +72,12 @@ def get_sum_predicted_rewards(wallet: Abstract_Wallet):
     pr = 0
     for t in transactions:
         tx = transactions[t]
-        if tx.tx_type == TxType.STAKING_DEPOSIT and not tx.staking_info.fulfilled and not tx.staking_info.paid_out:
+        if (
+                tx.tx_type == TxType.STAKING_DEPOSIT
+                and tx.staking_info
+                and not tx.staking_info.fulfilled
+                and not tx.staking_info.paid_out
+        ):
             max_reward = tx.staking_info.staking_amount * (period_info[str(tx.staking_info.staking_period)] * tx.staking_info.staking_period / blocks_in_year)
             completed_period = (current_height - tx.staking_info.deposit_height) / tx.staking_info.staking_period
             max_current_reward = max_reward * completed_period
