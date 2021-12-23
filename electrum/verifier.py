@@ -143,7 +143,7 @@ class SPV(NetworkJobOnDefaultServer):
                               timestamp=header.get('timestamp'),
                               txpos=pos,
                               header_hash=header_hash,
-                              txtype=txtype,
+                              txtype=tx.tx_type.name,
                               staking_info=staking_info
                               )
         self.wallet.add_verified_tx(tx_hash, tx_info)

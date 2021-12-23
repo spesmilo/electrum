@@ -399,8 +399,9 @@ class AddressSynchronizer(Logger):
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
+            old_hist_dict = {tx_hash: (tx_hash, height, txtype, staking_info) for tx_hash, height, txtype, staking_info in old_hist}
             for tx_hash, height, txtype, staking_info in old_hist:
-                if (tx_hash, height, txtype, staking_info) not in hist:
+                if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
                     self.db.remove_verified_tx(tx_hash)
@@ -408,26 +409,19 @@ class AddressSynchronizer(Logger):
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
             self.db.set_addr_history(addr, hist)
 
-        for tx_hash, tx_height, txtype, staking_info in hist:
+        for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
-            self.add_unverified_tx(tx_hash, tx_height, txtype)
+            txtype_temp = old_hist_dict[tx_hash][2].name if tx_hash in old_hist_dict else TxType.NONE.name
+            self.add_unverified_tx(tx_hash, tx_height, txtype_temp)
             # if addr is new, we have to recompute txi and txo
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
-            self._mutate_transaction_type(current_tx=tx, incoming_type=TxType.from_str(txtype), staking_info=staking_info)
             self.add_transaction(tx, allow_unrelated=True)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
             self.db.add_tx_fee_from_server(tx_hash, fee_sat)
-
-    def _mutate_transaction_type(self, current_tx: 'TypeAwareTransaction', incoming_type: TxType, staking_info: dict):
-        current_tx_type = current_tx.tx_type
-        if incoming_type != current_tx_type:
-            current_tx.tx_type = incoming_type
-        if current_tx.tx_type == TxType.STAKING_DEPOSIT:
-            current_tx.staking_info = StakingInfo(**staking_info)
 
     @profiler
     def load_local_history(self):

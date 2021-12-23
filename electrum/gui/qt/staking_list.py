@@ -322,7 +322,7 @@ class StakingNode(CustomNode):
             return QVariant(staking_amount)
         elif col == StakingColumns.TXTYPE:
             return QVariant(tx_item['txtype'])
-        elif col == StakingColumns.STATUS:
+        elif col == StakingColumns.STATUS and hasattr(staking_info, 'fulfilled'):
 
             if not staking_info.fulfilled and not staking_info.paid_out:
                 return QVariant('Staked')
@@ -331,7 +331,7 @@ class StakingNode(CustomNode):
             elif staking_info.fulfilled:
                 return QVariant('Completed')
 
-        elif col == StakingColumns.BLOCKS_LEFT:
+        elif col == StakingColumns.BLOCKS_LEFT and hasattr(staking_info, 'deposit_height'):
             current_height = window.wallet.get_local_height()
             blocks_left = (staking_info.deposit_height + staking_info.staking_period) - current_height
             if blocks_left > 0:

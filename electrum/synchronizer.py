@@ -176,8 +176,6 @@ class Synchronizer(SynchronizerBase):
         hist = list(map(lambda item: (
             item['tx_hash'],
             item['height'],
-            item.get('tx_type', TxType.NONE.name),
-            item.get('staking_info', None),
         ), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
