@@ -3,7 +3,6 @@ import re
 import os
 import sys
 import importlib
-from collections import defaultdict
 
 # load version.py; needlessly complicated alternative to "imp.load_source":
 version_spec = importlib.util.spec_from_file_location('version', 'electrum_ltc/version.py')
@@ -14,22 +13,10 @@ ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
 APK_VERSION = version_module.APK_VERSION
 print("version", ELECTRUM_VERSION)
 
-dirname = sys.argv[1]
-
-print("directory", dirname)
-
-download_page = os.path.join(dirname, "panel-download.html")
-download_template = download_page + ".template"
-
-with open(download_template) as f:
-    string = f.read()
+# GPG names of cosigner
+cosigner = sys.argv[1]
 
 version = version_win = version_mac = version_android = ELECTRUM_VERSION
-string = string.replace("##VERSION##", version)
-string = string.replace("##VERSION_WIN##", version_win)
-string = string.replace("##VERSION_MAC##", version_mac)
-string = string.replace("##VERSION_ANDROID##", version_android)
-string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
     'tgz': "Electrum-LTC-%s.tar.gz" % version,
@@ -42,8 +29,6 @@ files = {
     'apk_armeabi': "Electrum-LTC-%s-armeabi-v7a-release.apk" % APK_VERSION,
 }
 
-# default signers
-signers = ['ThomasV', 'SomberNight']
 
 for k, n in files.items():
     path = "dist/%s"%n
@@ -52,19 +37,9 @@ for k, n in files.items():
         os.system("wget -q %s -O %s" % (link, path))
     if not os.path.getsize(path):
         raise Exception(path)
-
-print("signers:", signers)
-
-gpg_name = lambda x: 'sombernight_releasekey' if x=='SomberNight' else x
-signers_list = ', '.join("<a href=\"https://raw.githubusercontent.com/pooler/electrum-ltc/master/pubkeys/%s.asc\">%s</a>"%(gpg_name(x), x) for x in signers)
-string = string.replace("##signers_list##", signers_list)
-
-for k, filename in files.items():
-    path = "dist/%s"%filename
-    assert filename in list_dir
-    link = "https://download.electrum-ltc.org/%s/%s"%(version, filename)
-    string = string.replace("##link_%s##"%k, link)
-    string = string.replace("##sigs_%s##"%k, link+'.asc')
-
-with open(download_page,'w') as f:
-    f.write(string)
+    sig_name = n + '.'+cosigner+'.asc'
+    sig_url = "https://raw.githubusercontent.com/pooler/electrum-ltc-signatures/master/%s/%s/%s"%(version, n, sig_name)
+    sig_path = "dist/%s"% sig_name
+    os.system("wget -nc %s -O %s"%(sig_url, sig_path))
+    if os.system("gpg --verify %s %s"%(sig_path, path)) != 0:
+        raise Exception(sig_name)
