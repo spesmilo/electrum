@@ -25,6 +25,21 @@ def get_data_for_available_rewards_tab(wallet: Abstract_Wallet):
     return payout_dates, amounts, status
 
 
+def get_all_stake_amount(wallet: Abstract_Wallet):
+    transactions = wallet.db.transactions
+    amount = 0
+    for t in transactions:
+        if (
+                transactions[t].tx_type == TxType.STAKING_DEPOSIT
+                and transactions[t].staking_info
+                and transactions[t].staking_info.fulfilled
+                and not transactions[t].staking_info.paid_out
+        ):
+            amount += transactions[t].staking_info.staking_amount
+
+    return amount
+
+
 def get_predicted_rewards_data(wallet: Abstract_Wallet):
     amounts = []
     payout_dates = []
@@ -37,7 +52,12 @@ def get_predicted_rewards_data(wallet: Abstract_Wallet):
     current_height = wallet.network.get_server_height()
     for t in transactions:
         tx = transactions[t]
-        if tx.tx_type == TxType.STAKING_DEPOSIT and not tx.staking_info.fulfilled and not tx.staking_info.paid_out:
+        if (
+                transactions[t].tx_type == TxType.STAKING_DEPOSIT
+                and transactions[t].staking_info
+                and not transactions[t].staking_info.fulfilled
+                and not transactions[t].staking_info.paid_out
+        ):
             max_reward = tx.staking_info.staking_amount * (period_info[str(tx.staking_info.staking_period)] * tx.staking_info.staking_period / 51840)
             completed_period = (current_height - tx.staking_info.deposit_height) / tx.staking_info.staking_period
             max_current_reward = max_reward * completed_period

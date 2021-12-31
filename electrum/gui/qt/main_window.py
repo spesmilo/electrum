@@ -961,7 +961,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             self.wallet.update_stakes()
-
             if not self.wallet.up_to_date or server_height == 0:
                 num_sent, num_answered = self.wallet.get_history_sync_state_details()
                 text = ("{} ({}/{})"
@@ -1021,8 +1020,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # todo uncomment when turn on lightning
 #        self.channels_list.update_rows.emit(wallet)
         self.update_completions()
-        self.staking_list.update()
-
+        self.staking_tab.update()
 
     def create_channels_tab(self):
         self.channels_list = ChannelsList(self)
@@ -2019,18 +2017,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.create_list_tab(l)
 
     def create_staking_tab(self):
-        from electrum.gui.qt.stake_dialog import staking_tab
-
+        from electrum.gui.qt.stake_tab import StakingTabQWidget
         self.staking_model = StakingModel(self)
         self.staking_list = l = StakingList(self, self.staking_model)
         l.searchable_list = l
         toolbar = l.create_toolbar(self.config)
         toolbar_shown = bool(self.config.get('show_toolbar_staking', False))
         l.show_toolbar(toolbar_shown)
-
-        self.staking_tab = staking_tab(self)
-
-        return self.create_list_tab(self.staking_tab)
+        return StakingTabQWidget(self)
 
     def create_rewards_tab(self):
         from electrum.gui.qt.rewards_tab import RewardsWindow
@@ -2084,6 +2078,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.staking_list.update()
         self.update_completions()
         self.rewards_tab.update()
+        self.staking_tab.update()
         return True
 
     def delete_contacts(self, labels):
@@ -2096,8 +2091,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.staking_list.update()
         self.contact_list.update()
         self.update_completions()
-
         self.rewards_tab.update()
+        self.staking_tab.update()
 
     def show_onchain_invoice(self, invoice: OnchainInvoice):
         amount_str = self.format_amount(invoice.amount_sat) + ' ' + self.base_unit()
@@ -3064,6 +3059,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.history_list.update()
         self.staking_list.update()
         self.rewards_tab.update()
+        self.staking_tab.update()
 
     def import_addresses(self):
         if not self.wallet.can_import_address():
@@ -3091,6 +3087,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.address_list.update()
         self.update_status()
         self.rewards_tab.update()
+        self.staking_tab.update()
 
     def settings_dialog(self):
         from .settings_dialog import SettingsDialog

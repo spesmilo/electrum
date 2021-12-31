@@ -65,7 +65,6 @@ class StakingDepositTx(TypeAwareTransaction):
     def __init__(self, raw: str, tx_type: TxType):
         super().__init__(raw, tx_type)
         self._staking_info = None
-
     @property
     def is_staking_tx(self) -> bool:
         return True

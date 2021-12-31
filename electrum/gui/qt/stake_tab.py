@@ -40,6 +40,7 @@ from PyQt5.QtWidgets import (
 
 from electrum.i18n import _
 from .create_new_stake_window import CreateNewStakingWindow
+from .staking.utils import get_all_stake_amount
 from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog
 from .terms_and_conditions_mixin import load_terms_and_conditions
 from .util import read_QIcon, WindowModalDialog, OkButton
@@ -82,54 +83,65 @@ class CustomButton(QPushButton):
             self.func()
 
 
-def staking_tab(window):
-    window.top_h_label = QHBoxLayout()
-    window.create_stake_dialog = CreateNewStakingWindow(window)
+class StakingTabQWidget(QWidget):
 
-    window.stake_button = CustomButton(
-        text=_('Stake'),
-        trigger=window.create_stake_dialog,
-        icon=read_QIcon("electrum.png"),
-    )
-    window.tx_detail_dialog = None
-    window.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=None)
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent = parent
+        self.top_h_label = QHBoxLayout()
+        self.create_stake_dialog = CreateNewStakingWindow(self.parent)
 
-    window.stake_balance_label = QLabel('Staked balance: 100')
-    window.stake_balance_label.setAlignment(Qt.AlignRight | Qt.AlignRight)
+        self.stake_button = CustomButton(
+            text=_('Stake'),
+            trigger=self.create_stake_dialog,
+            icon=read_QIcon("electrum.png"),
+        )
+        self.tx_detail_dialog = None
+        self.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=None)
 
-    window.staking_header = buttons = QHBoxLayout()
-    buttons.addWidget(window.stake_button)
-    buttons.addWidget(window.claim_rewords_button)
+        self.stake_balance_label = QLabel()
+        self.stake_balance_label.setAlignment(Qt.AlignRight | Qt.AlignRight)
 
-    verticalSpacer = QSpacerItem(400, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.staking_header = buttons = QHBoxLayout()
+        buttons.addWidget(self.stake_button)
+        buttons.addWidget(self.claim_rewords_button)
 
-    window.top_h_label.addLayout(buttons)
-    window.top_h_label.addItem(verticalSpacer)
-    window.top_h_label.addWidget(window.stake_balance_label)
+        verticalSpacer = QSpacerItem(400, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-    font = QFont()
-    font.setUnderline(True)
-    window.terms_button = QPushButton()
-    window.terms_button.setFont(font)
-    window.terms_button.setText(_("Terms & Conditions"))
-    window.terms_button.setMaximumSize(QSize(140, 16777215))
-    window.terms_button.setCursor(QCursor(Qt.PointingHandCursor))
-    window.terms_button.setStyleSheet("border: none;")
-    window.terms_button.setAutoDefault(True)
-    window.terms_button.clicked.connect(terms_and_conditions_view)
+        self.top_h_label.addLayout(buttons)
+        self.top_h_label.addItem(verticalSpacer)
+        self.top_h_label.addWidget(self.stake_balance_label)
 
-    widget = QWidget()
-    vbox = QVBoxLayout(widget)
+        font = QFont()
+        font.setUnderline(True)
+        self.terms_button = QPushButton()
+        self.terms_button.setFont(font)
+        self.terms_button.setText(_("Terms & Conditions"))
+        self.terms_button.setMaximumSize(QSize(140, 16777215))
+        self.terms_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.terms_button.setStyleSheet("border: none;")
+        self.terms_button.setAutoDefault(True)
+        self.terms_button.clicked.connect(terms_and_conditions_view)
 
-    vbox.addStretch(1)
-    vbox.addLayout(window.top_h_label)
+        vbox = QVBoxLayout(self)
 
-    vbox.addWidget(window.staking_list)
+        vbox.addStretch(1)
+        vbox.addLayout(self.top_h_label)
 
-    vbox.addWidget(window.terms_button)
-    vbox.setStretchFactor(window.staking_list, 1000)
+        vbox.addWidget(self.parent.staking_list)
 
-    return widget
+        vbox.addWidget(self.terms_button)
+        vbox.setStretchFactor(self.parent.staking_list, 1000)
+
+    def update(self):
+        value = get_all_stake_amount(self.parent.wallet)
+        self.stake_balance_label.setText(f'Staked balance: {value:.8f} ELCASH')
+
+
+# def staking_tab(self):
+#     widget = QWidget()
+#
+#     return widget
 
 
 def terms_and_conditions_view():

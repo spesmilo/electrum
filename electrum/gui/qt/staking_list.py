@@ -323,7 +323,6 @@ class StakingNode(CustomNode):
         elif col == StakingColumns.TXTYPE:
             return QVariant(tx_item['txtype'])
         elif col == StakingColumns.STATUS and hasattr(staking_info, 'fulfilled'):
-
             if not staking_info.fulfilled and not staking_info.paid_out:
                 return QVariant('Staked')
             if staking_info.fulfilled and staking_info.paid_out:
@@ -555,9 +554,30 @@ class StakingList(MyTreeView, AcceptFileDragDrop):
             self.show_transaction(tx_item, tx)
 
     def show_transaction(self, tx_item, tx):
-        tx_hash = tx_item['txid']
-        label = self.wallet.get_label_for_txid(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
-        self.parent.show_transaction(tx, tx_desc=label)
+        from .staking_detail_tx_window import StakedDialog, CompletedReadyToClaimStakeDialog, \
+            CompletedMultiClaimedStakeDialog, CompletedSingleClaimedStakeDialog, \
+            UnstakedMultiStakeDialog, UnstakedSingleStakeDialog
+        staking_info = tx_item['staking_info']
+
+        if not staking_info.fulfilled and not staking_info.paid_out:
+            a = StakedDialog(self, tx, tx_item)
+            a.show()
+
+        elif not staking_info.fulfilled and staking_info.paid_out:
+            a = UnstakedSingleStakeDialog(self, tx, tx_item)
+            # a = UnstakedMultiStakeDialog(self, tx, tx_item)
+            a.show()
+
+        elif staking_info.fulfilled and staking_info.paid_out:
+            # if many
+            a = CompletedSingleClaimedStakeDialog(self, tx, tx_item)
+            # else:
+            # a = CompletedMultiClaimedStakeDialog(self, tx, tx_item)
+            a.show()
+
+        elif staking_info.fulfilled and not staking_info.paid_out:
+            a = CompletedReadyToClaimStakeDialog(self, tx, tx_item)
+            a.show()
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))
@@ -566,7 +586,7 @@ class StakingList(MyTreeView, AcceptFileDragDrop):
                 continue
             column_title = self.sm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
-            column_data = (self.sm.data(idx2, Qt.DisplayRole).value() or '').strip()
+            column_data = (self.sm.data(idx2, Qt.DisplayRole).value() or '')
             cc.addAction(
                 column_title,
                 lambda text=column_data, title=column_title:
