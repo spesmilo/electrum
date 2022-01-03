@@ -318,7 +318,7 @@ class StakingNode(CustomNode):
             period = staking_info.staking_period
             return QVariant(period)
         elif col == StakingColumns.AMOUNT and hasattr(staking_info, 'staking_amount'):
-            staking_amount = staking_info.staking_amount
+            staking_amount = f"{staking_info.staking_amount:.8f}"
             return QVariant(staking_amount)
         elif col == StakingColumns.TXTYPE:
             return QVariant(tx_item['txtype'])
