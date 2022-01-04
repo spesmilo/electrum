@@ -17,8 +17,9 @@ def get_data_for_available_rewards_tab(wallet: Abstract_Wallet):
             finish_height = transactions[t].staking_info.deposit_height + transactions[t].staking_info.staking_period
             block_header = wallet.network.run_from_another_thread(wallet.network.get_block_header(finish_height, 'catchup'))
             payout_dates.append(datetime.fromtimestamp(block_header['timestamp']).strftime("%Y-%m-%d"))
+            amount = f"{transactions[t].staking_info.accumulated_reward:.8f}"
             amounts.append(
-                transactions[t].staking_info.accumulated_reward
+                amount
             )
             status.append("Ready to Claim")
 
