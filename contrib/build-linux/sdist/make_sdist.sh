@@ -46,7 +46,25 @@ fi
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
     # note: .zip sdists would not be reproducible due to https://bugs.python.org/issue40963
-    TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ])
+        then PY_DISTDIR="dist/_sourceonly" # The DISTDIR variable of this script is only used to find where the output is *finally* placed.
+        else PY_DISTDIR="dist"
+    fi
+    TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+        for fn in "$DISTDIR/_sourceonly/"*; do
+            # Since ELECTRUM_VERSION is not available to us in this script, we have to use a regex.
+            # Expression 1: Electrum-X.Y.Z.tar.gz -> Electrum-sourceonly-X.Y.Z.tar.gz
+            #   Capture group \1 = Electrum
+            #   Capture group \2 = X.Y.Z.tar.gz
+            # Expression 2: dist/_sourceonly/X.tar.gz -> dist/X.tar.gz
+            mv "$fn" $(sed \
+                -e 's/\(.*\)-\([^-]*\)/\1-sourceonly-\2/' \
+                -e 's/\/_sourceonly//' \
+                <<< "$fn")
+        done
+        rmdir "$PY_DISTDIR"
+    fi
 )
 
 
