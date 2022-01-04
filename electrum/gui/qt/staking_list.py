@@ -315,7 +315,7 @@ class StakingNode(CustomNode):
         if col == StakingColumns.STATUS_WITH_DATE:
             return QVariant(status_str)
         elif col == StakingColumns.STAKING_PERIOD and hasattr(staking_info, 'staking_period'):
-            period = staking_info.staking_period
+            period = f"{staking_info.staking_period/144:.0f} Days"
             return QVariant(period)
         elif col == StakingColumns.AMOUNT and hasattr(staking_info, 'staking_amount'):
             staking_amount = staking_info.staking_amount
