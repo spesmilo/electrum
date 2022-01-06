@@ -1666,7 +1666,9 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None, staking_reward: int = None, staking_penalty: int = None):
+                locktime: int = None, version: int = None,
+                staking_reward: int = None, staking_penalty: int = None,
+                sort: bool = True):
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -1678,7 +1680,8 @@ class PartialTransaction(Transaction):
             self.staking_reward = staking_reward
         if staking_penalty is not None:
             self.staking_penalty = staking_penalty
-        self.BIP69_sort()
+        if sort:
+            self.BIP69_sort()
         return self
 
     def _serialize_psbt(self, fd) -> None:

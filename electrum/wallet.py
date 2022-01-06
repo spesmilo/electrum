@@ -50,7 +50,7 @@ from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from . import util
-from .staking.utils import get_tx_type_aware_tx_status, filter_spendable_coins
+from .staking.utils import get_tx_type_aware_tx_status, filter_spendable_coins, get_staking_metadata_output_script
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
@@ -1300,6 +1300,34 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         run_hook('make_unsigned_unstake_transaction', self, tx)
         return tx
 
+    def make_unsigned_stake_deposit(self, amount_satoshi: int, period_index: int):
+        output_scriptpubkey = bfh(bitcoin.address_to_script(self.get_receiving_address()))
+        stake_output = PartialTxOutput(scriptpubkey=output_scriptpubkey, value=amount_satoshi)
+
+        stake_metadata_output_scriptpubkey = bfh(get_staking_metadata_output_script(period_index, 1))
+        stake_metadata_output = PartialTxOutput(scriptpubkey=stake_metadata_output_scriptpubkey, value=0)
+
+        utxos = self.get_spendable_coins(None, nonlocal_only=True)
+        outputs = [stake_metadata_output, stake_output]
+        tx = self.make_unsigned_transaction(
+            coins=utxos,
+            outputs=outputs
+        )
+        # by default, make_unsigned_transaction executes BIP69 input/output sorting which cannot be applied in case of
+        # staking transaction, as here output order is extremly important. In order to re-generate proper output order
+        # with created change output, we alter the outputs of created tx
+        def intersection(longer, shorter):
+            ret = [value for value in longer if value not in shorter]
+            return ret
+        unknown_outputs = intersection(tx.outputs(), outputs)
+        tx = PartialTransaction.from_io(
+            tx.inputs(),
+            outputs + unknown_outputs,
+            locktime=tx.locktime,
+            version=tx.version,
+            sort=False
+        )
+        return tx
 
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,

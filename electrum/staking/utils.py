@@ -1,11 +1,11 @@
 from typing import Tuple, Optional, TYPE_CHECKING
 
-from .transaction import TypeAwareTransaction
 from .tx_type import TxType
-from ..wallet_db import WalletDB
+from electrum.bitcoin import opcodes, construct_script, COIN
 
 if TYPE_CHECKING:
     from electrum.util import TxMinedInfo
+    from electrum.wallet_db import WalletDB
 
 TX_STATUS_INDEX_OFFSET = 9
 TX_TYPES_SPENDABLE = (
@@ -14,13 +14,22 @@ TX_TYPES_SPENDABLE = (
     TxType.STAKING_CLAIM_REWARDS,
 )
 
+STAKING_TX_HEADER = '53'
+STAKING_TX_DEPOSIT_SUBHEADER = '44'
+MIN_STAKING_AMOUNT = 5 * COIN
+NUM_STAKING_PERIODS = 4
+
+
+def get_staking_metadata_output_script(period_index: int, stake_index: int) -> str:
+    return construct_script([opcodes.OP_RETURN, STAKING_TX_HEADER + STAKING_TX_DEPOSIT_SUBHEADER + f"{stake_index:0{2}X}" + f"{period_index:0{2}X}"])
+
 
 def get_tx_type_aware_tx_status(
         tx_hash: str,
         tx_mined_info: 'TxMinedInfo',
         status: int,
         status_str: str,
-        db: WalletDB
+        db: 'WalletDB'
 ) -> Tuple[int, str]:
     if status_str == 'unknown':
         return status, status_str

@@ -1,6 +1,5 @@
 from .tx_type import TxType
-from ..util import bh2u
-from electrum import bitcoin
+from .utils import STAKING_TX_HEADER, STAKING_TX_DEPOSIT_SUBHEADER, NUM_STAKING_PERIODS, MIN_STAKING_AMOUNT
 from electrum.bitcoin import opcodes
 from electrum.transaction import BCDataStream, Transaction, TxOutput
 from typing import NamedTuple, Optional, TYPE_CHECKING
@@ -77,13 +76,6 @@ class TypeAwareTransaction(Transaction):
 
 
 class StakingDepositTx(TypeAwareTransaction):
-    STAKING_TX_HEADER = '53'
-    STAKING_TX_DEPOSIT_SUBHEADER = '44'
-
-    # TODO: Move staking params somewhere global
-    MIN_STAKING_AMOUNT = 5 * bitcoin.COIN
-    NUM_STAKING_PERIODS = 4
-
     def __init__(self, raw: str, tx_type: TxType):
         super().__init__(raw, tx_type)
         self._staking_info = None
@@ -124,21 +116,21 @@ class StakingDepositTx(TypeAwareTransaction):
         header = vds.read_bytes(1)
         subheader = vds.read_bytes(1)
         if (opreturn.hex() != opcodes.OP_RETURN.hex()
-                or header.hex() != cls.STAKING_TX_HEADER
-                or subheader.hex() != cls.STAKING_TX_DEPOSIT_SUBHEADER):
+                or header.hex() != STAKING_TX_HEADER
+                or subheader.hex() != STAKING_TX_DEPOSIT_SUBHEADER):
             raise StakingDepositTxError(f'tx: {tx.txid()} is not staking deposit tx')
 
         # Read and validate staking vout index
         outputindex = vds.read_compact_size()
         if (outputindex == 0
                 or outputindex >= len(tx.outputs())
-                or tx.outputs()[outputindex].value < cls.MIN_STAKING_AMOUNT):
+                or tx.outputs()[outputindex].value < MIN_STAKING_AMOUNT):
             raise StakingDepositTxError(f'tx: {tx.txid()} outputs do not fulfill staking tx requirements')
 
         # Read and validate staking period index
 
         stakingperiod = vds.read_compact_size()
-        if stakingperiod >= cls.NUM_STAKING_PERIODS:
+        if stakingperiod >= NUM_STAKING_PERIODS:
             raise StakingDepositTxError(f'tx: {tx.txid()} period does not fulfill staking tx requirements')
 
         raw = tx.serialize()

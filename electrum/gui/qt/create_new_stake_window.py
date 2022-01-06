@@ -22,11 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import random
 from typing import TYPE_CHECKING
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 
+from electrum.bitcoin import COIN
 from electrum.gui.qt.util import WindowModalDialog, PasswordLineEdit
 from electrum.i18n import _
 from electrum.logging import get_logger
@@ -276,11 +277,11 @@ class CreateNewStakingWindow(WindowModalDialog):
             self.period_days = 360
 
     def valid_enough_coins(self, min_coins):
-        return self.get_spendable_coins() >= min_coins
+        return self.get_spendable_coins() >= (min_coins * COIN)
 
     def get_spendable_coins(self):
-        coins = sum((i._trusted_value_sats for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True)))
-        return coins * 0.00000001
+        coins = sum((i.value_sats() for i in self.parent.wallet.get_spendable_coins(None, nonlocal_only=True)))
+        return coins
 
 
 class CreateNewStakingTwo(WindowModalDialog):
@@ -480,9 +481,34 @@ class CreateNewStakingTwo(WindowModalDialog):
                 return
 
         self.is_send = True
-        self.hide()
-        dialog = CreateNewStakingFinish(parent=self)
-        dialog.show()
+
+        # TODO: refactor this widget to setup radio buttons accordingly to available periods pulled from get_stake_info() network method
+        # so it can be used both for testnet and mainnet. For now we select random int between 0 and 3.
+        # MAINNET:
+        # stakingPeriod = {
+        #         4320,
+        #         12960,
+        #         25920,
+        #         51840
+        # };
+        # TESTNET:
+        # stakingPeriod = {
+        #         12,
+        #         36,
+        #         72,
+        #         144
+        # };
+        tx = self.wallet.make_unsigned_stake_deposit(int(self.parent.spinBox_amount.value() * COIN), random.randint(0, 3))
+        if not tx:
+            #TODO: probably show some error message indicating that transaction could not be created? (no inputs found most likely)
+            return
+
+        tx = self.wallet.sign_transaction(tx, password)
+        self.parent.parent.broadcast_or_show(tx)
+
+        finish_dialog = CreateNewStakingFinish(parent=self, transaction_id=tx.txid())
+        finish_dialog.finished.connect(self.close)
+        finish_dialog.show()
 
 
 class CreateNewStakingFinish(WindowModalDialog):
