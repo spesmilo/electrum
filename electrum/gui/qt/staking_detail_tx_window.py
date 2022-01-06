@@ -294,7 +294,7 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
 
         hbox_period = QHBoxLayout()
         period_lab = QLabel('Staking period:')
-        period_lab_data = QLabel(f"{self.data.staking_info.deposit_height/144} Days")
+        period_lab_data = QLabel(f"{self.data.staking_info.staking_period/144} Days")
         hbox_period.addWidget(period_lab)
         hbox_period.addWidget(period_lab_data)
         vbox_left.addLayout(hbox_period)
@@ -307,7 +307,10 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         vbox_left.addLayout(hbox_start_date)
         hbox_end_date = QHBoxLayout()
         end_date_lab = QLabel('End date:')
-        end_date_lab_data = QLabel('jak policzyć?')
+        finish_height = self.data.staking_info.deposit_height + self.data.staking_info.staking_period
+        block_header = self.wallet.network.run_from_another_thread(self.wallet.network.get_block_header(finish_height, 'catchup'))
+        end_date = datetime.datetime.fromtimestamp(block_header['timestamp']).strftime("%Y-%m-%d")
+        end_date_lab_data = QLabel(end_date)
         hbox_end_date.addWidget(end_date_lab)
         hbox_end_date.addWidget(end_date_lab_data)
 
