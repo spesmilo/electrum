@@ -50,7 +50,7 @@ from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from . import util
-from .staking.utils import get_tx_type_aware_tx_status
+from .staking.utils import get_tx_type_aware_tx_status, filter_spendable_coins
 from .util import (NotEnoughFunds, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException, MultipleSpendMaxTxOutputs,
@@ -651,7 +651,20 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                                mature_only=True,
                                confirmed_only=confirmed_only,
                                nonlocal_only=nonlocal_only)
-        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and not self.is_staked_coin(utxo)]
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
+        return filter_spendable_coins(
+            utxos=utxos,
+            db=self.db
+        )
+
+    def get_finished_staked_coins(self):
+        confirmed_only = self.config.get('confirmed_only', False)
+        utxos = self.get_utxos(None,
+                               excluded_addresses=self.frozen_addresses,
+                               mature_only=True,
+                               confirmed_only=confirmed_only,
+                               nonlocal_only=False)
+        utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo) and self.can_unstake_coin(utxo)]
         return utxos
 
     @abstractmethod
@@ -1204,6 +1217,90 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert is_address(selected_addr), f"not valid bitcoin address: {selected_addr}"
         return selected_addr
 
+    def make_unsigned_claim_stake_transaction(self, txids: Sequence[str]) -> Optional[PartialTransaction]:
+        staking_txs = [self.db.get_transaction(txid) for txid in txids]
+
+        # verify that passed txids are indeed fulfulled not-paid-out stakes
+
+        def check_stake(tx):
+            if hasattr(tx, 'staking_info') and tx.staking_info is not None:
+                return tx.staking_info.fulfilled == True and tx.staking_info.paid_out == False
+            return False
+
+        filtered_staking_txs = list(filter(check_stake, staking_txs))
+        if len(filtered_staking_txs) != len(staking_txs):
+            _logger.error('not all passed transactions to claim stakes are staking transactions')
+            return None
+        # prepare inputs
+        reward = sum([stake.staking_info.accumulated_reward for stake in staking_txs])
+        reward = int(reward * COIN)
+        inputs = [self.get_staking_utxo(tx) for tx in staking_txs]
+        inputs_amount = sum([utxo.value_sats() or 0 for utxo in inputs])
+        if inputs_amount == 0:
+            return None
+
+        if any([c.already_has_some_signatures() for c in inputs]):
+            raise Exception("Some inputs already contain signatures!")
+
+        # prepare output
+        # TODO: when passing zero fee, the tx is rejected by the network due to
+        # min relay fee not met error
+        # fallback to regular fee calculation (for now)
+        witness = any(coin.is_segwit(guess_for_address=True) for coin in inputs)
+        weight = sum(Transaction.estimated_input_weight(coin, witness) for coin in inputs)
+        fee = self.config.estimate_fee(Transaction.virtual_size_from_weight(weight))
+
+        outputs_amount = inputs_amount + reward - fee
+        output_scriptpubkey = bfh(bitcoin.address_to_script(self.get_receiving_address()))
+        output = PartialTxOutput(scriptpubkey=output_scriptpubkey, value=outputs_amount)
+
+        for item in inputs:
+            self.add_input_info(item)
+
+        tx = PartialTransaction.from_io(inputs, [output])
+        # Timelock tx to current height.
+        tx.locktime = get_locktime_for_new_transaction(self.network)
+
+        tx.add_info_from_wallet(self)
+        run_hook('make_unsigned_claim_stake_transaction', self, tx)
+        return tx
+
+    def make_unsigned_unstake_transaction(
+            self,
+            tx_id_hex: str
+    ) -> Optional[PartialTransaction]:
+        staking_tx = self.db.get_transaction(tx_id_hex)
+        inputs = self.get_addr_utxo(staking_tx.outputs()[staking_tx.staking_output_index].address)
+        inputs = [utxo for utxo in inputs.values() if utxo.prevout.txid.hex() == staking_tx.txid() and utxo.prevout.out_idx == staking_tx.staking_output_index]
+        inputs_amount = sum([utxo.value_sats() or 0 for utxo in inputs])
+        if inputs_amount == 0:
+            return None
+        # TODO: calculate penalty from network info
+        penalty = int(Decimal('0.03') * inputs_amount)
+
+        if any([c.already_has_some_signatures() for c in inputs]):
+            raise Exception("Some inputs already contain signatures!")
+
+        witness = any(coin.is_segwit(guess_for_address=True) for coin in inputs)
+        weight = sum(Transaction.estimated_input_weight(coin, witness) for coin in inputs)
+        fee = self.config.estimate_fee(Transaction.virtual_size_from_weight(weight))
+
+        outputs_amount = inputs_amount - penalty - fee
+        output_scriptpubkey = bfh(bitcoin.address_to_script(self.get_receiving_address()))
+        output = PartialTxOutput(scriptpubkey=output_scriptpubkey, value=outputs_amount)
+
+        for item in inputs:
+            self.add_input_info(item)
+
+        tx = PartialTransaction.from_io(inputs, [output])
+        # Timelock tx to current height.
+        tx.locktime = get_locktime_for_new_transaction(self.network)
+
+        tx.add_info_from_wallet(self)
+        run_hook('make_unsigned_unstake_transaction', self, tx)
+        return tx
+
+
     def make_unsigned_transaction(self, *, coins: Sequence[PartialTxInput],
                                   outputs: List[PartialTxOutput], fee=None,
                                   change_addr: str = None, is_sweep=False) -> PartialTransaction:
@@ -1247,7 +1344,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
-                base_tx = PartialTransaction.from_tx(base_tx)
+                base_tx = PartialTransaction.from_tx(base_tx, self.db)
                 base_tx.add_info_from_wallet(self)
                 base_tx_fee = base_tx.get_fee()
                 relayfeerate = Decimal(self.relayfee()) / 1000
@@ -1344,6 +1441,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         funding_tx = self.db.get_transaction(utxo.prevout.txid.hex())
         return funding_tx.tx_type == TxType.STAKING_DEPOSIT
 
+    def can_unstake_coin(self, utxo: PartialTxInput) -> bool:
+        funding_tx = self.db.get_transaction(utxo.prevout.txid.hex())
+        if funding_tx.tx_type == TxType.STAKING_DEPOSIT:
+            if hasattr(funding_tx, 'staking_info') and funding_tx.staking_info.fulfilled and not funding_tx.staking_info.paid_out:
+                return True
+        return False
+
+
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
         return addr in self._reserved_addresses
@@ -1395,7 +1500,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         assert txid
         assert tx.txid() in (None, txid)
         if not isinstance(tx, PartialTransaction):
-            tx = PartialTransaction.from_tx(tx)
+            tx = PartialTransaction.from_tx(tx, self.db)
         assert isinstance(tx, PartialTransaction)
 
         if tx.is_final():
@@ -1574,7 +1679,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         'new_fee_rate' is the target min rate in sat/vbyte
         """
         if not isinstance(tx, PartialTransaction):
-            tx = PartialTransaction.from_tx(tx)
+            tx = PartialTransaction.from_tx(tx, self.db)
         assert isinstance(tx, PartialTransaction)
 
         if tx.is_final():

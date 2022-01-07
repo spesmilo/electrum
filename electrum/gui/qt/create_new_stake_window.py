@@ -173,7 +173,7 @@ class CreateNewStakingWindow(WindowModalDialog):
         self.vl_rewards.addWidget(self.free_trans_label)
         spacer_item = QtWidgets.QSpacerItem(0, 10, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
         self.vl_rewards.addItem(spacer_item)
-        self.pred_rew.setText(_("Predicted Rewords:"))
+        self.pred_rew.setText(_("Predicted Rewards:"))
         self.pred_rew.setMaximumSize(QtCore.QSize(16777215, 30))
         self.pred_rew.setBaseSize(QtCore.QSize(0, 30))
         self.vl_rewards.addWidget(self.pred_rew)

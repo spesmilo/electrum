@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from electrum.staking.tx_type import TxType
 from electrum.wallet import Abstract_Wallet
@@ -33,7 +34,6 @@ def get_all_stake_amount(wallet: Abstract_Wallet):
         if (
                 transactions[t].tx_type == TxType.STAKING_DEPOSIT
                 and transactions[t].staking_info
-                and transactions[t].staking_info.fulfilled
                 and not transactions[t].staking_info.paid_out
         ):
             amount += transactions[t].staking_info.staking_amount
@@ -99,8 +99,8 @@ def get_sum_predicted_rewards(wallet: Abstract_Wallet):
                 and not tx.staking_info.fulfilled
                 and not tx.staking_info.paid_out
         ):
-            max_reward = tx.staking_info.staking_amount * (period_info[str(tx.staking_info.staking_period)] * tx.staking_info.staking_period / blocks_in_year)
-            completed_period = (current_height - tx.staking_info.deposit_height) / tx.staking_info.staking_period
+            max_reward = tx.staking_info.staking_amount * (Decimal(str(period_info[str(tx.staking_info.staking_period)])) * tx.staking_info.staking_period / blocks_in_year)
+            completed_period = Decimal(str(current_height - tx.staking_info.deposit_height)) / Decimal(str(tx.staking_info.staking_period))
             max_current_reward = max_reward * completed_period
             pr += max_reward * max_current_reward / tx.staking_info.accumulated_reward
     return pr

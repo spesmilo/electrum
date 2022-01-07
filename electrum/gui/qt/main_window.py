@@ -1664,9 +1664,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return text
 
     def pay_onchain_dialog(
-            self, inputs: Sequence[PartialTxInput],
-            outputs: List[PartialTxOutput], *,
-            external_keypairs=None) -> None:
+            self,
+            inputs: Sequence[PartialTxInput],
+            outputs: List[PartialTxOutput],
+            *,
+            external_keypairs=None,
+    ) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
@@ -1675,7 +1678,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             coins=inputs,
             outputs=outputs,
             fee=fee_est,
-            is_sweep=is_sweep)
+            is_sweep=is_sweep,
+        )
         output_values = [x.value for x in outputs]
         if output_values.count('!') > 1:
             self.show_error(_("More than one output set to spend max"))
@@ -1710,6 +1714,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.preview_tx_dialog(make_tx=make_tx,
                                    external_keypairs=external_keypairs)
+
 
     def preview_tx_dialog(self, *, make_tx, external_keypairs=None):
         d = PreviewTxDialog(make_tx=make_tx, external_keypairs=external_keypairs,
@@ -3299,7 +3304,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         txid = tx.txid()
         assert txid
         if not isinstance(tx, PartialTransaction):
-            tx = PartialTransaction.from_tx(tx)
+            tx = PartialTransaction.from_tx(tx, self.wallet.db)
         if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
         fee = tx.get_fee()
@@ -3360,7 +3365,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         txid = tx.txid()
         assert txid
         if not isinstance(tx, PartialTransaction):
-            tx = PartialTransaction.from_tx(tx)
+            tx = PartialTransaction.from_tx(tx, self.wallet.db)
         if not self._add_info_to_tx_from_wallet_and_network(tx):
             return
         fee = tx.get_fee()

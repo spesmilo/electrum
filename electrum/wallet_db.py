@@ -950,6 +950,15 @@ class WalletDB(JsonDB):
         return self.transactions.get(tx_hash)
 
     @locked
+    def get_stakes(self, fulfilled: bool=False, paid_out: bool=False) -> dict:
+        stakes = {}
+        for txid, tx in self.transactions.items():
+            if tx.tx_type == TxType.STAKING_DEPOSIT:
+                if tx.staking_info.fulfilled == fulfilled and tx.staking_info.paid_out == paid_out:
+                    stakes[txid] = tx
+        return stakes
+
+    @locked
     def list_transactions(self) -> Sequence[str]:
         return list(self.transactions.keys())
 
@@ -1208,10 +1217,10 @@ class WalletDB(JsonDB):
             upgraded_transactions.append(tx_hash)
 
         non_updated_txs = set(self.transactions.keys()) - set(upgraded_transactions)
-        assert len(non_updated_txs) == 0, f'Transactions {non_updated_txs} not updated to ThreeKeys'
+        assert len(non_updated_txs) == 0, f'Transactions {non_updated_txs} not updated to Staking aware tx'
 
     def _upgrade_single_tx(self, tx: Transaction) -> TypeAwareTransaction:
-        type_aware_tx = TypeAwareTransaction.from_tx(tx)
+        type_aware_tx = TypeAwareTransaction.from_tx(tx, self)
         self.transactions[type_aware_tx.txid()] = type_aware_tx
         if tx.txid() in self.verified_tx.keys():
             existing_verified_tx = self.verified_tx[tx.txid()]

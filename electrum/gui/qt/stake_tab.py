@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+from decimal import Decimal
 
 from PyQt5.QtCore import QSize, Qt
 from PyQt5.QtGui import QCursor, QFont
@@ -40,10 +40,14 @@ from PyQt5.QtWidgets import (
 
 from electrum.i18n import _
 from .create_new_stake_window import CreateNewStakingWindow
-from .staking.utils import get_all_stake_amount
-from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog
+from .staking.utils import get_all_stake_amount, get_sum_available_rewards
+from .staking_detail_tx_window import CompletedMultiClaimedStakeDialog, ClaimReward
 from .terms_and_conditions_mixin import load_terms_and_conditions
 from .util import read_QIcon, WindowModalDialog, OkButton
+from ... import bitcoin
+from ...bitcoin import COIN
+from ...transaction import PartialTxOutput
+from ...util import bfh
 
 
 def get_verbal_type_name(stack_data):
@@ -88,6 +92,7 @@ class StakingTabQWidget(QWidget):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.parent = parent
+        self.password = None
         self.top_h_label = QHBoxLayout()
         self.create_stake_dialog = CreateNewStakingWindow(self.parent)
 
@@ -97,14 +102,15 @@ class StakingTabQWidget(QWidget):
             icon=read_QIcon("electrum.png"),
         )
         self.tx_detail_dialog = None
-        self.claim_rewords_button = CustomButton(text=_('Claim Rewords'), trigger=None)
+        self.claim_rewards_button = CustomButton(text=_('Claim Rewards'), trigger=self.claim_rewards)
+        self.claim_rewards_button.setEnabled(False)
 
         self.stake_balance_label = QLabel()
         self.stake_balance_label.setAlignment(Qt.AlignRight | Qt.AlignRight)
 
         self.staking_header = buttons = QHBoxLayout()
         buttons.addWidget(self.stake_button)
-        buttons.addWidget(self.claim_rewords_button)
+        buttons.addWidget(self.claim_rewards_button)
 
         verticalSpacer = QSpacerItem(400, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
@@ -135,8 +141,35 @@ class StakingTabQWidget(QWidget):
 
     def update(self):
         value = get_all_stake_amount(self.parent.wallet)
+        available_rewards = get_sum_available_rewards(self.parent.wallet)
+        if available_rewards > Decimal('0.0'):
+            self.claim_rewards_button.setEnabled(True)
+        else:
+            self.claim_rewards_button.setDisabled(True)
+
         self.stake_balance_label.setText(f'Staked balance: {value:.8f} ELCASH')
 
+    def claim_rewards(self):
+        password_required = self.parent.wallet.has_keystore_encryption()
+        if password_required:
+            self.password = None
+            def got_valid_password(password):
+                self.password = password
+            unstake_dialog = ClaimReward(self, got_valid_password)
+            unstake_dialog.finished.connect(self.claim_rewards_unlocked)
+            unstake_dialog.show()
+        else:
+            self.claim_rewards_unlocked()
+
+    def claim_rewards_unlocked(self):
+        staking_txs = self.parent.wallet.db.get_stakes(fulfilled=True, paid_out=False)
+        tx = self.parent.wallet.make_unsigned_claim_stake_transaction(staking_txs.keys())
+
+        def sign_done(success):
+            if success:
+                self.parent.broadcast_or_show(tx)
+
+        self.parent.sign_tx_with_password(tx, callback=sign_done, password=self.password)
 
 # def staking_tab(self):
 #     widget = QWidget()

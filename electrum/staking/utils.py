@@ -7,10 +7,11 @@ from ..wallet_db import WalletDB
 if TYPE_CHECKING:
     from electrum.util import TxMinedInfo
 
-TX_STATUS_INDEX_OFFSET = 10
-TX_TYPES_LIKE_STANDARD = (
+TX_STATUS_INDEX_OFFSET = 9
+TX_TYPES_SPENDABLE = (
     TxType.NONE,
     TxType.STAKING_WITHDRAWAL,
+    TxType.STAKING_CLAIM_REWARDS,
 )
 
 
@@ -31,18 +32,18 @@ def get_tx_type_aware_tx_status(
     if confirmations == 0:
         if not hasattr(tx, 'tx_type'):
             return status, status_str
-        if tx.tx_type in TX_TYPES_LIKE_STANDARD:
+        if tx.tx_type == TxType.NONE:
             return status, status_str
         # reserve tx_type + 1 for unconfirmed tx icon
         return TX_STATUS_INDEX_OFFSET + tx.tx_type + 1, status_str
 
-    if tx.tx_type in TX_TYPES_LIKE_STANDARD:
+    if tx.tx_type == TxType.NONE:
         return status, status_str
     return TX_STATUS_INDEX_OFFSET + tx.tx_type, status_str
 
 
 def filter_spendable_coins(utxos: list, db):
-    acceptable_tx_types = TX_TYPES_LIKE_STANDARD + (TxType.RECOVERY,)
+    acceptable_tx_types = TX_TYPES_SPENDABLE
     filtered_utxos = []
     for utxo in utxos:
         tx_hex = utxo.prevout.txid.hex()

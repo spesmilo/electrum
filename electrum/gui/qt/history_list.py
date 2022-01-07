@@ -78,7 +78,9 @@ TX_ICONS = [
     "confirmed.png",
     "stake_deposit_confirmed.png",
     "stake_deposit_unconfirmed.png",
-    "stake_withdrawal.png",
+    "stake_claim_rewards_confirmed.png",
+    "stake_claim_rewards_unconfirmed.png",
+    "stake_withdrawal_confirmed.png",
     "stake_withdrawal_unconfirmed.png",
 ]
 

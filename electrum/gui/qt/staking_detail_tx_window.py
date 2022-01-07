@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import datetime
+from decimal import Decimal
 from typing import Callable, Optional, List
 
 import qrcode
@@ -32,15 +33,17 @@ from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLay
                              QMenu, QGridLayout, QSizePolicy, QSpacerItem)
 from qrcode import exceptions
 
+from electrum import bitcoin
+from electrum.bitcoin import COIN
 from electrum.i18n import _
-from electrum.transaction import Transaction
+from electrum.transaction import Transaction, PartialTxOutput
 from electrum.gui.qt.create_new_stake_window import CreateNewStakingWindow, CreateNewStakingFinish
 from electrum.gui.qt.util import (MessageBoxMixin, read_QIcon, Buttons, ColorScheme, ButtonsLineEdit, WindowModalDialog,
                                   PasswordLineEdit)
 
 from electrum.common.widgets import CustomTableWidget
 from electrum.common.services import CustomTableWidgetController
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, bfh
 
 
 class TxList(CustomTableWidget):
@@ -152,6 +155,7 @@ class StakedDialog(BaseStakingTxDialog):
         super().__init__(parent, data, detail_tx)
         self.insert_data(self.vbox)
         self.add_buttons()
+        self.password = None
 
     def insert_data(self, vbox):
         hbox_stats = QHBoxLayout()
@@ -258,11 +262,30 @@ class StakedDialog(BaseStakingTxDialog):
     def on_push_unstake(self):
         password_required = self.wallet.has_keystore_encryption()
         if password_required:
-            unstake_dialog = UnstakeDialog(self)
+            self.password = None
+            def got_valid_password(password):
+                self.password = password
+            unstake_dialog = UnstakeDialog(self, got_valid_password)
+            unstake_dialog.finished.connect(self.unstake)
             unstake_dialog.show()
         else:
-            dialog = CreateNewStakingFinish(parent=self)
-            dialog.show()
+            self.unstake()
+
+    def unstake(self):
+        tx = self.wallet.make_unsigned_unstake_transaction(self.detail_tx['txid'])
+        if not tx:
+            #TODO: probably show some error message indicating that transaction could not be created? (no inputs found most likely)
+            return
+
+        def sign_done(success):
+            if success:
+                self.parent().parent.broadcast_or_show(tx)
+
+        self.parent().parent.sign_tx_with_password(tx, callback=sign_done, password=self.password)
+
+        finish_dialog = CreateNewStakingFinish(parent=self, transaction_id=tx.txid())
+        finish_dialog.finished.connect(self.on_push_close)
+        finish_dialog.show()
 
     def on_push_close(self):
         self.close()
@@ -278,6 +301,7 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
         self.main_window = parent
         self.insert_data(self.vbox)
         self.add_buttons()
+        self.password = None
 
     def insert_data(self, vbox):
         hbox_stats = QHBoxLayout()
@@ -401,15 +425,34 @@ class CompletedReadyToClaimStakeDialog(BaseStakingTxDialog):
     def on_push_claim(self):
         password_required = self.wallet.has_keystore_encryption()
         if password_required:
-            unstake_dialog = ClaimReward(self)
+            self.password = None
+            def got_valid_password(password):
+                self.password = password
+            unstake_dialog = ClaimReward(self, got_valid_password)
+            unstake_dialog.finished.connect(self.claim_reward)
             unstake_dialog.show()
         else:
-            dialog = CreateNewStakingFinish(parent=self)
-            dialog.show()
+            self.claim_reward()
+
 
     def on_push_close(self):
         self.close()
 
+    def claim_reward(self):
+        tx = self.wallet.make_unsigned_claim_stake_transaction([self.detail_tx['txid']])
+        if not tx:
+            #TODO: probably show some error message indicating that transaction could not be created? (no inputs found most likely)
+            return
+
+        def sign_done(success):
+            if success:
+                self.parent().parent.broadcast_or_show(tx)
+
+        self.parent().parent.sign_tx_with_password(tx, callback=sign_done, password=self.password)
+
+        finish_dialog = CreateNewStakingFinish(parent=self, transaction_id=tx.txid())
+        finish_dialog.finished.connect(self.on_push_close)
+        finish_dialog.show()
 
 # zebrany multi stake
 class CompletedMultiClaimedStakeDialog(BaseStakingTxDialog):
@@ -816,8 +859,9 @@ class UnstakeDialog(WindowModalDialog):
     def __call__(self, *args, **kwargs):
         self.show()
 
-    def __init__(self, parent):
+    def __init__(self, parent, success_callback):
         super().__init__(parent)
+        self.success_callback = success_callback
         self.parent = parent
         self.wallet = parent.wallet
         self.setEnabled(True)
@@ -935,9 +979,8 @@ class UnstakeDialog(WindowModalDialog):
             self.password_lineEdit.setStyleSheet("background-color: red;")
             return
 
-        self.hide()
-        dialog = CreateNewStakingFinish(parent=self)
-        dialog.show()
+        self.success_callback(password)
+        self.close()
 
 
 class ClaimReward(WindowModalDialog):
@@ -945,8 +988,9 @@ class ClaimReward(WindowModalDialog):
     def __call__(self, *args, **kwargs):
         self.show()
 
-    def __init__(self, parent):
+    def __init__(self, parent, success_callback):
         super().__init__(parent)
+        self.success_callback = success_callback
         self.parent = parent
         self.wallet = parent.wallet
         self.setEnabled(True)
@@ -1030,7 +1074,6 @@ class ClaimReward(WindowModalDialog):
             self.password_lineEdit.setStyleSheet("background-color: red;")
             return
 
-        self.hide()
-        dialog = CreateNewStakingFinish(parent=self)
-        dialog.show()
+        self.success_callback(password)
+        self.close()
 

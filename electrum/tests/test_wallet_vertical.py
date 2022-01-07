@@ -2843,7 +2843,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         w = self.create_wallet()
         w.db.put('stored_height', 1316917 + 100)
         for txid in self.transactions:
-            tx = TypeAwareTransaction.from_tx(Transaction(self.transactions[txid]))
+            tx = TypeAwareTransaction.from_tx(Transaction(self.transactions[txid]), w.db)
             w.add_transaction(tx)
         # txn A is an external incoming txn paying to addr (3) and (15)
         # txn B is an external incoming txn paying to addr (4) and (25)

@@ -75,7 +75,9 @@ TX_ICONS = [
     "confirmed.png",
     "stake_deposit_confirmed.png",
     "stake_deposit_unconfirmed.png",
-    "stake_withdrawal.png",
+    "stake_claim_rewards_confirmed.png",
+    "stake_claim_rewards_unconfirmed.png",
+    "stake_withdrawal_confirmed.png",
     "stake_withdrawal_unconfirmed.png",
 ]
 
@@ -324,11 +326,13 @@ class StakingNode(CustomNode):
             return QVariant(tx_item['txtype'])
         elif col == StakingColumns.STATUS and hasattr(staking_info, 'fulfilled'):
             if not staking_info.fulfilled and not staking_info.paid_out:
-                return QVariant('Staked')
+                return QVariant(_('Staked'))
             if staking_info.fulfilled and staking_info.paid_out:
-                return QVariant('Unstaked')
+                return QVariant(_('Claimed'))
             elif staking_info.fulfilled:
-                return QVariant('Completed')
+                return QVariant(_('Completed'))
+            else:
+                return QVariant(_('Unstaked'))
 
         elif col == StakingColumns.BLOCKS_LEFT and hasattr(staking_info, 'deposit_height'):
             current_height = window.wallet.get_local_height()

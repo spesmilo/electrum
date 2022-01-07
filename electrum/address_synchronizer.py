@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequen
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
 from .staking.tx_type import TxType
-from .staking.transaction import TypeAwareTransaction, StakingInfo
+from .staking.transaction import TypeAwareTransaction, StakingInfo, StakingDepositTx
 from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
@@ -252,7 +252,7 @@ class AddressSynchronizer(Logger):
         """Returns whether the tx was successfully added to the wallet history."""
         assert tx, tx
         if not isinstance(tx, TypeAwareTransaction):
-            tx = TypeAwareTransaction.from_tx(tx)
+            tx = TypeAwareTransaction.from_tx(tx, self.db)
         # note: tx.is_complete() is not necessarily True; tx might be partial
         # but it *needs* to have a txid:
         tx_hash = tx.txid()
@@ -782,6 +782,13 @@ class AddressSynchronizer(Logger):
             if v.spent_height is not None:
                 out.pop(k)
         return out
+
+    def get_staking_utxo(self, staking_tx: StakingDepositTx) -> Optional[PartialTxInput]:
+        addr_utxos = self.get_addr_utxo(staking_tx.outputs()[staking_tx.staking_output_index].address)
+        staking_utxo = [utxo for utxo in addr_utxos.values() if utxo.prevout.txid.hex() == staking_tx.txid() and utxo.prevout.out_idx == staking_tx.staking_output_index]
+        if len(staking_utxo) == 1:
+            return staking_utxo[0]
+        return None
 
     # return the total amount ever received by an address
     def get_addr_received(self, address):

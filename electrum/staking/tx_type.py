@@ -8,7 +8,8 @@ class TxType(IntEnum):
     # (with some magic twist in utils.get_tx_type_aware_tx_status method)
     NONE = 0,
     STAKING_DEPOSIT = 1,
-    STAKING_WITHDRAWAL = 3,
+    STAKING_CLAIM_REWARDS = 3,
+    STAKING_WITHDRAWAL = 5,
 
     @classmethod
     def from_str(cls, str_type: str):
@@ -23,5 +24,6 @@ class TxType(IntEnum):
 TX_TYPES_DISPLAY_MAP = {
     TxType.NONE.name: _('Standard'),
     TxType.STAKING_DEPOSIT.name: _('Stake Deposit'),
+    TxType.STAKING_CLAIM_REWARDS.name: _('Stake Claim'),
     TxType.STAKING_WITHDRAWAL.name: _('Stake Withdrawal'),
 }

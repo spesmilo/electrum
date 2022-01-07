@@ -3,12 +3,24 @@ from ..util import bh2u
 from electrum import bitcoin
 from electrum.bitcoin import opcodes
 from electrum.transaction import BCDataStream, Transaction, TxOutput
-from typing import NamedTuple
+from typing import NamedTuple, Optional, TYPE_CHECKING
 from decimal import Decimal
 
-class StakingDepositTxError(Exception):
+if TYPE_CHECKING:
+    from ..wallet_db import WalletDB
+
+
+class TxParseError(Exception):
     pass
 
+class StakingDepositTxError(TxParseError):
+    pass
+
+class StakingClaimRewardsTxError(TxParseError):
+    pass
+
+class StakingWithdrawalTxError(TxParseError):
+    pass
 
 class StakingInfo(NamedTuple):
     deposit_height: int                         # height of block that mined tx
@@ -39,16 +51,26 @@ class TypeAwareTransaction(Transaction):
         self._tx_type = tx_type
 
     @classmethod
-    def from_tx(cls, tx: Transaction):
+    def from_tx(cls, tx: Transaction, db: Optional['WalletDB'] = None):
         if not isinstance(tx, Transaction):
             raise ValueError(f'Wrong transaction type {type(tx).__name__}')
 
         tx_type = TxType.NONE
         try:
-            return StakingDepositTx.from_tx(tx)
+            return StakingDepositTx.from_tx(tx, db)
         except StakingDepositTxError as err:
-            print(err)
-        # TODO: detect stake withdrawal and other types here as well
+            # print(err)
+            pass
+        try:
+            return StakingClaimRewardsTx.from_tx(tx, db)
+        except StakingClaimRewardsTxError as err:
+            # print(err)
+            pass
+        try:
+            return StakingWithdrawalTx.from_tx(tx, db)
+        except StakingWithdrawalTxError as err:
+            # print(err)
+            pass
 
         raw = tx.serialize()
         return cls(raw, tx_type)
@@ -65,6 +87,9 @@ class StakingDepositTx(TypeAwareTransaction):
     def __init__(self, raw: str, tx_type: TxType):
         super().__init__(raw, tx_type)
         self._staking_info = None
+        self.staking_period_index = None
+        self.staking_output_index = None
+
     @property
     def is_staking_tx(self) -> bool:
         return True
@@ -74,6 +99,8 @@ class StakingDepositTx(TypeAwareTransaction):
         staking_info = network.run_from_another_thread(
             network.get_stake(self.txid(), timeout=10)
         )
+        staking_info['accumulated_reward'] = Decimal(f"{staking_info['accumulated_reward']:.8f}")
+        staking_info['staking_amount'] = Decimal(f"{staking_info['staking_amount']:.8f}")
 
         self.staking_info = StakingInfo(**staking_info)
 
@@ -88,7 +115,7 @@ class StakingDepositTx(TypeAwareTransaction):
         self._staking_info = staking_info
 
     @classmethod
-    def from_tx(cls, tx: Transaction):
+    def from_tx(cls, tx: Transaction, db: Optional['WalletDB'] = None):
         stakinginfo_output = tx.outputs()[0]
         vds = BCDataStream()
         vds.write(stakinginfo_output.scriptpubkey)
@@ -116,4 +143,71 @@ class StakingDepositTx(TypeAwareTransaction):
 
         raw = tx.serialize()
         print(f'tx: {tx.txid()} is staking deposit')
-        return cls(raw, TxType.STAKING_DEPOSIT)
+        instance = cls(raw, TxType.STAKING_DEPOSIT)
+        instance.staking_period_index = stakingperiod
+        instance.staking_output_index = outputindex
+        return instance
+
+
+class StakingClaimRewardsTx(TypeAwareTransaction):
+    def __init__(self, raw: str, tx_type: TxType):
+        super().__init__(raw, tx_type)
+
+    @classmethod
+    def from_tx(cls, tx: Transaction, db: Optional['WalletDB'] = None):
+        contains_staking_inputs = False
+
+        raw = tx.serialize()
+        instance = cls(raw, TxType.STAKING_CLAIM_REWARDS)
+        inputs_value = 0
+        rewards = 0
+        for input in instance.inputs():
+            input_tx = db.get_transaction(input.prevout.txid.hex())
+            if not input_tx:
+                continue
+            tx_type = input_tx.tx_type if hasattr(input_tx, 'tx_type') else TxType.NONE
+            if tx_type == TxType.STAKING_DEPOSIT and input_tx.staking_output_index == input.prevout.out_idx:
+                contains_staking_inputs = True
+                # TODO: store info about staking details in db so we can pull that data here to get accumulated reward value
+                # rewards += input_tx.staking_info.accumulated_reward
+            inputs_value += input_tx.outputs()[input.prevout.out_idx].value
+        outputs_value = sum([output.value for output in instance.outputs()])
+        if contains_staking_inputs and inputs_value < outputs_value:
+            instance.staking_reward = rewards
+        else:
+            raise StakingClaimRewardsTxError()
+        print(f'tx: {tx.txid()} is staking claim rewards')
+        return instance
+
+
+class StakingWithdrawalTx(TypeAwareTransaction):
+    def __init__(self, raw: str, tx_type: TxType):
+        super().__init__(raw, tx_type)
+
+    @classmethod
+    def from_tx(cls, tx: Transaction, db: Optional['WalletDB'] = None):
+        contains_staking_inputs = False
+
+        raw = tx.serialize()
+        instance = cls(raw, TxType.STAKING_WITHDRAWAL)
+        inputs_value = 0
+        rewards = 0
+        for input in instance.inputs():
+            input_tx = db.get_transaction(input.prevout.txid.hex())
+            if not input_tx:
+                continue
+            tx_type = input_tx.tx_type if hasattr(input_tx, 'tx_type') else TxType.NONE
+            if tx_type == TxType.STAKING_DEPOSIT and input_tx.staking_output_index == input.prevout.out_idx:
+                contains_staking_inputs = True
+                # rewards += input_tx.staking_info.accumulated_reward
+            inputs_value += input_tx.outputs()[input.prevout.out_idx].value
+        outputs_value = sum([output.value for output in instance.outputs()])
+        penalty = 0
+        # TODO: store info about staking conditions so we can pull staking penalty here
+        # penalty = penalty_percentage_by_the_time_tx_was_issued * outputs_value
+        if contains_staking_inputs and inputs_value > outputs_value:
+            print(f'tx: {tx.txid()} is staking withdrawal')
+            instance.staking_penalty = penalty
+            return instance
+        else:
+            raise StakingWithdrawalTxError()

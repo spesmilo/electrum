@@ -54,6 +54,7 @@ from .logging import get_logger
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
+    from .wallet_db import WalletDB
 
 
 _logger = get_logger(__name__)
@@ -1557,7 +1558,7 @@ class PartialTransaction(Transaction):
         return d
 
     @classmethod
-    def from_tx(cls, tx: Transaction) -> 'PartialTransaction':
+    def from_tx(cls, tx: Transaction, db: Optional['WalletDB'] = None) -> 'PartialTransaction':
         res = cls()
         res._inputs = [PartialTxInput.from_txin(txin, strip_witness=True)
                        for txin in tx.inputs()]
@@ -1599,7 +1600,7 @@ class PartialTransaction(Transaction):
                     for txin in unsigned_tx.inputs():
                         if txin.script_sig or txin.witness:
                             raise SerializationError(f"PSBT {repr(kt)} must have empty scriptSigs and witnesses")
-                    tx = PartialTransaction.from_tx(unsigned_tx)
+                    tx = PartialTransaction.from_tx(unsigned_tx, None)
 
         if tx is None:
             raise SerializationError(f"PSBT missing required global section PSBT_GLOBAL_UNSIGNED_TX")
@@ -1665,7 +1666,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None):
+                locktime: int = None, version: int = None, staking_reward: int = None, staking_penalty: int = None):
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -1673,6 +1674,10 @@ class PartialTransaction(Transaction):
             self.locktime = locktime
         if version is not None:
             self.version = version
+        if staking_reward is not None:
+            self.staking_reward = staking_reward
+        if staking_penalty is not None:
+            self.staking_penalty = staking_penalty
         self.BIP69_sort()
         return self
 
@@ -1781,7 +1786,12 @@ class PartialTransaction(Transaction):
 
     def get_fee(self) -> Optional[int]:
         try:
-            return self.input_value() - self.output_value()
+            staking_modifier = 0
+            if hasattr(self, 'staking_reward'):
+                staking_modifier = self.staking_reward
+            if hasattr(self, 'staking_penalty'):
+                staking_modifier = -self.staking_penalty
+            return self.input_value() - self.output_value() + staking_modifier
         except MissingTxInputAmount:
             return None
 

@@ -120,6 +120,9 @@ class UTXOList(MyTreeView):
         if self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is frozen')}")
+        if self.wallet.is_staked_coin(utxo):
+            utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.YELLOW.as_color(True))
+            utxo_item[self.Columns.OUTPOINT].setToolTip(f"{name}\n{_('Coin is staked')}")
         else:
             tooltip = ("\n" + SELECTED_TO_SPEND_TOOLTIP) if name in (self._spend_set or set()) else ""
             utxo_item[self.Columns.OUTPOINT].setToolTip(name + tooltip)
