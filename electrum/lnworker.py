@@ -80,7 +80,7 @@ from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
 from .mpp_split import suggest_splits
-from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES
+from .trampoline import create_trampoline_route_and_onion, TRAMPOLINE_FEES, is_legacy_relay
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1157,8 +1157,13 @@ class LNWallet(LNWorker):
                 raise OnionRoutingFailure(code=OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON, data=b'')
 
         self.logs[payment_hash.hex()] = log = []
-        trampoline_fee_levels = defaultdict(lambda: self.INITIAL_TRAMPOLINE_FEE_LEVEL)  # type: DefaultDict[bytes, int]
-        use_two_trampolines = True # only used for pay to legacy
+
+        # when encountering trampoline forwarding difficulties in the legacy case, we
+        # sometimes need to fall back to a single trampoline forwarder, at the expense
+        # of privacy
+        use_two_trampolines = True
+
+        trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
 
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         while True:
@@ -1177,7 +1182,7 @@ class LNWallet(LNWorker):
                     full_path=full_path,
                     payment_hash=payment_hash,
                     payment_secret=payment_secret,
-                    trampoline_fee_levels=trampoline_fee_levels,
+                    trampoline_fee_level=trampoline_fee_level,
                     use_two_trampolines=use_two_trampolines,
                     fwd_trampoline_onion=fwd_trampoline_onion
                 )
@@ -1236,8 +1241,10 @@ class LNWallet(LNWorker):
                 #       instead we should give feedback to create_routes_for_payment.
                 if code in (OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
                             OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
-                    # todo: parse the node parameters here (not returned by eclair yet)
-                    trampoline_fee_levels[erring_node_id] += 1
+                    # TODO: parse the node policy here (not returned by eclair yet)
+                    # TODO: erring node is always the first trampoline even if second
+                    #  trampoline demands more fees, we can't influence this
+                    trampoline_fee_level += 1
                     continue
                 elif use_two_trampolines:
                     use_two_trampolines = False
@@ -1457,9 +1464,9 @@ class LNWallet(LNWorker):
             invoice_features: int,
             payment_hash,
             payment_secret,
-            trampoline_fee_levels: DefaultDict[bytes, int],
+            trampoline_fee_level: int,
             use_two_trampolines: bool,
-            fwd_trampoline_onion = None,
+            fwd_trampoline_onion=None,
             full_path: LNPaymentPath = None) -> AsyncGenerator[Tuple[LNPaymentRoute, int], None]:
 
         """Creates multiple routes for splitting a payment over the available
@@ -1498,7 +1505,7 @@ class LNWallet(LNWorker):
                             payment_hash=payment_hash,
                             payment_secret=payment_secret,
                             local_height=local_height,
-                            trampoline_fee_levels=trampoline_fee_levels,
+                            trampoline_fee_level=trampoline_fee_level,
                             use_two_trampolines=use_two_trampolines)
                         trampoline_payment_secret = os.urandom(32)
                         trampoline_total_msat = amount_with_fees
@@ -1541,14 +1548,13 @@ class LNWallet(LNWorker):
             self.logger.info(f"channels_with_funds: {channels_with_funds}")
 
             if not self.channel_db:
-                # for trampoline mpp payments we have to restrict ourselves to pay
-                # to a single node due to some incompatibility in Eclair, see:
-                # https://github.com/ACINQ/eclair/issues/1723
-                use_singe_node = constants.net is constants.BitcoinMainnet
+                # in the case of a legacy payment, we don't allow splitting via different
+                # trampoline nodes, as currently no forwarder supports this
+                use_single_node, _ = is_legacy_relay(invoice_features, r_tags)
                 split_configurations = suggest_splits(
                     amount_msat,
                     channels_with_funds,
-                    exclude_multinode_payments=use_singe_node,
+                    exclude_multinode_payments=use_single_node,
                     exclude_single_part_payments=True,
                     # we don't split within a channel when sending to a trampoline node,
                     # the trampoline node will split for us
@@ -1581,7 +1587,7 @@ class LNWallet(LNWorker):
                                 payment_hash=payment_hash,
                                 payment_secret=payment_secret,
                                 local_height=local_height,
-                                trampoline_fee_levels=trampoline_fee_levels,
+                                trampoline_fee_level=trampoline_fee_level,
                                 use_two_trampolines=use_two_trampolines)
                             # node_features is only used to determine is_tlv
                             per_trampoline_secret = os.urandom(32)
