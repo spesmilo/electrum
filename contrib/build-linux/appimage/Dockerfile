@@ -27,8 +27,8 @@ RUN apt-get update -q && \
         libtinfo5=6.1-1ubuntu1.18.04 \
         libsqlite3-dev=3.22.0-1ubuntu0.4 \
         libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.52 \
-        libudev1=237-3ubuntu10.52 \
+        libudev-dev=237-3ubuntu10.53 \
+        libudev1=237-3ubuntu10.53 \
         gettext=0.19.8.1-6ubuntu0.3 \
         libzbar0=0.10+doc-10.1build2  \
         libdbus-1-3=1.12.2-1ubuntu1.2 \
