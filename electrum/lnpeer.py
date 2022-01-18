@@ -1443,7 +1443,12 @@ class Peer(Logger):
 
         payload = trampoline_onion.hop_data.payload
         payment_hash = htlc.payment_hash
-        payment_secret = os.urandom(32)
+        payment_data = payload.get('payment_data')
+        if payment_data:  # legacy case
+            payment_secret = payment_data['payment_secret']
+        else:
+            payment_secret = os.urandom(32)
+
         try:
             outgoing_node_id = payload["outgoing_node_id"]["outgoing_node_id"]
             amt_to_forward = payload["amt_to_forward"]["amt_to_forward"]
