@@ -88,13 +88,15 @@ task:
 
 task:
   name: Regtest functional tests
-  container:
-    image: $ELECTRUM_IMAGE
+  compute_engine_instance:
+    image_project: cirrus-images
+    image: family/docker-builder
+    platform: linux
     cpu: 1
     memory: 1G
   pip_cache:
     folder: ~/.cache/pip
-    fingerprint_script: echo Regtest && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
+    fingerprint_script: echo Regtest && echo docker_builder && cat $ELECTRUM_REQUIREMENTS
     populate_script: mkdir -p ~/.cache/pip
   electrum_cache:
     folder: /tmp/electrum-build
@@ -106,7 +108,8 @@ task:
     - apt-get update
     - apt-get -y install libsecp256k1-0 curl jq bc
     - pip3 install .[tests]
-    - pip3 install electrumx
+    #- pip3 install e-x # Broken because of https://github.com/spesmilo/electrumx/issues/117 , use older version for now.
+    - pip3 install electrumx==1.15.0
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
     - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
     - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
@@ -121,7 +124,6 @@ task:
     - sleep 10s
     - python3 -m unittest electrum/tests/regtest.py
   env:
-    ELECTRUM_IMAGE: python:3.7
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
