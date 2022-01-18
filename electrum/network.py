@@ -1331,11 +1331,19 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         session = self.interface.session
         return parse_servers(await session.send_request('server.peers.subscribe'))
 
-    async def send_multiple_requests(self, servers: Sequence[ServerAddr], method: str, params: Sequence):
+    async def send_multiple_requests(
+            self,
+            servers: Sequence[ServerAddr],
+            method: str,
+            params: Sequence,
+            *,
+            timeout: int = None,
+    ):
+        if timeout is None:
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         responses = dict()
         async def get_response(server: ServerAddr):
             interface = Interface(network=self, server=server, proxy=self.proxy)
-            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
             try:
                 await asyncio.wait_for(interface.ready, timeout)
             except BaseException as e:
@@ -1350,3 +1358,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             for server in servers:
                 await group.spawn(get_response(server))
         return responses
+
+    async def prune_offline_servers(self, hostmap):
+        peers = filter_protocol(hostmap, allowed_protocols=("t", "s",))
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
+        replies = await self.send_multiple_requests(peers, 'blockchain.headers.subscribe', [], timeout=timeout)
+        servers_replied = {serveraddr.host for serveraddr in replies.keys()}
+        servers_dict = {k: v for k, v in hostmap.items()
+                        if k in servers_replied}
+        return servers_dict
