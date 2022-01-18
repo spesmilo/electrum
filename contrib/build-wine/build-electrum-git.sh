@@ -15,8 +15,11 @@ VERSION=`git describe --tags --dirty --always`
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
+info " submodules:"
+pwd
+cat .gitmodules
 git submodule update --init
-
+info "--------------"
 pushd ./contrib/deterministic-build/electrum-locale
 if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
