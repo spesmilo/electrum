@@ -167,7 +167,7 @@ BASE_FEATURES = LnFeatures(0)\
     | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
     | LnFeatures.VAR_ONION_OPT\
     | LnFeatures.PAYMENT_SECRET_OPT\
-    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT\
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
 LNWALLET_FEATURES = BASE_FEATURES\
@@ -177,10 +177,11 @@ LNWALLET_FEATURES = BASE_FEATURES\
     | LnFeatures.BASIC_MPP_OPT\
     | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT\
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
+    | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
 
 LNGOSSIP_FEATURES = BASE_FEATURES\
     | LnFeatures.GOSSIP_QUERIES_OPT\
-    | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.GOSSIP_QUERIES_REQ\
 
 
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):

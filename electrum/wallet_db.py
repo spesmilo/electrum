@@ -1377,6 +1377,8 @@ class WalletDB(JsonDB):
             v = ChannelConstraints(**v)
         elif key == 'funding_outpoint':
             v = Outpoint(**v)
+        elif key == 'channel_type':
+            v = ChannelType(v)
         return v
 
     def _should_convert_to_stored_dict(self, key) -> bool:

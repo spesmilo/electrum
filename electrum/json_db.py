@@ -98,7 +98,7 @@ class StoredDict(dict):
             if not self.db or self.db._should_convert_to_stored_dict(key):
                 v = StoredDict(v, self.db, self.path + [key])
         # convert_value is called depth-first
-        if isinstance(v, dict) or isinstance(v, str):
+        if isinstance(v, dict) or isinstance(v, str) or isinstance(v, int):
             if self.db:
                 v = self.db._convert_value(self.path, key, v)
         # set parent of StoredObject
