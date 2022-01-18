@@ -37,7 +37,7 @@ from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
-from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, RevocationStore
+from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, ChannelType
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 43     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 44     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -192,6 +192,7 @@ class WalletDB(JsonDB):
         self._convert_version_41()
         self._convert_version_42()
         self._convert_version_43()
+        self._convert_version_44()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -849,6 +850,19 @@ class WalletDB(JsonDB):
             log["1"]['unacked_updates'] = log.pop('unacked_local_updates2', {})
         self.data['channels'] = channels
         self.data['seed_version'] = 43
+
+    def _convert_version_44(self):
+        if not self._is_upgrade_method_needed(43, 43):
+            return
+        channels = self.data.get('channels', {})
+        for key, item in channels.items():
+            if item['static_remotekey_enabled']:
+                channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
+            else:
+                channel_type = ChannelType(0)
+            del item['static_remotekey_enabled']
+            item['channel_type'] = channel_type
+        self.data['seed_version'] = 44
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
