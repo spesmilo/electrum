@@ -1153,6 +1153,10 @@ class ChannelType(IntFlag):
         byte_length = bit_length // 8 + int(bool(bit_length % 8))
         return self.to_bytes(byte_length, byteorder='big')
 
+    @property
+    def name_minimal(self):
+        return self.name.replace('OPTION_', '')
+
 
 del LNFC  # name is ambiguous without context
 
