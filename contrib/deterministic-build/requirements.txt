@@ -99,9 +99,9 @@ certifi==2021.10.8 \
 charset-normalizer==2.0.10 \
     --hash=sha256:876d180e9d7432c5d1dfd4c5d26b72f099d503e8fcc0feb7532c9289be60fcbd \
     --hash=sha256:cb957888737fc0bbcd78e3df769addb41fd1ff8cf950dc9e7ad7793f1bf44455
-dnspython==2.0.0 \
-    --hash=sha256:044af09374469c3a39eeea1a146e8cac27daec951f1f1f157b1962fc7cb9d1b7 \
-    --hash=sha256:40bb3c24b9d4ec12500f0124288a65df232a3aa749bb0c39734b782873a2544d
+dnspython==2.2.0 \
+    --hash=sha256:081649da27ced5e75709a1ee542136eaba9842a0fe4c03da4fb0a3d3ed1f3c44 \
+    --hash=sha256:e79351e032d0b606b98d38a4b0e6e2275b31a5b85c873e587cc11b73aca026d6
 frozenlist==1.2.0 \
     --hash=sha256:01d79515ed5aa3d699b05f6bdcf1fe9087d61d6b53882aa599a10853f0479c6c \
     --hash=sha256:0a7c7cce70e41bc13d7d50f0e5dd175f14a4f1837a8549b0936ed0cbe6170bf9 \
