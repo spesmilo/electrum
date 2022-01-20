@@ -56,7 +56,7 @@ async def f():
 
         print(json.dumps(res_servers, indent=4, sort_keys=True))
         print(f"got reply from {len(old_servers_online)}/{len(old_servers_all)} old servers", file=sys.stderr)
-        print(f"{len(newly_added_servers)=}. total: {len(res_servers)=}", file=sys.stderr)
+        print(f"len(newly_added_servers)={len(newly_added_servers)}. total: {len(res_servers)}", file=sys.stderr)
     finally:
         stopping_fut.set_result(1)
 
