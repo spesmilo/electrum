@@ -351,7 +351,6 @@ class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
-class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 class InvalidGossipMsg(Exception):

@@ -22,9 +22,8 @@ from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
 from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
-from electrum.lnpeer import Peer, UpfrontShutdownScriptViolation
+from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
@@ -1201,7 +1200,7 @@ class TestPeer(TestCaseForTestnet):
             gath = asyncio.gather(*coros)
             await gath
 
-        with self.assertRaises(UpfrontShutdownScriptViolation):
+        with self.assertRaises(GracefulDisconnect):
             run(test())
 
         # bob sends the same upfront_shutdown_script has he announced

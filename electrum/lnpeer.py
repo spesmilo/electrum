@@ -42,7 +42,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     UpfrontShutdownScriptViolation, ChannelType)
+                     ChannelType, LNProtocolWarning)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
@@ -861,7 +861,10 @@ class Peer(Logger):
         payload = await self.wait_for_message('funding_signed', channel_id)
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
-        chan.receive_new_commitment(remote_sig, [])
+        try:
+            chan.receive_new_commitment(remote_sig, [])
+        except LNProtocolWarning as e:
+            await self.send_warning(channel_id, message=str(e), close_connection=True)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
@@ -1020,7 +1023,10 @@ class Peer(Logger):
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
-        chan.receive_new_commitment(remote_sig, [])
+        try:
+            chan.receive_new_commitment(remote_sig, [])
+        except LNProtocolWarning as e:
+            await self.send_warning(channel_id, message=str(e), close_connection=True)
         sig_64, _ = chan.sign_next_commitment()
         self.send_message('funding_signed',
             channel_id=channel_id,
@@ -1868,12 +1874,18 @@ class Peer(Logger):
         return txid
 
     async def on_shutdown(self, chan: Channel, payload):
+        # TODO: A receiving node: if it hasn't received a funding_signed (if it is a
+        #  funder) or a funding_created (if it is a fundee):
+        #  SHOULD send an error and fail the channel.
         their_scriptpubkey = payload['scriptpubkey']
         their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
         # BOLT-02 check if they use the upfront shutdown script they advertized
-        if their_upfront_scriptpubkey:
+        if self.is_upfront_shutdown_script() and their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
-                raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
+                await self.send_warning(
+                    chan.channel_id,
+                    "remote didn't use upfront shutdown script it commited to in channel opening",
+                    close_connection=True)
         else:
             # BOLT-02 restrict the scriptpubkey to some templates:
             if self.is_shutdown_anysegwit() and match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
@@ -1881,7 +1893,10 @@ class Peer(Logger):
             elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
                 pass
             else:
-                raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
+                await self.send_warning(
+                    chan.channel_id,
+                    f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}',
+                    close_connection=True)
 
         chan_id = chan.channel_id
         if chan_id in self.shutdown_received:
