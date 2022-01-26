@@ -38,6 +38,7 @@ from electrum.lnonion import OnionFailureCode
 from electrum.lnutil import derive_payment_secret_from_payment_preimage
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
+from electrum.interface import GracefulDisconnect
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -1127,6 +1128,38 @@ class TestPeer(TestCaseForTestnet):
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_warning(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_error(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            assert alice_channel.is_closed()
+            gath.cancel()
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
