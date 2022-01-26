@@ -56,7 +56,7 @@ info "Building $pkgname..."
         TARGET_NAME="libusb-1.0.dylib"
     fi
     cp -fpv "$here/$pkgname/libusb/.libs/$dlname" "$PROJECT_ROOT/electrum_grs/$TARGET_NAME" || fail "Could not copy the $pkgname binary to its destination"
-    info "$TARGET_NAME has been placed in the inner 'electrum' folder."
+    info "$TARGET_NAME has been placed in the inner 'electrum_grs' folder."
     if [ -n "$DLL_TARGET_DIR" ] ; then
         cp -fpv "$here/$pkgname/libusb/.libs/$dlname" "$DLL_TARGET_DIR/$TARGET_NAME" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
     fi
