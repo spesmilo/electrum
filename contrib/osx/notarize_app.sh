@@ -28,6 +28,7 @@ RESULT=$(xcrun altool --notarize-app --type osx \
   --primary-bundle-id org.groestlcoin.electrumgrs \
   --username $APPLE_ID_USER \
   --password @env:APPLE_ID_PASSWORD \
+  -itc_provider $APPLE_ITC_PROVIDER \
   --output-format xml)
 
 if [ $? -ne 0 ]; then
