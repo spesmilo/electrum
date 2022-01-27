@@ -7,3 +7,6 @@
 [submodule "electrum/gui/kivy/theming/atlas"]
 	path = electrum/gui/kivy/theming/atlas
 	url = https://github.com/spesmilo/electrum-kivy-atlas
+[submodule "contrib/osx/CalinsQRReader"]
+	path = contrib/osx/CalinsQRReader
+	url = https://github.com/cculianu/CalinsQRReader
