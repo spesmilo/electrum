@@ -51,6 +51,27 @@ class QEWalletListModel(QAbstractListModel):
         self.wallets.append(item);
         self.endInsertRows();
 
+class QEAvailableWalletListModel(QEWalletListModel):
+    def __init__(self, daemon, parent=None):
+        QEWalletListModel.__init__(self, parent)
+        self.daemon = daemon
+        self.reload()
+
+    def reload(self):
+        if len(self.wallets) > 0:
+            self.beginRemoveRows(QModelIndex(), 0, len(self.wallets) - 1)
+            self.wallets = []
+            self.endRemoveRows()
+
+        available = []
+        wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
+        with os.scandir(wallet_folder) as it:
+            for i in it:
+                if i.is_file():
+                    available.append(i.path)
+        for path in sorted(available):
+            wallet = self.daemon.get_wallet(path)
+            self.add_wallet(wallet_path = path, wallet = wallet)
 
 class QEDaemon(QObject):
     def __init__(self, daemon, parent=None):
