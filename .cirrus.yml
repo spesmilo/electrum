@@ -11,13 +11,11 @@ task:
         ELECTRUM_PYTHON_NAME: python3
       matrix:
        - env:
-           ELECTRUM_PYTHON_VERSION: 3.6
-       - env:
-           ELECTRUM_PYTHON_VERSION: 3.7
-       - env:
            ELECTRUM_PYTHON_VERSION: 3.8
        - env:
            ELECTRUM_PYTHON_VERSION: 3.9
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.10
        - env:
            ELECTRUM_PYTHON_VERSION: 3
        - env:
@@ -80,7 +78,7 @@ task:
   locale_script:
     - contrib/push_locale
   env:
-    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_IMAGE: python:3.8
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-travis.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
@@ -146,7 +144,7 @@ task:
   flake8_script:
     - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
   env:
-    ELECTRUM_IMAGE: python:3.7
+    ELECTRUM_IMAGE: python:3.8
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
   matrix:
     - name: Flake8 Mandatory
@@ -223,7 +221,7 @@ task:
 task:
   name: Submodules
   container:
-    image: python:3.7
+    image: python:3.8
     cpu: 1
     memory: 1G
   fetch_script:
