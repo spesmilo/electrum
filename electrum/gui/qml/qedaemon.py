@@ -80,9 +80,13 @@ class QEDaemon(QObject):
 
     _logger = get_logger(__name__)
     _loaded_wallets = QEWalletListModel()
+    _available_wallets = None
 
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
+
+    activeWalletsChanged = pyqtSignal()
+    availableWalletsChanged = pyqtSignal()
 
     _current_wallet = None
 
@@ -102,30 +106,23 @@ class QEDaemon(QObject):
             self._logger.info('fail open wallet')
             self.walletRequiresPassword.emit()
 
-    @pyqtProperty(QEWallet,notify=walletLoaded)
+    @pyqtProperty(QEWallet, notify=walletLoaded)
     def currentWallet(self):
         return self._current_wallet
 
-    @pyqtProperty('QString',notify=walletLoaded)
+    @pyqtProperty('QString', notify=walletLoaded)
     def walletName(self):
         if self._current_wallet != None:
             return self._current_wallet.wallet.basename()
         return ''
 
-    @pyqtProperty(QEWalletListModel)
+    @pyqtProperty(QEWalletListModel, notify=activeWalletsChanged)
     def activeWallets(self):
         return self._loaded_wallets
 
-    @pyqtProperty(QEWalletListModel)
+    @pyqtProperty(QEAvailableWalletListModel, notify=availableWalletsChanged)
     def availableWallets(self):
-        available = []
-        availableListModel = QEWalletListModel(self)
-        wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
-        with os.scandir(wallet_folder) as it:
-            for i in it:
-                if i.is_file():
-                    available.append(i.path)
-        for path in sorted(available):
-            wallet = self.daemon.get_wallet(path)
-            availableListModel.add_wallet(wallet_path = path, wallet = wallet)
-        return availableListModel
+        if not self._available_wallets:
+            self._available_wallets = QEAvailableWalletListModel(self.daemon)
+
+        return self._available_wallets
