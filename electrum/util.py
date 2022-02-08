@@ -52,7 +52,6 @@ import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
-from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
 
@@ -1226,6 +1225,47 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
+class OldTaskGroup(aiorpcx.TaskGroup):
+    """Automatically raises exceptions on join; as in aiorpcx prior to version 0.20.
+    That is, when using TaskGroup as a context manager, if any task encounters an exception,
+    we would like that exception to be re-raised (propagated out). For the wait=all case,
+    the OldTaskGroup class is emulating the following code-snippet:
+    ```
+    async with TaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
+
+        async for task in group:
+            if not task.cancelled():
+                task.result()
+    ```
+    So instead of the above, one can just write:
+    ```
+    async with OldTaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
+    ```
+    """
+    async def join(self):
+        if self._wait is all:
+            exc = False
+            try:
+                async for task in self:
+                    if not task.cancelled():
+                        task.result()
+            except BaseException:  # including asyncio.CancelledError
+                exc = True
+                raise
+            finally:
+                if exc:
+                    await self.cancel_remaining()
+                await super().join()
+        else:
+            await super().join()
+            if self.completed:
+                self.completed.result()
+
+
 class NetworkJobOnDefaultServer(Logger, ABC):
     """An abstract base class for a job that runs on the main network
     interface. Every time the main interface changes, the job is
@@ -1251,14 +1291,14 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.taskgroup = TaskGroup()
+        self.taskgroup = OldTaskGroup()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
         await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
     @abstractmethod
-    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
+    async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
         """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """

@@ -10,13 +10,13 @@ import decimal
 from decimal import Decimal
 from typing import Sequence, Optional
 
-from aiorpcx.curio import timeout_after, TaskTimeout, TaskGroup
+from aiorpcx.curio import timeout_after, TaskTimeout
 import aiohttp
 
 from . import util
 from .bitcoin import COIN
 from .i18n import _
-from .util import (ThreadJob, make_dir, log_exceptions,
+from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
                    make_aiohttp_session, resource_path)
 from .network import Network
 from .simple_config import SimpleConfig
@@ -449,7 +449,7 @@ def get_exchanges_and_currencies():
 
     async def query_all_exchanges_for_their_ccys_over_network():
         async with timeout_after(10):
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for name, klass in exchanges.items():
                     exchange = klass(None, None)
                     await group.spawn(get_currencies_safe(name, exchange))

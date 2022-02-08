@@ -3,8 +3,7 @@ import asyncio
 from electrum.ecc import ECPrivkey
 from electrum.lnutil import LNPeerAddr
 from electrum.lntransport import LNResponderTransport, LNTransport
-
-from aiorpcx import TaskGroup
+from electrum.util import OldTaskGroup
 
 from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -73,7 +72,7 @@ class TestLNTransport(ElectrumTestCase):
         async def cb(reader, writer):
             t = LNResponderTransport(responder_key.get_secret_bytes(), reader, writer)
             self.assertEqual(await t.handshake(), initiator_key.get_public_key_bytes())
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(read_messages(t, messages_sent_by_client))
                 await group.spawn(write_messages(t, messages_sent_by_server))
             responder_shaked.set()
@@ -81,7 +80,7 @@ class TestLNTransport(ElectrumTestCase):
             peer_addr = LNPeerAddr('127.0.0.1', 42898, responder_key.get_public_key_bytes())
             t = LNTransport(initiator_key.get_secret_bytes(), peer_addr, proxy=None)
             await t.handshake()
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(read_messages(t, messages_sent_by_server))
                 await group.spawn(write_messages(t, messages_sent_by_client))
             server_shaked.set()
@@ -89,7 +88,7 @@ class TestLNTransport(ElectrumTestCase):
         async def f():
             server = await asyncio.start_server(cb, '127.0.0.1', 42898)
             try:
-                async with TaskGroup() as group:
+                async with OldTaskGroup() as group:
                     await group.spawn(connect())
                     await group.spawn(responder_shaked.wait())
                     await group.spawn(server_shaked.wait())

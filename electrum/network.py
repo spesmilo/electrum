@@ -40,11 +40,11 @@ import copy
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup, ignore_after
+from aiorpcx import ignore_after
 from aiohttp import ClientResponse
 
 from . import util
-from .util import (log_exceptions, ignore_exceptions,
+from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
                    bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
                    nullcontext)
@@ -246,7 +246,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     LOGGING_SHORTCUT = 'n'
 
-    taskgroup: Optional[TaskGroup]
+    taskgroup: Optional[OldTaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]
     _connecting_ifaces: Set[ServerAddr]
@@ -462,7 +462,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             await group.spawn(get_banner)
             await group.spawn(get_donation_address)
             await group.spawn(get_server_peers)
@@ -839,7 +839,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 try:
-                    async with TaskGroup(wait=any) as group:
+                    async with OldTaskGroup(wait=any) as group:
                         task = await group.spawn(func(self, *args, **kwargs))
                         await group.spawn(iface.got_disconnected.wait())
                 except RequestTimedOut:
@@ -1184,7 +1184,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def _start(self):
         assert not self.taskgroup
-        self.taskgroup = taskgroup = TaskGroup()
+        self.taskgroup = taskgroup = OldTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self._connecting_ifaces
         assert not self._closing_ifaces
@@ -1225,7 +1225,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # timeout: if full_shutdown, it is up to the caller to time us out,
         #          otherwise if e.g. restarting due to proxy changes, we time out fast
         async with (nullcontext() if full_shutdown else ignore_after(1)):
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(self.taskgroup.cancel_remaining())
                 if full_shutdown:
                     await group.spawn(self.stop_gossip(full_shutdown=full_shutdown))
@@ -1278,7 +1278,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             except asyncio.CancelledError:
                 # suppress spurious cancellations
                 group = self.taskgroup
-                if not group or group.closed():
+                if not group or group.joined:
                     raise
             await asyncio.sleep(0.1)
 
@@ -1352,7 +1352,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             except Exception as e:
                 res = e
             responses[interface.server] = res
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             for server in servers:
                 await group.spawn(get_response(server))
         return responses
