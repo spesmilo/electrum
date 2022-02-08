@@ -21,7 +21,7 @@ from . import bitcoin, util
 from . import ecc
 from .ecc import sig_string_from_r_and_s, der_sig_from_sig_string
 from . import constants
-from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup,
+from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, TaskGroup,
                    UnrelatedTransactionException)
 from . import transaction
 from .bitcoin import make_op_return
@@ -105,7 +105,7 @@ class Peer(Logger):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = TaskGroup()
         # HTLCs offered by REMOTE, that we started removing but are still active:
         self.received_htlcs_pending_removal = set()  # type: Set[Tuple[Channel, int]]
         self.received_htlc_removed_event = asyncio.Event()

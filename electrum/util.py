@@ -1226,15 +1226,6 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
-class SilentTaskGroup(TaskGroup):
-
-    def spawn(self, *args, **kwargs):
-        # don't complain if group is already closed.
-        if self._closed:
-            raise asyncio.CancelledError()
-        return super().spawn(*args, **kwargs)
-
-
 class NetworkJobOnDefaultServer(Logger, ABC):
     """An abstract base class for a job that runs on the main network
     interface. Every time the main interface changes, the job is
@@ -1260,7 +1251,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = TaskGroup()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface

@@ -45,7 +45,7 @@ from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
                    is_int_or_float, is_non_negative_int_or_float)
 from . import util
@@ -376,7 +376,7 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = TaskGroup()
 
         async def spawn_task():
             task = await self.network.taskgroup.spawn(self.run())

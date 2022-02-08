@@ -39,7 +39,7 @@ from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .crypto import chacha20_encrypt, chacha20_decrypt
-from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
+from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress
 from .logging import Logger
@@ -200,7 +200,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = TaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         self.features = features
         self.network = None  # type: Optional[Network]

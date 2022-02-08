@@ -45,7 +45,7 @@ from aiohttp import ClientResponse
 
 from . import util
 from .util import (log_exceptions, ignore_exceptions,
-                   bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
+                   bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
                    nullcontext)
 from .bitcoin import COIN
@@ -1184,7 +1184,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def _start(self):
         assert not self.taskgroup
-        self.taskgroup = taskgroup = SilentTaskGroup()
+        self.taskgroup = taskgroup = TaskGroup()
         assert not self.interface and not self.interfaces
         assert not self._connecting_ifaces
         assert not self._closing_ifaces
