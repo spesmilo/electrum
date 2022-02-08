@@ -3,6 +3,7 @@ import signal
 import sys
 import traceback
 import threading
+import re
 from typing import Optional, TYPE_CHECKING, List
 
 try:
@@ -15,12 +16,9 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QLocale, QTimer, qInstallMessageHandler
+from PyQt5.QtCore import QLocale, QTimer
 from PyQt5.QtGui import QGuiApplication
-from PyQt5.QtQml import qmlRegisterType, QQmlComponent, QQmlApplicationEngine
-from PyQt5.QtQuick import QQuickView
 import PyQt5.QtCore as QtCore
-import PyQt5.QtQml as QtQml
 
 from electrum.i18n import _, set_language, languages
 from electrum.plugin import run_hook
@@ -36,51 +34,7 @@ if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
-from .qeconfig import QEConfig
-from .qedaemon import QEDaemon, QEWalletListModel
-from .qenetwork import QENetwork
-from .qewallet import QEWallet
-from .qeqr import QEQR
-
-class ElectrumQmlApplication(QGuiApplication):
-    def __init__(self, args, config, daemon):
-        super().__init__(args)
-
-        self.logger = get_logger(__name__ + '.engine')
-
-        qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
-        qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
-
-        self.engine = QQmlApplicationEngine(parent=self)
-        self.engine.addImportPath('./qml')
-
-        self.context = self.engine.rootContext()
-        self._singletons['config'] = QEConfig(config)
-        self._singletons['network'] = QENetwork(daemon.network)
-        self._singletons['daemon'] = QEDaemon(daemon)
-        self._singletons['qr'] = QEQR()
-        self.context.setContextProperty('Config', self._singletons['config'])
-        self.context.setContextProperty('Network', self._singletons['network'])
-        self.context.setContextProperty('Daemon', self._singletons['daemon'])
-        self.context.setContextProperty('QR', self._singletons['qr'])
-
-        qInstallMessageHandler(self.message_handler)
-
-        # get notified whether root QML document loads or not
-        self.engine.objectCreated.connect(self.objectCreated)
-
-    _valid = True
-    _singletons = {}
-
-    # slot is called after loading root QML. If object is None, it has failed.
-    @pyqtSlot('QObject*', 'QUrl')
-    def objectCreated(self, object, url):
-        if object is None:
-            self._valid = False
-        self.engine.objectCreated.disconnect(self.objectCreated)
-
-    def message_handler(self, line, funct, file):
-        self.logger.warning(file)
+from .qeapp import ElectrumQmlApplication
 
 class ElectrumGui(Logger):
 
@@ -109,10 +63,10 @@ class ElectrumGui(Logger):
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
 
         self.gui_thread = threading.current_thread()
-        self.config = config
-        self.daemon = daemon
+        #self.config = config
+        #self.daemon = daemon
         self.plugins = plugins
-        self.app = ElectrumQmlApplication(sys.argv, self.config, self.daemon)
+        self.app = ElectrumQmlApplication(sys.argv, config, daemon)
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
