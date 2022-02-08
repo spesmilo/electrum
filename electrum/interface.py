@@ -380,8 +380,7 @@ class Interface(Logger):
 
         async def spawn_task():
             task = await self.network.taskgroup.spawn(self.run())
-            if sys.version_info >= (3, 8):
-                task.set_name(f"interface::{str(server)}")
+            task.set_name(f"interface::{str(server)}")
         asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property

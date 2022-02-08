@@ -1178,9 +1178,6 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except asyncio.CancelledError:
-            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
-            raise
         except Exception as e:
             pass
     return wrapper
@@ -1669,10 +1666,8 @@ class nullcontext:
     async def __aexit__(self, *excinfo):
         pass
 
-def get_running_loop():
-    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
-    if sys.version_info < (3, 7):
-        return asyncio._get_running_loop()
+
+def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
     try:
         return asyncio.get_running_loop()
     except RuntimeError:

@@ -1202,8 +1202,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 async with taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
-            except asyncio.CancelledError:
-                raise
             except Exception as e:
                 self.logger.exception("taskgroup died.")
             finally:

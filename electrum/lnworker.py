@@ -266,8 +266,6 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         try:
             async with self.taskgroup as group:
                 await group.spawn(self._maintain_connectivity())
-        except asyncio.CancelledError:
-            raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
