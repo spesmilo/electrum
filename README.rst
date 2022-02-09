@@ -94,7 +94,7 @@ Development version (git clone)
 
 Check out the code from GitHub::
 
-    git clone git://github.com/spesmilo/electrum.git
+    git clone git://github.com/GiverofMemory/electrodoge.git
     cd electrum
     git submodule update --init
 
