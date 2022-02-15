@@ -45,22 +45,6 @@ Item {
                     width: parent.width
                     y: 20
                     spacing: 20
-
-                    Button {
-                        onClicked: stack.push(Qt.resolvedUrl('Wallets.qml'))
-                        text: 'Wallets'
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    Button {
-                        text: 'Create Wallet'
-                        Layout.alignment: Qt.AlignHCenter
-                        onClicked:  {
-                            var dialog = app.newWalletWizard.createObject(rootItem)
-                            dialog.open()
-                        }
-                    }
-
                 }
             }
 
