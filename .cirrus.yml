@@ -107,8 +107,8 @@ task:
     - apt-get update
     - apt-get -y install libsecp256k1-0 curl jq bc
     - pip3 install .[tests]
-    #- pip3 install e-x # Broken because of https://github.com/spesmilo/electrumx/issues/117 , use older version for now.
-    - pip3 install electrumx==1.15.0
+    # install e-x some commits after 1.16.0 tag, where it uses same aiorpcx as electrum
+    - pip3 install git+https://github.com/spesmilo/electrumx.git@c8d2cc0d5cf9e549a90ca876d85fed9a90b8c4ed
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
     - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
     - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
