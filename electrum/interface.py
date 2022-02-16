@@ -547,7 +547,7 @@ class Interface(Logger):
                         # workaround android bug
                         cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                         f.write(cert)
-                        # even though close flushes we can't fsync when closed.
+                        # even though close flushes, we can't fsync when closed.
                         # and we must flush before fsyncing, cause flush flushes to OS buffer
                         # fsync writes to OS buffer to disk
                         f.flush()
