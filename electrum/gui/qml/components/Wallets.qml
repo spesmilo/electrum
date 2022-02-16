@@ -2,6 +2,8 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 
+import org.electrum 1.0
+
 Pane {
     id: rootItem
 
@@ -60,7 +62,7 @@ Pane {
             width: parent.width
 //            Layout.fillHeight: true
             height: parent.height
-            clip:true
+            clip: true
             model: Daemon.availableWallets
 
             // header: sadly seems to be buggy
@@ -78,15 +80,14 @@ Pane {
                     }
 
                     Label {
-                        font.pointSize: 12
+                        font.pointSize: 11
                         text: model.name
                         Layout.fillWidth: true
                     }
+
                     Button {
                         text: 'Load'
-                        onClicked: {
-                            Daemon.load_wallet(model.path, null)
-                        }
+                        onClicked: wallet_db.path = model.path
                     }
                 }
 
@@ -99,6 +100,18 @@ Pane {
             onClicked:  {
                 var dialog = app.newWalletWizard.createObject(rootItem)
                 dialog.open()
+            }
+        }
+    }
+
+    WalletDB {
+        id: wallet_db
+        onPathChanged: {
+            if (!ready) {
+                app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": wallet_db.path})
+            } else {
+                Daemon.load_wallet(wallet_db.path, null)
+                app.stack.pop()
             }
         }
     }
