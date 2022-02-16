@@ -826,7 +826,7 @@ class Peer(Logger):
         )
 
         # note: we ignore payload['channel_flags'],  which e.g. contains 'announce_channel'.
-        #       Notably if the remote sets 'announce_channel' to True, we will ignore that too,
+        #       Notably, if the remote sets 'announce_channel' to True, we will ignore that too,
         #       but we will not play along with actually announcing the channel (so we keep it private).
 
         # -> accept channel

@@ -547,7 +547,7 @@ class Interface(Logger):
                         # workaround android bug
                         cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                         f.write(cert)
-                        # even though close flushes we can't fsync when closed.
+                        # even though close flushes, we can't fsync when closed.
                         # and we must flush before fsyncing, cause flush flushes to OS buffer
                         # fsync writes to OS buffer to disk
                         f.flush()
@@ -688,7 +688,7 @@ class Interface(Logger):
 
     async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
-        We try to flush buffered data to the wire, so this can take some time.
+        We try to flush buffered data to the wire, which can take some time.
         """
         if force_after is None:
             # We give up after a while and just abort the connection.

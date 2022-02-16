@@ -82,9 +82,9 @@ def remove_lockfile(lockfile):
 
 def get_file_descriptor(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
-    prevent races.  If it succeeds it returns the FD.
-    Otherwise try and connect to the server specified in the lockfile.
-    If this succeeds, the server is returned.  Otherwise remove the
+    prevent races.  If it succeeds, it returns the FD.
+    Otherwise, try and connect to the server specified in the lockfile.
+    If this succeeds, the server is returned.  Otherwise, remove the
     lockfile and try again.'''
     lockfile = get_lockfile(config)
     while True:
