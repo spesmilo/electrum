@@ -9,6 +9,7 @@ import hashlib
 import asyncio
 from asyncio import StreamReader, StreamWriter
 from typing import Optional
+from functools import cached_property
 
 from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_poly1305_decrypt
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
@@ -92,9 +93,18 @@ class LNTransportBase:
     reader: StreamReader
     writer: StreamWriter
     privkey: bytes
+    peer_addr: Optional[LNPeerAddr] = None
 
     def name(self) -> str:
-        raise NotImplementedError()
+        pubkey = self.remote_pubkey()
+        pubkey_hex = pubkey.hex() if pubkey else pubkey
+        return f"{pubkey_hex[:10]}-{self._id_hash[:8]}"
+
+    @cached_property
+    def _id_hash(self) -> str:
+        id_int = id(self)
+        id_bytes = id_int.to_bytes((id_int.bit_length() + 7) // 8, byteorder='big')
+        return sha256(id_bytes).hex()
 
     def send_bytes(self, msg: bytes) -> None:
         l = len(msg).to_bytes(2, 'big')
@@ -169,10 +179,8 @@ class LNResponderTransport(LNTransportBase):
         self.privkey = privkey
         self._pubkey = None  # remote pubkey
 
-    def name(self):
-        pubkey = self.remote_pubkey()
-        pubkey_hex = pubkey.hex() if pubkey else pubkey
-        return f"{pubkey_hex}(in)"
+    def name(self) -> str:
+        return f"{super().name()}(in)"
 
     async def handshake(self, **kwargs):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
@@ -242,9 +250,6 @@ class LNTransport(LNTransportBase):
         self.privkey = privkey
         self.peer_addr = peer_addr
         self.proxy = MySocksProxy.from_proxy_dict(proxy)
-
-    def name(self):
-        return self.peer_addr.net_addr_str()
 
     async def handshake(self):
         if not self.proxy:

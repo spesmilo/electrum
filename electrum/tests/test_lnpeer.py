@@ -249,6 +249,7 @@ class MockTransport:
     def __init__(self, name):
         self.queue = asyncio.Queue()
         self._name = name
+        self.peer_addr = None
 
     def name(self):
         return self._name

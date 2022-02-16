@@ -150,8 +150,10 @@ class Peer(Logger):
                 and self.initialized.result() is True)
 
     async def initialize(self):
+        # If outgoing transport, do handshake now. For incoming, it has already been done.
         if isinstance(self.transport, LNTransport):
             await self.transport.handshake()
+        self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
         features = self.features.for_init_message()
         b = int.bit_length(features)
         flen = b // 8 + int(bool(b % 8))
