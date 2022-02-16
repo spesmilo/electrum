@@ -181,20 +181,21 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(2 * G, inf + 2 * G)
         self.assertEqual(inf, 3 * G + (-3 * G))
 
-    def test_msg_signing(self):
+    @staticmethod
+    def sign_message_with_wif_privkey(wif_privkey: str, msg: bytes) -> bytes:
+        txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
+        key = ecc.ECPrivkey(privkey)
+        return key.sign_message(msg, compressed)
+
+    def test_signmessage_legacy_address(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
 
-        def sign_message_with_wif_privkey(wif_privkey, msg):
-            txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
-            key = ecc.ECPrivkey(privkey)
-            return key.sign_message(msg, compressed)
-
-        sig1 = sign_message_with_wif_privkey(
-            'L1TnU2zbNaAqMoVh65Cyvmcjzbrj41Gs9iTLcWbpJCMynXuap6UN', msg1)
+        sig1 = self.sign_message_with_wif_privkey(
+            'L1TnU2zbNaAqMoVh65Cyvmcjzbrj41Gs9iTLcWbpJCMynXuap6UN', msg1)  # compressed pubkey
         addr1 = '15hETetDmcXm1mM4sEf7U2KXC9hDHFMSzz'
-        sig2 = sign_message_with_wif_privkey(
-            '5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUygK2KD', msg2)
+        sig2 = self.sign_message_with_wif_privkey(
+            '5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUygK2KD', msg2)  # uncompressed pubkey
         addr2 = '1GPHVTY8UD9my6jyP4tb2TYJwUbDetyNC6'
 
         sig1_b64 = base64.b64encode(sig1)
@@ -208,6 +209,21 @@ class Test_bitcoin(ElectrumTestCase):
 
         self.assertFalse(ecc.verify_message_with_address(addr1, b'wrong', msg1))
         self.assertFalse(ecc.verify_message_with_address(addr1, sig2, msg1))
+
+    def test_signmessage_segwit_witness_v0_address(self):
+        msg = b'Electrum'
+        # p2wpkh-p2sh
+        sig1 = self.sign_message_with_wif_privkey("p2wpkh-p2sh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
+        addr1 = "3DYoBqQ5N6dADzyQjy9FT1Ls4amiYVaqTG"
+        self.assertEqual(base64.b64encode(sig1), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
+        self.assertTrue(ecc.verify_message_with_address(addr1, sig1, msg))
+        self.assertFalse(ecc.verify_message_with_address(addr1, sig1, b'heyheyhey'))
+        # p2wpkh
+        sig2 = self.sign_message_with_wif_privkey("p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
+        addr2 = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
+        self.assertEqual(base64.b64encode(sig2), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
+        self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg))
+        self.assertFalse(ecc.verify_message_with_address(addr2, sig2, b'heyheyhey'))
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
