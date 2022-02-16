@@ -1400,7 +1400,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             #       Given as the user is spending "max", and so might be abandoning the wallet,
             #       try to include all UTXOs, otherwise leftover might remain in the UTXO set
             #       forever. see #5433
-            # note: Actually it might be the case that not all UTXOs from the wallet are
+            # note: Actually, it might be the case that not all UTXOs from the wallet are
             #       being spent if the user manually selected UTXOs.
             sendable = sum(map(lambda c: c.value_sats(), coins))
             for (_,i) in i_max:
@@ -1464,7 +1464,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         The idea here is that an attacker might send us a UTXO in a
         large low-fee unconfirmed tx that will ~never confirm. If we
         spend it as part of a tx ourselves, that too will not confirm
-        (unless we use a high fee but that might not be worth it for
+        (unless we use a high fee, but that might not be worth it for
         a small value UTXO).
         In particular, this test triggers for large "dusting transactions"
         that are used for advertising purposes by some entities.
