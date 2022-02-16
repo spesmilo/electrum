@@ -688,7 +688,7 @@ class Interface(Logger):
 
     async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
-        We try to flush buffered data to the wire, so this can take some time.
+        We try to flush buffered data to the wire, which can take some time.
         """
         if force_after is None:
             # We give up after a while and just abort the connection.
