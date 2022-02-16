@@ -147,7 +147,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_forwarding = True
         self.received_mpp_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
-        self.sent_htlcs_routes = dict()
+        self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
@@ -613,6 +613,7 @@ class TestPeer(TestCaseForTestnet):
                 payment_hash=lnaddr2.paymenthash,
                 min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
+                trampoline_fee_level=0,
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
@@ -627,6 +628,7 @@ class TestPeer(TestCaseForTestnet):
                 payment_hash=lnaddr1.paymenthash,
                 min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
+                trampoline_fee_level=0,
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
@@ -1193,7 +1195,9 @@ class TestPeer(TestCaseForTestnet):
                 amount_receiver_msat=amount_msat,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
-                min_cltv_expiry=min_cltv_expiry)
+                min_cltv_expiry=min_cltv_expiry,
+                trampoline_fee_level=0,
+            )
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())

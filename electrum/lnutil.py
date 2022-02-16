@@ -323,6 +323,7 @@ class HtlcLog(NamedTuple):
     error_bytes: Optional[bytes] = None
     failure_msg: Optional['OnionRoutingFailure'] = None
     sender_idx: Optional[int] = None
+    trampoline_fee_level: Optional[int] = None
 
     def formatted_tuple(self):
         route = self.route

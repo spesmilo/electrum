@@ -634,7 +634,7 @@ class LNWallet(LNWorker):
                 self._channel_backups[bfh(channel_id)] = ChannelBackup(storage, sweep_address=self.sweep_address, lnworker=self)
 
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
-        self.sent_htlcs_routes = dict()               # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat
+        self.sent_htlcs_info = dict()                 # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat, trampoline_fee_level
         self.sent_buckets = dict()                    # payment_secret -> (amount_sent, amount_failed)
         self.received_mpp_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
 
@@ -1199,7 +1199,8 @@ class LNWallet(LNWorker):
                         payment_hash=payment_hash,
                         payment_secret=bucket_payment_secret,
                         min_cltv_expiry=cltv_delta,
-                        trampoline_onion=trampoline_onion)
+                        trampoline_onion=trampoline_onion,
+                        trampoline_fee_level=trampoline_fee_level)
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
             self.logger.info(f"amount inflight {amount_inflight}")
@@ -1244,7 +1245,11 @@ class LNWallet(LNWorker):
                     # TODO: parse the node policy here (not returned by eclair yet)
                     # TODO: erring node is always the first trampoline even if second
                     #  trampoline demands more fees, we can't influence this
-                    trampoline_fee_level += 1
+                    if htlc_log.trampoline_fee_level == trampoline_fee_level:
+                        trampoline_fee_level += 1
+                        self.logger.info(f'raising trampoline fee level {trampoline_fee_level}')
+                    else:
+                        self.logger.info(f'NOT raising trampoline fee level, already at {trampoline_fee_level}')
                     continue
                 elif use_two_trampolines:
                     use_two_trampolines = False
@@ -1266,7 +1271,8 @@ class LNWallet(LNWorker):
             payment_hash: bytes,
             payment_secret: Optional[bytes],
             min_cltv_expiry: int,
-            trampoline_onion: bytes = None) -> None:
+            trampoline_onion: bytes = None,
+            trampoline_fee_level: int) -> None:
 
         # send a single htlc
         short_channel_id = route[0].short_channel_id
@@ -1286,7 +1292,7 @@ class LNWallet(LNWorker):
             trampoline_onion=trampoline_onion)
 
         key = (payment_hash, short_channel_id, htlc.htlc_id)
-        self.sent_htlcs_routes[key] = route, payment_secret, amount_msat, total_msat, amount_receiver_msat
+        self.sent_htlcs_info[key] = route, payment_secret, amount_msat, total_msat, amount_receiver_msat, trampoline_fee_level
         # if we sent MPP to a trampoline, add item to sent_buckets
         if not self.channel_db and amount_msat != total_msat:
             if payment_secret not in self.sent_buckets:
@@ -1907,11 +1913,12 @@ class LNWallet(LNWorker):
         self._on_maybe_forwarded_htlc_resolved(chan=chan, htlc_id=htlc_id)
         q = self.sent_htlcs.get(payment_hash)
         if q:
-            route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat = self.sent_htlcs_routes[(payment_hash, chan.short_channel_id, htlc_id)]
+            route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat, trampoline_fee_level = self.sent_htlcs_info[(payment_hash, chan.short_channel_id, htlc_id)]
             htlc_log = HtlcLog(
                 success=True,
                 route=route,
-                amount_msat=amount_receiver_msat)
+                amount_msat=amount_receiver_msat,
+                trampoline_fee_level=trampoline_fee_level)
             q.put_nowait(htlc_log)
         else:
             key = payment_hash.hex()
@@ -1933,7 +1940,7 @@ class LNWallet(LNWorker):
             # detect if it is part of a bucket
             # if yes, wait until the bucket completely failed
             key = (payment_hash, chan.short_channel_id, htlc_id)
-            route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat = self.sent_htlcs_routes[key]
+            route, payment_secret, amount_msat, bucket_msat, amount_receiver_msat, trampoline_fee_level = self.sent_htlcs_info[key]
             if error_bytes:
                 # TODO "decode_onion_error" might raise, catch and maybe blacklist/penalise someone?
                 try:
@@ -1964,7 +1971,8 @@ class LNWallet(LNWorker):
                 amount_msat=amount_receiver_msat,
                 error_bytes=error_bytes,
                 failure_msg=failure_message,
-                sender_idx=sender_idx)
+                sender_idx=sender_idx,
+                trampoline_fee_level=trampoline_fee_level)
             q.put_nowait(htlc_log)
         else:
             self.logger.info(f"received unknown htlc_failed, probably from previous session")
