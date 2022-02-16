@@ -152,7 +152,7 @@ class Test_bitcoin(ElectrumTestCase):
 
         signature = eck.sign_message(message, True)
         #print signature
-        eck.verify_message_for_address(signature, message)
+        self.assertTrue(eck.verify_message_for_address(signature, message))
 
     def test_ecc_sanity(self):
         G = ecc.GENERATOR
