@@ -173,19 +173,34 @@ class ECPubkey(object):
         return ECPubkey._from_libsecp256k1_pubkey_ptr(pubkey)
 
     @classmethod
-    def from_signature65(cls, sig: bytes, msg_hash: bytes) -> Tuple['ECPubkey', bool]:
+    def from_signature65(cls, sig: bytes, msg_hash: bytes) -> Tuple['ECPubkey', bool, Optional[str]]:
         if len(sig) != 65:
             raise Exception(f'wrong encoding used for signature? len={len(sig)} (should be 65)')
         nV = sig[0]
-        if not (27 <= nV <= 34):
+        # as per BIP-0137:
+        #     27-30: p2pkh (uncompressed)
+        #     31-34: p2pkh (compressed)
+        #     35-38: p2wpkh-p2sh
+        #     39-42: p2wpkh
+        # However, the signatures we create do not respect this, and we instead always use 27-34,
+        # only distinguishing between compressed/uncompressed, so we treat those values as "any".
+        if not (27 <= nV <= 42):
             raise Exception("Bad encoding")
-        if nV >= 31:
-            compressed = True
+        txin_type_guess = None
+        compressed = True
+        if nV >= 39:
+            nV -= 12
+            txin_type_guess = "p2wpkh"
+        elif nV >= 35:
+            nV -= 8
+            txin_type_guess = "p2wpkh-p2sh"
+        elif nV >= 31:
             nV -= 4
         else:
             compressed = False
         recid = nV - 27
-        return cls.from_sig_string(sig[1:], recid, msg_hash), compressed
+        pubkey = cls.from_sig_string(sig[1:], recid, msg_hash)
+        return pubkey, compressed, txin_type_guess
 
     @classmethod
     def from_x_and_y(cls, x: int, y: int) -> 'ECPubkey':
@@ -294,7 +309,7 @@ class ECPubkey(object):
         assert_bytes(message)
         h = algo(message)
         try:
-            public_key, compressed = self.from_signature65(sig65, h)
+            public_key, compressed, txin_type_guess = self.from_signature65(sig65, h)
         except Exception:
             return False
         # check public key
@@ -376,12 +391,13 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, n
     if net is None: net = constants.net
     h = sha256d(msg_magic(message))
     try:
-        public_key, compressed = ECPubkey.from_signature65(sig65, h)
+        public_key, compressed, txin_type_guess = ECPubkey.from_signature65(sig65, h)
     except Exception as e:
         return False
     # check public key using the address
     pubkey_hex = public_key.get_public_key_hex(compressed)
-    for txin_type in ['p2pkh','p2wpkh','p2wpkh-p2sh']:
+    txin_types = (txin_type_guess,) if txin_type_guess else ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh')
+    for txin_type in txin_types:
         addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
         if address == addr:
             break
