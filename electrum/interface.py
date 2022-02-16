@@ -38,16 +38,15 @@ import hashlib
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup
 from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
-                   is_int_or_float, is_non_negative_int_or_float)
+                   is_int_or_float, is_non_negative_int_or_float, OldTaskGroup)
 from . import util
 from . import x509
 from . import pem
@@ -376,12 +375,11 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
 
         async def spawn_task():
             task = await self.network.taskgroup.spawn(self.run())
-            if sys.version_info >= (3, 8):
-                task.set_name(f"interface::{str(server)}")
+            task.set_name(f"interface::{str(server)}")
         asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property
@@ -676,7 +674,7 @@ class Interface(Logger):
     async def request_fee_estimates(self):
         from .simple_config import FEE_ETA_TARGETS
         while True:
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 fee_tasks = []
                 for i in FEE_ETA_TARGETS:
                     fee_tasks.append((i, await group.spawn(self.get_estimatefee(i))))

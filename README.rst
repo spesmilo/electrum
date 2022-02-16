@@ -5,7 +5,7 @@ Electrum - Lightweight Bitcoin client
 
   Licence: MIT Licence
   Author: Thomas Voegtlin
-  Language: Python (>= 3.6)
+  Language: Python (>= 3.8)
   Homepage: https://electrum.org/
 
 

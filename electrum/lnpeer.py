@@ -14,14 +14,14 @@ from datetime import datetime
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup, ignore_after
+from aiorpcx import ignore_after
 
 from .crypto import sha256, sha256d
 from . import bitcoin, util
 from . import ecc
 from .ecc import sig_string_from_r_and_s, der_sig_from_sig_string
 from . import constants
-from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, SilentTaskGroup,
+from .util import (bh2u, bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException)
 from . import transaction
 from .bitcoin import make_op_return
@@ -105,7 +105,7 @@ class Peer(Logger):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
         # HTLCs offered by REMOTE, that we started removing but are still active:
         self.received_htlcs_pending_removal = set()  # type: Set[Tuple[Channel, int]]
         self.received_htlc_removed_event = asyncio.Event()
@@ -1859,7 +1859,7 @@ class Peer(Logger):
             # we can get triggered for events that happen on the downstream peer.
             # TODO: trampoline forwarding relies on the polling
             async with ignore_after(0.1):
-                async with TaskGroup(wait=any) as group:
+                async with OldTaskGroup(wait=any) as group:
                     await group.spawn(self._received_revack_event.wait())
                     await group.spawn(self.downstream_htlc_resolved_event.wait())
             self._htlc_switch_iterstart_event.set()
@@ -1943,7 +1943,7 @@ class Peer(Logger):
             await self._htlc_switch_iterstart_event.wait()
             await self._htlc_switch_iterdone_event.wait()
 
-        async with TaskGroup(wait=any) as group:
+        async with OldTaskGroup(wait=any) as group:
             await group.spawn(htlc_switch_iteration())
             await group.spawn(self.got_disconnected.wait())
 

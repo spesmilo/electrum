@@ -46,13 +46,13 @@ import itertools
 import threading
 import enum
 
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
+from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from . import util
-from .util import (NotEnoughFunds, UserCancelled, profiler,
+from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
@@ -134,7 +134,7 @@ async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Net
         inputs.append(txin)
 
     u = await network.listunspent_for_scripthash(scripthash)
-    async with TaskGroup() as group:
+    async with OldTaskGroup() as group:
         for item in u:
             if len(inputs) >= imax:
                 break
@@ -155,7 +155,7 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
     inputs = []  # type: List[PartialTxInput]
     keypairs = {}
-    async with TaskGroup() as group:
+    async with OldTaskGroup() as group:
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
             await group.spawn(find_utxos_for_privkey(txin_type, privkey, compressed))
