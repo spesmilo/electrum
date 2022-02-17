@@ -3,8 +3,16 @@ Electrum-GRS - Lightweight Groestlcoin client
 
   Licence: MIT Licence
   Author: Groestlcoin Developers
-  Language: Python (>= 3.6)
+  Language: Python (>= 3.8)
   Homepage: https://groestlcoin.org/
+
+
+.. image:: https://api.cirrus-ci.com/github/Groestlcoin/electrum-grs.svg?branch=master
+    :target: https://cirrus-ci.com/github/Groestlcoin/electrum-grs
+    :alt: Build Status
+
+
+
 
 Getting started
 ===============

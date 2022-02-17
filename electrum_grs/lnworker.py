@@ -22,11 +22,11 @@ import urllib.parse
 
 import dns.resolver
 import dns.exception
-from aiorpcx import run_in_thread, TaskGroup, NetAddress, ignore_after
+from aiorpcx import run_in_thread, NetAddress, ignore_after
 
 from . import constants, util
 from . import keystore
-from .util import profiler, chunks
+from .util import profiler, chunks, OldTaskGroup
 from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
@@ -39,7 +39,7 @@ from .crypto import sha256
 from .bip32 import BIP32Node
 from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .crypto import chacha20_encrypt, chacha20_decrypt
-from .util import ignore_exceptions, make_aiohttp_session, SilentTaskGroup
+from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress
 from .logging import Logger
@@ -169,7 +169,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
         self.features = features
         self.network = None  # type: Optional[Network]
@@ -235,8 +235,6 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         try:
             async with self.taskgroup as group:
                 await group.spawn(self._maintain_connectivity())
-        except asyncio.CancelledError:
-            raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
@@ -738,13 +736,13 @@ class LNWallet(LNWorker):
         #       to wait a bit for it to become irrevocably removed.
         # Note: we don't wait for *all htlcs* to get removed, only for those
         #       that we can already fail/fulfill. e.g. forwarded htlcs cannot be removed
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             for peer in self.peers.values():
                 await group.spawn(peer.wait_one_htlc_switch_iteration())
         while True:
             if all(not peer.received_htlcs_pending_removal for peer in self.peers.values()):
                 break
-            async with TaskGroup(wait=any) as group:
+            async with OldTaskGroup(wait=any) as group:
                 for peer in self.peers.values():
                     await group.spawn(peer.received_htlc_removed_event.wait())
 
@@ -2239,15 +2237,20 @@ class LNWallet(LNWorker):
             peer_addr = LNPeerAddr(host, port, node_id)
             transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
             peer = Peer(self, node_id, transport, is_channel_backup=True)
+            async def trigger_force_close_and_wait():
+                # wait before closing the transport, so that
+                # remote has time to process the message.
+                await peer.trigger_force_close(channel_id)
+                await asyncio.sleep(1)
+                peer.transport.close()
             try:
-                async with TaskGroup(wait=any) as group:
+                async with OldTaskGroup(wait=any) as group:
                     await group.spawn(peer._message_loop())
-                    await group.spawn(peer.trigger_force_close(channel_id))
+                    await group.spawn(trigger_force_close_and_wait())
                 return
             except Exception as e:
                 self.logger.info(f'failed to connect {host} {e}')
                 continue
-            # TODO close/cleanup the transport
         else:
             raise Exception('failed to connect')
 

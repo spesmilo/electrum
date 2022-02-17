@@ -2025,10 +2025,7 @@ class PartialTransaction(Transaction):
                     continue
                 pubkey_hex = public_key.get_public_key_hex(compressed=True)
                 if pubkey_hex in pubkeys:
-                    try:
-                        public_key.verify_message_hash(sig_string, pre_hash)
-                    except Exception:
-                        _logger.exception('')
+                    if not public_key.verify_message_hash(sig_string, pre_hash):
                         continue
                     _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={pubkey_hex}, sig={sig}")
                     self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_hex, sig=sig)

@@ -10,7 +10,7 @@ from concurrent import futures
 import unittest
 from typing import Iterable, NamedTuple, Tuple, List, Dict
 
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout
+from aiorpcx import timeout_after, TaskTimeout
 
 import electrum_grs
 import electrum_grs.trampoline
@@ -21,7 +21,7 @@ from electrum_grs.ecc import ECPrivkey
 from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
-from electrum_grs.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh
+from electrum_grs.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
 from electrum_grs.lnpeer import Peer, UpfrontShutdownScriptViolation
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
@@ -125,7 +125,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.node_keypair = local_keypair
         self.network = MockNetwork(tx_queue)
-        self.taskgroup = TaskGroup()
+        self.taskgroup = OldTaskGroup()
         self.lnwatcher = None
         self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
@@ -249,6 +249,7 @@ class MockTransport:
     def __init__(self, name):
         self.queue = asyncio.Queue()
         self._name = name
+        self.peer_addr = None
 
     def name(self):
         return self._name
@@ -365,7 +366,7 @@ class TestPeer(TestCaseForTestnet):
 
     def tearDown(self):
         async def cleanup_lnworkers():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for lnworker in self._lnworkers_created:
                     await group.spawn(lnworker.stop())
             self._lnworkers_created.clear()
@@ -569,7 +570,7 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
                 await group.spawn(p2._message_loop())
@@ -643,7 +644,7 @@ class TestPeer(TestCaseForTestnet):
             raise PaymentDone()
 
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
                 await group.spawn(p2._message_loop())
@@ -667,10 +668,10 @@ class TestPeer(TestCaseForTestnet):
             async with max_htlcs_in_flight:
                 await w1.pay_invoice(pay_req)
         async def many_payments():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_msat=payment_value_msat))
                                   for i in range(num_payments)]
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for pay_req_task in pay_reqs_tasks:
                     lnaddr, pay_req = pay_req_task.result()
                     await group.spawn(single_payment(pay_req))
@@ -696,7 +697,7 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(PR_PAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -740,7 +741,7 @@ class TestPeer(TestCaseForTestnet):
                     [edge.short_channel_id for edge in log[0].route])
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -764,7 +765,7 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, log[0].failure_msg.code)
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -799,7 +800,7 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(500100000000, graph.channels[('dave', 'bob')].balance(LOCAL))
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -862,7 +863,7 @@ class TestPeer(TestCaseForTestnet):
 
             raise PaymentDone()
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -909,7 +910,7 @@ class TestPeer(TestCaseForTestnet):
                 raise NoPathFound()
 
         async def f(kwargs):
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -948,7 +949,7 @@ class TestPeer(TestCaseForTestnet):
 
         async def f():
             await turn_on_trampoline_alice()
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -1026,7 +1027,7 @@ class TestPeer(TestCaseForTestnet):
             raise SuccessfulTest()
 
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -1196,7 +1197,7 @@ class TestPeer(TestCaseForTestnet):
             raise SuccessfulTest()
 
         async def f():
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for peer in [p1, p2]:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
@@ -1223,7 +1224,7 @@ class TestPeer(TestCaseForTestnet):
         failing_task = None
         async def f():
             nonlocal failing_task
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
                 failing_task = await group.spawn(p2._message_loop())
@@ -1252,7 +1253,7 @@ class TestPeer(TestCaseForTestnet):
         failing_task = None
         async def f():
             nonlocal failing_task
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
                 failing_task = await group.spawn(p2._message_loop())
