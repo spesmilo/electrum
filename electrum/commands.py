@@ -1380,7 +1380,7 @@ def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
     subparser_found = False
     for arg in sys.argv[1:]:
-        if arg in ['-h', '--help']:  # global help if no subparser
+        if arg in ['-h', '--help', '--version']:  # global help/version if no subparser
             break
     else:
         for x in self._subparsers._actions:
@@ -1457,6 +1457,7 @@ def get_parser():
     # create main parser
     parser = argparse.ArgumentParser(
         epilog="Run 'electrum help <command>' to see the help for a command")
+    parser.add_argument("--version", dest="cmd", action='store_const', const='version', help="Return the version of Electrum.")
     add_global_options(parser)
     add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
