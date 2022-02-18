@@ -10,7 +10,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.7
+          python-version: 3.9.10
       - name: Builder image
         env:
           TARGET_OS: Windows
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.7
+          python-version: 3.9.10
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-appimage-builder-img ./contrib/build-linux/appimage/
       - name: Compile Linux AppImage
@@ -59,10 +59,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9.7
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-sdist-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux tarball
@@ -83,10 +79,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9.7
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
@@ -112,7 +104,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.7
+          python-version: 3.9.10
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: 11.3.1
