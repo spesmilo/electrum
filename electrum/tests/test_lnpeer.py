@@ -540,7 +540,6 @@ class TestPeer(TestCaseForTestnet):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
         for chan in (alice_channel_0, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
@@ -548,16 +547,13 @@ class TestPeer(TestCaseForTestnet):
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
-            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
-            # wait so that pending messages are processed
-            #await asyncio.sleep(1)
-            gath.cancel()
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
-        with self.assertRaises(concurrent.futures.CancelledError):
+        with self.assertRaises(electrum.lnutil.RemoteMisbehaving):
             run(f())
+        self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+        self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
 
     @needs_test_with_all_chacha20_implementations
     def test_payment(self):

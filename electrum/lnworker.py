@@ -2283,16 +2283,10 @@ class LNWallet(LNWorker):
             peer_addr = LNPeerAddr(host, port, node_id)
             transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
             peer = Peer(self, node_id, transport, is_channel_backup=True)
-            async def trigger_force_close_and_wait():
-                # wait before closing the transport, so that
-                # remote has time to process the message.
-                await peer.trigger_force_close(channel_id)
-                await asyncio.sleep(1)
-                peer.transport.close()
             try:
                 async with OldTaskGroup(wait=any) as group:
                     await group.spawn(peer._message_loop())
-                    await group.spawn(trigger_force_close_and_wait())
+                    await group.spawn(peer.trigger_force_close(channel_id))
                 return
             except Exception as e:
                 self.logger.info(f'failed to connect {host} {e}')
