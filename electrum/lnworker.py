@@ -41,7 +41,7 @@ from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_e
 from .crypto import chacha20_encrypt, chacha20_decrypt
 from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
-from .util import MyEncoder, is_private_netaddress
+from .util import MyEncoder, is_private_netaddress, UnrelatedTransactionException
 from .logging import Logger
 from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
@@ -2075,19 +2075,34 @@ class LNWallet(LNWorker):
         peer = self._peers[chan.node_id]
         return await peer.close_channel(chan_id)
 
-    async def force_close_channel(self, chan_id):
-        # returns txid or raises
+    def _force_close_channel(self, chan_id: bytes) -> Transaction:
         chan = self._channels[chan_id]
         tx = chan.force_close_tx()
-        await self.network.broadcast_transaction(tx)
+        # We set the channel state to make sure we won't sign new commitment txs.
+        # We expect the caller to try to broadcast this tx, after which it is
+        # not safe to keep using the channel even if the broadcast errors (server could be lying).
+        # Until the tx is seen in the mempool, there will be automatic rebroadcasts.
         chan.set_state(ChannelState.FORCE_CLOSING)
+        # Add local tx to wallet to also allow manual rebroadcasts.
+        try:
+            self.wallet.add_transaction(tx)
+        except UnrelatedTransactionException:
+            pass  # this can happen if (~all the balance goes to REMOTE)
+        return tx
+
+    async def force_close_channel(self, chan_id: bytes) -> str:
+        """Force-close the channel. Network-related exceptions are propagated to the caller.
+        (automatic rebroadcasts will be scheduled)
+        """
+        tx = self._force_close_channel(chan_id)
+        await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    async def try_force_closing(self, chan_id):
-        # fails silently but sets the state, so that we will retry later
-        chan = self._channels[chan_id]
-        tx = chan.force_close_tx()
-        chan.set_state(ChannelState.FORCE_CLOSING)
+    async def try_force_closing(self, chan_id: bytes) -> None:
+        """Force-close the channel. Network-related exceptions are suppressed.
+        (automatic rebroadcasts will be scheduled)
+        """
+        tx = self._force_close_channel(chan_id)
         await self.network.try_broadcasting(tx, 'force-close')
 
     def remove_channel(self, chan_id):
