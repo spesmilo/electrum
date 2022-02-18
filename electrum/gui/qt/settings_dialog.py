@@ -259,7 +259,8 @@ class SettingsDialog(WindowModalDialog):
         colortheme_label = QLabel(_('Color theme') + ':')
         def on_colortheme(x):
             self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
-            self.window.gui_object.reload_app_stylesheet()
+            #self.window.gui_object.reload_app_stylesheet()
+            self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
         gui_widgets.append((colortheme_label, colortheme_combo))
 

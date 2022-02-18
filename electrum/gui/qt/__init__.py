@@ -147,6 +147,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.tray.show()
 
     def reload_app_stylesheet(self):
+        """Set the Qt stylesheet and custom colors according to the user-selected
+        light/dark theme.
+        TODO this can ~almost be used to change the theme at runtime (without app restart),
+             except for util.ColorScheme... widgets already created with colors set using
+             ColorSchemeItem.as_stylesheet() and similar will not get recolored.
+             See e.g.
+             - in Coins tab, the color for "frozen" UTXOs, or
+             - in TxDialog, the receiving/change address colors
+        """
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
