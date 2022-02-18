@@ -172,10 +172,12 @@ class AbstractChannel(Logger, ABC):
     def short_id_for_GUI(self) -> str:
         return format_short_channel_id(self.short_channel_id)
 
-    def set_state(self, state: ChannelState) -> None:
-        """ set on-chain state """
+    def set_state(self, state: ChannelState, *, force: bool = False) -> None:
+        """Set on-chain state.
+        `force` can be set while debugging from the console to allow illegal transitions.
+        """
         old_state = self._state
-        if (old_state, state) not in state_transitions:
+        if not force and (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
         self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
