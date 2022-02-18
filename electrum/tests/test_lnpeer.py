@@ -243,6 +243,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
+    _force_close_channel = LNWallet._force_close_channel
 
 
 class MockTransport:
