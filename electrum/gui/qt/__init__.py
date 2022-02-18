@@ -133,7 +133,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self._init_tray()
         self.app.new_window_signal.connect(self.start_new_window)
         self.app.quit_signal.connect(self.app.quit, Qt.QueuedConnection)
-        self.set_dark_theme_if_needed()
+        # maybe set dark theme
+        self._default_qtstylesheet = self.app.styleSheet()
+        self.reload_app_stylesheet()
+
         run_hook('init_qt', self)
 
     def _init_tray(self):
@@ -143,7 +146,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         self.tray.show()
 
-    def set_dark_theme_if_needed(self):
+    def reload_app_stylesheet(self):
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
@@ -152,6 +155,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
             except BaseException as e:
                 use_dark_theme = False
                 self.logger.warning(f'Error setting dark theme: {repr(e)}')
+        else:
+            self.app.setStyleSheet(self._default_qtstylesheet)
         # Apply any necessary stylesheet patches
         patch_qt_stylesheet(use_dark_theme=use_dark_theme)
         # Even if we ourselves don't set the dark theme,
