@@ -949,6 +949,10 @@ class Peer(Logger):
         # compare local ctns
         if oldest_unrevoked_local_ctn != their_oldest_unrevoked_remote_ctn:
             if oldest_unrevoked_local_ctn - 1 == their_oldest_unrevoked_remote_ctn:
+                # A node:
+                #    if next_revocation_number is equal to the commitment number of the last revoke_and_ack
+                #    the receiving node sent, AND the receiving node hasn't already received a closing_signed:
+                #        MUST re-send the revoke_and_ack.
                 we_must_resend_revoke_and_ack = True
             else:
                 self.logger.warning(
@@ -1071,10 +1075,6 @@ class Peer(Logger):
                 self.transport.send_bytes(raw_upd_msg)
                 n_replayed_msgs += 1
         self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replayed {n_replayed_msgs} unacked messages')
-        # A node:
-        #    if next_revocation_number is equal to the commitment number of the last revoke_and_ack
-        #    the receiving node sent, AND the receiving node hasn't already received a closing_signed:
-        #        MUST re-send the revoke_and_ack.
         if we_must_resend_revoke_and_ack:
             last_secret, last_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn - 1)
             next_secret, next_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn + 1)
