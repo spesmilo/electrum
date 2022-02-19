@@ -205,7 +205,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
             invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_levels=defaultdict(int),
+            trampoline_fee_level=0,
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
@@ -463,7 +463,8 @@ class TestPeer(TestCaseForTestnet):
             channels=channels,
         )
         for a in workers:
-            print(f"{a} -> pubkey {keys[a].pubkey}")
+            print(f"{a:5s}: {keys[a].pubkey}")
+            print(f"       {keys[a].pubkey.hex()}")
         return graph
 
     @staticmethod
@@ -880,10 +881,13 @@ class TestPeer(TestCaseForTestnet):
                 attempts=1,
                 alice_uses_trampoline=False,
                 bob_forwarding=True,
-                mpp_invoice=True
+                mpp_invoice=True,
+                disable_trampoline_receiving=False,
         ):
             if mpp_invoice:
                 graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
+            if disable_trampoline_receiving:
+                graph.workers['dave'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
             if not bob_forwarding:
                 graph.workers['bob'].enable_htlc_forwarding = False
             if alice_uses_trampoline:
@@ -914,10 +918,12 @@ class TestPeer(TestCaseForTestnet):
                 await asyncio.sleep(0.2)
                 await group.spawn(pay(**kwargs))
 
-        with self.assertRaises(NoPathFound):
-            run(f(fail_kwargs))
-        with self.assertRaises(PaymentDone):
-            run(f(success_kwargs))
+        if fail_kwargs:
+            with self.assertRaises(NoPathFound):
+                run(f(fail_kwargs))
+        if success_kwargs:
+            with self.assertRaises(PaymentDone):
+                run(f(success_kwargs))
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_with_timeout(self):
@@ -975,18 +981,37 @@ class TestPeer(TestCaseForTestnet):
                 run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_payment_multipart_trampoline(self):
-        # single attempt will fail with insufficient trampoline fee
+    def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
         try:
+            # end-to-end trampoline: we attempt
+            # * a payment with one trial: fails, because
+            #   we need at least one trial because the initial fees are too low
+            # * a payment with several trials: should succeed
             self._run_mpp(
                 graph,
-                {'alice_uses_trampoline': True, 'attempts': 1},
-                {'alice_uses_trampoline': True, 'attempts': 30})
+                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 1},
+                success_kwargs={'alice_uses_trampoline': True, 'attempts': 30})
+        finally:
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
+
+    @needs_test_with_all_chacha20_implementations
+    def test_payment_multipart_trampoline_legacy(self):
+        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+            graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
+        }
+        try:
+            # trampoline-to-legacy: this is restricted, as there are no forwarders capable of doing this
+            self._run_mpp(
+                graph,
+                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True},
+                success_kwargs={})
         finally:
             electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
 
