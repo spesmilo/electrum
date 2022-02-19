@@ -1,6 +1,8 @@
 Electrum-GRS - Lightweight Groestlcoin client
 =====================================
 
+::
+
   Licence: MIT Licence
   Author: Groestlcoin Developers
   Language: Python (>= 3.8)
@@ -147,10 +149,10 @@ Implementing new features, or improving/refactoring the codebase, is of course
 also welcome, but to avoid wasted effort, especially for larger changes,
 we encourage discussing these on the issue tracker or IRC first.
 
-Besides `GitHub`_, most communication about Electrum development happens on IRC, in the
-:code:`#electrum` channel on Libera Chat. The easiest way to participate on IRC is
+Besides `GitHub`_, most communication about Electrum-GRS development happens on IRC, in the
+:code:`#groestlcoin` channel on Libera Chat. The easiest way to participate on IRC is
 with the web client, `web.libera.chat`_.
 
 
-.. _web.libera.chat: https://web.libera.chat/#electrum
-.. _GitHub: https://github.com/spesmilo/electrum
+.. _web.libera.chat: https://web.libera.chat/#groestlcoin
+.. _GitHub: https://github.com/Groestlcoin/electrum-grs
