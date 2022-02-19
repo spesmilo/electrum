@@ -103,7 +103,7 @@ class Peer(Logger):
         self.funding_signed_sent = set()  # for channels in PREOPENING
         self.shutdown_received = {} # chan_id -> asyncio.Future()
         self.announcement_signatures = defaultdict(asyncio.Queue)
-        self.channel_reestablish_msg = defaultdict(asyncio.Queue)
+        self.channel_reestablish_msg = defaultdict(asyncio.Future)
         self.orphan_channel_updates = OrderedDict()  # type: OrderedDict[ShortChannelID, dict]
         Logger.__init__(self)
         self.taskgroup = OldTaskGroup()
@@ -992,6 +992,7 @@ class Peer(Logger):
             return True
         if not are_datalossprotect_fields_valid():
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
+        fut = self.channel_reestablish_msg[chan.channel_id]
         if they_are_ahead:
             self.logger.warning(
                 f"channel_reestablish ({chan.get_id_for_log()}): "
@@ -1000,13 +1001,15 @@ class Peer(Logger):
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
             self.lnworker.save_channel(chan)
             chan.peer_state = PeerState.BAD
-            raise RemoteMisbehaving("remote ahead of us")
-        if we_are_ahead:
+            # raise after we send channel_reestablish, so the remote can realize they are ahead
+            fut.set_exception(RemoteMisbehaving("remote ahead of us"))
+        elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
             asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
-            raise RemoteMisbehaving("we are ahead of remote")
-        # all good
-        self.channel_reestablish_msg[chan.channel_id].put_nowait((we_must_resend_revoke_and_ack, their_next_local_ctn))
+            fut.set_exception(RemoteMisbehaving("we are ahead of remote"))
+        else:
+            # all good
+            fut.set_result((we_must_resend_revoke_and_ack, their_next_local_ctn))
 
     async def reestablish_channel(self, chan: Channel):
         await self.initialized
@@ -1055,7 +1058,9 @@ class Peer(Logger):
             f'oldest_unrevoked_remote_ctn={oldest_unrevoked_remote_ctn})')
 
         # wait until we receive their channel_reestablish
-        we_must_resend_revoke_and_ack, their_next_local_ctn = await self.channel_reestablish_msg[chan_id].get()
+        fut = self.channel_reestablish_msg[chan_id]
+        await fut
+        we_must_resend_revoke_and_ack, their_next_local_ctn = fut.result()
 
         # Replay un-acked local updates (including commitment_signed) byte-for-byte.
         # If we have sent them a commitment signature that they "lost" (due to disconnect),
