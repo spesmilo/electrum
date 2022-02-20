@@ -95,7 +95,7 @@ class WalletStorage(Logger):
         if not self.file_exists():
             assert not os.path.exists(self.path)
         os.replace(temp_path, self.path)
-        os.chmod(self.path, mode)
+        # os.chmod(self.path, mode)
         self._file_exists = True
         self.logger.info(f"saved {self.path}")
 

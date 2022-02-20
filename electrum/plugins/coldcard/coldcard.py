@@ -2,6 +2,7 @@
 # Coldcard Electrum plugin main code.
 #
 #
+import copy
 import os, time, io
 import traceback
 from typing import TYPE_CHECKING, Optional
@@ -27,6 +28,7 @@ _logger = get_logger(__name__)
 
 try:
     import hid
+    from ckcc.electrum import cc_adjust_hww_keystore, cc_adjust_multisig_hww_keystore, is_multisig_wallet
     from ckcc.protocol import CCProtocolPacker, CCProtocolUnpacker
     from ckcc.protocol import CCProtoError, CCUserRefused, CCBusyError
     from ckcc.constants import (MAX_MSG_LEN, MAX_BLK_LEN, MSG_SIGNING_MAX_LENGTH, MAX_TXN_LEN,
@@ -631,4 +633,19 @@ def xfp2str(xfp: int) -> str:
     # and not really an integer. Used to show as '0x%08x' but that's wrong endian.
     return struct.pack('<I', xfp).hex().lower()
 
+
+def convert2CC(wallet_dict, value, key="xpub", dev=None):
+    wd = copy.deepcopy(wallet_dict)
+    if is_multisig_wallet(wd):
+        new_wallet_data = cc_adjust_multisig_hww_keystore(
+            wallet=wd,
+            key=key,
+            value=value,
+            dev=dev
+        )
+    else:
+        new_keystore = cc_adjust_hww_keystore(wd["keystore"], dev=dev)
+        wd["keystore"] = new_keystore
+        new_wallet_data = wd
+    return new_wallet_data
 # EOF

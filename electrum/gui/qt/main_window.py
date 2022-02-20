@@ -670,13 +670,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def get_wallet_folder(self):
         return os.path.dirname(os.path.abspath(self.wallet.storage.path))
 
-    def new_wallet(self):
+    def new_wallet(self, filename=None):
         try:
             wallet_folder = self.get_wallet_folder()
         except FileNotFoundError as e:
             self.show_error(str(e))
             return
-        filename = get_new_wallet_name(wallet_folder)
+        if filename is None:
+            filename = get_new_wallet_name(wallet_folder)
         full_path = os.path.join(wallet_folder, filename)
         self.gui_object.start_new_window(full_path, None)
 
@@ -2471,6 +2472,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             seed_available += f" ({ks.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
+        # this can be changed to self.wallet.storage.basename()
         basename = os.path.basename(self.wallet.storage.path)
         grid.addWidget(WWLabel(_("Wallet name")+ ':'), 0, 0)
         grid.addWidget(WWLabel(basename), 0, 1)
@@ -2571,6 +2573,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 ks_vbox.addWidget(WWLabel(_("Master Public Key")))
                 ks_vbox.addWidget(mpk_text)
                 ks_vbox.addLayout(der_path_hbox)
+                run_hook('convert2CC_button', self, ks_vbox, ks)
 
                 ks_stack.addWidget(ks_w)
 

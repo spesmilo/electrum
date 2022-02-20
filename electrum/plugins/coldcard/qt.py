@@ -3,10 +3,10 @@ from functools import partial
 import copy
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
+from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout, QHBoxLayout
 
 from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
-                                  getSaveFileName)
+                                  getSaveFileName, WWLabel)
 from electrum.gui.qt.transaction_dialog import TxDialog
 from electrum.gui.qt.main_window import ElectrumWindow
 
@@ -28,6 +28,28 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     def create_handler(self, window):
         return Coldcard_Handler(window)
+
+    def coldcards_connected(self):
+        clients = []
+        devices = self.device_manager().scan_devices()
+        for device in devices:
+            dev_client = self.device_manager().client_by_id(device.id_)
+            if dev_client is None:
+                dev_client = self.device_manager().create_client(device=device, handler=None, plugin=self)
+            if dev_client.device == "Coldcard":
+                clients.append(dev_client)
+        return clients
+
+    def match_candidate_keystore_to_connected_cc_device(self, keystore):
+        cc_clients = self.coldcards_connected()
+        keystore_dict = keystore.dump()
+        for cc_client in cc_clients:
+            dev = cc_client.dev
+            dev_xfp = xfp2str(dev.master_fingerprint)
+            fingerprint_match = dev_xfp == keystore_dict["root_fingerprint"]
+            # here we should probably check if derivation path generates same Vpub on cc
+            if fingerprint_match:
+                return dev
 
     @only_hook_if_libraries_available
     @hook
@@ -60,6 +82,53 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
 
         return btn
+
+    @only_hook_if_libraries_available
+    @hook
+    def convert2CC_button(self, main_window, ks_vbox, keystore):
+        # user is about to see the "Wallet Information" dialog
+        wallet = main_window.wallet
+        if keystore.type == "hardware" and keystore.hw_type != "coldcard":
+            dev = self.match_candidate_keystore_to_connected_cc_device(keystore)
+            der_path_hbox0 = QHBoxLayout()
+            der_path_hbox0.setContentsMargins(0, 0, 0, 0)
+
+            btn = QPushButton(_("{} convert2cc".format(keystore.device)))
+            btn.clicked.connect(lambda unused: self.convert2CC(wallet, main_window, keystore))
+            der_path_hbox0.addWidget(btn)
+            if dev:
+                der_path_hbox0.addWidget(WWLabel(_("fingerprint matches connected Coldcard device")))
+            der_path_hbox0.addStretch()
+            ks_vbox.addLayout(der_path_hbox0)
+
+    def convert2CC(self, wallet, main_window, target_keystore):
+        try:
+            import json
+            from ckcc.electrum import filepath_append_cc
+            from electrum.plugins.coldcard.coldcard import convert2CC
+            dev = self.match_candidate_keystore_to_connected_cc_device(target_keystore)
+            wallet_data = json.loads(wallet.db.dump())
+            ccd = convert2CC(wallet_data, target_keystore.xpub, dev=dev)
+            default_filename = filepath_append_cc(wallet.basename())
+            user_filename = getSaveFileName(
+                parent=main_window,
+                title=_("Select where to save the new wallet file"),
+                filename=default_filename,
+                filter="*",
+                config=self.config,
+            )
+            if user_filename:
+                new_wallet_json = wallet.db.dump(data=ccd)
+                with open(user_filename, "w") as wf:
+                    wf.write(new_wallet_json)
+                if main_window.question('\n'.join([
+                    _('Open wallet file?'),
+                    "%s" % user_filename,
+                    _('This will open a new wallet window with converted wallet.')
+                ])):
+                    main_window.new_wallet(filename=user_filename)
+        except Exception as e:
+            print(e)
 
     def export_multisig_setup(self, main_window, wallet):
 
