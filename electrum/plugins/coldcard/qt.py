@@ -1,6 +1,6 @@
 import time, os
 from functools import partial
-import copy
+import json
 
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout, QHBoxLayout
@@ -103,12 +103,25 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     def convert2CC(self, wallet, main_window, target_keystore):
         try:
-            import json
-            from ckcc.electrum import filepath_append_cc
-            from electrum.plugins.coldcard.coldcard import convert2CC
+            from ckcc.electrum import (
+                    cc_adjust_hww_keystore, cc_adjust_multisig_hww_keystore, 
+                    is_multisig_wallet, filepath_append_cc
+            )
             dev = self.match_candidate_keystore_to_connected_cc_device(target_keystore)
-            wallet_data = json.loads(wallet.db.dump())
-            ccd = convert2CC(wallet_data, target_keystore.xpub, dev=dev)
+            source_wallet_json = wallet.db.dump()
+            source_wallet_dict = json.loads(source_wallet_json)
+            if is_multisig_wallet(source_wallet_dict):
+                target_wallet_data = cc_adjust_multisig_hww_keystore(
+                    wallet=source_wallet_dict,
+                    key="xpub",
+                    value=target_keystore.xpub,
+                    dev=dev,
+                )
+            else:
+                new_keystore = cc_adjust_hww_keystore(source_wallet_dict["keystore"], dev=dev)
+                source_wallet_dict["keystore"] = new_keystore
+                target_wallet_dict = source_wallet_dict
+
             default_filename = filepath_append_cc(wallet.basename())
             user_filename = getSaveFileName(
                 parent=main_window,
@@ -118,9 +131,9 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 config=self.config,
             )
             if user_filename:
-                new_wallet_json = wallet.db.dump(data=ccd)
-                with open(user_filename, "w") as wf:
-                    wf.write(new_wallet_json)
+                target_wallet_json = wallet.db.dump(data=target_wallet_data)
+                with open(user_filename, "w") as f:
+                    f.write(target_wallet_json)
                 if main_window.question('\n'.join([
                     _('Open wallet file?'),
                     "%s" % user_filename,
