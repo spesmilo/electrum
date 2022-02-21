@@ -193,6 +193,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         form_layout.addRow(_('Remote dust limit:'), self.dust_limit)
         self.remote_reserve = self.window.format_amount_and_units(chan.config[REMOTE].reserve_sat)
         form_layout.addRow(_('Remote reserve:'), SelectableLabel(self.remote_reserve))
+        form_layout.addRow(_('Channel type:'), SelectableLabel(chan.storage['channel_type'].name_minimal))
         vbox.addLayout(form_layout)
 
         # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)

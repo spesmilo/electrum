@@ -963,8 +963,7 @@ class ColorScheme:
 
     @staticmethod
     def update_from_widget(widget, force_dark=False):
-        if force_dark or ColorScheme.has_dark_background(widget):
-            ColorScheme.dark_scheme = True
+        ColorScheme.dark_scheme = bool(force_dark or ColorScheme.has_dark_background(widget))
 
 
 class AcceptFileDragDrop:

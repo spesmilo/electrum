@@ -138,6 +138,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -147,7 +148,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.enable_htlc_forwarding = True
         self.received_mpp_htlcs = dict()
         self.sent_htlcs = defaultdict(asyncio.Queue)
-        self.sent_htlcs_routes = dict()
+        self.sent_htlcs_info = dict()
         self.sent_buckets = defaultdict(set)
         self.trampoline_forwarding_failures = {}
         self.inflight_payments = set()
@@ -205,7 +206,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
             min_cltv_expiry=decoded_invoice.get_min_final_cltv_expiry(),
             r_tags=decoded_invoice.get_routing_info('r'),
             invoice_features=decoded_invoice.get_features(),
-            trampoline_fee_levels=defaultdict(int),
+            trampoline_fee_level=0,
             use_two_trampolines=False,
             payment_hash=decoded_invoice.paymenthash,
             payment_secret=decoded_invoice.payment_secret,
@@ -243,6 +244,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
+    _force_close_channel = LNWallet._force_close_channel
 
 
 class MockTransport:
@@ -462,7 +464,8 @@ class TestPeer(TestCaseForTestnet):
             channels=channels,
         )
         for a in workers:
-            print(f"{a} -> pubkey {keys[a].pubkey}")
+            print(f"{a:5s}: {keys[a].pubkey}")
+            print(f"       {keys[a].pubkey.hex()}")
         return graph
 
     @staticmethod
@@ -539,7 +542,6 @@ class TestPeer(TestCaseForTestnet):
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
             run(f())
-
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel_0, bob_channel)
         for chan in (alice_channel_0, bob_channel):
             chan.peer_state = PeerState.DISCONNECTED
@@ -547,16 +549,13 @@ class TestPeer(TestCaseForTestnet):
             await asyncio.gather(
                 p1.reestablish_channel(alice_channel_0),
                 p2.reestablish_channel(bob_channel))
-            self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
-            self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
-            # wait so that pending messages are processed
-            #await asyncio.sleep(1)
-            gath.cancel()
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
-        with self.assertRaises(concurrent.futures.CancelledError):
+        with self.assertRaises(electrum.lnutil.RemoteMisbehaving):
             run(f())
+        self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
+        self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
 
     @needs_test_with_all_chacha20_implementations
     def test_payment(self):
@@ -615,6 +614,7 @@ class TestPeer(TestCaseForTestnet):
                 payment_hash=lnaddr2.paymenthash,
                 min_cltv_expiry=lnaddr2.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr2.payment_secret,
+                trampoline_fee_level=0,
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
@@ -629,6 +629,7 @@ class TestPeer(TestCaseForTestnet):
                 payment_hash=lnaddr1.paymenthash,
                 min_cltv_expiry=lnaddr1.get_min_final_cltv_expiry(),
                 payment_secret=lnaddr1.payment_secret,
+                trampoline_fee_level=0,
             )
             p2.maybe_send_commitment = _maybe_send_commitment2
             # sleep a bit so that they both receive msgs sent so far
@@ -883,10 +884,13 @@ class TestPeer(TestCaseForTestnet):
                 attempts=1,
                 alice_uses_trampoline=False,
                 bob_forwarding=True,
-                mpp_invoice=True
+                mpp_invoice=True,
+                disable_trampoline_receiving=False,
         ):
             if mpp_invoice:
                 graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
+            if disable_trampoline_receiving:
+                graph.workers['dave'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
             if not bob_forwarding:
                 graph.workers['bob'].enable_htlc_forwarding = False
             if alice_uses_trampoline:
@@ -917,10 +921,12 @@ class TestPeer(TestCaseForTestnet):
                 await asyncio.sleep(0.2)
                 await group.spawn(pay(**kwargs))
 
-        with self.assertRaises(NoPathFound):
-            run(f(fail_kwargs))
-        with self.assertRaises(PaymentDone):
-            run(f(success_kwargs))
+        if fail_kwargs:
+            with self.assertRaises(NoPathFound):
+                run(f(fail_kwargs))
+        if success_kwargs:
+            with self.assertRaises(PaymentDone):
+                run(f(success_kwargs))
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_with_timeout(self):
@@ -978,18 +984,37 @@ class TestPeer(TestCaseForTestnet):
                 run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_payment_multipart_trampoline(self):
-        # single attempt will fail with insufficient trampoline fee
+    def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
         electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
         try:
+            # end-to-end trampoline: we attempt
+            # * a payment with one trial: fails, because
+            #   we need at least one trial because the initial fees are too low
+            # * a payment with several trials: should succeed
             self._run_mpp(
                 graph,
-                {'alice_uses_trampoline': True, 'attempts': 1},
-                {'alice_uses_trampoline': True, 'attempts': 30})
+                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 1},
+                success_kwargs={'alice_uses_trampoline': True, 'attempts': 30})
+        finally:
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
+
+    @needs_test_with_all_chacha20_implementations
+    def test_payment_multipart_trampoline_legacy(self):
+        graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+            graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
+        }
+        try:
+            # trampoline-to-legacy: this is restricted, as there are no forwarders capable of doing this
+            self._run_mpp(
+                graph,
+                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True},
+                success_kwargs={})
         finally:
             electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
 
@@ -1171,7 +1196,9 @@ class TestPeer(TestCaseForTestnet):
                 amount_receiver_msat=amount_msat,
                 payment_hash=payment_hash,
                 payment_secret=payment_secret,
-                min_cltv_expiry=min_cltv_expiry)
+                min_cltv_expiry=min_cltv_expiry,
+                trampoline_fee_level=0,
+            )
             await asyncio.gather(pay, p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         with self.assertRaises(PaymentFailure):
             run(f())
