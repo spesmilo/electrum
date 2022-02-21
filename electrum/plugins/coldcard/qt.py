@@ -111,7 +111,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             source_wallet_json = wallet.db.dump()
             source_wallet_dict = json.loads(source_wallet_json)
             if is_multisig_wallet(source_wallet_dict):
-                target_wallet_data = cc_adjust_multisig_hww_keystore(
+                target_wallet_dict = cc_adjust_multisig_hww_keystore(
                     wallet=source_wallet_dict,
                     key="xpub",
                     value=target_keystore.xpub,
@@ -131,7 +131,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 config=self.config,
             )
             if user_filename:
-                target_wallet_json = wallet.db.dump(data=target_wallet_data)
+                target_wallet_json = wallet.db.dump(data=target_wallet_dict)
                 with open(user_filename, "w") as f:
                     f.write(target_wallet_json)
                 if main_window.question('\n'.join([
