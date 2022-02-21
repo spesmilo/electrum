@@ -966,7 +966,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == ChannelState.OPEN and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height()):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.try_force_closing(chan.channel_id)
+            await self.schedule_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
             peer = self._peers.get(chan.node_id)
@@ -2109,16 +2109,21 @@ class LNWallet(LNWorker):
         """Force-close the channel. Network-related exceptions are propagated to the caller.
         (automatic rebroadcasts will be scheduled)
         """
+        # note: as we are async, it can take a few event loop iterations between the caller
+        #       "calling us" and us getting to run, and we only set the channel state now:
         tx = self._force_close_channel(chan_id)
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    async def try_force_closing(self, chan_id: bytes) -> None:
-        """Force-close the channel. Network-related exceptions are suppressed.
+    def schedule_force_closing(self, chan_id: bytes) -> 'asyncio.Task[None]':
+        """Schedules a task to force-close the channel and returns it.
+        Network-related exceptions are suppressed.
         (automatic rebroadcasts will be scheduled)
+        Note: this method is intentionally not async so that callers have a guarantee
+              that the channel state is set immediately.
         """
         tx = self._force_close_channel(chan_id)
-        await self.network.try_broadcasting(tx, 'force-close')
+        return asyncio.create_task(self.network.try_broadcasting(tx, 'force-close'))
 
     def remove_channel(self, chan_id):
         chan = self.channels[chan_id]

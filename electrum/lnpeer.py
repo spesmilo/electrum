@@ -1052,7 +1052,7 @@ class Peer(Logger):
             fut.set_exception(RemoteMisbehaving("remote ahead of us"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
+            self.lnworker.schedule_force_closing(chan.channel_id)
             fut.set_exception(RemoteMisbehaving("we are ahead of remote"))
         else:
             # all good
@@ -1382,7 +1382,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_malformed_htlc. chan {chan.get_id_for_log()}. "
                          f"htlc_id {htlc_id}. failure_code={failure_code}")
         if failure_code & OnionFailureCodeMetaFlag.BADONION == 0:
-            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
+            self.lnworker.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
         reason = OnionRoutingFailure(code=failure_code, data=payload["sha256_of_onion"])
         chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
@@ -1404,7 +1404,7 @@ class Peer(Logger):
         if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            asyncio.ensure_future(self.lnworker.try_force_closing(chan.channel_id))
+            self.lnworker.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         chan.receive_htlc(htlc, onion_packet)
