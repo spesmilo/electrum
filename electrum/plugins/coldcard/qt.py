@@ -36,7 +36,11 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             dev_client = self.device_manager().client_by_id(device.id_)
             if dev_client is None:
                 dev_client = self.device_manager().create_client(device=device, handler=None, plugin=self)
-            if dev_client.device == "Coldcard":
+            try:
+                device_name = dev_client.device
+            except AttributeError:
+                device_name = "unknown"
+            if device_name == "Coldcard":
                 clients.append(dev_client)
         return clients
 
