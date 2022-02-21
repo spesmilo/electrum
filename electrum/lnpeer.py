@@ -42,7 +42,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     UpfrontShutdownScriptViolation)
+                     UpfrontShutdownScriptViolation, ChannelType)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
@@ -511,6 +511,9 @@ class Peer(Logger):
     def is_static_remotekey(self):
         return self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
 
+    def is_channel_type(self):
+        return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
+
     def is_upfront_shutdown_script(self):
         return self.features.supports(LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT)
 
@@ -528,16 +531,15 @@ class Peer(Logger):
         self.logger.info(f"upfront shutdown script received: {upfront_shutdown_script}")
         return upfront_shutdown_script
 
-    def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
+    def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner, channel_type: ChannelType) -> LocalConfig:
         channel_seed = os.urandom(32)
         initial_msat = funding_sat * 1000 - push_msat if initiator == LOCAL else push_msat
 
-        static_remotekey = None
         # sending empty bytes as the upfront_shutdown_script will give us the
         # flexibility to decide an address at closing time
         upfront_shutdown_script = b''
 
-        if self.is_static_remotekey():
+        if channel_type & channel_type.OPTION_STATIC_REMOTEKEY:
             wallet = self.lnworker.wallet
             assert wallet.txin_type == 'p2wpkh'
             addr = wallet.get_new_sweep_address_for_channel()
@@ -613,7 +615,24 @@ class Peer(Logger):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         feerate = self.lnworker.current_feerate_per_kw()
-        local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
+        # we set a channel type for internal bookkeeping
+        open_channel_tlvs = {}
+        if self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT):
+            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        else:
+            our_channel_type = ChannelType(0)
+        # if option_channel_type is negotiated: MUST set channel_type
+        if self.is_channel_type():
+            # if it includes channel_type: MUST set it to a defined type representing the type it wants.
+            open_channel_tlvs['channel_type'] = {
+                'type': our_channel_type.to_bytes_minimal()
+            }
+
+        local_config = self.make_local_config(funding_sat, push_msat, LOCAL, our_channel_type)
+        # if it includes open_channel_tlvs: MUST include upfront_shutdown_script.
+        open_channel_tlvs['upfront_shutdown_script'] = {
+            'shutdown_scriptpubkey': local_config.upfront_shutdown_script
+        }
 
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(
@@ -642,10 +661,7 @@ class Peer(Logger):
             channel_flags=0x00,  # not willing to announce channel
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=local_config.htlc_minimum_msat,
-            open_channel_tlvs={
-                'upfront_shutdown_script':
-                    {'shutdown_scriptpubkey': local_config.upfront_shutdown_script}
-            }
+            open_channel_tlvs=open_channel_tlvs,
         )
 
         # <- accept_channel
@@ -659,6 +675,15 @@ class Peer(Logger):
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'accept')
+
+        accept_channel_tlvs = payload.get('accept_channel_tlvs')
+        their_channel_type = accept_channel_tlvs.get('channel_type') if accept_channel_tlvs else None
+        if their_channel_type:
+            their_channel_type = ChannelType.from_bytes(their_channel_type['type'], byteorder='big').discard_unknown_and_check()
+            # if channel_type is set, and channel_type was set in open_channel,
+            # and they are not equal types: MUST reject the channel.
+            if open_channel_tlvs.get('channel_type') is not None and their_channel_type != our_channel_type:
+                raise Exception("Channel type is not the one that we sent.")
 
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
@@ -675,7 +700,7 @@ class Peer(Logger):
             htlc_minimum_msat=payload['htlc_minimum_msat'],
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
-            upfront_shutdown_script=upfront_shutdown_script
+            upfront_shutdown_script=upfront_shutdown_script,
         )
         ChannelConfig.cross_validate_params(
             local_config=local_config,
@@ -724,7 +749,7 @@ class Peer(Logger):
             funding_txn_minimum_depth=funding_txn_minimum_depth
         )
         storage = self.create_channel_storage(
-            channel_id, outpoint, local_config, remote_config, constraints)
+            channel_id, outpoint, local_config, remote_config, constraints, our_channel_type)
         chan = Channel(
             storage,
             sweep_address=self.lnworker.sweep_address,
@@ -755,7 +780,7 @@ class Peer(Logger):
         self.lnworker.add_new_channel(chan)
         return chan, funding_tx
 
-    def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints):
+    def create_channel_storage(self, channel_id, outpoint, local_config, remote_config, constraints, channel_type):
         chan_dict = {
             "node_id": self.pubkey.hex(),
             "channel_id": channel_id.hex(),
@@ -772,7 +797,7 @@ class Peer(Logger):
             "fail_htlc_reasons": {},  # htlc_id -> onion_packet
             "unfulfilled_htlcs": {},  # htlc_id -> error_bytes, failure_message
             "revocation_store": {},
-            "static_remotekey_enabled": self.is_static_remotekey(), # stored because it cannot be "downgraded", per BOLT2
+            "channel_type": channel_type,
         }
         return StoredDict(chan_dict, self.lnworker.db if self.lnworker else None, [])
 
@@ -796,7 +821,21 @@ class Peer(Logger):
         push_msat = payload['push_msat']
         feerate = payload['feerate_per_kw']  # note: we are not validating this
         temp_chan_id = payload['temporary_channel_id']
-        local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
+
+        open_channel_tlvs = payload.get('open_channel_tlvs')
+        channel_type = open_channel_tlvs.get('channel_type') if open_channel_tlvs else None
+        # The receiving node MAY fail the channel if:
+        # option_channel_type was negotiated but the message doesn't include a channel_type
+        if self.is_channel_type() and channel_type is None:
+            raise Exception("sender has advertized option_channel_type, but hasn't sent the channel type")
+        # MUST fail the channel if it supports channel_type,
+        # channel_type was set, and the type is not suitable.
+        elif self.is_channel_type() and channel_type is not None:
+            channel_type = ChannelType.from_bytes(channel_type['type'], byteorder='big').discard_unknown_and_check()
+            if not channel_type.complies_with_features(self.features):
+                raise Exception("sender has sent a channel type we don't support")
+
+        local_config = self.make_local_config(funding_sat, push_msat, REMOTE, channel_type)
 
         upfront_shutdown_script = self.upfront_shutdown_script_from_payload(
             payload, 'open')
@@ -839,6 +878,17 @@ class Peer(Logger):
         per_commitment_point_first = secret_to_pubkey(
             int.from_bytes(per_commitment_secret_first, 'big'))
         min_depth = 3
+        accept_channel_tlvs = {
+            'upfront_shutdown_script': {
+                'shutdown_scriptpubkey': local_config.upfront_shutdown_script
+            },
+        }
+        # The sender: if it sets channel_type: MUST set it to the channel_type from open_channel
+        if self.is_channel_type():
+            accept_channel_tlvs['channel_type'] = {
+                'type': channel_type.to_bytes_minimal()
+            }
+
         self.send_message(
             'accept_channel',
             temporary_channel_id=temp_chan_id,
@@ -855,10 +905,7 @@ class Peer(Logger):
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             htlc_basepoint=local_config.htlc_basepoint.pubkey,
             first_per_commitment_point=per_commitment_point_first,
-            accept_channel_tlvs={
-                'upfront_shutdown_script':
-                    {'shutdown_scriptpubkey': local_config.upfront_shutdown_script}
-            }
+            accept_channel_tlvs=accept_channel_tlvs,
         )
 
         # <- funding created
@@ -875,7 +922,7 @@ class Peer(Logger):
         )
         outpoint = Outpoint(funding_txid, funding_idx)
         chan_dict = self.create_channel_storage(
-            channel_id, outpoint, local_config, remote_config, constraints)
+            channel_id, outpoint, local_config, remote_config, constraints, channel_type)
         chan = Channel(
             chan_dict,
             sweep_address=self.lnworker.sweep_address,
