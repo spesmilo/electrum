@@ -499,7 +499,12 @@ class ECPrivkey(ECPubkey):
     def sign_transaction(self, hashed_preimage: bytes) -> bytes:
         return self.sign(hashed_preimage, sigencode=der_sig_from_r_and_s)
 
-    def sign_message(self, message: bytes, is_compressed: bool, algo=lambda x: sha256d(msg_magic(x))) -> bytes:
+    def sign_message(
+            self,
+            message: Union[bytes, str],
+            is_compressed: bool,
+            algo=lambda x: sha256d(msg_magic(x)),
+    ) -> bytes:
         def bruteforce_recid(sig_string):
             for recid in range(4):
                 sig65 = construct_sig65(sig_string, recid, is_compressed)
