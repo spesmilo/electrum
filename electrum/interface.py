@@ -220,6 +220,19 @@ class NotificationSession(RPCSession):
                                                          MAX_INCOMING_MSG_SIZE))
         return NewlineFramer(max_size=max_size)
 
+    async def close(self, *, force_after: int = None):
+        """Closes the connection and waits for it to be closed.
+        We try to flush buffered data to the wire, which can take some time.
+        """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            # Note: if the ethernet cable was pulled or wifi disconnected, that too might
+            #       wait until this timeout is triggered
+            force_after = 1  # seconds
+        await super().close(force_after=force_after)
+
 
 class NetworkException(Exception): pass
 
@@ -693,11 +706,6 @@ class Interface(Logger):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, which can take some time.
         """
-        if force_after is None:
-            # We give up after a while and just abort the connection.
-            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
-            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
-            force_after = 1  # seconds
         if self.session:
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
