@@ -225,6 +225,25 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg))
         self.assertFalse(ecc.verify_message_with_address(addr2, sig2, b'heyheyhey'))
 
+    def test_signmessage_segwit_witness_v0_address_test_we_also_accept_sigs_from_trezor(self):
+        """Trezor and some other projects use a slightly different scheme for message-signing
+        with p2wpkh and p2wpkh-p2sh addresses. Test that we also accept signatures from them.
+        see #3861
+        tests from https://github.com/trezor/trezor-firmware/blob/2ce1e6ba7dbe5bbaeeb336fff0a038e59cb40ef8/tests/device_tests/bitcoin/test_signmessage.py#L39
+        """
+        msg = b"This is an example of a signed message."
+        addr1 = "3L6TyTisPBmrDAj6RoKmDzNnj4eQi54gD2"
+        addr2 = "bc1qannfxke2tfd4l7vhepehpvt05y83v3qsf6nfkk"
+        sig1 = bytes.fromhex("23744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2 = bytes.fromhex("28b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertTrue(ecc.verify_message_with_address(address=addr1, sig65=sig1, message=msg))
+        self.assertTrue(ecc.verify_message_with_address(address=addr2, sig65=sig2, message=msg))
+        # if there is type information in the header of the sig (first byte), enforce that:
+        sig1_wrongtype = bytes.fromhex("27744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2_wrongtype = bytes.fromhex("24b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertFalse(ecc.verify_message_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
+        self.assertFalse(ecc.verify_message_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
+
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
         key = WalletStorage.get_eckey_from_password('pw123')
