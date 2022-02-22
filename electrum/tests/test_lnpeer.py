@@ -1063,13 +1063,22 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_close(self):
+    def test_close_modern(self):
+        self._test_close(True, True)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_close_old_style(self):
+        self._test_close(False, False)
+
+    def _test_close(self, modern_alice, modern_bob):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        w1.network.config.set_key('modern_fee_negotiation', modern_alice)
+        w2.network.config.set_key('modern_fee_negotiation', modern_bob)
         w1.network.config.set_key('dynamic_fees', False)
         w2.network.config.set_key('dynamic_fees', False)
         w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w2.network.config.set_key('fee_per_kb', 2000)
         w2.enable_htlc_settle = False
         lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
