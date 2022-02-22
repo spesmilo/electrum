@@ -502,7 +502,7 @@ class Interface(Logger):
                 self.logger.warning(f"disconnecting due to {repr(e)}")
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
-                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
+                self.got_disconnected.set()
                 await self.network.connection_down(self)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
@@ -675,6 +675,8 @@ class Interface(Logger):
                               JSONRPC.METHOD_NOT_FOUND):
                     raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
+            finally:
+                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
 
     async def monitor_connection(self):
         while True:
