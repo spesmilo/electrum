@@ -489,7 +489,7 @@ class Interface(Logger):
                 self.logger.warning(f"disconnecting due to {repr(e)}")
                 self.logger.debug(f"(disconnect) trace for {repr(e)}", exc_info=True)
             finally:
-                self.got_disconnected.set()
+                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
                 await self.network.connection_down(self)
                 # if was not 'ready' yet, schedule waiting coroutines:
                 self.ready.cancel()
@@ -533,6 +533,9 @@ class Interface(Logger):
         self.logger.info(f"set blockchain with height {self.blockchain.height()}")
 
         self.ready.set_result(1)
+
+    def is_connected_and_ready(self) -> bool:
+        return self.ready.done() and not self.got_disconnected.is_set()
 
     async def _save_certificate(self) -> None:
         if not os.path.exists(self.cert_path):
