@@ -2583,7 +2583,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addStretch(1)
         btn_export_info = run_hook('wallet_info_buttons', self, dialog)
         btn_close = CloseButton(dialog)
-        btns = Buttons(btn_export_info, btn_close)
+        if isinstance(btn_export_info, tuple):
+            btn_export_info, btn_usb_x = btn_export_info
+            btns = Buttons(btn_usb_x, btn_export_info, btn_close)
+        else:
+            btns = Buttons(btn_export_info, btn_close)
         vbox.addLayout(btns)
         dialog.setLayout(vbox)
         dialog.exec_()

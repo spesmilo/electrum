@@ -78,21 +78,52 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         if type(wallet) is not Multisig_Wallet:
             return
 
-        if not any(type(ks) == self.keystore_class for ks in wallet.get_keystores()):
+        coldcard_keystores = [
+            ks
+            for ks in wallet.get_keystores()
+            if type(ks) == self.keystore_class
+        ]
+        if not coldcard_keystores:
             # doesn't involve a Coldcard wallet, hide feature
             return
 
+        # here the client must be opened if connected
+        client = None
+        if len(coldcard_keystores) == 1:
+            client = self.get_client(coldcard_keystores[0])
+
         btn = QPushButton(_("Export for Coldcard"))
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
+        if client is None:
+            return btn
 
-        return btn
+        btn_usb = QPushButton(_("Import to Coldcard via USB"))
+        btn_usb.clicked.connect(lambda unused: self.import_multisig_wallet_to_cc(main_window, client))
+
+        return btn, btn_usb
+
+    def import_multisig_wallet_to_cc(self, main_window, client):
+        from io import StringIO, BytesIO
+        from ckcc.protocol import CCProtocolPacker, MAX_BLK_LEN
+        from ckcc.cli import real_file_upload
+        wallet = main_window.wallet
+        sio = StringIO()
+        basename = wallet.basename().rsplit('.', 1)[0]
+        ColdcardPlugin.export_ms_wallet(wallet, sio, basename)
+        sio.seek(0)
+        file_len, sha = real_file_upload(BytesIO(sio.read().encode()), MAX_BLK_LEN, dev=client.dev)
+        client.dev.send_recv(CCProtocolPacker.multisig_enroll(file_len, sha))
+        main_window.show_message('\n'.join([
+            _('Wallet {} imported'.format(basename)),
+            _('Continue on you Coldcard device.')
+        ]))
 
     @only_hook_if_libraries_available
     @hook
     def convert2CC_button(self, main_window, ks_vbox, keystore):
         # user is about to see the "Wallet Information" dialog
         wallet = main_window.wallet
-        if keystore.type == "hardware" and keystore.hw_type != "coldcard":
+        if keystore.type == "hardware" and keystore.hw_type != "coldcard":  # only trezor and ledger were tested
             dev = self.match_candidate_keystore_to_connected_cc_device(keystore)
             der_path_hbox0 = QHBoxLayout()
             der_path_hbox0.setContentsMargins(0, 0, 0, 0)
@@ -159,7 +190,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             config=self.config,
         )
         if fileName:
-            with open(fileName, "wt") as f:
+            with open(fileName, "w") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
 
