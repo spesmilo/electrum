@@ -2004,11 +2004,7 @@ class Peer(Logger):
             # otherwise:
             else:
                 # MUST propose a value "strictly between" the received fee_satoshis and its previously-sent fee_satoshis.
-                our_fee_proposed = (our_fee + their_fee) // 2
-                if not (min(our_fee, their_fee) < our_fee_proposed < max(our_fee, their_fee)):
-                    our_fee_proposed += (their_fee - our_fee) // 2
-                else:
-                    our_fee = our_fee_proposed
+                our_fee = (our_fee + their_fee) // 2
                 send_closing_signed()
 
         # reaching this part of the code means that we have reached agreement; to make
