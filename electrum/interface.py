@@ -681,6 +681,15 @@ class Interface(Logger):
     async def monitor_connection(self):
         while True:
             await asyncio.sleep(1)
+            # If the session/transport is no longer open, we disconnect.
+            # e.g. if the remote cleanly sends EOF, we would handle that here.
+            # note: If the user pulls the ethernet cable or disconnects wifi,
+            #       ideally we would detect that here, so that the GUI/etc can reflect that.
+            #       - On Android, this seems to work reliably , where asyncio.BaseProtocol.connection_lost()
+            #         gets called with e.g. ConnectionAbortedError(103, 'Software caused connection abort').
+            #       - On desktop Linux/Win, it seems BaseProtocol.connection_lost() is not called in such cases.
+            #         Hence, in practice the connection issue will only be detected the next time we try
+            #         to send a message (plus timeout), which can take minutes...
             if not self.session or self.session.is_closing():
                 raise GracefulDisconnect('session was closed')
 
