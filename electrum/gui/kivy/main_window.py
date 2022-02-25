@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_lightning_payment_identifier, parse_max_spend)
+                           maybe_extract_lightning_payment_identifier, parse_max_spend, is_uri)
 from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum import blockchain
@@ -234,10 +234,6 @@ class ElectrumWindow(App, Logger, EventListener):
     @switch_to_send_screen
     def set_URI(self, uri):
         self.send_screen.set_URI(uri)
-
-    @switch_to_send_screen
-    def set_ln_invoice(self, invoice):
-        self.send_screen.set_ln_invoice(invoice)
 
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
@@ -482,18 +478,14 @@ class ElectrumWindow(App, Logger, EventListener):
     def on_qr(self, data: str):
         from electrum.bitcoin import is_address
         data = data.strip()
-        if is_address(data):
+        if is_address(data):  # TODO does this actually work?
             self.set_URI(data)
             return
-        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
+        if is_uri(data) or maybe_extract_lightning_payment_identifier(data):
             self.set_URI(data)
             return
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
-            return
-        bolt11_invoice = maybe_extract_lightning_payment_identifier(data)
-        if bolt11_invoice is not None:
-            self.set_ln_invoice(bolt11_invoice)
             return
         # try to decode transaction
         from electrum.transaction import tx_from_any
