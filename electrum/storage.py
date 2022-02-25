@@ -32,7 +32,7 @@ from enum import IntEnum
 
 from . import ecc
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
-                   test_read_write_permissions)
+                   test_read_write_permissions, os_chmod)
 
 from .wallet_db import WalletDB
 from .logging import Logger
@@ -95,7 +95,7 @@ class WalletStorage(Logger):
         if not self.file_exists():
             assert not os.path.exists(self.path)
         os.replace(temp_path, self.path)
-        os.chmod(self.path, mode)
+        os_chmod(self.path, mode)
         self._file_exists = True
         self.logger.info(f"saved {self.path}")
 

@@ -1132,6 +1132,7 @@ def read_json_file(path):
         raise FileImportFailed(e)
     return data
 
+
 def write_json_file(path, data):
     try:
         with open(path, 'w+', encoding='utf-8') as f:
@@ -1141,13 +1142,25 @@ def write_json_file(path, data):
         raise FileExportFailed(e)
 
 
+def os_chmod(path, mode):
+    """chmod aware of tmpfs"""
+    try:
+        os.chmod(path, mode)
+    except OSError as e:
+        xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR", None)
+        if xdg_runtime_dir and xdg_runtime_dir in path:
+            print("Tried to chmod in tmpfs. Skipping...", e)
+        else:
+            raise
+
+
 def make_dir(path, allow_symlink=True):
     """Make directory if it does not yet exist."""
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        os_chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
 def log_exceptions(func):

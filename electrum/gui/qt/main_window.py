@@ -64,7 +64,7 @@ from electrum.util import (format_time,
                            InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
                            NoDynamicFeeEstimates,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
-                           InvoiceError, parse_max_spend)
+                           InvoiceError, parse_max_spend, os_chmod)
 from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
 from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
 from electrum.transaction import (Transaction, PartialTxInput,
@@ -3035,7 +3035,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def do_export_privkeys(self, fileName, pklist, is_csv):
         with open(fileName, "w+") as f:
-            os.chmod(fileName, 0o600)
+            os_chmod(fileName, 0o600)
             if is_csv:
                 transaction = csv.writer(f)
                 transaction.writerow(["address", "private_key"])
