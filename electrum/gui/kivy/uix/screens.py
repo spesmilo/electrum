@@ -2,6 +2,7 @@ import asyncio
 from decimal import Decimal
 import threading
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
+from urllib.parse import urlparse
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -16,8 +17,9 @@ from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATIO
 from electrum import bitcoin, constants
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
-                           InvoiceError, format_time, parse_max_spend)
+                           InvoiceError, format_time, parse_max_spend, BITCOIN_BIP21_URI_SCHEME)
 from electrum.lnaddr import lndecode, LnInvoiceException
+from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, lightning_address_to_url, LNURLError
 from electrum.logging import Logger
 
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
@@ -166,17 +168,40 @@ class SendScreen(CScreen, Logger):
         CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
         self.is_max = False
+        # note: most the fields get declared in send.kv, this way they are kivy Properties
 
     def set_URI(self, text: str):
+        """Takes
+        Lightning identifiers:
+        * lightning-URI (containing bolt11 or lnurl)
+        * bolt11 invoice
+        * lnurl
+        * lightning address
+        Bitcoin identifiers:
+        * bitcoin-URI
+        * bitcoin address TODO
+        and sets the sending screen.
+
+        TODO maybe rename method...
+        """
         if not self.app.wallet:
             return
-        # interpret as lighting URI
-        bolt11_invoice = maybe_extract_lightning_payment_identifier(text)
-        if bolt11_invoice:
-            self.set_ln_invoice(bolt11_invoice)
-        # interpret as BIP21 URI
-        else:
+        text = text.strip()
+        if not text:
+            return
+        invoice_or_lnurl = maybe_extract_lightning_payment_identifier(text)
+        if lightning_address_to_url(text):
+            self.set_lnurl6(text)
+        elif invoice_or_lnurl:
+            if invoice_or_lnurl.startswith('lnurl'):
+                self.set_lnurl6(invoice_or_lnurl)
+            else:
+                self.set_bolt11(invoice_or_lnurl)
+        elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             self.set_bip21(text)
+        else:
+            self.app.show_error(f"Failed to parse text: {text[:10]}...")
+            return
 
     def set_bip21(self, text: str):
         try:
@@ -193,7 +218,7 @@ class SendScreen(CScreen, Logger):
         self.payment_request = None
         self.is_lightning = False
 
-    def set_ln_invoice(self, invoice: str):
+    def set_bolt11(self, invoice: str):
         try:
             invoice = str(invoice).lower()
             lnaddr = lndecode(invoice)
@@ -204,6 +229,30 @@ class SendScreen(CScreen, Logger):
         self.message = lnaddr.get_description()
         self.amount = self.app.format_amount_and_units(lnaddr.amount * bitcoin.COIN) if lnaddr.amount else ''
         self.payment_request = None
+        self.is_lightning = True
+
+    def set_lnurl6(self, lnurl: str):
+        url = lightning_address_to_url(lnurl)
+        if not url:
+            url = decode_lnurl(lnurl)
+        domain = urlparse(url).netloc
+        lnurl_data = request_lnurl(url, self.app.network.send_http_on_proxy)
+        self.lnurl_callback_url = lnurl_data.get('callback')
+        self.lnurl_max_sendable_sat = int(lnurl_data.get('maxSendable')) // 1000
+        self.lnurl_min_sendable_sat = int(lnurl_data.get('minSendable')) // 1000
+        metadata = lnurl_data.get('metadata')
+        tag = lnurl_data.get('tag')
+
+        if tag == 'payRequest':
+            #self.payto_e.setFrozen(True)
+            for m in metadata:
+                if m[0] == 'text/plain':
+                    self.is_lnurl = True
+                    self.address = "invoice from lnurl"
+                    self.message = f"lnurl: {domain}: {m[1]}"
+                    self.amount = self.app.format_amount_and_units(self.lnurl_min_sendable_sat)
+                    #self.save_button.setDisabled(True)
+                    #self.send_button.setText('Get Invoice')
         self.is_lightning = True
 
     def update(self):
@@ -264,6 +313,10 @@ class SendScreen(CScreen, Logger):
         self.is_bip70 = False
         self.parsed_URI = None
         self.is_max = False
+        self.is_lnurl = False
+        self.lnurl_max_sendable_sat = None
+        self.lnurl_min_sendable_sat = None
+        self.lnurl_callback_url = None
 
     def set_request(self, pr: 'PaymentRequest'):
         self.address = pr.get_requestor()
@@ -288,11 +341,7 @@ class SendScreen(CScreen, Logger):
             self.app.tx_dialog(tx)
             return
         # try to decode as URI/address
-        bolt11_invoice = maybe_extract_lightning_payment_identifier(data)
-        if bolt11_invoice is not None:
-            self.set_ln_invoice(bolt11_invoice)
-        else:
-            self.set_URI(data)
+        self.set_URI(data)
 
     def read_invoice(self):
         address = str(self.address)
@@ -342,6 +391,34 @@ class SendScreen(CScreen, Logger):
         self.update()
 
     def do_pay(self):
+        if self.is_lnurl:
+            try:
+                amount = self.app.get_amount(self.amount)
+            except:
+                self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
+                return
+            if not (self.lnurl_min_sendable_sat <= amount <= self.lnurl_max_sendable_sat):
+                self.app.show_error(f'Amount must be between {self.lnurl_min_sendable_sat} and {self.lnurl_max_sendable_sat} sat.')
+                return
+            try:
+                invoice_data = callback_lnurl(
+                    self.lnurl_callback_url,
+                    params={'amount': amount * 1000},
+                    request_over_proxy=self.app.network.send_http_on_proxy,
+                )
+            except LNURLError as e:
+                self.app.show_error(f"LNURL request encountered error: {e}")
+                self.do_clear()
+                return
+            invoice = invoice_data.get('pr')
+            self.set_bolt11(invoice)
+            #self.payto_e.setFrozen(True)
+            #self.amount_e.setDisabled(True)
+            #self.fiat_send_e.setDisabled(True)
+            #self.save_button.setEnabled(True)
+            #self.send_button.setText('Pay...')
+            self.is_lnurl = False
+            return
         invoice = self.read_invoice()
         if not invoice:
             return
