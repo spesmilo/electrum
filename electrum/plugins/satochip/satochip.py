@@ -271,7 +271,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
         
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password,  *, script_type=None):
         message_byte = message.encode('utf8')
         message_hash = hashlib.sha256(message_byte).hexdigest().upper()
         client = self.get_client()
