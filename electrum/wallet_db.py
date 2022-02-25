@@ -856,11 +856,11 @@ class WalletDB(JsonDB):
             return
         channels = self.data.get('channels', {})
         for key, item in channels.items():
-            if item['static_remotekey_enabled']:
+            if bool(item.get('static_remotekey_enabled')):
                 channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
             else:
                 channel_type = ChannelType(0)
-            del item['static_remotekey_enabled']
+            item.pop('static_remotekey_enabled', None)
             item['channel_type'] = channel_type
         self.data['seed_version'] = 44
 
