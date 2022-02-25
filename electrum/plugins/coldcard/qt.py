@@ -1,19 +1,15 @@
-import time, os
 from functools import partial
-import copy
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
 
-from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
+from electrum.gui.qt.util import (WindowModalDialog, CloseButton, getOpenFileName,
                                   getSaveFileName)
-from electrum.gui.qt.transaction_dialog import TxDialog
 from electrum.gui.qt.main_window import ElectrumWindow
 
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.wallet import Multisig_Wallet
-from electrum.transaction import PartialTransaction
 
 from .coldcard import ColdcardPlugin, xfp2str
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
@@ -28,6 +24,10 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
     def create_handler(self, window):
         return Coldcard_Handler(window)
+
+    @staticmethod
+    def trim_file_suffix(path):
+        return path.rsplit('.', 1)[0]
 
     @only_hook_if_libraries_available
     @hook
@@ -47,23 +47,58 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def wallet_info_buttons(self, main_window, dialog):
         # user is about to see the "Wallet Information" dialog
         # - add a button if multisig wallet, and a Coldcard is a cosigner.
+        buttons = []
         wallet = main_window.wallet
 
         if type(wallet) is not Multisig_Wallet:
             return
 
-        if not any(type(ks) == self.keystore_class for ks in wallet.get_keystores()):
+        coldcard_keystores = [
+            ks
+            for ks in wallet.get_keystores()
+            if type(ks) == self.keystore_class
+        ]
+        if not coldcard_keystores:
             # doesn't involve a Coldcard wallet, hide feature
             return
 
-        btn = QPushButton(_("Export for Coldcard"))
-        btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
+        btn_export = QPushButton(_("Export multisig for Coldcard as file"))
+        btn_export.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
+        buttons.append(btn_export)
+        btn_import_usb = QPushButton(_("Import multisig to Coldcard via USB"))
+        btn_import_usb.clicked.connect(lambda unused: self.import_multisig_wallet_to_cc(main_window, coldcard_keystores))
+        buttons.append(btn_import_usb)
+        return buttons
 
-        return btn
+    def import_multisig_wallet_to_cc(self, main_window, coldcard_keystores):
+        from io import StringIO
+        from ckcc.protocol import CCProtocolPacker
+
+        index = main_window.query_choice(
+            _("Please select which {} device to use:".format(self.device)),
+            [ks.label for ks in coldcard_keystores]
+        )
+        if index is not None:
+            selected_keystore = coldcard_keystores[index]
+            client = self.get_client(selected_keystore, force_pair=True, allow_user_interaction=False)
+            if client is None:
+                main_window.show_error("{} not connected.".format(selected_keystore.label))
+                return
+
+            wallet = main_window.wallet
+            sio = StringIO()
+            basename = self.trim_file_suffix(wallet.basename())
+            ColdcardPlugin.export_ms_wallet(wallet, sio, basename)
+            sio.seek(0)
+            file_len, sha = client.dev.upload_file(sio.read().encode("utf-8"), verify=True)
+            client.dev.send_recv(CCProtocolPacker.multisig_enroll(file_len, sha))
+            main_window.show_message('\n'.join([
+                _("Wallet setup file '{}' imported successfully.".format(basename)),
+                _("Confirm import on your {} device.".format(selected_keystore.label))
+            ]))
 
     def export_multisig_setup(self, main_window, wallet):
-
-        basename = wallet.basename().rsplit('.', 1)[0]        # trim .json
+        basename = self.trim_file_suffix(wallet.basename())
         name = f'{basename}-cc-export.txt'.replace(' ', '-')
         fileName = getSaveFileName(
             parent=main_window,
@@ -75,7 +110,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         if fileName:
             with open(fileName, "wt") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
-            main_window.show_message(_("Wallet setup file exported successfully"))
+            main_window.show_message(_("Wallet setup file '{}' exported successfully".format(name)))
 
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for CC we come here.
@@ -211,7 +246,6 @@ class CKCCSettingsDialog(WindowModalDialog):
         from ckcc.utils import dfu_parse
         from ckcc.sigheader import FW_HEADER_SIZE, FW_HEADER_OFFSET, FW_HEADER_MAGIC
         from ckcc.protocol import CCProtocolPacker
-        from hashlib import sha256
         import struct
 
         try:
