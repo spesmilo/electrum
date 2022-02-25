@@ -150,7 +150,9 @@ if [[ $1 == "backup" ]]; then
     $alice daemon -d
     $alice load_wallet
     $alice import_channel_backup $backup
+    echo "request force close $channel1"
     $alice request_force_close $channel1
+    echo "request force close $channel2"
     $alice request_force_close $channel2
     wait_for_balance alice 0.998
 fi
@@ -340,10 +342,33 @@ if [[ $1 == "watchtower" ]]; then
     invoice2=$($bob add_lightning_request 0.01 -m "invoice2" | jq -r ".invoice")
     $alice lnpay $invoice2
     msg="waiting until watchtower is synchronized"
-    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [ $watchtower_ctn != "3" ]; do
+    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != "3" ]]; do
         sleep 1
-	msg="$msg."
-	printf "$msg\r"
+        msg="$msg."
+        printf "$msg\r"
     done
     printf "\n"
+    echo "alice and bob do nothing"
+    $bob stop
+    $alice stop
+    ctx_id=$($bitcoin_cli sendrawtransaction $ctx)
+    echo "alice breaches with old ctx:" $ctx_id
+    echo "watchtower publishes justice transaction"
+    wait_until_spent $ctx_id 1  # alice's to_local gets punished immediately
+fi
+
+if [[ $1 == "unixsockets" ]]; then
+    # This looks different because it has to run the entire daemon
+    # Test domain socket behavior
+    ./run_electrum --regtest daemon -d --rpcsock=unix # Start daemon with unix domain socket
+    ./run_electrum --regtest stop # Errors if it can't connect
+    # Test custom socket path
+    f=$(mktemp --dry-run)
+    ./run_electrum --regtest daemon -d --rpcsock=unix --rpcsockpath=$f
+    [ -S $f ] # filename exists and is socket
+    ./run_electrum --regtest stop
+    rm $f # clean up
+    # Test for regressions in the ordinary TCP functionality.
+    ./run_electrum --regtest daemon -d --rpcsock=tcp
+    ./run_electrum --regtest stop
 fi

@@ -44,6 +44,7 @@ except ImportError:
 kivy.require('1.8.0')
 
 from electrum.logging import Logger
+from electrum.gui import BaseElectrumGui
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -51,25 +52,28 @@ if TYPE_CHECKING:
     from electrum.plugin import Plugins
 
 
+class ElectrumGui(BaseElectrumGui, Logger):
 
-
-class ElectrumGui(Logger):
-
-    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+    def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
         self.logger.debug('ElectrumGUI: initialising')
-        self.daemon = daemon
         self.network = daemon.network
-        self.config = config
-        self.plugins = plugins
 
     def main(self):
         from .main_window import ElectrumWindow
-        w = ElectrumWindow(config=self.config,
-                           network=self.network,
-                           plugins = self.plugins,
-                           gui_object=self)
+        w = ElectrumWindow(
+            config=self.config,
+            network=self.network,
+            plugins=self.plugins,
+            gui_object=self,
+        )
         w.run()
 
-    def stop(self):
-        pass
+    def stop(self) -> None:
+        from kivy.app import App
+        from kivy.clock import Clock
+        app = App.get_running_app()
+        if not app:
+            return
+        Clock.schedule_once(lambda dt: app.stop())

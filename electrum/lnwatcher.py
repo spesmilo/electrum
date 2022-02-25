@@ -313,10 +313,11 @@ class WatchTower(LNWatcher):
                 await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid
 
-    def get_ctn(self, outpoint, addr):
-        async def f():
-            return await self.sweepstore.get_ctn(outpoint, addr)
-        return self.network.run_from_another_thread(f())
+    async def get_ctn(self, outpoint, addr):
+        if addr not in self.callbacks.keys():
+            self.logger.info(f'watching new channel: {outpoint} {addr}')
+            self.add_channel(outpoint, addr)
+        return await self.sweepstore.get_ctn(outpoint, addr)
 
     def get_num_tx(self, outpoint):
         async def f():

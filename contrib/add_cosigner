@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+import re
+import os
+import sys
+import importlib
+
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
+APK_VERSION = version_module.APK_VERSION
+print("version", ELECTRUM_VERSION)
+
+# GPG names of cosigner
+cosigner = sys.argv[1]
+
+version = version_win = version_mac = version_android = ELECTRUM_VERSION
+
+files = {
+    'tgz': "Electrum-%s.tar.gz" % version,
+    'appimage': "electrum-%s-x86_64.AppImage" % version,
+    'mac': "electrum-%s.dmg" % version_mac,
+    'win': "electrum-%s.exe" % version_win,
+    'win_setup': "electrum-%s-setup.exe" % version_win,
+    'win_portable': "electrum-%s-portable.exe" % version_win,
+    'apk_arm64': "Electrum-%s-arm64-v8a-release.apk" % APK_VERSION,
+    'apk_armeabi': "Electrum-%s-armeabi-v7a-release.apk" % APK_VERSION,
+}
+
+
+for k, n in files.items():
+    path = "dist/%s"%n
+    link = "https://download.electrum.org/%s/%s"%(version,n)
+    if not os.path.exists(path):
+        os.system("wget -q %s -O %s" % (link, path))
+    if not os.path.getsize(path):
+        raise Exception(path)
+    sig_name = n + '.'+cosigner+'.asc'
+    sig_url = "https://raw.githubusercontent.com/spesmilo/electrum-signatures/master/%s/%s/%s"%(version, n, sig_name)
+    sig_path = "dist/%s"% sig_name
+    os.system("wget -nc %s -O %s"%(sig_url, sig_path))
+    if os.system("gpg --verify %s %s"%(sig_path, path)) != 0:
+        raise Exception(sig_name)

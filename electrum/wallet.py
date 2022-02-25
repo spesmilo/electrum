@@ -46,13 +46,13 @@ import itertools
 import threading
 import enum
 
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
+from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
 from .i18n import _
 from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
 from .crypto import sha256
 from . import util
-from .util import (NotEnoughFunds, UserCancelled, profiler,
+from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
@@ -134,7 +134,7 @@ async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Net
         inputs.append(txin)
 
     u = await network.listunspent_for_scripthash(scripthash)
-    async with TaskGroup() as group:
+    async with OldTaskGroup() as group:
         for item in u:
             if len(inputs) >= imax:
                 break
@@ -155,7 +155,7 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
     inputs = []  # type: List[PartialTxInput]
     keypairs = {}
-    async with TaskGroup() as group:
+    async with OldTaskGroup() as group:
         for sec in privkeys:
             txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
             await group.spawn(find_utxos_for_privkey(txin_type, privkey, compressed))
@@ -322,7 +322,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for chan_id, chan in self.lnworker.channels.items():
                 channel_backups[chan_id.hex()] = self.lnworker.create_channel_backup(chan_id)
             new_db.put('channels', None)
-            new_db.put('lightning_xprv', None)
             new_db.put('lightning_privkey2', None)
 
         new_path = os.path.join(backup_dir, self.basename() + '.backup')
@@ -1401,7 +1400,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             #       Given as the user is spending "max", and so might be abandoning the wallet,
             #       try to include all UTXOs, otherwise leftover might remain in the UTXO set
             #       forever. see #5433
-            # note: Actually it might be the case that not all UTXOs from the wallet are
+            # note: Actually, it might be the case that not all UTXOs from the wallet are
             #       being spent if the user manually selected UTXOs.
             sendable = sum(map(lambda c: c.value_sats(), coins))
             for (_,i) in i_max:
@@ -1465,7 +1464,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         The idea here is that an attacker might send us a UTXO in a
         large low-fee unconfirmed tx that will ~never confirm. If we
         spend it as part of a tx ourselves, that too will not confirm
-        (unless we use a high fee but that might not be worth it for
+        (unless we use a high fee, but that might not be worth it for
         a small value UTXO).
         In particular, this test triggers for large "dusting transactions"
         that are used for advertising purposes by some entities.
@@ -2453,9 +2452,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
         pass
 
-    def sign_message(self, address, message, password):
+    def sign_message(self, address: str, message: str, password) -> bytes:
         index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password)
+        script_type = self.get_txin_type(address)
+        assert script_type != "address"
+        return self.keystore.sign_message(index, message, password, script_type=script_type)
 
     def decrypt_message(self, pubkey: str, message, password) -> bytes:
         addr = self.pubkeys_to_address([pubkey])
