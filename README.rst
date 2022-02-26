@@ -1,4 +1,4 @@
-Electrum - Lightweight Dogecoin client
+ElectroDoge - Lightweight Dogecoin client
 =====================================
 
 ::
