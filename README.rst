@@ -7,6 +7,11 @@ Electrum - Lightweight Dogecoin client
   Author: Thomas Voegtlin
   Language: Python (>= 3.6)
   Homepage: https://electrum.org/
+  
+  and
+  
+  Dogecoin Devs
+  Homepage: https://electrodoge.com
 
 
 .. image:: https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master
