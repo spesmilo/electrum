@@ -138,6 +138,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -230,7 +231,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice
     force_close_channel = LNWallet.force_close_channel
-    try_force_closing = LNWallet.try_force_closing
+    schedule_force_closing = LNWallet.schedule_force_closing
     get_first_timestamp = lambda self: 0
     on_peer_successfully_established = LNWallet.on_peer_successfully_established
     get_channel_by_id = LNWallet.get_channel_by_id

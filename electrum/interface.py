@@ -220,6 +220,19 @@ class NotificationSession(RPCSession):
                                                          MAX_INCOMING_MSG_SIZE))
         return NewlineFramer(max_size=max_size)
 
+    async def close(self, *, force_after: int = None):
+        """Closes the connection and waits for it to be closed.
+        We try to flush buffered data to the wire, which can take some time.
+        """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            # Note: if the ethernet cable was pulled or wifi disconnected, that too might
+            #       wait until this timeout is triggered
+            force_after = 1  # seconds
+        await super().close(force_after=force_after)
+
 
 class NetworkException(Exception): pass
 
@@ -534,6 +547,9 @@ class Interface(Logger):
 
         self.ready.set_result(1)
 
+    def is_connected_and_ready(self) -> bool:
+        return self.ready.done() and not self.got_disconnected.is_set()
+
     async def _save_certificate(self) -> None:
         if not os.path.exists(self.cert_path):
             # we may need to retry this a few times, in case the handshake hasn't completed
@@ -659,10 +675,21 @@ class Interface(Logger):
                               JSONRPC.METHOD_NOT_FOUND):
                     raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
+            finally:
+                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
 
     async def monitor_connection(self):
         while True:
             await asyncio.sleep(1)
+            # If the session/transport is no longer open, we disconnect.
+            # e.g. if the remote cleanly sends EOF, we would handle that here.
+            # note: If the user pulls the ethernet cable or disconnects wifi,
+            #       ideally we would detect that here, so that the GUI/etc can reflect that.
+            #       - On Android, this seems to work reliably , where asyncio.BaseProtocol.connection_lost()
+            #         gets called with e.g. ConnectionAbortedError(103, 'Software caused connection abort').
+            #       - On desktop Linux/Win, it seems BaseProtocol.connection_lost() is not called in such cases.
+            #         Hence, in practice the connection issue will only be detected the next time we try
+            #         to send a message (plus timeout), which can take minutes...
             if not self.session or self.session.is_closing():
                 raise GracefulDisconnect('session was closed')
 
@@ -690,11 +717,6 @@ class Interface(Logger):
         """Closes the connection and waits for it to be closed.
         We try to flush buffered data to the wire, which can take some time.
         """
-        if force_after is None:
-            # We give up after a while and just abort the connection.
-            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
-            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
-            force_after = 1  # seconds
         if self.session:
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks

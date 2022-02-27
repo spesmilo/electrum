@@ -2452,9 +2452,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def _update_password_for_keystore(self, old_pw: Optional[str], new_pw: Optional[str]) -> None:
         pass
 
-    def sign_message(self, address, message, password):
+    def sign_message(self, address: str, message: str, password) -> bytes:
         index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password)
+        script_type = self.get_txin_type(address)
+        assert script_type != "address"
+        return self.keystore.sign_message(index, message, password, script_type=script_type)
 
     def decrypt_message(self, pubkey: str, message, password) -> bytes:
         addr = self.pubkeys_to_address([pubkey])

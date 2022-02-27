@@ -8,7 +8,6 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
-import time
 import attr
 from aiorpcx import NetAddress
 
@@ -1030,6 +1029,12 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
+    OPTION_CHANNEL_TYPE_REQ = 1 << 44
+    OPTION_CHANNEL_TYPE_OPT = 1 << 45
+
+    _ln_feature_contexts[OPTION_CHANNEL_TYPE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_CHANNEL_TYPE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     # temporary
     OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 50
     OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR = 1 << 51
@@ -1104,6 +1109,56 @@ class LnFeatures(IntFlag):
                 or get_ln_flag_pair_of_bit(flag) in our_flags)
 
 
+class ChannelType(IntFlag):
+    OPTION_LEGACY_CHANNEL = 0
+    OPTION_STATIC_REMOTEKEY = 1 << 12
+    OPTION_ANCHOR_OUTPUTS = 1 << 20
+    OPTION_ANCHORS_ZERO_FEE_HTLC_TX = 1 << 22
+
+    def discard_unknown_and_check(self):
+        """Discards unknown flags and checks flag combination."""
+        flags = list_enabled_bits(self)
+        known_channel_types = []
+        for flag in flags:
+            channel_type = ChannelType(1 << flag)
+            if channel_type.name:
+                known_channel_types.append(channel_type)
+        final_channel_type = known_channel_types[0]
+        for channel_type in known_channel_types[1:]:
+            final_channel_type |= channel_type
+
+        final_channel_type.check_combinations()
+        return final_channel_type
+
+    def check_combinations(self):
+        if self == ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        elif self == ChannelType.OPTION_ANCHOR_OUTPUTS | ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        elif self == ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        else:
+            raise ValueError("Channel type is not a valid flag combination.")
+
+    def complies_with_features(self, features: LnFeatures) -> bool:
+        flags = list_enabled_bits(self)
+        complies = True
+        for flag in flags:
+            feature = LnFeatures(1 << flag)
+            complies &= features.supports(feature)
+        return complies
+
+    def to_bytes_minimal(self):
+        # MUST use the smallest bitmap possible to represent the channel type.
+        bit_length =self.value.bit_length()
+        byte_length = bit_length // 8 + int(bool(bit_length % 8))
+        return self.to_bytes(byte_length, byteorder='big')
+
+    @property
+    def name_minimal(self):
+        return self.name.replace('OPTION_', '')
+
+
 del LNFC  # name is ambiguous without context
 
 # features that are actually implemented and understood in our codebase:
@@ -1119,6 +1174,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.BASIC_MPP_OPT | LnFeatures.BASIC_MPP_REQ
         | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ
         | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
+        | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
 )
 
 
