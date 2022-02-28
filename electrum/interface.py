@@ -1019,7 +1019,7 @@ class Interface(Logger):
         # check response
         assert_dict_contains_field(res, field_name='confirmed')
         assert_dict_contains_field(res, field_name='unconfirmed')
-        assert_integer(res['confirmed'])
+        assert_non_negative_integer(res['confirmed'])
         assert_integer(res['unconfirmed'])
         return res
 
