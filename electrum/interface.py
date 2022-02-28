@@ -1019,8 +1019,8 @@ class Interface(Logger):
         # check response
         assert_dict_contains_field(res, field_name='confirmed')
         assert_dict_contains_field(res, field_name='unconfirmed')
-        assert_non_negative_integer(res['confirmed'])
-        assert_non_negative_integer(res['unconfirmed'])
+        assert_integer(res['confirmed'])
+        assert_integer(res['unconfirmed'])
         return res
 
     async def get_txid_from_txpos(self, tx_height: int, tx_pos: int, merkle: bool):
