@@ -12,6 +12,7 @@ from .qenetwork import QENetwork
 from .qewallet import QEWallet
 from .qeqr import QEQR
 from .qewalletdb import QEWalletDB
+from .qebitcoin import QEBitcoin
 
 class ElectrumQmlApplication(QGuiApplication):
 
@@ -30,6 +31,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEWalletDB, 'org.electrum', 1, 0, 'WalletDB')
+        qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
