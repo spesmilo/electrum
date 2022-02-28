@@ -36,6 +36,7 @@ Dialog {
             pages.lastpage = page.last
         } )
         Object.assign(page.wizard_data, wdata) // deep copy
+        page.ready = true // signal page it can access wizard_data
         pages.pagevalid = page.valid
         pages.lastpage = page.last
 

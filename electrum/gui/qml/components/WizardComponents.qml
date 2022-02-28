@@ -1,6 +1,9 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
+import QtQuick.Controls.Material 2.0
+
+import org.electrum 1.0
 
 Item {
     property Component walletname: Component {
@@ -114,22 +117,45 @@ Item {
             onAccept: {
                 wizard_data['seed'] = seedtext.text
                 wizard_data['seed_extend'] = extendcb.checked
+                wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
             }
 
             GridLayout {
+                width: parent.width
                 columns: 1
-                Label { text: qsTr('Generating seed') }
+
+                Label { text: qsTr('Generated Seed') }
                 TextArea {
                     id: seedtext
-                    text: 'test this is a fake seed as you might expect'
                     readOnly: true
                     Layout.fillWidth: true
                     wrapMode: TextInput.WordWrap
+                    background: Rectangle {
+                        color: "transparent"
+                        border.color: Material.accentColor
+                    }
+                    leftInset: -5
+                    rightInset: -5
                 }
                 CheckBox {
                     id: extendcb
                     text: qsTr('Extend seed with custom words')
                 }
+                TextField {
+                    id: customwordstext
+                    visible: extendcb.checked
+                    Layout.fillWidth: true
+                    placeholderText: qsTr('Enter your custom word(s)')
+                    echoMode: TextInput.Password
+                }
+                Component.onCompleted : {
+                    bitcoin.generate_seed()
+                }
+            }
+
+            Bitcoin {
+                id: bitcoin
+                onGeneratedSeedChanged: seedtext.text = generated_seed
             }
         }
     }
@@ -145,17 +171,32 @@ Item {
             }
 
             GridLayout {
+                width: parent.width
                 columns: 1
+
                 Label { text: qsTr('Enter your seed') }
                 TextArea {
                     id: seedtext
                     wrapMode: TextInput.WordWrap
                     Layout.fillWidth: true
+                    background: Rectangle {
+                        color: "transparent"
+                        border.color: Material.accentColor
+                    }
+                    leftInset: -5
+                    rightInset: -5
                 }
                 CheckBox {
                     id: extendcb
                     enabled: true
                     text: qsTr('Extend seed with custom words')
+                }
+                TextField {
+                    id: customwordstext
+                    visible: extendcb.checked
+                    Layout.fillWidth: true
+                    placeholderText: qsTr('Enter your custom word(s)')
+                    echoMode: TextInput.Password
                 }
                 CheckBox {
                     id: bip39cb
@@ -163,26 +204,50 @@ Item {
                     text: qsTr('BIP39')
                 }
             }
+
+            Bitcoin {
+                id: bitcoin
+            }
         }
     }
 
     property Component confirmseed: Component {
         WizardComponent {
-            valid: confirm.text !== ''
-            Layout.fillWidth: true
+            valid: false
+
+            function checkValid() {
+                var seedvalid = confirm.text == wizard_data['seed']
+                var customwordsvalid =  customwordstext.text == wizard_data['seed_extra_words']
+                valid = seedvalid && (wizard_data['seed_extend'] ? customwordsvalid : true)
+            }
 
             GridLayout {
-                Layout.fillWidth: true
+                width: parent.width
                 columns: 1
+
                 Label { text: qsTr('Confirm your seed (re-enter)') }
                 TextArea {
                     id: confirm
                     wrapMode: TextInput.WordWrap
                     Layout.fillWidth: true
                     onTextChanged: {
-                        console.log("TODO: verify seed")
+                        checkValid()
                     }
                 }
+                TextField {
+                    id: customwordstext
+                    Layout.fillWidth: true
+                    placeholderText: qsTr('Enter your custom word(s)')
+                    echoMode: TextInput.Password
+                    onTextChanged: {
+                        checkValid()
+                    }
+                }
+            }
+
+            onReadyChanged: {
+                if (ready)
+                    customwordstext.visible = wizard_data['seed_extend']
             }
         }
     }
