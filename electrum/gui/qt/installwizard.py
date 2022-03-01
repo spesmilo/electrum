@@ -152,7 +152,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def __init__(self, config: 'SimpleConfig', app: QApplication, plugins: 'Plugins', *, gui_object: 'ElectrumGui'):
         QDialog.__init__(self, None)
         BaseWizard.__init__(self, config, plugins)
-        self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
+        self.setWindowTitle('Defichain Electrum  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         self.gui_thread = gui_object.gui_thread
@@ -182,7 +182,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         scroll_widget = QWidget()
         scroll_widget.setLayout(inner_vbox)
         scroll = QScrollArea()
-        scroll.setFocusPolicy(Qt.NoFocus)
         scroll.setWidget(scroll_widget)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setWidgetResizable(True)
@@ -196,7 +195,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox.setStretchFactor(scroll, 1)
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
-        self.set_icon('electrum.png')
+        self.set_icon('defichain_logo.png')
         self.show()
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
@@ -754,8 +753,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     @wizard_dialog
     def multisig_dialog(self, run_next):
         cw = CosignWidget(2, 2)
-        n_edit = QSlider(Qt.Horizontal, self)
         m_edit = QSlider(Qt.Horizontal, self)
+        n_edit = QSlider(Qt.Horizontal, self)
         n_edit.setMinimum(2)
         n_edit.setMaximum(15)
         m_edit.setMinimum(1)

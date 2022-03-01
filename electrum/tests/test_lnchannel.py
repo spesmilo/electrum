@@ -104,10 +104,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             'data_loss_protect_remote_pcp': {},
             'state': 'PREOPENING',
             'log': {},
-            'fail_htlc_reasons': {},
-            'unfulfilled_htlcs': {},
             'revocation_store': {},
-            'channel_type': lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
     }
     return StoredDict(state, None, [])
 
@@ -533,7 +530,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
 
 
-    def alice_to_bob_fee_update(self, fee=1111):
+    def alice_to_bob_fee_update(self, fee=111):
         aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.alice_channel.update_fee(fee, True)
         anewctx = self.alice_channel.get_next_commitment(REMOTE).outputs()

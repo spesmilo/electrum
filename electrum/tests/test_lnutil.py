@@ -9,7 +9,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
-                             ln_compare_features, IncompatibleLightningFeatures, ChannelType)
+                             ln_compare_features, IncompatibleLightningFeatures)
 from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.lnworker import LNWallet
@@ -890,15 +890,3 @@ class TestLNUtil(ElectrumTestCase):
         self.assertEqual(
             None,
             LNWallet._decode_channel_update_msg(bytes.fromhex("0101") + msg_without_prefix))
-
-    def test_channel_type(self):
-        # test compliance and non compliance with LN features
-        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
-        self.assertTrue(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
-
-        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
-        self.assertFalse(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
-
-        # ignore unknown channel types
-        channel_type = ChannelType(0b10000000001000000000010).discard_unknown_and_check()
-        self.assertEqual(ChannelType(0b10000000001000000000000), channel_type)

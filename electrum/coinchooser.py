@@ -477,7 +477,7 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
 
 COIN_CHOOSERS = {
-    'Privacy': CoinChooserPrivacy,
+    'Privacy': CoinChooserPrivacy
 }
 
 def get_name(config):

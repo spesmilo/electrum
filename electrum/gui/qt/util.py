@@ -963,7 +963,8 @@ class ColorScheme:
 
     @staticmethod
     def update_from_widget(widget, force_dark=False):
-        ColorScheme.dark_scheme = bool(force_dark or ColorScheme.has_dark_background(widget))
+        if force_dark or ColorScheme.has_dark_background(widget):
+            ColorScheme.dark_scheme = True
 
 
 class AcceptFileDragDrop:
@@ -1096,7 +1097,6 @@ class IconLabel(QWidget):
         self.setLayout(layout)
         self.icon = QLabel()
         self.label = QLabel(text)
-        self.label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.label)
         layout.addSpacing(self.HorizontalSpacing)
         layout.addWidget(self.icon)
@@ -1174,8 +1174,8 @@ class FixedAspectRatioLayout(QLayout):
             c_aratio = 1
         s_aratio = self.aspect_ratio
         item_rect = QRect(QPoint(0, 0), QSize(
-            contents.width() if c_aratio < s_aratio else int(contents.height() * s_aratio),
-            contents.height() if c_aratio > s_aratio else int(contents.width() / s_aratio)
+            contents.width() if c_aratio < s_aratio else contents.height() * s_aratio,
+            contents.height() if c_aratio > s_aratio else contents.width() / s_aratio
         ))
 
         content_margins = self.contentsMargins()
@@ -1186,7 +1186,7 @@ class FixedAspectRatioLayout(QLayout):
                 if item.alignment() & Qt.AlignRight:
                     item_rect.moveRight(contents.width() + content_margins.right())
                 else:
-                    item_rect.moveLeft(content_margins.left() + (free_space.width() // 2))
+                    item_rect.moveLeft(content_margins.left() + (free_space.width() / 2))
             else:
                 item_rect.moveLeft(content_margins.left())
 
@@ -1194,7 +1194,7 @@ class FixedAspectRatioLayout(QLayout):
                 if item.alignment() & Qt.AlignBottom:
                     item_rect.moveBottom(contents.height() + content_margins.bottom())
                 else:
-                    item_rect.moveTop(content_margins.top() + (free_space.height() // 2))
+                    item_rect.moveTop(content_margins.top() + (free_space.height() / 2))
             else:
                 item_rect.moveTop(content_margins.top())
 
@@ -1223,10 +1223,10 @@ def QColorLerp(a: QColor, b: QColor, t: float):
     t = max(min(t, 1.0), 0.0)
     i_t = 1.0 - t
     return QColor(
-        int((a.red()   * i_t) + (b.red()   * t)),
-        int((a.green() * i_t) + (b.green() * t)),
-        int((a.blue()  * i_t) + (b.blue()  * t)),
-        int((a.alpha() * i_t) + (b.alpha() * t)),
+        (a.red()   * i_t) + (b.red()   * t),
+        (a.green() * i_t) + (b.green() * t),
+        (a.blue()  * i_t) + (b.blue()  * t),
+        (a.alpha() * i_t) + (b.alpha() * t),
     )
 
 

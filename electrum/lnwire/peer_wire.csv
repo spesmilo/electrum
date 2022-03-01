@@ -53,8 +53,6 @@ msgdata,open_channel,channel_flags,byte,
 msgdata,open_channel,tlvs,open_channel_tlvs,
 tlvtype,open_channel_tlvs,upfront_shutdown_script,0
 tlvdata,open_channel_tlvs,upfront_shutdown_script,shutdown_scriptpubkey,byte,...
-tlvtype,open_channel_tlvs,channel_type,1
-tlvdata,open_channel_tlvs,channel_type,type,byte,...
 msgtype,accept_channel,33
 msgdata,accept_channel,temporary_channel_id,byte,32
 msgdata,accept_channel,dust_limit_satoshis,u64,
@@ -73,8 +71,6 @@ msgdata,accept_channel,first_per_commitment_point,point,
 msgdata,accept_channel,tlvs,accept_channel_tlvs,
 tlvtype,accept_channel_tlvs,upfront_shutdown_script,0
 tlvdata,accept_channel_tlvs,upfront_shutdown_script,shutdown_scriptpubkey,byte,...
-tlvtype,accept_channel_tlvs,channel_type,1
-tlvdata,accept_channel_tlvs,channel_type,type,byte,...
 msgtype,funding_created,34
 msgdata,funding_created,temporary_channel_id,byte,32
 msgdata,funding_created,funding_txid,sha256,

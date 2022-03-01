@@ -2,7 +2,7 @@ import os
 import bitstring
 import random
 
-from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List
+from typing import Mapping
 
 from .logging import get_logger, Logger
 from .lnutil import LnFeatures
@@ -63,12 +63,10 @@ TRAMPOLINE_NODES_MAINNET = {
 
 TRAMPOLINE_NODES_TESTNET = {
     'endurance': LNPeerAddr(host='34.250.234.192', port=9735, pubkey=bytes.fromhex('03933884aaf1d6b108397e5efe5c86bcf2d8ca8d2f700eda99db9214fc2712b134')),
-    'Electrum trampoline': LNPeerAddr(host='lightning.electrum.org', port=9739, pubkey=bytes.fromhex('02bf82e22f99dcd7ac1de4aad5152ce48f0694c46ec582567f379e0adbf81e2d0f')),
 }
 
 TRAMPOLINE_NODES_SIGNET = {
-    'lnd wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
-    'eclair wakiyamap.dev': LNPeerAddr(host='signet-eclair.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('0271cf3881e6eadad960f47125434342e57e65b98a78afa99f9b4191c02dd7ab3b')),
+    'wakiyamap.dev': LNPeerAddr(host='signet-electrumx.wakiyamap.dev', port=9735, pubkey=bytes.fromhex('02dadf6c28f3284d591cd2a4189d1530c1ff82c07059ebea150a33ab76e7364b4a')),
 }
 
 _TRAMPOLINE_NODES_UNITTESTS = {}  # used in unit tests
@@ -100,22 +98,27 @@ def encode_routing_info(r_tags):
     return result.tobytes()
 
 
-def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Optional[bytes]]:
-    """Returns if we deal with a legacy payment and gives back the possible last
-    trampoline pubkey.
-    """
+def create_trampoline_route(
+        *,
+        amount_msat:int,
+        min_cltv_expiry:int,
+        invoice_pubkey:bytes,
+        invoice_features:int,
+        my_pubkey: bytes,
+        trampoline_node_id: bytes,  # the first trampoline in the path; which we are directly connected to
+        r_tags,
+        trampoline_fee_level: int,
+        use_two_trampolines: bool) -> LNPaymentRoute:
+
+    # figure out whether we can use end-to-end trampoline, or fallback to pay-to-legacy
+    is_legacy = True
+    r_tag_chosen_for_e2e_trampoline = None
     invoice_features = LnFeatures(invoice_features)
-    # trampoline-supporting wallets:
-    # OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR: these are Phoenix/Eclair wallets
-    # OPTION_TRAMPOLINE_ROUTING_OPT: these are Electrum wallets
     if (invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
             or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)):
-        # If there are no r_tags (routing hints) included, the wallet doesn't have
-        # private channels and is probably directly connected to a trampoline node.
-        # Any trampoline node should be able to figure out a path to the receiver and
-        # we can use an e2e payment.
-        if not r_tags:
-            return False, None
+        if not r_tags:  # presumably the recipient has public channels
+            is_legacy = False
+            pubkey = trampoline_node_id
         else:
             # - We choose one routing hint at random, and
             #   use end-to-end trampoline if that node is a trampoline-forwarder (TF).
@@ -125,98 +128,91 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Optional[bytes]]:
             #   endpoints connected to T1 and T2, and sender only has send-capacity with T1, while
             #   recipient only has recv-capacity with T2.
             singlehop_r_tags = [x for x in r_tags if len(x) == 1]
-            forwarder_pubkey = random.choice(singlehop_r_tags)[0][0]
-            if is_hardcoded_trampoline(forwarder_pubkey):
-                return False, forwarder_pubkey
-    # if trampoline receiving is not supported or the forwarder is not known as a trampoline,
-    # we send a legacy payment
-    return True, None
-
-
-def trampoline_policy(
-        trampoline_fee_level: int,
-) -> Dict:
-    """Return the fee policy for all trampoline nodes.
-
-    Raises NoPathFound if the fee level is exhausted."""
-    # TODO: ideally we want to use individual fee levels for each trampoline node,
-    #  but because at the moment we can't attribute insufficient fee errors to
-    #  downstream trampolines we need to use a global fee level here
+            r_tag_chosen_for_e2e_trampoline = random.choice(singlehop_r_tags)[0]
+            pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
+            is_legacy = not is_hardcoded_trampoline(pubkey)
+        # Temporary fix: until ACINQ uses a proper feature bit to detect Phoenix,
+        # they might try to open channels when payments fail. The ACINQ node does this
+        # if it is directly connected to the recipient but without enough sending capacity.
+        # They send a custom "pay-to-open-request", and wait 60+ sec for the recipient to respond.
+        # Effectively, they hold the HTLC for minutes before failing it.
+        # see: https://github.com/ACINQ/lightning-kmp/pull/237
+        if pubkey == TRAMPOLINE_NODES_MAINNET['ACINQ'].pubkey:
+            is_legacy = True
+            use_two_trampolines = False
+    # fee level. the same fee is used for all trampolines
     if trampoline_fee_level < len(TRAMPOLINE_FEES):
-        return TRAMPOLINE_FEES[trampoline_fee_level]
+        params = TRAMPOLINE_FEES[trampoline_fee_level]
     else:
         raise NoPathFound()
-
-
-def extend_trampoline_route(
-        route: List,
-        start_node: bytes,
-        end_node: bytes,
-        trampoline_fee_level: int,
-        pay_fees=True
-):
-    """Extends the route and modifies it in place."""
+    # add optional second trampoline
+    trampoline2 = None
+    if is_legacy and use_two_trampolines:
+        trampoline2_list = list(trampolines_by_id().keys())
+        random.shuffle(trampoline2_list)
+        for node_id in trampoline2_list:
+            if node_id != trampoline_node_id:
+                trampoline2 = node_id
+                break
+    # node_features is only used to determine is_tlv
     trampoline_features = LnFeatures.VAR_ONION_OPT
-    policy = trampoline_policy(trampoline_fee_level)
+    # hop to trampoline
+    route = []
+    # trampoline hop
     route.append(
         TrampolineEdge(
-            start_node=start_node,
-            end_node=end_node,
-            fee_base_msat=policy['fee_base_msat'] if pay_fees else 0,
-            fee_proportional_millionths=policy['fee_proportional_millionths'] if pay_fees else 0,
-            cltv_expiry_delta=policy['cltv_expiry_delta'] if pay_fees else 0,
+            start_node=my_pubkey,
+            end_node=trampoline_node_id,
+            fee_base_msat=params['fee_base_msat'],
+            fee_proportional_millionths=params['fee_proportional_millionths'],
+            cltv_expiry_delta=params['cltv_expiry_delta'],
             node_features=trampoline_features))
-
-
-def create_trampoline_route(
-        *,
-        amount_msat: int,
-        min_cltv_expiry: int,
-        invoice_pubkey: bytes,
-        invoice_features: int,
-        my_pubkey: bytes,
-        trampoline_node_id: bytes,  # the first trampoline in the path; which we are directly connected to
-        r_tags,
-        trampoline_fee_level: int,
-        use_two_trampolines: bool
-) -> LNPaymentRoute:
-    # we decide whether to convert to a legacy payment
-    is_legacy, second_trampoline_pubkey = is_legacy_relay(invoice_features, r_tags)
-
-    # we build a route of trampoline hops and extend the route list in place
-    route = []
-
-    # our first trampoline hop is decided by the channel we use
-    extend_trampoline_route(route, my_pubkey, trampoline_node_id, trampoline_fee_level)
-
+    if trampoline2:
+        route.append(
+            TrampolineEdge(
+                start_node=trampoline_node_id,
+                end_node=trampoline2,
+                fee_base_msat=params['fee_base_msat'],
+                fee_proportional_millionths=params['fee_proportional_millionths'],
+                cltv_expiry_delta=params['cltv_expiry_delta'],
+                node_features=trampoline_features))
+    # add routing info
     if is_legacy:
-        # we add another different trampoline hop for privacy
-        if use_two_trampolines:
-            trampolines = trampolines_by_id()
-            del trampolines[trampoline_node_id]
-            second_trampoline_pubkey = random.choice(list(trampolines.keys()))
-            extend_trampoline_route(route, trampoline_node_id, second_trampoline_pubkey, trampoline_fee_level)
-
-        # the last trampoline onion must contain routing hints for the last trampoline
-        # node to find the recipient
         invoice_routing_info = encode_routing_info(r_tags)
         route[-1].invoice_routing_info = invoice_routing_info
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
-    else:
-        if second_trampoline_pubkey and trampoline_node_id != second_trampoline_pubkey:
-            extend_trampoline_route(route, trampoline_node_id, second_trampoline_pubkey, trampoline_fee_level)
+    else:  # end-to-end trampoline
+        if r_tag_chosen_for_e2e_trampoline:
+            pubkey, scid, feebase, feerate, cltv = r_tag_chosen_for_e2e_trampoline
+            if route[-1].end_node != pubkey:
+                route.append(
+                    TrampolineEdge(
+                        start_node=route[-1].end_node,
+                        end_node=pubkey,
+                        fee_base_msat=feebase,
+                        fee_proportional_millionths=feerate,
+                        cltv_expiry_delta=cltv,
+                        node_features=trampoline_features))
 
-    # final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
-    extend_trampoline_route(route, route[-1].end_node, invoice_pubkey, trampoline_fee_level, pay_fees=False)
-
+    # Final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
+    route.append(
+        TrampolineEdge(
+            start_node=route[-1].end_node,
+            end_node=invoice_pubkey,
+            fee_base_msat=0,
+            fee_proportional_millionths=0,
+            cltv_expiry_delta=0,
+            node_features=trampoline_features))
     # check that we can pay amount and fees
     for edge in route[::-1]:
         amount_msat += edge.fee_for_edge(amount_msat)
     if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
-        raise NoPathFound("We cannot afford to pay the fees.")
-    _logger.info(f'created route with trampoline fee level={trampoline_fee_level}, is legacy: {is_legacy}')
-    _logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in route]}')
+        raise NoPathFound()
+    _logger.info(f'created route with trampoline: fee_level={trampoline_fee_level}, is legacy: {is_legacy}')
+    _logger.info(f'first trampoline: {trampoline_node_id.hex()}')
+    _logger.info(f'second trampoline: {trampoline2.hex() if trampoline2 else None}')
+    _logger.info(f'params: {params}')
     return route
 
 
@@ -243,7 +239,7 @@ def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payme
         # only for final
         if i == num_hops - 1:
             payload["payment_data"] = {
-                "payment_secret": payment_secret,
+                "payment_secret":payment_secret,
                 "total_msat": total_msat
             }
         # legacy
@@ -251,7 +247,7 @@ def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payme
             payload["invoice_features"] = {"invoice_features":route_edge.invoice_features}
             payload["invoice_routing_info"] = {"invoice_routing_info":route_edge.invoice_routing_info}
             payload["payment_data"] = {
-                "payment_secret": payment_secret,
+                "payment_secret":payment_secret,
                 "total_msat": total_msat
             }
         _logger.info(f'payload {i} {payload}')
@@ -272,7 +268,7 @@ def create_trampoline_route_and_onion(
         r_tags,
         payment_hash,
         payment_secret,
-        local_height: int,
+        local_height:int,
         trampoline_fee_level: int,
         use_two_trampolines: bool):
     # create route for the trampoline_onion

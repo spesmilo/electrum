@@ -1,48 +1,8 @@
 {
-    "blackie.c3-soft.com": {
+    "localhost": {
         "pruning": "-",
-        "s": "57006",
-        "t": "57005",
-        "version": "1.4.5"
-    },
-    "blockstream.info": {
-        "pruning": "-",
-        "s": "993",
-        "t": "143",
-        "version": "1.4"
-    },
-    "electrum.blockstream.info": {
-        "pruning": "-",
+	    "t": "60001",
         "s": "60002",
-        "t": "60001",
-        "version": "1.4"
-    },
-    "explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion": {
-        "pruning": "-",
-        "t": "143",
-        "version": "1.4"
-    },
-    "testnet.aranguren.org": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.4.2"
-    },
-    "testnet.hsmiths.com": {
-        "pruning": "-",
-        "s": "53012",
-        "version": "1.4.2"
-    },
-    "testnet.qtornado.com": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.5"
-    },
-    "tn.not.fyi": {
-        "pruning": "-",
-        "s": "55002",
-        "t": "55001",
         "version": "1.4"
     }
 }

@@ -50,7 +50,6 @@ from electrum.util import (UserCancelled, profiler, send_exception_to_crash_repo
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
-from electrum.gui import BaseElectrumGui
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
@@ -60,6 +59,7 @@ from .stylesheet_patcher import patch_qt_stylesheet
 from .lightning_dialog import LightningDialog
 from .watchtower_dialog import WatchtowerDialog
 from .exception_window import Exception_Hook
+from electrum.balance_item import BalanceItem
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -82,23 +82,21 @@ class OpenFileEventFilter(QObject):
 
 class QElectrumApplication(QApplication):
     new_window_signal = pyqtSignal(str, object)
-    quit_signal = pyqtSignal()
 
 
 class QNetworkUpdatedSignalObject(QObject):
     network_updated_signal = pyqtSignal(str, object)
 
 
-class ElectrumGui(BaseElectrumGui, Logger):
+class ElectrumGui(Logger):
 
     network_dialog: Optional['NetworkDialog']
     lightning_dialog: Optional['LightningDialog']
     watchtower_dialog: Optional['WatchtowerDialog']
 
     @profiler
-    def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+    def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', get_default_language()))
-        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
         self.logger.info(f"Qt GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
         # Uncomment this call to verify objects are being properly
@@ -111,11 +109,14 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
         self.gui_thread = threading.current_thread()
+        self.config = config
+        self.daemon = daemon
+        self.plugins = plugins
         self.windows = []  # type: List[ElectrumWindow]
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        self.app.setWindowIcon(read_QIcon("electrum.png"))
+        self.app.setWindowIcon(read_QIcon("defichain_logo.png"))
         self._cleaned_up = False
         # timer
         self.timer = QTimer(self.app)
@@ -132,11 +133,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.tray = None
         self._init_tray()
         self.app.new_window_signal.connect(self.start_new_window)
-        self.app.quit_signal.connect(self.app.quit, Qt.QueuedConnection)
-        # maybe set dark theme
-        self._default_qtstylesheet = self.app.styleSheet()
-        self.reload_app_stylesheet()
-
+        self.set_dark_theme_if_needed()
         run_hook('init_qt', self)
 
     def _init_tray(self):
@@ -146,16 +143,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         self.tray.show()
 
-    def reload_app_stylesheet(self):
-        """Set the Qt stylesheet and custom colors according to the user-selected
-        light/dark theme.
-        TODO this can ~almost be used to change the theme at runtime (without app restart),
-             except for util.ColorScheme... widgets already created with colors set using
-             ColorSchemeItem.as_stylesheet() and similar will not get recolored.
-             See e.g.
-             - in Coins tab, the color for "frozen" UTXOs, or
-             - in TxDialog, the receiving/change address colors
-        """
+    def set_dark_theme_if_needed(self):
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
@@ -164,8 +152,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             except BaseException as e:
                 use_dark_theme = False
                 self.logger.warning(f'Error setting dark theme: {repr(e)}')
-        else:
-            self.app.setStyleSheet(self._default_qtstylesheet)
         # Apply any necessary stylesheet patches
         patch_qt_stylesheet(use_dark_theme=use_dark_theme)
         # Even if we ourselves don't set the dark theme,
@@ -444,4 +430,4 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def stop(self):
         self.logger.info('closing GUI')
-        self.app.quit_signal.emit()
+        self.app.quit()

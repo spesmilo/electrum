@@ -38,15 +38,16 @@ import hashlib
 import functools
 
 import aiorpcx
+from aiorpcx import TaskGroup
 from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
-                   is_int_or_float, is_non_negative_int_or_float, OldTaskGroup)
+                   is_int_or_float, is_non_negative_int_or_float)
 from . import util
 from . import x509
 from . import pem
@@ -58,6 +59,9 @@ from . import constants
 from .i18n import _
 from .logging import Logger
 from .transaction import Transaction
+from .token import Token
+
+from .balance_item import BalanceItem
 
 if TYPE_CHECKING:
     from .network import Network
@@ -71,7 +75,7 @@ BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
 _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
-PREFERRED_NETWORK_PROTOCOL = 's'
+PREFERRED_NETWORK_PROTOCOL = 't'
 assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
 
 
@@ -141,6 +145,7 @@ class NotificationSession(RPCSession):
         self._msg_counter = itertools.count(start=1)
         self.interface = interface
         self.cost_hard_limit = 0  # disable aiorpcx resource limits
+        self.token_balances = {}
 
     async def handle_request(self, request):
         self.maybe_log(f"--> {request}")
@@ -219,19 +224,6 @@ class NotificationSession(RPCSession):
         max_size = int(self.interface.network.config.get('network_max_incoming_msg_size',
                                                          MAX_INCOMING_MSG_SIZE))
         return NewlineFramer(max_size=max_size)
-
-    async def close(self, *, force_after: int = None):
-        """Closes the connection and waits for it to be closed.
-        We try to flush buffered data to the wire, which can take some time.
-        """
-        if force_after is None:
-            # We give up after a while and just abort the connection.
-            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
-            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
-            # Note: if the ethernet cable was pulled or wifi disconnected, that too might
-            #       wait until this timeout is triggered
-            force_after = 1  # seconds
-        await super().close(force_after=force_after)
 
 
 class NetworkException(Exception): pass
@@ -369,11 +361,14 @@ class Interface(Logger):
         Logger.__init__(self)
         assert network.config.path
         self.cert_path = _get_cert_path_for_host(config=network.config, host=self.host)
-        self.blockchain = None  # type: Optional[Blockchain]
-        self._requested_chunks = set()  # type: Set[int]
+        self.blockchain = None                  # type: Optional[Blockchain]
+        self._requested_chunks = set()          # type: Set[int]
+        self.token_list = list()                # type: List[Dict[str, Union[str, bool, int]]]
+        self.token_map = dict()                 # type: Dict[TokenSymbol, Token]
+        self.token_id_to_symbolKey = dict()     # type: Dict[str, str]
         self.network = network
         self.proxy = MySocksProxy.from_proxy_dict(proxy)
-        self.session = None  # type: Optional[NotificationSession]
+        self.session = None                     # type: Optional[NotificationSession]
         self._ipaddr_bucket = None
 
         # Latest block header and corresponding height, as claimed by the server.
@@ -388,11 +383,12 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        self.taskgroup = OldTaskGroup()
+        self.taskgroup = SilentTaskGroup()
 
         async def spawn_task():
             task = await self.network.taskgroup.spawn(self.run())
-            task.set_name(f"interface::{str(server)}")
+            if sys.version_info >= (3, 8):
+                task.set_name(f"interface::{str(server)}")
         asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property
@@ -547,9 +543,6 @@ class Interface(Logger):
 
         self.ready.set_result(1)
 
-    def is_connected_and_ready(self) -> bool:
-        return self.ready.done() and not self.got_disconnected.is_set()
-
     async def _save_certificate(self) -> None:
         if not os.path.exists(self.cert_path):
             # we may need to retry this a few times, in case the handshake hasn't completed
@@ -563,7 +556,7 @@ class Interface(Logger):
                         # workaround android bug
                         cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                         f.write(cert)
-                        # even though close flushes, we can't fsync when closed.
+                        # even though close flushes we can't fsync when closed.
                         # and we must flush before fsyncing, cause flush flushes to OS buffer
                         # fsync writes to OS buffer to disk
                         f.flush()
@@ -669,27 +662,17 @@ class Interface(Logger):
                     await group.spawn(self.request_fee_estimates)
                     await group.spawn(self.run_fetch_blocks)
                     await group.spawn(self.monitor_connection)
+                    await group.spawn(self.run_fetch_tokens)
             except aiorpcx.jsonrpc.RPCError as e:
                 if e.code in (JSONRPC.EXCESSIVE_RESOURCE_USAGE,
                               JSONRPC.SERVER_BUSY,
                               JSONRPC.METHOD_NOT_FOUND):
                     raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
-            finally:
-                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
 
     async def monitor_connection(self):
         while True:
             await asyncio.sleep(1)
-            # If the session/transport is no longer open, we disconnect.
-            # e.g. if the remote cleanly sends EOF, we would handle that here.
-            # note: If the user pulls the ethernet cable or disconnects wifi,
-            #       ideally we would detect that here, so that the GUI/etc can reflect that.
-            #       - On Android, this seems to work reliably , where asyncio.BaseProtocol.connection_lost()
-            #         gets called with e.g. ConnectionAbortedError(103, 'Software caused connection abort').
-            #       - On desktop Linux/Win, it seems BaseProtocol.connection_lost() is not called in such cases.
-            #         Hence, in practice the connection issue will only be detected the next time we try
-            #         to send a message (plus timeout), which can take minutes...
             if not self.session or self.session.is_closing():
                 raise GracefulDisconnect('session was closed')
 
@@ -701,7 +684,7 @@ class Interface(Logger):
     async def request_fee_estimates(self):
         from .simple_config import FEE_ETA_TARGETS
         while True:
-            async with OldTaskGroup() as group:
+            async with TaskGroup() as group:
                 fee_tasks = []
                 for i in FEE_ETA_TARGETS:
                     fee_tasks.append((i, await group.spawn(self.get_estimatefee(i))))
@@ -713,13 +696,85 @@ class Interface(Logger):
             self.network.update_fee_estimates()
             await asyncio.sleep(60)
 
+    async def request_fetch_balances(self, get_addresses):
+        await self.taskgroup.spawn(self.run_fetch_token_balances(get_addresses))
+
     async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
-        We try to flush buffered data to the wire, which can take some time.
+        We try to flush buffered data to the wire, so this can take some time.
         """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            force_after = 1  # seconds
         if self.session:
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
+
+    async def fetch_token_balance(self, addr): #-> Dict[str, str]
+        # FIXME: there is a race condition with `run_fetch_tokens`, need to add some locking
+        # mechanism to prevent that
+        rv = {}
+        balances = await self.session.send_request("defichain.tokens.balances", (addr,))
+        if len(self.token_list) == 0:
+            return rv
+
+        for balance in balances:
+            res = str(balance).split(sep='@', maxsplit=2)
+            symbol_key = res[1]
+            value = res[0]
+            token = self.token_map[symbol_key]
+            if token is not None:
+                rv[token['token_id']] = value
+            else:
+                self.logger.error('wrong token id parse for symbolKey: ' + symbol_key)
+        return rv
+
+    async def fetch_token_balances(self, addresses):
+        tokens = self.token_list
+        assert tokens is not None, "failed to fetch tokens list"
+
+        items = {}
+        for a in addresses:
+            balance = await self.fetch_token_balance(a)
+            for k, v in balance.items():
+                assert k in self.token_id_to_symbolKey
+                sk = self.token_id_to_symbolKey[k]
+                assert sk in self.token_map
+                token = self.token_map[sk]
+                if sk in items:
+                    items[sk].add_value(float(v))
+                else:
+                    items[sk] = BalanceItem(index=token['token_id'], token=token, value=float(v))
+
+        return items
+
+    async def run_fetch_token_balances(self, get_addresses):
+        addresses = get_addresses()
+        if hasattr(self, "token_balances") and self.token_list:
+            self.token_balances = {
+                t['symbolKey']: BalanceItem(index=t['token_id'], token=t, value=0)
+                for t in self.token_list
+            }
+        else:
+            self.token_balances = {}
+        self.token_balances.update(await self.fetch_token_balances(addresses=addresses))
+        util.trigger_callback('balances_updated')
+
+    async def run_fetch_tokens(self):
+        queue = asyncio.Queue()
+        await self.session.subscribe('defichain.tokens.subscribe', [], queue)
+        while True:
+            # `defichain.fetch_tokens` rpc command exists only in `defichain` branch
+            # in electurmx server
+            res = await queue.get()
+            res = res[0]
+            self.token_list = list(map(lambda x: Token(token_id=x[0], **x[1]), res.items()))
+            self.token_map = {x['symbolKey']: x for x in self.token_list}
+            self.token_id_to_symbolKey = {v['token_id']: v['symbolKey'] for v in self.token_list}
+            util.trigger_callback('network_updated')
+            util.trigger_callback('coins_updated')
 
     async def run_fetch_blocks(self):
         header_queue = asyncio.Queue()
@@ -728,7 +783,12 @@ class Interface(Logger):
             item = await header_queue.get()
             raw_header = item[0]
             height = raw_header['height']
-            header = blockchain.deserialize_header(bfh(raw_header['hex']), height)
+            try:
+                header = blockchain.deserialize_header(bfh(raw_header['hex']), height)
+            except Exception as e:
+                self.logger.error("failed to deserialize header {} at height {}".format(raw_header['hex'], height))
+                raise e
+
             self.tip_header = header
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
@@ -869,6 +929,7 @@ class Interface(Logger):
                 checkp = True
             header = await self.get_block_header(height, 'backward')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            # self.logger.info('chain name is {}', str(chain))
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
             if chain or can_connect:
                 return False
@@ -893,6 +954,9 @@ class Interface(Logger):
     @classmethod
     def client_name(cls) -> str:
         return f'electrum/{version.ELECTRUM_VERSION}'
+
+    def get_token_ids(self):
+        return self.token_id_to_symbolKey.keys()
 
     def is_tor(self):
         return self.host.endswith('.onion')
@@ -979,7 +1043,7 @@ class Interface(Logger):
             if height in (-1, 0):
                 assert_dict_contains_field(tx_item, field_name='fee')
                 assert_non_negative_integer(tx_item['fee'])
-                prev_height = float("inf")  # this ensures confirmed txs can't follow mempool txs
+                prev_height = - float("inf")  # this ensures confirmed txs can't follow mempool txs
             else:
                 # check monotonicity of heights
                 if height < prev_height:

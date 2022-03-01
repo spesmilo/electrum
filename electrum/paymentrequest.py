@@ -25,7 +25,7 @@
 import hashlib
 import sys
 import time
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, Union, TYPE_CHECKING
 import asyncio
 import urllib.parse
 

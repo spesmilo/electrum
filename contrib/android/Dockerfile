@@ -108,7 +108,6 @@ RUN apt -y update -qq \
         python3-dev \
         python3-pip \
         python3-setuptools \
-        python3-venv \
         wget \
         lbzip2 \
         patch \
@@ -152,7 +151,7 @@ RUN chown ${USER} /opt
 USER ${USER}
 
 
-COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
+COPY requirements-build-android.txt /opt/deterministic-build/
 RUN python3 -m pip install --no-dependencies --user \
     -r /opt/deterministic-build/requirements-build-android.txt
 

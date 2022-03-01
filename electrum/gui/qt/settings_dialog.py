@@ -129,16 +129,16 @@ class SettingsDialog(WindowModalDialog):
         # lightning
         lightning_widgets = []
 
-        help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
-        recov_cb = QCheckBox(_("Create recoverable channels"))
-        enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
-        recov_cb.setEnabled(enable_toggle_use_recoverable_channels)
-        recov_cb.setToolTip(messages.to_rtf(help_recov))
-        recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)) and enable_toggle_use_recoverable_channels)
-        def on_recov_checked(x):
-            self.config.set_key('use_recoverable_channels', bool(x))
-        recov_cb.stateChanged.connect(on_recov_checked)
-        lightning_widgets.append((recov_cb, None))
+        if self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id():
+            help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
+            recov_cb = QCheckBox(_("Create recoverable channels"))
+            recov_cb.setToolTip(messages.to_rtf(help_recov))
+            recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)))
+            def on_recov_checked(x):
+                self.config.set_key('use_recoverable_channels', bool(x))
+            recov_cb.stateChanged.connect(on_recov_checked)
+            recov_cb.setEnabled(not bool(self.config.get('lightning_listen')))
+            lightning_widgets.append((recov_cb, None))
 
         help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
         trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
@@ -259,7 +259,6 @@ class SettingsDialog(WindowModalDialog):
         colortheme_label = QLabel(_('Color theme') + ':')
         def on_colortheme(x):
             self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
-            #self.window.gui_object.reload_app_stylesheet()
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
         gui_widgets.append((colortheme_label, colortheme_combo))

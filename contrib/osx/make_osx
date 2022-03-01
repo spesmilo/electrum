@@ -3,9 +3,9 @@
 set -e
 
 # Parameterize
-PYTHON_VERSION=3.9.10
+PYTHON_VERSION=3.7.9
 BUILDDIR=/tmp/electrum-build
-PACKAGE=Electrum
+PACKAGE=Defichain-Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 
 export GCC_STRIP_BINARIES="1"
@@ -72,7 +72,7 @@ PKG_FILE="python-${PYTHON_VERSION}-macosx10.9.pkg"
 if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
     curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
-echo "732bc5c95ae127dfb6fb1bcf683509ad20c558152b63b8d5f651246f6bdfc8da  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
+echo "bf54a14eef23467991e8c7a88c7307762e484c024a94ec1ee292ac1db3d41fc9  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
      || fail "python pkg checksum mismatched"
 sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"

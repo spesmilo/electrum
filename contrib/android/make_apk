@@ -71,7 +71,6 @@ else
             -storepass "$P4A_DEBUG_KEYSTORE_PASSWD" \
             -keypass "$P4A_DEBUG_KEYALIAS_PASSWD"
     fi
-    export ELEC_APK_USE_CURRENT_TIME=1
     # only build one apk for debug build, for faster testing iterations
     export APP_ANDROID_ARCH=arm64-v8a
     make apk

@@ -74,11 +74,12 @@ class AddressList(MyTreeView):
         TYPE = 0
         ADDRESS = 1
         LABEL = 2
-        COIN_BALANCE = 3
-        FIAT_BALANCE = 4
-        NUM_TXS = 5
+        TOKEN_BALANCE = 3
+        COIN_BALANCE = 4
+        FIAT_BALANCE = 5
+        NUM_TXS = 6
 
-    filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
+    filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.TOKEN_BALANCE, Columns.COIN_BALANCE]
 
     ROLE_SORT_ORDER = Qt.UserRole + 1000
     ROLE_ADDRESS_STR = Qt.UserRole + 1001
@@ -131,6 +132,7 @@ class AddressList(MyTreeView):
             self.Columns.COIN_BALANCE: _('Balance'),
             self.Columns.FIAT_BALANCE: ccy + ' ' + _('Balance'),
             self.Columns.NUM_TXS: _('Tx'),
+            self.Columns.TOKEN_BALANCE: _('Token Balance')
         }
         self.update_headers(headers)
 
@@ -168,6 +170,12 @@ class AddressList(MyTreeView):
             label = self.wallet.get_label(address)
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
+            res = self.wallet.get_addr_balance(address, token_id=self.parent.coin_choice['token_id'])
+            if res is not None:
+                token_balance, __, __ = res
+            else:
+                token_balance = None
+
             is_used_and_empty = self.wallet.is_used(address) and balance == 0
             if self.show_used == AddressUsageStateFilter.UNUSED and (balance or is_used_and_empty):
                 continue
@@ -178,13 +186,15 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             balance_text = self.parent.format_amount(balance, whitespaces=True)
+            token_balance_text = str(token_balance) if self.parent.coin_choice['token_id'] != '0' \
+                                 else balance_text
             # create item
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
             else:
                 fiat_balance = ''
-            labels = ['', address, label, balance_text, fiat_balance, "%d"%num]
+            labels = ['', address, label, token_balance_text, balance_text, fiat_balance, "%d"%num]
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):

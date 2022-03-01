@@ -5,12 +5,12 @@ Electrum - Lightweight Bitcoin client
 
   Licence: MIT Licence
   Author: Thomas Voegtlin
-  Language: Python (>= 3.8)
+  Language: Python (>= 3.6)
   Homepage: https://electrum.org/
 
 
-.. image:: https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master
-    :target: https://cirrus-ci.com/github/spesmilo/electrum
+.. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
+    :target: https://travis-ci.org/spesmilo/electrum
     :alt: Build Status
 .. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
     :target: https://coveralls.io/github/spesmilo/electrum?branch=master
@@ -94,7 +94,7 @@ Development version (git clone)
 
 Check out the code from GitHub::
 
-    git clone git://github.com/spesmilo/electrum.git
+    git clone git@github.com:BirthdayResearch/defichain-electrum.git
     cd electrum
     git submodule update --init
 

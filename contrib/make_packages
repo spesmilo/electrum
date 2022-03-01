@@ -13,16 +13,6 @@ if [ -d "$PACKAGES" ]; then
   rm -r "$PACKAGES"
 fi
 
-# create virtualenv
-# note: venv path needs to be deterministic as some produced files will contain it
-venv_dir="$CONTRIB/.venv_make_packages/"
-rm -rf "$venv_dir"
-python3 -m venv "$venv_dir"
-source "$venv_dir"/bin/activate
-
-# installing pinned build-time requirements, such as pip/wheel/setuptools
-python -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-build-makepackages.txt
-
 # opt out of compiling C extensions
 # FIXME aiohttp opt-out is not released yet: https://github.com/aio-libs/aiohttp/pull/3828
 export AIOHTTP_NO_EXTENSIONS=1
@@ -44,7 +34,6 @@ export BUILD_TIME="$(LC_ALL=C TZ=UTC date +'%H:%M:%S' -d @$SOURCE_DATE_EPOCH)"
 #       Hence "aiohttp-*.dist-info/" is not reproducible either.
 #       All this means that downstream users of this script, such as the sdist build
 #       and the android apk build need to make sure these files get excluded.
-# note: --no-build-isolation is needed so that pip uses the locally available setuptools and wheel,
-#       instead of downloading the latest ones
-python3 -m pip install --no-build-isolation --no-compile --no-dependencies --no-binary :all: \
+python3 -m pip install --no-compile --no-dependencies --no-binary :all: \
     -r "$CONTRIB"/deterministic-build/requirements.txt -t "$CONTRIB"/../packages
+

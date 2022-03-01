@@ -24,7 +24,6 @@ import json
 import locale
 import traceback
 import sys
-import queue
 
 from .version import ELECTRUM_VERSION
 from . import constants
@@ -130,43 +129,6 @@ class BaseCrashReporter(Logger):
 
     def get_wallet_type(self) -> str:
         raise NotImplementedError
-
-
-class EarlyExceptionsQueue:
-    """Helper singleton for explicitly sending exceptions to crash reporter.
-
-    Typically the GUIs set up an "exception hook" that catches all otherwise
-    uncaught exceptions (which unroll the stack of a thread completely).
-    This class provides methods to report *any* exception, and queueing logic
-    that delays processing until the exception hook is set up.
-    """
-
-    _is_exc_hook_ready = False
-    _exc_queue = queue.Queue()
-
-    @classmethod
-    def set_hook_as_ready(cls):
-        if cls._is_exc_hook_ready:
-            return
-        cls._is_exc_hook_ready = True
-        while cls._exc_queue.qsize() > 0:
-            e = cls._exc_queue.get()
-            cls._send_exception_to_crash_reporter(e)
-
-    @classmethod
-    def send_exception_to_crash_reporter(cls, e: BaseException):
-        if cls._is_exc_hook_ready:
-            cls._send_exception_to_crash_reporter(e)
-        else:
-            cls._exc_queue.put(e)
-
-    @staticmethod
-    def _send_exception_to_crash_reporter(e: BaseException):
-        assert EarlyExceptionsQueue._is_exc_hook_ready
-        sys.excepthook(type(e), e, e.__traceback__)
-
-
-send_exception_to_crash_reporter = EarlyExceptionsQueue.send_exception_to_crash_reporter
 
 
 def trigger_crash():

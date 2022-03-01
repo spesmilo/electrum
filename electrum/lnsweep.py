@@ -61,7 +61,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
             sweep_address=sweep_address,
             ctx=ctx,
             output_idx=output_idx,
-            witness_script=bfh(witness_script),
+            witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
@@ -80,6 +80,7 @@ def create_sweeptxs_for_watchtower(chan: 'Channel', ctx: Transaction, per_commit
             htlc=htlc,
             ctx_output_idx=ctx_output_idx)
         return create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+            to_self_delay=0,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlc_tx_witness_script,
             sweep_address=sweep_address,
@@ -128,7 +129,7 @@ def create_sweeptx_for_their_revoked_ctx(
             sweep_address=sweep_address,
             ctx=ctx,
             output_idx=output_idx,
-            witness_script=bfh(witness_script),
+            witness_script=witness_script,
             privkey=other_revocation_privkey,
             is_revocation=True,
             config=chan.lnworker.config)
@@ -164,10 +165,11 @@ def create_sweeptx_for_their_revoked_htlc(
     # check that htlc_tx is a htlc
     if htlc_tx.outputs()[0].address != htlc_address:
         return
-    gen_tx = lambda: create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+    gen_tx = lambda: create_sweeptx_ctx_to_local(
         sweep_address=sweep_address,
-        htlc_tx=htlc_tx,
-        htlctx_witness_script=bfh(witness_script),
+        ctx=htlc_tx,
+        output_idx=0,
+        witness_script=witness_script,
         privkey=other_revocation_privkey,
         is_revocation=True,
         config=chan.lnworker.config)
@@ -225,7 +227,7 @@ def create_sweeptxs_for_our_ctx(
             sweep_address=sweep_address,
             ctx=ctx,
             output_idx=output_idx,
-            witness_script=bfh(to_local_witness_script),
+            witness_script=to_local_witness_script,
             privkey=our_localdelayed_privkey.get_secret_bytes(),
             is_revocation=False,
             to_self_delay=to_self_delay,
@@ -525,9 +527,9 @@ def create_sweeptx_their_ctx_to_remote(
 
 
 def create_sweeptx_ctx_to_local(
-        *, sweep_address: str, ctx: Transaction, output_idx: int, witness_script: bytes,
+        *, sweep_address: str, ctx: Transaction, output_idx: int, witness_script: str,
         privkey: bytes, is_revocation: bool, config: SimpleConfig,
-        to_self_delay: int = None) -> Optional[PartialTransaction]:
+        to_self_delay: int=None) -> Optional[PartialTransaction]:
     """Create a txn that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
 
@@ -539,7 +541,7 @@ def create_sweeptx_ctx_to_local(
     txin = PartialTxInput(prevout=prevout)
     txin._trusted_value_sats = val
     txin.script_sig = b''
-    txin.witness_script = witness_script
+    txin.witness_script = bfh(witness_script)
     sweep_inputs = [txin]
     if not is_revocation:
         assert isinstance(to_self_delay, int)
@@ -559,20 +561,26 @@ def create_sweeptx_ctx_to_local(
 
 def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
         *, htlc_tx: Transaction, htlctx_witness_script: bytes, sweep_address: str,
-        privkey: bytes, is_revocation: bool, to_self_delay: int = None,
+        privkey: bytes, is_revocation: bool, to_self_delay: int,
         config: SimpleConfig) -> Optional[PartialTransaction]:
-    """Create a txn that sweeps the output of a second stage htlc tx
-    (i.e. sweeps from an HTLC-Timeout or an HTLC-Success tx).
-    """
-    # note: this is the same as sweeping the to_local output of the ctx,
-    #       as these are the same script (address-reuse).
-    return create_sweeptx_ctx_to_local(
-        sweep_address=sweep_address,
-        ctx=htlc_tx,
-        output_idx=0,
-        witness_script=htlctx_witness_script,
-        privkey=privkey,
-        is_revocation=is_revocation,
-        to_self_delay=to_self_delay,
-        config=config,
-    )
+    val = htlc_tx.outputs()[0].value
+    prevout = TxOutpoint(txid=bfh(htlc_tx.txid()), out_idx=0)
+    txin = PartialTxInput(prevout=prevout)
+    txin._trusted_value_sats = val
+    txin.script_sig = b''
+    txin.witness_script = htlctx_witness_script
+    sweep_inputs = [txin]
+    if not is_revocation:
+        assert isinstance(to_self_delay, int)
+        sweep_inputs[0].nsequence = to_self_delay
+    tx_size_bytes = 200  # TODO
+    fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
+    outvalue = val - fee
+    if outvalue <= dust_threshold(): return None
+    sweep_outputs = [PartialTxOutput.from_address_and_value(sweep_address, outvalue)]
+    tx = PartialTransaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    sig = bfh(tx.sign_txin(0, privkey))
+    witness = construct_witness([sig, int(is_revocation), htlctx_witness_script])
+    tx.inputs()[0].witness = bfh(witness)
+    assert tx.is_complete()
+    return tx

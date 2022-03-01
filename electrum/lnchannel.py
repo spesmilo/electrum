@@ -52,8 +52,7 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
-                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address,
-                     ChannelType)
+                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -62,7 +61,6 @@ from .address_synchronizer import TX_HEIGHT_LOCAL
 from .lnutil import CHANNEL_OPENING_TIMEOUT
 from .lnutil import ChannelBackupStorage, ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import format_short_channel_id
-from .simple_config import FEERATE_PER_KW_MIN_RELAY_LIGHTNING
 
 if TYPE_CHECKING:
     from .lnworker import LNWallet
@@ -173,12 +171,10 @@ class AbstractChannel(Logger, ABC):
     def short_id_for_GUI(self) -> str:
         return format_short_channel_id(self.short_channel_id)
 
-    def set_state(self, state: ChannelState, *, force: bool = False) -> None:
-        """Set on-chain state.
-        `force` can be set while debugging from the console to allow illegal transitions.
-        """
+    def set_state(self, state: ChannelState) -> None:
+        """ set on-chain state """
         old_state = self._state
-        if not force and (old_state, state) not in state_transitions:
+        if (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
         self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
@@ -567,8 +563,6 @@ class Channel(AbstractChannel):
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
-        self.fail_htlc_reasons = state["fail_htlc_reasons"]
-        self.unfulfilled_htlcs = state["unfulfilled_htlcs"]
         self._state = ChannelState[state['state']]
         self.peer_state = PeerState.DISCONNECTED
         self._sweep_info = {}
@@ -712,8 +706,7 @@ class Channel(AbstractChannel):
         return chan_ann
 
     def is_static_remotekey_enabled(self) -> bool:
-        channel_type = ChannelType(self.storage.get('channel_type'))
-        return bool(channel_type & ChannelType.OPTION_STATIC_REMOTEKEY)
+        return bool(self.storage.get('static_remotekey_enabled'))
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         ret = []
@@ -919,7 +912,7 @@ class Channel(AbstractChannel):
             remote_ctn = self.get_latest_ctn(REMOTE)
             if onion_packet:
                 # TODO neither local_ctn nor remote_ctn are used anymore... no point storing them.
-                self.unfulfilled_htlcs[htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
+                self.hm.log['unfulfilled_htlcs'][htlc.htlc_id] = local_ctn, remote_ctn, onion_packet.hex(), False
 
         self.logger.info("receive_htlc")
         return htlc
@@ -929,7 +922,6 @@ class Channel(AbstractChannel):
         Action must be initiated by LOCAL.
         Finally, the next remote ctx becomes the latest remote ctx.
         """
-        # TODO: when more channel types are supported, this method should depend on channel type
         next_remote_ctn = self.get_next_ctn(REMOTE)
         self.logger.info(f"sign_next_commitment {next_remote_ctn}")
 
@@ -971,7 +963,6 @@ class Channel(AbstractChannel):
         If all checks pass, the next local ctx becomes the latest local ctx.
         """
         # TODO in many failure cases below, we should "fail" the channel (force-close)
-        # TODO: when more channel types are supported, this method should depend on channel type
         next_local_ctn = self.get_next_ctn(LOCAL)
         self.logger.info(f"receive_new_commitment. ctn={next_local_ctn}, len(htlc_sigs)={len(htlc_sigs)}")
 
@@ -1080,10 +1071,10 @@ class Channel(AbstractChannel):
             failure_message: Optional['OnionRoutingFailure']):
         error_hex = error_bytes.hex() if error_bytes else None
         failure_hex = failure_message.to_bytes().hex() if failure_message else None
-        self.fail_htlc_reasons[htlc_id] = (error_hex, failure_hex)
+        self.hm.log['fail_htlc_reasons'][htlc_id] = (error_hex, failure_hex)
 
     def pop_fail_htlc_reason(self, htlc_id):
-        error_hex, failure_hex = self.fail_htlc_reasons.pop(htlc_id, (None, None))
+        error_hex, failure_hex = self.hm.log['fail_htlc_reasons'].pop(htlc_id, (None, None))
         error_bytes = bytes.fromhex(error_hex) if error_hex else None
         failure_message = OnionRoutingFailure.from_bytes(bytes.fromhex(failure_hex)) if failure_hex else None
         return error_bytes, failure_message
@@ -1353,8 +1344,6 @@ class Channel(AbstractChannel):
         # feerate uses sat/kw
         if self.constraints.is_initiator != from_us:
             raise Exception(f"Cannot update_fee: wrong initiator. us: {from_us}")
-        if feerate < FEERATE_PER_KW_MIN_RELAY_LIGHTNING:
-            raise Exception(f"Cannot update_fee: feerate lower than min relay fee. {feerate} sat/kw. us: {from_us}")
         sender = LOCAL if from_us else REMOTE
         ctx_owner = -sender
         ctn = self.get_next_ctn(ctx_owner)

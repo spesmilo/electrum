@@ -41,7 +41,7 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 
 from .import util, ecc
 from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend)
+                   is_hash256_str, is_hex_str, to_bytes)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -77,7 +77,7 @@ class NotSynchronizedException(Exception):
 
 
 def satoshis_or_max(amount):
-    return satoshis(amount) if not parse_max_spend(amount) else amount
+    return satoshis(amount) if amount != '!' else '!'
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
@@ -217,6 +217,7 @@ class Commands:
     @command('n')
     async def stop(self):
         """Stop daemon"""
+        # TODO it would be nice if this could stop the GUI too
         await self.daemon.stop()
         return "Daemon stopped"
 
@@ -522,7 +523,7 @@ class Commands:
         return out
 
     @command('n')
-    async def getaddressbalance(self, address):
+    async def getaddressbalance(self, address, token_id='0'):
         """Return the balance of any address. Note: This is a walletless
         server query, results are not checked by SPV.
         """
@@ -530,6 +531,9 @@ class Commands:
         out = await self.network.get_balance_for_scripthash(sh)
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
+
+        token_balance = await self.network.interface.fetch_token_balance(address, token_id=token_id)
+        out["token_balance"] = str(token_balance)
         return out
 
     @command('n')
@@ -772,7 +776,7 @@ class Commands:
         return results
 
     @command('w')
-    async def listaddresses(self, receiving=False, change=False, labels=False, frozen=False, unused=False, funded=False, balance=False, wallet: Abstract_Wallet = None):
+    async def listaddresses(self, receiving=False, change=False, labels=False, frozen=False, unused=False, funded=False, balance=False, token_id='0', wallet: Abstract_Wallet = None):
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in wallet.get_addresses():
@@ -790,11 +794,19 @@ class Commands:
             if labels or balance:
                 item = (item,)
             if balance:
-                item += (format_satoshis(sum(wallet.get_addr_balance(addr))),)
+                item += (format_satoshis(sum(wallet.get_addr_balance(addr, token_id=token_id))),)
             if labels:
                 item += (repr(wallet.get_label(addr)),)
             out.append(item)
         return out
+
+    @command('w')
+    async def getaddresstokenbalance(self, addr: str, token_id='0', wallet: Abstract_Wallet = None):
+        return wallet.get_addr_balance(addr, token_id=token_id)
+
+    @command('n')
+    async def gettokenlist(self):
+        return self.network.interface.token_list
 
     @command('n')
     async def gettransaction(self, txid, wallet: Abstract_Wallet = None):
@@ -1282,6 +1294,7 @@ param_descriptions = {
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
     'onchain_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
+    'token_id': 'token id',
 }
 
 command_options = {
@@ -1332,6 +1345,7 @@ command_options = {
     'iknowwhatimdoing': (None, "Acknowledge that I understand the full implications of what I am about to do"),
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
     'connection_string':      (None, "Lightning network node ID or network address"),
+    'token_id': (None, 'token id'),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in sat/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
 }
@@ -1353,7 +1367,7 @@ arg_types = {
     'inputs': json_loads,
     'outputs': json_loads,
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if not parse_max_spend(x) else x,
+    'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
     'addtransaction': eval_bool,
     'fee_method': str,
@@ -1380,7 +1394,7 @@ def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
     subparser_found = False
     for arg in sys.argv[1:]:
-        if arg in ['-h', '--help', '--version']:  # global help/version if no subparser
+        if arg in ['-h', '--help']:  # global help if no subparser
             break
     else:
         for x in self._subparsers._actions:
@@ -1457,7 +1471,6 @@ def get_parser():
     # create main parser
     parser = argparse.ArgumentParser(
         epilog="Run 'electrum help <command>' to see the help for a command")
-    parser.add_argument("--version", dest="cmd", action='store_const', const='version', help="Return the version of Electrum.")
     add_global_options(parser)
     add_wallet_option(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
@@ -1475,8 +1488,6 @@ def get_parser():
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
     parser_daemon.add_argument("-d", "--detached", action="store_true", dest="detach", default=False, help="run daemon in detached mode")
-    parser_daemon.add_argument("--rpcsock", dest="rpcsock", default=None, help="what socket type to which to bind RPC daemon", choices=['unix', 'tcp', 'auto'])
-    parser_daemon.add_argument("--rpcsockpath", dest="rpcsockpath", help="where to place RPC file socket")
     add_network_options(parser_daemon)
     add_global_options(parser_daemon)
     # commands

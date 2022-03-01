@@ -228,7 +228,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
                 multisig=multisig)
 
     @runs_in_hwd_thread
-    def sign_message(self, address_str, message, *, script_type):
+    def sign_message(self, address_str, message):
         coin_name = self.plugin.get_coin_name()
         address_n = parse_path(address_str)
         with self.run_flow():
@@ -236,9 +236,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
                 self.client,
                 coin_name,
                 address_n,
-                message,
-                script_type=script_type,
-                no_script_type=True)
+                message)
 
     @runs_in_hwd_thread
     def recover_device(self, recovery_type, *args, **kwargs):
@@ -270,8 +268,8 @@ class TrezorClientBase(HardwareClientBase, Logger):
 
     # ========= UI methods ==========
 
-    def button_request(self, br):
-        message = self.msg or MESSAGES.get(br.code) or MESSAGES['default']
+    def button_request(self, code):
+        message = self.msg or MESSAGES.get(code) or MESSAGES['default']
         self.handler.show_message(message.format(self.device), self.client.cancel)
 
     def get_pin(self, code=None):

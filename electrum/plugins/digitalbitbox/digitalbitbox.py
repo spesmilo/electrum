@@ -455,7 +455,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
 
-    def sign_message(self, sequence, message, password, *, script_type=None):
+    def sign_message(self, sequence, message, password):
         sig = None
         try:
             message = message.encode('utf8')
@@ -491,7 +491,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 sig_string = binascii.unhexlify(reply['sign'][0]['sig'])
                 recid = int(reply['sign'][0]['recid'], 16)
                 sig = ecc.construct_sig65(sig_string, recid, True)
-                pubkey, compressed, txin_type_guess = ecc.ECPubkey.from_signature65(sig, msg_hash)
+                pubkey, compressed = ecc.ECPubkey.from_signature65(sig, msg_hash)
                 addr = public_key_to_p2pkh(pubkey.get_public_key_bytes(compressed=compressed))
                 if ecc.verify_message_with_address(addr, sig, message) is False:
                     raise Exception(_("Could not sign message"))

@@ -16,8 +16,12 @@ python3 --version || fail "python interpreter not found"
 break_legacy_easy_install
 
 # upgrade to modern pip so that it knows the flags we need.
-# (make_packages will later install a pinned version of pip in a venv)
+# we will then install a pinned version of pip as part of requirements-build-sdist
 python3 -m pip install --upgrade pip
+
+info "Installing pinned requirements."
+python3 -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-build-sdist.txt
+
 
 "$CONTRIB"/make_packages || fail "make_packages failed"
 

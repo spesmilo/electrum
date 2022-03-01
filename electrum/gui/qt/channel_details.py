@@ -83,8 +83,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    htlc_fulfilled = QtCore.pyqtSignal(str, bytes, Channel, int)
-    htlc_failed = QtCore.pyqtSignal(str, bytes, Channel, int)
+    htlc_fulfilled = QtCore.pyqtSignal(str, bytes, bytes)
+    htlc_failed = QtCore.pyqtSignal(str, bytes, bytes)
     htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
     state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
 
@@ -103,16 +103,16 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
-    @QtCore.pyqtSlot(str, bytes, Channel, int)
-    def on_htlc_fulfilled(self, evtname, payment_hash, chan, htlc_id):
-        if chan.channel_id != self.chan.channel_id:
+    @QtCore.pyqtSlot(str, bytes, bytes)
+    def on_htlc_fulfilled(self, evtname, payment_hash, chan_id):
+        if chan_id != self.chan.channel_id:
             return
         self.move('inflight', 'settled', payment_hash)
         self.update()
 
-    @QtCore.pyqtSlot(str, bytes, Channel, int)
-    def on_htlc_failed(self, evtname, payment_hash, chan, htlc_id):
-        if chan.channel_id != self.chan.channel_id:
+    @QtCore.pyqtSlot(str, bytes, bytes)
+    def on_htlc_failed(self, evtname, payment_hash, chan_id):
+        if chan_id != self.chan.channel_id:
             return
         self.move('inflight', 'failed', payment_hash)
         self.update()
@@ -193,7 +193,6 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         form_layout.addRow(_('Remote dust limit:'), self.dust_limit)
         self.remote_reserve = self.window.format_amount_and_units(chan.config[REMOTE].reserve_sat)
         form_layout.addRow(_('Remote reserve:'), SelectableLabel(self.remote_reserve))
-        form_layout.addRow(_('Channel type:'), SelectableLabel(chan.storage['channel_type'].name_minimal))
         vbox.addLayout(form_layout)
 
         # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)

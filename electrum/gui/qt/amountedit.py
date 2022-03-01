@@ -28,7 +28,6 @@ class SizedFreezableLineEdit(FreezableLineEdit):
         super().__init__(parent)
         self._width = width
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        self.setMaximumWidth(width)
 
     def sizeHint(self) -> QSize:
         sh = super().sizeHint()
@@ -97,11 +96,14 @@ class AmountEdit(SizedFreezableLineEdit):
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None):
+    def __init__(self, decimal_point, is_int=False, parent=None, pay_unit: str=None):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
+        self.pay_unit = pay_unit
         self.decimal_point = decimal_point
 
     def _base_unit(self):
+        if self.pay_unit:
+            return self.pay_unit
         return decimal_point_to_base_unit_name(self.decimal_point())
 
     def get_amount(self):

@@ -60,7 +60,7 @@ class Plugins(DaemonThread):
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
-        self.name = 'Plugins'  # set name of thread
+        self.setName('Plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}

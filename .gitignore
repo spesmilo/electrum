@@ -1,6 +1,5 @@
-.git/
 ####-*.patch
-**/*.pyc
+*.pyc
 *.swp
 build/
 dist/
@@ -10,6 +9,7 @@ electrum/locale/
 .devlocaltmp/
 *_trial_temp
 packages
+tags
 env/
 .buildozer/
 bin/
@@ -28,9 +28,6 @@ electrum_data
 
 # build workspaces
 contrib/build-wine/tmp/
-contrib/build-wine/build/
-contrib/build-wine/.cache/
-contrib/build-wine/dist/
 contrib/build-wine/signed/
 contrib/build-wine/fresh_clone/
 contrib/build-linux/sdist/fresh_clone/
@@ -38,13 +35,12 @@ contrib/build-linux/appimage/build/
 contrib/build-linux/appimage/.cache/
 contrib/build-linux/appimage/fresh_clone/
 contrib/osx/.cache/
-contrib/osx/build-venv/
 contrib/android/fresh_clone
 contrib/android/android_debug.keystore
 contrib/secp256k1/
 contrib/zbar/
 contrib/libusb/
-contrib/.venv_make_packages/
+contrib/osx/build-venv/
 
 # shared objects
 electrum/*.so

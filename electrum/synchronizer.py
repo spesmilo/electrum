@@ -28,11 +28,11 @@ from typing import Dict, List, TYPE_CHECKING, Tuple, Set
 from collections import defaultdict
 import logging
 
-from aiorpcx import run_in_thread, RPCError
+from aiorpcx import TaskGroup, run_in_thread, RPCError
 
 from . import util
 from .transaction import Transaction, PartialTransaction
-from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
+from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy
 from .bitcoin import address_to_scripthash, is_address
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
@@ -218,7 +218,7 @@ class Synchronizer(SynchronizerBase):
             self.requested_tx[tx_hash] = tx_height
 
         if not transaction_hashes: return
-        async with OldTaskGroup() as group:
+        async with TaskGroup() as group:
             for tx_hash in transaction_hashes:
                 await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
 

@@ -86,24 +86,6 @@ def needs_test_with_all_chacha20_implementations(func):
     return run_test
 
 
-def disable_ecdsa_r_value_grinding(func):
-    """Function decorator to run a unit test with ecdsa R-value grinding disabled.
-    This is used when we want to pass test vectors that were created without R-value grinding.
-    (see https://github.com/bitcoin/bitcoin/pull/13666 )
-
-    NOTE: this is inherently sequential;
-    tests running in parallel would break things
-    """
-    def run_test(*args, **kwargs):
-        is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
-        try:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
-            func(*args, **kwargs)
-        finally:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
-    return run_test
-
-
 class Test_bitcoin(ElectrumTestCase):
 
     def test_libsecp256k1_is_available(self):
@@ -152,7 +134,7 @@ class Test_bitcoin(ElectrumTestCase):
 
         signature = eck.sign_message(message, True)
         #print signature
-        self.assertTrue(eck.verify_message_for_address(signature, message))
+        eck.verify_message_for_address(signature, message)
 
     def test_ecc_sanity(self):
         G = ecc.GENERATOR
@@ -181,21 +163,20 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(2 * G, inf + 2 * G)
         self.assertEqual(inf, 3 * G + (-3 * G))
 
-    @staticmethod
-    def sign_message_with_wif_privkey(wif_privkey: str, msg: bytes) -> bytes:
-        txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
-        key = ecc.ECPrivkey(privkey)
-        return key.sign_message(msg, compressed)
-
-    def test_signmessage_legacy_address(self):
+    def test_msg_signing(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
 
-        sig1 = self.sign_message_with_wif_privkey(
-            'L1TnU2zbNaAqMoVh65Cyvmcjzbrj41Gs9iTLcWbpJCMynXuap6UN', msg1)  # compressed pubkey
+        def sign_message_with_wif_privkey(wif_privkey, msg):
+            txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
+            key = ecc.ECPrivkey(privkey)
+            return key.sign_message(msg, compressed)
+
+        sig1 = sign_message_with_wif_privkey(
+            'L1TnU2zbNaAqMoVh65Cyvmcjzbrj41Gs9iTLcWbpJCMynXuap6UN', msg1)
         addr1 = '15hETetDmcXm1mM4sEf7U2KXC9hDHFMSzz'
-        sig2 = self.sign_message_with_wif_privkey(
-            '5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUygK2KD', msg2)  # uncompressed pubkey
+        sig2 = sign_message_with_wif_privkey(
+            '5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUygK2KD', msg2)
         addr2 = '1GPHVTY8UD9my6jyP4tb2TYJwUbDetyNC6'
 
         sig1_b64 = base64.b64encode(sig1)
@@ -209,40 +190,6 @@ class Test_bitcoin(ElectrumTestCase):
 
         self.assertFalse(ecc.verify_message_with_address(addr1, b'wrong', msg1))
         self.assertFalse(ecc.verify_message_with_address(addr1, sig2, msg1))
-
-    def test_signmessage_segwit_witness_v0_address(self):
-        msg = b'Electrum'
-        # p2wpkh-p2sh
-        sig1 = self.sign_message_with_wif_privkey("p2wpkh-p2sh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
-        addr1 = "3DYoBqQ5N6dADzyQjy9FT1Ls4amiYVaqTG"
-        self.assertEqual(base64.b64encode(sig1), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
-        self.assertTrue(ecc.verify_message_with_address(addr1, sig1, msg))
-        self.assertFalse(ecc.verify_message_with_address(addr1, sig1, b'heyheyhey'))
-        # p2wpkh
-        sig2 = self.sign_message_with_wif_privkey("p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY", msg)
-        addr2 = "bc1qq2tmmcngng78nllq2pvrkchcdukemtj56uyue0"
-        self.assertEqual(base64.b64encode(sig2), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
-        self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg))
-        self.assertFalse(ecc.verify_message_with_address(addr2, sig2, b'heyheyhey'))
-
-    def test_signmessage_segwit_witness_v0_address_test_we_also_accept_sigs_from_trezor(self):
-        """Trezor and some other projects use a slightly different scheme for message-signing
-        with p2wpkh and p2wpkh-p2sh addresses. Test that we also accept signatures from them.
-        see #3861
-        tests from https://github.com/trezor/trezor-firmware/blob/2ce1e6ba7dbe5bbaeeb336fff0a038e59cb40ef8/tests/device_tests/bitcoin/test_signmessage.py#L39
-        """
-        msg = b"This is an example of a signed message."
-        addr1 = "3L6TyTisPBmrDAj6RoKmDzNnj4eQi54gD2"
-        addr2 = "bc1qannfxke2tfd4l7vhepehpvt05y83v3qsf6nfkk"
-        sig1 = bytes.fromhex("23744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
-        sig2 = bytes.fromhex("28b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
-        self.assertTrue(ecc.verify_message_with_address(address=addr1, sig65=sig1, message=msg))
-        self.assertTrue(ecc.verify_message_with_address(address=addr2, sig65=sig2, message=msg))
-        # if there is type information in the header of the sig (first byte), enforce that:
-        sig1_wrongtype = bytes.fromhex("27744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
-        sig2_wrongtype = bytes.fromhex("24b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
-        self.assertFalse(ecc.verify_message_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
-        self.assertFalse(ecc.verify_message_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
@@ -273,12 +220,6 @@ class Test_bitcoin(ElectrumTestCase):
         eckey2 = ecc.ECPrivkey(bfh('c7ce8c1462c311eec24dff9e2532ac6241e50ae57e7d1833af21942136972f23'))
         sig2 = eckey2.sign_transaction(bfh('642a2e66332f507c92bda910158dfe46fc10afbf72218764899d3af99a043fac'))
         self.assertEqual('30440220618513f4cfc87dde798ce5febae7634c23e7b9254a1eabf486be820f6a7c2c4702204fef459393a2b931f949e63ced06888f35e286e446dc46feb24b5b5f81c6ed52', sig2.hex())
-
-    @disable_ecdsa_r_value_grinding
-    def test_sign_transaction_without_ecdsa_r_value_grinding(self):
-        eckey1 = ecc.ECPrivkey(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
-        sig1 = eckey1.sign_transaction(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'))
-        self.assertEqual('3045022100902a288b98392254cd23c0e9a49ac6d7920f171b8249a48e484b998f1874a2010220723d844826828f092cf400cb210c4fa0b8cd1b9d1a7f21590e78e022ff6476b9', sig1.hex())
 
     @needs_test_with_all_aes_implementations
     def test_aes_homomorphic(self):

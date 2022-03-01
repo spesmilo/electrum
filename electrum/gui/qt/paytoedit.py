@@ -26,14 +26,14 @@
 import re
 import decimal
 from decimal import Decimal
-from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
+from typing import NamedTuple, Sequence, Optional, List, Union, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, parse_max_spend
-from electrum.transaction import PartialTxOutput
-from electrum.bitcoin import opcodes, construct_script
+from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME
+from electrum.transaction import PartialTxOutput, CustomTxOutput
+from electrum.bitcoin import opcodes, construct_script, address_to_script
 from electrum.logging import Logger
 from electrum.lnaddr import LnDecodeException
 
@@ -131,8 +131,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         x = x.strip()
         if not x:
             raise Exception("Amount is empty")
-        if parse_max_spend(x):
-            return x
+        if x == '!':
+            return '!'
         p = pow(10, self.amount_edit.decimal_point())
         try:
             return int(p * Decimal(x))
@@ -203,7 +203,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                         idx=i, line_content=line.strip(), exc=e, is_multiline=True))
                     continue
             outputs.append(output)
-            if parse_max_spend(output.value):
+            if output.value == '!':
                 is_max = True
             else:
                 total += output.value
@@ -226,17 +226,30 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
     def get_destination_scriptpubkey(self) -> Optional[bytes]:
         return self.payto_scriptpubkey
 
-    def get_outputs(self, is_max: bool) -> List[PartialTxOutput]:
+    def get_outputs(self, is_max):
         if self.payto_scriptpubkey:
             if is_max:
                 amount = '!'
             else:
                 amount = self.amount_edit.get_amount()
-                if amount is None:
-                    return []
-            self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
-
+            if self.win.coin_choice['token_id'] == '0':
+                self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
+            else:
+                addr_from = self.win.token_sender
+                addr_to = self.lines()[0]
+                to = {
+                    address_to_script(self.parse_address(addr_to)): {
+                        int(self.win.coin_choice['token_id']): amount
+                    }
+                }
+                a2a = AccountToAccount(address_to_script(addr_from), to)
+                self.outputs = [CustomTxOutput(tx=a2a, value=0)]
         return self.outputs[:]
+
+    def get_address_to(self):
+        lines = self.lines()
+        assert len(lines) > 0
+        return lines[0]
 
     def lines(self):
         return self.toPlainText().split('\n')

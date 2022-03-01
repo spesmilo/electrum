@@ -40,9 +40,8 @@ import itertools
 import binascii
 import copy
 
-from . import ecc, bitcoin, constants, segwit_addr, bip32
-from .bip32 import BIP32Node
-from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str, parse_max_spend
+from . import ecc, bitcoin, constants, segwit_addr, bip32, defichain
+from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
@@ -51,6 +50,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
+from .bip32 import BIP32Node
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -88,19 +88,7 @@ class MissingTxInputAmount(Exception):
     pass
 
 
-class Sighash(IntEnum):
-    ALL = 1
-    NONE = 2
-    SINGLE = 3
-    ANYONECANPAY = 0x80
-
-    @classmethod
-    def is_valid(cls, sighash) -> bool:
-        for flag in Sighash:
-            for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
-                if (flag & ~0x1f | base_flag) == sighash:
-                    return True
-        return False
+SIGHASH_ALL = 1
 
 
 class TxOutput:
@@ -109,9 +97,7 @@ class TxOutput:
 
     def __init__(self, *, scriptpubkey: bytes, value: Union[int, str]):
         self.scriptpubkey = scriptpubkey
-        if not (isinstance(value, int) or parse_max_spend(value) is not None):
-            raise ValueError(f"bad txout value: {value!r}")
-        self.value = value  # int in satoshis; or spend-max-like str
+        self.value = value  # str when the output is set to max: '!'  # in satoshis
 
     @classmethod
     def from_address_and_value(cls, address: str, value: Union[int, str]) -> Union['TxOutput', 'PartialTxOutput']:
@@ -145,7 +131,7 @@ class TxOutput:
             return cls.from_address_and_value(addr, val)
         if _type == TYPE_SCRIPT:
             return cls(scriptpubkey=bfh(addr), value=val)
-        raise Exception(f"unexpected legacy address type: {_type}")
+        raise Exception(f"unexptected legacy address type: {_type}")
 
     @property
     def address(self) -> Optional[str]:
@@ -176,6 +162,64 @@ class TxOutput:
         }
         return d
 
+class TxOutputWithToken(TxOutput):
+    tokenid: int
+
+    def __init__(self, *, scriptpubkey: bytes, value: Union[int, str], tokenid: int):
+        super().__init__(scriptpubkey=scriptpubkey, value=value)
+        self.tokenid = tokenid
+
+    @classmethod
+    def from_address_and_value(cls, address: str, value: Union[int, str], tokenid: int) -> Union['TxOutput', 'PartialTxOutput']:
+        return cls(scriptpubkey=bfh(bitcoin.address_to_script(address)),
+                   value=value,
+                   tokenid=tokenid)
+
+    def serialize_to_network(self) -> bytes:
+        buf = int.to_bytes(self.value, 8, byteorder="little", signed=False)
+        script = self.scriptpubkey
+        buf += bfh(var_int(len(script.hex()) // 2))
+        buf += script
+        buf += bfh(var_int(self.tokenid))
+        return buf
+
+    @classmethod
+    def from_network_bytes(cls, raw: bytes) -> 'TxOutput':
+        vds = BCDataStream()
+        vds.write(raw)
+        txout = parse_output_with_token(vds)
+        if vds.can_read_more():
+            raise SerializationError('extra junk at the end of TxOutput bytes')
+        return txout
+
+    def to_legacy_tuple(self) -> Tuple[int, str, Union[int, str], int]:
+        if self.address:
+            return TYPE_ADDRESS, self.address, self.value, self.tokenid
+        return TYPE_SCRIPT, self.scriptpubkey.hex(), self.value, self.tokenid
+
+    @classmethod
+    def from_legacy_tuple(cls, _type: int, addr: str, val: Union[int, str], token: int) -> Union['TxOutput', 'PartialTxOutput']:
+        if _type == TYPE_ADDRESS:
+            return cls.from_address_and_value(addr, val, token)
+        if _type == TYPE_SCRIPT:
+            return cls(scriptpubkey=bfh(addr), value=val, tokenid=token)
+        raise Exception(f"unexptected legacy address type: {_type}")
+
+    def __repr__(self):
+        return super().__repr__()[0: -1] + f" tokenid={self.tokenid}>"
+
+    def __eq__(self, other):
+        if isinstance(other, TxOutputWithToken):
+            return super().__eq__(other) and self.tokenid == other.tokenid
+        else:
+            return super().__eq__(other)
+
+    def to_json(self):
+        d = super().to_json()
+        d.update({
+            'token_id': self.tokenid,
+        })
+        return d
 
 class BIP143SharedTxDigestFields(NamedTuple):
     hashPrevouts: str
@@ -431,23 +475,7 @@ class OPPushDataGeneric:
                or (isinstance(item, type) and issubclass(item, cls))
 
 
-class OPGeneric:
-    def __init__(self, matcher: Callable=None):
-        if matcher is not None:
-            self.matcher = matcher
-
-    def match(self, op) -> bool:
-        return self.matcher(op)
-
-    @classmethod
-    def is_instance(cls, item):
-        # accept objects that are instances of this class
-        # or other classes that are subclasses
-        return isinstance(item, cls) \
-               or (isinstance(item, type) and issubclass(item, cls))
-
 OPPushDataPubkey = OPPushDataGeneric(lambda x: x in (33, 65))
-OP_ANYSEGWIT_VERSION = OPGeneric(lambda x: x in list(range(opcodes.OP_1, opcodes.OP_16 + 1)))
 
 SCRIPTPUBKEY_TEMPLATE_P2PKH = [opcodes.OP_DUP, opcodes.OP_HASH160,
                                OPPushDataGeneric(lambda x: x == 20),
@@ -456,22 +484,6 @@ SCRIPTPUBKEY_TEMPLATE_P2SH = [opcodes.OP_HASH160, OPPushDataGeneric(lambda x: x 
 SCRIPTPUBKEY_TEMPLATE_WITNESS_V0 = [opcodes.OP_0, OPPushDataGeneric(lambda x: x in (20, 32))]
 SCRIPTPUBKEY_TEMPLATE_P2WPKH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 20)]
 SCRIPTPUBKEY_TEMPLATE_P2WSH = [opcodes.OP_0, OPPushDataGeneric(lambda x: x == 32)]
-SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT = [OP_ANYSEGWIT_VERSION, OPPushDataGeneric(lambda x: x in list(range(2, 40 + 1)))]
-
-
-def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
-    if match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2PKH):
-        dust_limit = bitcoin.DUST_LIMIT_P2PKH
-    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2SH):
-        dust_limit = bitcoin.DUST_LIMIT_P2SH
-    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2WSH):
-        dust_limit = bitcoin.DUST_LIMIT_P2WSH
-    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2WPKH):
-        dust_limit = bitcoin.DUST_LIMIT_P2WPKH
-    else:
-        raise Exception(f'scriptpubkey does not conform to any template: {scriptpubkey.hex()}')
-    if amount < dust_limit:
-        raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
 
 def match_script_against_template(script, template) -> bool:
@@ -490,8 +502,6 @@ def match_script_against_template(script, template) -> bool:
         template_item = template[i]
         script_item = script[i]
         if OPPushDataGeneric.is_instance(template_item) and template_item.check_data_len(script_item[0]):
-            continue
-        if OPGeneric.is_instance(template_item) and template_item.match(script_item[0]):
             continue
         if template_item != script_item[0]:
             return False
@@ -564,7 +574,17 @@ def parse_output(vds: BCDataStream) -> TxOutput:
     if value < 0:
         raise SerializationError('invalid output amount (negative)')
     scriptpubkey = vds.read_bytes(vds.read_compact_size())
+
+    decoded_tx = defichain.try_deserialize_scriptpubkey(scriptpubkey)
+    if decoded_tx is not None:
+        return CustomTxOutput(tx=decoded_tx, value=value)
+
     return TxOutput(value=value, scriptpubkey=scriptpubkey)
+
+def parse_output_with_token(vds: BCDataStream) -> TxOutputWithToken:
+    txo = parse_output(vds)
+    tokenid = vds.read_compact_size()
+    return TxOutputWithToken(value=txo.value, scriptpubkey=txo.scriptpubkey, tokenid=tokenid)
 
 
 # pay & redeem scripts
@@ -578,6 +598,8 @@ def multisig_script(public_keys: Sequence[str], m: int) -> str:
 
 
 class Transaction:
+    _TOKENS_MIN_VERSION = 4
+    _SERIALIZE_TRANSACTION_NO_TOKENS = 0x20000000
     _cached_network_ser: Optional[str]
 
     def __str__(self):
@@ -663,7 +685,11 @@ class Transaction:
         n_vout = vds.read_compact_size()
         if n_vout < 1:
             raise SerializationError('tx needs to have at least 1 output')
-        self._outputs = [parse_output(vds) for i in range(n_vout)]
+        if self._version < self._TOKENS_MIN_VERSION or \
+           self._version & self._SERIALIZE_TRANSACTION_NO_TOKENS:
+            self._outputs = [parse_output(vds) for i in range(n_vout)]
+        else:
+            self._outputs = [parse_output_with_token(vds) for i in range(n_vout)]
         if is_segwit:
             for txin in self._inputs:
                 parse_witness(vds, txin)
@@ -1644,6 +1670,31 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self.bip32_paths.update(other_txout.bip32_paths)
         self._unknown.update(other_txout._unknown)
 
+class CustomTxOutput(PartialTxOutput):
+    def __init__(self, *, tx: defichain.CustomTxBase, value: int=0):
+        super().__init__(scriptpubkey=tx.serialize_scriptpubkey(), value=value)
+        self.custom_tx = tx
+
+    # def to_legacy_tuple(self) -> Tuple[int, str, Union[int, str], int]:
+    #     if self.address:
+    #         return TYPE_ADDRESS, self.address, self.custom_tx, self.value
+    #     return TYPE_SCRIPT, None, self.custom_tx, self.value
+
+    # @classmethod
+    # def from_legacy_tuple(
+    #     cls,
+    #     _type: int,
+    #     addr: str,
+    #     tx: defichain.CustomTxBase,
+    #     val: Union[int, str]
+    # ) -> Union['TxOutput', 'CustomTxOutput']:
+
+    #     if _type == TYPE_ADDRESS:
+    #         return cls.from_address_and_value(addr, val)
+    #     if _type == TYPE_SCRIPT:
+    #         return cls(tx=tx, value=val)
+    #     raise Exception(f"unexptected legacy address type: {_type}")
+
 
 class PartialTransaction(Transaction):
 
@@ -1772,7 +1823,7 @@ class PartialTransaction(Transaction):
 
     @classmethod
     def from_io(cls, inputs: Sequence[PartialTxInput], outputs: Sequence[PartialTxOutput], *,
-                locktime: int = None, version: int = None, BIP69_sort: bool = True):
+                locktime: int = None, version: int = None):
         self = cls()
         self._inputs = list(inputs)
         self._outputs = list(outputs)
@@ -1780,8 +1831,7 @@ class PartialTransaction(Transaction):
             self.locktime = locktime
         if version is not None:
             self.version = version
-        if BIP69_sort:
-            self.BIP69_sort()
+        self.BIP69_sort()
         return self
 
     def _serialize_psbt(self, fd) -> None:
@@ -1900,28 +1950,17 @@ class PartialTransaction(Transaction):
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[txin_index]
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        if not Sighash.is_valid(sighash):
-            raise Exception("SIGHASH_FLAG not supported!")
+        sighash = txin.sighash if txin.sighash is not None else SIGHASH_ALL
+        if sighash != SIGHASH_ALL:
+            raise Exception("only SIGHASH_ALL signing is supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
             if bip143_shared_txdigest_fields is None:
                 bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            if not(sighash & Sighash.ANYONECANPAY):
-                hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
-            else:
-                hashPrevouts = '00' * 32
-            if (not(sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
-                hashSequence = bip143_shared_txdigest_fields.hashSequence
-            else:
-                hashSequence = '00' * 32
-            if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
-                hashOutputs = bip143_shared_txdigest_fields.hashOutputs
-            elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
-                hashOutputs = bh2u(sha256d(outputs[txin_index].serialize_to_network()))
-            else:
-                hashOutputs = '00' * 32
+            hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
+            hashSequence = bip143_shared_txdigest_fields.hashSequence
+            hashOutputs = bip143_shared_txdigest_fields.hashOutputs
             outpoint = txin.prevout.serialize_to_network().hex()
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin.value_sats(), 8)
@@ -1955,13 +1994,11 @@ class PartialTransaction(Transaction):
     def sign_txin(self, txin_index, privkey_bytes, *, bip143_shared_txdigest_fields=None) -> str:
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
-        sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + sighash_type
+        sig = bh2u(sig) + '01'  # SIGHASH_ALL
         return sig
 
     def is_complete(self) -> bool:
@@ -2025,7 +2062,10 @@ class PartialTransaction(Transaction):
                     continue
                 pubkey_hex = public_key.get_public_key_hex(compressed=True)
                 if pubkey_hex in pubkeys:
-                    if not public_key.verify_message_hash(sig_string, pre_hash):
+                    try:
+                        public_key.verify_message_hash(sig_string, pre_hash)
+                    except Exception:
+                        _logger.exception('')
                         continue
                     _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={pubkey_hex}, sig={sig}")
                     self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_hex, sig=sig)

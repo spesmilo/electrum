@@ -38,7 +38,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     @runs_in_hwd_thread
-    def sign_message(self, sequence, message, password, *, script_type=None):
+    def sign_message(self, sequence, message, password):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
