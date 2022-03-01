@@ -12,6 +12,7 @@ ElectroDoge - Lightweight Dogecoin client
   
   Dogecoin Devs
   Homepage: https://electrodoge.com
+  Initial Commit: https://github.com/GlobalBoost/electrum/commit/6d7c7a1cb5c384377b24391bcbc7b797462b980a
 
 
 .. image:: https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master
