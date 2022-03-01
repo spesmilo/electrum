@@ -232,6 +232,8 @@ def run_hook(name, *args):
                 results.append(r)
 
     if results:
+        if name == "wallet_info_buttons":
+            return results
         assert len(results) == 1, results
         return results[0]
 

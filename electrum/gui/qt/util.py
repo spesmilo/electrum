@@ -403,7 +403,14 @@ class ChoicesLayout(object):
         self.group = group = QButtonGroup()
         for i,c in enumerate(choices):
             button = QRadioButton(gb2)
-            button.setText(c)
+            if isinstance(c, tuple):
+                # tuple of text, icon path
+                logo = QIcon()
+                logo.addPixmap(QPixmap(icon_path(c[1])).scaledToWidth(25, mode=Qt.SmoothTransformation))
+                button.setText(c[0])
+                button.setIcon(logo)
+            else:
+                button.setText(c)
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
