@@ -482,7 +482,7 @@ class BitBox02Client(HardwareClientBase):
                     )
                 )
             else:
-                addrtype, pubkey_hash = bitcoin.address_to_hash(txout.address)
+                addrtype, payload = bitcoin.address_to_payload(txout.address)
                 if addrtype == OnchainOutputType.P2PKH:
                     output_type = bitbox02.btc.P2PKH
                 elif addrtype == OnchainOutputType.P2SH:
@@ -491,6 +491,8 @@ class BitBox02Client(HardwareClientBase):
                     output_type = bitbox02.btc.P2WPKH
                 elif addrtype == OnchainOutputType.WITVER0_P2WSH:
                     output_type = bitbox02.btc.P2WSH
+                elif addrtype == OnchainOutputType.WITVER1_P2TR:
+                    output_type = bitbox02.btc.P2TR
                 else:
                     raise UserFacingException(
                         "Received unsupported output type during transaction signing: {} is not supported by the BitBox02".format(
@@ -500,7 +502,7 @@ class BitBox02Client(HardwareClientBase):
                 outputs.append(
                     bitbox02.BTCOutputExternal(
                         output_type=output_type,
-                        output_hash=pubkey_hash,
+                        output_payload=payload,
                         value=txout.value,
                     )
                 )
@@ -628,7 +630,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (5, 2, 0)
+    minimum_library = (6, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")
