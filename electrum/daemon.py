@@ -69,7 +69,8 @@ def get_rpcsock_default_type(config: SimpleConfig):
     # Use unix domain sockets when available,
     # with the extra paranoia that in case windows "implements" them,
     # we want to test it before making it the default there.
-    if not config.get('rpchost') and hasattr(socket, 'AF_UNIX') and sys.platform != 'win32':
+    if not (config.get('rpchost') and config.get('rpcport')
+            ) and hasattr(socket, 'AF_UNIX') and sys.platform != 'win32':
         return 'unix'
     return 'tcp'
 
