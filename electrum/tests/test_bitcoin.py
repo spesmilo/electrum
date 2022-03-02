@@ -3,7 +3,7 @@ import sys
 
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_address, is_private_key,
-                              var_int, _op_push, address_to_script,
+                              var_int, _op_push, address_to_script, OnchainOutputType, address_to_payload,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
@@ -537,6 +537,32 @@ class Test_bitcoin(ElectrumTestCase):
         # base58 P2SH
         self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+
+    def test_address_to_payload(self):
+        # bech32 P2WPKH
+        self.assertEqual(
+            address_to_payload('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'),
+            (OnchainOutputType.WITVER0_P2WPKH, bytes.fromhex('751e76e8199196d454941c45d1b3a323f1433bd6')))
+
+        # bech32 P2WSH
+        self.assertEqual(
+            address_to_payload('bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3'),
+            (OnchainOutputType.WITVER0_P2WSH, bytes.fromhex('1863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')))
+
+        # bech32m P2TR
+        self.assertEqual(
+            address_to_payload('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr'),
+            (OnchainOutputType.WITVER1_P2TR, bytes.fromhex('a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c')))
+
+        # base58 P2PKH
+        self.assertEqual(
+            address_to_payload('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'),
+            (OnchainOutputType.P2PKH, bytes.fromhex('28662c67561b95c79d2257d2a93d9d151c977e91')))
+
+        # base58 P2SH
+        self.assertEqual(
+            address_to_payload('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'),
+            (OnchainOutputType.P2SH, bytes.fromhex('2a84cf00d47f699ee7bbc1dea5ec1bdecb4ac154')))
 
     def test_bech32_decode(self):
         # bech32 native segwit
