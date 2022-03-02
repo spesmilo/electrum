@@ -120,7 +120,7 @@ exe_standalone = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=home+'electrum/gui/icons/defichain.ico',
     console=False)
     # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
 
@@ -133,7 +133,7 @@ exe_portable = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=home+'electrum/gui/icons/defichain.ico',
     console=False)
 
 #####
@@ -147,7 +147,7 @@ exe_inside_setup_noconsole = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=home+'electrum/gui/icons/defichain.ico',
     console=False)
 
 exe_inside_setup_console = EXE(
@@ -158,7 +158,7 @@ exe_inside_setup_console = EXE(
     debug=False,
     strip=None,
     upx=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=home+'electrum/gui/icons/defichain.ico',
     console=True)
 
 coll = COLLECT(
@@ -170,6 +170,6 @@ coll = COLLECT(
     strip=None,
     upx=True,
     debug=False,
-    icon=home+'electrum/gui/icons/electrum.ico',
+    icon=home+'electrum/gui/icons/defichain.ico',
     console=False,
     name=os.path.join('dist', 'electrum'))
