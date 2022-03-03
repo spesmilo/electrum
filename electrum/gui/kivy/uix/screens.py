@@ -16,7 +16,7 @@ from electrum.invoices import (PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATIO
 from electrum import bitcoin, constants
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
-                           InvoiceError, format_time, parse_max_spend)
+                           InvoiceError, format_time)
 from electrum.lnaddr import lndecode, LnInvoiceException
 from electrum.logging import Logger
 
@@ -201,7 +201,7 @@ class SendScreen(CScreen, Logger):
             self.app.show_info(_("Invoice is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return
         self.address = invoice
-        self.message = lnaddr.get_description()
+        self.message = dict(lnaddr.tags).get('d', None)
         self.amount = self.app.format_amount_and_units(lnaddr.amount * bitcoin.COIN) if lnaddr.amount else ''
         self.payment_request = None
         self.is_lightning = True
@@ -371,7 +371,7 @@ class SendScreen(CScreen, Logger):
 
     def _do_pay_onchain(self, invoice: OnchainInvoice) -> None:
         outputs = invoice.outputs
-        amount = sum(map(lambda x: x.value, outputs)) if not any(parse_max_spend(x.value) for x in outputs) else '!'
+        amount = sum(map(lambda x: x.value, outputs)) if '!' not in [x.value for x in outputs] else '!'
         coins = self.app.wallet.get_spendable_coins(None)
         make_tx = lambda rbf: self.app.wallet.make_unsigned_transaction(coins=coins, outputs=outputs, rbf=rbf)
         on_pay = lambda tx: self.app.protected(_('Send payment?'), self.send_tx, (tx, invoice))

@@ -33,6 +33,7 @@ from . import version
 from . import segwit_addr
 from . import constants
 from . import ecc
+from . import defichain
 from .crypto import sha256d, sha256, hash_160, hmac_oneshot
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
 
 COINBASE_MATURITY = 100
 COIN = 100000000
-TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 21000000
+TOTAL_COIN_SUPPLY_LIMIT_IN_BTC = 1200000000
 
 NLOCKTIME_MIN = 0
 NLOCKTIME_BLOCKHEIGHT_MAX = 500_000_000 - 1
@@ -299,8 +300,8 @@ def make_op_return(x:bytes) -> bytes:
     return bytes([opcodes.OP_RETURN]) + bytes.fromhex(push_script(x.hex()))
 
 
-def add_number_to_script(i: int) -> bytes:
-    return bfh(push_script(script_num_to_hex(i)))
+def add_number_to_script(i: int, _push_script=push_script) -> bytes:
+    return bfh(_push_script(script_num_to_hex(i)))
 
 
 def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
@@ -316,20 +317,26 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
         witness += witness_push(item)
     return witness
 
-
-def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+def construct_script(
+    items: Sequence[Union[str, int, bytes, opcodes, defichain.CustomTxType]],
+    push_opcode: bool=True) -> str:
     """Constructs bitcoin script from given items."""
+    if push_opcode:
+        _push_script = push_script
+    else:
+        _push_script = lambda x: x
+
     script = ''
     for item in items:
-        if isinstance(item, opcodes):
+        if isinstance(item, (opcodes, defichain.CustomTxType)):
             script += item.hex()
         elif type(item) is int:
-            script += add_number_to_script(item).hex()
+            script += add_number_to_script(item, _push_script).hex()
         elif isinstance(item, (bytes, bytearray)):
-            script += push_script(item.hex())
+            script += _push_script(item.hex())
         elif isinstance(item, str):
             assert is_hex_str(item)
-            script += push_script(item)
+            script += _push_script(item)
         else:
             raise Exception(f'unexpected item for script: {item!r}')
     return script
@@ -349,12 +356,8 @@ def relayfee(network: 'Network' = None) -> int:
 
 
 # see https://github.com/bitcoin/bitcoin/blob/a62f0ed64f8bbbdfe6467ac5ce92ef5b5222d1bd/src/policy/policy.cpp#L14
-# and https://github.com/lightningnetwork/lightning-rfc/blob/7e3dce42cbe4fa4592320db6a4e06c26bb99122b/03-transactions.md#dust-limits
-DUST_LIMIT_P2PKH = 546
-DUST_LIMIT_P2SH = 540
-DUST_LIMIT_UNKNOWN_SEGWIT = 354
-DUST_LIMIT_P2WSH = 330
-DUST_LIMIT_P2WPKH = 294
+DUST_LIMIT_DEFAULT_SAT_LEGACY = 546
+DUST_LIMIT_DEFAULT_SAT_SEGWIT = 294
 
 
 def dust_threshold(network: 'Network' = None) -> int:

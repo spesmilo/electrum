@@ -246,7 +246,6 @@ Builder.load_string(r'''
     warning: ''
     is_frozen_for_sending: False
     is_frozen_for_receiving: False
-    channel_type:''
     BoxLayout:
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -295,9 +294,6 @@ Builder.load_string(r'''
                 BoxLabel:
                     text: _('Frozen (for receiving)')
                     value: str(root.is_frozen_for_receiving)
-                BoxLabel:
-                    text: _('Channel type')
-                    value: str(root.channel_type)
                 Widget:
                     size_hint: 1, 0.1
                 TopLabel:
@@ -488,7 +484,6 @@ class ChannelDetailsPopup(Popup, Logger):
         self.warning = '' if self.app.wallet.lnworker.channel_db or self.app.wallet.lnworker.is_trampoline_peer(chan.node_id) else _('Warning') + ': ' + msg
         self.is_frozen_for_sending = chan.is_frozen_for_sending()
         self.is_frozen_for_receiving = chan.is_frozen_for_receiving()
-        self.channel_type = chan.storage['channel_type'].name_minimal
         self.update_action_dropdown()
 
     def update_action_dropdown(self):

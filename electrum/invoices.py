@@ -10,7 +10,7 @@ from .util import age, InvoiceError
 from .lnaddr import lndecode, LnAddr
 from . import constants
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-from .transaction import PartialTxOutput
+from .transaction import PartialTxOutput, CustomTxOutput
 
 if TYPE_CHECKING:
     from .paymentrequest import PaymentRequest
@@ -67,7 +67,7 @@ assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
 def _decode_outputs(outputs) -> List[PartialTxOutput]:
     ret = []
     for output in outputs:
-        if not isinstance(output, PartialTxOutput):
+        if not isinstance(output, (PartialTxOutput, CustomTxOutput)):
             output = PartialTxOutput.from_legacy_tuple(*output)
         ret.append(output)
     return ret
@@ -136,7 +136,7 @@ class OnchainInvoice(Invoice):
             if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN):
                 raise InvoiceError(f"amount is out-of-bounds: {value!r} sat")
         elif isinstance(value, str):
-            if value != '!':
+            if value != "!":
                 raise InvoiceError(f"unexpected amount: {value!r}")
         else:
             raise InvoiceError(f"unexpected amount: {value!r}")

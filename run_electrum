@@ -27,7 +27,7 @@ import os
 import sys
 
 
-MIN_PYTHON_VERSION = "3.8.0"  # FIXME duplicated from setup.py
+MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
 
 
@@ -63,8 +63,8 @@ def check_imports():
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
-    if not ((0, 22, 0) <= aiorpcx._version < (0, 23)):
-        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.23')
+    if not ((0, 18, 7) <= aiorpcx._version < (0, 19)):
+        raise RuntimeError(f'aiorpcX version {aiorpcx._version} does not match required: 0.18.7<=ver<0.19')
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -166,7 +166,7 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
 
     config_options['password'] = config_options.get('password') or password
 
-    if cmd.name == 'password' and 'new_password' not in config_options:
+    if cmd.name == 'password':
         new_password = prompt_password('New password:')
         config_options['new_password'] = new_password
 

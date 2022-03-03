@@ -23,14 +23,15 @@
 
 import asyncio
 import threading
-import asyncio
 import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
 
+from aiorpcx import TaskGroup
+
 from . import bitcoin, util
 from .bitcoin import COINBASE_MATURITY
-from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, with_lock, OldTaskGroup
+from .util import profiler, bfh, TxMinedInfo, UnrelatedTransactionException, with_lock
 from .transaction import Transaction, TxOutput, TxInput, PartialTxInput, TxOutpoint, PartialTransaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -92,7 +93,7 @@ class AddressSynchronizer(Logger):
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
-        self._get_addr_balance_cache = {}
+        self._get_addr_balance_cache: Dict[str, Dict] = {}
 
         self.load_and_cleanup()
 
@@ -186,12 +187,13 @@ class AddressSynchronizer(Logger):
             util.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
 
     def on_blockchain_updated(self, event, *args):
-        self._get_addr_balance_cache = {}  # invalidate cache
+        for addr in self._get_addr_balance_cache:
+            self._get_addr_balance_cache[addr]['0'] = {}
 
     async def stop(self):
         if self.network:
             try:
-                async with OldTaskGroup() as group:
+                async with TaskGroup() as group:
                     if self.synchronizer:
                         await group.spawn(self.synchronizer.stop())
                     if self.verifier:
@@ -792,41 +794,81 @@ class AddressSynchronizer(Logger):
         return sum([v for height, v, is_cb in received.values()])
 
     @with_local_height_cached
-    def get_addr_balance(self, address, *, excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
+    def get_addr_balance(self, address, *, excluded_coins: Set[str] = None, token_id: str = "0") \
+            -> Tuple[int, int, int]:
         """Return the balance of a bitcoin address:
         confirmed and matured, unconfirmed, unmatured
         """
+        if address not in self._get_addr_balance_cache:
+            self._get_addr_balance_cache[address] = dict()
         if not excluded_coins:  # cache is only used if there are no excluded_coins
-            cached_value = self._get_addr_balance_cache.get(address)
+            cached_value = self._get_addr_balance_cache[address].get(token_id)
             if cached_value:
                 return cached_value
         if excluded_coins is None:
             excluded_coins = set()
         assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
-        received, sent = self.get_addr_io(address)
-        c = u = x = 0
-        mempool_height = self.get_local_height() + 1  # height of next block
-        for txo, (tx_height, v, is_cb) in received.items():
-            if txo in excluded_coins:
-                continue
-            if is_cb and tx_height + COINBASE_MATURITY > mempool_height:
-                x += v
-            elif tx_height > 0:
-                c += v
-            else:
-                u += v
-            if txo in sent:
-                if sent[txo] > 0:
-                    c -= v
+        result = 0
+        if token_id == "0":
+            received, sent = self.get_addr_io(address)
+            c = u = x = 0
+            mempool_height = self.get_local_height() + 1  # height of next block
+            for txo, (tx_height, v, is_cb) in received.items():
+                if txo in excluded_coins:
+                    continue
+                if is_cb and tx_height + COINBASE_MATURITY > mempool_height:
+                    x += v
+                elif tx_height > 0:
+                    c += v
                 else:
-                    u -= v
-        result = c, u, x
-        # cache result.
-        if not excluded_coins:
-            # Cache needs to be invalidated if a transaction is added to/
-            # removed from history; or on new blocks (maturity...)
-            self._get_addr_balance_cache[address] = result
+                    u += v
+                if txo in sent:
+                    if sent[txo] > 0:
+                        c -= v
+                    else:
+                        u -= v
+            result = c, u, x
+            # cache result.
+            if not excluded_coins:
+                # Cache needs to be invalidated if a transaction is added to/
+                # removed from history; or on new blocks (maturity...)
+                self._get_addr_balance_cache[address][token_id] = result
+        else:
+            if self.network.interface is not None:
+                balances = self.network.asyncio_loop.run_until_complete(
+                    self.network.interface.fetch_token_balance(address)
+                )
+
+                bals = {key: (val, 0, 0) for key, val in balances.items()}
+                # self.logger.info('addr balances %s', str(bals))
+
+                for _token_id in self.network.interface.get_token_ids():
+                    if self._get_addr_balance_cache[address].get(_token_id) is None:
+                        self._get_addr_balance_cache[address][_token_id] = (0, 0, 0)
+
+                self._get_addr_balance_cache[address].update(bals)
+                if token_id in balances: result = balances[token_id]
+                result = (result, 0, 0)
+            else:
+                self.logger.error("cannot fetch balance, netork interface is not ready")
+                result = None
         return result
+
+    @with_local_height_cached
+    def get_all_addr_balances(self, addr): # -> Dict(str, Tuple[int, int, int])
+        if self.network.interface is None:
+            self.logger.error('failed to get address token balances, interface is not ready')
+            return None
+
+        balances = self.network.asyncio_loop.run_until_complete(
+            self.network.interface.fetch_token_balance(address)
+        )
+
+        bals = {key: (val, 0, 0) for key, val in balances.items()}
+        # self.logger.info('addr balances %s', str(bals))
+
+        self._get_addr_balance_cache[address].update(bals)
+        return {key: val[0] for key, val in bals}
 
     @with_local_height_cached
     def get_utxos(
@@ -877,6 +919,20 @@ class AddressSynchronizer(Logger):
                     excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
         if domain is None:
             domain = self.get_addresses()
+        #     # from json import dumps;
+        #     # self.logger.info('tokens\n %s', dumps(self.network.interface.token_list, indent=4, sort_keys=True))
+        #     # self.logger.info(domain) # set of addresses
+        # if self.network.interface is not None:
+        #     tokens = self.network.interface.token_list
+        #     t = tokens[2]
+        #     for a in domain:
+        #         symbol = t['symbol']
+        #         # self.logger.info('token symbol is %s', symbol)
+        #         b = self.get_addr_balance(a, token_id=symbol)
+        #         # self.logger.info('balance for %s is %s', a, b)
+        #
+        # self.logger.info('domain: %s', ', '.join(domain))
+
         if excluded_addresses is None:
             excluded_addresses = set()
         assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"

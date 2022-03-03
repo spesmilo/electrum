@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = Defichain-Electrum
 
 # (str) Package name
-package.name = Electrum
+package.name = DefichainElectrum
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electrum
@@ -52,11 +52,11 @@ requirements =
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
-presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
+presplash.filename = %(source.dir)s/electrum/gui/icons/defichain_presplash.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_legacy.png
-icon.adaptive_foreground.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_foreground.png
+icon.filename = %(source.dir)s/electrum/gui/icons/defichain_android_icon.png
+icon.adaptive_foreground.filename = %(source.dir)s/electrum/gui/icons/defichain_android_foreground.png
 icon.adaptive_background.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_background.png
 
 # (str) Supported orientation (one of landscape, portrait or all)

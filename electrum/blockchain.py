@@ -32,14 +32,13 @@ from . import constants
 from .util import bfh, bh2u, with_lock
 from .simple_config import SimpleConfig
 from .logging import get_logger, Logger
-
+from struct import Struct
 
 _logger = get_logger(__name__)
 
-HEADER_SIZE = 80  # bytes
-
-# see https://github.com/bitcoin/bitcoin/blob/feedb9c84e72e4fff489810a2bbeec09bcda5763/src/chainparams.cpp#L76
-MAX_TARGET = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1d00ffff
+GENESIS_HEADER_SIZE = 125 # bytes
+HEADER_SIZE = 190  # bytes
+MAX_TARGET = 0x00000FFFF0000000000000000000000000000000000000000000000000000000
 
 
 class MissingHeader(Exception):
@@ -54,14 +53,20 @@ def serialize_header(header_dict: dict) -> str:
         + rev_hex(header_dict['merkle_root']) \
         + int_to_hex(int(header_dict['timestamp']), 4) \
         + int_to_hex(int(header_dict['bits']), 4) \
-        + int_to_hex(int(header_dict['nonce']), 4)
+        + int_to_hex(int(header_dict['height']), 8) \
+        + int_to_hex(int(header_dict['minted_blocks']), 8) \
+        + rev_hex(header_dict['stake_modifier']) \
+        + header_dict['sig']
     return s
 
 def deserialize_header(s: bytes, height: int) -> dict:
     if not s:
         raise InvalidHeader('Invalid header: {}'.format(s))
-    if len(s) != HEADER_SIZE:
+
+    correct_size = GENESIS_HEADER_SIZE if height == 0 else HEADER_SIZE
+    if len(s) != correct_size:
         raise InvalidHeader('Invalid header length: {}'.format(len(s)))
+
     hex_to_int = lambda s: int.from_bytes(s, byteorder='little')
     h = {}
     h['version'] = hex_to_int(s[0:4])
@@ -69,7 +74,10 @@ def deserialize_header(s: bytes, height: int) -> dict:
     h['merkle_root'] = hash_encode(s[36:68])
     h['timestamp'] = hex_to_int(s[68:72])
     h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['height'] = hex_to_int(s[76:84])
+    h['minted_blocks'] = hex_to_int(s[84:92])
+    h['stake_modifier'] = hash_encode(s[92:124])
+    h['sig'] = s[124:].hex()
     h['block_height'] = height
     return h
 
@@ -290,7 +298,11 @@ class Blockchain(Logger):
     @with_lock
     def update_size(self) -> None:
         p = self.path()
-        self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
+        if os.path.exists(p):
+            headers_size = os.path.getsize(p)
+            self._size = (headers_size // HEADER_SIZE) + int((headers_size % HEADER_SIZE) != 0)
+        else:
+            self._size = 0
 
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
@@ -299,7 +311,7 @@ class Blockchain(Logger):
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if constants.net.TESTNET:
+        if constants.net.TESTNET or target > 0:
             return
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
@@ -448,12 +460,17 @@ class Blockchain(Logger):
 
     @with_lock
     def save_header(self, header: dict) -> None:
-        delta = header.get('block_height') - self.forkpoint
+        height = header.get('block_height')
+        delta = height - self.forkpoint
         data = bfh(serialize_header(header))
         # headers are only _appended_ to the end:
         assert delta == self.size(), (delta, self.size())
-        assert len(data) == HEADER_SIZE
-        self.write(data, delta*HEADER_SIZE)
+
+        correct_size = HEADER_SIZE
+        if height == 0: correct_size = GENESIS_HEADER_SIZE
+
+        assert len(data) == correct_size, f"{len(data)} != {correct_size}"
+        self.write(data, delta * correct_size)
         self.swap_with_parent()
 
     @with_lock
@@ -467,12 +484,13 @@ class Blockchain(Logger):
         delta = height - self.forkpoint
         name = self.path()
         self.assert_headers_file_available(name)
+        correct_size = GENESIS_HEADER_SIZE if height == 0 else HEADER_SIZE
         with open(name, 'rb') as f:
-            f.seek(delta * HEADER_SIZE)
-            h = f.read(HEADER_SIZE)
-            if len(h) < HEADER_SIZE:
+            f.seek(delta * correct_size)
+            h = f.read(correct_size)
+            if len(h) < correct_size:
                 raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
-        if h == bytes([0])*HEADER_SIZE:
+        if h == bytes([0])*correct_size:
             return None
         return deserialize_header(h, height)
 
@@ -542,37 +560,20 @@ class Blockchain(Logger):
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
-        # arith_uint256::SetCompact in Bitcoin Core
-        if not (0 <= bits < (1 << 32)):
-            raise Exception(f"bits should be uint32. got {bits!r}")
         bitsN = (bits >> 24) & 0xff
-        bitsBase = bits & 0x7fffff
-        if bitsN <= 3:
-            target = bitsBase >> (8 * (3-bitsN))
-        else:
-            target = bitsBase << (8 * (bitsN-3))
-        if target != 0 and bits & 0x800000 != 0:
-            # Bit number 24 (0x800000) represents the sign of N
-            raise Exception("target cannot be negative")
-        if (target != 0 and
-                (bitsN > 34 or
-                 (bitsN > 33 and bitsBase > 0xff) or
-                 (bitsN > 32 and bitsBase > 0xffff))):
-            raise Exception("target has overflown")
-        return target
+        if not (0x03 <= bitsN <= 0x1d):
+            raise Exception("First part of bits should be in [0x03, 0x1d]")
+        bitsBase = bits & 0xffffff
+        if not (0x8000 <= bitsBase <= 0x7fffff):
+            raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
+        return bitsBase << (8 * (bitsN-3))
 
     @classmethod
     def target_to_bits(cls, target: int) -> int:
-        # arith_uint256::GetCompact in Bitcoin Core
-        # see https://github.com/bitcoin/bitcoin/blob/7fcf53f7b4524572d1d0c9a5fdc388e87eb02416/src/arith_uint256.cpp#L223
-        c = target.to_bytes(length=32, byteorder='big')
-        bitsN = len(c)
-        while bitsN > 0 and c[0] == 0:
-            c = c[1:]
-            bitsN -= 1
-            if len(c) < 3:
-                c += b'\x00'
-        bitsBase = int.from_bytes(c[:3], byteorder='big')
+        c = ("%064x" % target)[2:]
+        while c[:2] == '00' and len(c) > 6:
+            c = c[2:]
+        bitsN, bitsBase = len(c) // 2, int.from_bytes(bfh(c[:6]), byteorder='big')
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8

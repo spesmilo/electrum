@@ -21,7 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import binascii
-import os, sys, re, json
+import os, sys, re, json, struct
 from collections import defaultdict, OrderedDict
 from typing import (NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable, Any,
                     Sequence, Dict, Generic, TypeVar, List, Iterable, Set)
@@ -52,6 +52,7 @@ import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
+from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
 
@@ -82,18 +83,18 @@ def all_subclasses(cls) -> Set:
 ca_path = certifi.where()
 
 
-base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
+base_units = {'DFI':8, 'mDFI':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['DFI', 'mDFI', 'bits', 'sat']  # list(dict) does not guarantee order
 
-DECIMAL_POINT_DEFAULT = 5  # mBTC
+DECIMAL_POINT_DEFAULT = 8  # mDFI
 
 
 class UnknownBaseUnit(Exception): pass
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
-    # e.g. 8 -> "BTC"
+    # e.g. 8 -> "DFI"
     try:
         return base_units_inverse[dp]
     except KeyError:
@@ -101,37 +102,12 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
-    # e.g. "BTC" -> 8
+    # e.g. "DFI" -> 8
     try:
         return base_units[unit_name]
     except KeyError:
         raise UnknownBaseUnit(unit_name) from None
 
-def parse_max_spend(amt: Any) -> Optional[int]:
-    """Checks if given amount is "spend-max"-like.
-    Returns None or the positive integer weight for "max". Never raises.
-
-    When creating invoices and on-chain txs, the user can specify to send "max".
-    This is done by setting the amount to '!'. Splitting max between multiple
-    tx outputs is also possible, and custom weights (positive ints) can also be used.
-    For example, to send 40% of all coins to address1, and 60% to address2:
-    ```
-    address1, 2!
-    address2, 3!
-    ```
-    """
-    if not (isinstance(amt, str) and amt and amt[-1] == '!'):
-        return None
-    if amt == '!':
-        return 1
-    x = amt[:-1]
-    try:
-        x = int(x)
-    except ValueError:
-        return None
-    if x > 0:
-        return x
-    return None
 
 class NotEnoughFunds(Exception):
     def __str__(self):
@@ -141,6 +117,11 @@ class NotEnoughFunds(Exception):
 class NoDynamicFeeEstimates(Exception):
     def __str__(self):
         return _('Dynamic fee estimates not available')
+
+
+class MultipleSpendMaxTxOutputs(Exception):
+    def __str__(self):
+        return _('At most one output can be set to spend max')
 
 
 class InvalidPassword(Exception):
@@ -339,7 +320,7 @@ class DaemonThread(threading.Thread, Logger):
     def __init__(self):
         threading.Thread.__init__(self)
         Logger.__init__(self)
-        self.parent_thread = threading.current_thread()
+        self.parent_thread = threading.currentThread()
         self.running = False
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
@@ -653,8 +634,8 @@ def format_satoshis_plain(
 ) -> str:
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
-    if parse_max_spend(x):
-        return f'max({x})'
+    if x == '!':
+        return 'max'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     scale_factor = pow(10, decimal_point)
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
@@ -682,8 +663,8 @@ def format_satoshis(
 ) -> str:
     if x is None:
         return 'unknown'
-    if parse_max_spend(x):
-        return f'max({x})'
+    if x == '!':
+        return 'max'
     assert isinstance(x, (int, float, Decimal)), f"{x!r} should be a number"
     # lose redundant precision
     x = Decimal(x).quantize(Decimal(10) ** (-precision))
@@ -796,74 +777,16 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
-                        {'tx': 'transactions/', 'addr': 'addresses/'}),
-    'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
-                        {'tx': 'Transaction/', 'addr': 'Address/'}),
-    'Blockchain.info': ('https://blockchain.com/btc/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'blockchainbdgpzk.onion': ('https://blockchainbdgpzk.onion/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockstream.info': ('https://blockstream.info/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Bitaps.com': ('https://btc.bitaps.com/',
-                        {'tx': '', 'addr': ''}),
-    'BTC.com': ('https://btc.com/',
-                        {'tx': '', 'addr': ''}),
-    'Chain.so': ('https://www.chain.so/',
-                        {'tx': 'tx/BTC/', 'addr': 'address/BTC/'}),
-    'Insight.is': ('https://insight.bitpay.com/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'TradeBlock.com': ('https://tradeblock.com/blockchain/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchair.com': ('https://blockchair.com/bitcoin/',
-                        {'tx': 'transaction/', 'addr': 'address/'}),
-    'blockonomics.co': ('https://www.blockonomics.co/',
-                        {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
-    'mempool.space': ('https://mempool.space/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'mempool.emzy.de': ('https://mempool.emzy.de/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'OXT.me': ('https://oxt.me/',
-                        {'tx': 'transaction/', 'addr': 'address/'}),
-    'smartbit.com.au': ('https://www.smartbit.com.au/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'mynode.local': ('http://mynode.local:3002/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('blockchain:/',
+    'DeFiChain Explorer': ('https://explorer.defichain.io/#/DFI/mainnet/home',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 testnet_block_explorers = {
-    'Bitaps.com': ('https://tbtc.bitaps.com/',
-                       {'tx': '', 'addr': ''}),
-    'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockchain.info': ('https://www.blockchain.com/btc-testnet/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
-    'Blockstream.info': ('https://blockstream.info/testnet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'mempool.space': ('https://mempool.space/testnet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'smartbit.com.au': ('https://testnet.smartbit.com.au/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
+    'DeFiChain Explorer': ('https://testnet.defichain.io/#/DFI/testnet/home',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 signet_block_explorers = {
-    'bc-2.jp': ('https://explorer.bc-2.jp/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'mempool.space': ('https://mempool.space/signet/',
-                        {'tx': 'tx/', 'addr': 'address/'}),
-    'bitcoinexplorer.org': ('https://signet.bitcoinexplorer.org/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
-    'wakiyamap.dev': ('https://signet-explorer.wakiyamap.dev/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
-    'system default': ('blockchain:/',
-                       {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 _block_explorer_default_api_loc = {'tx': 'tx/', 'addr': 'address/'}
@@ -979,7 +902,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             else:
                 amount = Decimal(am) * COIN
             if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
+                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} DFI")
             out['amount'] = int(amount)
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
@@ -1111,8 +1034,7 @@ def setup_thread_excepthook():
 
 
 def send_exception_to_crash_reporter(e: BaseException):
-    from .base_crash_reporter import send_exception_to_crash_reporter
-    send_exception_to_crash_reporter(e)
+    sys.excepthook(type(e), e, e.__traceback__)
 
 
 def versiontuple(v):
@@ -1177,6 +1099,9 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
+        except asyncio.CancelledError:
+            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
+            raise
         except Exception as e:
             pass
     return wrapper
@@ -1225,76 +1150,13 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
-class OldTaskGroup(aiorpcx.TaskGroup):
-    """Automatically raises exceptions on join; as in aiorpcx prior to version 0.20.
-    That is, when using TaskGroup as a context manager, if any task encounters an exception,
-    we would like that exception to be re-raised (propagated out). For the wait=all case,
-    the OldTaskGroup class is emulating the following code-snippet:
-    ```
-    async with TaskGroup() as group:
-        await group.spawn(task1())
-        await group.spawn(task2())
+class SilentTaskGroup(TaskGroup):
 
-        async for task in group:
-            if not task.cancelled():
-                task.result()
-    ```
-    So instead of the above, one can just write:
-    ```
-    async with OldTaskGroup() as group:
-        await group.spawn(task1())
-        await group.spawn(task2())
-    ```
-    """
-    async def join(self):
-        if self._wait is all:
-            exc = False
-            try:
-                async for task in self:
-                    if not task.cancelled():
-                        task.result()
-            except BaseException:  # including asyncio.CancelledError
-                exc = True
-                raise
-            finally:
-                if exc:
-                    await self.cancel_remaining()
-                await super().join()
-        else:
-            await super().join()
-            if self.completed:
-                self.completed.result()
-
-# We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
-# to fix a timing issue present in asyncio as a whole re timing out tasks.
-# To see the issue we are trying to fix, consider example:
-#     async def outer_task():
-#         async with timeout_after(0.1):
-#             await inner_task()
-# When the 0.1 sec timeout expires, inner_task will get cancelled by timeout_after (=internal cancellation).
-# If around the same time (in terms of event loop iterations) another coroutine
-# cancels outer_task (=external cancellation), there will be a race.
-# Both cancellations work by propagating a CancelledError out to timeout_after, which then
-# needs to decide (in TimeoutAfter.__aexit__) whether it's due to an internal or external cancellation.
-# AFAICT asyncio provides no reliable way of distinguishing between the two.
-# This patch tries to always give priority to external cancellations.
-# see https://github.com/kyuupichan/aiorpcX/issues/44
-# see https://github.com/aio-libs/async-timeout/issues/229
-# see https://bugs.python.org/issue42130 and https://bugs.python.org/issue45098
-def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
-    def timeout_task():
-        task._orig_cancel()
-        task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
-    def mycancel(*args, **kwargs):
-        task._orig_cancel(*args, **kwargs)
-        task._externally_cancelled = True
-        task._timed_out = None
-    if not hasattr(task, "_orig_cancel"):
-        task._orig_cancel = task.cancel
-        task.cancel = mycancel
-    task._deadline_handle = task._loop.call_at(deadline, timeout_task)
-
-aiorpcx.curio._set_new_deadline = _aiorpcx_monkeypatched_set_new_deadline
+    def spawn(self, *args, **kwargs):
+        # don't complain if group is already closed.
+        if self._closed:
+            raise asyncio.CancelledError()
+        return super().spawn(*args, **kwargs)
 
 
 class NetworkJobOnDefaultServer(Logger, ABC):
@@ -1322,14 +1184,14 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.taskgroup = OldTaskGroup()
+        self.taskgroup = SilentTaskGroup()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
         await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
     @abstractmethod
-    async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
+    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
         """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """
@@ -1376,7 +1238,7 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
     loop = asyncio.get_event_loop()
     loop.set_exception_handler(on_exception)
     # loop.set_debug(1)
-    stopping_fut = loop.create_future()
+    stopping_fut = asyncio.Future()
     loop_thread = threading.Thread(target=loop.run_until_complete,
                                          args=(stopping_fut,),
                                          name='EventLoop')
@@ -1685,7 +1547,6 @@ def random_shuffled_copy(x: Iterable[T]) -> List[T]:
     random.shuffle(x_copy)  # shuffle in-place
     return x_copy
 
-
 def test_read_write_permissions(path) -> None:
     # note: There might already be a file at 'path'.
     #       Make sure we do NOT overwrite/corrupt that!
@@ -1728,8 +1589,10 @@ class nullcontext:
     async def __aexit__(self, *excinfo):
         pass
 
-
-def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
+def get_running_loop():
+    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
+    if sys.version_info < (3, 7):
+        return asyncio._get_running_loop()
     try:
         return asyncio.get_running_loop()
     except RuntimeError:

@@ -3,7 +3,6 @@ import getpass
 import datetime
 import logging
 
-from electrum.gui import BaseElectrumGui
 from electrum import util
 from electrum import WalletStorage, Wallet
 from electrum.wallet_db import WalletDB
@@ -18,10 +17,10 @@ _ = lambda x:x  # i18n
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
 
 
-class ElectrumGui(BaseElectrumGui):
+class ElectrumGui:
 
-    def __init__(self, *, config, daemon, plugins):
-        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
+    def __init__(self, config, daemon, plugins):
+        self.config = config
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
         if not storage.file_exists:
@@ -173,7 +172,7 @@ class ElectrumGui(BaseElectrumGui):
 
     def do_send(self):
         if not is_address(self.str_recipient):
-            print(_('Invalid Bitcoin address'))
+            print(_('Invalid DeFiChain address'))
             return
         try:
             amount = int(Decimal(self.str_amount) * COIN)

@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_bolt11_invoice, parse_max_spend)
+                           maybe_extract_bolt11_invoice)
 from electrum.invoices import PR_PAID, PR_FAILED
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
@@ -28,7 +28,6 @@ from electrum.bitcoin import COIN
 
 from electrum.gui import messages
 from .i18n import _
-from .util import get_default_language
 from . import KIVY_GUI_PATH
 
 from kivy.app import App
@@ -124,25 +123,14 @@ class ElectrumWindow(App, Logger):
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
-        if not self._init_finished:
-            return
         net_params = self.network.get_parameters()
         net_params = net_params._replace(auto_connect=self.auto_connect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
-
-    def set_auto_connect(self, b: bool):
-        # This method makes sure we persist x into the config even if self.auto_connect == b.
-        # Note: on_auto_connect() only gets called if the value of the self.auto_connect property *changes*.
-        self.electrum_config.set_key('auto_connect', b)
-        self.auto_connect = b
-
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
     oneserver = BooleanProperty(False)
     def on_oneserver(self, instance, x):
-        if not self._init_finished:
-            return
         net_params = self.network.get_parameters()
         net_params = net_params._replace(oneserver=self.oneserver)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
@@ -383,8 +371,6 @@ class ElectrumWindow(App, Logger):
     :data:`ui_mode` is a read only `AliasProperty` Defaults to 'phone'
     '''
 
-    _init_finished = False
-
     def __init__(self, **kwargs):
         # initialize variables
         self._clipboard = Clipboard
@@ -403,7 +389,7 @@ class ElectrumWindow(App, Logger):
         Logger.__init__(self)
 
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
-        self.language = config.get('language', get_default_language())
+        self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
             self.num_blocks = self.network.get_local_height()
@@ -439,8 +425,6 @@ class ElectrumWindow(App, Logger):
         self.set_fee_status()
         self.invoice_popup = None
         self.request_popup = None
-
-        self._init_finished = True
 
     def on_pr(self, pr: 'PaymentRequest'):
         if not self.wallet:
@@ -655,17 +639,12 @@ class ElectrumWindow(App, Logger):
             util.register_callback(self.on_channel_db, ['channel_db'])
             util.register_callback(self.set_num_peers, ['gossip_peers'])
             util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        
-        if self.network and self.electrum_config.get('auto_connect') is None:
-            self.popup_dialog("first_screen")
-            # load_wallet_on_start will be called later, after initial network setup is completed
-        else:
-            # load wallet
-            self.load_wallet_on_start()
-            # URI passed in config
-            uri = self.electrum_config.get('url')
-            if uri:
-                self.set_URI(uri)
+        # load wallet
+        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
+        # URI passed in config
+        uri = self.electrum_config.get('url')
+        if uri:
+            self.set_URI(uri)
 
     def on_channel_db(self, event, num_nodes, num_channels, num_policies):
         self.lightning_gossip_num_nodes = num_nodes
@@ -711,10 +690,6 @@ class ElectrumWindow(App, Logger):
             return
         d = OpenWalletDialog(self, path, self.on_open_wallet)
         d.open()
-
-    def load_wallet_on_start(self):
-        """As part of app startup, try to load last wallet."""
-        self.load_wallet_by_name(self.electrum_config.get_wallet_path(use_gui_last_wallet=True))
 
     def on_open_wallet(self, password, storage):
         if not storage.file_exists():
@@ -849,7 +824,7 @@ class ElectrumWindow(App, Logger):
         self.history_screen = None
         self.send_screen = None
         self.receive_screen = None
-        self.icon = os.path.dirname(KIVY_GUI_PATH) + "/icons/electrum.png"
+        self.icon = os.path.dirname(KIVY_GUI_PATH) + "/icons/defichain_logo.png"
         self.tabs = self.root.ids['tabs']
 
     def update_interfaces(self, dt):
@@ -989,8 +964,8 @@ class ElectrumWindow(App, Logger):
     def format_amount_and_units(self, x) -> str:
         if x is None:
             return 'none'
-        if parse_max_spend(x):
-            return f'max({x})'
+        if x == '!':
+            return 'max'
         # FIXME this is using format_satoshis_plain instead of config.format_amount
         #       as we sometimes convert the returned string back to numbers,
         #       via self.get_amount()... the need for converting back should be removed

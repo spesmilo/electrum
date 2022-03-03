@@ -30,7 +30,7 @@ try:
     from trezorlib.messages import (
         Capability, BackupType, RecoveryDeviceType, HDNodeType, HDNodePathType,
         InputScriptType, OutputScriptType, MultisigRedeemScriptType,
-        TxInputType, TxOutputType, TxOutputBinType, TransactionType, AmountUnit)
+        TxInputType, TxOutputType, TxOutputBinType, TransactionType, SignTx)
 
     from trezorlib.client import PASSPHRASE_ON_DEVICE
 
@@ -54,7 +54,6 @@ except Exception as e:
     Capability = _EnumMissing()
     BackupType = _EnumMissing()
     RecoveryDeviceType = _EnumMissing()
-    AmountUnit = _EnumMissing()
 
     PASSPHRASE_ON_DEVICE = object()
 
@@ -77,11 +76,10 @@ class TrezorKeyStore(Hardware_KeyStore):
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
-    def sign_message(self, sequence, message, password, *, script_type=None):
+    def sign_message(self, sequence, message, password):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
-        script_type = self.plugin.get_trezor_input_script_type(script_type)
-        msg_sig = client.sign_message(address_path, message, script_type=script_type)
+        msg_sig = client.sign_message(address_path, message)
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
@@ -119,8 +117,8 @@ class TrezorPlugin(HW_PluginBase):
     libraries_URL = 'https://pypi.org/project/trezor/'
     minimum_firmware = (1, 5, 2)
     keystore_class = TrezorKeyStore
-    minimum_library = (0, 13, 0)
-    maximum_library = (0, 14)
+    minimum_library = (0, 12, 0)
+    maximum_library = (0, 13)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
@@ -328,8 +326,6 @@ class TrezorPlugin(HW_PluginBase):
             return InputScriptType.SPENDADDRESS
         if electrum_txin_type in ('p2sh',):
             return InputScriptType.SPENDMULTISIG
-        if electrum_txin_type in ('p2tr',):
-            return InputScriptType.SPENDTAPROOT
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     def get_trezor_output_script_type(self, electrum_txin_type: str):
@@ -341,19 +337,7 @@ class TrezorPlugin(HW_PluginBase):
             return OutputScriptType.PAYTOADDRESS
         if electrum_txin_type in ('p2sh',):
             return OutputScriptType.PAYTOMULTISIG
-        if electrum_txin_type in ('p2tr',):
-            return OutputScriptType.PAYTOTAPROOT
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
-
-    def get_trezor_amount_unit(self):
-        if self.config.decimal_point == 0:
-            return AmountUnit.SATOSHI
-        elif self.config.decimal_point == 2:
-            return AmountUnit.MICROBITCOIN
-        elif self.config.decimal_point == 5:
-            return AmountUnit.MILLIBITCOIN
-        else:
-            return AmountUnit.BITCOIN
 
     @runs_in_hwd_thread
     def sign_transaction(self, keystore, tx: PartialTransaction, prev_tx):
@@ -361,12 +345,8 @@ class TrezorPlugin(HW_PluginBase):
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
         outputs = self.tx_outputs(tx, keystore=keystore)
-        signatures, _ = client.sign_tx(self.get_coin_name(),
-                                       inputs, outputs,
-                                       lock_time=tx.locktime,
-                                       version=tx.version,
-                                       amount_unit=self.get_trezor_amount_unit(),
-                                       prev_txes=prev_tx)
+        details = SignTx(lock_time=tx.locktime, version=tx.version)
+        signatures, _ = client.sign_tx(self.get_coin_name(), inputs, outputs, details=details, prev_txes=prev_tx)
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
@@ -399,30 +379,39 @@ class TrezorPlugin(HW_PluginBase):
     def tx_inputs(self, tx: Transaction, *, for_sig=False, keystore: 'TrezorKeyStore' = None):
         inputs = []
         for txin in tx.inputs():
+            txinputtype = TxInputType()
             if txin.is_coinbase_input():
-                txinputtype = TxInputType(
-                    prev_hash=b"\x00"*32,
-                    prev_index=0xffffffff,  # signed int -1
-                )
+                prev_hash = b"\x00"*32
+                prev_index = 0xffffffff  # signed int -1
             else:
-                txinputtype = TxInputType(
-                    prev_hash=txin.prevout.txid,
-                    prev_index=txin.prevout.out_idx,
-                )
                 if for_sig:
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
                     if len(txin.pubkeys) > 1:
                         xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
-                        txinputtype.multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
-                    txinputtype.script_type = self.get_trezor_input_script_type(txin.script_type)
+                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                    else:
+                        multisig = None
+                    script_type = self.get_trezor_input_script_type(txin.script_type)
+                    txinputtype = TxInputType(
+                        script_type=script_type,
+                        multisig=multisig)
                     my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
                     if full_path:
                         txinputtype.address_n = full_path
 
-            txinputtype.amount = txin.value_sats()
-            txinputtype.script_sig = txin.script_sig
+                prev_hash = txin.prevout.txid
+                prev_index = txin.prevout.out_idx
+
+            if txin.value_sats() is not None:
+                txinputtype.amount = txin.value_sats()
+            txinputtype.prev_hash = prev_hash
+            txinputtype.prev_index = prev_index
+
+            if txin.script_sig is not None:
+                txinputtype.script_sig = txin.script_sig
+
             txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
@@ -457,18 +446,15 @@ class TrezorPlugin(HW_PluginBase):
             return txoutputtype
 
         def create_output_by_address():
+            txoutputtype = TxOutputType()
+            txoutputtype.amount = txout.value
             if address:
-                return TxOutputType(
-                    amount=txout.value,
-                    script_type=OutputScriptType.PAYTOADDRESS,
-                    address=address,
-                )
+                txoutputtype.script_type = OutputScriptType.PAYTOADDRESS
+                txoutputtype.address = address
             else:
-                return TxOutputType(
-                    amount=txout.value,
-                    script_type=OutputScriptType.PAYTOOPRETURN,
-                    op_return_data=trezor_validate_op_return_output_and_get_data(txout),
-                )
+                txoutputtype.script_type = OutputScriptType.PAYTOOPRETURN
+                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(txout)
+            return txoutputtype
 
         outputs = []
         has_change = False

@@ -40,8 +40,8 @@ def read_json(filename, default):
     return r
 
 
-GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
+GIT_REPO_URL = "https://github.com/BirthdayResearch/defichain-electrum"
+GIT_REPO_ISSUES_URL = "https://github.com/BirthdayResearch/defichain-electrum/issues"
 BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
 
 
@@ -73,11 +73,11 @@ class BitcoinMainnet(AbstractNet):
     NET_NAME = "mainnet"
     TESTNET = False
     WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
+    ADDRTYPE_P2PKH = 0x12
+    ADDRTYPE_P2SH = 0x5a
+    SEGWIT_HRP = "df"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    GENESIS = "279b1a87aedc7b9471d4ad4e5f12967ab6259926cd097ade188dfcf22ebfe72a"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
@@ -99,12 +99,9 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 0
+    BIP44_COIN_TYPE = 1129
     LN_REALM_BYTE = 0
     LN_DNS_SEEDS = [
-        'nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
-        'lseed.darosior.ninja',
     ]
 
 
@@ -113,12 +110,12 @@ class BitcoinTestnet(AbstractNet):
     NET_NAME = "testnet"
     TESTNET = True
     WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "tb"
+    ADDRTYPE_P2PKH = 0x0f
+    ADDRTYPE_P2SH = 0x80
+    SEGWIT_HRP = "tf"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
-    DEFAULT_PORTS = {'t': '51001', 's': '51002'}
+    GENESIS = "034ac8c88a1a9b846750768c1ad6f295bc4d0dc4b9b418aee5c0ebd609be8f90"
+    DEFAULT_PORTS = {'t': '60001', 's': '60002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
 
@@ -151,48 +148,32 @@ class BitcoinRegtest(BitcoinTestnet):
     NET_NAME = "regtest"
     SEGWIT_HRP = "bcrt"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    GENESIS = "d744db74fb70ed42767ae028a129365fb4d7de54ba1b6575fb047490554f8a7b"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
 
 
-class BitcoinSimnet(BitcoinTestnet):
+class BitcoinDevnet(BitcoinTestnet):
 
-    NET_NAME = "simnet"
-    WIF_PREFIX = 0x64
-    ADDRTYPE_P2PKH = 0x3f
-    ADDRTYPE_P2SH = 0x7b
-    SEGWIT_HRP = "sb"
-    BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
+    NET_NAME = "devnet"
+    WIF_PREFIX = 0xef
+    ADDRTYPE_P2PKH = 0x0f
+    ADDRTYPE_P2SH = 0x80
+    BOLT11_HRP = BitcoinTestnet.SEGWIT_HRP
+    GENESIS = "0000099a168f636895a019eacfc1798ec54c593c015cfc5aac1f12817f7ddff7"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
-
-
-class BitcoinSignet(BitcoinTestnet):
-
-    NET_NAME = "signet"
-    BOLT11_HRP = "tbs"
-    GENESIS = "00000008819873e925422c1ff0f99f7cc9bbb232af63a077a480a3633bee1ef6"
-    DEFAULT_SERVERS = read_json('servers_signet.json', {})
-    CHECKPOINTS = []
-    LN_DNS_SEEDS = []
-
 
 NETS_LIST = tuple(all_subclasses(AbstractNet))
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
 
-def set_signet():
+def set_devnet():
     global net
-    net = BitcoinSignet
-
-def set_simnet():
-    global net
-    net = BitcoinSimnet
+    net = BitcoinDevnet
 
 def set_mainnet():
     global net

@@ -3,7 +3,6 @@ import re
 import os
 import sys
 import importlib
-from collections import defaultdict
 
 # load version.py; needlessly complicated alternative to "imp.load_source":
 version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
@@ -15,6 +14,9 @@ APK_VERSION = version_module.APK_VERSION
 print("version", ELECTRUM_VERSION)
 
 dirname = sys.argv[1]
+
+# GPG names of extra signers
+extra_signers = sys.argv[2:]
 
 print("directory", dirname)
 
@@ -32,45 +34,43 @@ string = string.replace("##VERSION_ANDROID##", version_android)
 string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
-    'tgz': "Electrum-%s.tar.gz" % version,
-    'appimage': "electrum-%s-x86_64.AppImage" % version,
-    'mac': "electrum-%s.dmg" % version_mac,
-    'win': "electrum-%s.exe" % version_win,
-    'win_setup': "electrum-%s-setup.exe" % version_win,
-    'win_portable': "electrum-%s-portable.exe" % version_win,
-    'apk_arm64': "Electrum-%s-arm64-v8a-release.apk" % APK_VERSION,
-    'apk_armeabi': "Electrum-%s-armeabi-v7a-release.apk" % APK_VERSION,
+    'tgz': "Defichain-Electrum-%s.tar.gz" % version,
+    'appimage': "defichain-electrum-%s-x86_64.AppImage" % version,
+    'mac': "defichain-electrum-%s.dmg" % version_mac,
+    'win': "defichain-electrum-%s.exe" % version_win,
+    'win_setup': "defichain-electrum-%s-setup.exe" % version_win,
+    'win_portable': "defichain-electrum-%s-portable.exe" % version_win,
+    'apk_arm64': "Defichain-Electrum-%s-arm64-v8a-release.apk" % APK_VERSION,
+    'apk_armeabi': "Defichain-Electrum-%s-armeabi-v7a-release.apk" % APK_VERSION,
 }
 
-# default signers
-signers = ['ThomasV', 'SomberNight']
 
-# detect extra signers
-list_dir = os.listdir('dist')
-detected_sigs = defaultdict(set)
-for f in list_dir:
-    if f.endswith('.asc'):
-        parts = f.split('.')
-        signer = parts[-2]
-        filename = '.'.join(parts[0:-2])
-        detected_sigs[signer].add(filename)
-for k, v in detected_sigs.items():
-    if v == set(files.values()):
-        if k not in signers:
-            signers.append(k)
+for k, n in files.items():
+    path = "dist/%s"%n
+    link = "https://download.electrum.org/%s/%s"%(version,n)
+    if not os.path.exists(path):
+        os.system("wget -q %s -O %s" % (link, path))
+    if not os.path.getsize(path):
+        raise Exception(path)
 
-print("signers:", signers)
-
-gpg_name = lambda x: 'sombernight_releasekey' if x=='SomberNight' else x
-signers_list = ', '.join("<a href=\"https://raw.githubusercontent.com/spesmilo/electrum/master/pubkeys/%s.asc\">%s</a>"%(gpg_name(x), x) for x in signers)
-string = string.replace("##signers_list##", signers_list)
-
-for k, filename in files.items():
-    path = "dist/%s"%filename
-    assert filename in list_dir
-    link = "https://download.electrum.org/%s/%s"%(version, filename)
     string = string.replace("##link_%s##"%k, link)
-    string = string.replace("##sigs_%s##"%k, link+'.asc')
+    sig_ThomasV = link + '.ThomasV.asc'
+    sig_SomberNight = link + '.sombernight_releasekey.asc'
+    sigs = [
+        "<a href=\"%s\">%s</a>"%(sig_ThomasV, 'ThomasV'),
+        "<a href=\"%s\">%s</a>"%(sig_SomberNight, 'SomberNight'),
+    ]
+
+    for signer in extra_signers:
+        sig_name = n + '.'+signer+'.asc'
+        sig_url = "https://raw.githubusercontent.com/spesmilo/electrum-signatures/master/%s/%s/%s"%(version, n, sig_name)
+        sig_path = "dist/%s"% sig_name
+        os.system("wget %s -O %s"%(sig_url, sig_path))
+        if os.system("gpg --verify %s %s"%(sig_path, path)) != 0:
+            raise Exception(sig_name)
+        sigs.append( "<a href=\"%s\">%s</a>"%(sig_url, signer) )
+    sigs = '\n'+',\n'.join(sigs)+'\n'
+    string = string.replace("##sigs_%s##"%k, sigs)
 
 with open(download_page,'w') as f:
     f.write(string)

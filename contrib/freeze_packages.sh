@@ -8,7 +8,7 @@ contrib=$(dirname "$0")
 
 # note: we should not use a higher version of python than what the binaries bundle
 if [[ ! "$SYSTEM_PYTHON" ]] ; then
-    SYSTEM_PYTHON=$(which python3.8) || printf ""
+    SYSTEM_PYTHON=$(which python3.6) || printf ""
 else
     SYSTEM_PYTHON=$(which $SYSTEM_PYTHON) || printf ""
 fi
@@ -20,7 +20,7 @@ which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 
 
 ${SYSTEM_PYTHON} -m hashin -h > /dev/null 2>&1 || { ${SYSTEM_PYTHON} -m pip install hashin; }
 
-for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-makepackages' '-build-appimage' '-build-android'; do
+for i in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-build-sdist' '-build-appimage' '-build-android'; do
     rm -rf "$venv_dir"
     virtualenv -p ${SYSTEM_PYTHON} $venv_dir
 

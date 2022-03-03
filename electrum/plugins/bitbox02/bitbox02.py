@@ -524,7 +524,7 @@ class BitBox02Client(HardwareClientBase):
         signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
         tx.update_signatures(signatures)
 
-    def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
+    def sign_message(self, keypath: str, message: bytes, xtype: str) -> bytes:
         if self.bitbox02_device is None:
             raise Exception(
                 "Need to setup communication first before attempting any BitBox02 calls"
@@ -534,9 +534,9 @@ class BitBox02Client(HardwareClientBase):
             simple_type = {
                 "p2wpkh-p2sh":bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH,
                 "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
-            }[script_type]
+            }[xtype]
         except KeyError:
-            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(script_type))
+            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(xtype))
 
         _, _, signature = self.bitbox02_device.btc_sign_msg(
             self._get_coin(),
@@ -560,7 +560,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         self.force_watching_only = False
         self.ux_busy = False
 
-    def get_client(self) -> Optional['BitBox02Client']:
+    def get_client(self):
         return self.plugin.get_client(self)
 
     def give_error(self, message: Exception, clear_client: bool = False):
@@ -580,12 +580,13 @@ class BitBox02_KeyStore(Hardware_KeyStore):
             ).format(self.device)
         )
 
-    def sign_message(self, sequence, message, password, *, script_type=None):
+    def sign_message(self, sequence, message, password):
         if password:
             raise Exception("BitBox02 does not accept a password from the host")
         client = self.get_client()
         keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
-        return client.sign_message(keypath, message.encode("utf-8"), script_type)
+        xtype = self.get_bip32_node_for_xpub().xtype
+        return client.sign_message(keypath, message.encode("utf-8"), xtype)
 
 
     @runs_in_hwd_thread
