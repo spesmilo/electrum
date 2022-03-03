@@ -26,7 +26,7 @@ Electrum - Lightweight Bitcoin client
 Getting started
 ===============
 
-(*If you've come here looking to simply run Electrum,* `you may download it here`_.)
+(*If you've come here looking to simply run DeFiChain Electrum,* `you may download it here`_.)
 
 .. _you may download it here: https://electrum.org/#download
 
@@ -141,10 +141,18 @@ Windows
 See :code:`contrib/build-wine/README.md`.
 
 
-Android
--------
+Servers
+=======
 
-See :code:`contrib/android/Readme.md`.
+DeFiChain Electrum has extended feature list thus requires a complementary `server <https://github.com/BirthdayResearch/defichain-electrumx/>`_
+implementation to work with.
+
+Quick Start
+-----------
+
+A public acessible server is hosted by `BirthdayResearch <https://github.com/BirthdayResearch>`_ via `https://<wip>:50001:t`.
+This is used for exploratory and research purposes with no guaranteed uptime, you should not use any production wallet
+with this server to avoid any fund or data losses.
 
 
 Contributing
