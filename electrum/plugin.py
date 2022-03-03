@@ -533,7 +533,6 @@ class DeviceMgr(ThreadJob):
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
         if client:
             handler.update_status(True)
-        if client:
             # note: if select_device was called, we might also update label etc here:
             keystore.opportunistically_fill_in_missing_info_from_device(client)
         self.logger.info("end client for keystore")
@@ -544,6 +543,8 @@ class DeviceMgr(ThreadJob):
         _id = self.xpub_id(xpub)
         client = self._client_by_id(_id)
         if client:
+            if type(client.plugin) != type(plugin):
+                return
             # An unpaired client might have another wallet's handler
             # from a prior scan.  Replace to fix dialog parenting.
             client.handler = handler
@@ -559,7 +560,7 @@ class DeviceMgr(ThreadJob):
         # choose an unpaired device and compare its first address.
         xtype = bip32.xpub_type(xpub)
         client = self._client_by_id(info.device.id_)
-        if client and client.is_pairable():
+        if client and client.is_pairable() and type(client.plugin) == type(plugin):
             # See comment above for same code
             client.handler = handler
             # This will trigger a PIN/passphrase entry request
