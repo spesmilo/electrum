@@ -760,7 +760,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
         if self.config.get('timeout'):
-            return self.config.get('timeout')
+            return int(self.config.get('timeout'))
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
         if self.proxy:
