@@ -14,7 +14,7 @@ PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.9.7
+PYTHON_VERSION=3.9.10
 PKG2APPIMAGE_COMMIT="eb8f3acdd9f11ab19b78f5cb15daa772367daf15"
 
 
@@ -38,7 +38,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "f8145616e68c00041d1a6399b76387390388f8359581abc24432bb969b5e3c57"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "0a8fbfb5287ebc3a13e9baf3d54e08fa06778ffeccf6311aef821bb3a6586cc8"
 
 
 
@@ -215,12 +215,10 @@ rm -rf "$PYDIR"/site-packages/PyQt5/Qt.so
 
 # these are deleted as they were not deterministic; and are not needed anyway
 find "$APPDIR" -path '*/__pycache__*' -delete
-# note that *.dist-info is needed by certain packages.
-# e.g. see https://gitlab.com/python-devs/importlib_metadata/issues/71
-for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info; do mv "$f" "$(echo "$f" | sed s/\.dist-info/\.dist-info2/)"; done
+# although note that *.dist-info might be needed by certain packages...
+# e.g. importlib-metadata, see https://gitlab.com/python-devs/importlib_metadata/issues/71
 rm -rf "$PYDIR"/site-packages/*.dist-info/
 rm -rf "$PYDIR"/site-packages/*.egg-info/
-for f in "$PYDIR"/site-packages/importlib_metadata-*.dist-info2; do mv "$f" "$(echo "$f" | sed s/\.dist-info2/\.dist-info/)"; done
 
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +

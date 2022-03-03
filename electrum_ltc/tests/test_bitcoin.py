@@ -3,7 +3,7 @@ import sys
 
 from electrum_ltc.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                                   is_address, is_private_key,
-                                  var_int, _op_push, address_to_script,
+                                  var_int, _op_push, address_to_script, OnchainOutputType, address_to_payload,
                                   deserialize_privkey, serialize_privkey, is_segwit_address,
                                   is_b58_address, address_to_scripthash, is_minikey,
                                   is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
@@ -152,7 +152,7 @@ class Test_bitcoin(ElectrumTestCase):
 
         signature = eck.sign_message(message, True)
         #print signature
-        eck.verify_message_for_address(signature, message)
+        self.assertTrue(eck.verify_message_for_address(signature, message))
 
     def test_ecc_sanity(self):
         G = ecc.GENERATOR
@@ -181,20 +181,21 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(2 * G, inf + 2 * G)
         self.assertEqual(inf, 3 * G + (-3 * G))
 
-    def test_msg_signing(self):
+    @staticmethod
+    def sign_message_with_wif_privkey(wif_privkey: str, msg: bytes) -> bytes:
+        txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
+        key = ecc.ECPrivkey(privkey)
+        return key.sign_message(msg, compressed)
+
+    def test_signmessage_legacy_address(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
 
-        def sign_message_with_wif_privkey(wif_privkey, msg):
-            txin_type, privkey, compressed = deserialize_privkey(wif_privkey)
-            key = ecc.ECPrivkey(privkey)
-            return key.sign_message(msg, compressed)
-
-        sig1 = sign_message_with_wif_privkey(
-            'T7J3unHmmx9S8e8Zdi9r98A7wTW386HkxvMbUKEMsAY9JRWfbSe6', msg1)
+        sig1 = self.sign_message_with_wif_privkey(
+            'T7J3unHmmx9S8e8Zdi9r98A7wTW386HkxvMbUKEMsAY9JRWfbSe6', msg1)  # compressed pubkey
         addr1 = 'LPvBisC3rGmpGa3E3NeQk3PHQN4VS237y2'
-        sig2 = sign_message_with_wif_privkey(
-            '6uGWYKbyKLBMa1ysfq9rMANcbtYKY49vrawvaH3rBXooApLq6t2', msg2)
+        sig2 = self.sign_message_with_wif_privkey(
+            '6uGWYKbyKLBMa1ysfq9rMANcbtYKY49vrawvaH3rBXooApLq6t2', msg2)  # uncompressed pubkey
         addr2 = 'LacEkfqxYsPqDuS8ZCstJUc59gxVm2DQaT'
 
         sig1_b64 = base64.b64encode(sig1)
@@ -208,6 +209,40 @@ class Test_bitcoin(ElectrumTestCase):
 
         self.assertFalse(ecc.verify_message_with_address(addr1, b'wrong', msg1))
         self.assertFalse(ecc.verify_message_with_address(addr1, sig2, msg1))
+
+    def test_signmessage_segwit_witness_v0_address(self):
+        msg = b'Electrum'
+        # p2wpkh-p2sh
+        sig1 = self.sign_message_with_wif_privkey("p2wpkh-p2sh:T7Swnz5d7C5eczM5TPkFSPuBdCJDiTZK2MCkjU5ZZTU8u4z4cHWn", msg)
+        addr1 = "MKkwVip3KDUb2WFJqr8bGebGPHNAXwGG1f"
+        self.assertEqual(base64.b64encode(sig1), b'H3nh1AqVvauwclOAPs2serBtro9Iei1Q7vZZfmivo6ioQ6EzNYq5No90CU5RXM17d05eO+bXd0p/r/Sl5fPz390=')
+        self.assertTrue(ecc.verify_message_with_address(addr1, sig1, msg))
+        self.assertFalse(ecc.verify_message_with_address(addr1, sig1, b'heyheyhey'))
+        # p2wpkh
+        sig2 = self.sign_message_with_wif_privkey("p2wpkh:T7Swnz5d7C5eczM5TPkFSPuBdCJDiTZK2MCkjU5ZZTU8u4z4cHWn", msg)
+        addr2 = "ltc1qq2tmmcngng78nllq2pvrkchcdukemtj57q7cpl"
+        self.assertEqual(base64.b64encode(sig2), b'H3nh1AqVvauwclOAPs2serBtro9Iei1Q7vZZfmivo6ioQ6EzNYq5No90CU5RXM17d05eO+bXd0p/r/Sl5fPz390=')
+        self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg))
+        self.assertFalse(ecc.verify_message_with_address(addr2, sig2, b'heyheyhey'))
+
+    def test_signmessage_segwit_witness_v0_address_test_we_also_accept_sigs_from_trezor(self):
+        """Trezor and some other projects use a slightly different scheme for message-signing
+        with p2wpkh and p2wpkh-p2sh addresses. Test that we also accept signatures from them.
+        see #3861
+        tests from https://github.com/trezor/trezor-firmware/blob/2ce1e6ba7dbe5bbaeeb336fff0a038e59cb40ef8/tests/device_tests/bitcoin/test_signmessage.py#L39
+        """
+        msg = b"This is an example of a signed message."
+        addr1 = "MS2NsKymog9TrEVq4wbrjn1oYS7MiPDkqR"
+        addr2 = "ltc1qnw6a545d64e94r4vts80n89nmcpud5fdftvryq"
+        sig1 = bytes.fromhex("23744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2 = bytes.fromhex("28b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertTrue(ecc.verify_message_with_address(address=addr1, sig65=sig1, message=msg))
+        self.assertTrue(ecc.verify_message_with_address(address=addr2, sig65=sig2, message=msg))
+        # if there is type information in the header of the sig (first byte), enforce that:
+        sig1_wrongtype = bytes.fromhex("27744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2_wrongtype = bytes.fromhex("24b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertFalse(ecc.verify_message_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
+        self.assertFalse(ecc.verify_message_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
@@ -502,6 +537,32 @@ class Test_bitcoin(ElectrumTestCase):
         # base58 P2SH
         self.assertEqual(address_to_script('MBmyiC29MUQSfPC2gKtdrazbSWHvGqJCnU'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('MWBtJBTgiEWYQ7m17wFktku2dvSFZXqhWZ'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+
+    def test_address_to_payload(self):
+        # bech32 P2WPKH
+        self.assertEqual(
+            address_to_payload('ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9'),
+            (OnchainOutputType.WITVER0_P2WPKH, bytes.fromhex('751e76e8199196d454941c45d1b3a323f1433bd6')))
+
+        # bech32 P2WSH
+        self.assertEqual(
+            address_to_payload('ltc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qmu8tk5'),
+            (OnchainOutputType.WITVER0_P2WSH, bytes.fromhex('1863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')))
+
+        # bech32m P2TR
+        self.assertEqual(
+            address_to_payload('ltc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxq4arnzx'),
+            (OnchainOutputType.WITVER1_P2TR, bytes.fromhex('a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c')))
+
+        # base58 P2PKH
+        self.assertEqual(
+            address_to_payload('LNuZh2Eeps3L114Lu4PVCxBR61UvrUKgze'),
+            (OnchainOutputType.P2PKH, bytes.fromhex('28662c67561b95c79d2257d2a93d9d151c977e91')))
+
+        # base58 P2SH
+        self.assertEqual(
+            address_to_payload('MBmyiC29MUQSfPC2gKtdrazbSWHvGqJCnU'),
+            (OnchainOutputType.P2SH, bytes.fromhex('2a84cf00d47f699ee7bbc1dea5ec1bdecb4ac154')))
 
     def test_bech32_decode(self):
         # bech32 native segwit

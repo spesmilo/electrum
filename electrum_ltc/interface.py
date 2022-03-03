@@ -38,16 +38,15 @@ import hashlib
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup
 from aiorpcx import RPCSession, Notification, NetAddress, NewlineFramer
 from aiorpcx.curio import timeout_after, TaskTimeout
 from aiorpcx.jsonrpc import JSONRPC, CodeMessageError
 from aiorpcx.rawsocket import RSClient
 import certifi
 
-from .util import (ignore_exceptions, log_exceptions, bfh, SilentTaskGroup, MySocksProxy,
+from .util import (ignore_exceptions, log_exceptions, bfh, MySocksProxy,
                    is_integer, is_non_negative_integer, is_hash256_str, is_hex_str,
-                   is_int_or_float, is_non_negative_int_or_float)
+                   is_int_or_float, is_non_negative_int_or_float, OldTaskGroup)
 from . import util
 from . import x509
 from . import pem
@@ -221,6 +220,19 @@ class NotificationSession(RPCSession):
                                                          MAX_INCOMING_MSG_SIZE))
         return NewlineFramer(max_size=max_size)
 
+    async def close(self, *, force_after: int = None):
+        """Closes the connection and waits for it to be closed.
+        We try to flush buffered data to the wire, which can take some time.
+        """
+        if force_after is None:
+            # We give up after a while and just abort the connection.
+            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
+            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
+            # Note: if the ethernet cable was pulled or wifi disconnected, that too might
+            #       wait until this timeout is triggered
+            force_after = 1  # seconds
+        await super().close(force_after=force_after)
+
 
 class NetworkException(Exception): pass
 
@@ -376,12 +388,11 @@ class Interface(Logger):
         # Dump network messages (only for this interface).  Set at runtime from the console.
         self.debug = False
 
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
 
         async def spawn_task():
             task = await self.network.taskgroup.spawn(self.run())
-            if sys.version_info >= (3, 8):
-                task.set_name(f"interface::{str(server)}")
+            task.set_name(f"interface::{str(server)}")
         asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
     @property
@@ -536,6 +547,9 @@ class Interface(Logger):
 
         self.ready.set_result(1)
 
+    def is_connected_and_ready(self) -> bool:
+        return self.ready.done() and not self.got_disconnected.is_set()
+
     async def _save_certificate(self) -> None:
         if not os.path.exists(self.cert_path):
             # we may need to retry this a few times, in case the handshake hasn't completed
@@ -549,7 +563,7 @@ class Interface(Logger):
                         # workaround android bug
                         cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                         f.write(cert)
-                        # even though close flushes we can't fsync when closed.
+                        # even though close flushes, we can't fsync when closed.
                         # and we must flush before fsyncing, cause flush flushes to OS buffer
                         # fsync writes to OS buffer to disk
                         f.flush()
@@ -661,10 +675,21 @@ class Interface(Logger):
                               JSONRPC.METHOD_NOT_FOUND):
                     raise GracefulDisconnect(e, log_level=logging.WARNING) from e
                 raise
+            finally:
+                self.got_disconnected.set()  # set this ASAP, ideally before any awaits
 
     async def monitor_connection(self):
         while True:
             await asyncio.sleep(1)
+            # If the session/transport is no longer open, we disconnect.
+            # e.g. if the remote cleanly sends EOF, we would handle that here.
+            # note: If the user pulls the ethernet cable or disconnects wifi,
+            #       ideally we would detect that here, so that the GUI/etc can reflect that.
+            #       - On Android, this seems to work reliably , where asyncio.BaseProtocol.connection_lost()
+            #         gets called with e.g. ConnectionAbortedError(103, 'Software caused connection abort').
+            #       - On desktop Linux/Win, it seems BaseProtocol.connection_lost() is not called in such cases.
+            #         Hence, in practice the connection issue will only be detected the next time we try
+            #         to send a message (plus timeout), which can take minutes...
             if not self.session or self.session.is_closing():
                 raise GracefulDisconnect('session was closed')
 
@@ -676,7 +701,7 @@ class Interface(Logger):
     async def request_fee_estimates(self):
         from .simple_config import FEE_ETA_TARGETS
         while True:
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 fee_tasks = []
                 for i in FEE_ETA_TARGETS:
                     fee_tasks.append((i, await group.spawn(self.get_estimatefee(i))))
@@ -690,13 +715,8 @@ class Interface(Logger):
 
     async def close(self, *, force_after: int = None):
         """Closes the connection and waits for it to be closed.
-        We try to flush buffered data to the wire, so this can take some time.
+        We try to flush buffered data to the wire, which can take some time.
         """
-        if force_after is None:
-            # We give up after a while and just abort the connection.
-            # Note: specifically if the server is running Fulcrum, waiting seems hopeless,
-            #       the connection must be aborted (see https://github.com/cculianu/Fulcrum/issues/76)
-            force_after = 1  # seconds
         if self.session:
             await self.session.close(force_after=force_after)
         # monitor_connection will cancel tasks
@@ -1000,7 +1020,7 @@ class Interface(Logger):
         assert_dict_contains_field(res, field_name='confirmed')
         assert_dict_contains_field(res, field_name='unconfirmed')
         assert_non_negative_integer(res['confirmed'])
-        assert_non_negative_integer(res['unconfirmed'])
+        assert_integer(res['unconfirmed'])
         return res
 
     async def get_txid_from_txpos(self, tx_height: int, tx_pos: int, merkle: bool):

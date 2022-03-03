@@ -43,11 +43,7 @@ try:
             # verify a signature (65 bytes) over the session key, using the master bip32 node
             # - customized to use specific EC library of Electrum.
             pubkey = BIP32Node.from_xkey(expect_xpub).eckey
-            try:
-                pubkey.verify_message_hash(sig[1:65], self.session_key)
-                return True
-            except:
-                return False
+            return pubkey.verify_message_hash(sig[1:65], self.session_key)
 
 except ImportError as e:
     if not (isinstance(e, ModuleNotFoundError) and e.name == 'ckcc'):
@@ -312,7 +308,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     @wrap_busy
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         # Sign a message on device. Since we have big screen, of course we
         # have to show the message unabiguously there first!
         try:

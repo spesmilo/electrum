@@ -8,7 +8,7 @@ Electrum-LTC is a port of Electrum, the Bitcoin wallet, to Litecoin.
   Licence: MIT Licence
   Original Author: Thomas Voegtlin
   Port Maintainer: Pooler
-  Language: Python (>= 3.6)
+  Language: Python (>= 3.8)
   Homepage: https://electrum-ltc.org/
 
 
@@ -105,7 +105,13 @@ Finally, to start Electrum-LTC::
 
     ./run_electrum
 
+Run unit tests with `pytest`:
 
+    pytest electrum_ltc/tests -v
+
+To run a single file, specify it directly like this:
+
+    pytest electrum_ltc/tests/test_bitcoin.py -v
 
 Creating Binaries
 =================

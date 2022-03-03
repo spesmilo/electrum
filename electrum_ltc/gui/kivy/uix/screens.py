@@ -201,7 +201,7 @@ class SendScreen(CScreen, Logger):
             self.app.show_info(_("Invoice is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
             return
         self.address = invoice
-        self.message = dict(lnaddr.tags).get('d', None)
+        self.message = lnaddr.get_description()
         self.amount = self.app.format_amount_and_units(lnaddr.amount * bitcoin.COIN) if lnaddr.amount else ''
         self.payment_request = None
         self.is_lightning = True
