@@ -533,15 +533,11 @@ class DeviceMgr(ThreadJob):
                 pass
             else:
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
-        if client and type(client.plugin) == type(plugin):
+        if client:
             # make sure we do not use wrong client (typecheck)
             handler.update_status(True)
             # note: if select_device was called, we might also update label etc here:
             keystore.opportunistically_fill_in_missing_info_from_device(client)
-        else:
-            # if type of client.plugin is different then chosen plugin
-            # wrong client was initialized - return None
-            client = None
         self.logger.info("end client for keystore")
         return client
 
