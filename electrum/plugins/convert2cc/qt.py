@@ -1,4 +1,5 @@
 import hid
+from contextlib import contextmanager
 from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel
 from ckcc.client import COINKITE_VID, CKCC_PID
 from ckcc.electrum import convert2cc, xfp2str, filepath_append_cc
@@ -43,7 +44,6 @@ class Plugin(BasePlugin):
             # open the real HID device
             hd = hid.device(path=device.path)
             hd.open_path(device.path)
-
             dev = ElectrumColdcardDevice(dev=hd, encrypt=True)
         return dev
 
@@ -55,6 +55,7 @@ class Plugin(BasePlugin):
     def hardware_keystore_not_coldcard(self, keystore) -> bool:
         return keystore.type == "hardware" and not self.is_coldcard_keystore(keystore)
 
+    @contextmanager
     def coldcards_connected(self):
         clients = []
         devices = self.parent.device_manager.scan_devices()
@@ -62,7 +63,9 @@ class Plugin(BasePlugin):
             dev_client = self.get_client(device)
             if dev_client:
                 clients.append(dev_client)
-        return clients
+        yield clients
+        for client in clients:
+            client.close()
 
     @staticmethod
     def match_candidate_keystore_to_connected_cc_device(cc_clients, keystore):
@@ -102,7 +105,6 @@ class Plugin(BasePlugin):
     def convert2cc_modal_dialog(self, main_window, dialog):
         # this is a wallet info dialog - close it
         dialog.close()
-        connected_cc_clients = self.coldcards_connected()
         description = """
 fkjslkdjflskjflkdsjflksdjflksdjflksdjfksdjfjlksdjflkdsjfslkdjfs
 sfjlkdsjfdklsjflkdjflksdjflksdjflksdjflksdjflksdjflksdjflskdjf
@@ -122,19 +124,19 @@ adjumvadivadmoi,adg;oimori, i mdo;fkthpotim t iapord spothposfjt
             ks_stack.setCurrentIndex(index)
 
         labels = []
-        ks_dev_lst = []
-        for idx, ks in enumerate(non_cc_hw_keystores):
-            dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, ks)
-            if isinstance(wallet, Multisig_Wallet) and hasattr(ks, 'label'):
-                res = _("cosigner") + f' {idx + 1}: {ks.get_type_text()} {ks.label}'
-            else:
-                res = _("keystore") + f' {idx + 1}: {ks.get_type_text()}' + f' {ks.label}' if hasattr(ks,'label') else ""
-            if dev:
-                res = res + 20 * " " + "[matches connected coldcard]", self.paired_cc_icon_path()
-            else:
-                res = res, self.unpaired_cc_icon_path()
-            labels.append(res)
-            ks_dev_lst.append((ks, dev))
+        with self.coldcards_connected() as connected_cc_clients:
+            for idx, ks in enumerate(non_cc_hw_keystores):
+                dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, ks)
+                if isinstance(wallet, Multisig_Wallet) and hasattr(ks, 'label'):
+                    res = _("cosigner") + f' {idx + 1}: {ks.get_type_text()} {ks.label}'
+                else:
+                    res = _("keystore") + f' {idx + 1}: {ks.get_type_text()}' + f' {ks.label}' if hasattr(ks,'label') else ""
+                if dev:
+                    res = res + 20 * " " + "[matches connected coldcard]", self.paired_cc_icon_path()
+                else:
+                    res = res, self.unpaired_cc_icon_path()
+                labels.append(res)
+        # close opened cc devices --> check self.coldcards_connected
 
         on_click = lambda clayout: select_ks(clayout.selected_index())
         labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
@@ -142,25 +144,25 @@ adjumvadivadmoi,adg;oimori, i mdo;fkthpotim t iapord spothposfjt
         vbox.addStretch(1)
         btn_close = CloseButton(dialog)
         btn_convert = QPushButton(_("convert"))
-        btn_convert.clicked.connect(lambda unused: self.do_convert2cc(main_window, labels_clayout, ks_dev_lst, dialog))
+        btn_convert.clicked.connect(lambda unused: self.do_convert2cc(main_window, labels_clayout, non_cc_hw_keystores, dialog))
         vbox.addLayout(Buttons(btn_convert, btn_close))
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    def do_convert2cc(self, main_window, labels_clayout, ks_dev_list, dialog):
+    def do_convert2cc(self, main_window, labels_clayout, keystores, dialog):
         wallet = main_window.wallet
         selected_index = labels_clayout.selected_index()
         if selected_index is not None:
-            target_keystore, dev = ks_dev_list[selected_index]
-            try:
-                new_wallet_str = convert2cc(wallet.db.dump(), dev=dev, key="xpub", val=target_keystore.xpub)
-            except Exception as e:
-                main_window.show_error(_('Error converting wallet') + ':\n' + str(e))
-                if dev:
-                    dev.close()
-            else:
-                if dev:
-                    dev.close()
+            target_keystore = keystores[selected_index]
+            with self.coldcards_connected() as connected_cc_clients:
+                dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
+                try:
+                    new_wallet_str = convert2cc(wallet.db.dump(), dev=dev, key="xpub", val=target_keystore.xpub)
+                except Exception as e:
+                    main_window.show_error(_('Error converting wallet') + ':\n' + str(e))
+                    new_wallet_str = None
+
+            if new_wallet_str:
                 default_filename = filepath_append_cc(wallet.basename())
                 user_filename = getSaveFileName(
                     parent=main_window,
@@ -176,7 +178,7 @@ adjumvadivadmoi,adg;oimori, i mdo;fkthpotim t iapord spothposfjt
                     if main_window.question('\n'.join([
                         _('Open wallet file?'),
                         "%s" % user_filename,
-                        _('This will open a new wallet window with converted wallet.')
+                        _('This will open the converted wallet in current wallet window.')
                     ])):
                         main_window.open_wallet(filename=user_filename)
                         main_window.close()
