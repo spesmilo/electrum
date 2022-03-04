@@ -1,5 +1,5 @@
-Electrum - Lightweight Bitcoin client
-=====================================
+DeFiChain Electrum - Lightweight DeFiChain client
+=================================================
 
 ::
 
