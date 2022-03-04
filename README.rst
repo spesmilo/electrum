@@ -4,7 +4,7 @@ DeFiChain Electrum - Lightweight DeFiChain client
 ::
 
   Licence: MIT Licence
-  Author: Thomas Voegtlin
+  Author: BirthdayResearch
   Language: Python (>= 3.6)
   Homepage: https://electrum.org/
 
@@ -20,7 +20,10 @@ DeFiChain Electrum - Lightweight DeFiChain client
     :alt: Help translate Electrum online
 
 
+Disclaimer
+==========
 
+This project is built for exploratory, research and internal use purposes, and not actively maintained.
 
 
 Getting started
