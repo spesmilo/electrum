@@ -55,16 +55,16 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-get clean
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
-ENV USER="user"
-ENV HOME_DIR="/home/${USER}"
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
-RUN useradd --create-home --shell /bin/bash ${USER}
-RUN usermod -append --groups sudo ${USER}
-RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-WORKDIR ${WORK_DIR}
-RUN chown --recursive ${USER} ${WORK_DIR}
-RUN chown ${USER} /opt
-USER ${USER}
+#ENV USER="user"
+#ENV HOME_DIR="/home/${USER}"
+#ENV WORK_DIR="${HOME_DIR}/wspace" \
+#    PATH="${HOME_DIR}/.local/bin:${PATH}"
+#RUN useradd --create-home --shell /bin/bash ${USER}
+#RUN usermod -append --groups sudo ${USER}
+#RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+#WORKDIR ${WORK_DIR}
+#RUN chown --recursive ${USER} ${WORK_DIR}
+#RUN chown ${USER} /opt
+#USER ${USER}
 
 RUN mkdir --parents "/opt/wine64/drive_c/electrum-grs"
