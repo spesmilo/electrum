@@ -67,4 +67,4 @@ RUN chown --recursive ${USER} ${WORK_DIR}
 RUN chown ${USER} /opt
 USER ${USER}
 
-RUN mkdir --parents "/opt/wine64/drive_c/electrum"
+RUN mkdir --parents "/opt/wine64/drive_c/electrum-grs"
