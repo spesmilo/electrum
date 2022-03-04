@@ -588,7 +588,7 @@ class LedgerPlugin(HW_PluginBase):
                    (0x2c97, 0x0000), # Blue
                    (0x2c97, 0x0001), # Nano-S
                    (0x2c97, 0x0004), # Nano-X
-                   (0x2c97, 0x0005), # RFU
+                   (0x2c97, 0x0005), # Nano-S Plus
                    (0x2c97, 0x0006), # RFU
                    (0x2c97, 0x0007), # RFU
                    (0x2c97, 0x0008), # RFU
@@ -599,6 +599,7 @@ class LedgerPlugin(HW_PluginBase):
     LEDGER_MODEL_IDS = {
         0x10: "Ledger Nano S",
         0x40: "Ledger Nano X",
+        0x50: "Ledger Nano S Plus",
     }
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
@@ -639,6 +640,8 @@ class LedgerPlugin(HW_PluginBase):
                 return True, "Ledger Nano S"
             if product_key == (0x2c97, 0x0004):
                 return True, "Ledger Nano X"
+            if product_key == (0x2c97, 0x0005):
+                return True, "Ledger Nano S Plus"
             return True, None
         # modern product_keys
         if product_key[0] == 0x2c97:
