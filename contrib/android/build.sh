@@ -22,7 +22,7 @@ if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
 fi
 
 info "building docker image."
-sudo docker build \
+docker build \
     $DOCKER_BUILD_FLAGS \
     -t electrum-android-builder-img \
     --file "$CONTRIB_ANDROID/Dockerfile" \
@@ -33,7 +33,7 @@ sudo docker build \
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
     FRESH_CLONE="$CONTRIB_ANDROID/fresh_clone/electrum" && \
-        sudo rm -rf "$FRESH_CLONE" && \
+        rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
         git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
         cd "$FRESH_CLONE"
@@ -51,7 +51,7 @@ fi
 
 info "building binary..."
 mkdir --parents "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle
-sudo docker run -it --rm \
+docker run -it --rm \
     --name electrum-android-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/home/user/wspace/electrum \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle:/home/user/.gradle \
@@ -63,5 +63,5 @@ sudo docker run -it --rm \
 # make sure resulting binary location is independent of fresh_clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     mkdir --parents "$DISTDIR/"
-    sudo cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
+    cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
 fi
