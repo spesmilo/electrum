@@ -94,11 +94,6 @@ RUN curl --location --progress-bar \
     && rm -rf "${APACHE_ANT_ARCHIVE}"
 
 
-ENV USER="root"
-ENV HOME_DIR="/home/${USER}"
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
-
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 # TODO probably need to pin versions of at least some of these for over-time reproducibility?
@@ -136,17 +131,15 @@ RUN apt -y update -qq \
     && apt -y clean
 
 
-# prepare non root env
+# create new user to avoid using root; but with sudo access and no password for convenience.
+ENV USER="root"
+ENV HOME_DIR="/home/${USER}"
+ENV WORK_DIR="${HOME_DIR}/wspace" \
+    PATH="${HOME_DIR}/.local/bin:${PATH}"
 #RUN useradd --create-home --shell /bin/bash ${USER}
-
-# with sudo access and no password
 #RUN usermod -append --groups sudo ${USER}
 #RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-
 WORKDIR ${WORK_DIR}
-
-# user needs ownership/write access to these directories
 #RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
 #RUN chown ${USER} /opt
 #USER ${USER}

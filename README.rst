@@ -105,7 +105,13 @@ Finally, to start Electrum-GRS::
 
     ./run_electrum_grs
 
+Run unit tests with `pytest`:
 
+    pytest electrum/tests -v
+
+To run a single file, specify it directly like this:
+
+    pytest electrum/tests/test_bitcoin.py -v
 
 Creating Binaries
 =================

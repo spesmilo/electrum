@@ -22,7 +22,7 @@ if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
 fi
 
 info "building docker image."
-sudo docker build \
+docker build \
     $DOCKER_BUILD_FLAGS \
     -t electrum-grs-sdist-builder-img \
     "$CONTRIB_SDIST"
@@ -31,7 +31,7 @@ sudo docker build \
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
     FRESH_CLONE="$CONTRIB_SDIST/fresh_clone/electrum-grs" && \
-        sudo rm -rf "$FRESH_CLONE" && \
+        rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
         git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
         cd "$FRESH_CLONE"
@@ -42,7 +42,7 @@ else
 fi
 
 info "building binary..."
-sudo docker run -it \
+docker run -it \
     --name electrum-grs-sdist-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum-grs \
     --rm \
@@ -53,5 +53,5 @@ sudo docker run -it \
 # make sure resulting binary location is independent of fresh_clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     mkdir --parents "$DISTDIR/"
-    sudo cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
+    cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
 fi
