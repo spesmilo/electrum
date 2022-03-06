@@ -8,6 +8,9 @@ PROJECT_ROOT="$CONTRIB"/..
 PACKAGES="$PROJECT_ROOT"/packages/
 LOCALE="$PROJECT_ROOT"/electrum/locale/
 
+# qml or kivy
+export ELEC_APK_GUI=qml
+
 . "$CONTRIB"/build_tools_util.sh
 
 
