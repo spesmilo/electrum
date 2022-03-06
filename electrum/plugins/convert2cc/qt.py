@@ -1,22 +1,16 @@
 import os
-
 import hid
 from contextlib import contextmanager
 from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel
+
 from ckcc.client import COINKITE_VID, CKCC_PID
 from ckcc.electrum import convert2cc, xfp2str, filepath_append_cc
 
 from electrum.gui.qt.util import WindowModalDialog, ChoicesLayout, CloseButton, Buttons, getSaveFileName
 from electrum.i18n import _
-from electrum.logging import get_logger
-
 from electrum.plugin import hook, BasePlugin
 from electrum.plugins.coldcard.coldcard import CKCC_SIMULATED_PID, ElectrumColdcardDevice
-
-
 from electrum.wallet import Multisig_Wallet, Standard_Wallet
-
-_logger = get_logger(__name__)
 
 
 class Plugin(BasePlugin):
@@ -53,12 +47,13 @@ class Plugin(BasePlugin):
         return dev
 
     @staticmethod
+    def is_hardware_keystore(keystore):
+        return keystore.type == "hardware"
+
+    @staticmethod
     def is_coldcard_keystore(keystore):
         hw_type = getattr(keystore, "hw_type", None)
         return hw_type == "coldcard"
-
-    def hardware_keystore_not_coldcard(self, keystore) -> bool:
-        return keystore.type == "hardware" and not self.is_coldcard_keystore(keystore)
 
     @staticmethod
     def is_supported_wallet_type(wallet):
@@ -66,18 +61,6 @@ class Plugin(BasePlugin):
         wallet_type = type(wallet)
         if wallet_type in [Standard_Wallet, Multisig_Wallet]:
             return True
-        return False
-
-    def is_non_cc_hardware_keystore(self, wallet):
-        # 2. at least one keystore must not be coldcard in multisig
-        # 3. in single sig - keystore must not be coldcard
-        if type(wallet) == Standard_Wallet:
-            if self.hardware_keystore_not_coldcard(wallet.keystore):
-                return True
-        elif type(wallet) == Multisig_Wallet:
-            for key, keystore in wallet.keystores.items():
-                if self.hardware_keystore_not_coldcard(keystore):
-                    return True
         return False
 
     @contextmanager
@@ -91,6 +74,21 @@ class Plugin(BasePlugin):
         yield clients
         for client in clients:
             client.close()
+
+    def hardware_keystore_not_coldcard(self, keystore) -> bool:
+        return self.is_hardware_keystore(keystore) and not self.is_coldcard_keystore(keystore)
+
+    def is_non_cc_hardware_keystore(self, wallet):
+        # 2. at least one keystore must not be coldcard in multisig
+        # 3. in single sig - keystore must not be coldcard
+        if type(wallet) == Standard_Wallet:
+            if self.hardware_keystore_not_coldcard(wallet.keystore):
+                return True
+        elif type(wallet) == Multisig_Wallet:
+            for key, keystore in wallet.keystores.items():
+                if self.hardware_keystore_not_coldcard(keystore):
+                    return True
+        return False
 
     @staticmethod
     def match_candidate_keystore_to_connected_cc_device(cc_clients, keystore):
@@ -113,16 +111,15 @@ class Plugin(BasePlugin):
         return buttons
 
     def convert2cc_modal_dialog(self, main_window, wi_dialog):
-        # this is a wallet info dialog - close it
         can_convert = True
         description = """
 <center>
 <span style="font-size: x-large">Convert to Coldcard</span>
 <br><a href="https://coldcardwallet.com">coldcardwallet.com</a>
 </center>
-<p style="text-align: center">convert2cc (a.k.a 'convert to Coldcard') is a electrum wallet utility,<br>
-which allows users to create new converted wallet from existing electrum wallet,<br>
-where one chooses which hardware device gets converted to coldcard.<br>
+<p style="text-align: center"><strong>convert2cc</strong> (a.k.a 'convert to Coldcard') is a electrum wallet utility,<br>
+which allows users to create new converted wallet from existing wallet,<br>
+where one chooses which hardware device gets converted to Coldcard.<br>
 All wallet data like contacts, labels, payment requests etc. are preserved.<br>
 If you've chosen to change your hardware wallet to Coldcard, convert2cc<br>
 will save you the hustle.</p>
@@ -136,8 +133,7 @@ will save you the hustle.</p>
             description = description + os.linesep + """
 <p style="text-align: center"><strong>convert2cc not possible!</strong> Only standard and multisig wallets are supported.<br>
 """
-
-        if not self.is_non_cc_hardware_keystore(wallet) and can_convert:
+        elif not self.is_non_cc_hardware_keystore(wallet):
             can_convert = False
             description = description + os.linesep + """
 <p style="text-align: center"><strong>convert2cc nothing to convert!</strong> At least one of the cosigners/keystores must be<br>
@@ -147,14 +143,15 @@ hardware device other than Coldcard</p>
             vbox.addWidget(QLabel(_(description)))
             btn_close = CloseButton(dialog)
             vbox.addLayout(Buttons(btn_close))
-        if can_convert:
-            wi_dialog.close()
+        else:
+            wi_dialog.close()  # close wallet information dialog
             description = description + os.linesep + """
 <p style="text-align: center">     
 You're about to convert one of your keystores/cosigners to Coldcard.<br>
-Please, close all other wallet windows. If you have not connected your<br>
-new Coldcard yet, please connect it and close and reopen this window.<br>
-After this your Coldcard should match one of the keystores in this wallet.<br>
+Please, close all other wallet windows. Make sure you have loaded the correct<br>
+wallet and do not forget BIP39 passphrase if used. If you have not connected your<br>
+new Coldcard yet, please connect it and close/re-open this window.<br>
+After this your Coldcard should match target keystores/cosigner in this wallet.<br>
 Your Coldcard does not need to be connected - but it is recommended.<br>
 <br>
 convert2cc does not rewrite your existing wallet file, but rather copy it<br>
@@ -177,7 +174,7 @@ and create new one. After successful convert, new wallet will be opened.<br>
                     else:
                         res = _("keystore") + f' {idx + 1}: {ks.get_type_text()}' + f' {ks.label}' if hasattr(ks,'label') else ""
                     if dev:
-                        res = res + 20 * " " + "[matches connected coldcard]", self.paired_cc_icon_path
+                        res = res + 20 * " " + "[matches connected Coldcard]", self.paired_cc_icon_path
                     else:
                         res = res, self.unpaired_cc_icon_path
                     labels.append(res)
@@ -216,7 +213,7 @@ and create new one. After successful convert, new wallet will be opened.<br>
                     filter="*",
                     config=self.config,
                 )
-                dialog.close()
+                dialog.close()  # close convert2cc dialog
                 if user_filename:
                     with open(user_filename, "w") as f:
                         f.write(new_wallet_str)
@@ -225,5 +222,5 @@ and create new one. After successful convert, new wallet will be opened.<br>
                         "%s" % user_filename,
                         _('This will open the converted wallet in current wallet window.')
                     ])):
-                        main_window.open_wallet(filename=user_filename)
-                        main_window.close()
+                        main_window.open_wallet(filename=user_filename)  # open converted target wallet
+                        main_window.close()  # close source wallet
