@@ -1,3 +1,5 @@
+import os
+
 import hid
 from contextlib import contextmanager
 from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel
@@ -18,19 +20,22 @@ _logger = get_logger(__name__)
 
 
 class Plugin(BasePlugin):
+    paired_icon = "coldcard.png"
+    unpaired_icon = "coldcard_unpaired.png"
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
 
-    @staticmethod
-    def paired_cc_icon_path():
-        return "coldcard.png"
+    @property
+    def paired_cc_icon_path(self):
+        return self.paired_icon
+
+    @property
+    def unpaired_cc_icon_path(self):
+        return self.unpaired_icon
 
     @staticmethod
-    def unpaired_cc_icon_path():
-        return "coldcard_unpaired.png"
-
-    def get_client(self, device):
+    def get_client(device):
         if device.product_key not in [
             (COINKITE_VID, CKCC_PID),
             (COINKITE_VID, CKCC_SIMULATED_PID)
@@ -55,8 +60,15 @@ class Plugin(BasePlugin):
     def hardware_keystore_not_coldcard(self, keystore) -> bool:
         return keystore.type == "hardware" and not self.is_coldcard_keystore(keystore)
 
-    def is_convert2cc_possible(self, wallet):
+    @staticmethod
+    def is_supported_wallet_type(wallet):
         # 1. must be standard or multisig wallet
+        wallet_type = type(wallet)
+        if wallet_type in [Standard_Wallet, Multisig_Wallet]:
+            return True
+        return False
+
+    def is_non_cc_hardware_keystore(self, wallet):
         # 2. at least one keystore must not be coldcard in multisig
         # 3. in single sig - keystore must not be coldcard
         if type(wallet) == Standard_Wallet:
@@ -100,43 +112,56 @@ class Plugin(BasePlugin):
         buttons.append(btn)
         return buttons
 
-    def convert2cc_modal_dialog(self, main_window, dialog):
+    def convert2cc_modal_dialog(self, main_window, wi_dialog):
         # this is a wallet info dialog - close it
+        can_convert = True
+        description = """
+<center>
+<span style="font-size: x-large">Convert to Coldcard</span>
+<br><a href="https://coldcardwallet.com">coldcardwallet.com</a>
+</center>
+<p style="text-align: center">convert2cc (a.k.a 'convert to Coldcard') is a electrum wallet utility,<br>
+which allows users to create new converted wallet from existing electrum wallet,<br>
+where one chooses which hardware device gets converted to coldcard.<br>
+All wallet data like contacts, labels, payment requests etc. are preserved.<br>
+If you've chosen to change your hardware wallet to Coldcard, convert2cc<br>
+will save you the hustle.</p>
+"""
         wallet = main_window.wallet
         dialog = WindowModalDialog(main_window, _("convert2cc"))
         dialog.setMinimumSize(600, 80)
         vbox = QVBoxLayout()
-        if not self.is_convert2cc_possible(wallet):
-            description = """
-Only standard wallet and multisig hardware wallets are supported. 
-Also at leas on the plugin has not to be coldcard
+        if not self.is_supported_wallet_type(wallet):
+            can_convert = False
+            description = description + os.linesep + """
+<p style="text-align: center"><strong>convert2cc not possible!</strong> Only standard and multisig wallets are supported.<br>
 """
+
+        if not self.is_non_cc_hardware_keystore(wallet) and can_convert:
+            can_convert = False
+            description = description + os.linesep + """
+<p style="text-align: center"><strong>convert2cc nothing to convert!</strong> At least one of the cosigners/keystores must be<br>
+hardware device other than Coldcard</p>
+"""
+        if not can_convert:
             vbox.addWidget(QLabel(_(description)))
             btn_close = CloseButton(dialog)
             vbox.addLayout(Buttons(btn_close))
-        else:
-            dialog.close()
-            description = """
-Only standard wallet and multisig hardware wallets are         
-
-You're about to convert one of your keystores/cosigners to coldcard. 
-Please, close all other wallet windows. If you have not connected your
-new coldcard yet, please connect it and close and reopen this window.
-After this your coldcard shoould match one of the keystores in this wallet        
-
-Users may want to switch their hardware wallet vendor, yet
-they want to keep all of their Electrum data (UTXO, labels,
-contacts, payment requests...). This is where convert2cc comes in.
-Another use case is when someone's hardware wallet gets lost or broken,
-and they still have a seed, this seed can be loaded to new Coldcard (check
-https://coldcard.com/docs/import) and their previous Electrum wallet 
-can be converted to work with newly purchased Coldcard device with ease.
-
-Please select which keystore/cosigner to convert:
+        if can_convert:
+            wi_dialog.close()
+            description = description + os.linesep + """
+<p style="text-align: center">     
+You're about to convert one of your keystores/cosigners to Coldcard.<br>
+Please, close all other wallet windows. If you have not connected your<br>
+new Coldcard yet, please connect it and close and reopen this window.<br>
+After this your Coldcard should match one of the keystores in this wallet.<br>
+Your Coldcard does not need to be connected - but it is recommended.<br>
+<br>
+convert2cc does not rewrite your existing wallet file, but rather copy it<br>
+and create new one. After successful convert, new wallet will be opened.<br>
+</p>
             """
             non_cc_hw_keystores = [ks for ks in wallet.get_keystores() if self.hardware_keystore_not_coldcard(ks)]
-
-
             vbox.addWidget(QLabel(_(description)))
             ks_stack = QStackedWidget()
 
@@ -152,9 +177,9 @@ Please select which keystore/cosigner to convert:
                     else:
                         res = _("keystore") + f' {idx + 1}: {ks.get_type_text()}' + f' {ks.label}' if hasattr(ks,'label') else ""
                     if dev:
-                        res = res + 20 * " " + "[matches connected coldcard]", self.paired_cc_icon_path()
+                        res = res + 20 * " " + "[matches connected coldcard]", self.paired_cc_icon_path
                     else:
-                        res = res, self.unpaired_cc_icon_path()
+                        res = res, self.unpaired_cc_icon_path
                     labels.append(res)
             # close opened cc devices --> check self.coldcards_connected
 
