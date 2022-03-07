@@ -6,11 +6,15 @@ from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel
 from ckcc.client import COINKITE_VID, CKCC_PID
 from ckcc.electrum import convert2cc, xfp2str, filepath_append_cc
 
+from electrum.logging import get_logger
 from electrum.gui.qt.util import WindowModalDialog, ChoicesLayout, CloseButton, Buttons, getSaveFileName
 from electrum.i18n import _
 from electrum.plugin import hook, BasePlugin
 from electrum.plugins.coldcard.coldcard import CKCC_SIMULATED_PID, ElectrumColdcardDevice
 from electrum.wallet import Multisig_Wallet, Standard_Wallet
+
+
+logger = get_logger(__name__)
 
 
 class Plugin(BasePlugin):
@@ -68,7 +72,11 @@ class Plugin(BasePlugin):
         clients = []
         devices = self.parent.device_manager.scan_devices()
         for device in devices:
-            dev_client = self.get_client(device)
+            try:
+                dev_client = self.get_client(device)
+            except OSError as e:
+                logger.warning("Tried to connect to already connected Coldcard. Error: {}".format(e))
+                dev_client = None
             if dev_client:
                 clients.append(dev_client)
         yield clients
@@ -149,10 +157,10 @@ hardware device other than Coldcard</p>
 <p style="text-align: center">     
 You're about to convert one of your keystores/cosigners to Coldcard.<br>
 Please, close all other wallet windows. Make sure you have loaded the correct<br>
-wallet and do not forget BIP39 passphrase if used. If you have not connected your<br>
-new Coldcard yet, please connect it and close/re-open this window.<br>
-After this your Coldcard should match target keystores/cosigner in this wallet.<br>
-Your Coldcard does not need to be connected - but it is recommended.<br>
+wallet (do not forget BIP39 passphrase if used). If you have not connected your<br>
+Coldcard yet, please connect it (make sure no other app is using it) and close/re-open<br>
+this window. After this your Coldcard should match target keystores/cosigner<br>
+in this wallet. Your Coldcard does not need to be connected - but it is recommended.<br>
 <br>
 convert2cc does not rewrite your existing wallet file, but rather copy it<br>
 and create new one. After successful convert, new wallet will be opened.<br>
@@ -197,10 +205,12 @@ and create new one. After successful convert, new wallet will be opened.<br>
         if selected_index is not None:
             target_keystore = keystores[selected_index]
             with self.coldcards_connected() as connected_cc_clients:
-                dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
+                # dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
+                dev = None
                 try:
                     new_wallet_str = convert2cc(wallet.db.dump(), dev=dev, key="xpub", val=target_keystore.xpub)
                 except Exception as e:
+                    logger.exception("")
                     main_window.show_error(_('Error converting wallet') + ':\n' + str(e))
                     new_wallet_str = None
 
