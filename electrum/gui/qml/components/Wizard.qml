@@ -24,6 +24,11 @@ Dialog {
     // page.last -> pages.lastpage to propagate the state without the binding
     // going stale.
     function _loadNextComponent(comp, wdata={}) {
+        // remove any existing pages after current page
+        while (pages.contentChildren[pages.currentIndex+1]) {
+            pages.takeItem(pages.currentIndex+1).destroy()
+        }
+
         var page = comp.createObject(pages, {
             'visible': Qt.binding(function() {
                 return pages.currentItem === this
@@ -56,7 +61,6 @@ Dialog {
                 _setWizardData(pages.contentChildren[currentIndex].wizard_data)
                 pages.pagevalid = pages.contentChildren[currentIndex].valid
                 pages.lastpage = pages.contentChildren[currentIndex].last
-                pages.contentChildren[currentIndex+1].destroy()
             }
 
             function next() {
