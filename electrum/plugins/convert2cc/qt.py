@@ -154,7 +154,6 @@ hardware device other than Coldcard</p>
             btn_close = CloseButton(dialog)
             vbox.addLayout(Buttons(btn_close))
         else:
-            wi_dialog.close()  # close wallet information dialog
             description = description + os.linesep + """
 <p style="text-align: center">     
 You're about to convert one of your keystores/cosigners to Coldcard.<br>
@@ -197,19 +196,23 @@ and create new one. After successful convert, new wallet will be opened.<br>
             if cc_open_failed:
                 # some coldcards are connected but are used by different application
                 # show user the msg
-                msg = "Unable to connect to plugged in Coldcard:" + os.linesep
-                msg += os.linesep.join(["  * " + device.id_ for device in cc_open_failed])
-                msg += os.linesep + "try to reconnect Coldcard and close/re-open this window"
-                vbox.addWidget(QLabel(_(msg)))
+                cc_conn_fail = ChoicesLayout(
+                    _("Unable to connect to plugged in Coldcard:"),
+                    ["Coldcard " + device.id_ + 20 * " " + "[re-connect device]" for device in cc_open_failed],
+                    disable_buttons=True
+                )
+                vbox.addLayout(cc_conn_fail.layout())
             btn_close = CloseButton(dialog)
             btn_convert = QPushButton(_("convert"))
-            btn_convert.clicked.connect(lambda unused: self.do_convert2cc(main_window, labels_clayout, non_cc_hw_keystores, dialog))
+            btn_convert.clicked.connect(
+                lambda unused: self.do_convert2cc(main_window, labels_clayout, non_cc_hw_keystores, dialog, wi_dialog)
+            )
             vbox.addLayout(Buttons(btn_convert, btn_close))
         vbox.addStretch(1)
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    def do_convert2cc(self, main_window, labels_clayout, keystores, dialog):
+    def do_convert2cc(self, main_window, labels_clayout, keystores, convert2cc_dialog, wi_dialog):
         wallet = main_window.wallet
         selected_index = labels_clayout.selected_index()
         if selected_index is not None:
@@ -234,7 +237,8 @@ and create new one. After successful convert, new wallet will be opened.<br>
                     filter="*",
                     config=self.config,
                 )
-                dialog.close()  # close convert2cc dialog
+                convert2cc_dialog.close()  # close convert2cc dialog
+                wi_dialog.close()  # close wallet information dialog
                 if user_filename:
                     with open(user_filename, "w") as f:
                         f.write(new_wallet_str)
