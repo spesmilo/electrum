@@ -30,7 +30,7 @@ Getting started
 
 (*If you've come here looking to simply run DeFiChain Electrum,* `you may download it here`_.)
 
-.. _you may download it here: https://electrum.org/#download
+.. _you may download it here: https://github.com/BirthdayResearch/defichain-electrum/releases/tag/0.0.1
 
 Electrum itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here
@@ -147,7 +147,7 @@ Servers
 =======
 
 DeFiChain Electrum has extended feature list thus requires a complementary `server <https://github.com/BirthdayResearch/defichain-electrumx/>`_
-implementation to work with.
+implementation to work with. Go to `Tools` -> `Network` for selecting server.
 
 Quick Start
 -----------
