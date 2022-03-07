@@ -389,6 +389,11 @@ class BaseWizard(Logger):
             self.show_error(str(e))
             raise ChooseHwDeviceAgain()
 
+        # close clients that are not used
+        for cl, (path, id_) in list(devmgr.clients.items()):  # list func will copy it, therefore we can work with devmgr.clients dict
+            if cl != client:
+                devmgr._close_client(id_)
+
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
                 derivation = normalize_bip32_derivation(derivation)
