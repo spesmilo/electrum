@@ -153,7 +153,7 @@ implementation to work with.
 Quick Start
 -----------
 
-A public acessible server is hosted by `BirthdayResearch <https://github.com/BirthdayResearch>`_ via `https://<wip>:50001:t`.
+A public acessible server is hosted by `BirthdayResearch <https://github.com/BirthdayResearch>`_ via `https://54.254.46.121:50001:t`.
 This is used for exploratory and research purposes with no guaranteed uptime, you should not use any production wallet
 with this server to avoid any fund or data losses.
 
