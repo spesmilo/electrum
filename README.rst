@@ -6,7 +6,6 @@ DeFiChain Electrum - Lightweight DeFiChain client
   Licence: MIT Licence
   Author: BirthdayResearch
   Language: Python (>= 3.6)
-  Homepage: https://electrum.org/
 
 
 .. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
