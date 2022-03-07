@@ -70,16 +70,18 @@ class Plugin(BasePlugin):
     @contextmanager
     def coldcards_connected(self):
         clients = []
+        open_failed = []
         devices = self.parent.device_manager.scan_devices()
         for device in devices:
             try:
                 dev_client = self.get_client(device)
             except OSError as e:
                 logger.warning("Tried to connect to already connected Coldcard. Error: {}".format(e))
-                dev_client = None
+                open_failed.append(device)
+                continue
             if dev_client:
                 clients.append(dev_client)
-        yield clients
+        yield clients, open_failed
         for client in clients:
             client.close()
 
@@ -174,7 +176,8 @@ and create new one. After successful convert, new wallet will be opened.<br>
                 ks_stack.setCurrentIndex(index)
 
             labels = []
-            with self.coldcards_connected() as connected_cc_clients:
+            with self.coldcards_connected() as cc_res:
+                connected_cc_clients, cc_open_failed = cc_res
                 for idx, ks in enumerate(non_cc_hw_keystores):
                     dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, ks)
                     if isinstance(wallet, Multisig_Wallet) and hasattr(ks, 'label'):
@@ -191,6 +194,13 @@ and create new one. After successful convert, new wallet will be opened.<br>
             on_click = lambda clayout: select_ks(clayout.selected_index())
             labels_clayout = ChoicesLayout(_("Select keystore"), labels, on_click)
             vbox.addLayout(labels_clayout.layout())
+            if cc_open_failed:
+                # some coldcards are connected but are used by different application
+                # show user the msg
+                msg = "Unable to connect to plugged in Coldcard:" + os.linesep
+                msg += os.linesep.join(["  * " + device.id_ for device in cc_open_failed])
+                msg += os.linesep + "try to reconnect Coldcard and close/re-open this window"
+                vbox.addWidget(QLabel(_(msg)))
             btn_close = CloseButton(dialog)
             btn_convert = QPushButton(_("convert"))
             btn_convert.clicked.connect(lambda unused: self.do_convert2cc(main_window, labels_clayout, non_cc_hw_keystores, dialog))
@@ -204,7 +214,8 @@ and create new one. After successful convert, new wallet will be opened.<br>
         selected_index = labels_clayout.selected_index()
         if selected_index is not None:
             target_keystore = keystores[selected_index]
-            with self.coldcards_connected() as connected_cc_clients:
+            with self.coldcards_connected() as cc_res:
+                connected_cc_clients, cc_open_failed = cc_res
                 # dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
                 dev = None
                 try:
