@@ -1,3 +1,5 @@
+import asyncio
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
@@ -25,9 +27,14 @@ class QEBitcoin(QObject):
     @pyqtSlot(str,str)
     def generate_seed(self, seed_type='segwit', language='en'):
         self._logger.debug('generating seed of type ' + str(seed_type))
-        self.generatedSeed = mnemonic.Mnemonic(language).make_seed(seed_type=seed_type)
-        self._logger.debug('seed generated')
-        self.generatedSeedChanged.emit()
+
+        async def co_gen_seed(seed_type, language):
+            self.generatedSeed = mnemonic.Mnemonic(language).make_seed(seed_type=seed_type)
+            self._logger.debug('seed generated')
+            self.generatedSeedChanged.emit()
+
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), loop)
 
     @pyqtProperty(bool, notify=seedValidChanged)
     def seed_valid(self):
