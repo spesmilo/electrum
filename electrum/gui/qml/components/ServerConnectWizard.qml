@@ -80,7 +80,6 @@ Wizard {
     property Component proxyconfig: Component {
         WizardComponent {
             valid: true
-            last: false
 
             onAccept: {
                 var p = {}
