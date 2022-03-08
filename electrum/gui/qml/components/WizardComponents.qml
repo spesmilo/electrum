@@ -116,6 +116,7 @@ Item {
 
             onAccept: {
                 wizard_data['seed'] = seedtext.text
+                wizard_data['seed_type'] = 'segwit'
                 wizard_data['seed_extend'] = extendcb.checked
                 wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
             }
@@ -124,7 +125,15 @@ Item {
                 width: parent.width
                 columns: 1
 
-                Label { text: qsTr('Generated Seed') }
+                TextArea {
+                    id: warningtext
+                    readOnly: true
+                    Layout.fillWidth: true
+                    wrapMode: TextInput.WordWrap
+                    textFormat: TextEdit.RichText
+                    background: Rectangle { color: "transparent" }
+                }
+                Label { text: qsTr('Your wallet generation seed is:') }
                 TextArea {
                     id: seedtext
                     readOnly: true
@@ -155,7 +164,23 @@ Item {
 
             Bitcoin {
                 id: bitcoin
-                onGeneratedSeedChanged: seedtext.text = generated_seed
+                onGeneratedSeedChanged: {
+                    seedtext.text = generated_seed
+
+                    var t = [
+                        "<p>",
+                        qsTr("Please save these %1 words on paper (order is important). ").arg(generated_seed.split(" ").length),
+                        qsTr("This seed will allow you to recover your wallet in case of computer failure."),
+                        "</p>",
+                        "<b>" + qsTr("WARNING") + ":</b>",
+                        "<ul>",
+                        "<li>" + qsTr("Never disclose your seed.") + "</li>",
+                        "<li>" + qsTr("Never type it on a website.") + "</li>",
+                        "<li>" + qsTr("Do not store it electronically.") + "</li>",
+                        "</ul>"
+                    ]
+                    warningtext.text = t.join("")
+                }
             }
         }
     }
@@ -167,6 +192,7 @@ Item {
             onAccept: {
                 wizard_data['seed'] = seedtext.text
                 wizard_data['seed_extend'] = extendcb.checked
+                wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
                 wizard_data['seed_bip39'] = bip39cb.checked
             }
 
@@ -225,6 +251,15 @@ Item {
                 width: parent.width
                 columns: 1
 
+                TextArea {
+                    readOnly: true
+                    Layout.fillWidth: true
+                    wrapMode: TextInput.WordWrap
+                    text: qsTr('Your seed is important!') + ' ' +
+                        qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
+                        qsTr('To make sure that you have properly saved your seed, please retype it here.')
+                    background: Rectangle { color: "transparent" }
+                }
                 Label { text: qsTr('Confirm your seed (re-enter)') }
                 TextArea {
                     id: confirm
