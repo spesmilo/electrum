@@ -1825,6 +1825,31 @@ class Peer(Logger):
         # can fullfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
+    def get_shutdown_fee_range(self, chan, closing_tx, is_local):
+        """ return the closing fee and fee range we initially try to enforce """
+        config = self.network.config
+        if config.get('test_shutdown_fee'):
+            our_fee = config.get('test_shutdown_fee')
+        else:
+            fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            if not fee_rate_per_kb:  # fallback
+                fee_rate_per_kb = self.network.config.fee_per_kb()
+            our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+            # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
+            # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
+            max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
+            our_fee = min(our_fee, max_fee)
+        # config modern_fee_negotiation can be set in tests
+        if config.get('test_shutdown_legacy'):
+            our_fee_range = None
+        elif config.get('test_shutdown_fee_range'):
+            our_fee_range = config.get('test_shutdown_fee_range')
+        else:
+            # we aim at a fee between next block inclusion and some lower value
+            our_fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
+        self.logger.info(f"Our fee range: {our_fee_range} and fee: {our_fee}")
+        return our_fee, our_fee_range
+
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
         # wait until no HTLCs remain in either commitment transaction
@@ -1841,24 +1866,9 @@ class Peer(Logger):
         assert our_scriptpubkey
         # estimate fee of closing tx
         our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
-        fee_rate_per_kb = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-        if not fee_rate_per_kb:  # fallback
-            fee_rate_per_kb = self.network.config.fee_per_kb()
-        our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
-        # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
-        # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
-        max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
-        our_fee = min(our_fee, max_fee)
 
         is_initiator = chan.constraints.is_initiator
-        # config modern_fee_negotiation can be set in tests
-        if self.network.config.get('modern_fee_negotiation', True):
-            # this is the fee range we initially try to enforce
-            # we aim at a fee between next block inclusion and some lower value
-            our_fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
-            self.logger.info(f"Our fee range: {our_fee_range} and fee: {our_fee}")
-        else:
-            our_fee_range = None
+        our_fee, our_fee_range = self.get_shutdown_fee_range(chan, closing_tx, is_local)
 
         def send_closing_signed(our_fee, our_fee_range, drop_remote):
             if our_fee_range:
@@ -1916,12 +1926,14 @@ class Peer(Logger):
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
 
             # The sending node, if it is not the funder:
-            if our_fee_range and their_fee_range and not is_initiator:
+            if our_fee_range and their_fee_range and not is_initiator and not self.network.config.get('test_shutdown_fee_range'):
                 # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
                 our_fee_range['max_fee_satoshis'] = max(their_fee_range['max_fee_satoshis'], our_fee_range['max_fee_satoshis'])
                 # SHOULD set min_fee_satoshis to a fairly low value
-                # TODO: what's fairly low value? allows the initiator to go to low values
-                our_fee_range['min_fee_satoshis'] = our_fee_range['max_fee_satoshis'] // 2
+                our_fee_range['min_fee_satoshis'] = min(their_fee_range['min_fee_satoshis'], our_fee_range['min_fee_satoshis'])
+                # Note: the BOLT describes what the sending node SHOULD do.
+                # However, this assumes that we have decided to send 'funding_signed' in response to their fee_range.
+                # In practice, we might prefer to fail the channel in some cases (TODO)
 
             # the receiving node, if fee_satoshis matches its previously sent fee_range,
             if fee_range_sent and (our_fee_range['min_fee_satoshis'] <= their_fee <= our_fee_range['max_fee_satoshis']):
@@ -1934,7 +1946,9 @@ class Peer(Logger):
                 overlap_max = min(our_fee_range['max_fee_satoshis'], their_fee_range['max_fee_satoshis'])
                 # if there is no overlap between that and its own fee_range
                 if overlap_min > overlap_max:
-                    # TODO: MUST fail the channel if it doesn't receive a satisfying fee_range after a reasonable amount of time
+                    # TODO: the receiving node should first send a warning, and fail the channel
+                    # only if it doesn't receive a satisfying fee_range after a reasonable amount of time
+                    self.lnworker.schedule_force_closing(chan.channel_id)
                     raise Exception("There is no overlap between between their and our fee range.")
                 # otherwise, if it is the funder
                 if is_initiator:
