@@ -1,9 +1,12 @@
+import os
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import Logger, get_logger
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.util import InvalidPassword
+from electrum import keystore
 
 from .qedaemon import QEDaemon
 
@@ -29,6 +32,8 @@ class QEWalletDB(QObject):
     upgradingChanged = pyqtSignal()
     splitFinished = pyqtSignal()
     readyChanged = pyqtSignal()
+    createError = pyqtSignal([str], arguments=["error"])
+    createSuccess = pyqtSignal()
 
     def reset(self):
         self._path = None
@@ -201,3 +206,39 @@ class QEWalletDB(QObject):
         #wallet.start_network(self.network)
         #self._wallets[path] = wallet
         #return wallet
+
+    @pyqtSlot('QJSValue')
+    def create_storage(self, js_data):
+        self._logger.info('Creating wallet from wizard data')
+        data = js_data.toVariant()
+        self._logger.debug(str(data))
+
+        try:
+            path = os.path.join(os.path.dirname(self.daemon.config.get_wallet_path()), data['wallet_name'])
+            if os.path.exists(path):
+                raise Exception('file already exists at path')
+            storage = WalletStorage(path)
+
+            k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
+
+            if data['encrypt']:
+                storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
+
+            db = WalletDB('', manual_upgrades=False)
+            db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
+
+            db.put('wallet_type', data['wallet_type'])
+            db.put('seed_type', data['seed_type'])
+            db.put('keystore', k.dump())
+            if k.can_have_deterministic_lightning_xprv():
+                db.put('lightning_xprv', k.get_lightning_xprv(None))
+
+            db.load_plugins()
+            db.write(storage)
+
+            self.createSuccess.emit()
+        except Exception as e:
+            self._logger.error(str(e))
+            self.createError.emit(str(e))
+
+

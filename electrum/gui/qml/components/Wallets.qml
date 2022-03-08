@@ -100,6 +100,9 @@ Pane {
             onClicked:  {
                 var dialog = app.newWalletWizard.createObject(rootItem)
                 dialog.open()
+                dialog.walletCreated.connect(function() {
+                    Daemon.availableWallets.reload()
+                })
             }
         }
     }

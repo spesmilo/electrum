@@ -2,10 +2,14 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
+import org.electrum 1.0
+
 Wizard {
     id: walletwizard
 
     title: qsTr('New Wallet')
+
+    signal walletCreated
 
     enter: null // disable transition
 
@@ -77,5 +81,14 @@ Wizard {
         start.next.connect(function() {walletnameDone()})
     }
 
+    onAccepted: {
+        console.log('Finished new wallet wizard')
+        walletdb.create_storage(wizard_data)
+    }
+
+    WalletDB {
+        id: walletdb
+        onCreateSuccess: walletwizard.walletCreated()
+    }
 }
 

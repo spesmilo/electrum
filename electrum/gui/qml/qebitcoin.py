@@ -13,6 +13,9 @@ class QEBitcoin(QObject):
     generatedSeedChanged = pyqtSignal()
     generatedSeed = ''
 
+    seedValidChanged = pyqtSignal()
+    seedValid = False
+
     @pyqtProperty('QString', notify=generatedSeedChanged)
     def generated_seed(self):
         return self.generatedSeed
@@ -20,8 +23,23 @@ class QEBitcoin(QObject):
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str,str)
-    def generate_seed(self, seed_type='standard', language='en'):
+    def generate_seed(self, seed_type='segwit', language='en'):
         self._logger.debug('generating seed of type ' + str(seed_type))
         self.generatedSeed = mnemonic.Mnemonic(language).make_seed(seed_type=seed_type)
         self._logger.debug('seed generated')
         self.generatedSeedChanged.emit()
+
+    @pyqtProperty(bool, notify=seedValidChanged)
+    def seed_valid(self):
+        return self.seedValid
+
+    @pyqtSlot(str)
+    @pyqtSlot(str,str)
+    @pyqtSlot(str,str,str)
+    @pyqtSlot(str,str,str,str)
+    def verify_seed(self, seed, bip39=False, seed_type='segwit', language='en'):
+        self._logger.debug('verify seed of type ' + str(seed_type))
+        #TODO
+        #self._logger.debug('seed verified')
+        #self.seedValidChanged.emit()
+

@@ -57,6 +57,7 @@ class QEAvailableWalletListModel(QEWalletListModel):
         self.daemon = daemon
         self.reload()
 
+    @pyqtSlot()
     def reload(self):
         if len(self.wallets) > 0:
             self.beginRemoveRows(QModelIndex(), 0, len(self.wallets) - 1)
