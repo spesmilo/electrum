@@ -156,6 +156,11 @@ If you've chosen to change your hardware wallet to Coldcard, convert2cc<br>
 will save you the hustle.</p>
 """
         wallet = main_window.wallet
+        encryption_warning = (
+            "<br><strong>WARNING:</strong><br>You're converting encrypted wallet. Please, make sure to encrypt<br>"
+            " newly converted wallet too. All wallets created with this tool are plaintext!<br>"
+        )
+        encryption_warning = encryption_warning if wallet.storage.is_encrypted() else ""
         dialog = WindowModalDialog(main_window, _("convert2cc"))
         dialog.setMinimumSize(600, 80)
         vbox = QVBoxLayout()
@@ -175,7 +180,7 @@ hardware device other than Coldcard</p>
             btn_close = CloseButton(dialog)
             vbox.addLayout(Buttons(btn_close))
         else:
-            description = description + os.linesep + """
+            description = description + os.linesep + f"""
 <p style="text-align: center">     
 You're about to convert one of your keystores/cosigners to Coldcard.<br>
 Please, close all other wallet windows. Make sure you have loaded the correct<br>
@@ -186,6 +191,7 @@ in this wallet. Your Coldcard does not need to be connected - but it is recommen
 <br>
 convert2cc does not rewrite your existing wallet file, but rather copy it<br>
 and create new one. After successful convert, new wallet will be opened.<br>
+{encryption_warning}
 </p>
             """
             non_cc_hw_keystores = [ks for ks in wallet.get_keystores() if self.hardware_keystore_not_coldcard(ks)]
