@@ -1063,13 +1063,46 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_close(self):
+    def test_legacy_shutdown_low(self):
+        self._test_shutdown(alice_fee=100, bob_fee=150)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_legacy_shutdown_high(self):
+        self._test_shutdown(alice_fee=2000, bob_fee=100)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_modern_shutdown_with_overlap(self):
+        self._test_shutdown(
+            alice_fee=1,
+            bob_fee=200,
+            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+            bob_fee_range={'min_fee_satoshis': 10, 'max_fee_satoshis': 300})
+
+    ## This test works but it is too slow (LN_P2P_NETWORK_TIMEOUT)
+    ## because tests do not use a proper LNWorker object
+    #@needs_test_with_all_chacha20_implementations
+    #def test_modern_shutdown_no_overlap(self):
+    #    self.assertRaises(Exception, lambda: asyncio.run(
+    #        self._test_shutdown(
+    #            alice_fee=1,
+    #            bob_fee=200,
+    #            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+    #            bob_fee_range={'min_fee_satoshis': 50, 'max_fee_satoshis': 300})
+    #    ))
+
+    def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('dynamic_fees', False)
-        w2.network.config.set_key('dynamic_fees', False)
-        w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w1.network.config.set_key('test_shutdown_fee', alice_fee)
+        w2.network.config.set_key('test_shutdown_fee', bob_fee)
+        if alice_fee_range is not None:
+            w1.network.config.set_key('test_shutdown_fee_range', alice_fee_range)
+        else:
+            w1.network.config.set_key('test_shutdown_legacy', True)
+        if bob_fee_range is not None:
+            w2.network.config.set_key('test_shutdown_fee_range', bob_fee_range)
+        else:
+            w2.network.config.set_key('test_shutdown_legacy', True)
         w2.enable_htlc_settle = False
         lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
