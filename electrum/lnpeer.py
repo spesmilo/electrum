@@ -298,7 +298,7 @@ class Peer(Logger):
         # MUST fail the channel(s) referred to by the error message:
         #  we may violate this with force_close_channel
         if force_close_channel:
-            for cid self._get_channel_ids(channel_id):
+            for cid in self._get_channel_ids(channel_id):
                 self.schedule_force_closing(channel_id)
         raise GracefulDisconnect
 
@@ -1035,6 +1035,7 @@ class Peer(Logger):
             my_current_per_commitment_point=latest_point)
 
     def schedule_force_closing(self, channel_id: bytes):
+        """ wrapper of lnworker's method, that raises if channel is not with this peer """
         channels_with_peer = list(self.channels.keys())
         channels_with_peer.extend(self.temp_id_to_id.values())
         if channel_id not in channels_with_peer:
@@ -1138,7 +1139,7 @@ class Peer(Logger):
             fut.set_exception(RemoteMisbehaving("remote ahead of us"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             fut.set_exception(RemoteMisbehaving("we are ahead of remote"))
         else:
             # all good
@@ -1468,7 +1469,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_malformed_htlc. chan {chan.get_id_for_log()}. "
                          f"htlc_id {htlc_id}. failure_code={failure_code}")
         if failure_code & OnionFailureCodeMetaFlag.BADONION == 0:
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
         reason = OnionRoutingFailure(code=failure_code, data=payload["sha256_of_onion"])
         chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
@@ -1490,7 +1491,7 @@ class Peer(Logger):
         if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         chan.receive_htlc(htlc, onion_packet)
@@ -1989,7 +1990,7 @@ class Peer(Logger):
             try:
                 cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             except asyncio.exceptions.TimeoutError:
-                self.lnworker.schedule_force_closing(chan.channel_id)
+                self.schedule_force_closing(chan.channel_id)
                 raise Exception("closing_signed not received, force closing.")
             their_fee = cs_payload['fee_satoshis']
             their_fee_range = cs_payload['closing_signed_tlvs'].get('fee_range')
@@ -2042,14 +2043,14 @@ class Peer(Logger):
                 if overlap_min > overlap_max:
                     # TODO: the receiving node should first send a warning, and fail the channel
                     # only if it doesn't receive a satisfying fee_range after a reasonable amount of time
-                    self.lnworker.schedule_force_closing(chan.channel_id)
+                    self.schedule_force_closing(chan.channel_id)
                     raise Exception("There is no overlap between between their and our fee range.")
                 # otherwise, if it is the funder
                 if is_initiator:
                     # if fee_satoshis is not in the overlap between the sent and received fee_range:
                     if not (overlap_min <= their_fee <= overlap_max):
                         # MUST fail the channel
-                        self.lnworker.schedule_force_closing(chan.channel_id)
+                        self.schedule_force_closing(chan.channel_id)
                         raise Exception("Their fee is not in the overlap region, we force closed.")
                     # otherwise, MUST reply with the same fee_satoshis.
                     our_fee = their_fee
@@ -2058,7 +2059,7 @@ class Peer(Logger):
                     # if it has already sent a closing_signed:
                     if fee_range_sent:
                         # fee_satoshis is not the same as the value we sent, we MUST fail the channel
-                        self.lnworker.schedule_force_closing(chan.channel_id)
+                        self.schedule_force_closing(chan.channel_id)
                         raise Exception("Expected the same fee as ours, we force closed.")
                     # otherwise:
                     # MUST propose a fee_satoshis in the overlap between received and (about-to-be) sent fee_range.
