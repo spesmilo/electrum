@@ -10,7 +10,7 @@ from electrum.logging import get_logger
 from electrum.gui.qt.util import WindowModalDialog, ChoicesLayout, CloseButton, Buttons, getSaveFileName
 from electrum.i18n import _
 from electrum.plugin import hook, BasePlugin
-from electrum.plugins.coldcard.coldcard import CKCC_SIMULATED_PID, ElectrumColdcardDevice
+from electrum.plugins.coldcard.coldcard import CKCC_SIMULATED_PID, ElectrumColdcardDevice, CKCCClient
 from electrum.wallet import Multisig_Wallet, Standard_Wallet
 
 
@@ -67,23 +67,44 @@ class Plugin(BasePlugin):
             return True
         return False
 
+    def opened_devmgr_cc_clients(self) -> dict:
+        res = {}
+        for client, (path, id_) in self.parent.device_manager.clients.items():
+            if isinstance(client, CKCCClient):
+                res[(path, id_)] = client
+        return res
+
+    def scan_devices(self):
+        return self.parent.device_manager.scan_devices()
+
     @contextmanager
     def coldcards_connected(self):
         clients = []
         open_failed = []
-        devices = self.parent.device_manager.scan_devices()
+        devices = self.scan_devices()
+        cc_opened = self.opened_devmgr_cc_clients()
+        hijacked_client = []
         for device in devices:
-            try:
-                dev_client = self.get_client(device)
-            except OSError as e:
-                logger.warning("Tried to connect to already connected Coldcard. Error: {}".format(e))
-                open_failed.append(device)
-                continue
+            # check if device is not already opened in electrum
+            # if yes - use that connection
+            ckcc_client = cc_opened.get((device.path, device.id_), None)
+            if ckcc_client:
+                dev_client = ckcc_client.dev
+                hijacked_client.append(dev_client)
+            else:
+                try:
+                    dev_client = self.get_client(device)
+                except OSError as e:
+                    logger.warning("Tried to connect to already connected Coldcard. Error: {}".format(e))
+                    open_failed.append(device)
+                    continue
             if dev_client:
                 clients.append(dev_client)
         yield clients, open_failed
         for client in clients:
-            client.close()
+            if client not in hijacked_client:
+                # only close the client if we have not hijacked the connection form electrum
+                client.close()
 
     def hardware_keystore_not_coldcard(self, keystore) -> bool:
         return self.is_hardware_keystore(keystore) and not self.is_coldcard_keystore(keystore)
