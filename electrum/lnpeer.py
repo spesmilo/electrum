@@ -314,12 +314,11 @@ class Peer(Logger):
         pass
 
     async def wait_for_message(self, expected_name, channel_id):
+        # errors and warnings are sent to the queue with name set to None, so that this task terminates
         q = self.ordered_message_queues[channel_id]
         name, payload = await asyncio.wait_for(q.get(), LN_P2P_NETWORK_TIMEOUT)
-        if payload.get('error'):
-            raise GracefulDisconnect(f'Waiting for {expected_name} failed due to an error sent by the peer.')
-        elif payload.get('warning'):
-            raise GracefulDisconnect(f'Waiting for {expected_name} failed due to a warning sent by the peer.')
+        if name is None:
+            return
         if name != expected_name:
             raise Exception(f"Received unexpected '{name}'")
         return payload
