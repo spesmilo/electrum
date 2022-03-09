@@ -298,11 +298,7 @@ class Peer(Logger):
         # MUST fail the channel(s) referred to by the error message:
         #  we may violate this with force_close_channel
         if force_close_channel:
-            # channel_id of zero means that the error refers to all channels
-            if channel_id == bytes(32):
-                for channel_id in self.channels:
-                    self.schedule_force_closing(channel_id)
-            else:
+            for cid self._get_channel_ids(channel_id):
                 self.schedule_force_closing(channel_id)
         raise GracefulDisconnect
 
