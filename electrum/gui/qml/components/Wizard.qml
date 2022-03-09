@@ -50,11 +50,15 @@ Dialog {
 
     ColumnLayout {
         anchors.fill: parent
+        spacing: 0
 
         SwipeView {
             id: pages
             Layout.fillWidth: true
+            Layout.fillHeight: true
             interactive: false
+
+            clip:true
 
             function prev() {
                 currentIndex = currentIndex - 1
