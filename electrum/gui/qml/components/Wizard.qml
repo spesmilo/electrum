@@ -129,4 +129,38 @@ Dialog {
         }
     }
 
+    header: GridLayout {
+        columns: 2
+        rowSpacing: 0
+
+        Image {
+            source: "../../icons/electrum.png"
+            Layout.preferredWidth: 48
+            Layout.preferredHeight: 48
+            Layout.leftMargin: 12
+            Layout.topMargin: 12
+            Layout.bottomMargin: 12
+        }
+
+        Label {
+            text: title
+            elide: Label.ElideRight
+            Layout.fillWidth: true
+            topPadding: 24
+            bottomPadding: 24
+            font.bold: true
+            font.pixelSize: 16
+        }
+
+        Rectangle {
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            height: 1
+            color: Qt.rgba(0,0,0,0.5)
+        }
+    }
+
+
 }

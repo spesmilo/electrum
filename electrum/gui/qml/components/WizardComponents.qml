@@ -141,13 +141,10 @@ Item {
                 width: parent.width
                 columns: 1
 
-                TextArea {
+                InfoTextArea {
                     id: warningtext
-                    readOnly: true
                     Layout.fillWidth: true
-                    wrapMode: TextInput.WordWrap
-                    textFormat: TextEdit.RichText
-                    background: Rectangle { color: "transparent" }
+                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
                 Label { text: qsTr('Your wallet generation seed is:') }
                 TextArea {
@@ -198,7 +195,7 @@ Item {
 
     property Component haveseed: Component {
         WizardComponent {
-            valid: true
+            valid: false
 
             onAccept: {
                 wizard_data['seed'] = seedtext.text
@@ -207,43 +204,88 @@ Item {
                 wizard_data['seed_bip39'] = bip39cb.checked
             }
 
+            function checkValid() {
+            }
+
+            function setSeedTypeHelpText() {
+                var t = {
+                    'Electrum': [
+                        qsTr('Electrum seeds are the default seed type.'),
+                        qsTr('If you are restoring from a seed previously created by Electrum, choose this option')
+                    ].join(' '),
+                    'BIP39': [
+                        qsTr('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                        '<br/><br/>',
+                        qsTr('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
+                        qsTr('BIP39 seeds do not include a version number, which compromises compatibility with future software.'),
+                        '<br/><br/>',
+                        qsTr('We do not guarantee that BIP39 imports will always be supported in Electrum.')
+                    ].join(' '),
+                    'SLIP39': [
+                        qsTr('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
+                        '<br/><br/>',
+                        qsTr('However, we do not generate SLIP39 seeds.')
+                    ].join(' ')
+                }
+                infotext.text = t[seed_type.currentText]
+            }
+
             GridLayout {
                 width: parent.width
-                columns: 1
+                columns: 2
 
-                Label { text: qsTr('Enter your seed') }
+                Label {
+                    text: qsTr('Seed Type')
+                }
+                ComboBox {
+                    id: seed_type
+                    model: ['Electrum', 'BIP39', 'SLIP39']
+                    onActivated: setSeedTypeHelpText()
+                }
+                InfoTextArea {
+                    id: infotext
+                    Layout.fillWidth: true
+                    Layout.columnSpan: 2
+                }
+                Label {
+                    text: qsTr('Enter your seed')
+                    Layout.columnSpan: 2
+                }
                 TextArea {
                     id: seedtext
                     wrapMode: TextInput.WordWrap
                     Layout.fillWidth: true
+                    Layout.columnSpan: 2
                     background: Rectangle {
                         color: "transparent"
                         border.color: Material.accentColor
                     }
                     leftInset: -5
                     rightInset: -5
+                    onTextChanged: {
+                        checkValid()
+                    }
                 }
                 CheckBox {
                     id: extendcb
-                    enabled: true
+                    Layout.columnSpan: 2
                     text: qsTr('Extend seed with custom words')
                 }
                 TextField {
                     id: customwordstext
                     visible: extendcb.checked
                     Layout.fillWidth: true
+                    Layout.columnSpan: 2
                     placeholderText: qsTr('Enter your custom word(s)')
                     echoMode: TextInput.Password
-                }
-                CheckBox {
-                    id: bip39cb
-                    enabled: true
-                    text: qsTr('BIP39')
                 }
             }
 
             Bitcoin {
                 id: bitcoin
+            }
+            Component.onCompleted: {
+                setSeedTypeHelpText()
             }
         }
     }
@@ -262,14 +304,11 @@ Item {
                 width: parent.width
                 columns: 1
 
-                TextArea {
-                    readOnly: true
+                InfoTextArea {
                     Layout.fillWidth: true
-                    wrapMode: TextInput.WordWrap
                     text: qsTr('Your seed is important!') + ' ' +
                         qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
                         qsTr('To make sure that you have properly saved your seed, please retype it here.')
-                    background: Rectangle { color: "transparent" }
                 }
                 Label { text: qsTr('Confirm your seed (re-enter)') }
                 TextArea {
