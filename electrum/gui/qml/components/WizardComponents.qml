@@ -147,24 +147,16 @@ Item {
                     iconStyle: InfoTextArea.IconStyle.Warn
                 }
                 Label { text: qsTr('Your wallet generation seed is:') }
-                TextArea {
+                SeedTextArea {
                     id: seedtext
                     readOnly: true
                     Layout.fillWidth: true
-                    wrapMode: TextInput.WordWrap
-                    background: Rectangle {
-                        color: "transparent"
-                        border.color: Material.accentColor
-                    }
-                    leftInset: -5
-                    rightInset: -5
 
                     BusyIndicator {
                         anchors.centerIn: parent
-                        height: parent.height *2/3
+                        height: parent.height * 2/3
                         visible: seedtext.text == ''
                     }
-
                 }
                 CheckBox {
                     id: extendcb
@@ -251,17 +243,10 @@ Item {
                     text: qsTr('Enter your seed')
                     Layout.columnSpan: 2
                 }
-                TextArea {
+                SeedTextArea {
                     id: seedtext
-                    wrapMode: TextInput.WordWrap
                     Layout.fillWidth: true
                     Layout.columnSpan: 2
-                    background: Rectangle {
-                        color: "transparent"
-                        border.color: Material.accentColor
-                    }
-                    leftInset: -5
-                    rightInset: -5
                     onTextChanged: {
                         checkValid()
                     }
@@ -311,9 +296,8 @@ Item {
                         qsTr('To make sure that you have properly saved your seed, please retype it here.')
                 }
                 Label { text: qsTr('Confirm your seed (re-enter)') }
-                TextArea {
+                SeedTextArea {
                     id: confirm
-                    wrapMode: TextInput.WordWrap
                     Layout.fillWidth: true
                     onTextChanged: {
                         checkValid()
