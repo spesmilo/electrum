@@ -137,41 +137,49 @@ Item {
                 warningtext.text = t.join("")
             }
 
-            GridLayout {
-                width: parent.width
-                columns: 1
+            Flickable {
+                anchors.fill: parent
+                contentHeight: mainLayout.height
+                clip:true
+                interactive: height < contentHeight
 
-                InfoTextArea {
-                    id: warningtext
-                    Layout.fillWidth: true
-                    iconStyle: InfoTextArea.IconStyle.Warn
-                }
-                Label { text: qsTr('Your wallet generation seed is:') }
-                SeedTextArea {
-                    id: seedtext
-                    readOnly: true
-                    Layout.fillWidth: true
+                GridLayout {
+                    id: mainLayout
+                    width: parent.width
+                    columns: 1
 
-                    BusyIndicator {
-                        anchors.centerIn: parent
-                        height: parent.height * 2/3
-                        visible: seedtext.text == ''
+                    InfoTextArea {
+                        id: warningtext
+                        Layout.fillWidth: true
+                        iconStyle: InfoTextArea.IconStyle.Warn
                     }
-                }
-                CheckBox {
-                    id: extendcb
-                    text: qsTr('Extend seed with custom words')
-                }
-                TextField {
-                    id: customwordstext
-                    visible: extendcb.checked
-                    Layout.fillWidth: true
-                    placeholderText: qsTr('Enter your custom word(s)')
-                    echoMode: TextInput.Password
-                }
-                Component.onCompleted : {
-                    setWarningText(12)
-                    bitcoin.generate_seed()
+                    Label { text: qsTr('Your wallet generation seed is:') }
+                    SeedTextArea {
+                        id: seedtext
+                        readOnly: true
+                        Layout.fillWidth: true
+
+                        BusyIndicator {
+                            anchors.centerIn: parent
+                            height: parent.height * 2/3
+                            visible: seedtext.text == ''
+                        }
+                    }
+                    CheckBox {
+                        id: extendcb
+                        text: qsTr('Extend seed with custom words')
+                    }
+                    TextField {
+                        id: customwordstext
+                        visible: extendcb.checked
+                        Layout.fillWidth: true
+                        placeholderText: qsTr('Enter your custom word(s)')
+                        echoMode: TextInput.Password
+                    }
+                    Component.onCompleted : {
+                        setWarningText(12)
+                        bitcoin.generate_seed()
+                    }
                 }
             }
 
@@ -222,47 +230,55 @@ Item {
                 infotext.text = t[seed_type.currentText]
             }
 
-            GridLayout {
-                width: parent.width
-                columns: 2
+            Flickable {
+                anchors.fill: parent
+                contentHeight: mainLayout.height
+                clip:true
+                interactive: height < contentHeight
 
-                Label {
-                    text: qsTr('Seed Type')
-                }
-                ComboBox {
-                    id: seed_type
-                    model: ['Electrum', 'BIP39', 'SLIP39']
-                    onActivated: setSeedTypeHelpText()
-                }
-                InfoTextArea {
-                    id: infotext
-                    Layout.fillWidth: true
-                    Layout.columnSpan: 2
-                }
-                Label {
-                    text: qsTr('Enter your seed')
-                    Layout.columnSpan: 2
-                }
-                SeedTextArea {
-                    id: seedtext
-                    Layout.fillWidth: true
-                    Layout.columnSpan: 2
-                    onTextChanged: {
-                        checkValid()
+                GridLayout {
+                    id: mainLayout
+                    width: parent.width
+                    columns: 2
+
+                    Label {
+                        text: qsTr('Seed Type')
                     }
-                }
-                CheckBox {
-                    id: extendcb
-                    Layout.columnSpan: 2
-                    text: qsTr('Extend seed with custom words')
-                }
-                TextField {
-                    id: customwordstext
-                    visible: extendcb.checked
-                    Layout.fillWidth: true
-                    Layout.columnSpan: 2
-                    placeholderText: qsTr('Enter your custom word(s)')
-                    echoMode: TextInput.Password
+                    ComboBox {
+                        id: seed_type
+                        model: ['Electrum', 'BIP39', 'SLIP39']
+                        onActivated: setSeedTypeHelpText()
+                    }
+                    InfoTextArea {
+                        id: infotext
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 2
+                    }
+                    Label {
+                        text: qsTr('Enter your seed')
+                        Layout.columnSpan: 2
+                    }
+                    SeedTextArea {
+                        id: seedtext
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 2
+                        onTextChanged: {
+                            checkValid()
+                        }
+                    }
+                    CheckBox {
+                        id: extendcb
+                        Layout.columnSpan: 2
+                        text: qsTr('Extend seed with custom words')
+                    }
+                    TextField {
+                        id: customwordstext
+                        visible: extendcb.checked
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 2
+                        placeholderText: qsTr('Enter your custom word(s)')
+                        echoMode: TextInput.Password
+                    }
                 }
             }
 
@@ -285,31 +301,39 @@ Item {
                 valid = seedvalid && (wizard_data['seed_extend'] ? customwordsvalid : true)
             }
 
-            GridLayout {
-                width: parent.width
-                columns: 1
+            Flickable {
+                anchors.fill: parent
+                contentHeight: mainLayout.height
+                clip:true
+                interactive: height < contentHeight
 
-                InfoTextArea {
-                    Layout.fillWidth: true
-                    text: qsTr('Your seed is important!') + ' ' +
-                        qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
-                        qsTr('To make sure that you have properly saved your seed, please retype it here.')
-                }
-                Label { text: qsTr('Confirm your seed (re-enter)') }
-                SeedTextArea {
-                    id: confirm
-                    Layout.fillWidth: true
-                    onTextChanged: {
-                        checkValid()
+                GridLayout {
+                    id: mainLayout
+                    width: parent.width
+                    columns: 1
+
+                    InfoTextArea {
+                        Layout.fillWidth: true
+                        text: qsTr('Your seed is important!') + ' ' +
+                            qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
+                            qsTr('To make sure that you have properly saved your seed, please retype it here.')
                     }
-                }
-                TextField {
-                    id: customwordstext
-                    Layout.fillWidth: true
-                    placeholderText: qsTr('Enter your custom word(s)')
-                    echoMode: TextInput.Password
-                    onTextChanged: {
-                        checkValid()
+                    Label { text: qsTr('Confirm your seed (re-enter)') }
+                    SeedTextArea {
+                        id: confirm
+                        Layout.fillWidth: true
+                        onTextChanged: {
+                            checkValid()
+                        }
+                    }
+                    TextField {
+                        id: customwordstext
+                        Layout.fillWidth: true
+                        placeholderText: qsTr('Enter your custom word(s)')
+                        echoMode: TextInput.Password
+                        onTextChanged: {
+                            checkValid()
+                        }
                     }
                 }
             }
