@@ -1,7 +1,8 @@
 import os
+import PyQt5.Qt
 import hid
 from contextlib import contextmanager
-from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel
+from PyQt5.QtWidgets import QPushButton, QVBoxLayout, QStackedWidget, QLabel, QCheckBox
 
 from ckcc.client import COINKITE_VID, CKCC_PID
 from ckcc.electrum import convert2cc, xfp2str, filepath_append_cc
@@ -156,11 +157,6 @@ If you've chosen to change your hardware wallet to Coldcard, convert2cc<br>
 will save you the hustle.</p>
 """
         wallet = main_window.wallet
-        encryption_warning = (
-            "<br><strong>WARNING:</strong><br>You're converting encrypted wallet. Please, make sure to encrypt<br>"
-            " newly converted wallet too. All wallets created with this tool are plaintext!<br>"
-        )
-        encryption_warning = encryption_warning if wallet.storage.is_encrypted() else ""
         dialog = WindowModalDialog(main_window, _("convert2cc"))
         dialog.setMinimumSize(600, 80)
         vbox = QVBoxLayout()
@@ -191,11 +187,31 @@ in this wallet. Your Coldcard does not need to be connected - but it is recommen
 <br>
 convert2cc does not rewrite your existing wallet file, but rather copy it<br>
 and create new one. After successful convert, new wallet will be opened.<br>
-{encryption_warning}
 </p>
             """
             non_cc_hw_keystores = [ks for ks in wallet.get_keystores() if self.hardware_keystore_not_coldcard(ks)]
             vbox.addWidget(QLabel(_(description)))
+            if wallet.storage.is_encrypted():
+                if wallet.storage.is_encrypted_with_hw_device():
+                    encryption_warning = (
+                        '<p style="text-align: center"><br><strong>WARNING:</strong><br>'
+                        'Your wallet is encrypted with hardware device. Please, make sure to only preserve<br>'
+                        ' encryption settings if you have the exact same wallet loaded in your connected<br>'
+                        ' Coldcard. Without Coldcard connected you will not be able to open converted wallet.</p>'
+                    )
+                else:
+                    assert wallet.storage.is_encrypted_with_user_pw()
+                    encryption_warning = (
+                        '<p style="text-align: center"><br><strong>WARNING:</strong><br>'
+                        'Your wallet is encrypted with password. Please, make sure to only<br>'
+                        ' preserve encryption settings if you remember your password.</p>'
+                    )
+                vbox.addWidget(QLabel(_(encryption_warning)))
+                cb_preserve_encryption = QCheckBox(_('Preserve encryption settings'))
+                cb_preserve_encryption.setChecked(True)
+                vbox.addWidget(cb_preserve_encryption)
+                vbox.setAlignment(cb_preserve_encryption, PyQt5.Qt.Qt.AlignCenter)
+
             ks_stack = QStackedWidget()
 
             def select_ks(index):
@@ -232,14 +248,21 @@ and create new one. After successful convert, new wallet will be opened.<br>
             btn_close = CloseButton(dialog)
             btn_convert = QPushButton(_("convert"))
             btn_convert.clicked.connect(
-                lambda unused: self.do_convert2cc(main_window, labels_clayout, non_cc_hw_keystores, dialog, wi_dialog)
+                lambda unused: self.do_convert2cc(
+                    main_window,
+                    labels_clayout,
+                    non_cc_hw_keystores,
+                    dialog,
+                    wi_dialog,
+                    cb_preserve_encryption.isChecked()
+                )
             )
             vbox.addLayout(Buttons(btn_convert, btn_close))
-        vbox.addStretch(1)
+        vbox.addStretch()
         dialog.setLayout(vbox)
         dialog.exec_()
 
-    def do_convert2cc(self, main_window, labels_clayout, keystores, convert2cc_dialog, wi_dialog):
+    def do_convert2cc(self, main_window, labels_clayout, keystores, convert2cc_dialog, wi_dialog, preserve_encryption):
         wallet = main_window.wallet
         selected_index = labels_clayout.selected_index()
         if selected_index is not None:
@@ -250,6 +273,8 @@ and create new one. After successful convert, new wallet will be opened.<br>
                 dev = None
                 try:
                     new_wallet_str = convert2cc(wallet.db.dump(), dev=dev, key="xpub", val=target_keystore.xpub)
+                    if preserve_encryption:
+                        new_wallet_str = wallet.storage.encrypt_before_writing(new_wallet_str)
                 except Exception as e:
                     logger.exception("")
                     main_window.show_error(_('Error converting wallet') + ':\n' + str(e))
