@@ -1,6 +1,6 @@
 import QtQuick 2.6
-import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.0
+import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
 
 import QtQml 2.6
@@ -36,7 +36,7 @@ ApplicationWindow
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        var dialog = app.messageDialog.createObject(app, {'message':
+                        var dialog = app.messageDialog.createObject(app, {'text':
                             'Electrum is currently on ' + Network.networkName + ''
                         })
                         dialog.open()
@@ -115,11 +115,6 @@ ApplicationWindow
         id: _newWalletWizard
         NewWalletWizard {
             parent: Overlay.overlay
-            x: 12
-            y: 12
-            width: parent.width - 24
-            height: parent.height - 24
-
             Overlay.modal: Rectangle {
                 color: "#aa000000"
             }
@@ -131,11 +126,6 @@ ApplicationWindow
         id: _serverConnectWizard
         ServerConnectWizard {
             parent: Overlay.overlay
-            x: 12
-            y: 12
-            width: parent.width - 24
-            height: parent.height - 24
-
             Overlay.modal: Rectangle {
                 color: "#aa000000"
             }
@@ -150,9 +140,12 @@ ApplicationWindow
             modal: true
             x: (parent.width - width) / 2
             y: (parent.height - height) / 2
+            Overlay.modal: Rectangle {
+                color: "#aa000000"
+            }
 
-            title: "Message"
-            property alias message: messageLabel.text
+            title: qsTr("Message")
+            property alias text: messageLabel.text
             Label {
                 id: messageLabel
                 text: "Lorem ipsum dolor sit amet..."
@@ -162,8 +155,8 @@ ApplicationWindow
     }
 
     Component.onCompleted: {
-        //Daemon.load_wallet()
         splashTimer.start()
+
         if (!Config.autoConnectDefined) {
             var dialog = serverConnectWizard.createObject(app)
             // without completed serverConnectWizard we can't start
@@ -172,6 +165,8 @@ ApplicationWindow
                 Qt.callLater(Qt.quit)
             })
             dialog.open()
+        } else {
+            Daemon.load_wallet()
         }
     }
 
@@ -179,5 +174,33 @@ ApplicationWindow
         // destroy most GUI components so that we don't dump so many null reference warnings on exit
         app.header.visible = false
         mainStackView.clear()
+    }
+/* OpenWallet as a popup dialog attempt
+    Component {
+        id: _openWallet
+        Dialog {
+            parent: Overlay.overlay
+            modal: true
+            x: (parent.width - width) / 2
+            y: (parent.height - height) / 2
+            Overlay.modal: Rectangle {
+                color: "#aa000000"
+            }
+
+            title: qsTr("OpenWallet")
+            OpenWallet {
+                path: Daemon.path
+            }
+
+        }
+    }
+*/
+    Connections {
+        target: Daemon
+        function onWalletRequiresPassword() {
+            app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": Daemon.path})
+//             var dialog = _openWallet.createObject(app)
+            //dialog.open()
+        }
     }
 }

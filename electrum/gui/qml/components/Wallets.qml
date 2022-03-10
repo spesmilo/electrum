@@ -70,13 +70,17 @@ Pane {
             delegate: AbstractButton {
                 width: ListView.view.width
                 height: 50
-                onClicked: console.log('delegate clicked')
+                onClicked: {
+                    wallet_db.path = model.path
+                }
+
                 RowLayout {
-                    x: 20
-                    spacing: 20
+                    x: 10
+                    spacing: 10
+                    width: parent.width - 20
 
                     Image {
-                        source: "../../../gui/kivy/theming/light/wallet.png"
+                        source: "../../kivy/theming/light/wallet.png"
                     }
 
                     Label {
@@ -86,11 +90,12 @@ Pane {
                     }
 
                     Button {
-                        text: 'Load'
-                        onClicked: wallet_db.path = model.path
+                        text: 'Open'
+                        onClicked: {
+                            Daemon.load_wallet(model.path)
+                        }
                     }
                 }
-
             }
         }}}
 
@@ -107,15 +112,14 @@ Pane {
         }
     }
 
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            app.stack.pop()
+        }
+    }
+
     WalletDB {
         id: wallet_db
-        onPathChanged: {
-            if (!ready) {
-                app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": wallet_db.path})
-            } else {
-                Daemon.load_wallet(wallet_db.path, null)
-                app.stack.pop()
-            }
-        }
     }
 }

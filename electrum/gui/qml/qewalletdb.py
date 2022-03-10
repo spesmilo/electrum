@@ -200,13 +200,6 @@ class QEWalletDB(QObject):
         self._ready = True
         self.readyChanged.emit()
 
-        self.daemon.load_wallet(self._path, self._password)
-
-        #wallet = Wallet(db, storage, config=self.config)
-        #wallet.start_network(self.network)
-        #self._wallets[path] = wallet
-        #return wallet
-
     @pyqtSlot('QJSValue')
     def create_storage(self, js_data):
         self._logger.info('Creating wallet from wizard data')

@@ -118,6 +118,7 @@ Pane {
         }
         onReadyChanged: {
             if (ready) {
+                Daemon.load_wallet(Daemon.path, password.text)
                 app.stack.pop(null)
             }
         }

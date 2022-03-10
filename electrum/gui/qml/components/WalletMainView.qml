@@ -67,5 +67,12 @@ Item {
 
     }
 
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            tabbar.setCurrentIndex(1)
+        }
+    }
+
 }
 

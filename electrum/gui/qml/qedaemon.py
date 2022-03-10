@@ -82,14 +82,13 @@ class QEDaemon(QObject):
     _logger = get_logger(__name__)
     _loaded_wallets = QEWalletListModel()
     _available_wallets = None
+    _current_wallet = None
+    _path = None
 
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
-
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
-
-    _current_wallet = None
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -98,14 +97,23 @@ class QEDaemon(QObject):
         self._logger.debug('load wallet ' + str(path))
         if path == None:
             path = self.daemon.config.get('gui_last_wallet')
-        wallet = self.daemon.load_wallet(path, password)
+        self._path = path
+        self._logger.debug('load wallet #2 ' + str(path))
+        if path is not None:
+            wallet = self.daemon.load_wallet(path, password)
+        self._logger.debug('load wallet #3 ' + str(path))
         if wallet != None:
             self._loaded_wallets.add_wallet(wallet=wallet)
             self._current_wallet = QEWallet(wallet)
             self.walletLoaded.emit()
+            self.daemon.config.save_last_wallet(wallet)
         else:
             self._logger.info('fail open wallet')
             self.walletRequiresPassword.emit()
+
+    @pyqtProperty('QString')
+    def path(self):
+        return self._path
 
     @pyqtProperty(QEWallet, notify=walletLoaded)
     def currentWallet(self):
