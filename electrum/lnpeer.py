@@ -314,7 +314,7 @@ class Peer(Logger):
         q = self.ordered_message_queues[channel_id]
         name, payload = await asyncio.wait_for(q.get(), LN_P2P_NETWORK_TIMEOUT)
         if name is None:
-            return
+            raise GracefulDisconnect
         if name != expected_name:
             raise Exception(f"Received unexpected '{name}'")
         return payload
