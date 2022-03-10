@@ -1,7 +1,6 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.15
-import QtQuick.Controls.Material 2.15
+import QtQuick.Controls 2.3
 
 Wizard {
     id: serverconnectwizard
@@ -47,13 +46,11 @@ Wizard {
             }
 
             ColumnLayout {
-                anchors.fill: parent
+                width: parent.width
 
-                Text {
+                InfoTextArea {
                     text: qsTr('Electrum communicates with remote servers to get information about your transactions and addresses. The servers all fulfill the same purpose only differing in hardware. In most cases you simply want to let Electrum pick one at random.  However if you prefer feel free to select a server manually.')
-                    wrapMode: Text.Wrap
                     Layout.fillWidth: true
-                    color: Material.primaryTextColor
                 }
 
                 ButtonGroup {
@@ -98,13 +95,10 @@ Wizard {
             }
 
             ColumnLayout {
-                anchors.fill: parent
+                width: parent.width
 
-                Text {
+                Label {
                     text: qsTr('Proxy settings')
-                    wrapMode: Text.Wrap
-                    Layout.fillWidth: true
-                    color: Material.primaryTextColor
                 }
 
                 CheckBox {
@@ -185,13 +179,10 @@ Wizard {
             }
 
             ColumnLayout {
-                anchors.fill: parent
+                width: parent.width
 
-                Text {
+                Label {
                     text: qsTr('Server settings')
-                    wrapMode: Text.Wrap
-                    Layout.fillWidth: true
-                    color: Material.primaryTextColor
                 }
 
                 CheckBox {
