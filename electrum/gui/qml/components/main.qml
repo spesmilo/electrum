@@ -198,6 +198,7 @@ ApplicationWindow
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
+            console.log('wallet requires password')
             app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": Daemon.path})
 //             var dialog = _openWallet.createObject(app)
             //dialog.open()

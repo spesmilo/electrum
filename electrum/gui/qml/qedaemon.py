@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from electrum.util import register_callback, get_new_wallet_name
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
+from electrum.storage import WalletStorage
 
 from .qewallet import QEWallet
 
@@ -89,26 +90,34 @@ class QEDaemon(QObject):
     walletRequiresPassword = pyqtSignal()
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
+    couldNotOpenFile = pyqtSignal()
 
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str, str)
     def load_wallet(self, path=None, password=None):
-        self._logger.debug('load wallet ' + str(path))
         if path == None:
-            path = self.daemon.config.get('gui_last_wallet')
-        self._path = path
-        self._logger.debug('load wallet #2 ' + str(path))
-        if path is not None:
-            wallet = self.daemon.load_wallet(path, password)
-        self._logger.debug('load wallet #3 ' + str(path))
+            self._path = self.daemon.config.get('gui_last_wallet')
+        else:
+            self._path = path
+        if self._path is None:
+            return
+
+        self._logger.debug('load wallet ' + str(self._path))
+        try:
+            storage = WalletStorage(self._path)
+        except StorageReadWriteError as e:
+            self.couldNotOpenFile.emit()
+            return
+
+        wallet = self.daemon.load_wallet(self._path, password)
         if wallet != None:
             self._loaded_wallets.add_wallet(wallet=wallet)
             self._current_wallet = QEWallet(wallet)
             self.walletLoaded.emit()
             self.daemon.config.save_last_wallet(wallet)
         else:
-            self._logger.info('fail open wallet')
+            self._logger.info('password required but unset or incorrect')
             self.walletRequiresPassword.emit()
 
     @pyqtProperty('QString')
