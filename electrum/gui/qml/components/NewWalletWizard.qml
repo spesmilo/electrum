@@ -11,6 +11,8 @@ Wizard {
 
     signal walletCreated
 
+    property alias path: walletdb.path
+
     enter: null // disable transition
 
     // State transition functions. These functions are called when the 'Next'

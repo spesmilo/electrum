@@ -123,18 +123,18 @@ Item {
 
             function setWarningText(numwords) {
                 var t = [
-                    "<p>",
-                    qsTr("Please save these %1 words on paper (order is important). ").arg(numwords),
-                    qsTr("This seed will allow you to recover your wallet in case of computer failure."),
-                    "</p>",
-                    "<b>" + qsTr("WARNING") + ":</b>",
-                    "<ul>",
-                    "<li>" + qsTr("Never disclose your seed.") + "</li>",
-                    "<li>" + qsTr("Never type it on a website.") + "</li>",
-                    "<li>" + qsTr("Do not store it electronically.") + "</li>",
-                    "</ul>"
+                    '<p>',
+                    qsTr('Please save these %1 words on paper (order is important).').arg(numwords),
+                    qsTr('This seed will allow you to recover your wallet in case of computer failure.'),
+                    '</p>',
+                    '<b>' + qsTr('WARNING') + ':</b>',
+                    '<ul>',
+                    '<li>' + qsTr('Never disclose your seed.') + '</li>',
+                    '<li>' + qsTr('Never type it on a website.') + '</li>',
+                    '<li>' + qsTr('Do not store it electronically.') + '</li>',
+                    '</ul>'
                 ]
-                warningtext.text = t.join("")
+                warningtext.text = t.join(' ')
             }
 
             Flickable {
@@ -187,7 +187,7 @@ Item {
                 id: bitcoin
                 onGeneratedSeedChanged: {
                     seedtext.text = generated_seed
-                    setWarningText(generated_seed.split(" ").length)
+                    setWarningText(generated_seed.split(' ').length)
                 }
             }
         }
@@ -195,16 +195,16 @@ Item {
 
     property Component haveseed: Component {
         WizardComponent {
+            id: root
             valid: false
 
             onAccept: {
                 wizard_data['seed'] = seedtext.text
+                wizard_data['seed_type'] = bitcoin.seed_type
                 wizard_data['seed_extend'] = extendcb.checked
                 wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
-                wizard_data['seed_bip39'] = bip39cb.checked
-            }
-
-            function checkValid() {
+                wizard_data['seed_bip39'] = seed_type.getTypeCode() == 'BIP39'
+                wizard_data['seed_slip39'] = seed_type.getTypeCode() == 'SLIP39'
             }
 
             function setSeedTypeHelpText() {
@@ -230,6 +230,10 @@ Item {
                 infotext.text = t[seed_type.currentText]
             }
 
+            function checkValid() {
+                bitcoin.verify_seed(seedtext.text, seed_type.getTypeCode() == 'BIP39', seed_type.getTypeCode() == 'SLIP39')
+            }
+
             Flickable {
                 anchors.fill: parent
                 contentHeight: mainLayout.height
@@ -243,11 +247,18 @@ Item {
 
                     Label {
                         text: qsTr('Seed Type')
+                        Layout.fillWidth: true
                     }
                     ComboBox {
                         id: seed_type
                         model: ['Electrum', 'BIP39', 'SLIP39']
-                        onActivated: setSeedTypeHelpText()
+                        onActivated: {
+                            setSeedTypeHelpText()
+                            checkValid()
+                        }
+                        function getTypeCode() {
+                            return currentText
+                        }
                     }
                     InfoTextArea {
                         id: infotext
@@ -263,9 +274,36 @@ Item {
                         Layout.fillWidth: true
                         Layout.columnSpan: 2
                         onTextChanged: {
-                            checkValid()
+                            validationTimer.restart()
+                        }
+
+                        Rectangle {
+                            anchors.fill: contentText
+                            color: 'green'
+                            border.color: Material.accentColor
+                            radius: 2
+                        }
+                        Label {
+                            id: contentText
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            leftPadding: text != '' ? 16 : 0
+                            rightPadding: text != '' ? 16 : 0
+                            font.bold: false
+                            font.pixelSize: 13
                         }
                     }
+                    TextArea {
+                        id: validationtext
+                        visible: text != ''
+                        Layout.fillWidth: true
+                        readOnly: true
+                        wrapMode: TextInput.WordWrap
+                        background: Rectangle {
+                            color: 'transparent'
+                        }
+                    }
+
                     CheckBox {
                         id: extendcb
                         Layout.columnSpan: 2
@@ -284,7 +322,18 @@ Item {
 
             Bitcoin {
                 id: bitcoin
+                onSeedTypeChanged: contentText.text = bitcoin.seed_type
+                onSeedValidChanged: root.valid = bitcoin.seed_valid
+                onValidationMessageChanged: validationtext.text = bitcoin.validation_message
             }
+
+            Timer {
+                id: validationTimer
+                interval: 500
+                repeat: false
+                onTriggered: checkValid()
+            }
+
             Component.onCompleted: {
                 setSeedTypeHelpText()
             }

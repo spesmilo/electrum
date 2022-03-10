@@ -107,6 +107,8 @@ Pane {
                 dialog.open()
                 dialog.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
+                    // and load the new wallet
+                    Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
                 })
             }
         }

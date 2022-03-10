@@ -59,8 +59,8 @@ class QEWalletDB(QObject):
         if wallet_path == self._path:
             return
 
+        self._logger.info('setting path: ' + wallet_path)
         self.reset()
-        self._logger.warning('path: ' + wallet_path)
         self._path = wallet_path
 
         self.load_storage()
@@ -228,6 +228,10 @@ class QEWalletDB(QObject):
 
             db.load_plugins()
             db.write(storage)
+
+            # minimally populate self after create
+            self._password = data['password']
+            self.path = path
 
             self.createSuccess.emit()
         except Exception as e:

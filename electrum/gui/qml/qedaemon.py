@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from electrum.util import register_callback, get_new_wallet_name
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage
+from electrum.storage import WalletStorage, StorageReadWriteError
 
 from .qewallet import QEWallet
 
@@ -106,6 +106,9 @@ class QEDaemon(QObject):
         self._logger.debug('load wallet ' + str(self._path))
         try:
             storage = WalletStorage(self._path)
+            if not storage.file_exists():
+                self.couldNotOpenFile.emit()
+                return
         except StorageReadWriteError as e:
             self.couldNotOpenFile.emit()
             return
