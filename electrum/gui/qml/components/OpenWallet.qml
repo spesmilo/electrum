@@ -85,27 +85,6 @@ Pane {
             text: qsTr('Split wallet')
             onClicked: wallet_db.doSplit()
         }
-
-        Label {
-            text: qsTr('Wallet requires upgrade')
-            visible: wallet_db.requiresUpgrade
-        }
-
-        Button {
-            visible: wallet_db.requiresUpgrade
-            text: qsTr('Upgrade')
-            onClicked: wallet_db.doUpgrade()
-        }
-
-        Rectangle {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            visible: wallet_db.upgrading
-            width: 100
-            height: 100
-            color: "red"
-        }
-
     }
 
     WalletDB {
@@ -115,6 +94,10 @@ Pane {
             // if wallet needed splitting, we close the pane and refresh the wallet list
             Daemon.availableWallets.reload()
             app.stack.pop()
+        }
+        onRequiresUpgradeChanged: {
+            if (requiresUpgrade)
+                wallet_db.doUpgrade()
         }
         onReadyChanged: {
             if (ready) {
