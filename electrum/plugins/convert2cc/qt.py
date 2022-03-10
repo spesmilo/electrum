@@ -154,7 +154,7 @@ which allows users to create new converted wallet from existing wallet,<br>
 where one chooses which hardware device gets converted to Coldcard.<br>
 All wallet data like contacts, labels, payment requests etc. are preserved.<br>
 If you've chosen to change your hardware wallet to Coldcard, convert2cc<br>
-will save you the hustle.</p>
+will save you the hassle.</p>
 """
         wallet = main_window.wallet
         dialog = WindowModalDialog(main_window, _("convert2cc"))
@@ -228,8 +228,6 @@ and create new one. After successful convert, new wallet will be opened.<br>
                         res = _("keystore") + f' {idx + 1}: {ks.get_type_text()}' + f' {ks.label}' if hasattr(ks,'label') else ""
                     if dev:
                         res = res + 20 * " " + "[matches connected Coldcard]", self.paired_cc_icon_path
-                    else:
-                        res = res, self.unpaired_cc_icon_path
                     labels.append(res)
             # close opened cc devices --> check self.coldcards_connected
 
@@ -269,8 +267,7 @@ and create new one. After successful convert, new wallet will be opened.<br>
             target_keystore = keystores[selected_index]
             with self.coldcards_connected() as cc_res:
                 connected_cc_clients, cc_open_failed = cc_res
-                # dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
-                dev = None
+                dev = self.match_candidate_keystore_to_connected_cc_device(connected_cc_clients, target_keystore)
                 try:
                     new_wallet_str = convert2cc(wallet.db.dump(), dev=dev, key="xpub", val=target_keystore.xpub)
                     if preserve_encryption:
