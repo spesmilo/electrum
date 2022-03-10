@@ -14,6 +14,21 @@ DISTDIR="$PROJECT_ROOT/dist"
 
 . "$CONTRIB"/build_tools_util.sh
 
+# check arguments
+if [[ -n "$3" \
+	  && ( "$1" == "kivy" || "$1" == "qml" ) \
+	  && ( "$2" == "all"  || "$2" == "armeabi-v7a" || "$2" == "arm64-v8a" || "$2" == "x86" ) \
+	  && ( "$3" == "debug"  || "$3" == "release" || "$3" == "release-unsigned" ) ]] ; then
+    info "arguments $*"
+else
+    fail "usage: build.sh <kivy|qml> <arm64-v8a|armeabi-v7a|x86|all> <debug|release|release-unsigned>"
+    exit 1
+fi
+
+# create symlink
+rm -f .buildozer
+mkdir -p ".buildozer_$1"
+ln -s ".buildozer_$1" .buildozer
 
 DOCKER_BUILD_FLAGS=""
 if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
@@ -44,7 +59,8 @@ else
 fi
 
 DOCKER_RUN_FLAGS=""
-if [[ -n "$1"  && "$1" == "release" ]] ; then
+
+if [[ "$3" == "release" ]] ; then
     info "'release' mode selected. mounting ~/.keystore inside container."
     DOCKER_RUN_FLAGS="-v $HOME/.keystore:/home/user/.keystore"
 fi
