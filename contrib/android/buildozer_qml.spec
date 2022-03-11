@@ -1,13 +1,13 @@
 [app]
 
 # (str) Title of your application
-title = Electrum
+title = Electrum-GRS
 
 # (str) Package name
-package.name = Electrum
+package.name = ElectrumGRS
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.electrum
+package.domain = org.groestlcoin
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -20,9 +20,9 @@ source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
 source.exclude_dirs = bin, build, dist, contrib,
-    electrum/tests,
-    electrum/gui/qt,
-    electrum/gui/kivy,
+    electrum_grs/tests,
+    electrum_grs/gui/qt,
+    electrum_grs/gui/kivy,
     packages/qdarkstyle,
     packages/qtpy
 
@@ -33,10 +33,10 @@ source.exclude_patterns = Makefile,setup*,
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
-version.filename = %(source.dir)s/electrum/version.py
+version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-#version = 1.9.8
+#version = 4.1.5
 
 # (list) Application requirements
 # note: versions and hashes are pinned in ./p4a_recipes/*
@@ -50,16 +50,17 @@ requirements =
     libsecp256k1,
     cryptography,
     pyqt5sip,
-    pyqt5
+    pyqt5,
+    groestlcoin_hash==1.0.1
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
-presplash.filename = %(source.dir)s/electrum/gui/icons/electrum_presplash.png
+presplash.filename = %(source.dir)s/electrum_grs/gui/icons/electrum_presplash.png
 
 # (str) Icon of the application
-icon.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_legacy.png
-icon.adaptive_foreground.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_foreground.png
-icon.adaptive_background.filename = %(source.dir)s/electrum/gui/icons/android_electrum_icon_background.png
+icon.filename = %(source.dir)s/electrum_grs/gui/icons/android_electrum_icon_legacy.png
+icon.adaptive_foreground.filename = %(source.dir)s/electrum_grs/gui/icons/android_electrum_icon_foreground.png
+icon.adaptive_background.filename = %(source.dir)s/electrum_grs/gui/icons/android_electrum_icon_background.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
@@ -122,12 +123,12 @@ android.accept_sdk_license = True
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
 #android.add_jars = lib/android/zbar.jar
 
-android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum/jar/*.jar
+android.add_jars = .buildozer/android/platform/*/build/libs_collections/ElectrumGRS/jar/*.jar
 
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
-android.add_src = electrum/gui/kivy/data/java-classes/
+android.add_src = electrum_grs/gui/kivy/data/java-classes/
 
 android.gradle_dependencies = me.dm7.barcodescanner:zxing:1.9.8
 
@@ -207,6 +208,7 @@ p4a.bootstrap = qt5
 
 
 [buildozer]
+warn_on_root=0
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
 log_level = 1
