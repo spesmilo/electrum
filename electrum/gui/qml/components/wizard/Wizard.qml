@@ -138,7 +138,7 @@ Dialog {
         rowSpacing: 0
 
         Image {
-            source: "../../icons/electrum.png"
+            source: "../../../icons/electrum.png"
             Layout.preferredWidth: 48
             Layout.preferredHeight: 48
             Layout.leftMargin: 12

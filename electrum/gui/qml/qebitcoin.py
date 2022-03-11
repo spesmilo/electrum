@@ -79,7 +79,6 @@ class QEBitcoin(QObject):
             if is_checksum:
                 seed_type = 'bip39'
                 seed_valid = True
-            seed_valid = False # for now
 
         elif slip39: # TODO: incomplete impl, this code only validates a single share.
             try:

@@ -4,6 +4,8 @@ import QtQuick.Controls 2.1
 
 import org.electrum 1.0
 
+import "wizard"
+
 Wizard {
     id: walletwizard
 
@@ -63,6 +65,18 @@ Wizard {
 
     function haveseedDone(d) {
         console.log('have seed done')
+        if (wizard_data['seed_type'] == 'bip39') {
+            var page = _loadNextComponent(components.bip39refine, wizard_data)
+            page.next.connect(function() {bip39refineDone()})
+        } else {
+            var page = _loadNextComponent(components.walletpassword, wizard_data)
+            page.next.connect(function() {walletpasswordDone()})
+            page.last = true
+        }
+    }
+
+    function bip39refineDone(d) {
+        console.log('bip39 refine done')
         var page = _loadNextComponent(components.walletpassword, wizard_data)
         page.next.connect(function() {walletpasswordDone()})
         page.last = true
