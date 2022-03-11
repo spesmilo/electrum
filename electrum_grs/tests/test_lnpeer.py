@@ -22,9 +22,8 @@ from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
 from electrum_grs.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
-from electrum_grs.lnpeer import Peer, UpfrontShutdownScriptViolation
+from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum_grs.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum_grs.lnchannel import ChannelState, PeerState, Channel
 from electrum_grs.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
@@ -38,6 +37,7 @@ from electrum_grs.lnonion import OnionFailureCode
 from electrum_grs.lnutil import derive_payment_secret_from_payment_preimage
 from electrum_grs.lnutil import LOCAL, REMOTE
 from electrum_grs.invoices import PR_PAID, PR_UNPAID
+from electrum_grs.interface import GracefulDisconnect
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -1130,6 +1130,38 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
+    def test_warning(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_error(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            assert alice_channel.is_closed()
+            gath.cancel()
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
     def test_close_upfront_shutdown_script(self):
         alice_channel, bob_channel = create_test_channels()
 
@@ -1168,7 +1200,7 @@ class TestPeer(TestCaseForTestnet):
             gath = asyncio.gather(*coros)
             await gath
 
-        with self.assertRaises(UpfrontShutdownScriptViolation):
+        with self.assertRaises(GracefulDisconnect):
             run(test())
 
         # bob sends the same upfront_shutdown_script has he announced

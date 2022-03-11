@@ -17,6 +17,8 @@ packages
 *.pip/
 env/
 .buildozer/
+.buildozer_kivy/
+.buildozer_qml/
 bin/
 /app.fil
 .idea

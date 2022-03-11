@@ -164,9 +164,10 @@ RUN cd /opt \
     && git clone https://github.com/kivy/python-for-android \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
+    && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421b
-    && git checkout "cdee188f0ef28ff8452207da409912da19e917ca^{commit}" \
+    # commit: from branch accumulator/qt5-wip
+    && git checkout "ebbe8dcc271e36468666feb98f936d0a96936cf2^{commit}" \
     && python3 -m pip install --no-dependencies -e .
 
 # build env vars

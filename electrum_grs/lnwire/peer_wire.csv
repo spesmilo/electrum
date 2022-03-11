@@ -10,6 +10,10 @@ msgtype,error,17
 msgdata,error,channel_id,channel_id,
 msgdata,error,len,u16,
 msgdata,error,data,byte,len
+msgtype,warning,1
+msgdata,warning,channel_id,channel_id,
+msgdata,warning,len,u16,
+msgdata,warning,data,byte,len
 msgtype,ping,18
 msgdata,ping,num_pong_bytes,u16,
 msgdata,ping,byteslen,u16,

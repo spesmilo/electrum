@@ -122,9 +122,9 @@ if test -f "dist/$apk1"; then
     info "file exists: $apk1"
 else
     if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh release
+        ./contrib/android/build.sh kivy all release
     else
-        ./contrib/android/build.sh release-unsigned
+        ./contrib/android/build.sh kivy all release-unsigned
         mv "$apk1_unsigned" "$apk1"
         mv "$apk2_unsigned" "$apk2"
     fi

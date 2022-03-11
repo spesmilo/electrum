@@ -28,8 +28,8 @@ theming:
 	$(PYTHON) -m kivy.atlas ../../electrum_grs/gui/kivy/theming/atlas/light 1024 ../../electrum_grs/gui/kivy/theming/light/*.png
 prepare:
 	# running pre build setup
-	@cp buildozer.spec ../../buildozer.spec
 	# copy electrum-grs to main.py
+	@cp buildozer_$(ELEC_APK_GUI).spec ../../buildozer.spec
 	@cp ../../run_electrum_grs ../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \
 		cd ../..; buildozer android debug;\
