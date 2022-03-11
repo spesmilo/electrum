@@ -31,6 +31,7 @@ ApplicationWindow
                 onClicked: stack.pop()
             }
             Item {
+                visible: Network.isTestNet
                 width: column.width
                 height: column.height
                 MouseArea {
@@ -46,7 +47,6 @@ ApplicationWindow
 
                 Column {
                     id: column
-                    visible: Network.isTestNet
                     Image {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 16
@@ -63,15 +63,22 @@ ApplicationWindow
                 }
             }
 
+            Image {
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                source: Daemon.currentWallet.isUptodate ? "../../icons/status_connected.png" : "../../icons/status_lagging.png"
+            }
+
             Label {
                 text: stack.currentItem.title
                 elide: Label.ElideRight
                 horizontalAlignment: Qt.AlignHCenter
                 verticalAlignment: Qt.AlignVCenter
                 Layout.fillWidth: true
-                font.pointSize: 10
+                font.pixelSize: 14
                 font.bold: true
             }
+
             ToolButton {
                 text: qsTr("⋮")
                 onClicked: {
@@ -202,6 +209,11 @@ ApplicationWindow
             app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": Daemon.path})
 //             var dialog = _openWallet.createObject(app)
             //dialog.open()
+        }
+        function onWalletOpenError(error) {
+            console.log('wallet open error')
+            var dialog = app.messageDialog.createObject(app, {'text': error})
+            dialog.open()
         }
     }
 }

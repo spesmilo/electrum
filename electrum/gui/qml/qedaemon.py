@@ -3,7 +3,7 @@ import os
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
-from electrum.util import register_callback, get_new_wallet_name
+from electrum.util import register_callback, get_new_wallet_name, WalletFileException
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
@@ -90,7 +90,7 @@ class QEDaemon(QObject):
     walletRequiresPassword = pyqtSignal()
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
-    couldNotOpenFile = pyqtSignal()
+    walletOpenError = pyqtSignal([str], arguments=["error"])
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -107,21 +107,25 @@ class QEDaemon(QObject):
         try:
             storage = WalletStorage(self._path)
             if not storage.file_exists():
-                self.couldNotOpenFile.emit()
+                self.walletOpenError.emit(qsTr('File not found'))
                 return
         except StorageReadWriteError as e:
-            self.couldNotOpenFile.emit()
+            self.walletOpenError.emit('Storage read/write error')
             return
 
-        wallet = self.daemon.load_wallet(self._path, password)
-        if wallet != None:
-            self._loaded_wallets.add_wallet(wallet=wallet)
-            self._current_wallet = QEWallet(wallet)
-            self.walletLoaded.emit()
-            self.daemon.config.save_last_wallet(wallet)
-        else:
-            self._logger.info('password required but unset or incorrect')
-            self.walletRequiresPassword.emit()
+        try:
+            wallet = self.daemon.load_wallet(self._path, password)
+            if wallet != None:
+                self._loaded_wallets.add_wallet(wallet=wallet)
+                self._current_wallet = QEWallet(wallet)
+                self.walletLoaded.emit()
+                self.daemon.config.save_last_wallet(wallet)
+            else:
+                self._logger.info('password required but unset or incorrect')
+                self.walletRequiresPassword.emit()
+        except WalletFileException as e:
+            self._logger.error(str(e))
+            self.walletOpenError.emit(str(e))
 
     @pyqtProperty('QString')
     def path(self):
