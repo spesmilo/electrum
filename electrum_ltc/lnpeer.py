@@ -42,7 +42,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      LightningPeerConnectionClosed, HandshakeFailed,
                      RemoteMisbehaving, ShortChannelID,
                      IncompatibleLightningFeatures, derive_payment_secret_from_payment_preimage,
-                     UpfrontShutdownScriptViolation, ChannelType)
+                     ChannelType, LNProtocolWarning)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
@@ -51,6 +51,7 @@ from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
 from .json_db import StoredDict
 from .invoices import PR_PAID
+from .simple_config import FEE_LN_ETA_TARGET
 
 if TYPE_CHECKING:
     from .lnworker import LNGossip, LNWallet
@@ -97,7 +98,7 @@ class Peer(Logger):
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
         self.gossip_queue = asyncio.Queue()
-        self.ordered_message_queues = defaultdict(asyncio.Queue) # for messsage that are ordered
+        self.ordered_message_queues = defaultdict(asyncio.Queue)  # for messages that are ordered
         self.temp_id_to_id = {}   # to forward error messages
         self.funding_created_sent = set() # for channels in PREOPENING
         self.funding_signed_sent = set()  # for channels in PREOPENING
@@ -204,7 +205,7 @@ class Peer(Logger):
             chan_id = payload.get('channel_id') or payload["temporary_channel_id"]
             self.ordered_message_queues[chan_id].put_nowait((message_type, payload))
         else:
-            if message_type != 'error' and 'channel_id' in payload:
+            if message_type not in ('error', 'warning') and 'channel_id' in payload:
                 chan = self.get_channel_by_id(payload['channel_id'])
                 if chan is None:
                     raise Exception('Got unknown '+ message_type)
@@ -223,12 +224,83 @@ class Peer(Logger):
             if asyncio.iscoroutinefunction(f):
                 asyncio.ensure_future(self.taskgroup.spawn(execution_result))
 
+    def _get_channel_ids(self, channel_id):
+        # if channel_id is all zero: MUST fail all channels with the sending node.
+        # otherwise: MUST fail the channel referred to by channel_id, if that channel is with the sending node.
+        # if no existing channel is referred to by `channel_id: MUST ignore the message.
+        if channel_id == bytes(32):
+            return self.channels.keys()
+        elif channel_id in self.temp_id_to_id:
+            return [self.temp_id_to_id[channel_id]]
+        elif channel_id in self.channels:
+            return [channel_id]
+        else:
+            return []
+
+    def on_warning(self, payload):
+        # TODO: we could need some reconnection logic here -> delayed reconnect
+        self.logger.info(f"remote peer sent warning [DO NOT TRUST THIS MESSAGE]: {payload['data'].decode('ascii')}")
+        channel_ids = self._get_channel_ids(payload.get("channel_id"))
+        for cid in channel_ids:
+            self.ordered_message_queues[cid].put_nowait((None, {'warning': payload['data']}))
+        if channel_ids:
+            raise GracefulDisconnect
+
     def on_error(self, payload):
         self.logger.info(f"remote peer sent error [DO NOT TRUST THIS MESSAGE]: {payload['data'].decode('ascii')}")
-        chan_id = payload.get("channel_id")
-        if chan_id in self.temp_id_to_id:
-            chan_id = self.temp_id_to_id[chan_id]
-        self.ordered_message_queues[chan_id].put_nowait((None, {'error':payload['data']}))
+        channel_ids = self._get_channel_ids(payload.get("channel_id"))
+        for cid in channel_ids:
+            self.schedule_force_closing(cid)
+            self.ordered_message_queues[cid].put_nowait((None, {'error': payload['data']}))
+        if channel_ids:
+            raise GracefulDisconnect
+
+    async def send_warning(self, channel_id: bytes, message: str = None, *, close_connection=True):
+        """Sends a warning and disconnects if close_connection.
+
+        Note:
+        * channel_id is the temporary channel id when the channel id is not yet available
+
+        A sending node:
+        MAY set channel_id to all zero if the warning is not related to a specific channel.
+
+        when failure was caused by an invalid signature check:
+        * SHOULD include the raw, hex-encoded transaction in reply to a funding_created,
+          funding_signed, closing_signed, or commitment_signed message.
+        """
+        assert isinstance(channel_id, bytes)
+        encoded_data = b'' if not message else message.encode('ascii')
+        self.send_message('warning', channel_id=channel_id, data=encoded_data, len=len(encoded_data))
+        if close_connection:
+            raise GracefulDisconnect
+
+    async def send_error(self, channel_id: bytes, message: str = None, *, force_close_channel=False):
+        """Sends an error message and force closes the channel.
+
+        Note:
+        * channel_id is the temporary channel id when the channel id is not yet available
+
+        A sending node:
+        * SHOULD send error for protocol violations or internal errors that make channels
+          unusable or that make further communication unusable.
+        * SHOULD send error with the unknown channel_id in reply to messages of type
+          32-255 related to unknown channels.
+        * MUST fail the channel(s) referred to by the error message.
+        * MAY set channel_id to all zero to indicate all channels.
+
+        when failure was caused by an invalid signature check:
+        * SHOULD include the raw, hex-encoded transaction in reply to a funding_created,
+          funding_signed, closing_signed, or commitment_signed message.
+        """
+        assert isinstance(channel_id, bytes)
+        encoded_data = b'' if not message else message.encode('ascii')
+        self.send_message('error', channel_id=channel_id, data=encoded_data, len=len(encoded_data))
+        # MUST fail the channel(s) referred to by the error message:
+        #  we may violate this with force_close_channel
+        if force_close_channel:
+            for cid in self._get_channel_ids(channel_id):
+                self.schedule_force_closing(channel_id)
+        raise GracefulDisconnect
 
     def on_ping(self, payload):
         l = payload['num_pong_bytes']
@@ -238,10 +310,11 @@ class Peer(Logger):
         pass
 
     async def wait_for_message(self, expected_name, channel_id):
+        # errors and warnings are sent to the queue with name set to None, so that this task terminates
         q = self.ordered_message_queues[channel_id]
         name, payload = await asyncio.wait_for(q.get(), LN_P2P_NETWORK_TIMEOUT)
-        if payload.get('error'):
-            raise Exception('Remote peer reported error [DO NOT TRUST THIS MESSAGE]: ' + repr(payload.get('error')))
+        if name is None:
+            raise GracefulDisconnect
         if name != expected_name:
             raise Exception(f"Received unexpected '{name}'")
         return payload
@@ -774,7 +847,10 @@ class Peer(Logger):
         payload = await self.wait_for_message('funding_signed', channel_id)
         self.logger.info('received funding_signed')
         remote_sig = payload['signature']
-        chan.receive_new_commitment(remote_sig, [])
+        try:
+            chan.receive_new_commitment(remote_sig, [])
+        except LNProtocolWarning as e:
+            await self.send_warning(channel_id, message=str(e), close_connection=True)
         chan.open_with_first_pcp(remote_per_commitment_point, remote_sig)
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
@@ -933,7 +1009,10 @@ class Peer(Logger):
         if isinstance(self.transport, LNTransport):
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
-        chan.receive_new_commitment(remote_sig, [])
+        try:
+            chan.receive_new_commitment(remote_sig, [])
+        except LNProtocolWarning as e:
+            await self.send_warning(channel_id, message=str(e), close_connection=True)
         sig_64, _ = chan.sign_next_commitment()
         self.send_message('funding_signed',
             channel_id=channel_id,
@@ -954,6 +1033,14 @@ class Peer(Logger):
             next_revocation_number=0,
             your_last_per_commitment_secret=0,
             my_current_per_commitment_point=latest_point)
+
+    def schedule_force_closing(self, channel_id: bytes):
+        """ wrapper of lnworker's method, that raises if channel is not with this peer """
+        channels_with_peer = list(self.channels.keys())
+        channels_with_peer.extend(self.temp_id_to_id.values())
+        if channel_id not in channels_with_peer:
+            raise ValueError(f"channel {channel_id.hex()} does not belong to this peer")
+        self.lnworker.schedule_force_closing(channel_id)
 
     def on_channel_reestablish(self, chan, msg):
         their_next_local_ctn = msg["next_commitment_number"]
@@ -1052,7 +1139,7 @@ class Peer(Logger):
             fut.set_exception(RemoteMisbehaving("remote ahead of us"))
         elif we_are_ahead:
             self.logger.warning(f"channel_reestablish ({chan.get_id_for_log()}): we are ahead of remote! trying to force-close.")
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             fut.set_exception(RemoteMisbehaving("we are ahead of remote"))
         else:
             # all good
@@ -1382,7 +1469,7 @@ class Peer(Logger):
         self.logger.info(f"on_update_fail_malformed_htlc. chan {chan.get_id_for_log()}. "
                          f"htlc_id {htlc_id}. failure_code={failure_code}")
         if failure_code & OnionFailureCodeMetaFlag.BADONION == 0:
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
         reason = OnionRoutingFailure(code=failure_code, data=payload["sha256_of_onion"])
         chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
@@ -1404,7 +1491,7 @@ class Peer(Logger):
         if chan.get_state() != ChannelState.OPEN:
             raise RemoteMisbehaving(f"received update_add_htlc while chan.get_state() != OPEN. state was {chan.get_state()!r}")
         if cltv_expiry > bitcoin.NLOCKTIME_BLOCKHEIGHT_MAX:
-            self.lnworker.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
             raise RemoteMisbehaving(f"received update_add_htlc with cltv_expiry > BLOCKHEIGHT_MAX. value was {cltv_expiry}")
         # add htlc
         chan.receive_htlc(htlc, onion_packet)
@@ -1774,12 +1861,18 @@ class Peer(Logger):
         return txid
 
     async def on_shutdown(self, chan: Channel, payload):
+        # TODO: A receiving node: if it hasn't received a funding_signed (if it is a
+        #  funder) or a funding_created (if it is a fundee):
+        #  SHOULD send an error and fail the channel.
         their_scriptpubkey = payload['scriptpubkey']
         their_upfront_scriptpubkey = chan.config[REMOTE].upfront_shutdown_script
         # BOLT-02 check if they use the upfront shutdown script they advertized
-        if their_upfront_scriptpubkey:
+        if self.is_upfront_shutdown_script() and their_upfront_scriptpubkey:
             if not (their_scriptpubkey == their_upfront_scriptpubkey):
-                raise UpfrontShutdownScriptViolation("remote didn't use upfront shutdown script it commited to in channel opening")
+                await self.send_warning(
+                    chan.channel_id,
+                    "remote didn't use upfront shutdown script it commited to in channel opening",
+                    close_connection=True)
         else:
             # BOLT-02 restrict the scriptpubkey to some templates:
             if self.is_shutdown_anysegwit() and match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
@@ -1787,7 +1880,10 @@ class Peer(Logger):
             elif match_script_against_template(their_scriptpubkey, transaction.SCRIPTPUBKEY_TEMPLATE_WITNESS_V0):
                 pass
             else:
-                raise Exception(f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}')
+                await self.send_warning(
+                    chan.channel_id,
+                    f'scriptpubkey in received shutdown message does not conform to any template: {their_scriptpubkey.hex()}',
+                    close_connection=True)
 
         chan_id = chan.channel_id
         if chan_id in self.shutdown_received:
@@ -1824,6 +1920,31 @@ class Peer(Logger):
         # can fullfill or fail htlcs. cannot add htlcs, because state != OPEN
         chan.set_can_send_ctx_updates(True)
 
+    def get_shutdown_fee_range(self, chan, closing_tx, is_local):
+        """ return the closing fee and fee range we initially try to enforce """
+        config = self.network.config
+        if config.get('test_shutdown_fee'):
+            our_fee = config.get('test_shutdown_fee')
+        else:
+            fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+            if not fee_rate_per_kb:  # fallback
+                fee_rate_per_kb = self.network.config.fee_per_kb()
+            our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+            # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
+            # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
+            max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
+            our_fee = min(our_fee, max_fee)
+        # config modern_fee_negotiation can be set in tests
+        if config.get('test_shutdown_legacy'):
+            our_fee_range = None
+        elif config.get('test_shutdown_fee_range'):
+            our_fee_range = config.get('test_shutdown_fee_range')
+        else:
+            # we aim at a fee between next block inclusion and some lower value
+            our_fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
+        self.logger.info(f"Our fee range: {our_fee_range} and fee: {our_fee}")
+        return our_fee, our_fee_range
+
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
         # wait until no HTLCs remain in either commitment transaction
@@ -1840,39 +1961,48 @@ class Peer(Logger):
         assert our_scriptpubkey
         # estimate fee of closing tx
         our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
-        fee_rate = self.network.config.fee_per_kb()
-        our_fee = fee_rate * closing_tx.estimated_size() // 1000
-        # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
-        max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
-        our_fee = min(our_fee, max_fee)
-        drop_to_remote = False
-        def send_closing_signed():
-            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_to_remote)
-            self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+
+        is_initiator = chan.constraints.is_initiator
+        our_fee, our_fee_range = self.get_shutdown_fee_range(chan, closing_tx, is_local)
+
+        def send_closing_signed(our_fee, our_fee_range, drop_remote):
+            if our_fee_range:
+                closing_signed_tlvs = {'fee_range': our_fee_range}
+            else:
+                closing_signed_tlvs = {}
+            our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=our_fee, drop_remote=drop_remote)
+            self.logger.info(f"Sending fee range: {closing_signed_tlvs} and fee: {our_fee}")
+            self.send_message(
+                'closing_signed',
+                channel_id=chan.channel_id,
+                fee_satoshis=our_fee,
+                signature=our_sig,
+                closing_signed_tlvs=closing_signed_tlvs,
+            )
+
         def verify_signature(tx, sig):
             their_pubkey = chan.config[REMOTE].multisig_key.pubkey
             preimage_hex = tx.serialize_preimage(0)
             pre_hash = sha256d(bfh(preimage_hex))
             return ecc.verify_signature(their_pubkey, sig, pre_hash)
-        # the funder sends the first 'closing_signed' message
-        if chan.constraints.is_initiator:
-            send_closing_signed()
-        # negotiate fee
-        while True:
-            # FIXME: the remote SHOULD send closing_signed, but some don't.
-            cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
+
+        async def receive_closing_signed():
+            try:
+                cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
+            except asyncio.exceptions.TimeoutError:
+                self.schedule_force_closing(chan.channel_id)
+                raise Exception("closing_signed not received, force closing.")
             their_fee = cs_payload['fee_satoshis']
-            if their_fee > max_fee:
-                raise Exception(f'the proposed fee exceeds the base fee of the latest commitment transaction {is_local, their_fee, max_fee}')
+            their_fee_range = cs_payload['closing_signed_tlvs'].get('fee_range')
             their_sig = cs_payload['signature']
-            # verify their sig: they might have dropped their output
+            # perform checks
             our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=False)
             if verify_signature(closing_tx, their_sig):
-                drop_to_remote = False
+                drop_remote = False
             else:
                 our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=their_fee, drop_remote=True)
                 if verify_signature(closing_tx, their_sig):
-                    drop_to_remote = True
+                    drop_remote = True
                 else:
                     # this can happen if we consider our output too valuable to drop,
                     # but the remote drops it because it violates their dust limit
@@ -1880,22 +2010,96 @@ class Peer(Logger):
             # at this point we know how the closing tx looks like
             # check that their output is above their scriptpubkey's network dust limit
             to_remote_set = closing_tx.get_output_idxs_from_scriptpubkey(their_scriptpubkey.hex())
-            if not drop_to_remote and to_remote_set:
+            if not drop_remote and to_remote_set:
                 to_remote_idx = to_remote_set.pop()
                 to_remote_amount = closing_tx.outputs()[to_remote_idx].value
                 transaction.check_scriptpubkey_template_and_dust(their_scriptpubkey, to_remote_amount)
+            return their_fee, their_fee_range, their_sig, drop_remote
 
-            # Agree if difference is lower or equal to one (see below)
-            if abs(our_fee - their_fee) < 2:
+        def choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee):
+            assert our_fee != their_fee
+            fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
+
+            # The sending node, if it is not the funder:
+            if our_fee_range and their_fee_range and not is_initiator and not self.network.config.get('test_shutdown_fee_range'):
+                # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
+                our_fee_range['max_fee_satoshis'] = max(their_fee_range['max_fee_satoshis'], our_fee_range['max_fee_satoshis'])
+                # SHOULD set min_fee_satoshis to a fairly low value
+                our_fee_range['min_fee_satoshis'] = min(their_fee_range['min_fee_satoshis'], our_fee_range['min_fee_satoshis'])
+                # Note: the BOLT describes what the sending node SHOULD do.
+                # However, this assumes that we have decided to send 'funding_signed' in response to their fee_range.
+                # In practice, we might prefer to fail the channel in some cases (TODO)
+
+            # the receiving node, if fee_satoshis matches its previously sent fee_range,
+            if fee_range_sent and (our_fee_range['min_fee_satoshis'] <= their_fee <= our_fee_range['max_fee_satoshis']):
+                # SHOULD reply with a closing_signed with the same fee_satoshis value if it is different from its previously sent fee_satoshis
                 our_fee = their_fee
+
+            # the receiving node, if the message contains a fee_range
+            elif our_fee_range and their_fee_range:
+                overlap_min = max(our_fee_range['min_fee_satoshis'], their_fee_range['min_fee_satoshis'])
+                overlap_max = min(our_fee_range['max_fee_satoshis'], their_fee_range['max_fee_satoshis'])
+                # if there is no overlap between that and its own fee_range
+                if overlap_min > overlap_max:
+                    # TODO: the receiving node should first send a warning, and fail the channel
+                    # only if it doesn't receive a satisfying fee_range after a reasonable amount of time
+                    self.schedule_force_closing(chan.channel_id)
+                    raise Exception("There is no overlap between between their and our fee range.")
+                # otherwise, if it is the funder
+                if is_initiator:
+                    # if fee_satoshis is not in the overlap between the sent and received fee_range:
+                    if not (overlap_min <= their_fee <= overlap_max):
+                        # MUST fail the channel
+                        self.schedule_force_closing(chan.channel_id)
+                        raise Exception("Their fee is not in the overlap region, we force closed.")
+                    # otherwise, MUST reply with the same fee_satoshis.
+                    our_fee = their_fee
+                # otherwise (it is not the funder):
+                else:
+                    # if it has already sent a closing_signed:
+                    if fee_range_sent:
+                        # fee_satoshis is not the same as the value we sent, we MUST fail the channel
+                        self.schedule_force_closing(chan.channel_id)
+                        raise Exception("Expected the same fee as ours, we force closed.")
+                    # otherwise:
+                    # MUST propose a fee_satoshis in the overlap between received and (about-to-be) sent fee_range.
+                    our_fee = (overlap_min + overlap_max) // 2
+            else:
+                # otherwise, if fee_satoshis is not strictly between its last-sent fee_satoshis
+                # and its previously-received fee_satoshis, UNLESS it has since reconnected:
+                if their_previous_fee and not (min(our_fee, their_previous_fee) < their_fee < max(our_fee, their_previous_fee)):
+                    # SHOULD fail the connection.
+                    raise Exception('Their fee is not between our last sent and their last sent fee.')
+                # accept their fee if they are very close
+                if abs(their_fee - our_fee) < 2:
+                    our_fee = their_fee
+                else:
+                    # this will be "strictly between" (as in BOLT2) previous values because of the above
+                    our_fee = (our_fee + their_fee) // 2
+
+            return our_fee, our_fee_range
+
+        # Fee negotiation: both parties exchange 'funding_signed' messages.
+        # The funder sends the first message, the non-funder sends the last message.
+        # In the 'modern' case, at most 3 messages are exchanged, because choose_new_fee of the funder either returns their_fee or fails
+        their_fee = None
+        drop_remote = False  # does the peer drop its to_local output or not?
+        if is_initiator:
+            send_closing_signed(our_fee, our_fee_range, drop_remote)
+        while True:
+            their_previous_fee = their_fee
+            their_fee, their_fee_range, their_sig, drop_remote = await receive_closing_signed()
+            if our_fee == their_fee:
                 break
-            # this will be "strictly between" (as in BOLT2) previous values because of the above
-            our_fee = (our_fee + their_fee) // 2
-            # another round
-            send_closing_signed()
-        # the non-funder replies
-        if not chan.constraints.is_initiator:
-            send_closing_signed()
+            our_fee, our_fee_range = choose_new_fee(our_fee, our_fee_range, their_fee, their_fee_range, their_previous_fee)
+            if not is_initiator and our_fee == their_fee:
+                break
+            send_closing_signed(our_fee, our_fee_range, drop_remote)
+            if is_initiator and our_fee == their_fee:
+                break
+        if not is_initiator:
+            send_closing_signed(our_fee, our_fee_range, drop_remote)
+
         # add signatures
         closing_tx.add_signature_to_txin(
             txin_idx=0,

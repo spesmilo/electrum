@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 24.3.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 80 80" enable-background="new 0 0 80 80" xml:space="preserve">
+<g>
+	<g>
+		<g>
+			<path d="M16.66,78.7c-2.36,0-4.28-1.92-4.28-4.28V5.64c0-2.36,1.92-4.28,4.28-4.28h37.3c2.36,0,4.28,1.92,4.28,4.28v68.78
+				c0,2.36-1.92,4.28-4.28,4.28H16.66z"/>
+			<path fill="#FFFFFF" d="M53.96,1.36c2.36,0,4.28,1.92,4.28,4.28v68.78c0,2.36-1.92,4.28-4.28,4.28h-37.3
+				c-2.36,0-4.28-1.92-4.28-4.28V5.64c0-2.36,1.92-4.28,4.28-4.28H53.96 M53.96,0.47h-37.3c-2.85,0-5.17,2.32-5.17,5.17v68.78
+				c0,2.85,2.32,5.17,5.17,5.17h37.3c2.85,0,5.17-2.32,5.17-5.17V5.64C59.14,2.79,56.82,0.47,53.96,0.47L53.96,0.47z"/>
+		</g>
+		<path fill="#FFFFFF" d="M53.96,0h-37.3c-3.09,0-5.61,2.52-5.61,5.61v68.78c0,3.09,2.52,5.61,5.61,5.61h37.3
+			c3.09,0,5.61-2.51,5.61-5.61V5.64C59.57,2.53,57.06,0,53.96,0z M16.66,2.72h37.3V2.69c1.61,0,2.92,1.31,2.92,2.92v68.78
+			c0,1.61-1.31,2.92-2.92,2.92h-37.3c-1.61,0-2.92-1.31-2.92-2.92V5.64C13.74,4.03,15.05,2.72,16.66,2.72z"/>
+	</g>
+	<path fill="#FFFFFF" d="M51.93,74.42H18.69c-0.99,0-1.8-0.81-1.8-1.8V9.71c0-0.99,0.81-1.8,1.8-1.8h33.24c0.99,0,1.8,0.81,1.8,1.8
+		v62.91C53.73,73.61,52.93,74.42,51.93,74.42z"/>
+	<g>
+		<circle id="Oval" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="36.87" r="4.69"/>
+		<circle id="Oval_16_" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="47.38" r="4.69"/>
+		<circle id="Oval_19_" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="57.87" r="4.69"/>
+		<circle id="Oval_22_" fill-rule="evenodd" clip-rule="evenodd" cx="24" cy="68.35" r="4.69"/>
+	</g>
+	<g>
+		<circle id="Oval_12_" fill-rule="evenodd" clip-rule="evenodd" cx="35.14" cy="36.87" r="4.69"/>
+		<circle id="Oval_15_" fill-rule="evenodd" clip-rule="evenodd" cx="35.14" cy="47.38" r="4.69"/>
+		<circle id="Oval_18_" fill-rule="evenodd" clip-rule="evenodd" cx="35.14" cy="57.87" r="4.69"/>
+		<circle id="Oval_21_" fill-rule="evenodd" clip-rule="evenodd" cx="35.14" cy="68.35" r="4.69"/>
+	</g>
+	<g>
+		<circle id="Oval_13_" fill-rule="evenodd" clip-rule="evenodd" cx="46.31" cy="36.87" r="4.69"/>
+		<circle id="Oval_14_" fill-rule="evenodd" clip-rule="evenodd" cx="46.31" cy="47.38" r="4.69"/>
+		<circle id="Oval_17_" fill-rule="evenodd" clip-rule="evenodd" cx="46.31" cy="57.87" r="4.69"/>
+		<circle id="Oval_20_" fill-rule="evenodd" clip-rule="evenodd" cx="46.31" cy="68.35" r="4.69"/>
+	</g>
+	<path fill-rule="evenodd" clip-rule="evenodd" fill="#FFFFFF" d="M53.96,31.14h-37.3c-1.86,0-3.37-1.51-3.37-3.37V6.18
+		c0-1.86,1.51-3.37,3.37-3.37h37.3c1.86,0,3.37,1.51,3.37,3.37v21.56C57.36,29.63,55.82,31.14,53.96,31.14z"/>
+	<g>
+		<path fill-rule="evenodd" clip-rule="evenodd" d="M53.96,30.57h-37.3c-1.86,0-3.37-1.51-3.37-3.37V5.64
+			c0-1.86,1.51-3.37,3.37-3.37h37.3c1.86,0,3.37,1.51,3.37,3.37V27.2C57.36,29.06,55.82,30.57,53.96,30.57z"/>
+	</g>
+	<path fill-rule="evenodd" clip-rule="evenodd" fill="#FFFFFF" d="M40.62,24.28H20.56c-0.57,0-1.01-0.44-1.01-1.01V12.69
+		c0-0.57,0.44-1.01,1.01-1.01h20.02c0.57,0,1.01,0.44,1.01,1.01v10.58C41.62,23.84,41.15,24.28,40.62,24.28z"/>
+</g>
+<g>
+	<circle fill="#FF0032" cx="62.31" cy="61.23" r="13.87"/>
+	<path fill="#FFFFFF" d="M62.31,47.35c7.66,0,13.87,6.21,13.87,13.87S69.97,75.1,62.31,75.1s-13.87-6.21-13.87-13.87
+		S54.65,47.35,62.31,47.35 M62.31,44.23c-9.37,0-17,7.62-17,17s7.62,17,17,17s17-7.62,17-17S71.68,44.23,62.31,44.23L62.31,44.23z"
+		/>
+</g>
+</svg>

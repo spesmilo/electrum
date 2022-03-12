@@ -22,9 +22,8 @@ from electrum_ltc import simple_config, lnutil
 from electrum_ltc.lnaddr import lnencode, LnAddr, lndecode
 from electrum_ltc.bitcoin import COIN, sha256
 from electrum_ltc.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
-from electrum_ltc.lnpeer import Peer, UpfrontShutdownScriptViolation
+from electrum_ltc.lnpeer import Peer
 from electrum_ltc.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum_ltc.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum_ltc.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum_ltc.lnchannel import ChannelState, PeerState, Channel
 from electrum_ltc.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
@@ -38,6 +37,7 @@ from electrum_ltc.lnonion import OnionFailureCode
 from electrum_ltc.lnutil import derive_payment_secret_from_payment_preimage
 from electrum_ltc.lnutil import LOCAL, REMOTE
 from electrum_ltc.invoices import PR_PAID, PR_UNPAID
+from electrum_ltc.interface import GracefulDisconnect
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -1063,13 +1063,46 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_close(self):
+    def test_legacy_shutdown_low(self):
+        self._test_shutdown(alice_fee=100, bob_fee=150)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_legacy_shutdown_high(self):
+        self._test_shutdown(alice_fee=2000, bob_fee=100)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_modern_shutdown_with_overlap(self):
+        self._test_shutdown(
+            alice_fee=1,
+            bob_fee=200,
+            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+            bob_fee_range={'min_fee_satoshis': 10, 'max_fee_satoshis': 300})
+
+    ## This test works but it is too slow (LN_P2P_NETWORK_TIMEOUT)
+    ## because tests do not use a proper LNWorker object
+    #@needs_test_with_all_chacha20_implementations
+    #def test_modern_shutdown_no_overlap(self):
+    #    self.assertRaises(Exception, lambda: asyncio.run(
+    #        self._test_shutdown(
+    #            alice_fee=1,
+    #            bob_fee=200,
+    #            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+    #            bob_fee_range={'min_fee_satoshis': 50, 'max_fee_satoshis': 300})
+    #    ))
+
+    def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('dynamic_fees', False)
-        w2.network.config.set_key('dynamic_fees', False)
-        w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w1.network.config.set_key('test_shutdown_fee', alice_fee)
+        w2.network.config.set_key('test_shutdown_fee', bob_fee)
+        if alice_fee_range is not None:
+            w1.network.config.set_key('test_shutdown_fee_range', alice_fee_range)
+        else:
+            w1.network.config.set_key('test_shutdown_legacy', True)
+        if bob_fee_range is not None:
+            w2.network.config.set_key('test_shutdown_fee_range', bob_fee_range)
+        else:
+            w2.network.config.set_key('test_shutdown_legacy', True)
         w2.enable_htlc_settle = False
         lnaddr, pay_req = run(self.prepare_invoice(w2))
         async def pay():
@@ -1094,6 +1127,38 @@ class TestPeer(TestCaseForTestnet):
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_warning(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_error(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            assert alice_channel.is_closed()
+            gath.cancel()
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
@@ -1135,7 +1200,7 @@ class TestPeer(TestCaseForTestnet):
             gath = asyncio.gather(*coros)
             await gath
 
-        with self.assertRaises(UpfrontShutdownScriptViolation):
+        with self.assertRaises(GracefulDisconnect):
             run(test())
 
         # bob sends the same upfront_shutdown_script has he announced

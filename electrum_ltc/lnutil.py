@@ -351,7 +351,6 @@ class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
-class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 class InvalidGossipMsg(Exception):
@@ -361,6 +360,16 @@ class PaymentFailure(UserFacingException): pass
 class NoPathFound(PaymentFailure):
     def __str__(self):
         return _('No path found')
+
+
+class LNProtocolError(Exception):
+    """Raised in peer methods to trigger an error message."""
+
+
+class LNProtocolWarning(Exception):
+    """Raised in peer methods to trigger a warning message."""
+
+
 
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
