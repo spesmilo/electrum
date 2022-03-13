@@ -22,6 +22,7 @@
 # SOFTWARE.
 import os
 import threading
+import time
 from typing import Optional, Dict, Mapping, Sequence
 
 from . import util
@@ -335,7 +336,6 @@ class Blockchain(Logger):
         target = self.get_target(index-1)
         for i in range(num):
             height = start_height + i
-            print ("verirfy height: ",height)
             try:
                 expected_header_hash = self.get_hash(height)
             except MissingHeader:
