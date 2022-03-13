@@ -106,6 +106,7 @@ from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
 from .swap_dialog import SwapDialog
+from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -999,18 +1000,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 network_text = _("Connected")
-                c, u, x = self.wallet.get_balance()
-                balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(c))
-                if u:
-                    balance_text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
-                if x:
-                    balance_text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
-                if self.wallet.has_lightning():
-                    l = self.wallet.lnworker.get_balance()
-                    balance_text += u'    \U000026a1 %s'%(self.format_amount_and_units(l).strip())
+                confirmed, unconfirmed, unmatured, frozen, lightning = self.wallet.get_balances_for_piechart()
+                self.balance_label.update_list([
+                    (_('Frozen'), COLOR_FROZEN, frozen),
+                    (_('Unmatured'), COLOR_UNMATURED, unmatured),
+                    (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
+                    (_('Confirmed'), COLOR_CONFIRMED, confirmed),
+                    (_('Lightning'), COLOR_LIGHTNING, lightning),
+                ])
+                balance = confirmed + unconfirmed + unmatured + frozen + lightning
+                balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
                 # append fiat balance and price
                 if self.fx.is_enabled():
-                    balance_text += self.fx.get_fiat_status_text(c + u + x,
+                    balance_text += self.fx.get_fiat_status_text(balance,
                         self.base_unit(), self.get_decimal_point()) or ''
                 if not self.network.proxy:
                     icon = read_QIcon("status_connected%s.png"%fork_str)
@@ -2410,15 +2412,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         console.updateNamespace(methods)
 
-    def create_status_bar(self):
+    def show_balance_dialog(self):
+        from .balance_dialog import BalanceDialog
+        d = BalanceDialog(self, self.wallet)
+        d.run()
 
+    def create_status_bar(self):
         sb = QStatusBar()
         sb.setFixedHeight(35)
-
-        self.balance_label = QLabel("Loading wallet...")
-        self.balance_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.balance_label.setStyleSheet("""QLabel { padding: 0 }""")
+        self.balance_label = BalanceToolButton()
+        self.balance_label.setText("Loading wallet...")
+        self.balance_label.setAutoRaise(True)
+        self.balance_label.clicked.connect(self.show_balance_dialog)
         sb.addWidget(self.balance_label)
+
+        # remove border of all items in status bar
+        self.setStyleSheet("QStatusBar::item { border: 0px;} ")
 
         self.search_box = QLineEdit()
         self.search_box.textChanged.connect(self.do_search)

@@ -299,7 +299,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
-        self._freeze_lock = threading.Lock()  # for mutating/iterating frozen_{addresses,coins}
+        self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
@@ -722,6 +722,24 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             excluded_coins=frozen_coins,
         )
         return c1-c2, u1-u2, x1-x2
+
+    def get_balances_for_piechart(self):
+        # return only positive values
+        # todo: add lightning frozen
+        c, u, x = self.get_balance()
+        fc, fu, fx = self.get_frozen_balance()
+        lightning = self.lnworker.get_balance() if self.has_lightning() else 0
+        # subtract frozen funds
+        cc = c - fc
+        uu = u - fu
+        xx = x - fx
+        frozen = fc + fu + fx
+        # subtract unconfirmed if negative.
+        # (this does not make sense if positive and negative tx cancel eachother out)
+        if uu < 0:
+            cc = cc + uu
+            uu = 0
+        return cc, uu, xx, frozen, lightning
 
     def balance_at_timestamp(self, domain, target_timestamp):
         # we assume that get_history returns items ordered by block height
