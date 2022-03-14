@@ -1373,9 +1373,14 @@ class ElectrumWindow(App, Logger):
             if not grant_results or not grant_results[0]:
                 self.show_error(_("Cannot save backup without STORAGE permission"))
                 return
+            try:
+                backup_dir = util.android_backup_dir()
+            except OSError as e:
+                self.logger.exception("Cannot save backup")
+                self.show_error(f"Cannot save backup: {e!r}")
+                return
             # note: Clock.schedule_once is a hack so that we get called on a non-daemon thread
             #       (needed for WalletDB.write)
-            backup_dir = util.android_backup_dir()
             Clock.schedule_once(lambda dt: self._save_backup(backup_dir))
         request_permissions([Permission.WRITE_EXTERNAL_STORAGE], cb)
 
