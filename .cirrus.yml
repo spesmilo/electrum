@@ -176,7 +176,7 @@ task:
     cpu: 2
     memory: 2G
   build_script:
-    - ./contrib/android/make_apk
+    - ./contrib/android/make_apk kivy arm64-v8a debug
   binaries_artifacts:
     path: "dist/*"
 

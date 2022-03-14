@@ -712,7 +712,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.logger.info(f"switching to {server}")
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
-            await i.taskgroup.spawn(self._request_server_info(i))
+            try:
+                await i.taskgroup.spawn(self._request_server_info(i))
+            except RuntimeError as e:  # see #7677
+                if len(e.args) >= 1 and e.args[0] == 'task group terminated':
+                    self.logger.warning(f"tried to switch to {server} but interface.taskgroup is already dead.")
+                    self.interface = None
+                    return
+                raise
             util.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
@@ -759,6 +766,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
+        if self.config.get('network_timeout', None):
+            return int(self.config.get('network_timeout'))
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
         if self.proxy:

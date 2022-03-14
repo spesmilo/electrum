@@ -31,7 +31,7 @@ for i in ./locale/*; do
 done
 popd
 
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 
@@ -60,7 +60,7 @@ wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 info "building NSIS installer"

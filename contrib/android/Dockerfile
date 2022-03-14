@@ -94,11 +94,6 @@ RUN curl --location --progress-bar \
     && rm -rf "${APACHE_ANT_ARCHIVE}"
 
 
-ENV USER="user"
-ENV HOME_DIR="/home/${USER}"
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
-
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 # TODO probably need to pin versions of at least some of these for over-time reproducibility?
@@ -136,17 +131,15 @@ RUN apt -y update -qq \
     && apt -y clean
 
 
-# prepare non root env
+# create new user to avoid using root; but with sudo access and no password for convenience.
+ENV USER="user"
+ENV HOME_DIR="/home/${USER}"
+ENV WORK_DIR="${HOME_DIR}/wspace" \
+    PATH="${HOME_DIR}/.local/bin:${PATH}"
 RUN useradd --create-home --shell /bin/bash ${USER}
-
-# with sudo access and no password
 RUN usermod -append --groups sudo ${USER}
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-
 WORKDIR ${WORK_DIR}
-
-# user needs ownership/write access to these directories
 RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
 RUN chown ${USER} /opt
 USER ${USER}
@@ -171,9 +164,10 @@ RUN cd /opt \
     && git clone https://github.com/kivy/python-for-android \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
+    && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421b
-    && git checkout "cdee188f0ef28ff8452207da409912da19e917ca^{commit}" \
+    # commit: from branch accumulator/qt5-wip
+    && git checkout "ebbe8dcc271e36468666feb98f936d0a96936cf2^{commit}" \
     && python3 -m pip install --no-dependencies --user -e .
 
 # build env vars
