@@ -406,7 +406,7 @@ class ChoicesLayout(object):
             if isinstance(c, tuple):
                 # tuple of text, icon path
                 logo = QIcon()
-                logo.addPixmap(QPixmap(icon_path(c[1])).scaledToWidth(25, mode=Qt.SmoothTransformation))
+                logo.addPixmap(QPixmap(icon_path(c[1])))
                 button.setText(c[0])
                 button.setIcon(logo)
             else:
