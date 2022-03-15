@@ -128,8 +128,8 @@ else
         ./contrib/android/build.sh kivy all release
     else
         ./contrib/android/build.sh kivy all release-unsigned
-        mv "$apk1_unsigned" "$apk1"
-        mv "$apk2_unsigned" "$apk2"
+        mv "dist/$apk1_unsigned" "dist/$apk1"
+        mv "dist/$apk2_unsigned" "dist/$apk2"
     fi
 fi
 
