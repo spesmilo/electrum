@@ -28,7 +28,8 @@ source.exclude_dirs = bin, build, dist, contrib,
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
     # not reproducible:
-    packages/aiohttp-*.dist-info/*
+    packages/aiohttp-*.dist-info/*,
+    packages/frozenlist-*.dist-info/*
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
