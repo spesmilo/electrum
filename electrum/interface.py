@@ -848,8 +848,9 @@ class Interface(Logger):
             nonlocal height, header
             checkp = False
             if height <= constants.net.max_checkpoint():
+                constants.net.CHECKPOINTS=[]
+                self.logger.info(f"height < max_checkpoint. checkpoints cleared")
                 height = constants.net.max_checkpoint()
-                #checkp = True
             header = await self.get_block_header(height, 'backward')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)

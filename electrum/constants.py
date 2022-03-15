@@ -48,7 +48,9 @@ class AbstractNet:
 
     @classmethod
     def max_checkpoint(cls) -> int:
-        return max(0, cls.CHECKPOINTS[len(cls.CHECKPOINTS)-1][1])
+        if len(cls.CHECKPOINTS) >= 1:
+            return max(0, cls.CHECKPOINTS[len(cls.CHECKPOINTS)-1][1])
+        return 0
 
 
 class BitcoinMainnet(AbstractNet):
