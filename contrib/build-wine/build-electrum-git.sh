@@ -12,7 +12,7 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=4.1.5
+VERSION=4.2.0
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
