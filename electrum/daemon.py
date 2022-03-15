@@ -33,16 +33,17 @@ from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, M
 from base64 import b64decode, b64encode
 from collections import defaultdict
 import json
+import socket
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
+from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
 from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .invoices import PR_PAID, PR_EXPIRED
-from .util import log_exceptions, ignore_exceptions, randrange
+from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB
@@ -64,7 +65,14 @@ class DaemonNotRunning(Exception):
 def get_rpcsock_defaultpath(config: SimpleConfig):
     return os.path.join(config.path, 'daemon_rpc_socket')
 
-def get_rpcsock_default_type(osname):
+def get_rpcsock_default_type(config: SimpleConfig):
+    if config.get('rpchost') and config.get('rpcport'):
+        return 'tcp'
+    # Use unix domain sockets when available,
+    # with the extra paranoia that in case windows "implements" them,
+    # we want to test it before making it the default there.
+    if hasattr(socket, 'AF_UNIX') and sys.platform != 'win32':
+        return 'unix'
     return 'tcp'
 
 def get_lockfile(config: SimpleConfig):
@@ -76,9 +84,9 @@ def remove_lockfile(lockfile):
 
 def get_file_descriptor(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
-    prevent races.  If it succeeds it returns the FD.
-    Otherwise try and connect to the server specified in the lockfile.
-    If this succeeds, the server is returned.  Otherwise remove the
+    prevent races.  If it succeeds, it returns the FD.
+    Otherwise, try and connect to the server specified in the lockfile.
+    If this succeeds, the server is returned.  Otherwise, remove the
     lockfile and try again.'''
     lockfile = get_lockfile(config)
     while True:
@@ -245,7 +253,7 @@ class CommandsServer(AuthenticatedServer):
         self.fd = fd
         self.config = daemon.config
         sockettype = self.config.get('rpcsock', 'auto')
-        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(os.name)
+        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
         self.sockpath = self.config.get('rpcsockpath', get_rpcsock_defaultpath(self.config))
         self.host = self.config.get('rpchost', '127.0.0.1')
         self.port = self.config.get('rpcport', 0)
@@ -493,7 +501,7 @@ class Daemon(Logger):
         self._stop_entered = False
         self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
-        self.taskgroup = TaskGroup()
+        self.taskgroup = OldTaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
     @log_exceptions
@@ -505,8 +513,6 @@ class Daemon(Logger):
             async with self.taskgroup as group:
                 [await group.spawn(job) for job in jobs]
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
-        except asyncio.CancelledError:
-            raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
             util.send_exception_to_crash_reporter(e)
@@ -593,12 +599,12 @@ class Daemon(Logger):
             if self.gui_object:
                 self.gui_object.stop()
             self.logger.info("stopping all wallets")
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 for k, wallet in self._wallets.items():
                     await group.spawn(wallet.stop())
             self.logger.info("stopping network and taskgroup")
             async with ignore_after(2):
-                async with TaskGroup() as group:
+                async with OldTaskGroup() as group:
                     if self.network:
                         await group.spawn(self.network.stop(full_shutdown=True))
                     await group.spawn(self.taskgroup.cancel_remaining())

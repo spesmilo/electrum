@@ -52,7 +52,8 @@ from .lnutil import (Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKey
                      ScriptHtlc, PaymentFailure, calc_fees_for_commitment_tx, RemoteMisbehaving, make_htlc_output_witness_script,
                      ShortChannelID, map_htlcs_to_ctx_output_idxs, LNPeerAddr,
                      fee_for_htlc_output, offered_htlc_trim_threshold_sat,
-                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address)
+                     received_htlc_trim_threshold_sat, make_commitment_output_to_remote_address,
+                     ChannelType, LNProtocolWarning)
 from .lnsweep import create_sweeptxs_for_our_ctx, create_sweeptxs_for_their_ctx
 from .lnsweep import create_sweeptx_for_their_revoked_htlc, SweepInfo
 from .lnhtlc import HTLCManager
@@ -172,10 +173,12 @@ class AbstractChannel(Logger, ABC):
     def short_id_for_GUI(self) -> str:
         return format_short_channel_id(self.short_channel_id)
 
-    def set_state(self, state: ChannelState) -> None:
-        """ set on-chain state """
+    def set_state(self, state: ChannelState, *, force: bool = False) -> None:
+        """Set on-chain state.
+        `force` can be set while debugging from the console to allow illegal transitions.
+        """
         old_state = self._state
-        if (old_state, state) not in state_transitions:
+        if not force and (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
         self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
@@ -709,7 +712,8 @@ class Channel(AbstractChannel):
         return chan_ann
 
     def is_static_remotekey_enabled(self) -> bool:
-        return bool(self.storage.get('static_remotekey_enabled'))
+        channel_type = ChannelType(self.storage.get('channel_type'))
+        return bool(channel_type & ChannelType.OPTION_STATIC_REMOTEKEY)
 
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
         ret = []
@@ -925,6 +929,7 @@ class Channel(AbstractChannel):
         Action must be initiated by LOCAL.
         Finally, the next remote ctx becomes the latest remote ctx.
         """
+        # TODO: when more channel types are supported, this method should depend on channel type
         next_remote_ctn = self.get_next_ctn(REMOTE)
         self.logger.info(f"sign_next_commitment {next_remote_ctn}")
 
@@ -966,6 +971,7 @@ class Channel(AbstractChannel):
         If all checks pass, the next local ctx becomes the latest local ctx.
         """
         # TODO in many failure cases below, we should "fail" the channel (force-close)
+        # TODO: when more channel types are supported, this method should depend on channel type
         next_local_ctn = self.get_next_ctn(LOCAL)
         self.logger.info(f"receive_new_commitment. ctn={next_local_ctn}, len(htlc_sigs)={len(htlc_sigs)}")
 
@@ -975,7 +981,9 @@ class Channel(AbstractChannel):
         preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
-            raise Exception(f'failed verifying signature of our updated commitment transaction: {bh2u(sig)} preimage is {preimage_hex}')
+            raise LNProtocolWarning(
+                f'failed verifying signature of our updated commitment transaction: '
+                f'{bh2u(sig)} preimage is {preimage_hex}, rawtx: {pending_local_commitment.serialize()}')
 
         htlc_sigs_string = b''.join(htlc_sigs)
 
@@ -987,7 +995,7 @@ class Channel(AbstractChannel):
                                                                   subject=LOCAL,
                                                                   ctn=next_local_ctn)
         if len(htlc_to_ctx_output_idx_map) != len(htlc_sigs):
-            raise Exception(f'htlc sigs failure. recv {len(htlc_sigs)} sigs, expected {len(htlc_to_ctx_output_idx_map)}')
+            raise LNProtocolWarning(f'htlc sigs failure. recv {len(htlc_sigs)} sigs, expected {len(htlc_to_ctx_output_idx_map)}')
         for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
             htlc_sig = htlc_sigs[htlc_relative_idx]
             self._verify_htlc_sig(htlc=htlc,
@@ -1015,7 +1023,7 @@ class Channel(AbstractChannel):
         pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
         if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
-            raise Exception(f'failed verifying HTLC signatures: {htlc} {htlc_direction}')
+            raise LNProtocolWarning(f'failed verifying HTLC signatures: {htlc} {htlc_direction}, rawtx: {htlc_tx.serialize()}')
 
     def get_remote_htlc_sig_for_htlc(self, *, htlc_relative_idx: int) -> bytes:
         data = self.config[LOCAL].current_htlc_signatures

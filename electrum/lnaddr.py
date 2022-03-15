@@ -508,7 +508,8 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         #
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
-        ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash)
+        if not ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash):
+            raise LnDecodeException("bad signature")
         pubkey_copy = addr.pubkey
         class WrappedBytesKey:
             serialize = lambda: pubkey_copy

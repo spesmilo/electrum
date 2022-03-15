@@ -533,7 +533,6 @@ class DeviceMgr(ThreadJob):
                 client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
         if client:
             handler.update_status(True)
-        if client:
             # note: if select_device was called, we might also update label etc here:
             keystore.opportunistically_fill_in_missing_info_from_device(client)
         self.logger.info("end client for keystore")
@@ -544,6 +543,8 @@ class DeviceMgr(ThreadJob):
         _id = self.xpub_id(xpub)
         client = self._client_by_id(_id)
         if client:
+            if type(client.plugin) != type(plugin):
+                return
             # An unpaired client might have another wallet's handler
             # from a prior scan.  Replace to fix dialog parenting.
             client.handler = handler
@@ -559,7 +560,7 @@ class DeviceMgr(ThreadJob):
         # choose an unpaired device and compare its first address.
         xtype = bip32.xpub_type(xpub)
         client = self._client_by_id(info.device.id_)
-        if client and client.is_pairable():
+        if client and client.is_pairable() and type(client.plugin) == type(plugin):
             # See comment above for same code
             client.handler = handler
             # This will trigger a PIN/passphrase entry request
@@ -647,6 +648,7 @@ class DeviceMgr(ThreadJob):
         if keystore.soft_device_id:
             for info in infos:
                 if info.soft_device_id == keystore.soft_device_id:
+                    self.logger.debug(f"select_device. auto-selected(1) {plugin.device}: soft_device_id matched")
                     return info
         # method 2: select device by label
         #           but only if not a placeholder label and only if there is no collision
@@ -655,14 +657,17 @@ class DeviceMgr(ThreadJob):
                 and device_labels.count(keystore.label) == 1):
             for info in infos:
                 if info.label == keystore.label:
+                    self.logger.debug(f"select_device. auto-selected(2) {plugin.device}: label recognised")
                     return info
         # method 3: if there is only one device connected, and we don't have useful label/soft_device_id
         #           saved for keystore anyway, select it
         if (len(infos) == 1
                 and keystore.label in PLACEHOLDER_HW_CLIENT_LABELS
                 and keystore.soft_device_id is None):
+            self.logger.debug(f"select_device. auto-selected(3) {plugin.device}: only one device")
             return infos[0]
 
+        self.logger.debug(f"select_device. auto-select failed for {plugin.device}. {allow_user_interaction=}")
         if not allow_user_interaction:
             raise CannotAutoSelectDevice()
         # ask user to select device manually
@@ -673,10 +678,13 @@ class DeviceMgr(ThreadJob):
                                 transport=info.device.transport_ui_string,
                                 maybe_model=f"{info.model_name}, " if info.model_name else "")
                         for info in infos]
+        self.logger.debug(f"select_device. prompting user for manual selection of {plugin.device}. "
+                          f"num options: {len(infos)}. options: {infos}")
         c = handler.query_choice(msg, descriptions)
         if c is None:
             raise UserCancelled()
         info = infos[c]
+        self.logger.debug(f"select_device. user manually selected {plugin.device}. device info: {info}")
         # note: updated label/soft_device_id will be saved after pairing succeeds
         return info
 

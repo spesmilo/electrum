@@ -52,7 +52,6 @@ import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
-from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
 
@@ -1178,9 +1177,6 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except asyncio.CancelledError:
-            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
-            raise
         except Exception as e:
             pass
     return wrapper
@@ -1229,13 +1225,76 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
-class SilentTaskGroup(TaskGroup):
+class OldTaskGroup(aiorpcx.TaskGroup):
+    """Automatically raises exceptions on join; as in aiorpcx prior to version 0.20.
+    That is, when using TaskGroup as a context manager, if any task encounters an exception,
+    we would like that exception to be re-raised (propagated out). For the wait=all case,
+    the OldTaskGroup class is emulating the following code-snippet:
+    ```
+    async with TaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
 
-    def spawn(self, *args, **kwargs):
-        # don't complain if group is already closed.
-        if self._closed:
-            raise asyncio.CancelledError()
-        return super().spawn(*args, **kwargs)
+        async for task in group:
+            if not task.cancelled():
+                task.result()
+    ```
+    So instead of the above, one can just write:
+    ```
+    async with OldTaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
+    ```
+    """
+    async def join(self):
+        if self._wait is all:
+            exc = False
+            try:
+                async for task in self:
+                    if not task.cancelled():
+                        task.result()
+            except BaseException:  # including asyncio.CancelledError
+                exc = True
+                raise
+            finally:
+                if exc:
+                    await self.cancel_remaining()
+                await super().join()
+        else:
+            await super().join()
+            if self.completed:
+                self.completed.result()
+
+# We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
+# to fix a timing issue present in asyncio as a whole re timing out tasks.
+# To see the issue we are trying to fix, consider example:
+#     async def outer_task():
+#         async with timeout_after(0.1):
+#             await inner_task()
+# When the 0.1 sec timeout expires, inner_task will get cancelled by timeout_after (=internal cancellation).
+# If around the same time (in terms of event loop iterations) another coroutine
+# cancels outer_task (=external cancellation), there will be a race.
+# Both cancellations work by propagating a CancelledError out to timeout_after, which then
+# needs to decide (in TimeoutAfter.__aexit__) whether it's due to an internal or external cancellation.
+# AFAICT asyncio provides no reliable way of distinguishing between the two.
+# This patch tries to always give priority to external cancellations.
+# see https://github.com/kyuupichan/aiorpcX/issues/44
+# see https://github.com/aio-libs/async-timeout/issues/229
+# see https://bugs.python.org/issue42130 and https://bugs.python.org/issue45098
+def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
+    def timeout_task():
+        task._orig_cancel()
+        task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
+    def mycancel(*args, **kwargs):
+        task._orig_cancel(*args, **kwargs)
+        task._externally_cancelled = True
+        task._timed_out = None
+    if not hasattr(task, "_orig_cancel"):
+        task._orig_cancel = task.cancel
+        task.cancel = mycancel
+    task._deadline_handle = task._loop.call_at(deadline, timeout_task)
+
+aiorpcx.curio._set_new_deadline = _aiorpcx_monkeypatched_set_new_deadline
 
 
 class NetworkJobOnDefaultServer(Logger, ABC):
@@ -1263,14 +1322,14 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
         await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
     @abstractmethod
-    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
+    async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
         """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """
@@ -1669,10 +1728,8 @@ class nullcontext:
     async def __aexit__(self, *excinfo):
         pass
 
-def get_running_loop():
-    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
-    if sys.version_info < (3, 7):
-        return asyncio._get_running_loop()
+
+def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
     try:
         return asyncio.get_running_loop()
     except RuntimeError:

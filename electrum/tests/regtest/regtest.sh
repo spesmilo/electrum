@@ -158,6 +158,18 @@ if [[ $1 == "backup" ]]; then
 fi
 
 
+if [[ $1 == "collaborative_close" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15)
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice closes channel"
+    request=$($bob close_channel $channel)
+fi
+
+
 if [[ $1 == "extract_preimage" ]]; then
     # instead of settling bob will broadcast
     $bob enable_htlc_settle false

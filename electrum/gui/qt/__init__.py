@@ -133,7 +133,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self._init_tray()
         self.app.new_window_signal.connect(self.start_new_window)
         self.app.quit_signal.connect(self.app.quit, Qt.QueuedConnection)
-        self.set_dark_theme_if_needed()
+        # maybe set dark theme
+        self._default_qtstylesheet = self.app.styleSheet()
+        self.reload_app_stylesheet()
+
         run_hook('init_qt', self)
 
     def _init_tray(self):
@@ -143,7 +146,16 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.build_tray_menu()
         self.tray.show()
 
-    def set_dark_theme_if_needed(self):
+    def reload_app_stylesheet(self):
+        """Set the Qt stylesheet and custom colors according to the user-selected
+        light/dark theme.
+        TODO this can ~almost be used to change the theme at runtime (without app restart),
+             except for util.ColorScheme... widgets already created with colors set using
+             ColorSchemeItem.as_stylesheet() and similar will not get recolored.
+             See e.g.
+             - in Coins tab, the color for "frozen" UTXOs, or
+             - in TxDialog, the receiving/change address colors
+        """
         use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
         if use_dark_theme:
             try:
@@ -152,6 +164,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
             except BaseException as e:
                 use_dark_theme = False
                 self.logger.warning(f'Error setting dark theme: {repr(e)}')
+        else:
+            self.app.setStyleSheet(self._default_qtstylesheet)
         # Apply any necessary stylesheet patches
         patch_qt_stylesheet(use_dark_theme=use_dark_theme)
         # Even if we ourselves don't set the dark theme,
@@ -310,22 +324,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
                                parent=None,
                                title=_('Error'),
                                text=_('Cannot load wallet') + ' (1):\n' + repr(e))
-            # if app is starting, still let wizard to appear
+            # if app is starting, still let wizard appear
             if not app_is_starting:
                 return
-        if not wallet:
-            try:
-                wallet = self._start_wizard_to_select_or_create_wallet(path)
-            except (WalletFileException, BitcoinException) as e:
-                self.logger.exception('')
-                custom_message_box(icon=QMessageBox.Warning,
-                                   parent=None,
-                                   title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (2):\n' + repr(e))
-        if not wallet:
-            return
-        # create or raise window
         try:
+            if not wallet:
+                wallet = self._start_wizard_to_select_or_create_wallet(path)
+            if not wallet:
+                return
+            # create or raise window
             for window in self.windows:
                 if window.wallet.storage.path == wallet.storage.path:
                     break
@@ -336,7 +343,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
                                title=_('Error'),
-                               text=_('Cannot create window for wallet') + ':\n' + repr(e))
+                               text=_('Cannot load wallet') + '(2) :\n' + repr(e))
             if app_is_starting:
                 wallet_dir = os.path.dirname(path)
                 path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))

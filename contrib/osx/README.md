@@ -40,20 +40,20 @@ Before starting, you should install `brew`.
   to the user's home dir: `/Users/vagrant/electrum`.
 - Builders need to use the same version of Xcode; and note that
   full Xcode and Xcode commandline tools differ!
-  You should build with Xcode 11.3.1 (full Xcode).
-  The path for Xcode should be exactly as follows:
+  - Xcode CLI tools are sufficient for everything, except it is missing `altool`,
+    which is needed for the release-manager to notarise the `.dmg`.
+  - so full Xcode is needed, to have `altool`.
+  - however, brew now consider macOS 10.14 too old, and for some reason it
+    requires Xcode CLI tools. (`Error: Xcode alone is not sufficient on Mojave.`)
+  
+  So, we need *both* full Xcode and Xcode CLI tools. Both with version 11.3.1.
+  The two Xcodes should be located exactly as follows:
     ```
     $ xcode-select -p
     /Users/vagrant/Downloads/Xcode.app/Contents/Developer
     $ xcrun --show-sdk-path
-    /Users/vagrant/Downloads/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+    /Library/Developer/CommandLineTools/SDKs/MacOSX10.14.sdk
     ```
-  Note: make sure neither command above refers to the Xcode command line tools!
-  If so, rename the cli tools, e.g.
-    ```
-    $ mv /Library/Developer/CommandLineTools /Library/Developer/CommandLineTools2
-    ```
-  As a sanity check, make sure `$ gcc --version` consistently refers to the full Xcode.
 - Make sure that you are building from a fresh clone of electrum
   (or run e.g. `git clean -ffxd` to rm all local changes).
 
@@ -67,6 +67,14 @@ Get it from [here](https://developer.apple.com/download/more/).
 Unfortunately, you need an "Apple ID" account.
 
 (note: the last Xcode that runs on macOS 10.14.6 is Xcode 11.3.1)
+
+The recommended versions are:
+```
+$ shasum -a 256 "$HOME/Downloads/Xcode_11.3.1.xip"
+9a92379b90734a9068832f858d594d3c3a30a7ddc3bdb6da49c738aed9ad34b5  /Users/vagrant/Downloads/Xcode_11.3.1.xip
+$ shasum -a 256 "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
+1c4b477285641cca5313f456b712bf726aca8db77f38793420e1d451588673f9  /Users/vagrant/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg
+```
 
 After downloading, uncompress it.
 

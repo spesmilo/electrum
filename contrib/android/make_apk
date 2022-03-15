@@ -10,6 +10,10 @@ LOCALE="$PROJECT_ROOT"/electrum/locale/
 
 . "$CONTRIB"/build_tools_util.sh
 
+
+# arguments have been checked in build.sh
+export ELEC_APK_GUI=$1
+
 if [ ! -d "$PACKAGES" ]; then
   "$CONTRIB"/make_packages || fail "make_packages failed"
 fi
@@ -37,28 +41,22 @@ info "preparing electrum-locale."
 pushd "$CONTRIB_ANDROID"
 
 info "apk building phase starts."
-if [[ -n "$1"  && "$1" == "release" ]] ; then
+
+if [[ "$3" == "release" ]] ; then
     # do release build, and sign the APKs.
+    TARGET="release"
     echo -n Keystore Password:
     read -s password
     export P4A_RELEASE_KEYSTORE=~/.keystore
     export P4A_RELEASE_KEYSTORE_PASSWD=$password
     export P4A_RELEASE_KEYALIAS_PASSWD=$password
     export P4A_RELEASE_KEYALIAS=electrum
-    # build two apks
-    export APP_ANDROID_ARCH=armeabi-v7a
-    make release
-    export APP_ANDROID_ARCH=arm64-v8a
-    make release
-elif [[ -n "$1"  && "$1" == "release-unsigned" ]] ; then
+elif [[ "$3" == "release-unsigned" ]] ; then
     # do release build, but do not sign the APKs.
-    # build two apks
-    export APP_ANDROID_ARCH=armeabi-v7a
-    make release
-    export APP_ANDROID_ARCH=arm64-v8a
-    make release
-else
+    TARGET="release"
+elif [[ "$3" == "debug" ]] ; then
     # do debug build; the default.
+    TARGET="apk"
     export P4A_DEBUG_KEYSTORE="$CONTRIB_ANDROID"/android_debug.keystore
     export P4A_DEBUG_KEYSTORE_PASSWD=unsafepassword
     export P4A_DEBUG_KEYALIAS_PASSWD=unsafepassword
@@ -71,11 +69,23 @@ else
             -storepass "$P4A_DEBUG_KEYSTORE_PASSWD" \
             -keypass "$P4A_DEBUG_KEYALIAS_PASSWD"
     fi
-    # only build one apk for debug build, for faster testing iterations
+    export ELEC_APK_USE_CURRENT_TIME=1
+else
+    fail "unknown build type"
+fi
+
+
+if [[ "$2" == "all" ]] ; then
+    # build all apks
+    export APP_ANDROID_ARCH=armeabi-v7a
+    make $TARGET
     export APP_ANDROID_ARCH=arm64-v8a
-    make apk
-    # export APP_ANDROID_ARCH=armeabi-v7a
-    # make apk
+    make $TARGET
+    #export APP_ANDROID_ARCH=x86
+    #make $TARGET
+else
+    export APP_ANDROID_ARCH=$2
+    make $TARGET
 fi
 
 popd

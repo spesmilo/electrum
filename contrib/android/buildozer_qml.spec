@@ -13,7 +13,7 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json,csv
+source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,vs,fs,json,csv,so
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
@@ -22,13 +22,15 @@ source.exclude_exts = spec
 source.exclude_dirs = bin, build, dist, contrib,
     electrum/tests,
     electrum/gui/qt,
-    electrum/gui/kivy/theming/light,
+    electrum/gui/kivy,
     packages/qdarkstyle,
     packages/qtpy
+
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
     # not reproducible:
-    packages/aiohttp-*.dist-info/*
+    packages/aiohttp-*.dist-info/*,
+    packages/frozenlist-*.dist-info/*
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
@@ -45,10 +47,11 @@ requirements =
     android,
     openssl,
     plyer,
-    kivy,
     libffi,
     libsecp256k1,
-    cryptography
+    cryptography,
+    pyqt5sip,
+    pyqt5
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
@@ -75,7 +78,7 @@ android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
 
 # (int) Android API to use  (targetSdkVersion AND compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
-android.api = 29
+android.api = 30
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 21
@@ -119,6 +122,9 @@ android.accept_sdk_license = True
 # OUYA-ODK/libs/*.jar
 #android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
 #android.add_jars = lib/android/zbar.jar
+
+android.add_jars = .buildozer/android/platform/*/build/libs_collections/Electrum/jar/*.jar
+
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
@@ -182,7 +188,7 @@ p4a.local_recipes = %(source.dir)s/contrib/android/p4a_recipes/
 #p4a.hook =
 
 # (str) Bootstrap to use for android builds
-# p4a.bootstrap = sdl2
+p4a.bootstrap = qt5
 
 # (int) port number to specify an explicit --port= p4a argument (eg for bootstrap flask)
 #p4a.port =

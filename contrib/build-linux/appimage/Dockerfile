@@ -27,8 +27,8 @@ RUN apt-get update -q && \
         libtinfo5=6.1-1ubuntu1.18.04 \
         libsqlite3-dev=3.22.0-1ubuntu0.4 \
         libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.52 \
-        libudev1=237-3ubuntu10.52 \
+        libudev-dev=237-3ubuntu10.53 \
+        libudev1=237-3ubuntu10.53 \
         gettext=0.19.8.1-6ubuntu0.3 \
         libzbar0=0.10+doc-10.1build2  \
         libdbus-1-3=1.12.2-1ubuntu1.2 \
@@ -49,10 +49,22 @@ RUN apt-get update -q && \
         libxcb-util1=0.4.0-0ubuntu3 \
         libxcb-render-util0=0.3.9-1 \
         libx11-xcb1=2:1.6.4-3ubuntu0.4 \
-        libc6-dev=2.27-3ubuntu1.4 \
-        libc6=2.27-3ubuntu1.4 \
-        libc-dev-bin=2.27-3ubuntu1.4 \
+        libc6-dev=2.27-3ubuntu1.5 \
+        libc6=2.27-3ubuntu1.5 \
+        libc-dev-bin=2.27-3ubuntu1.5 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+# create new user to avoid using root; but with sudo access and no password for convenience.
+ENV USER="user"
+ENV HOME_DIR="/home/${USER}"
+ENV WORK_DIR="${HOME_DIR}/wspace" \
+    PATH="${HOME_DIR}/.local/bin:${PATH}"
+RUN useradd --create-home --shell /bin/bash ${USER}
+RUN usermod -append --groups sudo ${USER}
+RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+WORKDIR ${WORK_DIR}
+RUN chown --recursive ${USER} ${WORK_DIR}
+USER ${USER}
