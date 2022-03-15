@@ -1960,12 +1960,14 @@ class Peer(Logger):
             our_scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         assert our_scriptpubkey
         # estimate fee of closing tx
-        our_sig, closing_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
-
+        dummy_sig, dummy_tx = chan.make_closing_tx(our_scriptpubkey, their_scriptpubkey, fee_sat=0)
+        our_sig = None
+        closing_tx = None
         is_initiator = chan.constraints.is_initiator
-        our_fee, our_fee_range = self.get_shutdown_fee_range(chan, closing_tx, is_local)
+        our_fee, our_fee_range = self.get_shutdown_fee_range(chan, dummy_tx, is_local)
 
         def send_closing_signed(our_fee, our_fee_range, drop_remote):
+            nonlocal our_sig, closing_tx
             if our_fee_range:
                 closing_signed_tlvs = {'fee_range': our_fee_range}
             else:
@@ -1987,6 +1989,7 @@ class Peer(Logger):
             return ecc.verify_signature(their_pubkey, sig, pre_hash)
 
         async def receive_closing_signed():
+            nonlocal our_sig, closing_tx
             try:
                 cs_payload = await self.wait_for_message('closing_signed', chan.channel_id)
             except asyncio.exceptions.TimeoutError:

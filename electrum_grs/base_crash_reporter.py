@@ -146,6 +146,7 @@ class EarlyExceptionsQueue:
 
     @classmethod
     def set_hook_as_ready(cls):
+        """Flush the queue and disable it for future exceptions."""
         if cls._is_exc_hook_ready:
             return
         cls._is_exc_hook_ready = True

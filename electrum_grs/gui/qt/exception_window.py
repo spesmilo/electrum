@@ -177,6 +177,7 @@ class Exception_Hook(QObject, Logger):
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
         if not config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(config=config)
