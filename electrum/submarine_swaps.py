@@ -90,6 +90,7 @@ class SwapData(StoredObject):
     prepay_hash = attr.ib(type=Optional[bytes], converter=hex_to_bytes)
     privkey = attr.ib(type=bytes, converter=hex_to_bytes)
     lockup_address = attr.ib(type=str)
+    receive_address = attr.ib(type=str)
     funding_txid = attr.ib(type=Optional[str])
     spending_txid = attr.ib(type=Optional[str])
     is_redeemed = attr.ib(type=bool)
@@ -213,7 +214,6 @@ class SwapManager(Logger):
             if amount_sat < dust_threshold():
                 self.logger.info('utxo value below dust threshold')
                 continue
-            address = self.wallet.get_receiving_address()
             if swap.is_reverse:  # successful reverse swap
                 preimage = swap.preimage
                 locktime = 0
@@ -224,7 +224,8 @@ class SwapManager(Logger):
                 txin=txin,
                 witness_script=swap.redeem_script,
                 preimage=preimage,
-                address=address,
+                privkey=swap.privkey,
+                address=swap.receive_address,
                 amount_sat=amount_sat,
                 locktime=locktime,
             )
@@ -330,6 +331,7 @@ class SwapManager(Logger):
             tx.set_rbf(True)  # note: rbf must not decrease payment
             self.wallet.sign_transaction(tx, password)
         # save swap data in wallet in case we need a refund
+        receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
             redeem_script = redeem_script,
             locktime = locktime,
@@ -338,6 +340,7 @@ class SwapManager(Logger):
             prepay_hash = None,
             lockup_address = lockup_address,
             onchain_amount = expected_onchain_amount_sat,
+            receive_address = receive_address,
             lightning_amount = lightning_amount_sat,
             is_reverse = False,
             is_redeemed = False,
@@ -429,6 +432,7 @@ class SwapManager(Logger):
             raise Exception(f"rswap check failed: invoice_amount ({invoice_amount}) "
                             f"not what we requested ({lightning_amount_sat})")
         # save swap data to wallet file
+        receive_address = self.wallet.get_receiving_address()
         swap = SwapData(
             redeem_script = redeem_script,
             locktime = locktime,
@@ -437,6 +441,7 @@ class SwapManager(Logger):
             prepay_hash = prepay_hash,
             lockup_address = lockup_address,
             onchain_amount = onchain_amount,
+            receive_address = receive_address,
             lightning_amount = lightning_amount_sat,
             is_reverse = True,
             is_redeemed = False,

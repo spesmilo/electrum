@@ -27,7 +27,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
-from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
+from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
@@ -1784,16 +1784,24 @@ class LNWallet(LNWorker):
         return lnaddr, invoice
 
     def add_request(self, amount_sat: Optional[int], message, expiry: int) -> str:
+        # passed expiry is relative, it is absolute in the lightning invoice
         amount_msat = amount_sat * 1000 if amount_sat is not None else None
+        timestamp = int(time.time())
         lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message=message,
             expiry=expiry,
             write_to_disk=False,
         )
-        key = bh2u(lnaddr.paymenthash)
-        req = LNInvoice.from_bech32(invoice)
-        self.wallet.add_payment_request(req, write_to_disk=False)
+        req = self.wallet.make_payment_request(
+            amount_sat,
+            message,
+            timestamp,
+            expiry,
+            address=None,
+            lightning_invoice=invoice
+        )
+        key = self.wallet.add_payment_request(req, write_to_disk=False)
         self.wallet.set_label(key, message)
         self.wallet.save_db()
         return key
@@ -1856,7 +1864,7 @@ class LNWallet(LNWorker):
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
 
-    def get_invoice_status(self, invoice: LNInvoice) -> int:
+    def get_invoice_status(self, invoice: Invoice) -> int:
         key = invoice.rhash
         log = self.logs[key]
         if key in self.inflight_payments:
@@ -2073,10 +2081,12 @@ class LNWallet(LNWorker):
             can_receive = max([c.available_to_spend(REMOTE) for c in channels]) if channels else 0
         return Decimal(can_receive) / 1000
 
-    def can_pay_invoice(self, invoice: LNInvoice) -> bool:
+    def can_pay_invoice(self, invoice: Invoice) -> bool:
+        assert invoice.is_lightning()
         return invoice.get_amount_sat() <= self.num_sats_can_send()
 
-    def can_receive_invoice(self, invoice: LNInvoice) -> bool:
+    def can_receive_invoice(self, invoice: Invoice) -> bool:
+        assert invoice.is_lightning()
         return invoice.get_amount_sat() <= self.num_sats_can_receive()
 
     async def close_channel(self, chan_id):

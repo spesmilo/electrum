@@ -66,8 +66,8 @@ from electrum.util import (format_time,
                            NoDynamicFeeEstimates,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
-from electrum.invoices import PR_TYPE_ONCHAIN, PR_TYPE_LN, PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, LNInvoice, OnchainInvoice
+from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
+from electrum.invoices import PR_PAID, PR_FAILED, pr_expiration_values, Invoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1290,7 +1290,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_message_e.setText('')
         # copy to clipboard
         r = self.wallet.get_request(key)
-        content = r.invoice if r.is_lightning() else r.get_address()
+        content = r.lightning_invoice if r.is_lightning() else r.get_address()
         title = _('Invoice') if is_lightning else _('Address')
         self.do_copy(content, title=title)
 
@@ -1311,7 +1311,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                     return
                 addr = self.wallet.create_new_address(False)
-        req = self.wallet.make_payment_request(addr, amount, message, expiration)
+        timestamp = int(time.time())
+        req = self.wallet.make_payment_request(amount, message, timestamp, expiration, address=addr)
         try:
             self.wallet.add_payment_request(req)
         except Exception as e:
@@ -1649,8 +1650,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if not self.wallet.has_lightning():
                     self.show_error(_('Lightning is disabled'))
                     return
-                invoice = LNInvoice.from_bech32(invoice_str)
-                if invoice.get_amount_msat() is None:
+                invoice = Invoice.from_bech32(invoice_str)
+                if invoice.amount_msat is None:
                     amount_sat = self.amount_e.get_amount()
                     if amount_sat:
                         invoice.amount_msat = int(amount_sat * 1000)
@@ -1698,14 +1699,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.pay_onchain_dialog(self.get_coins(), outputs)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
-        if invoice.type == PR_TYPE_LN:
-            assert isinstance(invoice, LNInvoice)
-            self.pay_lightning_invoice(invoice.invoice, amount_msat=invoice.get_amount_msat())
-        elif invoice.type == PR_TYPE_ONCHAIN:
-            assert isinstance(invoice, OnchainInvoice)
-            self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
+        if invoice.is_lightning():
+            self.pay_lightning_invoice(invoice.lightning_invoice, amount_msat=invoice.get_amount_msat())
         else:
-            raise Exception('unknown invoice type')
+            self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
 
     def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
@@ -2177,8 +2174,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contact_list.update()
         self.update_completions()
 
-    def show_onchain_invoice(self, invoice: OnchainInvoice):
-        amount_str = self.format_amount(invoice.amount_sat) + ' ' + self.base_unit()
+    def show_onchain_invoice(self, invoice: Invoice):
+        amount_str = self.format_amount(invoice.get_amount_sat()) + ' ' + self.base_unit()
         d = WindowModalDialog(self, _("Onchain Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
@@ -2226,8 +2223,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(buttons)
         d.exec_()
 
-    def show_lightning_invoice(self, invoice: LNInvoice):
-        lnaddr = lndecode(invoice.invoice)
+    def show_lightning_invoice(self, invoice: Invoice):
+        lnaddr = lndecode(invoice.lightning_invoice)
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
@@ -2250,7 +2247,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addLayout(grid)
         invoice_e = ShowQRTextEdit(config=self.config)
         invoice_e.addCopyButton(self.app)
-        invoice_e.setText(invoice.invoice)
+        invoice_e.setText(invoice.lightning_invoice)
         vbox.addWidget(invoice_e)
         vbox.addLayout(Buttons(CloseButton(d),))
         d.exec_()

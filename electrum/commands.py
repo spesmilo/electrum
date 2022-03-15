@@ -60,7 +60,7 @@ from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .invoices import LNInvoice
+from .invoices import Invoice
 from . import submarine_swaps
 
 
@@ -1066,7 +1066,7 @@ class Commands:
 
     @command('')
     async def decode_invoice(self, invoice: str):
-        invoice = LNInvoice.from_bech32(invoice)
+        invoice = Invoice.from_bech32(invoice)
         return invoice.to_debug_json()
 
     @command('wnl')
@@ -1074,7 +1074,7 @@ class Commands:
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
-        wallet.save_invoice(LNInvoice.from_bech32(invoice))
+        wallet.save_invoice(Invoice.from_bech32(invoice))
         success, log = await lnworker.pay_invoice(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),
