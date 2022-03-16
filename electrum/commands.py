@@ -61,6 +61,8 @@ from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import LNInvoice
+from .storage import WalletStorage
+from .wallet_db import WalletDB
 from . import submarine_swaps
 
 
@@ -258,38 +260,31 @@ class Commands:
         }
 
     @command('')
-    async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
+    async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None, with_sync=None):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
+        sync_network=self.network
         d = restore_wallet_from_text(text,
                                      path=wallet_path,
                                      passphrase=passphrase,
                                      password=password,
                                      encrypt_file=encrypt_file,
                                      config=self.config)
-        return {
-            'path': d['wallet'].storage.path,
-            'msg': d['msg'],
-        }
 
-    @command('n')
-    async def restore_sync(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
-        """Restore a wallet from text and waits for it to synchronize with the network.
-        Text can be a seed phrase, a master public key, a master private key,
-        a list of bitcoin addresses or bitcoin private keys.
-        If you want to be prompted for an argument, type '?' or ':' (concealed)
-        """
-        network = self.network
-        d = restore_wallet_from_text(text,
-                                     path=wallet_path,
-                                     passphrase=passphrase,
-                                     password=password,
-                                     encrypt_file=encrypt_file,
-                                     config=self.config,
-                                     wait_for_sync=True, sync_network=network)
+        storage = WalletStorage(wallet_path)
+        db = WalletDB('', manual_upgrades=False)
+        if with_sync:
+            # We are going to have to create a temporary wallet for syncing as Imported_Wallet cant sync.
+            # it will require a second call to save_db()
+            wallet = d['wallet']
+            wallet.start_network(sync_network)
+            while not wallet.is_up_to_date():
+                await asyncio.sleep(0.1)
+            wallet.save_db()
+            d['msg'] = ("This wallet has been restored online and its history has been synchronized.")
         return {
             'path': d['wallet'].storage.path,
             'msg': d['msg'],
@@ -1354,6 +1349,7 @@ command_options = {
     'connection_string':      (None, "Lightning network node ID or network address"),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in sat/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
+    'with_sync': (None, "Wait for the wallet to sync before returning"),
 }
 
 
