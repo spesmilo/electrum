@@ -1,3 +1,4 @@
+import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
@@ -6,7 +7,7 @@ WizardComponent {
 
     onAccept: {
         wizard_data['password'] = password1.text
-        wizard_data['encrypt'] = doencrypt.checked
+        wizard_data['encrypt'] = password1.text != ''
     }
 
     GridLayout {
@@ -19,11 +20,6 @@ WizardComponent {
         TextField {
             id: password2
             echoMode: TextInput.Password
-        }
-        CheckBox {
-            id: doencrypt
-            enabled: password1.text !== ''
-            text: qsTr('Encrypt wallet')
         }
     }
 }

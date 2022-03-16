@@ -107,7 +107,7 @@ class QEDaemon(QObject):
         try:
             storage = WalletStorage(self._path)
             if not storage.file_exists():
-                self.walletOpenError.emit(qsTr('File not found'))
+                self.walletOpenError.emit('File not found')
                 return
         except StorageReadWriteError as e:
             self.walletOpenError.emit('Storage read/write error')
