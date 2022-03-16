@@ -13,13 +13,13 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,vs,fs,json,csv,so
+source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib,
+source.exclude_dirs = bin, build, dist, contrib, env,
     electrum/tests,
     electrum/gui/qt,
     electrum/gui/kivy,
