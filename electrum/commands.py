@@ -61,8 +61,6 @@ from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import LNInvoice
-from .storage import WalletStorage
-from .wallet_db import WalletDB
 from . import submarine_swaps
 
 

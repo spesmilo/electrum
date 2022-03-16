@@ -45,7 +45,6 @@ from abc import ABC, abstractmethod
 import itertools
 import threading
 import enum
-import asyncio
 
 from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
