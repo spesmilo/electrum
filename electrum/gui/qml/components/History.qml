@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
+import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
@@ -16,18 +17,6 @@ Pane {
 
         model: Daemon.currentWallet.historyModel
 
-        header: Item {
-            id: header
-            width: ListView.view.width
-            height: balance.height
-
-            BalanceSummary {
-                id: balance
-                width: parent.width
-            }
-
-        }
-
         delegate: Item {
             id: delegate
             width: ListView.view.width
@@ -40,22 +29,10 @@ Pane {
 
             GridLayout {
                 id: txinfo
-                columns: 4
+                columns: 3
 
                 x: 6
                 width: delegate.width - 12
-
-                Item {
-                    id: indicator
-                    Layout.fillHeight: true
-                    Layout.rowSpan: 2
-                    Rectangle {
-                        width: 3
-                        color: model.incoming ? 'green' : 'red'
-                        y: 2
-                        height: parent.height - 4
-                    }
-                }
 
                 Image {
                     readonly property variant tx_icons : [
@@ -68,38 +45,32 @@ Pane {
                         "../../../gui/icons/confirmed.png"
                     ]
 
-                    sourceSize.width: 48
-                    sourceSize.height: 48
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
                     Layout.alignment: Qt.AlignVCenter
+                    Layout.rowSpan: 2
                     source: tx_icons[Math.min(6,model.confirmations)]
                 }
 
-                Column {
+                Label {
+                    font.pixelSize: 18
                     Layout.fillWidth: true
-
-                    Label {
-                        font.pointSize: 12
-                        text: model.label !== '' ? model.label : '<no label>'
-                        color: model.label !== '' ? 'black' : 'gray'
-                        font.bold: model.label !== '' ? true : false
-                    }
-                    Label {
-                        font.pointSize: 7
-                        text: model.date
-                    }
+                    text: model.label !== '' ? model.label : '<no label>'
+                    color: model.label !== '' ? Material.accentColor : 'gray'
                 }
-
-                Column {
-                    id: valuefee
-                    Label {
-                        font.pointSize: 12
-                        text: model.bc_value
-                        font.bold: true
-                    }
-                    Label {
-                        font.pointSize: 6
-                        text: 'fee: ' + (model.fee !== undefined ? model.fee : '0')
-                    }
+                Label {
+                    font.pixelSize: 15
+                    text: model.bc_value
+                    font.bold: true
+                    color: model.incoming ? "#ff80ff80" : "#ffff8080"
+                }
+                Label {
+                    font.pixelSize: 12
+                    text: model.date
+                }
+                Label {
+                    font.pixelSize: 10
+                    text: 'fee: ' + (model.fee !== undefined ? model.fee : '0')
                 }
 
                 GridLayout {
@@ -110,24 +81,24 @@ Pane {
 
                     Label { text: 'txid' }
                     Label {
-                        font.pointSize: 6
+                        font.pixelSize: 10
                         text: model.txid
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
                     }
                     Label { text: 'height' }
                     Label {
-                        font.pointSize: 7
+                        font.pixelSize: 10
                         text: model.height
                     }
                     Label { text: 'confirmations' }
                     Label {
-                        font.pointSize: 7
+                        font.pixelSize: 10
                         text: model.confirmations
                     }
                     Label { text: 'address' }
                     Label {
-                        font.pointSize: 7
+                        font.pixelSize: 10
                         elide: Text.ElideMiddle
                         Layout.fillWidth: true
                         text: {
