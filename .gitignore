@@ -16,7 +16,7 @@ packages
 *.bash*
 *.pip/
 env/
-.buildozer/
+.buildozer
 .buildozer_kivy/
 .buildozer_qml/
 bin/
