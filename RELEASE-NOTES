@@ -1,4 +1,4 @@
-# Release 4.2.0 - (March 15, 2022)
+# Release 4.2.0 - (March 16, 2022)
  * The minimum python version was increased to 3.8 (#7661)
  * Lightning:
    - redesigned MPP splitting algorithm (#7202)
