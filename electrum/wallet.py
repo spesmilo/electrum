@@ -795,11 +795,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         self.save_db()
 
     def clear_invoices(self):
-        self.invoices = {}
+        self.invoices.clear()
         self.save_db()
 
     def clear_requests(self):
-        self.receive_requests = {}
+        self.receive_requests.clear()
         self.save_db()
 
     def get_invoices(self):
