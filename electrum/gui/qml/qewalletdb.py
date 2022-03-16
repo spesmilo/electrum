@@ -5,6 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import Logger, get_logger
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
+from electrum.bip32 import normalize_bip32_derivation
 from electrum.util import InvalidPassword
 from electrum import keystore
 
@@ -28,8 +29,6 @@ class QEWalletDB(QObject):
     passwordChanged = pyqtSignal()
     invalidPasswordChanged = pyqtSignal()
     requiresSplitChanged = pyqtSignal()
-    requiresUpgradeChanged = pyqtSignal()
-    upgradingChanged = pyqtSignal()
     splitFinished = pyqtSignal()
     readyChanged = pyqtSignal()
     createError = pyqtSignal([str], arguments=["error"])
@@ -41,8 +40,6 @@ class QEWalletDB(QObject):
         self._needsHWDevice = False
         self._password = ''
         self._requiresSplit = False
-        self._requiresUpgrade = False
-        self._upgrading = False
         self._invalidPassword = False
 
         self._storage = None
@@ -115,14 +112,6 @@ class QEWalletDB(QObject):
     def requiresSplit(self):
         return self._requiresSplit
 
-    @pyqtProperty(bool, notify=requiresUpgradeChanged)
-    def requiresUpgrade(self):
-        return self._requiresUpgrade
-
-    @pyqtProperty(bool, notify=upgradingChanged)
-    def upgrading(self):
-        return self._upgrading
-
     @pyqtProperty(bool, notify=invalidPasswordChanged)
     def invalidPassword(self):
         return self._invalidPassword
@@ -141,23 +130,6 @@ class QEWalletDB(QObject):
         self._db.split_accounts(self._path)
 
         self.splitFinished.emit()
-
-    @pyqtSlot()
-    def doUpgrade(self):
-        self._logger.warning('doUpgrade')
-        if not self._requiresUpgrade:
-            return
-
-        self._logger.warning('upgrading')
-
-        self._upgrading = True
-        self.upgradingChanged.emit()
-
-        self._db.upgrade()
-        self._db.write(self._storage)
-
-        self._upgrading = False
-        self.upgradingChanged.emit()
 
     def load_storage(self):
         self._storage = WalletStorage(self._path)
@@ -188,14 +160,14 @@ class QEWalletDB(QObject):
             self._requiresSplit = True
             self.requiresSplitChanged.emit()
             return
-        if self._db.requires_upgrade():
-            self._logger.warning('requires upgrade')
-            self._requiresUpgrade = True
-            self.requiresUpgradeChanged.emit()
-            return
         if self._db.get_action():
             self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
             return
+
+        if self._db.requires_upgrade():
+            self._logger.warning('wallet requires upgrade, upgrading')
+            self._db.upgrade()
+            self._db.write(self._storage)
 
         self._ready = True
         self.readyChanged.emit()
@@ -212,7 +184,15 @@ class QEWalletDB(QObject):
                 raise Exception('file already exists at path')
             storage = WalletStorage(path)
 
-            k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
+            if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
+                self._logger.debug('creating keystore from electrum seed')
+                k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
+            elif data['seed_type'] == 'bip39':
+                self._logger.debug('creating keystore from bip39 seed')
+                root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
+                derivation = normalize_bip32_derivation(data['derivation_path'])
+                script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
 
             if data['encrypt']:
                 storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)

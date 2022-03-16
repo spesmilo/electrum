@@ -4,6 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.keystore import bip39_is_checksum_valid
+from electrum.bip32 import is_bip32_derivation
 from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum import mnemonic
 
@@ -107,3 +108,6 @@ class QEBitcoin(QObject):
 
         self._logger.debug('seed verified: ' + str(seed_valid))
 
+    @pyqtSlot(str, result=bool)
+    def verify_derivation_path(self, path):
+        return is_bip32_derivation(path)

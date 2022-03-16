@@ -10,24 +10,36 @@ WizardComponent {
     valid: false
 
     onAccept: {
+        wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
+        wizard_data['derivation_path'] = derivationpathtext.text
     }
-
-    function setDerivationPath() {
-        var addrtype = {
+    function getScriptTypePurposeDict() {
+        return {
             'p2pkh': 44,
             'p2wpkh-p2sh': 49,
             'p2wpkh': 84
         }
-        var nChain = Network.isTestNet ? 1 : 0
+    }
+
+    function validate() {
+        valid = false
+        if (!scripttypegroup.checkedButton.scripttype in getScriptTypePurposeDict())
+            return
+        if (!bitcoin.verify_derivation_path(derivationpathtext.text))
+            return
+        valid = true
+    }
+
+    function setDerivationPath() {
+        var p = getScriptTypePurposeDict()
         derivationpathtext.text =
-            "m/" + addrtype[addresstypegroup.checkedButton.addresstype] + "'/"
+            "m/" + p[scripttypegroup.checkedButton.scripttype] + "'/"
             + (Network.isTestNet ? 1 : 0) + "'/0'"
     }
 
     ButtonGroup {
-        id: addresstypegroup
+        id: scripttypegroup
         onCheckedButtonChanged: {
-            console.log('button changed: ' + checkedButton.addresstype)
             setDerivationPath()
         }
     }
@@ -50,18 +62,18 @@ WizardComponent {
             }
             Label { text: qsTr('Choose the type of addresses in your wallet.') }
             RadioButton {
-                ButtonGroup.group: addresstypegroup
-                property string addresstype: 'p2pkh'
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2pkh'
                 text: qsTr('legacy (p2pkh)')
             }
             RadioButton {
-                ButtonGroup.group: addresstypegroup
-                property string addresstype: 'p2wpkh-p2sh'
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2wpkh-p2sh'
                 text: qsTr('wrapped segwit (p2wpkh-p2sh)')
             }
             RadioButton {
-                ButtonGroup.group: addresstypegroup
-                property string addresstype: 'p2wpkh'
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2wpkh'
                 checked: true
                 text: qsTr('native segwit (p2wpkh)')
             }
@@ -73,8 +85,14 @@ WizardComponent {
                 id: derivationpathtext
                 Layout.fillWidth: true
                 placeholderText: qsTr('Derivation path')
+                onTextChanged: validate()
             }
         }
     }
+
+    Bitcoin {
+        id: bitcoin
+    }
+
 }
 

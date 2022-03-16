@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
+import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
@@ -25,25 +26,25 @@ Pane {
                     columns: 4
 
                     Label { text: 'Wallet'; Layout.columnSpan: 2 }
-                    Label { text: Daemon.walletName; Layout.columnSpan: 2 }
+                    Label { text: Daemon.walletName; Layout.columnSpan: 2; color: Material.accentColor }
+
+                    Label { text: 'derivation path (BIP32)'; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
+                    Label { text: Daemon.currentWallet.derivationPath; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
 
                     Label { text: 'txinType' }
-                    Label { text: Daemon.currentWallet.txinType }
+                    Label { text: Daemon.currentWallet.txinType; color: Material.accentColor }
 
                     Label { text: 'is deterministic' }
-                    Label { text: Daemon.currentWallet.isDeterministic }
+                    Label { text: Daemon.currentWallet.isDeterministic; color: Material.accentColor }
 
                     Label { text: 'is watch only' }
-                    Label { text: Daemon.currentWallet.isWatchOnly }
+                    Label { text: Daemon.currentWallet.isWatchOnly; color: Material.accentColor }
 
                     Label { text: 'is Encrypted' }
-                    Label { text: Daemon.currentWallet.isEncrypted }
+                    Label { text: Daemon.currentWallet.isEncrypted; color: Material.accentColor }
 
                     Label { text: 'is Hardware' }
-                    Label { text: Daemon.currentWallet.isHardware }
-
-                    Label { text: 'derivation path (BIP32)'; visible: Daemon.currentWallet.isDeterministic }
-                    Label { text: Daemon.currentWallet.derivationPath; visible: Daemon.currentWallet.isDeterministic }
+                    Label { text: Daemon.currentWallet.isHardware; color: Material.accentColor }
                 }
             }
 //        }
@@ -75,16 +76,19 @@ Pane {
                 }
 
                 RowLayout {
-                    x: 10
                     spacing: 10
-                    width: parent.width - 20
+                    width: parent.width
 
                     Image {
-                        source: "../../kivy/theming/light/wallet.png"
+                        id: walleticon
+                        source: "../../icons/wallet.png"
+                        fillMode: Image.PreserveAspectFit
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
                     }
 
                     Label {
-                        font.pointSize: 11
+                        font.pixelSize: 18
                         text: model.name
                         Layout.fillWidth: true
                     }

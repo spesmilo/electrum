@@ -95,10 +95,6 @@ Pane {
             Daemon.availableWallets.reload()
             app.stack.pop()
         }
-        onRequiresUpgradeChanged: {
-            if (requiresUpgrade)
-                wallet_db.doUpgrade()
-        }
         onReadyChanged: {
             if (ready) {
                 Daemon.load_wallet(Daemon.path, password.text)

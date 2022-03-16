@@ -175,7 +175,10 @@ class QEWallet(QObject):
 
     @pyqtProperty('QString', notify=dataChanged)
     def derivationPath(self):
-        return self.wallet.get_address_path_str(self.wallet.dummy_address())
+        keystores = self.wallet.get_keystores()
+        if len(keystores) > 1:
+            self._logger.debug('multiple keystores not supported yet')
+        return keystores[0].get_derivation_prefix()
 
     balanceChanged = pyqtSignal()
 
