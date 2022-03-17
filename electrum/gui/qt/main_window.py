@@ -1880,6 +1880,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 password=password)
         def on_failure(exc_info):
             type_, e, traceback = exc_info
+            #self.logger.error("Could not open channel", exc_info=exc_info)
             self.show_error(_('Could not open channel: {}').format(repr(e)))
         WaitingDialog(self, _('Opening channel...'), task, self.on_open_channel_success, on_failure)
 
