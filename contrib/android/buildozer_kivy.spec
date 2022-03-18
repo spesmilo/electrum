@@ -28,7 +28,8 @@ source.exclude_dirs = bin, build, dist, contrib,
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
     # not reproducible:
-    packages/aiohttp-*.dist-info/*
+    packages/aiohttp-*.dist-info/*,
+    packages/frozenlist-*.dist-info/*
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
@@ -75,7 +76,7 @@ android.permissions = INTERNET, CAMERA, WRITE_EXTERNAL_STORAGE
 
 # (int) Android API to use  (targetSdkVersion AND compileSdkVersion)
 # note: when changing, Dockerfile also needs to be changed to install corresponding build tools
-android.api = 29
+android.api = 30
 
 # (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 21

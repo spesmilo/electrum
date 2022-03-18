@@ -324,22 +324,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
                                parent=None,
                                title=_('Error'),
                                text=_('Cannot load wallet') + ' (1):\n' + repr(e))
-            # if app is starting, still let wizard to appear
+            # if app is starting, still let wizard appear
             if not app_is_starting:
                 return
-        if not wallet:
-            try:
-                wallet = self._start_wizard_to_select_or_create_wallet(path)
-            except (WalletFileException, BitcoinException) as e:
-                self.logger.exception('')
-                custom_message_box(icon=QMessageBox.Warning,
-                                   parent=None,
-                                   title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (2):\n' + repr(e))
-        if not wallet:
-            return
-        # create or raise window
         try:
+            if not wallet:
+                wallet = self._start_wizard_to_select_or_create_wallet(path)
+            if not wallet:
+                return
+            # create or raise window
             for window in self.windows:
                 if window.wallet.storage.path == wallet.storage.path:
                     break
@@ -350,7 +343,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
                                title=_('Error'),
-                               text=_('Cannot create window for wallet') + ':\n' + repr(e))
+                               text=_('Cannot load wallet') + '(2) :\n' + repr(e))
             if app_is_starting:
                 wallet_dir = os.path.dirname(path)
                 path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
