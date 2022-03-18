@@ -63,11 +63,9 @@ Item {
             currentIndex: tabbar.currentIndex
 
             Item {
-
-                ColumnLayout {
-                    width: parent.width
-                    y: 20
-                    spacing: 20
+                Receive {
+                    id: receive
+                    anchors.fill: parent
                 }
             }
 

@@ -10,7 +10,7 @@ from .qeconfig import QEConfig
 from .qedaemon import QEDaemon, QEWalletListModel
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
-from .qeqr import QEQR
+from .qeqr import QEQR, QEQRImageProvider
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 
@@ -35,6 +35,9 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
+
+        self.qr_ip = QEQRImageProvider()
+        self.engine.addImageProvider('qrgen', self.qr_ip)
 
         self.context = self.engine.rootContext()
         self._singletons['config'] = QEConfig(config)
@@ -63,7 +66,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
     def message_handler(self, line, funct, file):
         # filter out common harmless messages
-        if re.search('file:///.*TypeError:\ Cannot\ read\ property.*null$', file):
+        if re.search('file:///.*TypeError: Cannot read property.*null$', file):
             return
         self.logger.warning(file)
 

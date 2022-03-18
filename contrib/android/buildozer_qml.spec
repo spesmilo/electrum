@@ -51,7 +51,8 @@ requirements =
     libsecp256k1,
     cryptography,
     pyqt5sip,
-    pyqt5
+    pyqt5,
+    pillow
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
