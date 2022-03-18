@@ -62,7 +62,7 @@ DOCKER_RUN_FLAGS=""
 
 if [[ "$3" == "release" ]] ; then
     info "'release' mode selected. mounting ~/.keystore inside container."
-    DOCKER_RUN_FLAGS="-v $HOME/.keystore:/home/user/.keystore"
+    DOCKER_RUN_FLAGS="-v /root/.keystore:/root/.keystore"
 fi
 
 info "building binary..."
