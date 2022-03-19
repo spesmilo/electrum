@@ -5,13 +5,20 @@ from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.properties import NumericProperty, StringProperty
 
 from electrum.gui.kivy.i18n import _
 from electrum.invoices import pr_tooltips, pr_color
-from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
+
+
+
+MODE_ADDRESS = 0
+MODE_URI = 1
+MODE_LIGHTNING = 2
 
 
 Builder.load_string('''
@@ -22,8 +29,9 @@ Builder.load_string('''
     amount_str: ''
     title: ''
     description:''
-    is_lightning: False
+    mode:0
     key:''
+    data:''
     warning: ''
     status_str: ''
     status_color: 1,1,1,1
@@ -44,14 +52,36 @@ Builder.load_string('''
                     touch = args[1]
                     if self.collide_point(*touch.pos): self.shaded = not self.shaded
             TopLabel:
+                text: root.data[0:70] + ('...' if len(root.data)>70 else '')
+            BoxLayout:
+                size_hint: 1, None
+                height: '48dp'
+                ToggleButton:
+                    id: b0
+                    group:'g'
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: _('Address')
+                    on_release: root.mode = 0
+                ToggleButton:
+                    id: b1
+                    group:'g'
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: _('URI')
+                    on_release: root.mode = 1
+                    state: 'down'
+                ToggleButton:
+                    id: b2
+                    group:'g'
+                    size_hint: 1, None
+                    height: '48dp'
+                    text: _('Lightning')
+                    on_release: root.mode = 2
+            TopLabel:
                 text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
                 text: _('Amount') + ': ' + root.amount_str
-            TopLabel:
-                text: (_('Address') if not root.is_lightning else _('Payment hash')) + ': '
-            RefLabel:
-                data: root.key
-                name: (_('Address') if not root.is_lightning else _('Payment hash'))
             TopLabel:
                 text: _('Status') + ': ' + root.status_str
                 color: root.status_color
@@ -87,6 +117,9 @@ Builder.load_string('''
 
 class RequestDialog(Factory.Popup):
 
+    mode = NumericProperty(0)
+    data = StringProperty('')
+
     def __init__(self, title, key):
         self.status = PR_UNKNOWN
         Factory.Popup.__init__(self)
@@ -94,33 +127,50 @@ class RequestDialog(Factory.Popup):
         self.title = title
         self.key = key
         r = self.app.wallet.get_request(key)
-        self.is_lightning = r.is_lightning()
-        self.data = r.invoice if self.is_lightning else self.app.wallet.get_request_URI(r)
         self.amount_sat = r.get_amount_sat()
         self.amount_str = self.app.format_amount_and_units(self.amount_sat)
         self.description = r.message
+        self.mode = 1
+        self.on_mode(0, 0)
+        self.ids.b0.pressed = True
         self.update_status()
 
-    def on_open(self):
-        data = self.data
-        if self.is_lightning:
+    def on_mode(self, instance, x):
+        r = self.app.wallet.get_request(self.key)
+        if self.mode == MODE_ADDRESS:
+            self.data = r.get_address() or ''
+        elif self.mode == MODE_URI:
+            self.data = self.app.wallet.get_request_URI(r) or ''
+        else:
+            self.data = r.lightning_invoice or ''
+        qr_data = self.data
+        if self.mode == MODE_LIGHTNING:
             # encode lightning invoices as uppercase so QR encoding can use
             # alphanumeric mode; resulting in smaller QR codes
-            data = data.upper()
-        self.ids.qr.set_data(data)
+            qr_data = qr_data.upper()
+        if qr_data:
+            self.ids.qr.set_data(qr_data)
+            self.ids.qr.opacity = 1
+        else:
+            self.ids.qr.opacity = 0
+        self.update_status()
 
     def update_status(self):
         req = self.app.wallet.get_request(self.key)
         self.status = self.app.wallet.get_request_status(self.key)
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
-        if self.status == PR_UNPAID and self.is_lightning and self.app.wallet.lnworker:
+        warning = ''
+        if self.status == PR_UNPAID and self.mode == MODE_LIGHTNING and self.app.wallet.lnworker:
             if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
-                self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
-        if self.status == PR_UNPAID and not self.is_lightning:
+                warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
+        if not self.mode == MODE_LIGHTNING:
             address = req.get_address()
-            if self.app.wallet.is_used(address):
-                self.warning = _('Warning') + ': ' + _('This address is being reused')
+            if not address:
+                warning = _('Warning') + ': ' + _('This request cannot be paid on-chain')
+            elif self.app.wallet.is_used(address):
+                warning = _('Warning') + ': ' + _('This address is being reused')
+        self.warning = warning
 
     def on_dismiss(self):
         self.app.request_popup = None

@@ -67,7 +67,7 @@
     amount: ''
     message: ''
     status: ''
-    is_lightning: False
+    expiration_text: _('Expiry')
 
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -78,23 +78,6 @@
             id: blue_bottom
             size_hint: 1, None
             height: self.minimum_height
-            BoxLayout:
-                size_hint: 1, None
-                height: blue_bottom.item_height
-                spacing: '5dp'
-                Image:
-                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/lightning' if root.is_lightning else f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/globe'
-                    size_hint: None, None
-                    size: '22dp', '22dp'
-                    pos_hint: {'center_y': .5}
-                BlueButton:
-                    id: address_label
-                    text: _('Lightning') if root.is_lightning else (s.address if s.address else _('Bitcoin Address'))
-                    shorten: True
-                    on_release: root.is_lightning = not root.is_lightning if app.wallet.has_lightning() else False
-            CardSeparator:
-                opacity: message_selection.opacity
-                color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
                 height: blue_bottom.item_height
@@ -128,24 +111,37 @@
                     id: description
                     text: s.message if s.message else _('Description')
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/clock1'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: description
+                    text: s.expiration_text
+                    on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
-            IconButton:
-                icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/clock1'
-                size_hint: 0.5, None
-                height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.expiration_dialog(s))
             Button:
                 text: _('Clear')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: Clock.schedule_once(lambda dt: s.clear())
             Button:
-                text: _('Request')
+                text: _('New Request')
                 size_hint: 1, None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: s.new_request(root.is_lightning))
+                on_release: Clock.schedule_once(lambda dt: s.new_request())
         Widget:
             size_hint: 1, 0.1
         RequestRecycleView:
