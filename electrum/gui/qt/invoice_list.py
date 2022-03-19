@@ -48,6 +48,7 @@ ROLE_SORT_ORDER = Qt.UserRole + 2
 
 
 class InvoiceList(MyTreeView):
+    key_role = ROLE_REQUEST_ID
 
     class Columns(IntEnum):
         DATE = 0
@@ -74,14 +75,11 @@ class InvoiceList(MyTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.update()
 
-    def update_item(self, key, invoice: Invoice):
-        model = self.std_model
-        for row in range(0, model.rowCount()):
-            item = model.item(row, 0)
-            if item.data(ROLE_REQUEST_ID) == key:
-                break
-        else:
+    def refresh_row(self, key, row):
+        invoice = self.parent.wallet.invoices.get(key)
+        if invoice is None:
             return
+        model = self.std_model
         status_item = model.item(row, self.Columns.STATUS)
         status = self.parent.wallet.get_invoice_status(invoice)
         status_str = invoice.get_status_str(status)
@@ -125,11 +123,12 @@ class InvoiceList(MyTreeView):
         self.proxy.setDynamicSortFilter(True)
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
-        # hide list if empty
-        if self.parent.isVisible():
-            b = self.std_model.rowCount() > 0
-            self.setVisible(b)
-            self.parent.invoices_label.setVisible(b)
+        self.hide_if_empty()
+
+    def hide_if_empty(self):
+        b = self.std_model.rowCount() > 0
+        self.setVisible(b)
+        self.parent.invoices_label.setVisible(b)
 
     def create_menu(self, position):
         wallet = self.parent.wallet

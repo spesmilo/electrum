@@ -875,7 +875,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
     def timer_actions(self):
-        self.request_list.refresh_status()
+        self.request_list.refresh_all()
+        self.invoice_list.refresh_all()
         # Note this runs in the GUI thread
         if self.need_update.is_set():
             self.need_update.clear()
@@ -1028,11 +1029,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if wallet != self.wallet:
             return
         self.history_model.refresh('update_tabs')
-        self.request_list.update()
+        self.request_list.refresh_all()
+        self.invoice_list.refresh_all()
         self.address_list.update()
         self.utxo_list.update()
         self.contact_list.update()
-        self.invoice_list.update()
         self.channels_list.update_rows.emit(wallet)
         self.update_completions()
 
@@ -1211,7 +1212,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def delete_requests(self, keys):
         for key in keys:
             self.wallet.delete_request(key)
-        self.request_list.update()
+            self.request_list.delete_item(key)
         self.clear_receive_tab()
 
     def delete_lightning_payreq(self, payreq_key):
@@ -1596,7 +1597,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.notify(_('Payment received') + '\n' + key)
             self.need_update.set()
         else:
-            self.request_list.update_item(key, req)
+            self.request_list.refresh_item(key)
 
     def on_invoice_status(self, wallet, key):
         if wallet != self.wallet:
@@ -1606,9 +1607,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         status = self.wallet.get_invoice_status(invoice)
         if status == PR_PAID:
-            self.invoice_list.update()
+            self.invoice_list.delete_item(key)
         else:
-            self.invoice_list.update_item(key, invoice)
+            self.invoice_list.refresh_item(key)
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)
@@ -1944,7 +1945,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def delete_invoices(self, keys):
         for key in keys:
             self.wallet.delete_invoice(key)
-        self.invoice_list.update()
+            self.invoice_list.delete_item(key)
 
     def payment_request_ok(self):
         pr = self.payment_request

@@ -783,6 +783,26 @@ class MyTreeView(QTreeView):
         self._pending_update = defer
         return defer
 
+    def find_row_by_key(self, key):
+        for row in range(0, self.std_model.rowCount()):
+            item = self.std_model.item(row, 0)
+            if item.data(self.key_role) == key:
+                return row
+
+    def refresh_all(self):
+        for row in range(0, self.std_model.rowCount()):
+            item = self.std_model.item(row, 0)
+            key = item.data(self.key_role)
+            self.refresh_row(key, row)
+
+    def refresh_item(self, key):
+        row = self.find_row_by_key(key)
+        self.refresh_row(key, row)
+
+    def delete_item(self, key):
+        row = self.find_row_by_key(key)
+        self.std_model.takeRow(row)
+        self.hide_if_empty()
 
 class MySortModel(QSortFilterProxyModel):
     def __init__(self, parent, *, sort_role):
