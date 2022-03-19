@@ -591,10 +591,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return any([chan.funding_outpoint.txid == txid
                     for chan in self.lnworker.channels.values()])
 
+    def is_swap_tx(self, tx: Transaction) -> bool:
+        return bool(self.lnworker.swap_manager.get_swap_by_tx(tx)) if self.lnworker else False
+
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
+        is_swap = self.is_swap_tx(tx)
         fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
@@ -629,7 +633,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
                     can_dscancel = (is_any_input_ismine and not tx.is_final()
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                     try:
@@ -640,7 +644,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
-                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -1961,6 +1965,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for k in self.get_keystores():
                 if k.can_sign_txin(txin):
                     return True
+        if self.is_swap_tx(tx):
+            return True
         return False
 
     def get_input_tx(self, tx_hash: str, *, ignore_network_issues=False) -> Optional[Transaction]:
@@ -2012,6 +2018,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.is_watching_only():
             return
         if not isinstance(tx, PartialTransaction):
+            return
+        # note: swap signing does not require the password
+        swap = self.lnworker.swap_manager.get_swap_by_tx(tx) if self.lnworker else None
+        if swap:
+            self.lnworker.swap_manager.sign_tx(tx, swap)
             return
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
