@@ -253,6 +253,8 @@ class TxInput:
         return d
 
     def witness_elements(self)-> Sequence[bytes]:
+        if not self.witness:
+            return []
         vds = BCDataStream()
         vds.write(self.witness)
         n = vds.read_compact_size()
