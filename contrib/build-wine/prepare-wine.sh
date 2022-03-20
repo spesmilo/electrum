@@ -5,9 +5,9 @@ NSIS_FILENAME=nsis-3.08-setup.exe
 NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.08/$NSIS_FILENAME
 NSIS_SHA256=bbc76be36ecb2fc00d493c91befdaf71654226ad8a4fc4dc338458916bf224d0
 
-PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
-# ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
+PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
+PYINSTALLER_COMMIT="63438b1842eacd7f081fc53f1f5212bc20b7d02e"
+# ^ latest commit from "v4" branch, somewhat after "4.10" tag
 
 PYTHON_VERSION=3.9.11
 
@@ -99,12 +99,7 @@ info "Building PyInstaller."
     pushd bootloader
     # cross-compile to Windows using host python
     python3 ./waf all CC="${GCC_TRIPLET_HOST}-gcc" \
-                      CFLAGS="-static \
-                              -Wno-dangling-else \
-                              -Wno-error=unused-value \
-                              -Wno-error=implicit-function-declaration \
-                              -Wno-error=int-to-pointer-cast \
-                              -Wno-error=stringop-truncation"
+                      CFLAGS="-static"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
