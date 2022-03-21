@@ -29,11 +29,7 @@ Dialog {
             pages.takeItem(pages.currentIndex+1).destroy()
         }
 
-        var page = comp.createObject(pages, {
-            'visible': Qt.binding(function() {
-                return pages.currentItem === this
-            })
-        })
+        var page = comp.createObject(pages)
         page.validChanged.connect(function() {
             pages.pagevalid = page.valid
         } )
