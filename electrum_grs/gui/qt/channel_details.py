@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Sequence
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import QLabel, QLineEdit
+from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout
 
 from electrum_grs import util
 from electrum_grs.i18n import _
@@ -14,7 +14,7 @@ from electrum_grs.lnaddr import LnAddr, lndecode
 from electrum_grs.bitcoin import COIN
 from electrum_grs.wallet import Abstract_Wallet
 
-from .util import Buttons, CloseButton, ButtonsLineEdit, MessageBoxMixin
+from .util import Buttons, CloseButton, ButtonsLineEdit, MessageBoxMixin, WWLabel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -122,6 +122,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         self.can_receive_label.setText(self.format_msat(self.chan.available_to_spend(REMOTE)))
         self.sent_label.setText(self.format_msat(self.chan.total_msat(Direction.SENT)))
         self.received_label.setText(self.format_msat(self.chan.total_msat(Direction.RECEIVED)))
+        self.local_balance_label.setText(self.format_msat(self.chan.balance(LOCAL)))
+        self.remote_balance_label.setText(self.format_msat(self.chan.balance(REMOTE)))
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
@@ -139,6 +141,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         self.wallet = window.wallet
         chan = self.chan = window.wallet.lnworker.channels[chan_id]
         self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
+        self.format_sat = lambda sat: window.format_amount_and_units(sat)
 
         # connect signals with slots
         self.htlc_fulfilled.connect(self.on_htlc_fulfilled)
@@ -167,34 +170,59 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         vbox.addWidget(QLabel(_('Funding Outpoint:')))
         vbox.addWidget(LinkedLabel(funding_label_text, self.show_tx))
 
-        form_layout = QtWidgets.QFormLayout(None)
-        # add form content
-        form_layout.addRow(_('Channel ID:'), SelectableLabel(f"{chan.channel_id.hex()} (Short: {chan.short_channel_id})"))
-        form_layout.addRow(_('State:'), SelectableLabel(chan.get_state_for_GUI()))
+        hbox_stats = QHBoxLayout()
+
+        # channel stats left column
+        form_layout_left = QtWidgets.QFormLayout(None)
+        form_layout_left.addRow(_('Channel ID:'), WWLabel(f"{chan.channel_id.hex()} (Short: {chan.short_channel_id})"))
+        form_layout_left.addRow(_('State:'), SelectableLabel(chan.get_state_for_GUI()))
         self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
-        form_layout.addRow(_('Initiator:'), SelectableLabel(self.initiator))
-        self.capacity = self.window.format_amount_and_units(chan.get_capacity())
-        form_layout.addRow(_('Capacity:'), SelectableLabel(self.capacity))
+        form_layout_left.addRow(_('Initiator:'), SelectableLabel(self.initiator))
+        self.capacity = self.format_sat(chan.get_capacity())
+        form_layout_left.addRow(_('Capacity:'), SelectableLabel(self.capacity))
         self.can_send_label = SelectableLabel()
         self.can_receive_label = SelectableLabel()
-        form_layout.addRow(_('Can send:'), self.can_send_label)
-        form_layout.addRow(_('Can receive:'), self.can_receive_label)
-        self.received_label = SelectableLabel()
-        form_layout.addRow(_('Received:'), self.received_label)
-        self.sent_label = SelectableLabel()
-        form_layout.addRow(_('Sent:'), self.sent_label)
+        form_layout_left.addRow(_('Can send:'), self.can_send_label)
+        form_layout_left.addRow(_('Can receive:'), self.can_receive_label)
         #self.htlc_minimum_msat = SelectableLabel(str(chan.config[REMOTE].htlc_minimum_msat))
-        #form_layout.addRow(_('Minimum HTLC value accepted by peer (mSAT):'), self.htlc_minimum_msat)
+        #form_layout_left.addRow(_('Minimum HTLC value accepted by peer (mSAT):'), self.htlc_minimum_msat)
         #self.max_htlcs = SelectableLabel(str(chan.config[REMOTE].max_accepted_htlcs))
-        #form_layout.addRow(_('Maximum number of concurrent HTLCs accepted by peer:'), self.max_htlcs)
-        #self.max_htlc_value = SelectableLabel(self.window.format_amount_and_units(chan.config[REMOTE].max_htlc_value_in_flight_msat / 1000))
-        #form_layout.addRow(_('Maximum value of in-flight HTLCs accepted by peer:'), self.max_htlc_value)
-        self.dust_limit = SelectableLabel(self.window.format_amount_and_units(chan.config[REMOTE].dust_limit_sat))
-        form_layout.addRow(_('Remote dust limit:'), self.dust_limit)
-        self.remote_reserve = self.window.format_amount_and_units(chan.config[REMOTE].reserve_sat)
-        form_layout.addRow(_('Remote reserve:'), SelectableLabel(self.remote_reserve))
-        form_layout.addRow(_('Channel type:'), SelectableLabel(chan.storage['channel_type'].name_minimal))
-        vbox.addLayout(form_layout)
+        #form_layout_left.addRow(_('Maximum number of concurrent HTLCs accepted by peer:'), self.max_htlcs)
+        #self.max_htlc_value = SelectableLabel(self.format_sat(chan.config[REMOTE].max_htlc_value_in_flight_msat / 1000))
+        #form_layout_left.addRow(_('Maximum value of in-flight HTLCs accepted by peer:'), self.max_htlc_value)
+        dust_limit_label = SelectableLabel("{}, {}".format(
+            self.format_sat(chan.config[REMOTE].dust_limit_sat),
+            self.format_sat(chan.config[LOCAL].dust_limit_sat),
+        ))
+        form_layout_left.addRow(_('Dust limit:'), dust_limit_label)
+        chan_reserve_label = SelectableLabel("{}, {}".format(
+            self.format_sat(chan.config[REMOTE].reserve_sat),
+            self.format_sat(chan.config[LOCAL].reserve_sat),
+        ))
+        form_layout_left.addRow(_('Channel reserve:'), chan_reserve_label)
+        form_layout_left.addRow(_('Channel type:'), SelectableLabel(chan.storage['channel_type'].name_minimal))
+        hbox_stats.addLayout(form_layout_left, 50)
+
+        # vertical line separator
+        line_separator = QtWidgets.QFrame()
+        line_separator.setFrameShape(QtWidgets.QFrame.VLine)
+        line_separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+
+        # channel stats right column
+        form_layout_right = QtWidgets.QFormLayout(None)
+        self.local_balance_label = SelectableLabel()
+        self.remote_balance_label = SelectableLabel()
+        form_layout_right.addRow(_('Local balance:'), self.local_balance_label)
+        form_layout_right.addRow(_('Remote balance:'), self.remote_balance_label)
+        self.received_label = SelectableLabel()
+        self.sent_label = SelectableLabel()
+        form_layout_right.addRow(_('Total received so far:'), self.received_label)
+        form_layout_right.addRow(_('Total sent so far:'), self.sent_label)
+        hbox_stats.addLayout(form_layout_right, 50)
+
+        vbox.addLayout(hbox_stats)
 
         # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)
         vbox.addWidget(QLabel(_('Payments (HTLCs):')))

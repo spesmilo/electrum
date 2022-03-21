@@ -1,4 +1,19 @@
 #!/usr/bin/python3
+#
+# This script is part of the workflow for BUILDERs to reproduce and sign the
+# release binaries. (for builders who do not have sftp access to "electrum-downloads-airlock")
+#
+# - BUILDER builds all binaries and checks they match the official releases
+#   (using release.sh, and perhaps some manual steps)
+# - BUILDER creates a PR against https://github.com/spesmilo/electrum-signatures/
+#   to add their sigs for a given release, which then gets merged
+# - SFTPUSER runs `$ electrum/contrib/add_cosigner $BUILDER`
+# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/upload`
+# - SFTPUSER runs `$ electrum/contrib/make_download $WWW_DIR`
+# -     $ (cd $WWW_DIR; git commit -a -m "add_cosigner"; git push)
+# - SFTPUSER runs `$ electrum-web/publish.sh $SFTPUSER`
+# - (for the website to be updated, both ThomasV and SomberNight needs to run publish.sh)
+
 import re
 import os
 import sys

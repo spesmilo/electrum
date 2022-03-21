@@ -12,7 +12,9 @@ from electrum_grs import SimpleConfig
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum_grs.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet, BumpFeeStrategy)
-from electrum_grs.util import bfh, bh2u, create_and_start_event_loop, NotEnoughFunds
+from electrum_grs.util import (
+    bfh, bh2u, create_and_start_event_loop, NotEnoughFunds, UnrelatedTransactionException,
+    UserFacingException)
 from electrum_grs.transaction import (TxOutput, Transaction, PartialTransaction, PartialTxOutput,
                                   PartialTxInput, tx_from_any, TxOutpoint)
 from electrum_grs.mnemonic import seed_type
@@ -3318,3 +3320,50 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         txC = Transaction(self.transactions["2c9aa33d9c8ec649f9bfb84af027a5414b760be5231fe9eca4a95b9eb3f8a017"])
         w.add_transaction(txC)
         self.assertEqual(999890, sum(w.get_balance()))
+
+
+class TestImportedWallet(TestCaseForTestnet):
+    transactions = {
+        # txn A funds addr1:
+        "0e350564ee7ed4ffce24a998b538f7f3ebbab6fcb4bb331f8bb6b9d86d86fcd8": "02000000000101470cfc737af6bf917ce35bf7224b1021ef87349cd7f150464e6a0e3ee0cf6f1a0400000000fdffffff0261de0c0000000000160014f6aa7ea83b54335553ece4de88b3e9af6fb4ff0b92b78b00000000001600141dfacc496a9c98227631e3df4796baf3ba8254120247304402201a1b70f27ffcaeecaebad147117e9f4f541e3c630112c395e8237b5f1404f9170220600c96b92a55f8ee99da3fcaf9ca5595468742107651c5cea5798b0e672c7a5b012103ccaf45a46ead9648fc60ba0476f3f820d73fbf75f7d9af626d0512a042c1fc9a41091e00",
+        # txn B funds addr2:
+        "314385a9f24457098de9fe5cb3893cc408b9f66085268457b82050c988c97908": "0200000000010165806607dd458280cb57bf64a16cf4be85d053145227b98c28932e953076b8e20000000000fdffffff01fa3e0f0000000000160014810480bbaf62145abf945ebe5f657c665a3a37320247304402206df590e0ebae186cd7078e2e9841ec8e2c4c1efff4ee3ac2029fe0a5f1a752c002204cd33bafe4145b66a28dff453d7cb440a7ec6ae53df786e0438bcd6aae50fc8e0121026269e54d06f7070c1f967eb2874ba60de550dfc327a945c98eb773672d9411fd7b181e00",
+        # txn C spends both UTXOs:
+        "54de13f7ee4853dc1a281c0e7132efb95330f7ceebc1dbce76fdf34c28028f14": "02000000000102d8fc866dd8b9b68b1f33bbb4fcb6baebf3f738b598a924ceffd47eee6405350e0000000000feffffff0879c988c95020b85784268560f6b908c43c89b35cfee98d095744f2a98543310000000000feffffff023cda0c000000000016001451c27c0521388d430ee91137a76d67a368e998c140420f0000000000220020210be57842d95c8cae3c9a2e0250407f9599c75c77eb435d5942fc5cf41505a40247304402201ec23b32a21c1efe186c6ffb0d0f0ed40f1819b4200a844f1a71463873a9e4240220613fca783787449d779cb3e2052682349cbf5f99316641e3eddc36cb510a4ac70121038e1724d08580eec8f7f7a52829a2f09473961df96010f55d913556dee69cc9a10247304402203441cd69d916fdd9fe1864713abad383972e51588fb161174d88471c907c803d022078ca2056407dca3b07f0b109d0f6f55aa5a15e2d385f58a928cac8a589afc026012103bf013054c5b2b4845a5f4b227bd6264dbbfe70936e2675b9ffe004226771e6c1e7692100",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.config = SimpleConfig({'electrum_path': self.electrum_path})
+
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    def test_importing_and_deleting_addresses(self, mock_save_db):
+        w = restore_wallet_from_text("tb1q7648a2pm2se425lvun0g3vlf4ahmflcthegz63",
+                                     path='if_this_exists_mocking_failed_648151893',
+                                     config=self.config)['wallet']  # type: Abstract_Wallet
+        self.assertEqual(1, len(w.get_addresses()))
+        w.add_transaction(Transaction(self.transactions["0e350564ee7ed4ffce24a998b538f7f3ebbab6fcb4bb331f8bb6b9d86d86fcd8"]))
+        w.add_transaction(Transaction(self.transactions["54de13f7ee4853dc1a281c0e7132efb95330f7ceebc1dbce76fdf34c28028f14"]))
+        self.assertEqual(0, sum(w.get_balance()))
+
+        with self.assertRaises(UnrelatedTransactionException):
+            w.add_transaction(Transaction(self.transactions["314385a9f24457098de9fe5cb3893cc408b9f66085268457b82050c988c97908"]))
+        w.import_address("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy")
+        self.assertEqual(2, len(w.get_addresses()))
+        self.assertEqual(2, len(w.db.transactions))
+        self.assertEqual(0, sum(w.get_balance()))
+
+        w.add_transaction(Transaction(self.transactions["314385a9f24457098de9fe5cb3893cc408b9f66085268457b82050c988c97908"]))
+        self.assertEqual(3, len(w.db.transactions))
+        self.assertEqual(0, sum(w.get_balance()))
+
+        w.delete_address("tb1q7648a2pm2se425lvun0g3vlf4ahmflcthegz63")
+        self.assertEqual(2, len(w.db.transactions))
+        self.assertEqual(
+            {"54de13f7ee4853dc1a281c0e7132efb95330f7ceebc1dbce76fdf34c28028f14", "314385a9f24457098de9fe5cb3893cc408b9f66085268457b82050c988c97908"},
+            set(w.db.transactions))
+        self.assertEqual(0, sum(w.get_balance()))
+
+        with self.assertRaises(UserFacingException) as ctx:
+            w.delete_address("tb1qsyzgpwa0vg2940u5t6l97etuvedr5dejpf9tdy")
+        self.assertTrue("cannot delete last remaining address" in ctx.exception.args[0])
