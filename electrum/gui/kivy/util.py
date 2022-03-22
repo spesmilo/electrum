@@ -26,7 +26,11 @@ def address_colors(wallet, addr):
 def get_default_language() -> str:
     if platform != 'android':
         return 'en_UK'
-    from jnius import autoclass
-    Locale = autoclass("java.util.Locale")
-    lang = str(Locale.getDefault().toString())
-    return lang if lang else 'en_UK'
+    # FIXME: CJK/Arabic/etc languages do not work at all with kivy due to font issues,
+    #        so it is easiest to just default to English... (see #2032)
+    return 'en_UK'
+    # # try getting the language of the Android OS
+    # from jnius import autoclass
+    # Locale = autoclass("java.util.Locale")
+    # lang = str(Locale.getDefault().toString())
+    # return lang if lang else 'en_UK'
