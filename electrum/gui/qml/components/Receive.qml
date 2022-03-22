@@ -80,14 +80,12 @@ Pane {
             Layout.columnSpan: 2
             text: qsTr('Create Request')
             onClicked: {
-                var a = parseFloat(amount.text)
-                Daemon.currentWallet.create_invoice(a, message.text, expires.currentValue)
+                createRequest()
             }
         }
     }
 
     Frame {
-        clip: true
         verticalPadding: 0
         horizontalPadding: 0
 
@@ -103,18 +101,15 @@ Pane {
             color: Qt.darker(Material.background, 1.25)
         }
 
-        ListView {
+        ColumnLayout {
+            spacing: 0
             anchors.fill: parent
 
-            model: Daemon.currentWallet.requestModel
-            headerPositioning: ListView.OverlayHeader
-
-            header: Item {
-                z: 1
-                height: hitem.height
-                width: ListView.view.width
+            Item {
+                Layout.preferredHeight: hitem.height
+                Layout.preferredWidth: parent.width
                 Rectangle {
-                    anchors.fill: hitem
+                    anchors.fill: parent
                     color: Qt.lighter(Material.background, 1.25)
                 }
                 RowLayout {
@@ -127,65 +122,89 @@ Pane {
                 }
             }
 
-            delegate: Item {
-                z: -1
-                height: item.height
-                width: ListView.view.width
-                GridLayout {
-                    id: item
-                    columns: 5
-                    Image {
-                        Layout.rowSpan: 2
-                        Layout.preferredWidth: 32
-                        Layout.preferredHeight: 32
-                        source: model.type == 0 ? "../../icons/bitcoin.png" : "../../icons/lightning.png"
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        Layout.columnSpan: 2
-                        text: model.message
-                        font.pixelSize: constants.fontSizeLarge
-                    }
+            ListView {
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+                clip: true
 
-                    Label {
-                        text: qsTr('Amount: ')
-                        font.pixelSize: constants.fontSizeSmall
-                    }
-                    Label {
-                        text: model.amount
-                        font.pixelSize: constants.fontSizeSmall
-                    }
+                model: Daemon.currentWallet.requestModel
 
-                    Label {
-                        text: qsTr('Timestamp: ')
-                        font.pixelSize: constants.fontSizeSmall
-                    }
-                    Label {
-                        text: model.timestamp
-                        font.pixelSize: constants.fontSizeSmall
-                    }
+                delegate: ItemDelegate {
+                    id: root
+                    height: item.height
+                    width: ListView.view.width
 
-                    Label {
-                        text: qsTr('Status: ')
-                        font.pixelSize: constants.fontSizeSmall
-                    }
-                    Label {
-                        text: model.status
-                        font.pixelSize: constants.fontSizeSmall
+                    onClicked: console.log('Request ' + index + ' clicked')
+
+                    GridLayout {
+                        id: item
+
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            leftMargin: constants.paddingSmall
+                            rightMargin: constants.paddingSmall
+                        }
+
+                        columns: 5
+
+                        Image {
+                            Layout.rowSpan: 2
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            source: model.type == 0 ? "../../icons/bitcoin.png" : "../../icons/lightning.png"
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.columnSpan: 2
+                            text: model.message
+                            font.pixelSize: constants.fontSizeLarge
+                        }
+
+                        Label {
+                            text: qsTr('Amount: ')
+                            font.pixelSize: constants.fontSizeSmall
+                        }
+                        Label {
+                            text: model.amount
+                            font.pixelSize: constants.fontSizeSmall
+                        }
+
+                        Label {
+                            text: qsTr('Timestamp: ')
+                            font.pixelSize: constants.fontSizeSmall
+                        }
+                        Label {
+                            text: model.timestamp
+                            font.pixelSize: constants.fontSizeSmall
+                        }
+
+                        Label {
+                            text: qsTr('Status: ')
+                            font.pixelSize: constants.fontSizeSmall
+                        }
+                        Label {
+                            text: model.status
+                            font.pixelSize: constants.fontSizeSmall
+                        }
                     }
                 }
 
+                add: Transition {
+                    NumberAnimation { properties: 'y'; from: -50; duration: 300 }
+                    NumberAnimation { properties: 'opacity'; from: 0; to: 1.0; duration: 700 }
+                }
+                addDisplaced: Transition {
+                    NumberAnimation { properties: 'y'; duration: 100 }
+                    NumberAnimation { properties: 'opacity'; to: 1.0; duration: 700 * (1-from) }
+                }
             }
-
-            add: Transition {
-                NumberAnimation { properties: 'y'; from: -50; duration: 300 }
-                NumberAnimation { properties: 'opacity'; from: 0; to: 1.0; duration: 700 }
-            }
-            addDisplaced: Transition {
-                NumberAnimation { properties: 'y'; duration: 100 }
-            }
-
         }
+    }
+
+    function createRequest(ignoreGaplimit = false) {
+        var a = parseFloat(amount.text)
+        Daemon.currentWallet.create_invoice(a, message.text, expires.currentValue, false, ignoreGaplimit)
     }
 
     Connections {
@@ -194,9 +213,16 @@ Pane {
             message.text = ''
             amount.text = ''
         }
-        function onRequestCreateError(error) {
-            console.log(error)
-            var dialog = app.messageDialog.createObject(app, {'text': error})
+        function onRequestCreateError(code, error) {
+            if (code == 'gaplimit') {
+                var dialog = app.messageDialog.createObject(app, {'text': error, 'yesno': true})
+                dialog.yesClicked.connect(function() {
+                    createRequest(true)
+                })
+            } else {
+                console.log(error)
+                var dialog = app.messageDialog.createObject(app, {'text': error})
+            }
             dialog.open()
         }
     }

@@ -34,7 +34,7 @@ class QEWallet(QObject):
     dataChanged = pyqtSignal() # dummy to silence warnings
 
     requestCreateSuccess = pyqtSignal()
-    requestCreateError = pyqtSignal([str], arguments=['error'])
+    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
 
     requestStatus = pyqtSignal()
     def on_request_status(self, event, *args):
@@ -122,12 +122,12 @@ class QEWallet(QObject):
         tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs)
         return True
 
-    def create_bitcoin_request(self, amount: int, message: str, expiration: int) -> Optional[str]:
+    def create_bitcoin_request(self, amount: int, message: str, expiration: int, ignore_gap: bool) -> Optional[str]:
         addr = self.wallet.get_unused_address()
         if addr is None:
-            # TODO implement
-            return
-            #if not self.wallet.is_deterministic():  # imported wallet
+            if not self.wallet.is_deterministic():  # imported wallet
+                # TODO implement
+                return
                 #msg = [
                     #_('No more addresses in your wallet.'), ' ',
                     #_('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
@@ -137,16 +137,18 @@ class QEWallet(QObject):
                 #if not self.question(''.join(msg)):
                     #return
                 #addr = self.wallet.get_receiving_address()
-            #else:  # deterministic wallet
-                #if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
-                    #return
-                #addr = self.wallet.create_new_address(False)
+            else:  # deterministic wallet
+                if not ignore_gap:
+                    self.requestCreateError.emit('gaplimit',_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?"))
+                    return
+                addr = self.wallet.create_new_address(False)
+
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req)
         except Exception as e:
             self.logger.exception('Error adding payment request')
-            self.requestCreateError.emit(_('Error adding payment request') + ':\n' + repr(e))
+            self.requestCreateError.emit('fatal',_('Error adding payment request') + ':\n' + repr(e))
         else:
             # TODO: check this flow. Only if alias is defined in config. OpenAlias?
             pass
@@ -155,24 +157,25 @@ class QEWallet(QObject):
         return addr
 
     @pyqtSlot(int, 'QString', int)
-    def create_invoice(self, amount: int, message: str, expiration: int, is_lightning: bool = False):
+    @pyqtSlot(int, 'QString', int, bool)
+    @pyqtSlot(int, 'QString', int, bool, bool)
+    def create_invoice(self, amount: int, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         expiry = expiration #TODO: self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
             if is_lightning:
                 if not self.wallet.lnworker.channels:
-                    #self.show_error(_("You need to open a Lightning channel first."))
-                    self.requestCreateError.emit(_("You need to open a Lightning channel first."))
+                    self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
                     return
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
                 key = self.wallet.lnworker.add_request(amount, message, expiry)
             else:
-                key = self.create_bitcoin_request(amount, message, expiry)
+                key = self.create_bitcoin_request(amount, message, expiry, ignore_gap)
                 if not key:
                     return
                 #self.address_list.update()
                 self._addressModel.init_model()
         except InvoiceError as e:
-            self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
+            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
