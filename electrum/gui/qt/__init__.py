@@ -42,6 +42,14 @@ from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
+try:
+    # Preload QtMultimedia at app start, if available.
+    # We use QtMultimedia on some platforms for camera-handling, and
+    # lazy-loading it later led to some crashes. Maybe due to bugs in PyQt5. (see #7725)
+    from PyQt5.QtMultimedia import QCameraInfo; del QCameraInfo
+except ImportError as e:
+    pass  # failure is ok; it is an optional dependency.
+
 from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
