@@ -145,6 +145,15 @@ ApplicationWindow
     Component {
         id: _messageDialog
         Dialog {
+            id: dialog
+            title: qsTr("Message")
+
+            property bool yesno: false
+            property alias text: message.text
+
+            signal yesClicked
+            signal noClicked
+
             parent: Overlay.overlay
             modal: true
             x: (parent.width - width) / 2
@@ -153,13 +162,43 @@ ApplicationWindow
                 color: "#aa000000"
             }
 
-            title: qsTr("Message")
-            property alias text: messageLabel.text
-            Label {
-                id: messageLabel
-                text: "Lorem ipsum dolor sit amet..."
-            }
+            ColumnLayout {
+                TextArea {
+                    id: message
+                    Layout.preferredWidth: Overlay.overlay.width *2/3
+                    readOnly: true
+                    wrapMode: TextInput.WordWrap
+                    //textFormat: TextEdit.RichText // existing translations not richtext yet
+                    background: Rectangle {
+                        color: 'transparent'
+                    }
+                }
 
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    Button {
+                        text: qsTr('Ok')
+                        visible: !yesno
+                        onClicked: dialog.close()
+                    }
+                    Button {
+                        text: qsTr('Yes')
+                        visible: yesno
+                        onClicked: {
+                            yesClicked()
+                            dialog.close()
+                        }
+                    }
+                    Button {
+                        text: qsTr('No')
+                        visible: yesno
+                        onClicked: {
+                            noClicked()
+                            dialog.close()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -184,33 +223,12 @@ ApplicationWindow
         app.header.visible = false
         mainStackView.clear()
     }
-/* OpenWallet as a popup dialog attempt
-    Component {
-        id: _openWallet
-        Dialog {
-            parent: Overlay.overlay
-            modal: true
-            x: (parent.width - width) / 2
-            y: (parent.height - height) / 2
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
 
-            title: qsTr("OpenWallet")
-            OpenWallet {
-                path: Daemon.path
-            }
-
-        }
-    }
-*/
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
             console.log('wallet requires password')
             app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": Daemon.path})
-//             var dialog = _openWallet.createObject(app)
-            //dialog.open()
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')
