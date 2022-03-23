@@ -14,6 +14,7 @@ class QENetwork(QObject):
         register_callback(self.on_default_server_changed, ['default_server_changed'])
         register_callback(self.on_proxy_set, ['proxy_set'])
         register_callback(self.on_status, ['status'])
+        register_callback(self.on_fee_histogram, ['fee_histogram'])
 
     _logger = get_logger(__name__)
 
@@ -23,6 +24,7 @@ class QENetwork(QObject):
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
     statusUpdated = pyqtSignal()
+    feeHistogramUpdated = pyqtSignal()
 
     dataChanged = pyqtSignal() # dummy to silence warnings
 
@@ -53,6 +55,10 @@ class QENetwork(QObject):
         self._logger.info('status updated')
         self._status = self.network.connection_status
         self.statusUpdated.emit()
+
+    def on_fee_histogram(self, event, *args):
+        self._logger.warning('fee histogram updated')
+        self.feeHistogramUpdated.emit()
 
     @pyqtProperty(int,notify=networkUpdated)
     def updates(self):
@@ -102,3 +108,8 @@ class QENetwork(QObject):
         net_params = net_params._replace(proxy=proxy_settings)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
+
+    @pyqtProperty('QVariant',notify=feeHistogramUpdated)
+    def feeHistogram(self):
+        return self.network.get_status_value('fee_histogram')
+
