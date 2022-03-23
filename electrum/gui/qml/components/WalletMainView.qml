@@ -9,9 +9,45 @@ Item {
     property string title: Daemon.walletName
 
     property QtObject menu: Menu {
-        MenuItem { text: qsTr('Addresses'); onTriggered: stack.push(Qt.resolvedUrl('Addresses.qml')); visible: Daemon.currentWallet != null }
-        MenuItem { text: qsTr('Wallets'); onTriggered: stack.push(Qt.resolvedUrl('Wallets.qml')) }
-        MenuItem { text: qsTr('Network'); onTriggered: stack.push(Qt.resolvedUrl('NetworkStats.qml')) }
+        id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Addresses');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
+                enabled: Daemon.currentWallet != null
+                icon.source: '../../icons/tab_addresses.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Wallets');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
+                icon.source: '../../icons/wallet.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Network');
+                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkStats.qml'))
+                icon.source: '../../icons/network.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Preferences');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
+                icon.source: '../../icons/preferences.png'
+            }
+        }
+
+        function openPage(url) {
+            stack.push(url)
+            currentIndex = -1
+        }
     }
 
     ColumnLayout {
@@ -53,6 +89,7 @@ Item {
                 enabled: !Daemon.currentWallet.isWatchOnly
                 text: qsTr('Send')
             }
+            Component.onCompleted: tabbar.setCurrentIndex(1)
         }
 
         SwipeView {
