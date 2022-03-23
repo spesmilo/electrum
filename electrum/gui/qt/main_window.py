@@ -676,9 +676,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except FileNotFoundError as e:
             self.show_error(str(e))
             return
-        filename = get_new_wallet_name(wallet_folder)
-        full_path = os.path.join(wallet_folder, filename)
-        self.gui_object.start_new_window(full_path, None)
+        try:
+            filename = get_new_wallet_name(wallet_folder)
+        except OSError as e:
+            self.logger.exception("")
+            self.show_error(repr(e))
+            path = self.config.get_fallback_wallet_path()
+        else:
+            path = os.path.join(wallet_folder, filename)
+        self.gui_object.start_new_window(path, uri=None, force_wizard=True)
 
     def init_menubar(self):
         menubar = QMenuBar()

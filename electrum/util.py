@@ -498,6 +498,9 @@ def standardize_path(path):
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
+    """Returns a file basename for a new wallet to be used.
+    Can raise OSError.
+    """
     i = 1
     while True:
         filename = "wallet_%d" % i
