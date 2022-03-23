@@ -331,14 +331,18 @@ def main():
         if config_options.get('server'):
             config_options['auto_connect'] = False
 
-    config_options['cwd'] = os.getcwd()
+    config_options['cwd'] = cwd = os.getcwd()
 
     # fixme: this can probably be achieved with a runtime hook (pyinstaller)
     if is_pyinstaller and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
         config_options['portable'] = True
 
     if config_options.get('portable'):
-        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        if is_pyinstaller:
+            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
+        else:
+            datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        config_options['electrum_path'] = datadir
 
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)
