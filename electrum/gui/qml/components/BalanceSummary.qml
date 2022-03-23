@@ -2,30 +2,55 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 
-Item {
+Frame {
+    id: root
     height: layout.height
+
+    property string formattedBalance
+    property string formattedUnconfirmed
+
+    function setBalances() {
+        root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance, true)
+        root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance, true)
+    }
 
     GridLayout {
         id: layout
 
         columns: 3
         Label {
+            id: balance
             Layout.columnSpan: 3
-            font.pointSize: 14
-            text: 'Balance: ' + Daemon.currentWallet.confirmedBalance //'5.6201 mBTC'
+            font.pixelSize: constants.fontSizeLarge
+            text: 'Balance: ' + formattedBalance
         }
         Label {
-            font.pointSize: 8
-            text: 'Confirmed: ' + Daemon.currentWallet.confirmedBalance
+            id: confirmed
+            font.pixelSize: constants.fontSizeMedium
+            text: 'Confirmed: ' + formattedBalance
         }
         Label {
-            font.pointSize: 8
-            text: 'Unconfirmed: ' + Daemon.currentWallet.unconfirmedBalance
+            id: unconfirmed
+            font.pixelSize: constants.fontSizeMedium
+            text: 'Unconfirmed: ' + formattedUnconfirmed
         }
         Label {
-            font.pointSize: 8
+            id: lightning
+            font.pixelSize: constants.fontSizeSmall
             text: 'Lightning: ?'
         }
     }
 
+    Connections {
+        target: Config
+        function onBaseUnitChanged() { setBalances() }
+        function onThousandsSeparatorChanged() { setBalances() }
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() { setBalances() }
+    }
+
+    Component.onCompleted: setBalances()
 }

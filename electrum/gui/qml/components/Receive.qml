@@ -14,7 +14,7 @@ Pane {
         width: parent.width
         rowSpacing: 10
         columnSpacing: 10
-        columns: 3
+        columns: 4
 
         Label {
             text: qsTr('Message')
@@ -22,8 +22,7 @@ Pane {
 
         TextField {
             id: message
-            onTextChanged: img.source = 'image://qrgen/' + text
-            Layout.columnSpan: 2
+            Layout.columnSpan: 3
             Layout.fillWidth: true
         }
 
@@ -31,53 +30,113 @@ Pane {
             text: qsTr('Requested Amount')
             wrapMode: Text.WordWrap
             Layout.preferredWidth: 50 // trigger wordwrap
+            Layout.rightMargin: constants.paddingXLarge
+            Layout.rowSpan: 2
         }
 
         TextField {
             id: amount
-        }
-
-        Item {
-            Layout.rowSpan: 3
-            width: img.width
-            height: img.height
-
-            Image {
-                id: img
-                cache: false
-                anchors {
-                    top: parent.top
-                    left: parent.left
-                }
-                source: 'image://qrgen/test'
-            }
+            Layout.fillWidth: true
         }
 
         Label {
-            text: qsTr('Expires after')
-            Layout.fillWidth: false
+            text: Config.baseUnit
+            color: Material.accentColor
         }
 
-        ComboBox {
-            id: expires
-            textRole: 'text'
-            valueRole: 'value'
-            model: ListModel {
-                id: expiresmodel
-                Component.onCompleted: {
-                    // we need to fill the model like this, as ListElement can't evaluate script
-                    expiresmodel.append({'text': qsTr('Never'), 'value': 0})
-                    expiresmodel.append({'text': qsTr('10 minutes'), 'value': 10*60})
-                    expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
-                    expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
-                    expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
-                    expires.currentIndex = 0
+        ColumnLayout {
+            Layout.rowSpan: 2
+            Layout.preferredWidth: rootItem.width /3
+            Layout.leftMargin: constants.paddingXLarge
+
+            Label {
+                text: qsTr('Expires after')
+                Layout.fillWidth: false
+            }
+
+            ComboBox {
+                id: expires
+                Layout.fillWidth: true
+                textRole: 'text'
+                valueRole: 'value'
+
+                model: ListModel {
+                    id: expiresmodel
+                    Component.onCompleted: {
+                        // we need to fill the model like this, as ListElement can't evaluate script
+                        expiresmodel.append({'text': qsTr('10 minutes'), 'value': 10*60})
+                        expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
+                        expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
+                        expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
+                        expiresmodel.append({'text': qsTr('1 month'), 'value': 31*7*24*60*60})
+                        expiresmodel.append({'text': qsTr('Never'), 'value': 0})
+                        expires.currentIndex = 0
+                    }
+                }
+            }
+        }
+
+        TextField {
+            id: amountFiat
+            Layout.fillWidth: true
+        }
+
+        Label {
+            text: qsTr('EUR')
+            color: Material.accentColor
+        }
+
+        RowLayout {
+            Layout.columnSpan: 4
+            Layout.alignment: Qt.AlignHCenter
+            CheckBox {
+                id: cb_onchain
+                text: qsTr('Onchain')
+                checked: true
+                contentItem: RowLayout {
+                    Text {
+                        text: cb_onchain.text
+                        font: cb_onchain.font
+                        opacity: enabled ? 1.0 : 0.3
+                        color: Material.foreground
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: cb_onchain.indicator.width + cb_onchain.spacing
+                    }
+                    Image {
+                        x: 16
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        source: '../../icons/bitcoin.png'
+                    }
+                }
+            }
+
+            CheckBox {
+                id: cb_lightning
+                text: qsTr('Lightning')
+                enabled: false
+                contentItem: RowLayout {
+                    Text {
+                        text: cb_lightning.text
+                        font: cb_lightning.font
+                        opacity: enabled ? 1.0 : 0.3
+                        color: Material.foreground
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: cb_lightning.indicator.width + cb_lightning.spacing
+                    }
+                    Image {
+                        x: 16
+                        Layout.preferredWidth: 16
+                        Layout.preferredHeight: 16
+                        source: '../../icons/lightning.png'
+                    }
                 }
             }
         }
 
         Button {
-            Layout.columnSpan: 2
+            Layout.columnSpan: 4
+            Layout.alignment: Qt.AlignHCenter
             text: qsTr('Create Request')
             onClicked: {
                 createRequest()
@@ -148,6 +207,12 @@ Pane {
 
                         columns: 5
 
+                        Rectangle {
+                            Layout.columnSpan: 5
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: constants.paddingTiny
+                            color: 'transparent'
+                        }
                         Image {
                             Layout.rowSpan: 2
                             Layout.preferredWidth: 32
@@ -166,7 +231,8 @@ Pane {
                             font.pixelSize: constants.fontSizeSmall
                         }
                         Label {
-                            text: model.amount
+                            id: amount
+                            text: Config.formatSats(model.amount, true)
                             font.pixelSize: constants.fontSizeSmall
                         }
 
@@ -187,7 +253,24 @@ Pane {
                             text: model.status
                             font.pixelSize: constants.fontSizeSmall
                         }
+                        Rectangle {
+                            Layout.columnSpan: 5
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: constants.paddingTiny
+                            color: 'transparent'
+                        }
                     }
+
+                    Connections {
+                        target: Config
+                        function onBaseUnitChanged() {
+                            amount.text = Config.formatSats(model.amount, true)
+                        }
+                        function onThousandsSeparatorChanged() {
+                            amount.text = Config.formatSats(model.amount, true)
+                        }
+                    }
+
                 }
 
                 add: Transition {
@@ -198,12 +281,20 @@ Pane {
                     NumberAnimation { properties: 'y'; duration: 100 }
                     NumberAnimation { properties: 'opacity'; to: 1.0; duration: 700 * (1-from) }
                 }
+
+                ScrollBar.vertical: ScrollBar {
+                    parent: parent.parent
+                    anchors.top: parent.top
+                    anchors.left: parent.right
+                    anchors.bottom: parent.bottom
+                }
+
             }
         }
     }
 
     function createRequest(ignoreGaplimit = false) {
-        var a = parseFloat(amount.text)
+        var a = Config.unitsToSats(amount.text)
         Daemon.currentWallet.create_invoice(a, message.text, expires.currentValue, false, ignoreGaplimit)
     }
 
@@ -212,6 +303,8 @@ Pane {
         function onRequestCreateSuccess() {
             message.text = ''
             amount.text = ''
+//             var dialog = app.showAsQrDialog.createObject(app, {'text': 'test'})
+//             dialog.open()
         }
         function onRequestCreateError(code, error) {
             if (code == 'gaplimit') {

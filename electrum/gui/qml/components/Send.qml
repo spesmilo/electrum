@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Controls 2.0
 import QtQuick.Layouts 1.0
+import QtQuick.Controls.Material 2.0
 
 Pane {
     id: rootItem
@@ -11,7 +12,7 @@ Pane {
 
         BalanceSummary {
             Layout.columnSpan: 4
-            //Layout.alignment: Qt.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter
         }
 
         Label {
@@ -20,9 +21,16 @@ Pane {
 
         TextField {
             id: address
-            Layout.columnSpan: 3
+            Layout.columnSpan: 2
             placeholderText: 'Paste address or invoice'
             Layout.fillWidth: true
+        }
+
+        ToolButton {
+            icon.source: '../../icons/copy.png'
+            icon.color: 'transparent'
+            icon.height: 16
+            icon.width: 16
         }
 
         Label {
@@ -35,12 +43,19 @@ Pane {
         }
 
         Label {
+            text: Config.baseUnit
+            color: Material.accentColor
+            Layout.columnSpan: 2
+        }
+
+        Label {
             text: "Fee"
         }
 
         TextField {
             id: fee
             placeholderText: 'sat/vB'
+            Layout.columnSpan: 2
         }
 
         Item {
@@ -51,7 +66,6 @@ Pane {
                 spacing: 10
                 anchors.horizontalCenter: parent.horizontalCenter
                 Button {
-//                    anchors.horizontalCenter: parent.horizontalCenter
                     text: 'Pay'
                     enabled: address.text != '' && amount.text != '' && fee.text != '' // TODO proper validation
                     onClicked: {

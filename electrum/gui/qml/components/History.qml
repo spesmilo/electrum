@@ -59,8 +59,9 @@ Pane {
                     color: model.label !== '' ? Material.accentColor : 'gray'
                 }
                 Label {
+                    id: valueLabel
                     font.pixelSize: 15
-                    text: model.bc_value
+                    text: Config.formatSats(model.bc_value)
                     font.bold: true
                     color: model.incoming ? "#ff80ff80" : "#ffff8080"
                 }
@@ -112,6 +113,19 @@ Pane {
                 }
 
             }
+
+            // as the items in the model are not bindings to QObjects,
+            // hook up events that might change the appearance
+            Connections {
+                target: Config
+                function onBaseUnitChanged() {
+                    valueLabel.text = Config.formatSats(model.bc_value)
+                }
+                function onThousandsSeparatorChanged() {
+                    valueLabel.text = Config.formatSats(model.bc_value)
+                }
+            }
+
         } // delegate
 
     }
