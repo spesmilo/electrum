@@ -2,10 +2,12 @@ import QtQuick 2.6
 import QtQuick.Controls.Material 2.0
 
 QtObject {
+    readonly property int paddingTiny: 4
     readonly property int paddingSmall: 8
     readonly property int paddingMedium: 12
     readonly property int paddingLarge: 16
     readonly property int paddingXLarge: 20
+    readonly property int paddingXXLarge: 28
 
     readonly property int fontSizeXSmall: 10
     readonly property int fontSizeSmall: 12
