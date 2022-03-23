@@ -338,10 +338,17 @@ def main():
         config_options['portable'] = True
 
     if config_options.get('portable'):
-        if is_pyinstaller:
-            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
-        else:
+        if is_local:
+            # running from git clone or local source: put datadir next to main script
             datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        else:
+            # Running a binary or installed source. The most generic but still reasonable thing
+            # is to use the current working directory. (see #7732)
+            # note: The main script is often unpacked to a temporary directory from a bundled executable,
+            #       and we don't want to put the datadir inside a temp dir.
+            # note: Re the portable .exe on Windows, when the user double-clicks it, CWD gets set
+            #       to the parent dir, i.e. we will put the datadir next to the exe.
+            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
         config_options['electrum_path'] = datadir
 
     if not config_options.get('verbosity'):
