@@ -296,12 +296,7 @@ class SimpleConfig(Logger):
             if path and os.path.exists(path):
                 return path
 
-        # default path
-        util.assert_datadir_available(self.path)
-        dirpath = os.path.join(self.path, "wallets")
-        make_dir(dirpath, allow_symlink=False)
-
-        new_path = os.path.join(self.path, "wallets", "default_wallet")
+        new_path = self.get_fallback_wallet_path()
 
         # default path in pre 1.9 versions
         old_path = os.path.join(self.path, "electrum-ltc.dat")
@@ -309,6 +304,13 @@ class SimpleConfig(Logger):
             os.rename(old_path, new_path)
 
         return new_path
+
+    def get_fallback_wallet_path(self):
+        util.assert_datadir_available(self.path)
+        dirpath = os.path.join(self.path, "wallets")
+        make_dir(dirpath, allow_symlink=False)
+        path = os.path.join(self.path, "wallets", "default_wallet")
+        return path
 
     def remove_from_recently_open(self, filename):
         recent = self.get('recently_open', [])

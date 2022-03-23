@@ -2764,7 +2764,7 @@ class Imported_Wallet(Simple_Wallet):
             transactions_to_remove -= transactions_new
             self.db.remove_addr_history(address)
             for tx_hash in transactions_to_remove:
-                self.remove_transaction(tx_hash)
+                self._remove_transaction(tx_hash)
         self.set_label(address, None)
         self.remove_payment_request(address)
         self.set_frozen_state_of_addresses([address], False)

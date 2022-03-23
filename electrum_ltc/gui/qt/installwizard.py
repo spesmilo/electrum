@@ -202,6 +202,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
+        if os.path.isdir(path):
+            raise Exception("wallet path cannot point to a directory")
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -297,9 +299,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
-            partial(
-                name_e.setText,
-                get_new_wallet_name(wallet_folder)))
+            lambda: name_e.setText(get_new_wallet_name(wallet_folder)))  # FIXME get_new_wallet_name might raise
         name_e.textChanged.connect(on_filename)
         name_e.setText(os.path.basename(path))
 

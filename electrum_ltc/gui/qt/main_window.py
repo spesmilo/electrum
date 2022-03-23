@@ -676,9 +676,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except FileNotFoundError as e:
             self.show_error(str(e))
             return
-        filename = get_new_wallet_name(wallet_folder)
-        full_path = os.path.join(wallet_folder, filename)
-        self.gui_object.start_new_window(full_path, None)
+        try:
+            filename = get_new_wallet_name(wallet_folder)
+        except OSError as e:
+            self.logger.exception("")
+            self.show_error(repr(e))
+            path = self.config.get_fallback_wallet_path()
+        else:
+            path = os.path.join(wallet_folder, filename)
+        self.gui_object.start_new_window(path, uri=None, force_wizard=True)
 
     def init_menubar(self):
         menubar = QMenuBar()
@@ -1866,6 +1872,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 password=password)
         def on_failure(exc_info):
             type_, e, traceback = exc_info
+            #self.logger.error("Could not open channel", exc_info=exc_info)
             self.show_error(_('Could not open channel: {}').format(repr(e)))
         WaitingDialog(self, _('Opening channel...'), task, self.on_open_channel_success, on_failure)
 
