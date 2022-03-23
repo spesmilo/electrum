@@ -41,11 +41,15 @@ from typing import TYPE_CHECKING, Optional
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
+is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
+is_appimage = 'APPIMAGE' in os.environ
+# is_local: unpacked tar.gz but not pip installed, or git clone
+is_local = (not is_pyinstaller and not is_android and not is_appimage
+            and os.path.exists(os.path.join(script_dir, "electrum.desktop")))
+is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
-if is_local:  # running from source
+if is_git_clone:
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
@@ -330,7 +334,7 @@ def main():
     config_options['cwd'] = os.getcwd()
 
     # fixme: this can probably be achieved with a runtime hook (pyinstaller)
-    if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+    if is_pyinstaller and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
         config_options['portable'] = True
 
     if config_options.get('portable'):
