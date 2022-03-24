@@ -1895,16 +1895,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         chan, funding_tx = args
         lnworker = self.wallet.lnworker
         if not chan.has_onchain_backup():
-            backup_dir = self.config.get_backup_dir()
-            if backup_dir is not None:
-                self.show_message(_(f'Your wallet backup has been updated in {backup_dir}'))
-            else:
-                data = lnworker.export_channel_backup(chan.channel_id)
-                help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
-                self.show_qrcode(
-                    data, _('Save channel backup'),
-                    help_text=help_text,
-                    show_copy_text_btn=True)
+            data = lnworker.export_channel_backup(chan.channel_id)
+            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+            help_text += '\n\n' + _('Alternatively, you can save a backup of your wallet file from the File menu')
+            self.show_qrcode(
+                data, _('Save channel backup'),
+                help_text=help_text,
+                show_copy_text_btn=True)
         n = chan.constraints.funding_txn_minimum_depth
         message = '\n'.join([
             _('Channel established.'),
