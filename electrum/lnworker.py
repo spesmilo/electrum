@@ -1025,9 +1025,6 @@ class LNWallet(LNWorker):
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         try:
             self.save_channel(chan)
-            backup_dir = self.config.get_backup_dir()
-            if backup_dir is not None:
-                self.wallet.save_backup(backup_dir)
         except:
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
