@@ -15,4 +15,8 @@ QtObject {
     readonly property int fontSizeLarge: 18
     readonly property int fontSizeXLarge: 22
     readonly property int fontSizeXXLarge: 28
+
+    readonly property int iconSizeSmall: 16
+    readonly property int iconSizeMedium: 24
+    readonly property int iconSizeLarge: 32
 }

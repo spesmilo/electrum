@@ -162,5 +162,14 @@ Dialog {
         }
     }
 
+    // make clicking the dialog background move the scope away from textedit fields
+    // so the keyboard goes away
+    // TODO: here it works on desktop, but not android. hmm.
+    MouseArea {
+        anchors.fill: wizard
+        z: -1000
+        onClicked: { parkFocus.focus = true }
+        FocusScope { id: parkFocus }
+    }
 
 }

@@ -156,9 +156,7 @@ Pane {
             bottom: parent.bottom
         }
 
-        background: Rectangle {
-            color: Qt.darker(Material.background, 1.25)
-        }
+        background: PaneInsetBackground {}
 
         ColumnLayout {
             spacing: 0
@@ -223,6 +221,7 @@ Pane {
                             Layout.fillWidth: true
                             Layout.columnSpan: 2
                             text: model.message
+                            elide: Text.ElideRight
                             font.pixelSize: constants.fontSizeLarge
                         }
 
@@ -233,6 +232,7 @@ Pane {
                         Label {
                             id: amount
                             text: Config.formatSats(model.amount, true)
+                            font.family: FixedFont
                             font.pixelSize: constants.fontSizeSmall
                         }
 
@@ -282,15 +282,18 @@ Pane {
                     NumberAnimation { properties: 'opacity'; to: 1.0; duration: 700 * (1-from) }
                 }
 
-                ScrollBar.vertical: ScrollBar {
-                    parent: parent.parent
-                    anchors.top: parent.top
-                    anchors.left: parent.right
-                    anchors.bottom: parent.bottom
-                }
-
+                ScrollIndicator.vertical: ScrollIndicator { }
             }
         }
+    }
+
+    // make clicking the dialog background move the scope away from textedit fields
+    // so the keyboard goes away
+    MouseArea {
+        anchors.fill: parent
+        z: -1000
+        onClicked: parkFocus.focus = true
+        FocusScope { id: parkFocus }
     }
 
     function createRequest(ignoreGaplimit = false) {

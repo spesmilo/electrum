@@ -16,14 +16,14 @@ Pane {
         }
 
         Label {
-            text: "Recipient"
+            text: qsTr('Recipient')
         }
 
         TextField {
             id: address
             Layout.columnSpan: 2
-            placeholderText: 'Paste address or invoice'
             Layout.fillWidth: true
+            placeholderText: qsTr('Paste address or invoice')
         }
 
         ToolButton {
@@ -34,57 +34,64 @@ Pane {
         }
 
         Label {
-            text: "Amount"
+            text: qsTr('Amount')
         }
 
         TextField {
             id: amount
-            placeholderText: 'Amount'
+            placeholderText: qsTr('Amount')
         }
 
         Label {
             text: Config.baseUnit
             color: Material.accentColor
-            Layout.columnSpan: 2
+            Layout.fillWidth: true
         }
 
+        Item { width: 1; height: 1 } // workaround colspan on baseunit messing up row above
+
         Label {
-            text: "Fee"
+            text: qsTr('Fee')
         }
 
         TextField {
             id: fee
-            placeholderText: 'sat/vB'
-            Layout.columnSpan: 2
+            placeholderText: qsTr('sat/vB')
+            Layout.columnSpan: 3
         }
 
-        Item {
-            Layout.fillWidth: true
+        RowLayout {
             Layout.columnSpan: 4
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 10
 
-            Row {
-                spacing: 10
-                anchors.horizontalCenter: parent.horizontalCenter
-                Button {
-                    text: 'Pay'
-                    enabled: address.text != '' && amount.text != '' && fee.text != '' // TODO proper validation
-                    onClicked: {
-                        var i_amount = parseInt(amount.text)
-                        if (isNaN(i_amount))
-                            return
-                        var result = Daemon.currentWallet.send_onchain(address.text, i_amount, undefined, false)
-                        if (result)
-                            app.stack.pop()
-                    }
-                }
-
-                Button {
-                    text: 'Scan QR Code'
-                    Layout.alignment: Qt.AlignHCenter
-                    onClicked: app.stack.push(Qt.resolvedUrl('Scan.qml'))
+            Button {
+                text: qsTr('Pay')
+                enabled: false // TODO proper validation
+                onClicked: {
+                    var i_amount = parseInt(amount.text)
+                    if (isNaN(i_amount))
+                        return
+                    var result = Daemon.currentWallet.send_onchain(address.text, i_amount, undefined, false)
+                    if (result)
+                        app.stack.pop()
                 }
             }
+
+            Button {
+                text: qsTr('Scan QR Code')
+                onClicked: app.stack.push(Qt.resolvedUrl('Scan.qml'))
+            }
         }
+    }
+
+    // make clicking the dialog background move the scope away from textedit fields
+    // so the keyboard goes away
+    MouseArea {
+        anchors.fill: parent
+        z: -1000
+        onClicked: parkFocus.focus = true
+        FocusScope { id: parkFocus }
     }
 
 }

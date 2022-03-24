@@ -46,11 +46,13 @@ Pane {
             font.bold: true
         }
         Image {
-            Layout.preferredWidth: 16
-            Layout.preferredHeight: 16
-            source: Daemon.currentWallet.isUptodate
-                ? "../../icons/status_connected.png"
-                : "../../icons/status_lagging.png"
+            Layout.preferredWidth: constants.iconSizeSmall
+            Layout.preferredHeight: constants.iconSizeSmall
+            source: Network.status == 'connecting' || Network.status == 'disconnected'
+                ? '../../icons/status_disconnected.png' :
+                    Daemon.currentWallet.isUptodate
+                    ? '../../icons/status_connected.png'
+                    : '../../icons/status_lagging.png'
         }
         Label {
             text: Network.status

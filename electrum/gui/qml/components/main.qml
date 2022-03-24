@@ -27,11 +27,23 @@ ApplicationWindow
         id: toolbar
         RowLayout {
             anchors.fill: parent
+
             ToolButton {
                 text: qsTr("‹")
                 enabled: stack.depth > 1
                 onClicked: stack.pop()
             }
+
+            Label {
+                text: stack.currentItem.title
+                elide: Label.ElideRight
+                horizontalAlignment: Qt.AlignHCenter
+                verticalAlignment: Qt.AlignVCenter
+                Layout.fillWidth: true
+                font.pixelSize: constants.fontSizeMedium
+                font.bold: true
+            }
+
             Item {
                 visible: Network.isTestNet
                 width: column.width
@@ -47,12 +59,13 @@ ApplicationWindow
 
                 }
 
-                Column {
+                ColumnLayout {
                     id: column
+                    spacing: 0
                     Image {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: 16
-                        height: 16
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
                         source: "../../icons/info.png"
                     }
 
@@ -60,28 +73,31 @@ ApplicationWindow
                         id: networkNameLabel
                         text: Network.networkName
                         color: Material.accentColor
-                        font.pointSize: 5
+                        font.pixelSize: constants.fontSizeXSmall
                     }
                 }
             }
 
             Image {
-                Layout.preferredWidth: 16
-                Layout.preferredHeight: 16
-                source: Daemon.currentWallet.isUptodate ? "../../icons/status_connected.png" : "../../icons/status_lagging.png"
+                Layout.preferredWidth: constants.iconSizeSmall
+                Layout.preferredHeight: constants.iconSizeSmall
+                source: Network.status == 'connecting' || Network.status == 'disconnected'
+                    ? '../../icons/status_disconnected.png' :
+                        Daemon.currentWallet.isUptodate
+                        ? '../../icons/status_connected.png'
+                        : '../../icons/status_lagging.png'
             }
 
-            Label {
-                text: stack.currentItem.title
-                elide: Label.ElideRight
-                horizontalAlignment: Qt.AlignHCenter
-                verticalAlignment: Qt.AlignVCenter
-                Layout.fillWidth: true
-                font.pixelSize: 14
-                font.bold: true
+            Rectangle {
+                color: 'transparent'
+                Layout.preferredWidth: constants.paddingSmall
+                height: 1
+                visible: !menuButton.visible
             }
 
             ToolButton {
+                id: menuButton
+                visible: stack.currentItem.menu !== undefined && stack.currentItem.menu.count > 0
                 text: qsTr("⋮")
                 onClicked: {
                     stack.currentItem.menu.open()

@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
+import QtQuick.Controls.Material 2.0
 
 Frame {
     id: root
@@ -17,27 +18,33 @@ Frame {
     GridLayout {
         id: layout
 
-        columns: 3
+        columns: 2
         Label {
-            id: balance
-            Layout.columnSpan: 3
             font.pixelSize: constants.fontSizeLarge
-            text: 'Balance: ' + formattedBalance
+            text: qsTr('Balance: ')
         }
         Label {
-            id: confirmed
+            font.pixelSize: constants.fontSizeLarge
+            color: Material.accentColor
+            text: formattedBalance
+        }
+        Label {
             font.pixelSize: constants.fontSizeMedium
-            text: 'Confirmed: ' + formattedBalance
+            text: qsTr('Confirmed: ')
         }
         Label {
-            id: unconfirmed
             font.pixelSize: constants.fontSizeMedium
-            text: 'Unconfirmed: ' + formattedUnconfirmed
+            color: Material.accentColor
+            text: formattedBalance
         }
         Label {
-            id: lightning
-            font.pixelSize: constants.fontSizeSmall
-            text: 'Lightning: ?'
+            font.pixelSize: constants.fontSizeMedium
+            text: qsTr('Unconfirmed: ')
+        }
+        Label {
+            font.pixelSize: constants.fontSizeMedium
+            color: Material.accentColor
+            text: formattedUnconfirmed
         }
     }
 

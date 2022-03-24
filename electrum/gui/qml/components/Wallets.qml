@@ -49,59 +49,61 @@ Pane {
             }
 //        }
 
-        Item {
-            width: parent.width
-//            height: detailsFrame.height
-            Layout.fillHeight: true
         Frame {
             id: detailsFrame
-            width: parent.width
-            height: parent.height
+            Layout.preferredWidth: parent.width
+            Layout.fillHeight: true
+            verticalPadding: 0
+            horizontalPadding: 0
+            background: PaneInsetBackground {}
 
-        ListView {
-            id: listview
-            width: parent.width
-//            Layout.fillHeight: true
-            height: parent.height
-            clip: true
-            model: Daemon.availableWallets
+            ListView {
+                id: listview
+                width: parent.width
+                height: parent.height
+                clip: true
+                model: Daemon.availableWallets
 
-            // header: sadly seems to be buggy
-
-            delegate: AbstractButton {
-                width: ListView.view.width
-                height: 50
-                onClicked: {
-                    wallet_db.path = model.path
-                }
-
-                RowLayout {
-                    spacing: 10
-                    width: parent.width
-
-                    Image {
-                        id: walleticon
-                        source: "../../icons/wallet.png"
-                        fillMode: Image.PreserveAspectFit
-                        Layout.preferredWidth: 32
-                        Layout.preferredHeight: 32
+                delegate: AbstractButton {
+                    width: ListView.view.width
+                    height: row.height
+                    onClicked: {
+                        wallet_db.path = model.path
                     }
 
-                    Label {
-                        font.pixelSize: 18
-                        text: model.name
-                        Layout.fillWidth: true
-                    }
+                    RowLayout {
+                        id: row
+                        spacing: 10
+                        x: constants.paddingSmall
+                        width: parent.width - 2 * constants.paddingSmall
 
-                    Button {
-                        text: 'Open'
-                        onClicked: {
-                            Daemon.load_wallet(model.path)
+                        Image {
+                            id: walleticon
+                            source: "../../icons/wallet.png"
+                            fillMode: Image.PreserveAspectFit
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                        }
+
+                        Label {
+                            font.pixelSize: 18
+                            text: model.name
+                            Layout.fillWidth: true
+                        }
+
+                        Button {
+                            text: 'Open'
+                            onClicked: {
+                                Daemon.load_wallet(model.path)
+                            }
                         }
                     }
                 }
+
+                ScrollIndicator.vertical: ScrollIndicator { }
             }
-        }}}
+
+        }
 
         Button {
             Layout.alignment: Qt.AlignHCenter
