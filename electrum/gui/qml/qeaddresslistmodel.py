@@ -15,7 +15,7 @@ class QEAddressListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('type','address','label','balance','numtx', 'held')
+    _ROLE_NAMES=('type','iaddr','address','label','balance','numtx', 'held')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -51,7 +51,7 @@ class QEAddressListModel(QAbstractListModel):
         c_addresses = self.wallet.get_change_addresses()
         n_addresses = len(r_addresses) + len(c_addresses)
 
-        def insert_row(atype, alist, address):
+        def insert_row(atype, alist, address, iaddr):
             item = {}
             item['type'] = atype
             item['address'] = address
@@ -61,12 +61,17 @@ class QEAddressListModel(QAbstractListModel):
             item['balance'] = c + u + x
             item['held'] = self.wallet.is_frozen_address(address)
             alist.append(item)
+            item['iaddr'] = iaddr
 
         self.clear()
         self.beginInsertRows(QModelIndex(), 0, n_addresses - 1)
+        i = 0
         for address in r_addresses:
-            insert_row('receive', self.receive_addresses, address)
+            insert_row('receive', self.receive_addresses, address, i)
+            i = i + 1
+        i = 0
         for address in c_addresses:
-            insert_row('change', self.change_addresses, address)
+            insert_row('change', self.change_addresses, address, i)
+            i = i + 1
         self.endInsertRows()
 

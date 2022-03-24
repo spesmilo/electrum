@@ -25,58 +25,125 @@ Pane {
                 height: parent.height
                 clip: true
                 model: Daemon.currentWallet.addressModel
+                currentIndex: -1
 
                 section.property: 'type'
                 section.criteria: ViewSection.FullString
                 section.delegate: sectionDelegate
 
-                delegate: AbstractButton {
+                delegate: ItemDelegate {
                     id: delegate
                     width: ListView.view.width
                     height: delegateLayout.height
+                    highlighted: ListView.isCurrentItem
+                    onClicked: ListView.view.currentIndex == index
+                        ? ListView.view.currentIndex = -1
+                        : ListView.view.currentIndex = index
 
-                    background: Rectangle {
-                        color: model.held ? Qt.rgba(1,0,0,0.5) :
-                            model.numtx > 0 && model.balance == 0 ? Qt.rgba(1,1,1,0.25) :
-                            model.type == 'receive' ? Qt.rgba(0,1,0,0.25) :
-                            Qt.rgba(1,0.93,0,0.25)
-                        Rectangle {
-                            height: 1
-                            width: parent.width
-                            anchors.top: parent.top
-                            border.color: Material.accentColor
-                            visible: model.index > 0
+                    states: [
+                        State {
+                            name: 'normal'; when: !highlighted
+                            PropertyChanges { target: drawer; visible: false }
+                            PropertyChanges { target: labelLabel; maximumLineCount: 2 }
+
+                        },
+                        State {
+                            name: 'highlighted'; when: highlighted
+                            PropertyChanges { target: drawer; visible: true }
+                            PropertyChanges { target: labelLabel; maximumLineCount: 4 }
                         }
-                    }
+                    ]
 
-                    RowLayout {
+
+                    ColumnLayout {
                         id: delegateLayout
-                        x: constants.paddingSmall
-                        spacing: constants.paddingSmall
-                        width: parent.width - 2*constants.paddingSmall
+//                         x: constants.paddingSmall
+                        spacing: 0
+                        //width: parent.width - 2*constants.paddingSmall
+                        width: parent.width
 
-                        Label {
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            text: model.address
-                            elide: Text.ElideMiddle
-                            Layout.maximumWidth: delegate.width / 3
+                        Item {
+                            Layout.preferredWidth: 1
+                            Layout.preferredHeight: constants.paddingTiny
                         }
-                        Label {
-                            font.pixelSize: constants.fontSizeMedium
-                            text: model.label
-                            elide: Text.ElideRight
-                            Layout.minimumWidth: delegate.width / 3
+
+                        GridLayout {
+                            columns: 2
+                            Label {
+                                id: indexLabel
+                                font.pixelSize: constants.fontSizeMedium
+                                font.bold: true
+                                text: '#' + ('00'+model.iaddr).slice(-2)
+                                Layout.fillWidth: true
+                            }
+                            Label {
+                                font.pixelSize: constants.fontSizeMedium
+                                font.family: FixedFont
+                                text: model.address
+                                Layout.fillWidth: true
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: constants.iconSizeMedium
+                                Layout.preferredHeight: constants.iconSizeMedium
+                                color: model.held
+                                        ? Qt.rgba(1,0.93,0,0.75)
+                                        : model.numtx > 0 && model.balance == 0
+                                            ? Qt.rgba(0.75,0.75,0.75,1)
+                                            : model.type == 'receive'
+                                                ? Qt.rgba(0,1,0,0.5)
+                                                : Qt.rgba(1,0.93,0,0.25)
+                            }
+
+                            RowLayout {
+                                Label {
+                                    id: labelLabel
+                                    font.pixelSize: model.label != '' ? constants.fontSizeLarge : constants.fontSizeSmall
+                                    text: model.label != '' ? model.label : '<no label>'
+                                    opacity: model.label != '' ? 1.0 : 0.8
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 2
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+                                Label {
+                                    font.pixelSize: constants.fontSizeMedium
+                                    font.family: FixedFont
+                                    text: Config.formatSats(model.balance, false)
+                                }
+                                Label {
+                                    font.pixelSize: constants.fontSizeMedium
+                                    color: Material.accentColor
+                                    text: Config.baseUnit + ','
+                                }
+                                Label {
+                                    font.pixelSize: constants.fontSizeMedium
+                                    text: model.numtx
+                                }
+                                Label {
+                                    font.pixelSize: constants.fontSizeMedium
+                                    color: Material.accentColor
+                                    text: qsTr('tx')
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            id: drawer
                             Layout.fillWidth: true
+                            Layout.preferredHeight: 50
+
+                            ToolButton {
+                                icon.source: '../../icons/qrcode.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                            }
                         }
-                        Label {
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
-                            text: model.balance
-                        }
-                        Label {
-                            font.pixelSize: constants.fontSizeMedium
-                            text: model.numtx
+
+                        Item {
+                            Layout.preferredWidth: 1
+                            Layout.preferredHeight: constants.paddingSmall
                         }
                     }
                 }
