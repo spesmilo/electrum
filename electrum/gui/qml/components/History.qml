@@ -60,6 +60,7 @@ Pane {
                 }
                 Label {
                     id: valueLabel
+                    font.family: FixedFont
                     font.pixelSize: 15
                     text: Config.formatSats(model.bc_value)
                     font.bold: true
@@ -127,6 +128,8 @@ Pane {
             }
 
         } // delegate
+
+        ScrollIndicator.vertical: ScrollIndicator { }
 
     }
 

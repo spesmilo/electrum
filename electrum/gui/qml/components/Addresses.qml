@@ -7,7 +7,6 @@ import org.electrum 1.0
 
 Pane {
     id: rootItem
-    anchors.fill: parent
 
     property string title: Daemon.walletName + ' - ' + qsTr('Addresses')
 
@@ -27,10 +26,14 @@ Pane {
                 clip: true
                 model: Daemon.currentWallet.addressModel
 
+                section.property: 'type'
+                section.criteria: ViewSection.FullString
+                section.delegate: sectionDelegate
+
                 delegate: AbstractButton {
                     id: delegate
                     width: ListView.view.width
-                    height: 30
+                    height: delegateLayout.height
 
                     background: Rectangle {
                         color: model.held ? Qt.rgba(1,0,0,0.5) :
@@ -45,42 +48,67 @@ Pane {
                             visible: model.index > 0
                         }
                     }
+
                     RowLayout {
-                        x: 10
-                        spacing: 5
-                        width: parent.width - 20
-                        anchors.verticalCenter: parent.verticalCenter
+                        id: delegateLayout
+                        x: constants.paddingSmall
+                        spacing: constants.paddingSmall
+                        width: parent.width - 2*constants.paddingSmall
 
                         Label {
-                            font.pixelSize: 12
-                            text: model.type
-                        }
-                        Label {
-                            font.pixelSize: 12
-                            font.family: "Courier" // TODO: use system monospace font
+                            font.pixelSize: constants.fontSizeLarge
+                            font.family: FixedFont
                             text: model.address
                             elide: Text.ElideMiddle
-                            Layout.maximumWidth: delegate.width / 4
+                            Layout.maximumWidth: delegate.width / 3
                         }
                         Label {
-                            font.pixelSize: 12
+                            font.pixelSize: constants.fontSizeMedium
                             text: model.label
                             elide: Text.ElideRight
-                            Layout.minimumWidth: delegate.width / 4
+                            Layout.minimumWidth: delegate.width / 3
                             Layout.fillWidth: true
                         }
                         Label {
-                            font.pixelSize: 12
+                            font.pixelSize: constants.fontSizeMedium
+                            font.family: FixedFont
                             text: model.balance
                         }
                         Label {
-                            font.pixelSize: 12
+                            font.pixelSize: constants.fontSizeMedium
                             text: model.numtx
                         }
                     }
                 }
+
+                ScrollIndicator.vertical: ScrollIndicator { }
             }
 
+        }
+    }
+
+    Component {
+        id: sectionDelegate
+        Rectangle {
+            id: root
+            width: ListView.view.width
+            height: childrenRect.height
+            color: 'transparent'
+
+            required property string section
+
+            GridLayout {
+                Label {
+                    topPadding: constants.paddingMedium
+                    bottomPadding: constants.paddingMedium
+                    text: root.section + ' ' + qsTr('addresses')
+                    font.bold: true
+                    font.pixelSize: constants.fontSizeLarge
+                }
+                ToolButton {
+
+                }
+            }
         }
     }
 

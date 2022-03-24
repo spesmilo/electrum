@@ -1,7 +1,7 @@
 import re
 
 from PyQt5.QtCore import pyqtSlot, QObject, QUrl, QLocale, qInstallMessageHandler
-from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, QQmlApplicationEngine #, QQmlComponent
 
 from electrum.logging import Logger, get_logger
@@ -39,6 +39,13 @@ class ElectrumQmlApplication(QGuiApplication):
         self.qr_ip = QEQRImageProvider()
         self.engine.addImageProvider('qrgen', self.qr_ip)
 
+        # add a monospace font as we can't rely on device having one
+        if QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Regular.ttf') < 0:
+            self.logger.warning('Could not load font PTMono-Regular.ttf')
+            self.fixedFont = 'Monospace' # hope for the best
+        else:
+            self.fixedFont = 'PT Mono'
+
         self.context = self.engine.rootContext()
         self._singletons['config'] = QEConfig(config)
         self._singletons['network'] = QENetwork(daemon.network)
@@ -48,6 +55,7 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('Network', self._singletons['network'])
         self.context.setContextProperty('Daemon', self._singletons['daemon'])
         self.context.setContextProperty('QR', self._singletons['qr'])
+        self.context.setContextProperty('FixedFont', self.fixedFont)
 
         qInstallMessageHandler(self.message_handler)
 
