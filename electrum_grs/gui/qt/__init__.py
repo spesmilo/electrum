@@ -42,6 +42,14 @@ from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
 import PyQt5.QtCore as QtCore
 
+try:
+    # Preload QtMultimedia at app start, if available.
+    # We use QtMultimedia on some platforms for camera-handling, and
+    # lazy-loading it later led to some crashes. Maybe due to bugs in PyQt5. (see #7725)
+    from PyQt5.QtMultimedia import QCameraInfo; del QCameraInfo
+except ImportError as e:
+    pass  # failure is ok; it is an optional dependency.
+
 from electrum_grs.i18n import _, set_language
 from electrum_grs.plugin import run_hook
 from electrum_grs.base_wizard import GoBack
@@ -312,21 +320,33 @@ class ElectrumGui(BaseElectrumGui, Logger):
         return wrapper
 
     @count_wizards_in_progress
-    def start_new_window(self, path, uri, *, app_is_starting=False) -> Optional[ElectrumWindow]:
+    def start_new_window(
+            self,
+            path,
+            uri: Optional[str],
+            *,
+            app_is_starting: bool = False,
+            force_wizard: bool = False,
+    ) -> Optional[ElectrumWindow]:
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
         wallet = None
-        try:
-            wallet = self.daemon.load_wallet(path, None)
-        except Exception as e:
-            self.logger.exception('')
-            custom_message_box(icon=QMessageBox.Warning,
-                               parent=None,
-                               title=_('Error'),
-                               text=_('Cannot load wallet') + ' (1):\n' + repr(e))
-            # if app is starting, still let wizard appear
-            if not app_is_starting:
-                return
+        # Try to open with daemon first. If this succeeds, there won't be a wizard at all
+        # (the wallet main window will appear directly).
+        if not force_wizard:
+            try:
+                wallet = self.daemon.load_wallet(path, None)
+            except Exception as e:
+                self.logger.exception('')
+                custom_message_box(icon=QMessageBox.Warning,
+                                   parent=None,
+                                   title=_('Error'),
+                                   text=_('Cannot load wallet') + ' (1):\n' + repr(e))
+                # if app is starting, still let wizard appear
+                if not app_is_starting:
+                    return
+        # Open a wizard window. This lets the user e.g. enter a password, or select
+        # a different wallet.
         try:
             if not wallet:
                 wallet = self._start_wizard_to_select_or_create_wallet(path)
@@ -345,9 +365,19 @@ class ElectrumGui(BaseElectrumGui, Logger):
                                title=_('Error'),
                                text=_('Cannot load wallet') + '(2) :\n' + repr(e))
             if app_is_starting:
-                wallet_dir = os.path.dirname(path)
-                path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
-                self.start_new_window(path, uri)
+                # If we raise in this context, there are no more fallbacks, we will shut down.
+                # Worst case scenario, we might have gotten here without user interaction,
+                # in which case, if we raise now without user interaction, the same sequence of
+                # events is likely to repeat when the user restarts the process.
+                # So we play it safe: clear path, clear uri, force a wizard to appear.
+                try:
+                    wallet_dir = os.path.dirname(path)
+                    filename = get_new_wallet_name(wallet_dir)
+                except OSError:
+                    path = self.config.get_fallback_wallet_path()
+                else:
+                    path = os.path.join(wallet_dir, filename)
+                self.start_new_window(path, uri=None, force_wizard=True)
             return
         if uri:
             window.pay_to_URI(uri)

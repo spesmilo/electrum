@@ -48,6 +48,7 @@ ROLE_SORT_ORDER = Qt.UserRole + 2
 
 
 class RequestList(MyTreeView):
+    key_role = ROLE_KEY
 
     class Columns(IntEnum):
         DATE = 0
@@ -111,32 +112,14 @@ class RequestList(MyTreeView):
         super().clearSelection()
         self.selectionModel().clearCurrentIndex()
 
-    def refresh_status(self):
-        m = self.std_model
-        for r in range(m.rowCount()):
-            idx = m.index(r, self.Columns.STATUS)
-            date_idx = idx.sibling(idx.row(), self.Columns.DATE)
-            date_item = m.itemFromIndex(date_idx)
-            status_item = m.itemFromIndex(idx)
-            key = date_item.data(ROLE_KEY)
-            req = self.wallet.get_request(key)
-            if req:
-                status = self.parent.wallet.get_request_status(key)
-                status_str = req.get_status_str(status)
-                status_item.setText(status_str)
-                status_item.setIcon(read_QIcon(pr_icons.get(status)))
-
-    def update_item(self, key, invoice: Invoice):
+    def refresh_row(self, key, row):
         model = self.std_model
-        for row in range(0, model.rowCount()):
-            item = model.item(row, 0)
-            if item.data(ROLE_KEY) == key:
-                break
-        else:
+        request = self.wallet.get_request(key)
+        if request is None:
             return
         status_item = model.item(row, self.Columns.STATUS)
         status = self.parent.wallet.get_request_status(key)
-        status_str = invoice.get_status_str(status)
+        status_str = request.get_status_str(status)
         status_item.setText(status_str)
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
@@ -176,14 +159,15 @@ class RequestList(MyTreeView):
         self.proxy.setDynamicSortFilter(True)
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
-        # hide list if empty
-        if self.parent.isVisible():
-            b = self.std_model.rowCount() > 0
-            self.setVisible(b)
-            self.parent.receive_requests_label.setVisible(b)
-            if not b:
-                # list got hidden, so selected item should also be cleared:
-                self.item_changed(None)
+        self.hide_if_empty()
+
+    def hide_if_empty(self):
+        b = self.std_model.rowCount() > 0
+        self.setVisible(b)
+        self.parent.receive_requests_label.setVisible(b)
+        if not b:
+            # list got hidden, so selected item should also be cleared:
+            self.item_changed(None)
 
     def create_menu(self, position):
         items = self.selected_in_column(0)
