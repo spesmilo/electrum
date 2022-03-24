@@ -13,8 +13,9 @@ class QETransactionListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp','incoming','bc_value',
-        'bc_balance','date','label','txpos_in_block','fee','inputs','outputs')
+    _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp',
+                 'incoming','bc_value','bc_balance','date','label','txpos_in_block','fee',
+                 'inputs','outputs')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 

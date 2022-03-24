@@ -172,7 +172,6 @@ class QEWallet(QObject):
                 key = self.create_bitcoin_request(amount, message, expiry, ignore_gap)
                 if not key:
                     return
-                #self.address_list.update()
                 self._addressModel.init_model()
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))

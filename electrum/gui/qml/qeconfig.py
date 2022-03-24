@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from decimal import Decimal
 
 from electrum.logging import get_logger
+from electrum.util import DECIMAL_POINT_DEFAULT
 
 class QEConfig(QObject):
     def __init__(self, config, parent=None):
@@ -78,7 +79,7 @@ class QEConfig(QObject):
 
     # TODO delegate all this to config.py/util.py
     def decimal_point(self):
-        return self.config.get('decimal_point')
+        return self.config.get('decimal_point', DECIMAL_POINT_DEFAULT)
 
     def max_precision(self):
         return self.decimal_point() + 0 #self.extra_precision
@@ -89,13 +90,14 @@ class QEConfig(QObject):
         try:
             x = Decimal(unitAmount)
         except:
-            return None
+            return 0
         # scale it to max allowed precision, make it an int
         max_prec_amount = int(pow(10, self.max_precision()) * x)
         # if the max precision is simply what unit conversion allows, just return
         if self.max_precision() == self.decimal_point():
             return max_prec_amount
+        self._logger.debug('fallthrough')
         # otherwise, scale it back to the expected unit
         #amount = Decimal(max_prec_amount) / Decimal(pow(10, self.max_precision()-self.decimal_point()))
         #return int(amount) #Decimal(amount) if not self.is_int else int(amount)
-
+        return 0
