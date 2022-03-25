@@ -7,7 +7,7 @@ import org.electrum 1.0
 
 Pane {
     id: rootItem
-
+    padding: 0
     property string title: Daemon.currentWallet.name + ' - ' + qsTr('Addresses')
 
     ColumnLayout {
@@ -53,10 +53,9 @@ Pane {
 
                     ColumnLayout {
                         id: delegateLayout
-//                         x: constants.paddingSmall
                         spacing: 0
-                        //width: parent.width - 2*constants.paddingSmall
-                        width: parent.width
+                        x: constants.paddingMedium
+                        width: parent.width - 2*constants.paddingMedium
 
                         Item {
                             Layout.preferredWidth: 1
@@ -87,7 +86,7 @@ Pane {
                                             ? Qt.rgba(0.75,0.75,0.75,1)
                                             : model.type == 'receive'
                                                 ? Qt.rgba(0,1,0,0.5)
-                                                : Qt.rgba(1,0.93,0,0.25)
+                                                : Qt.rgba(1,0.93,0,0.75)
                             }
 
                             RowLayout {
@@ -104,17 +103,21 @@ Pane {
                                 Label {
                                     font.family: FixedFont
                                     text: Config.formatSats(model.balance, false)
+                                    visible: model.balance > 0
                                 }
                                 Label {
                                     color: Material.accentColor
                                     text: Config.baseUnit + ','
+                                    visible: model.balance > 0
                                 }
                                 Label {
                                     text: model.numtx
+                                    visible: model.numtx > 0
                                 }
                                 Label {
                                     color: Material.accentColor
                                     text: qsTr('tx')
+                                    visible: model.numtx > 0
                                 }
                             }
                         }
@@ -123,13 +126,57 @@ Pane {
                             id: drawer
                             visible: false
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 50
+                            Layout.preferredHeight: copyButton.height
 
                             ToolButton {
-                                icon.source: '../../icons/qrcode.png'
+                                id: copyButton
+                                icon.source: '../../icons/copy.png'
                                 icon.color: 'transparent'
                                 icon.width: constants.iconSizeMedium
                                 icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: copy address')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/info.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: show details screen')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/key.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: sign/verify dialog')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/mail_icon.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: encrypt/decrypt message dialog')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/globe.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: show on block explorer')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/unlock.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: freeze/unfreeze')
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/tab_send.png'
+                                icon.color: 'transparent'
+                                icon.width: constants.iconSizeMedium
+                                icon.height: constants.iconSizeMedium
+                                onClicked: console.log('TODO: spend from address')
                             }
                         }
 
@@ -156,16 +203,25 @@ Pane {
 
             required property string section
 
-            GridLayout {
+            RowLayout {
+                x: constants.paddingMedium
+                width: parent.width - 2 * constants.paddingMedium
+
+                Rectangle {
+                    Layout.preferredHeight: 1
+                    Layout.fillWidth: true
+                    color: Material.accentColor
+                }
                 Label {
-                    topPadding: constants.paddingMedium
-                    bottomPadding: constants.paddingMedium
+                    padding: constants.paddingMedium
                     text: root.section + ' ' + qsTr('addresses')
                     font.bold: true
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                 }
-                ToolButton {
-
+                Rectangle {
+                    Layout.preferredHeight: 1
+                    Layout.fillWidth: true
+                    color: Material.accentColor
                 }
             }
         }
