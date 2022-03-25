@@ -331,7 +331,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
-        self.address_list.update()
+        self.address_list.refresh_all()
 
     def on_fx_quotes(self):
         self.update_status()
@@ -343,7 +343,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # History tab needs updating if it used spot
         if self.fx.history_used_spot:
             self.history_model.refresh('fx_quotes')
-        self.address_list.update()
+        self.address_list.refresh_all()
 
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
@@ -431,7 +431,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.network_signal.emit('status', None)
         elif event == 'blockchain_updated':
             # to update number of confirmations in history
-            self.need_update.set()
+            self.refresh_tabs()
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -456,6 +456,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         elif event == 'invoice_status':
             self.on_invoice_status(*args)
         elif event == 'payment_succeeded':
+            # sent by lnworker, redundant with invoice_status
             wallet = args[0]
             if wallet == self.wallet:
                 self.on_payment_succeeded(*args)
@@ -875,6 +876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.tray.showMessage("Electrum", message, QSystemTrayIcon.Information, 20000)
 
     def timer_actions(self):
+        # refresh invoices and requests because they show ETA
         self.request_list.refresh_all()
         self.invoice_list.refresh_all()
         # Note this runs in the GUI thread
@@ -1029,13 +1031,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if wallet != self.wallet:
             return
         self.history_model.refresh('update_tabs')
-        self.request_list.refresh_all()
-        self.invoice_list.refresh_all()
+        self.request_list.update()
+        self.invoice_list.update()
         self.address_list.update()
         self.utxo_list.update()
         self.contact_list.update()
         self.channels_list.update_rows.emit(wallet)
         self.update_completions()
+
+    def refresh_tabs(self, wallet=None):
+        self.history_model.refresh('refresh_tabs')
+        self.request_list.refresh_all()
+        self.invoice_list.refresh_all()
+        self.address_list.refresh_all()
+        self.utxo_list.refresh_all()
+        self.contact_list.refresh_all()
+        self.channels_list.update_rows.emit(self.wallet)
 
     def create_channels_tab(self):
         self.channels_list = ChannelsList(self)
@@ -1256,7 +1267,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 key = self.create_bitcoin_request(amount, message, expiry)
                 if not key:
                     return
-                self.address_list.update()
+                self.address_list.refresh_all()
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return
@@ -2064,13 +2075,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)
-        self.address_list.update()
-        self.utxo_list.update()
+        self.address_list.refresh_all()
+        self.utxo_list.refresh_all()
+        self.address_list.selectionModel().clearSelection()
 
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         utxos_str = {utxo.prevout.to_str() for utxo in utxos}
         self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
-        self.utxo_list.update()
+        self.utxo_list.refresh_all()
+        self.utxo_list.selectionModel().clearSelection()
 
     def create_list_tab(self, l, toolbar=None):
         w = QWidget()
@@ -3197,7 +3210,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.fiat_receive_e.setVisible(b)
         self.history_list.update()
         self.address_list.refresh_headers()
-        self.address_list.update()
+        self.address_list.refresh_all()
         self.update_status()
 
     def settings_dialog(self):

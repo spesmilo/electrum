@@ -98,7 +98,7 @@ class SettingsDialog(WindowModalDialog):
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
-                self.window.need_update.set()
+                self.window.refresh_tabs()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
@@ -197,7 +197,7 @@ class SettingsDialog(WindowModalDialog):
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
                 self.config.set_key('amt_precision_post_satoshi', prec)
-                self.window.need_update.set()
+                self.window.refresh_tabs()
         msat_cb.stateChanged.connect(on_msat_checked)
         lightning_widgets.append((msat_cb, None))
 
@@ -232,7 +232,7 @@ class SettingsDialog(WindowModalDialog):
             if self.config.amt_add_thousands_sep != checked:
                 self.config.amt_add_thousands_sep = checked
                 self.config.set_key('amt_add_thousands_sep', checked)
-                self.window.need_update.set()
+                self.window.refresh_tabs()
         thousandsep_cb.stateChanged.connect(on_set_thousandsep)
         gui_widgets.append((thousandsep_cb, None))
 
