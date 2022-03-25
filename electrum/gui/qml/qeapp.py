@@ -40,11 +40,11 @@ class ElectrumQmlApplication(QGuiApplication):
         self.engine.addImageProvider('qrgen', self.qr_ip)
 
         # add a monospace font as we can't rely on device having one
+        self.fixedFont = 'PT Mono'
         if QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Regular.ttf') < 0:
-            self.logger.warning('Could not load font PTMono-Regular.ttf')
-            self.fixedFont = 'Monospace' # hope for the best
-        else:
-            self.fixedFont = 'PT Mono'
+            if QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Bold.ttf') < 0:
+                self.logger.warning('Could not load font PT Mono')
+                self.fixedFont = 'Monospace' # hope for the best
 
         self.context = self.engine.rootContext()
         self._singletons['config'] = QEConfig(config)
