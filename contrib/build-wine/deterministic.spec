@@ -102,6 +102,14 @@ for x in a.datas.copy():
             a.datas.remove(x)
             print('----> Removed x =', x)
 
+# not reproducible (see #7739):
+print("Removing *.dist-info/ from datas:")
+for x in a.datas.copy():
+    if ".dist-info\\" in x[0].lower():
+        a.datas.remove(x)
+        print('----> Removed x =', x)
+
+
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
 
