@@ -105,6 +105,6 @@ info "Building PyInstaller."
     [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
+$WINE_PYTHON -m pip install --no-dependencies --no-build-isolation --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."
