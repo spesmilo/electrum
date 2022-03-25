@@ -56,6 +56,11 @@ class QEWallet(QObject):
     def requestModel(self):
         return self._requestModel
 
+    nameChanged = pyqtSignal()
+    @pyqtProperty('QString', notify=nameChanged)
+    def name(self):
+        return self.wallet.basename()
+
     @pyqtProperty('QString', notify=dataChanged)
     def txinType(self):
         return self.wallet.get_txin_type(self.wallet.dummy_address())

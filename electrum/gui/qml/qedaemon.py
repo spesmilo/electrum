@@ -135,12 +135,6 @@ class QEDaemon(QObject):
     def currentWallet(self):
         return self._current_wallet
 
-    @pyqtProperty('QString', notify=walletLoaded)
-    def walletName(self):
-        if self._current_wallet != None:
-            return self._current_wallet.wallet.basename()
-        return ''
-
     @pyqtProperty(QEWalletListModel, notify=activeWalletsChanged)
     def activeWallets(self):
         return self._loaded_wallets

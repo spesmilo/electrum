@@ -26,7 +26,7 @@ Pane {
                     columns: 4
 
                     Label { text: 'Wallet'; Layout.columnSpan: 2 }
-                    Label { text: Daemon.walletName; Layout.columnSpan: 2; color: Material.accentColor }
+                    Label { text: Daemon.currentWallet.name; Layout.columnSpan: 2; color: Material.accentColor }
 
                     Label { text: 'derivation path (BIP32)'; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
                     Label { text: Daemon.currentWallet.derivationPath; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }

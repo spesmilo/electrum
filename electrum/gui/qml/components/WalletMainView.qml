@@ -6,7 +6,7 @@ import QtQml 2.6
 Item {
     id: rootItem
 
-    property string title: Daemon.walletName
+    property string title: Daemon.currentWallet.name
 
     property QtObject menu: Menu {
         id: menu

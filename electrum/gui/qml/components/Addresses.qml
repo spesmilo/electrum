@@ -8,7 +8,7 @@ import org.electrum 1.0
 Pane {
     id: rootItem
 
-    property string title: Daemon.walletName + ' - ' + qsTr('Addresses')
+    property string title: Daemon.currentWallet.name + ' - ' + qsTr('Addresses')
 
     ColumnLayout {
         id: layout
