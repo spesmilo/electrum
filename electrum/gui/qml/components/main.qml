@@ -81,9 +81,17 @@ ApplicationWindow
             Image {
                 Layout.preferredWidth: constants.iconSizeSmall
                 Layout.preferredHeight: constants.iconSizeSmall
+                visible: Daemon.currentWallet.isWatchOnly
+                source: '../../icons/eye1.png'
+                scale: 1.5
+            }
+
+            Image {
+                Layout.preferredWidth: constants.iconSizeSmall
+                Layout.preferredHeight: constants.iconSizeSmall
                 source: Network.status == 'connecting' || Network.status == 'disconnected'
-                    ? '../../icons/status_disconnected.png' :
-                        Daemon.currentWallet.isUptodate
+                    ? '../../icons/status_disconnected.png'
+                    : Daemon.currentWallet.isUptodate
                         ? '../../icons/status_connected.png'
                         : '../../icons/status_lagging.png'
             }
@@ -97,8 +105,8 @@ ApplicationWindow
 
             ToolButton {
                 id: menuButton
-                visible: stack.currentItem.menu !== undefined && stack.currentItem.menu.count > 0
-                text: qsTr("⋮")
+                enabled: stack.currentItem.menu !== undefined && stack.currentItem.menu.count > 0
+                text: enabled ? qsTr("≡") : ''
                 onClicked: {
                     stack.currentItem.menu.open()
                     // position the menu to the right

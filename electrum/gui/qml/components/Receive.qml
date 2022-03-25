@@ -193,6 +193,8 @@ Pane {
 
                     onClicked: console.log('Request ' + index + ' clicked')
 
+                    font.pixelSize: constants.fontSizeSmall // set default font size for child controls
+
                     GridLayout {
                         id: item
 
@@ -227,31 +229,25 @@ Pane {
 
                         Label {
                             text: qsTr('Amount: ')
-                            font.pixelSize: constants.fontSizeSmall
                         }
                         Label {
                             id: amount
                             text: Config.formatSats(model.amount, true)
                             font.family: FixedFont
-                            font.pixelSize: constants.fontSizeSmall
                         }
 
                         Label {
                             text: qsTr('Timestamp: ')
-                            font.pixelSize: constants.fontSizeSmall
                         }
                         Label {
                             text: model.timestamp
-                            font.pixelSize: constants.fontSizeSmall
                         }
 
                         Label {
                             text: qsTr('Status: ')
-                            font.pixelSize: constants.fontSizeSmall
                         }
                         Label {
                             text: model.status
-                            font.pixelSize: constants.fontSizeSmall
                         }
                         Rectangle {
                             Layout.columnSpan: 5

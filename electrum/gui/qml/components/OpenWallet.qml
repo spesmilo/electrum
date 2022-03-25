@@ -97,7 +97,7 @@ Pane {
         }
         onReadyChanged: {
             if (ready) {
-                Daemon.load_wallet(Daemon.path, password.text)
+                Daemon.load_wallet(openwalletdialog.path, password.text)
                 app.stack.pop(null)
             }
         }

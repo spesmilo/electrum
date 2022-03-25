@@ -36,24 +36,20 @@ Pane {
                     width: ListView.view.width
                     height: delegateLayout.height
                     highlighted: ListView.isCurrentItem
+
+                    font.pixelSize: constants.fontSizeMedium // set default font size for child controls
+
                     onClicked: ListView.view.currentIndex == index
                         ? ListView.view.currentIndex = -1
                         : ListView.view.currentIndex = index
 
                     states: [
                         State {
-                            name: 'normal'; when: !highlighted
-                            PropertyChanges { target: drawer; visible: false }
-                            PropertyChanges { target: labelLabel; maximumLineCount: 2 }
-
-                        },
-                        State {
                             name: 'highlighted'; when: highlighted
                             PropertyChanges { target: drawer; visible: true }
                             PropertyChanges { target: labelLabel; maximumLineCount: 4 }
                         }
                     ]
-
 
                     ColumnLayout {
                         id: delegateLayout
@@ -71,19 +67,18 @@ Pane {
                             columns: 2
                             Label {
                                 id: indexLabel
-                                font.pixelSize: constants.fontSizeMedium
                                 font.bold: true
                                 text: '#' + ('00'+model.iaddr).slice(-2)
                                 Layout.fillWidth: true
                             }
                             Label {
-                                font.pixelSize: constants.fontSizeMedium
                                 font.family: FixedFont
                                 text: model.address
                                 Layout.fillWidth: true
                             }
 
                             Rectangle {
+                                id: useIndicator
                                 Layout.preferredWidth: constants.iconSizeMedium
                                 Layout.preferredHeight: constants.iconSizeMedium
                                 color: model.held
@@ -107,21 +102,17 @@ Pane {
                                     Layout.fillWidth: true
                                 }
                                 Label {
-                                    font.pixelSize: constants.fontSizeMedium
                                     font.family: FixedFont
                                     text: Config.formatSats(model.balance, false)
                                 }
                                 Label {
-                                    font.pixelSize: constants.fontSizeMedium
                                     color: Material.accentColor
                                     text: Config.baseUnit + ','
                                 }
                                 Label {
-                                    font.pixelSize: constants.fontSizeMedium
                                     text: model.numtx
                                 }
                                 Label {
-                                    font.pixelSize: constants.fontSizeMedium
                                     color: Material.accentColor
                                     text: qsTr('tx')
                                 }
@@ -130,6 +121,7 @@ Pane {
 
                         RowLayout {
                             id: drawer
+                            visible: false
                             Layout.fillWidth: true
                             Layout.preferredHeight: 50
 
