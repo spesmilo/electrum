@@ -2348,7 +2348,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         amount_sat = amount_sat or 0
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
-        lightning_invoice = self.lnworker.add_request(amount_sat, message, exp_delay) if lightning else None
+        fallback_address = address if self.config.get('bolt11_fallback', True) else None
+        lightning_invoice = self.lnworker.add_request(amount_sat, message, exp_delay, fallback_address) if lightning else None
         outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.get_local_height()
         req = Invoice(
