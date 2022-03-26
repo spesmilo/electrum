@@ -160,7 +160,8 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
     && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
-    && python3 -m pip install --no-build-isolation --no-dependencies -e .
+    # SETUPTOOLS_USE_DISTUTILS=stdlib needed to build buildozer for GRS
+    && SETUPTOOLS_USE_DISTUTILS=stdlib python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
 RUN cd /opt \
