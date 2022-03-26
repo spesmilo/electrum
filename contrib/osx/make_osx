@@ -93,8 +93,12 @@ python3 -m venv $VENV_DIR
 source $VENV_DIR/bin/activate
 
 info "Installing build dependencies"
-python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
-    || fail "Could not install build dependencies"
+python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-build-base.txt \
+    || fail "Could not install build dependencies (base)"
+python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
+    || fail "Could not install build dependencies (mac)"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -155,22 +159,26 @@ cp "$PROJECT_ROOT"/electrum_ltc/libusb-1.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."
-python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements.txt \
+python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-hw.txt \
+python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
 info "Installing dependencies specific to binaries..."
 brew install openssl
 export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"
 export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"
-python3 -m pip install --no-dependencies --no-warn-script-location -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
+python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
 info "Building $PACKAGE..."
-python3 -m pip install --no-dependencies --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
+python3 -m pip install --no-build-isolation --no-dependencies \
+    --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true

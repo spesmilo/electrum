@@ -861,7 +861,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.tray.showMessage("Electrum-LTC", message, QSystemTrayIcon.Information, 20000)
 
     def timer_actions(self):
-        self.request_list.refresh_status()
+        self.request_list.refresh_all()
+        self.invoice_list.refresh_all()
         # Note this runs in the GUI thread
         if self.need_update.is_set():
             self.need_update.clear()
@@ -1014,11 +1015,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if wallet != self.wallet:
             return
         self.history_model.refresh('update_tabs')
-        self.request_list.update()
+        self.request_list.refresh_all()
+        self.invoice_list.refresh_all()
         self.address_list.update()
         self.utxo_list.update()
         self.contact_list.update()
-        self.invoice_list.update()
         self.channels_list.update_rows.emit(wallet)
         self.update_completions()
 
@@ -1197,7 +1198,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def delete_requests(self, keys):
         for key in keys:
             self.wallet.delete_request(key)
-        self.request_list.update()
+            self.request_list.delete_item(key)
         self.clear_receive_tab()
 
     def delete_lightning_payreq(self, payreq_key):
@@ -1582,7 +1583,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.notify(_('Payment received') + '\n' + key)
             self.need_update.set()
         else:
-            self.request_list.update_item(key, req)
+            self.request_list.refresh_item(key)
 
     def on_invoice_status(self, wallet, key):
         if wallet != self.wallet:
@@ -1592,9 +1593,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         status = self.wallet.get_invoice_status(invoice)
         if status == PR_PAID:
-            self.invoice_list.update()
+            self.invoice_list.delete_item(key)
         else:
-            self.invoice_list.update_item(key, invoice)
+            self.invoice_list.refresh_item(key)
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)
@@ -1880,16 +1881,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         chan, funding_tx = args
         lnworker = self.wallet.lnworker
         if not chan.has_onchain_backup():
-            backup_dir = self.config.get_backup_dir()
-            if backup_dir is not None:
-                self.show_message(_(f'Your wallet backup has been updated in {backup_dir}'))
-            else:
-                data = lnworker.export_channel_backup(chan.channel_id)
-                help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
-                self.show_qrcode(
-                    data, _('Save channel backup'),
-                    help_text=help_text,
-                    show_copy_text_btn=True)
+            data = lnworker.export_channel_backup(chan.channel_id)
+            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+            help_text += '\n\n' + _('Alternatively, you can save a backup of your wallet file from the File menu')
+            self.show_qrcode(
+                data, _('Save channel backup'),
+                help_text=help_text,
+                show_copy_text_btn=True)
         n = chan.constraints.funding_txn_minimum_depth
         message = '\n'.join([
             _('Channel established.'),
@@ -1930,7 +1928,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def delete_invoices(self, keys):
         for key in keys:
             self.wallet.delete_invoice(key)
-        self.invoice_list.update()
+            self.invoice_list.delete_item(key)
 
     def payment_request_ok(self):
         pr = self.payment_request

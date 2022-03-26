@@ -277,7 +277,7 @@ class SimpleConfig(Logger):
                 raise
 
     def get_backup_dir(self):
-        # this is used to save a backup everytime a channel is created
+        # this is used to save wallet file backups (without active lightning channels)
         # on Android, the export backup button uses android_backup_dir()
         if 'ANDROID_DATA' in os.environ:
             return None
