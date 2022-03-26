@@ -22,6 +22,8 @@
    - during LN chan open, do not backup wallet automatically (#7733)
    - Imported wallets: fix delete_address rm-ing too many txs (#7587)
    - fix potential deadlock in wallet.py (d3476b6b)
+ * Hardware wallets:
+   - ledger: add progress indicator to sign_transaction (#7516)
  * fix the "--portable" flag for AppImage, and for pip installs (#7732)
 
 
