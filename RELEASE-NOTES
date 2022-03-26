@@ -1,4 +1,4 @@
-# Release 4.2.1 - (March 24, 2022)
+# Release 4.2.1 - (March 26, 2022)
  * Binaries:
    - Windows: we are dropping support for Windows 7. (#7728)
      Version 4.2.0 already unintentionally broke compatibility with
