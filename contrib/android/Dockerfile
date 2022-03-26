@@ -145,8 +145,11 @@ WORKDIR ${WORK_DIR}
 #USER ${USER}
 
 
+COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
 COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
-RUN python3 -m pip install --no-dependencies \
+RUN python3 -m pip install --no-build-isolation --no-dependencies \
+    -r /opt/deterministic-build/requirements-build-base.txt
+RUN python3 -m pip install --no-build-isolation --no-dependencies \
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
@@ -157,7 +160,7 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
     && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
-    && SETUPTOOLS_USE_DISTUTILS=stdlib python3 -m pip install --no-dependencies -e .
+    && python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
 RUN cd /opt \
@@ -168,7 +171,7 @@ RUN cd /opt \
     && git fetch --all \
     # commit: from branch accumulator/qt5-wip
     && git checkout "ebbe8dcc271e36468666feb98f936d0a96936cf2^{commit}" \
-    && python3 -m pip install --no-dependencies -e .
+    && python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars
 ENV USE_SDK_WRAPPER=1
