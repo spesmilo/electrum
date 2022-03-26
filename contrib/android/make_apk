@@ -55,7 +55,7 @@ elif [[ "$3" == "release-unsigned" ]] ; then
     # do release build, but do not sign the APKs.
     TARGET="release"
 elif [[ "$3" == "debug" ]] ; then
-    # do debug build; the default.
+    # do debug build.
     TARGET="apk"
     export P4A_DEBUG_KEYSTORE="$CONTRIB_ANDROID"/android_debug.keystore
     export P4A_DEBUG_KEYSTORE_PASSWD=unsafepassword
