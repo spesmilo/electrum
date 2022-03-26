@@ -21,7 +21,8 @@ python3 -m venv "$venv_dir"
 source "$venv_dir"/bin/activate
 
 # installing pinned build-time requirements, such as pip/wheel/setuptools
-python -m pip install --no-dependencies --no-warn-script-location -r "$CONTRIB"/deterministic-build/requirements-build-makepackages.txt
+python -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    -r "$CONTRIB"/deterministic-build/requirements-build-base.txt
 
 # opt out of compiling C extensions
 # FIXME aiohttp opt-out is not released yet: https://github.com/aio-libs/aiohttp/pull/3828

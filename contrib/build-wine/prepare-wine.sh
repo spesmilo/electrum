@@ -51,7 +51,9 @@ done
 break_legacy_easy_install
 
 info "Installing build dependencies."
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-base.txt
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
 
 info "Installing NSIS."
@@ -105,6 +107,6 @@ info "Building PyInstaller."
     [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$WINE_PYTHON -m pip install --no-dependencies --no-build-isolation --no-warn-script-location ./pyinstaller
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."
