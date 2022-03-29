@@ -1,4 +1,4 @@
-# Notes on building Electrum on Apple M1 OSX (ARM)
+# Notes on running Electrum from source on ARM-based Macs (Apple M1 OSX)
 
 Development version (git clone)
 
