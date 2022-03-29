@@ -1104,8 +1104,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_qr.setVisible(not b)
         self.receive_URI_e.setVisible(b)
         self.receive_URI_qr.setVisible(not b)
-        self.receive_lightning_e.setVisible(b)
-        self.receive_lightning_qr.setVisible(not b)
+        if str(self.receive_lightning_e.text()):
+            self.receive_lightning_help.setVisible(False)
+            self.receive_lightning_e.setVisible(b)
+            self.receive_lightning_qr.setVisible(not b)
+        else:
+            self.receive_lightning_help.setVisible(True)
+            self.receive_lightning_e.setVisible(False)
+            self.receive_lightning_qr.setVisible(False)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1175,6 +1181,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_e = ButtonsTextEdit()
         self.receive_URI_e = ButtonsTextEdit()
         self.receive_lightning_e = ButtonsTextEdit()
+        self.receive_lightning_help = WWLabel('You do not have the capacity to receive this amount using Lightning')
+        self.receive_lightning_help.setVisible(False)
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
         fixedSize = 200
@@ -1201,6 +1209,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_lightning_layout = QHBoxLayout()
         receive_lightning_layout.addWidget(self.receive_lightning_e)
         receive_lightning_layout.addWidget(self.receive_lightning_qr)
+        receive_lightning_layout.addWidget(self.receive_lightning_help)
 
         from .util import VTabWidget
         self.receive_tabs = VTabWidget()
