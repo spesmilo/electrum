@@ -23,6 +23,7 @@ Pane {
             id: address
             Layout.columnSpan: 2
             Layout.fillWidth: true
+            font.family: FixedFont
             placeholderText: qsTr('Paste address or invoice')
         }
 
@@ -39,6 +40,7 @@ Pane {
 
         TextField {
             id: amount
+            font.family: FixedFont
             placeholderText: qsTr('Amount')
         }
 
@@ -56,6 +58,7 @@ Pane {
 
         TextField {
             id: fee
+            font.family: FixedFont
             placeholderText: qsTr('sat/vB')
             Layout.columnSpan: 3
         }

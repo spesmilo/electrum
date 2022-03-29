@@ -1,6 +1,6 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
+import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
@@ -36,6 +36,7 @@ Pane {
 
         TextField {
             id: amount
+            font.family: FixedFont
             Layout.fillWidth: true
         }
 
@@ -78,6 +79,7 @@ Pane {
 
         TextField {
             id: amountFiat
+            font.family: FixedFont
             Layout.fillWidth: true
         }
 
