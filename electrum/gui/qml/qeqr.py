@@ -2,17 +2,16 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QRec
 from PyQt5.QtGui import QImage,QColor
 from PyQt5.QtQuick import QQuickImageProvider
 
-from electrum.logging import get_logger
-from electrum.qrreader import get_qr_reader
-
-from electrum.i18n import _
+import asyncio
 import qrcode
 #from qrcode.image.styledpil import StyledPilImage
 #from qrcode.image.styles.moduledrawers import *
-
 from PIL import Image, ImageQt
-from ctypes import *
-import sys
+
+from electrum.logging import get_logger
+from electrum.qrreader import get_qr_reader
+from electrum.i18n import _
+
 
 class QEQR(QObject):
     def __init__(self, text=None, parent=None):
@@ -47,9 +46,6 @@ class QEQR(QObject):
         self.logImageStats(image)
         self._parseQR(image)
 
-        self._busy = False
-        self.busyChanged.emit()
-
     def logImageStats(self, image):
         self._logger.info('width: ' + str(image.width()))
         self._logger.info('height: ' + str(image.height()))
@@ -62,23 +58,32 @@ class QEQR(QObject):
         img_crop_rect = self._get_crop(image, 360)
         frame_cropped = image.copy(img_crop_rect)
 
-        # Convert to Y800 / GREY FourCC (single 8-bit channel)
-        # This creates a copy, so we don't need to keep the frame around anymore
-        frame_y800 = frame_cropped.convertToFormat(QImage.Format_Grayscale8)
+        async def co_parse_qr(image):
+            # Convert to Y800 / GREY FourCC (single 8-bit channel)
+            # This creates a copy, so we don't need to keep the frame around anymore
+            frame_y800 = image.convertToFormat(QImage.Format_Grayscale8)
 
-        self.frame_id = 0
-        # Read the QR codes from the frame
-        self.qrreader_res = self.qrreader.read_qr_code(
-            frame_y800.constBits().__int__(), frame_y800.byteCount(),
-            frame_y800.bytesPerLine(),
-            frame_y800.width(),
-            frame_y800.height(), self.frame_id
-            )
+            self.frame_id = 0
+            # Read the QR codes from the frame
+            self.qrreader_res = self.qrreader.read_qr_code(
+                frame_y800.constBits().__int__(),
+                frame_y800.byteCount(),
+                frame_y800.bytesPerLine(),
+                frame_y800.width(),
+                frame_y800.height(),
+                self.frame_id
+                )
 
-        if len(self.qrreader_res) > 0:
-            result = self.qrreader_res[0]
-            self._data = result
-            self.dataChanged.emit()
+            if len(self.qrreader_res) > 0:
+                result = self.qrreader_res[0]
+                self._data = result
+                self.dataChanged.emit()
+
+            self._busy = False
+            self.busyChanged.emit()
+
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(co_parse_qr(frame_cropped), loop)
 
     def _get_crop(self, image: QImage, scan_size: int) -> QRect:
         """
