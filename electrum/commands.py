@@ -913,14 +913,9 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        req = wallet.create_request(amount, memo, expiration, addr, False)
+        key = wallet.create_request(amount, memo, expiration, addr, True)
+        req = wallet.get_request(key)
         return wallet.export_request(req)
-
-    @command('wnl')
-    async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
-        amount_sat = int(satoshis(amount))
-        key = wallet.lnworker.add_request(amount_sat, memo, expiration)
-        return wallet.get_formatted_request(key)
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):

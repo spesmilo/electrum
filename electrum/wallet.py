@@ -2192,19 +2192,19 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'amount_BTC': format_satoshis(x.get_amount_sat()),
             'message': x.message,
             'timestamp': x.get_time(),
-            'expiration': x.get_expiry(),
+            'expiration': x.get_expiration_date(),
             'status': status,
             'status_str': status_str,
         }
         if is_lightning:
             d['rhash'] = x.rhash
-            d['invoice'] = x.invoice
+            d['lightning_invoice'] = x.lightning_invoice
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
             paid, conf = self.get_onchain_request_status(x)
-            d['amount_sat'] = x.get_amount_sat()
+            d['amount_sat'] = int(x.get_amount_sat())
             d['address'] = x.get_address()
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
@@ -2236,18 +2236,17 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             'status_str': status_str,
         }
         if is_lightning:
-            d['invoice'] = x.invoice
+            d['lightning_invoice'] = x.lightning_invoice
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
-            amount_sat = x.get_amount_sat()
+            amount_sat = int(x.get_amount_sat())
             assert isinstance(amount_sat, (int, str, type(None)))
             d['amount_sat'] = amount_sat
-            d['outputs'] = [y.to_legacy_tuple() for y in x.outputs]
+            d['outputs'] = [y.to_legacy_tuple() for y in x.get_outputs()]
             if x.bip70:
                 d['bip70'] = x.bip70
-                d['requestor'] = x.requestor
         return d
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
