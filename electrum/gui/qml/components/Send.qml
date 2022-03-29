@@ -80,7 +80,13 @@ Pane {
 
             Button {
                 text: qsTr('Scan QR Code')
-                onClicked: app.stack.push(Qt.resolvedUrl('Scan.qml'))
+                onClicked: {
+                    var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
+                    page.onFound.connect(function() {
+                        console.log('got ' + page.scanData)
+                        address.text = page.scanData
+                    })
+                }
             }
         }
     }
