@@ -15,21 +15,16 @@ Run install (this should install dependencies):
 python3 -m pip install --user -e .
 ```
 
-2. pycryptodomex and cryptography and will need to be manually installed:
+2. cryptography and will need to be manually installed. It will mention pycryptodomex, but prefer cryptography:
 
 ```
-$ pip install pycryptodomex
 $ pip install cryptography
 ```
 
-3. Manually install libsecp256k1 from source (https://github.com/bitcoin-core/secp256k1#build-steps) but with the following modifications: 
+3. Install libsecp256k1
 
 ```
-$ ./autogen.sh
-$ ./configure --enable-module-recovery
-$ make
-$ make check  # run the test suite
-$ sudo make install  # optional
+$ contrib/make_libsecp256k1.sh
 ```
 
 4. `pip install pyqt5` will work on intel x86, however for M1, to bypass pyqt5 install issue, do the following:
