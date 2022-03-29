@@ -1698,7 +1698,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_payment_failed(self, wallet, key, reason):
         invoice = self.wallet.get_invoice(key)
-        self.show_error(_('Payment failed') + '\n\n' + reason)
+        if invoice and invoice.is_lightning() and invoice.get_address():
+            if self.question(_('Payment failed') + '\n\n' + reason + '\n\n'+ 'Fallback to onchain payment?'):
+                self.pay_onchain_dialog(self.get_coins(), invoice.get_outputs())
+        else:
+            self.show_error(_('Payment failed') + '\n\n' + reason)
 
     def read_invoice(self):
         if self.check_send_tab_payto_line_and_show_errors():
