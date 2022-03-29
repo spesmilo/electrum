@@ -86,7 +86,8 @@ class RequestList(MyTreeView):
 
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
-            self.parent.receive_payreq_e.setText('')
+            self.parent.receive_URI_e.setText('')
+            self.parent.receive_lightning_e.setText('')
             self.parent.receive_address_e.setText('')
             return
         if not idx.isValid():
@@ -98,14 +99,7 @@ class RequestList(MyTreeView):
         if req is None:
             self.update()
             return
-        if req.is_lightning():
-            self.parent.receive_payreq_e.setText(req.lightning_invoice)  # TODO maybe prepend "lightning:" ??
-            self.parent.receive_address_e.setText(req.lightning_invoice)
-        else:
-            self.parent.receive_payreq_e.setText(self.parent.wallet.get_request_URI(req))
-            self.parent.receive_address_e.setText(req.get_address())
-        self.parent.receive_payreq_e.repaint()  # macOS hack (similar to #4777)
-        self.parent.receive_address_e.repaint()  # macOS hack (similar to #4777)
+        self.parent.show_receive_request(req)
 
     def clearSelection(self):
         super().clearSelection()
@@ -138,20 +132,12 @@ class RequestList(MyTreeView):
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
             labels = [date, message, amount_str, status_str]
-            if req.is_lightning():
-                icon = read_QIcon("lightning.png")
-                tooltip = 'lightning request'
-            else:
-                icon = read_QIcon("bitcoin.png")
-                tooltip = 'onchain request'
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
             items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
-            items[self.Columns.DATE].setIcon(icon)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            items[self.Columns.DATE].setToolTip(tooltip)
             self.std_model.insertRow(self.std_model.rowCount(), items)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
@@ -186,13 +172,13 @@ class RequestList(MyTreeView):
             self.update()
             return
         menu = QMenu(self)
-        self.add_copy_menu(menu, idx)
-        if req.is_lightning():
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
-        else:
-            URI = self.wallet.get_request_URI(req)
-            menu.addAction(_("Copy Request"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
+        if req.get_address():
             menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Bitcoin Address'))
+            URI = self.wallet.get_request_URI(req)
+            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
+        if req.is_lightning():
+            menu.addAction(_("Copy Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
+        self.add_copy_menu(menu, idx)
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))

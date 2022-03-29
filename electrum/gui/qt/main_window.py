@@ -778,6 +778,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addSeparator()
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
+        tools_menu.addAction(_("&Show QR code in separate window"), self.toggle_receive_qr_window)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
@@ -1092,6 +1093,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = LightningTxDialog(self, tx_item)
         d.show()
 
+    def toggle_receive_qr(self, toggle=False):
+        b = not self.config.get('receive_qr_visible', False)
+        self.config.set_key('receive_qr_visible', b)
+        self.update_receive_widgets()
+
+    def update_receive_widgets(self):
+        b = self.config.get('receive_qr_visible', False)
+        self.receive_address_e.setVisible(b)
+        self.receive_address_qr.setVisible(not b)
+        self.receive_URI_e.setVisible(b)
+        self.receive_URI_qr.setVisible(not b)
+        self.receive_lightning_e.setVisible(b)
+        self.receive_lightning_qr.setVisible(not b)
+
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
         # The exchange rate plugin adds a fiat widget in column 2
@@ -1099,15 +1114,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
 
-        self.receive_message_e = SizedFreezableLineEdit(width=700)
+        self.receive_message_e = SizedFreezableLineEdit(width=400)
         grid.addWidget(QLabel(_('Description')), 0, 0)
         grid.addWidget(self.receive_message_e, 0, 1, 1, 4)
-        self.receive_message_e.textChanged.connect(self.update_receive_qr)
 
         self.receive_amount_e = BTCAmountEdit(self.get_decimal_point)
         grid.addWidget(QLabel(_('Requested amount')), 1, 0)
         grid.addWidget(self.receive_amount_e, 1, 1)
-        self.receive_amount_e.textChanged.connect(self.update_receive_qr)
 
         self.fiat_receive_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
@@ -1159,47 +1172,66 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         grid.addLayout(buttons, 4, 0, 1, -1)
 
-        self.receive_payreq_e = ButtonsTextEdit()
-        self.receive_payreq_e.setFont(QFont(MONOSPACE_FONT))
-        self.receive_payreq_e.addCopyButton(self.app)
-        self.receive_payreq_e.setReadOnly(True)
-        self.receive_payreq_e.textChanged.connect(self.update_receive_qr)
-        self.receive_payreq_e.setFocusPolicy(Qt.ClickFocus)
-
-        self.receive_qr = QRCodeWidget(fixedSize=220)
-        self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
-        self.receive_qr.enterEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
-        self.receive_qr.leaveEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
-
         self.receive_address_e = ButtonsTextEdit()
-        self.receive_address_e.setFont(QFont(MONOSPACE_FONT))
-        self.receive_address_e.addCopyButton(self.app)
-        self.receive_address_e.setReadOnly(True)
-        self.receive_address_e.textChanged.connect(self.update_receive_address_styling)
+        self.receive_URI_e = ButtonsTextEdit()
+        self.receive_lightning_e = ButtonsTextEdit()
+        #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
-        qr_show = lambda: self.show_qrcode(str(self.receive_address_e.text()), _('Receiving address'), parent=self)
+        fixedSize = 200
         qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        self.receive_address_e.addButton(qr_icon, qr_show, _("Show as QR code"))
+        for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
+            e.setFont(QFont(MONOSPACE_FONT))
+            e.addCopyButton(self.app)
+            e.setReadOnly(True)
+            e.setFixedSize(fixedSize, fixedSize)
+            e.addButton(qr_icon, self.toggle_receive_qr, _("Show as QR code"))
+
+        self.receive_address_qr = QRCodeWidget(fixedSize=fixedSize)
+        self.receive_URI_qr = QRCodeWidget(fixedSize=fixedSize)
+        self.receive_lightning_qr = QRCodeWidget(fixedSize=fixedSize)
+
+        self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
+
+        receive_address_layout = QHBoxLayout()
+        receive_address_layout.addWidget(self.receive_address_e)
+        receive_address_layout.addWidget(self.receive_address_qr)
+        receive_URI_layout = QHBoxLayout()
+        receive_URI_layout.addWidget(self.receive_URI_e)
+        receive_URI_layout.addWidget(self.receive_URI_qr)
+        receive_lightning_layout = QHBoxLayout()
+        receive_lightning_layout.addWidget(self.receive_lightning_e)
+        receive_lightning_layout.addWidget(self.receive_lightning_qr)
+
+        from .util import VTabWidget
+        self.receive_tabs = VTabWidget()
+        receive_address_widget = QWidget()
+        receive_address_widget.setLayout(receive_address_layout)
+        receive_URI_widget = QWidget()
+        receive_URI_widget.setLayout(receive_URI_layout)
+        receive_lightning_widget = QWidget()
+        receive_lightning_widget.setLayout(receive_lightning_layout)
+
+        self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
+        self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
+        self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
+        def on_current_changed(index):
+            self.update_receive_qr_window()
+        def on_tab_bar_clicked(index):
+            w = self.receive_tabs.widget(index)
+            if w == self.receive_tabs.currentWidget() and self.receive_tabs.isTabEnabled(index):
+                self.toggle_receive_qr()
+        self.receive_tabs.tabBarClicked.connect(on_tab_bar_clicked)
+        self.receive_tabs.currentChanged.connect(on_current_changed)
+        self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
+        self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
+        receive_tabs_sp = self.receive_tabs.sizePolicy()
+        receive_tabs_sp.setRetainSizeWhenHidden(True)
+        self.receive_tabs.setSizePolicy(receive_tabs_sp)
+        self.receive_tabs.setVisible(False)
 
         self.receive_requests_label = QLabel(_('Receive queue'))
-
         from .request_list import RequestList
         self.request_list = RequestList(self)
-
-        receive_tabs = QTabWidget()
-        receive_tabs.addTab(self.receive_address_e, _('Address'))
-        receive_tabs.addTab(self.receive_payreq_e, _('Request'))
-        receive_tabs.addTab(self.receive_qr, _('QR Code'))
-        receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
-        receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
-        receive_tabs_sp = receive_tabs.sizePolicy()
-        receive_tabs_sp.setRetainSizeWhenHidden(True)
-        receive_tabs.setSizePolicy(receive_tabs_sp)
-
-        def maybe_hide_receive_tabs():
-            receive_tabs.setVisible(bool(self.receive_payreq_e.text()))
-        self.receive_payreq_e.textChanged.connect(maybe_hide_receive_tabs)
-        maybe_hide_receive_tabs()
 
         # layout
         vbox_g = QVBoxLayout()
@@ -1208,7 +1240,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
         hbox.addStretch()
-        hbox.addWidget(receive_tabs)
+        hbox.addWidget(self.receive_tabs)
 
         w = QWidget()
         w.searchable_list = self.request_list
@@ -1221,6 +1253,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.setStretchFactor(self.request_list, 1000)
 
         return w
+
+    def show_receive_request(self, req):
+        addr = req.get_address() or ''
+        URI = req.get_bip21_URI() if addr else ''
+        lnaddr = req.lightning_invoice or ''
+        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
+        if not can_receive_lightning:
+            lnaddr = ''
+        icon_name = "lightning.png" if can_receive_lightning else "lightning_disconnected.png"
+        self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
+        # encode lightning invoices as uppercase so QR encoding can use
+        # alphanumeric mode; resulting in smaller QR codes
+        lnaddr_qr = lnaddr.upper()
+        self.receive_address_e.setText(addr)
+        self.receive_address_qr.setData(addr)
+        self.receive_URI_e.setText(URI)
+        self.receive_URI_qr.setData(URI)
+        self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
+        self.receive_lightning_qr.setData(lnaddr_qr)
+        # macOS hack (similar to #4777)
+        self.receive_lightning_e.repaint()
+        self.receive_URI_e.repaint()
+        self.receive_address_e.repaint()
+        # always show
+        self.receive_tabs.setVisible(True)
+        self.update_receive_qr_window()
+
+    def update_receive_qr_window(self):
+        if self.qr_window and self.qr_window.isVisible():
+            i = self.receive_tabs.currentIndex()
+            if i == 0:
+                data = self.receive_address_qr.data
+            elif i == 1:
+                data = self.receive_URI_qr.data
+            else:
+                data = self.receive_lightning_qr.data
+            self.qr_window.qrw.setData(data)
 
     def delete_requests(self, keys):
         for key in keys:
@@ -1276,7 +1345,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return
-
+        except Exception as e:
+            self.logger.exception('Error adding payment request')
+            self.show_error(_('Error adding payment request') + ':\n' + repr(e))
+            return
+        self.sign_payment_request(address)
         assert key is not None
         self.address_list.refresh_all()
         self.request_list.update()
@@ -1290,7 +1363,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         title = _('Invoice') if r.is_lightning() else _('Address')
         self.do_copy(content, title=title)
 
-    def get_bitcoin_address_for_request(self, amount: int) -> Optional[str]:
+    def get_bitcoin_address_for_request(self, amount) -> Optional[str]:
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():  # imported wallet
@@ -1318,15 +1391,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         QToolTip.showText(QCursor.pos(), tooltip_text, self)
 
     def clear_receive_tab(self):
-        self.receive_payreq_e.setText('')
         self.receive_address_e.setText('')
+        self.receive_URI_e.setText('')
+        self.receive_lightning_e.setText('')
+        self.receive_tabs.setVisible(False)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.expires_label.hide()
         self.expires_combo.show()
         self.request_list.clearSelection()
 
-    def toggle_qr_window(self):
+    def toggle_receive_qr_window(self):
         from . import qrwindow
         if not self.qr_window:
             self.qr_window = qrwindow.QR_Window(self)
@@ -1339,23 +1414,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             else:
                 self.qr_window_geometry = self.qr_window.geometry()
                 self.qr_window.setVisible(False)
-        self.update_receive_qr()
 
     def show_send_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.send_tab))
 
     def show_receive_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.receive_tab))
-
-    def update_receive_qr(self):
-        uri = str(self.receive_payreq_e.text())
-        if maybe_extract_bolt11_invoice(uri):
-            # encode lightning invoices as uppercase so QR encoding can use
-            # alphanumeric mode; resulting in smaller QR codes
-            uri = uri.upper()
-        self.receive_qr.setData(uri)
-        if self.qr_window and self.qr_window.isVisible():
-            self.qr_window.qrw.setData(uri)
 
     def update_receive_address_styling(self):
         addr = str(self.receive_address_e.text())
@@ -1624,6 +1688,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.need_update.set()
 
     def on_payment_failed(self, wallet, key, reason):
+        invoice = self.wallet.get_invoice(key)
         self.show_error(_('Payment failed') + '\n\n' + reason)
 
     def read_invoice(self):
