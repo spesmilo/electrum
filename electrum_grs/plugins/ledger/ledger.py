@@ -444,10 +444,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 else:
                     output = txout.address
 
-        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
             # Get trusted inputs from the original transactions
-            for utxo in inputs:
+            for input_idx, utxo in enumerate(inputs):
+                self.handler.show_message(_("Preparing transaction inputs...")
+                                          + f" (phase1, {input_idx}/{len(inputs)})")
                 sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction and not client_electrum.supports_segwit_trustedInputs():
                     tmp = bfh(utxo[3])[::-1]
@@ -472,6 +473,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     chipInputs.append({'value' : tmp, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
 
+            self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
@@ -493,6 +495,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         raise UserWarning()
                     self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
+                    self.handler.show_message(_("Signing transaction...")
+                                              + f" (phase2, {inputIndex}/{len(inputs)})")
                     singleInput = [chipInputs[inputIndex]]
                     client_ledger.startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex], version=tx.version)
@@ -505,6 +509,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     inputIndex = inputIndex + 1
             else:
                 while inputIndex < len(inputs):
+                    self.handler.show_message(_("Signing transaction...")
+                                              + f" (phase2, {inputIndex}/{len(inputs)})")
                     client_ledger.startUntrustedTransaction(firstTransaction, inputIndex,
                                                                 chipInputs, redeemScripts[inputIndex], version=tx.version)
                     # we don't set meaningful outputAddress, amount and fees
