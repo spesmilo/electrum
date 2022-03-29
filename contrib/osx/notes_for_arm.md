@@ -1,4 +1,4 @@
-# Notes on how to build Electrum on Apple M1 OSX 
+# Notes on building Electrum on Apple M1 OSX 
 
 
 1. Clone repository and build Electrum as usual:
