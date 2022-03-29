@@ -45,7 +45,7 @@ Finally, try it in python to ensure it works:
 
 ```
 $ python3
->> import PyQt5
+>>> import PyQt5
 ```
 
 5. Run electrum: 
