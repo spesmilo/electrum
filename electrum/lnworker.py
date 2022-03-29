@@ -1731,16 +1731,7 @@ class LNWallet(LNWorker):
         route[-1].node_features |= invoice_features
         return route
 
-    def add_request(self, amount_sat, message, expiry) -> str:
-        coro = self._add_request_coro(amount_sat, message, expiry)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        try:
-            return fut.result(timeout=5)
-        except concurrent.futures.TimeoutError:
-            raise Exception(_("add invoice timed out"))
-
-    @log_exceptions
-    async def create_invoice(
+    def create_invoice(
             self, *,
             amount_msat: Optional[int],
             message: str,
@@ -1749,7 +1740,7 @@ class LNWallet(LNWorker):
     ) -> Tuple[LnAddr, str]:
 
         timestamp = int(time.time())
-        routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
+        routing_hints = self.calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
             self.logger.info(
                 "Warning. No routing hints added to invoice. "
@@ -1786,9 +1777,9 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return lnaddr, invoice
 
-    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
+    def add_request(self, amount_sat: Optional[int], message, expiry: int) -> str:
         amount_msat = amount_sat * 1000 if amount_sat is not None else None
-        lnaddr, invoice = await self.create_invoice(
+        lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message=message,
             expiry=expiry,
@@ -1978,7 +1969,7 @@ class LNWallet(LNWorker):
             self.set_invoice_status(key, PR_UNPAID)
             util.trigger_callback('payment_failed', self.wallet, key, '')
 
-    async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
+    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
