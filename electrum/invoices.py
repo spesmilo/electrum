@@ -10,6 +10,7 @@ from .util import age, InvoiceError
 from .lnaddr import lndecode, LnAddr
 from . import constants
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
 
 if TYPE_CHECKING:
@@ -116,7 +117,18 @@ class Invoice(StoredObject):
 
     def get_address(self) -> str:
         """returns the first address, to be displayed in GUI"""
-        return self.outputs[0].address
+        if self.is_lightning():
+            return self._lnaddr.get_fallback_address() or None
+        else:
+            return self.outputs[0].address
+
+    def get_outputs(self):
+        if self.is_lightning():
+            address = self.get_address()
+            outputs = [PartialTxOutput.from_address_and_value(address, int(self.get_amount_sat()))] if address else []
+        else:
+            outputs = self.outputs
+        return outputs
 
     def get_expiration_date(self):
         # 0 means never
@@ -140,6 +152,14 @@ class Invoice(StoredObject):
         if amount_msat is None:
             return None
         return int(amount_msat / 1000)
+
+    def get_bip21_URI(self):
+        from electrum.util import create_bip21_uri
+        addr = self.get_address()
+        amount = int(self.get_amount_sat())
+        message = self.message
+        uri = create_bip21_uri(addr, amount, message)
+        return str(uri)
 
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):

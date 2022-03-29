@@ -1793,18 +1793,7 @@ class LNWallet(LNWorker):
             expiry=expiry,
             write_to_disk=False,
         )
-        req = self.wallet.make_payment_request(
-            amount_sat,
-            message,
-            timestamp,
-            expiry,
-            address=None,
-            lightning_invoice=invoice
-        )
-        key = self.wallet.add_payment_request(req, write_to_disk=False)
-        self.wallet.set_label(key, message)
-        self.wallet.save_db()
-        return key
+        return invoice
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash

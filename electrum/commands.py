@@ -913,8 +913,7 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        req = wallet.make_payment_request(addr, amount, memo, expiration)
-        wallet.add_payment_request(req)
+        req = wallet.create_request(amount, memo, expiration, addr, False)
         return wallet.export_request(req)
 
     @command('wnl')

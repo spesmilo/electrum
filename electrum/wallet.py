@@ -789,7 +789,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             if self.is_onchain_invoice_paid(invoice, 0):
                 self.logger.info("saving invoice... but it is already paid!")
             with self.transaction_lock:
-                for txout in invoice.outputs:
+                for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self.invoices[key] = invoice
         self.save_db()
@@ -854,15 +854,18 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # scriptpubkey -> list(invoice_keys)
         self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
         for invoice_key, invoice in self.invoices.items():
-            if not invoice.is_lightning():
-                for txout in invoice.outputs:
-                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+            if invoice.is_lightning() and not invoice.get_address():
+                continue
+            for txout in invoice.get_outputs():
+                self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
     def _is_onchain_invoice_paid(self, invoice: Invoice, conf: int) -> Tuple[bool, Sequence[str]]:
         """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
-        assert not invoice.is_lightning()
+        if invoice.is_lightning() and not invoice.get_address():
+            return False, []
+        outputs = invoice.get_outputs()
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
-        for txo in invoice.outputs:  # type: PartialTxOutput
+        for txo in outputs:  # type: PartialTxOutput
             invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
         relevant_txs = []
         with self.lock, self.transaction_lock:
@@ -2048,6 +2051,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_unused_addresses(self) -> Sequence[str]:
         domain = self.get_receiving_addresses()
         # TODO we should index receive_requests by id
+        # add lightning requests. (use as key)
         in_use_by_request = [k for k in self.receive_requests.keys()
                              if self.get_request_status(k) != PR_EXPIRED]
         in_use_by_request = set(in_use_by_request)
@@ -2116,6 +2120,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return False, None
 
     def get_request_URI(self, req: Invoice) -> str:
+        # todo: should be a method of invoice?
         addr = req.get_address()
         message = self.get_label(addr)
         amount = req.get_amount_sat()
@@ -2139,31 +2144,34 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return status
 
     def get_invoice_status(self, invoice: Invoice):
-        if invoice.is_lightning():
-            status = self.lnworker.get_invoice_status(invoice) if self.lnworker else PR_UNKNOWN
+        # lightning invoices can be paid onchain
+        if invoice.is_lightning() and self.lnworker:
+            status = self.lnworker.get_invoice_status(invoice)
+            if status != PR_UNPAID:
+                return self.check_expired_status(invoice, status)
+        if self.is_onchain_invoice_paid(invoice, 1):
+            status = PR_PAID
+        elif self.is_onchain_invoice_paid(invoice, 0):
+            status = PR_UNCONFIRMED
         else:
-            if self.is_onchain_invoice_paid(invoice, 1):
-                status =PR_PAID
-            elif self.is_onchain_invoice_paid(invoice, 0):
-                status = PR_UNCONFIRMED
-            else:
-                status = PR_UNPAID
+            status = PR_UNPAID
         return self.check_expired_status(invoice, status)
 
     def get_request_status(self, key):
         r = self.get_request(key)
         if r is None:
             return PR_UNKNOWN
-        if r.is_lightning():
-            status = self.lnworker.get_payment_status(bfh(r.rhash)) if self.lnworker else PR_UNKNOWN
+        if r.is_lightning() and self.lnworker:
+            status = self.lnworker.get_payment_status(bfh(r.rhash))
+            if status != PR_UNPAID:
+                return self.check_expired_status(r, status)
+        paid, conf = self.get_onchain_request_status(r)
+        if not paid:
+            status = PR_UNPAID
+        elif conf == 0:
+            status = PR_UNCONFIRMED
         else:
-            paid, conf = self.get_onchain_request_status(r)
-            if not paid:
-                status = PR_UNPAID
-            elif conf == 0:
-                status = PR_UNCONFIRMED
-            else:
-                status = PR_PAID
+            status = PR_PAID
         return self.check_expired_status(r, status)
 
     def get_request(self, key):
@@ -2268,23 +2276,26 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
 
-    def make_payment_request(self, amount_sat, message, timestamp, expiration, address=None, lightning_invoice=None):
-        # TODO maybe merge with wallet.create_invoice()...
-        #      note that they use incompatible "id"
+    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str, lightning: bool):
+        # for receiving
         amount_sat = amount_sat or 0
-        #_id = bh2u(sha256d(address + "%d"%timestamp))[0:10]
-        expiration = expiration or 0
-        outputs=[PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
-        return Invoice(
+        exp_delay = exp_delay or 0
+        timestamp = int(time.time())
+        lightning_invoice = self.lnworker.add_request(amount_sat, message, exp_delay) if lightning else None
+        outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
+        height = self.get_local_height()
+        req = Invoice(
             outputs=outputs,
             message=message,
             time=timestamp,
             amount_msat=amount_sat*1000,
-            exp=expiration,
-            height=self.get_local_height(),
+            exp=exp_delay,
+            height=height,
             bip70=None,
             lightning_invoice=lightning_invoice,
         )
+        key = self.add_payment_request(req, write_to_disk=False)
+        return key
 
     def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
         raise
@@ -2304,11 +2315,12 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if invoice.is_lightning():
             key = invoice.rhash
         else:
-            key = bh2u(sha256d(repr(invoice.outputs) + "%d"%invoice.time))[0:10]
+            key = bh2u(sha256d(repr(invoice.get_outputs()) + "%d"%invoice.time))[0:10]
         return key
 
     def get_key_for_receive_request(self, req: Invoice, *, sanity_checks: bool = False) -> str:
         """Return the key to use for this invoice in self.receive_requests."""
+        # FIXME: this should be a method of Invoice
         if not req.is_lightning():
             addr = req.get_address()
             if sanity_checks:
@@ -2318,7 +2330,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                     raise Exception(_('Address not in wallet.'))
             key = addr
         else:
-            key = req.rhash
+            addr = req.get_address()
+            key = req.rhash if addr is None else addr
         return key
 
     def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):

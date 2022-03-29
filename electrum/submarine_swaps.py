@@ -278,6 +278,7 @@ class SwapManager(Logger):
             amount_msat=lightning_amount_sat * 1000,
             message='swap',
             expiry=3600 * 24,
+            fallback_address=None,
         )
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)

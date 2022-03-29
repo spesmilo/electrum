@@ -1151,20 +1151,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
-        self.create_invoice_button = QPushButton(_('New Address'))
-        self.create_invoice_button.setIcon(read_QIcon("bitcoin.png"))
-        self.create_invoice_button.setToolTip('Create on-chain request')
-        self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
+        self.create_invoice_button = QPushButton(_('Create Request'))
+        self.create_invoice_button.clicked.connect(lambda: self.create_invoice())
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
         buttons.addWidget(self.clear_invoice_button)
         buttons.addWidget(self.create_invoice_button)
-        if self.wallet.has_lightning():
-            self.create_lightning_invoice_button = QPushButton(_('Lightning'))
-            self.create_lightning_invoice_button.setToolTip('Create lightning request')
-            self.create_lightning_invoice_button.setIcon(read_QIcon("lightning.png"))
-            self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
-            buttons.addWidget(self.create_lightning_invoice_button)
         grid.addLayout(buttons, 4, 0, 1, -1)
 
         self.receive_payreq_e = ButtonsTextEdit()
@@ -1262,27 +1254,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self, is_lightning: bool):
-        amount = self.receive_amount_e.get_amount()
+    def create_invoice(self):
+        amount_sat = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+
+        if amount_sat and amount_sat < self.wallet.dust_threshold():
+            address = None
+            if not self.wallet.has_lightning():
+                return
+        else:
+            address = self.get_bitcoin_address_for_request(amount_sat)
+            if not address:
+                return
+            self.address_list.update()
+
+        # generate even if we cannot receive
+        lightning = self.wallet.has_lightning()
         try:
-            if is_lightning:
-                if not self.wallet.lnworker.channels:
-                    self.show_error(_("You need to open a Lightning channel first."))
-                    return
-                # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-                key = self.wallet.lnworker.add_request(amount, message, expiry)
-            else:
-                key = self.create_bitcoin_request(amount, message, expiry)
-                if not key:
-                    return
-                self.address_list.refresh_all()
+            key = self.wallet.create_request(amount_sat, message, expiry, address, lightning=lightning)
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
+        self.address_list.refresh_all()
         self.request_list.update()
         self.request_list.select_key(key)
         # clear request fields
@@ -1291,10 +1287,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # copy to clipboard
         r = self.wallet.get_request(key)
         content = r.lightning_invoice if r.is_lightning() else r.get_address()
-        title = _('Invoice') if is_lightning else _('Address')
+        title = _('Invoice') if r.is_lightning() else _('Address')
         self.do_copy(content, title=title)
 
-    def create_bitcoin_request(self, amount: int, message: str, expiration: int) -> Optional[str]:
+    def get_bitcoin_address_for_request(self, amount: int) -> Optional[str]:
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():  # imported wallet
@@ -1311,15 +1307,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
                     return
                 addr = self.wallet.create_new_address(False)
-        timestamp = int(time.time())
-        req = self.wallet.make_payment_request(amount, message, timestamp, expiration, address=addr)
-        try:
-            self.wallet.add_payment_request(req)
-        except Exception as e:
-            self.logger.exception('Error adding payment request')
-            self.show_error(_('Error adding payment request') + ':\n' + repr(e))
-        else:
-            self.sign_payment_request(addr)
         return addr
 
     def do_copy(self, content: str, *, title: str = None) -> None:
