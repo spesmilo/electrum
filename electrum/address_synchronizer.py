@@ -239,6 +239,9 @@ class AddressSynchronizer(Logger):
                     conflicting_txns -= {tx_hash}
             return conflicting_txns
 
+    def get_transaction(self, txid: str) -> Transaction:
+        return self.db.get_transaction(txid)
+
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
         """
         Returns whether the tx was successfully added to the wallet history.
