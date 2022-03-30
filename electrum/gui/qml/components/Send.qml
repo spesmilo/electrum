@@ -42,6 +42,7 @@ Pane {
             id: amount
             font.family: FixedFont
             placeholderText: qsTr('Amount')
+            inputMethodHints: Qt.ImhPreferNumbers
         }
 
         Label {

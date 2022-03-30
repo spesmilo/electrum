@@ -39,6 +39,7 @@ Pane {
             id: amount
             font.family: FixedFont
             Layout.fillWidth: true
+            inputMethodHints: Qt.ImhPreferNumbers
         }
 
         Label {
@@ -82,6 +83,7 @@ Pane {
             id: amountFiat
             font.family: FixedFont
             Layout.fillWidth: true
+            inputMethodHints: Qt.ImhDigitsOnly
         }
 
         Label {
