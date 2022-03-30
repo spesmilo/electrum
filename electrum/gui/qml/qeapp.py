@@ -10,7 +10,7 @@ from .qeconfig import QEConfig
 from .qedaemon import QEDaemon, QEWalletListModel
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
-from .qeqr import QEQR, QEQRImageProvider
+from .qeqr import QEQRParser, QEQRImageProvider
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 
@@ -32,6 +32,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEWalletDB, 'org.electrum', 1, 0, 'WalletDB')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
+        qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
@@ -50,11 +51,9 @@ class ElectrumQmlApplication(QGuiApplication):
         self._singletons['config'] = QEConfig(config)
         self._singletons['network'] = QENetwork(daemon.network)
         self._singletons['daemon'] = QEDaemon(daemon)
-        self._singletons['qr'] = QEQR()
         self.context.setContextProperty('Config', self._singletons['config'])
         self.context.setContextProperty('Network', self._singletons['network'])
         self.context.setContextProperty('Daemon', self._singletons['daemon'])
-        self.context.setContextProperty('QR', self._singletons['qr'])
         self.context.setContextProperty('FixedFont', self.fixedFont)
 
         qInstallMessageHandler(self.message_handler)

@@ -2,6 +2,8 @@ import QtQuick 2.12
 import QtQuick.Controls 2.0
 import QtMultimedia 5.6
 
+import org.electrum 1.0
+
 Item {
     id: scanner
 
@@ -71,19 +73,19 @@ Item {
     }
 
     Connections {
-        target: QR
+        target: qr
         function onDataChanged() {
-            console.log(QR.data)
+            console.log(qr.data)
             scanner.active = false
-            scanner.scanData = QR.data
+            scanner.scanData = qr.data
             still.source = scanner.url
 
             var sx = still.width/still.sourceSize.width
             var sy = still.height/still.sourceSize.height
-            r.createObject(scanner, {cx: QR.points[0].x * sx, cy: QR.points[0].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: QR.points[1].x * sx, cy: QR.points[1].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: QR.points[2].x * sx, cy: QR.points[2].y * sy, color: 'yellow'})
-            r.createObject(scanner, {cx: QR.points[3].x * sx, cy: QR.points[3].y * sy, color: 'yellow'})
+            r.createObject(scanner, {cx: qr.points[0].x * sx, cy: qr.points[0].y * sy, color: 'yellow'})
+            r.createObject(scanner, {cx: qr.points[1].x * sx, cy: qr.points[1].y * sy, color: 'yellow'})
+            r.createObject(scanner, {cx: qr.points[2].x * sx, cy: qr.points[2].y * sy, color: 'yellow'})
+            r.createObject(scanner, {cx: qr.points[3].x * sx, cy: qr.points[3].y * sy, color: 'yellow'})
 
             foundAnimation.start()
         }
@@ -123,17 +125,21 @@ Item {
         repeat: true
         running: scanner.active
         onTriggered: {
-            if (QR.busy)
+            if (qr.busy)
                 return
             vo.grabToImage(function(result) {
                 if (result.image !== undefined) {
                     scanner.url = result.url
-                    QR.scanImage(result.image)
+                    qr.scanImage(result.image)
                 } else {
                     console.log('image grab returned null')
                 }
             })
         }
+    }
+
+    QRParser {
+        id: qr
     }
 
     Component.onCompleted: {

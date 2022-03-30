@@ -13,7 +13,7 @@ from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
 
 
-class QEQR(QObject):
+class QEQRParser(QObject):
     def __init__(self, text=None, parent=None):
         super().__init__(parent)
         self._text = text
@@ -131,5 +131,5 @@ class QEQRImageProvider(QQuickImageProvider):
         qr.make(fit=True)
 
         pimg = qr.make_image(fill_color='black', back_color='white') #image_factory=StyledPilImage, module_drawer=CircleModuleDrawer())
-        qimg = ImageQt.ImageQt(pimg)
-        return qimg, qimg.size()
+        self.qimg = ImageQt.ImageQt(pimg)
+        return self.qimg, self.qimg.size()
