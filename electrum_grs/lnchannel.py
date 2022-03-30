@@ -407,6 +407,11 @@ class AbstractChannel(Logger, ABC):
         """Returns our node ID."""
         pass
 
+    @abstractmethod
+    def get_capacity(self) -> Optional[int]:
+        """Returns channel capacity in satoshis, or None if unknown."""
+        pass
+
 
 class ChannelBackup(AbstractChannel):
     """
@@ -478,7 +483,10 @@ class ChannelBackup(AbstractChannel):
         return self.is_imported or self.is_redeemed()
 
     def get_capacity(self):
-        return self.lnworker.lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+        lnwatcher = self.lnworker.lnwatcher
+        if lnwatcher:
+            return lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+        return None
 
     def is_backup(self):
         return True

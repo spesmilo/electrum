@@ -21,10 +21,11 @@ from .logging import get_logger, Logger
 
 
 FEE_ETA_TARGETS = [5, 4, 3, 2]
-FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
+FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
+                     800_000, 600_000, 400_000, 250_000, 100_000]
 FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
 
-# satoshi per kbyte
+# gro per kbyte
 FEERATE_MAX_DYNAMIC = 1500000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 50000
@@ -398,9 +399,11 @@ class SimpleConfig(Logger):
                 break
         else:
             return 0
-        # add one sat/byte as currently that is
-        # the max precision of the histogram
-        # (well, in case of ElectrumX at least. not for electrs)
+        # add one sat/byte as currently that is the max precision of the histogram
+        # note: precision depends on server.
+        #       old ElectrumX <1.16 has 1 s/b prec, >=1.16 has 0.1 s/b prec.
+        #       electrs seems to use untruncated double-precision floating points.
+        #       # TODO decrease this to 0.1 s/b next time we bump the required protocol version
         fee += 1
         # convert to sat/kbyte
         return int(fee * 1000)

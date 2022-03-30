@@ -10,7 +10,6 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 
-from electrum_grs.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum_grs.gui.kivy.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs.util import NotEnoughFunds
