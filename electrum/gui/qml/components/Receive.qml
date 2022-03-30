@@ -2,6 +2,7 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
+import QtQml.Models 2.1
 
 import org.electrum 1.0
 
@@ -182,91 +183,99 @@ Pane {
             }
 
             ListView {
+                id: listview
                 Layout.fillHeight: true
                 Layout.fillWidth: true
                 clip: true
 
-                model: Daemon.currentWallet.requestModel
+                model: DelegateModel {
+                    id: delegateModel
+                    model: Daemon.currentWallet.requestModel
 
-                delegate: ItemDelegate {
-                    id: root
-                    height: item.height
-                    width: ListView.view.width
+                    delegate: ItemDelegate {
+                        id: root
+                        height: item.height
+                        width: ListView.view.width
 
-                    onClicked: console.log('Request ' + index + ' clicked')
-
-                    font.pixelSize: constants.fontSizeSmall // set default font size for child controls
-
-                    GridLayout {
-                        id: item
-
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            leftMargin: constants.paddingSmall
-                            rightMargin: constants.paddingSmall
+                        onClicked: {
+                            var dialog = requestdialog.createObject(app, {'modelItem': model})
+                            dialog.open()
                         }
 
-                        columns: 5
+                        font.pixelSize: constants.fontSizeSmall // set default font size for child controls
 
-                        Rectangle {
-                            Layout.columnSpan: 5
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: constants.paddingTiny
-                            color: 'transparent'
-                        }
-                        Image {
-                            Layout.rowSpan: 2
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            source: model.type == 0 ? "../../icons/bitcoin.png" : "../../icons/lightning.png"
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            Layout.columnSpan: 2
-                            text: model.message
-                            elide: Text.ElideRight
-                            font.pixelSize: constants.fontSizeLarge
+                        GridLayout {
+                            id: item
+
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                leftMargin: constants.paddingSmall
+                                rightMargin: constants.paddingSmall
+                            }
+
+                            columns: 5
+
+                            Rectangle {
+                                Layout.columnSpan: 5
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: constants.paddingTiny
+                                color: 'transparent'
+                            }
+                            Image {
+                                Layout.rowSpan: 2
+                                Layout.preferredWidth: constants.iconSizeLarge
+                                Layout.preferredHeight: constants.iconSizeLarge
+                                source: model.type == 0 ? "../../icons/bitcoin.png" : "../../icons/lightning.png"
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                Layout.columnSpan: 2
+                                text: model.message
+                                elide: Text.ElideRight
+                                font.pixelSize: constants.fontSizeLarge
+                            }
+
+                            Label {
+                                text: qsTr('Amount: ')
+                            }
+                            Label {
+                                id: amount
+                                text: Config.formatSats(model.amount, true)
+                                font.family: FixedFont
+                            }
+
+                            Label {
+                                text: qsTr('Timestamp: ')
+                            }
+                            Label {
+                                text: model.timestamp
+                            }
+
+                            Label {
+                                text: qsTr('Status: ')
+                            }
+                            Label {
+                                text: model.status
+                            }
+                            Rectangle {
+                                Layout.columnSpan: 5
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: constants.paddingTiny
+                                color: 'transparent'
+                            }
                         }
 
-                        Label {
-                            text: qsTr('Amount: ')
-                        }
-                        Label {
-                            id: amount
-                            text: Config.formatSats(model.amount, true)
-                            font.family: FixedFont
-                        }
-
-                        Label {
-                            text: qsTr('Timestamp: ')
-                        }
-                        Label {
-                            text: model.timestamp
+                        Connections {
+                            target: Config
+                            function onBaseUnitChanged() {
+                                amount.text = Config.formatSats(model.amount, true)
+                            }
+                            function onThousandsSeparatorChanged() {
+                                amount.text = Config.formatSats(model.amount, true)
+                            }
                         }
 
-                        Label {
-                            text: qsTr('Status: ')
-                        }
-                        Label {
-                            text: model.status
-                        }
-                        Rectangle {
-                            Layout.columnSpan: 5
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: constants.paddingTiny
-                            color: 'transparent'
-                        }
-                    }
-
-                    Connections {
-                        target: Config
-                        function onBaseUnitChanged() {
-                            amount.text = Config.formatSats(model.amount, true)
-                        }
-                        function onThousandsSeparatorChanged() {
-                            amount.text = Config.formatSats(model.amount, true)
-                        }
                     }
 
                 }
@@ -278,6 +287,14 @@ Pane {
                 addDisplaced: Transition {
                     NumberAnimation { properties: 'y'; duration: 100 }
                     NumberAnimation { properties: 'opacity'; to: 1.0; duration: 700 * (1-from) }
+                }
+
+                remove: Transition {
+                    NumberAnimation { properties: 'scale'; to: 0; duration: 400 }
+                    NumberAnimation { properties: 'opacity'; to: 0; duration: 300 }
+                }
+                removeDisplaced: Transition {
+                    SpringAnimation { properties: 'y'; duration: 100; spring: 5; damping: 0.5; mass: 2 }
                 }
 
                 ScrollIndicator.vertical: ScrollIndicator { }
@@ -294,9 +311,14 @@ Pane {
         FocusScope { id: parkFocus }
     }
 
+    Component {
+        id: requestdialog
+        RequestDialog {}
+    }
+
     function createRequest(ignoreGaplimit = false) {
         var a = Config.unitsToSats(amount.text)
-        Daemon.currentWallet.create_invoice(a, message.text, expires.currentValue, false, ignoreGaplimit)
+        Daemon.currentWallet.create_request(a, message.text, expires.currentValue, false, ignoreGaplimit)
     }
 
     Connections {
@@ -304,8 +326,10 @@ Pane {
         function onRequestCreateSuccess() {
             message.text = ''
             amount.text = ''
-//             var dialog = app.showAsQrDialog.createObject(app, {'text': 'test'})
-//             dialog.open()
+            var dialog = requestdialog.createObject(app, {
+                'modelItem': delegateModel.items.get(0).model
+            })
+            dialog.open()
         }
         function onRequestCreateError(code, error) {
             if (code == 'gaplimit') {

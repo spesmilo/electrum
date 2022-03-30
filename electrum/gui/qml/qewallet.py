@@ -164,7 +164,7 @@ class QEWallet(QObject):
     @pyqtSlot(int, 'QString', int)
     @pyqtSlot(int, 'QString', int, bool)
     @pyqtSlot(int, 'QString', int, bool, bool)
-    def create_invoice(self, amount: int, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
+    def create_request(self, amount: int, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         expiry = expiration #TODO: self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
             if is_lightning:
@@ -190,3 +190,8 @@ class QEWallet(QObject):
         #content = r.invoice if r.is_lightning() else r.get_address()
         #title = _('Invoice') if is_lightning else _('Address')
         #self.do_copy(content, title=title)
+
+    @pyqtSlot('QString')
+    def delete_request(self, key: str):
+        self.wallet.delete_request(key)
+        self._requestModel.delete_request(key)

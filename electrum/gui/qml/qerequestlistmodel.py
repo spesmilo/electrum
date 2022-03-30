@@ -14,7 +14,7 @@ class QERequestListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('type','timestamp','message','amount','status')
+    _ROLE_NAMES=('key','type','timestamp','message','amount','status','address')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
@@ -49,8 +49,11 @@ class QERequestListModel(QAbstractListModel):
         item['timestamp'] = format_time(timestamp)
         item['amount'] = req.get_amount_sat()
         item['message'] = req.message
-
-        #amount_str = self.parent.format_amount(amount) if amount else ""
+        if req.type == 0: # OnchainInvoice
+            item['key'] = item['address'] = req.get_address()
+        elif req.type == 2: # LNInvoice
+            #item['key'] = req.getrhash()
+            pass
 
         return item
 
@@ -74,3 +77,13 @@ class QERequestListModel(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), 0, 0)
         self.requests.insert(0, item)
         self.endInsertRows()
+
+    def delete_request(self, key: str):
+        i = 0
+        for request in self.requests:
+            if request['key'] == key:
+                self.beginRemoveRows(QModelIndex(), i, i)
+                self.requests.pop(i)
+                self.endRemoveRows()
+                break
+            i = i + 1
