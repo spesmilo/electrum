@@ -1,6 +1,8 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
-
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
+import queue
+import time
+
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
 
 from electrum.i18n import _
 from electrum.util import register_callback, Satoshis, format_time
@@ -16,6 +18,22 @@ from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
 
 class QEWallet(QObject):
+    _logger = get_logger(__name__)
+
+    # emitted when wallet wants to display a user notification
+    # actual presentation should be handled on app or window level
+    userNotify = pyqtSignal(object, object)
+
+    # shared signal for many static wallet properties
+    dataChanged = pyqtSignal()
+
+    isUptodateChanged = pyqtSignal()
+    requestStatus = pyqtSignal()
+    requestCreateSuccess = pyqtSignal()
+    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+
+    _network_signal = pyqtSignal(str, object)
+
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
@@ -26,20 +44,95 @@ class QEWallet(QObject):
         self._historyModel.init_model()
         self._requestModel.init_model()
 
-        register_callback(self.on_request_status, ['request_status'])
-        register_callback(self.on_status, ['status'])
+        self.tx_notification_queue = queue.Queue()
+        self.tx_notification_last_time = 0
 
-    _logger = get_logger(__name__)
+        self.notification_timer = QTimer(self)
+        self.notification_timer.setSingleShot(False)
+        self.notification_timer.setInterval(500)  # msec
+        self.notification_timer.timeout.connect(self.notify_transactions)
 
-    dataChanged = pyqtSignal() # dummy to silence warnings
+        self._network_signal.connect(self.on_network_qt)
+        interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
+                        'new_transaction', 'status', 'verified', 'on_history',
+                        'channel', 'channels_updated', 'payment_failed',
+                        'payment_succeeded', 'invoice_status', 'request_status']
+        # To avoid leaking references to "self" that prevent the
+        # window from being GC-ed when closed, callbacks should be
+        # methods of this class only, and specifically not be
+        # partials, lambdas or methods of subobjects.  Hence...
+        register_callback(self.on_network, interests)
 
-    requestCreateSuccess = pyqtSignal()
-    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    @pyqtProperty(bool, notify=isUptodateChanged)
+    def isUptodate(self):
+        return self.wallet.is_up_to_date()
 
-    requestStatus = pyqtSignal()
-    def on_request_status(self, event, *args):
-        self._logger.debug(str(event))
-        self.requestStatus.emit()
+    def on_network(self, event, *args):
+        # Handle in GUI thread (_network_signal -> on_network_qt)
+        self._network_signal.emit(event, args)
+
+    def on_network_qt(self, event, args=None):
+        # note: we get events from all wallets! args are heterogenous so we can't
+        # shortcut here
+        if event == 'status':
+            self.isUptodateChanged.emit()
+        elif event == 'request_status':
+            self._logger.info(str(args))
+            self.requestStatus.emit()
+        elif event == 'new_transaction':
+            wallet, tx = args
+            if wallet == self.wallet:
+                self.add_tx_notification(tx)
+                self._historyModel.init_model()
+        else:
+            self._logger.debug('unhandled event: %s %s' % (event, str(args)))
+
+
+    def add_tx_notification(self, tx):
+        self._logger.debug('new transaction event')
+        self.tx_notification_queue.put(tx)
+        if not self.notification_timer.isActive():
+            self._logger.debug('starting wallet notification timer')
+            self.notification_timer.start()
+
+    def notify_transactions(self):
+        if self.tx_notification_queue.qsize() == 0:
+            self._logger.debug('queue empty, stopping wallet notification timer')
+            self.notification_timer.stop()
+            return
+        if not self.wallet.up_to_date:
+            return  # no notifications while syncing
+        now = time.time()
+        rate_limit = 20  # seconds
+        if self.tx_notification_last_time + rate_limit > now:
+            return
+        self.tx_notification_last_time = now
+        self._logger.info("Notifying app about new transactions")
+        txns = []
+        while True:
+            try:
+                txns.append(self.tx_notification_queue.get_nowait())
+            except queue.Empty:
+                break
+
+        from .qeapp import ElectrumQmlApplication
+        config = ElectrumQmlApplication._config
+        # Combine the transactions if there are at least three
+        if len(txns) >= 3:
+            total_amount = 0
+            for tx in txns:
+                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                total_amount += tx_wallet_delta.delta
+            self.userNotify.emit(self.wallet, _("{} new transactions: Total amount received in the new transactions {}").format(len(txns), config.format_amount_and_units(total_amount)))
+        else:
+            for tx in txns:
+                tx_wallet_delta = self.wallet.get_wallet_delta(tx)
+                if not tx_wallet_delta.is_relevant:
+                    continue
+                self.userNotify.emit(self.wallet,
+                    _("New transaction: {}").format(config.format_amount_and_units(tx_wallet_delta.delta)))
 
     historyModelChanged = pyqtSignal()
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
@@ -104,16 +197,6 @@ class QEWallet(QObject):
         self._logger.info('balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
 
         return c+x
-
-    def on_status(self, status):
-        self._logger.info('wallet: status update: ' + str(status))
-        self.isUptodateChanged.emit()
-
-    # lightning feature?
-    isUptodateChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=isUptodateChanged)
-    def isUptodate(self):
-        return self.wallet.is_up_to_date()
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):
