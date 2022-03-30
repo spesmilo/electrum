@@ -300,7 +300,7 @@ class SwapManager(Logger):
             dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), expected_onchain_amount_sat)
             tx.outputs().remove(dummy_output)
             tx.add_outputs([funding_output])
-            tx.set_rbf(True) # rbf must not decrease payment
+            tx.set_rbf(True)  # note: rbf must not decrease payment
             self.wallet.sign_transaction(tx, password)
         # save swap data in wallet in case we need a refund
         swap = SwapData(
@@ -542,6 +542,12 @@ class SwapManager(Logger):
             if txin.prevout.txid.hex() == swap.funding_txid:
                 return swap
         return None
+
+    def is_lockup_address_for_a_swap(self, addr: str) -> bool:
+        for key, swap in self.swaps.items():  # TODO take lock? or add index to avoid looping
+            if addr == swap.lockup_address:
+                return True
+        return False
 
     def sign_tx(self, tx, swap):
         preimage = swap.preimage if swap.is_reverse else 0

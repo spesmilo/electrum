@@ -1713,11 +1713,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         s = list(filter(lambda o: self.is_mine(o.address), outputs))
         # ... unless there is none
         if not s:
-            s = outputs
-            x_fee = run_hook('get_tx_extra_fee', self, tx)
-            if x_fee:
-                x_fee_address, x_fee_amount = x_fee
-                s = list(filter(lambda o: o.address != x_fee_address, s))
+            s = [out for out in outputs if self._is_rbf_allowed_to_touch_tx_output(out)]
         if not s:
             raise CannotBumpFee('No outputs at all??')
 
@@ -1764,11 +1760,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # select non-ismine outputs
         s = [(idx, out) for (idx, out) in enumerate(outputs)
              if not self.is_mine(out.address)]
-        # exempt 2fa fee output if present
-        x_fee = run_hook('get_tx_extra_fee', self, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            s = [(idx, out) for (idx, out) in s if out.address != x_fee_address]
+        s = [(idx, out) for (idx, out) in s if self._is_rbf_allowed_to_touch_tx_output(out)]
         if not s:
             raise CannotBumpFee("Cannot find payment output")
 
@@ -1802,6 +1794,15 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
         outputs = [out for (idx, out) in enumerate(outputs) if idx not in del_out_idxs]
         return PartialTransaction.from_io(inputs, outputs)
+
+    def _is_rbf_allowed_to_touch_tx_output(self, txout: TxOutput) -> bool:
+        # 2fa fee outputs if present, should not be removed or have their value decreased
+        if self.is_billing_address(txout.address):
+            return False
+        # submarine swap funding outputs must not be decreased
+        if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
+            return False
+        return True
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         txid = tx.txid()
