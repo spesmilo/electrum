@@ -69,7 +69,6 @@ WizardComponent {
                 visible: extendcb.checked
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
-                echoMode: TextInput.Password
             }
             Component.onCompleted : {
                 setWarningText(12)

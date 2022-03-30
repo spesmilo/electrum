@@ -107,6 +107,7 @@ ApplicationWindow
                 id: menuButton
                 enabled: stack.currentItem.menu !== undefined && stack.currentItem.menu.count > 0
                 text: enabled ? qsTr("≡") : ''
+                font.pixelSize: constants.fontSizeXLarge
                 onClicked: {
                     stack.currentItem.menu.open()
                     // position the menu to the right

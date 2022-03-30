@@ -126,7 +126,6 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
-                echoMode: TextInput.Password
             }
         }
     }

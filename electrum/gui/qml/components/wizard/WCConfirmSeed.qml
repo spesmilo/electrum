@@ -44,7 +44,6 @@ WizardComponent {
                 id: customwordstext
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
-                echoMode: TextInput.Password
                 onTextChanged: {
                     checkValid()
                 }

@@ -6,6 +6,7 @@ import QtQuick.Controls.Material 2.0
 Frame {
     id: root
     height: layout.height
+    font.pixelSize: constants.fontSizeMedium
 
     property string formattedBalance
     property string formattedUnconfirmed
@@ -29,20 +30,16 @@ Frame {
             text: formattedBalance
         }
         Label {
-            font.pixelSize: constants.fontSizeMedium
             text: qsTr('Confirmed: ')
         }
         Label {
-            font.pixelSize: constants.fontSizeMedium
             color: Material.accentColor
             text: formattedBalance
         }
         Label {
-            font.pixelSize: constants.fontSizeMedium
             text: qsTr('Unconfirmed: ')
         }
         Label {
-            font.pixelSize: constants.fontSizeMedium
             color: Material.accentColor
             text: formattedUnconfirmed
         }

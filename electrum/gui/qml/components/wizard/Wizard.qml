@@ -166,7 +166,7 @@ Dialog {
     // so the keyboard goes away
     // TODO: here it works on desktop, but not android. hmm.
     MouseArea {
-        anchors.fill: wizard
+        anchors.fill: parent
         z: -1000
         onClicked: { parkFocus.focus = true }
         FocusScope { id: parkFocus }
