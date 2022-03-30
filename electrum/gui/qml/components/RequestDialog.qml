@@ -46,7 +46,7 @@ Dialog {
     }
     GridLayout {
         width: parent.width
-        rowSpacing: constants.paddingMedium
+        rowSpacing: constants.paddingXLarge
         columns: 3
 
         Rectangle {
@@ -62,7 +62,7 @@ Dialog {
             source: 'image://qrgen/' + modelItem.address
 
             Rectangle {
-                property int size: 58
+                property int size: 57 // should be qr pixel multiple
                 color: 'white'
                 x: (parent.width - size) / 2
                 y: (parent.height - size) / 2
@@ -75,6 +75,7 @@ Dialog {
                     y: 1
                     width: parent.width - 2
                     height: parent.height - 2
+                    scale: 0.9
                 }
             }
         }

@@ -19,4 +19,6 @@ QtObject {
     readonly property int iconSizeSmall: 16
     readonly property int iconSizeMedium: 24
     readonly property int iconSizeLarge: 32
+    readonly property int iconSizeXLarge: 48
+    readonly property int iconSizeXXLarge: 64
 }

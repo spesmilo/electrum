@@ -135,28 +135,28 @@ Dialog {
 
         Image {
             source: "../../../icons/electrum.png"
-            Layout.preferredWidth: 48
-            Layout.preferredHeight: 48
-            Layout.leftMargin: 12
-            Layout.topMargin: 12
-            Layout.bottomMargin: 12
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
+            Layout.leftMargin: constants.paddingMedium
+            Layout.topMargin: constants.paddingMedium
+            Layout.bottomMargin: constants.paddingMedium
         }
 
         Label {
             text: title
             elide: Label.ElideRight
             Layout.fillWidth: true
-            topPadding: 24
-            bottomPadding: 24
+            topPadding: constants.paddingXLarge
+            bottomPadding: constants.paddingXLarge
             font.bold: true
-            font.pixelSize: 16
+            font.pixelSize: constants.fontSizeMedium
         }
 
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 4
+            Layout.leftMargin: constants.paddingTiny
+            Layout.rightMargin: constants.paddingTiny
             height: 1
             color: Qt.rgba(0,0,0,0.5)
         }

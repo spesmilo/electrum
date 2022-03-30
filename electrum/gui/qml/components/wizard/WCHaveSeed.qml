@@ -98,10 +98,10 @@ WizardComponent {
                     id: contentText
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    leftPadding: text != '' ? 16 : 0
-                    rightPadding: text != '' ? 16 : 0
+                    leftPadding: text != '' ? constants.paddingLarge : 0
+                    rightPadding: text != '' ? constants.paddingLarge : 0
                     font.bold: false
-                    font.pixelSize: 13
+                    font.pixelSize: constants.fontSizeSmall
                 }
             }
             TextArea {
