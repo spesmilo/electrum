@@ -1198,7 +1198,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                and self.config.has_fee_mempool():
                 exp_n = self.config.fee_to_depth(fee_per_byte)
                 if exp_n is not None:
-                    extra.append('%.2f MB'%(exp_n/1000000))
+                    extra.append(self.config.get_depth_mb_str(exp_n))
             if height == TX_HEIGHT_LOCAL:
                 status = 3
             elif height == TX_HEIGHT_UNCONF_PARENT:

@@ -437,11 +437,17 @@ class SimpleConfig(Logger):
             min_target = -1
         return min_target
 
+    def get_depth_mb_str(self, depth: int) -> str:
+        # e.g. 500_000 -> "0.50 MB"
+        depth_mb = "{:.2f}".format(depth / 1_000_000)  # maybe .rstrip("0") ?
+        return f"{depth_mb} MB"
+
     def depth_tooltip(self, depth: Optional[int]) -> str:
         """Returns text tooltip for given mempool depth (in vbytes)."""
         if depth is None:
             return "unknown from tip"
-        return "%.1f MB from tip" % (depth/1_000_000)
+        depth_mb = self.get_depth_mb_str(depth)
+        return _("{} from tip").format(depth_mb)
 
     def eta_tooltip(self, x):
         if x < 0:
