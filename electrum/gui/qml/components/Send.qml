@@ -71,14 +71,13 @@ Pane {
 
             Button {
                 text: qsTr('Pay')
-                enabled: false // TODO proper validation
+                enabled: amount.text != '' && address.text != ''// TODO proper validation
                 onClicked: {
-                    var i_amount = parseInt(amount.text)
-                    if (isNaN(i_amount))
+                    var f_amount = parseFloat(amount.text)
+                    if (isNaN(f_amount))
                         return
-                    var result = Daemon.currentWallet.send_onchain(address.text, i_amount, undefined, false)
-                    if (result)
-                        app.stack.pop()
+                    var sats = Config.unitsToSats(f_amount)
+                    var result = Daemon.currentWallet.send_onchain(address.text, sats, undefined, false)
                 }
             }
 

@@ -5,7 +5,7 @@ import time
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
 
 from electrum.i18n import _
-from electrum.util import register_callback, Satoshis, format_time
+from electrum.util import register_callback, Satoshis, format_time, parse_max_spend
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum import bitcoin
@@ -200,15 +200,55 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):
-        self._logger.info('send_onchain: ' + address + ' ' + str(amount))
+        self._logger.info('send_onchain: %s %d' % (address,amount))
         coins = self.wallet.get_spendable_coins(None)
         if not bitcoin.is_address(address):
             self._logger.warning('Invalid Bitcoin Address: ' + address)
             return False
 
         outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-        tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs)
-        return True
+        self._logger.info(str(outputs))
+        output_values = [x.value for x in outputs]
+        if any(parse_max_spend(outval) for outval in output_values):
+            output_value = '!'
+        else:
+            output_value = sum(output_values)
+        self._logger.info(str(output_value))
+        # see qt/confirm_tx_dialog qt/main_window
+        tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
+        self._logger.info(str(tx.to_json()))
+
+        if len(tx.to_json()['outputs']) < 2:
+            self._logger.info('no change output??? : %s' % str(tx.to_json()['outputs']))
+            return
+
+        from .qeapp import ElectrumQmlApplication
+        self.config = ElectrumQmlApplication._config
+
+        use_rbf = bool(self.config.get('use_rbf', True))
+        tx.set_rbf(use_rbf)
+
+        def cb(result):
+            self._logger.info('signing was succesful? %s' % str(result))
+        tx = self.wallet.sign_transaction(tx, None)
+        if not tx.is_complete():
+            self._logger.info('tx not complete')
+            return
+
+        self.network = ElectrumQmlApplication._daemon.network
+
+        try:
+            self._logger.info('running broadcast in thread')
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+            self._logger.info('broadcast submit done')
+        except TxBroadcastError as e:
+            self._logger.info(e)
+            return
+        except BestEffortRequestFailed as e:
+            self._logger.info(e)
+            return
+
+        return
 
     def create_bitcoin_request(self, amount: int, message: str, expiration: int, ignore_gap: bool) -> Optional[str]:
         addr = self.wallet.get_unused_address()
