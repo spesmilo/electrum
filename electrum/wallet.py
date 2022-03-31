@@ -1929,10 +1929,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         address = self.get_txin_address(txin)
         # note: we add input utxos regardless of is_mine
         self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, address=address)
-        if not self.is_mine(address):
+        is_mine = self.is_mine(address)
+        if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
-            if not is_mine:
-                return
+        if not is_mine:
+            if self.lnworker:
+                self.lnworker.swap_manager.add_txin_info(txin)
+            return
         # set script_type first, as later checks might rely on it:
         txin.script_type = self.get_txin_type(address)
         txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1

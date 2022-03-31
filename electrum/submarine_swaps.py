@@ -11,7 +11,7 @@ from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
 from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script,
                       is_segwit_address, construct_witness)
-from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction
+from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
@@ -246,7 +246,7 @@ class SwapManager(Logger):
         assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        lnaddr, invoice = await self.lnworker.create_invoice(
+        lnaddr, invoice = self.lnworker.create_invoice(
             amount_msat=lightning_amount_sat * 1000,
             message='swap',
             expiry=3600 * 24,
@@ -535,9 +535,12 @@ class SwapManager(Logger):
             send_amount += self.get_claim_fee()
         return send_amount
 
-    def get_swap_by_tx(self, tx):
+    def get_swap_by_tx(self, tx: Transaction) -> Optional[SwapData]:
         # determine if tx is spending from a swap
         txin = tx.inputs()[0]
+        return self.get_swap_by_claim_txin(txin)
+
+    def get_swap_by_claim_txin(self, txin: TxInput) -> Optional[SwapData]:
         for key, swap in self.swaps.items():
             if txin.prevout.txid.hex() == swap.funding_txid:
                 return swap
@@ -549,10 +552,29 @@ class SwapManager(Logger):
                 return True
         return False
 
-    def sign_tx(self, tx, swap):
+    def add_txin_info(self, txin: PartialTxInput) -> None:
+        """Add some info to a claim txin.
+        note: even without signing, this is useful for tx size estimation.
+        """
+        swap = self.get_swap_by_claim_txin(txin)
+        if not swap:
+            return
+        preimage = swap.preimage if swap.is_reverse else 0
+        witness_script = swap.redeem_script
+        txin.script_type = 'p2wsh'
+        txin.num_sig = 1  # hack so that txin not considered "is_complete"
+        txin.script_sig = b''
+        txin.witness_script = witness_script
+        sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
+        witness = [sig_dummy, preimage, witness_script]
+        txin.witness_sizehint = len(bytes.fromhex(construct_witness(witness)))
+
+    def sign_tx(self, tx: PartialTransaction, swap: SwapData) -> None:
         preimage = swap.preimage if swap.is_reverse else 0
         witness_script = swap.redeem_script
         txin = tx.inputs()[0]
+        assert len(tx.inputs()) == 1, f"expected 1 input for swap claim tx. found {len(tx.inputs())}"
+        assert txin.prevout.txid.hex() == swap.funding_txid
         txin.script_type = 'p2wsh'
         txin.script_sig = b''
         txin.witness_script = witness_script
