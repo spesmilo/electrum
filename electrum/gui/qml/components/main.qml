@@ -25,6 +25,7 @@ ApplicationWindow
 
     header: ToolBar {
         id: toolbar
+
         RowLayout {
             anchors.fill: parent
 
@@ -81,7 +82,7 @@ ApplicationWindow
             Image {
                 Layout.preferredWidth: constants.iconSizeSmall
                 Layout.preferredHeight: constants.iconSizeSmall
-                visible: Daemon.currentWallet.isWatchOnly
+                visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
                 source: '../../icons/eye1.png'
                 scale: 1.5
             }
@@ -210,6 +211,13 @@ ApplicationWindow
             console.log('wallet open error')
             var dialog = app.messageDialog.createObject(app, {'text': error})
             dialog.open()
+        }
+    }
+
+    Connections {
+        target: AppController
+        function onUserNotify(message) {
+            var item = app.notificationPopup.createObject(app, {'text': message})
         }
     }
 }
