@@ -15,62 +15,64 @@ class QENetwork(QObject):
         register_callback(self.on_proxy_set, ['proxy_set'])
         register_callback(self.on_status, ['status'])
         register_callback(self.on_fee_histogram, ['fee_histogram'])
+        register_callback(self.on_fiat, ['on_quotes','on_history'])
 
     _logger = get_logger(__name__)
 
     networkUpdated = pyqtSignal()
     blockchainUpdated = pyqtSignal()
+    heightChanged = pyqtSignal([int], arguments=['height'])
     defaultServerChanged = pyqtSignal()
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
     statusChanged = pyqtSignal()
     feeHistogramUpdated = pyqtSignal()
+    fiatUpdated = pyqtSignal()
 
-    dataChanged = pyqtSignal() # dummy to silence warnings
+    # shared signal for static properties
+    dataChanged = pyqtSignal()
 
-    _num_updates = 0
-    _server = ""
     _height = 0
     _status = ""
 
     def on_network_updated(self, event, *args):
-        self._num_updates = self._num_updates + 1
         self.networkUpdated.emit()
 
     def on_blockchain_updated(self, event, *args):
-        self._logger.info('chainupdate: ' + str(event) + str(args))
-        self._height = self.network.get_local_height()
+        if self._height != self.network.get_local_height():
+            self._height = self.network.get_local_height()
+            self._logger.debug('new height: %d' % self._height)
+            self.heightChanged.emit(self._height)
         self.blockchainUpdated.emit()
 
     def on_default_server_changed(self, event, *args):
-        netparams = self.network.get_parameters()
-        self._server = str(netparams.server)
         self.defaultServerChanged.emit()
 
     def on_proxy_set(self, event, *args):
-        self._logger.info('proxy set')
+        self._logger.debug('proxy set')
         self.proxySet.emit()
 
     def on_status(self, event, *args):
         self._logger.debug('status updated: %s' % self.network.connection_status)
-        self._status = self.network.connection_status
-        self.statusChanged.emit()
+        if self._status != self.network.connection_status:
+            self._status = self.network.connection_status
+            self.statusChanged.emit()
 
     def on_fee_histogram(self, event, *args):
         self._logger.debug('fee histogram updated')
         self.feeHistogramUpdated.emit()
 
-    @pyqtProperty(int,notify=networkUpdated)
-    def updates(self):
-        return self._num_updates
+    def on_fiat(self, event, *args):
+        self._logger.debug('new fiat quotes')
+        self.fiatUpdated.emit()
 
-    @pyqtProperty(int,notify=blockchainUpdated)
+    @pyqtProperty(int,notify=heightChanged)
     def height(self):
         return self._height
 
     @pyqtProperty('QString',notify=defaultServerChanged)
     def server(self):
-        return self._server
+        return str(self.network.get_parameters().server)
 
     @server.setter
     def server(self, server):
