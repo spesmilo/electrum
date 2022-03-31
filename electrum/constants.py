@@ -52,6 +52,10 @@ class AbstractNet:
             return max(0, cls.CHECKPOINTS[len(cls.CHECKPOINTS)-1][1])
         return 0
 
+    @classmethod
+    def rev_genesis_bytes(cls) -> bytes:
+        return bytes.fromhex(bitcoin.rev_hex(cls.GENESIS))
+   
 
 class BitcoinMainnet(AbstractNet):
     #FTC Mainnet
@@ -66,6 +70,7 @@ class BitcoinMainnet(AbstractNet):
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
+    BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 4087000
     
     XPRV_HEADERS = {
         'standard':    0x0488daee,  # xprv
@@ -83,7 +88,15 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 8
+    BIP44_COIN_TYPE = 12
+    LN_REALM_BYTE = 12
+    LN_DNS_SEEDS = [  # TODO investigate this again
+        #'test.nodes.lightning.directory.',  # times out.
+        'lseed.bitcoinstats.com.',  # ignores REALM byte and returns mainnet peers...
+    
+    ]
+    
+    
 
 
 class BitcoinTestnet(AbstractNet):
