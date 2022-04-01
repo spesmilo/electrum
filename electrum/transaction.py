@@ -712,6 +712,8 @@ class Transaction:
         if not txin.is_segwit():
             return construct_witness([])
 
+        if estimate_size and txin.witness_sizehint is not None:
+            return '00' * txin.witness_sizehint
         if _type in ('address', 'unknown') and estimate_size:
             _type = cls.guess_txintype_from_address(txin.address)
         pubkeys, sig_list = cls.get_siglist(txin, estimate_size=estimate_size)
@@ -1210,8 +1212,10 @@ class PartialTxInput(TxInput, PSBTSection):
         self._trusted_address = None  # type: Optional[str]
         self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown
         self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
+        self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
+        self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
 
     @property
     def utxo(self):
