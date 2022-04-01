@@ -94,6 +94,7 @@ Pane {
         RowLayout {
             Layout.columnSpan: 4
             Layout.alignment: Qt.AlignHCenter
+            visible: false
             CheckBox {
                 id: cb_onchain
                 text: qsTr('Onchain')
@@ -280,15 +281,6 @@ Pane {
 
                     }
 
-                }
-
-                add: Transition {
-                    NumberAnimation { properties: 'y'; from: -50; duration: 300 }
-                    NumberAnimation { properties: 'opacity'; from: 0; to: 1.0; duration: 700 }
-                }
-                addDisplaced: Transition {
-                    NumberAnimation { properties: 'y'; duration: 100 }
-                    NumberAnimation { properties: 'opacity'; to: 1.0; duration: 700 * (1-from) }
                 }
 
                 remove: Transition {

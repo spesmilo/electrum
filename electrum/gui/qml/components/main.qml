@@ -106,7 +106,7 @@ ApplicationWindow
 
             ToolButton {
                 id: menuButton
-                enabled: stack.currentItem.menu !== undefined && stack.currentItem.menu.count > 0
+                enabled: stack.currentItem && stack.currentItem.menu ? stack.currentItem.menu.count > 0 : false
                 text: enabled ? qsTr("≡") : ''
                 font.pixelSize: constants.fontSizeXLarge
                 onClicked: {
