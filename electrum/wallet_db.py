@@ -105,6 +105,29 @@ class WalletDB(JsonDB):
         elif not self._manual_upgrades:
             self.upgrade()
 
+    def check_unfinished_multisig(self):
+        wallet_type = self.data.get('wallet_type')
+        if not wallet_type:
+            return False
+        m_n = multisig_type(wallet_type)
+        if not m_n:
+            return False
+        x1 = self.data.get('x1/')
+        if not x1:
+            return False
+        m, n = m_n
+        next_cosigner = None
+        for i in range(2, n+1):
+            cosigner_name = f'x{i}/'
+            if self.data.get(cosigner_name):
+                if next_cosigner:
+                    return False
+            elif not next_cosigner:
+                next_cosigner = i
+        if not next_cosigner:
+            return False
+        return True
+
     def requires_split(self):
         d = self.get('accounts', {})
         return len(d) > 1

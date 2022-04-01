@@ -360,7 +360,11 @@ class OpenWalletDialog(PasswordDialog):
             # it is a bit wasteful load the wallet here and load it again in main_window,
             # but that is fine, because we are progressively enforcing storage encryption.
             db = WalletDB(self.storage.read(), manual_upgrades=False)
-            wallet = Wallet(db, self.storage, config=self.app.electrum_config)
-            self.require_password = wallet.has_password()
-            self.pw_check = wallet.check_password
-            self.message = self.enter_pw_message if self.require_password else _('Wallet not encrypted')
+            if db.check_unfinished_multisig():
+                self.require_password = False
+            else:
+                wallet = Wallet(db, self.storage, config=self.app.electrum_config)
+                self.require_password = wallet.has_password()
+                self.pw_check = wallet.check_password
+            self.message = (self.enter_pw_message if self.require_password
+                            else _('Wallet not encrypted'))
