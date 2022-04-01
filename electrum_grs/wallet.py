@@ -591,10 +591,14 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         return any([chan.funding_outpoint.txid == txid
                     for chan in self.lnworker.channels.values()])
 
+    def is_swap_tx(self, tx: Transaction) -> bool:
+        return bool(self.lnworker.swap_manager.get_swap_by_tx(tx)) if self.lnworker else False
+
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
+        is_swap = self.is_swap_tx(tx)
         fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
@@ -629,7 +633,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.config.fee_to_depth(fee_per_byte)
-                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
                     can_dscancel = (is_any_input_ismine and not tx.is_final()
                                     and not all([self.is_mine(txout.address) for txout in tx.outputs()]))
                     try:
@@ -640,7 +644,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 else:
                     status = _('Local')
                     can_broadcast = self.network is not None
-                    can_bump = is_any_input_ismine and not tx.is_final()
+                    can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
             else:
                 status = _("Signed")
                 can_broadcast = self.network is not None
@@ -1198,7 +1202,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                and self.config.has_fee_mempool():
                 exp_n = self.config.fee_to_depth(fee_per_byte)
                 if exp_n is not None:
-                    extra.append('%.2f MB'%(exp_n/1000000))
+                    extra.append(self.config.get_depth_mb_str(exp_n))
             if height == TX_HEIGHT_LOCAL:
                 status = 3
             elif height == TX_HEIGHT_UNCONF_PARENT:
@@ -1709,11 +1713,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         s = list(filter(lambda o: self.is_mine(o.address), outputs))
         # ... unless there is none
         if not s:
-            s = outputs
-            x_fee = run_hook('get_tx_extra_fee', self, tx)
-            if x_fee:
-                x_fee_address, x_fee_amount = x_fee
-                s = list(filter(lambda o: o.address != x_fee_address, s))
+            s = [out for out in outputs if self._is_rbf_allowed_to_touch_tx_output(out)]
         if not s:
             raise CannotBumpFee('No outputs at all??')
 
@@ -1760,11 +1760,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         # select non-ismine outputs
         s = [(idx, out) for (idx, out) in enumerate(outputs)
              if not self.is_mine(out.address)]
-        # exempt 2fa fee output if present
-        x_fee = run_hook('get_tx_extra_fee', self, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            s = [(idx, out) for (idx, out) in s if out.address != x_fee_address]
+        s = [(idx, out) for (idx, out) in s if self._is_rbf_allowed_to_touch_tx_output(out)]
         if not s:
             raise CannotBumpFee("Cannot find payment output")
 
@@ -1798,6 +1794,15 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
 
         outputs = [out for (idx, out) in enumerate(outputs) if idx not in del_out_idxs]
         return PartialTransaction.from_io(inputs, outputs)
+
+    def _is_rbf_allowed_to_touch_tx_output(self, txout: TxOutput) -> bool:
+        # 2fa fee outputs if present, should not be removed or have their value decreased
+        if self.is_billing_address(txout.address):
+            return False
+        # submarine swap funding outputs must not be decreased
+        if self.lnworker and self.lnworker.swap_manager.is_lockup_address_for_a_swap(txout.address):
+            return False
+        return True
 
     def cpfp(self, tx: Transaction, fee: int) -> Optional[PartialTransaction]:
         txid = tx.txid()
@@ -1924,10 +1929,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         address = self.get_txin_address(txin)
         # note: we add input utxos regardless of is_mine
         self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, address=address)
-        if not self.is_mine(address):
+        is_mine = self.is_mine(address)
+        if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
-            if not is_mine:
-                return
+        if not is_mine:
+            if self.lnworker:
+                self.lnworker.swap_manager.add_txin_info(txin)
+            return
         # set script_type first, as later checks might rely on it:
         txin.script_type = self.get_txin_type(address)
         txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1
@@ -1961,6 +1969,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             for k in self.get_keystores():
                 if k.can_sign_txin(txin):
                     return True
+        if self.is_swap_tx(tx):
+            return True
         return False
 
     def get_input_tx(self, tx_hash: str, *, ignore_network_issues=False) -> Optional[Transaction]:
@@ -2012,6 +2022,11 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         if self.is_watching_only():
             return
         if not isinstance(tx, PartialTransaction):
+            return
+        # note: swap signing does not require the password
+        swap = self.lnworker.swap_manager.get_swap_by_tx(tx) if self.lnworker else None
+        if swap:
+            self.lnworker.swap_manager.sign_tx(tx, swap)
             return
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them

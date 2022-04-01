@@ -761,9 +761,8 @@ class AddressSynchronizer(Logger):
             for tx_hash, height in h:
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = height
+                    sent[txi] = tx_hash, height
         return received, sent
-
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
         coins, spent = self.get_addr_io(address)
@@ -775,7 +774,13 @@ class AddressSynchronizer(Logger):
             utxo._trusted_address = address
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
-            utxo.spent_height = spent.get(prevout_str, None)
+            if prevout_str in spent:
+                txid, height = spent[prevout_str]
+                utxo.spent_txid = txid
+                utxo.spent_height = height
+            else:
+                utxo.spent_txid = None
+                utxo.spent_height = None
             out[prevout] = utxo
         return out
 
@@ -816,7 +821,8 @@ class AddressSynchronizer(Logger):
             else:
                 u += v
             if txo in sent:
-                if sent[txo] > 0:
+                sent_txid, sent_height = sent[txo]
+                if sent_height > 0:
                     c -= v
                 else:
                     u -= v
