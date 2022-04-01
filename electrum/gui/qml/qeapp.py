@@ -7,6 +7,7 @@ from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, QQmlApplicationEngine #, QQmlComponent
 
 from electrum.logging import Logger, get_logger
+from electrum import version
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon, QEWalletListModel
@@ -82,7 +83,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.logger = get_logger(__name__)
 
-        ElectrumQmlApplication._config = config
+        #ElectrumQmlApplication._config = config
         ElectrumQmlApplication._daemon = daemon
 
         qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
@@ -114,6 +115,11 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context.setContextProperty('Network', self._qenetwork)
         self.context.setContextProperty('Daemon', self._qedaemon)
         self.context.setContextProperty('FixedFont', self.fixedFont)
+        self.context.setContextProperty('BUILD', {
+            'electrum_version': version.ELECTRUM_VERSION,
+            'apk_version': version.APK_VERSION,
+            'protocol_version': version.PROTOCOL_VERSION
+        })
 
         qInstallMessageHandler(self.message_handler)
 

@@ -63,8 +63,6 @@ class ElectrumGui(Logger):
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
 
         self.gui_thread = threading.current_thread()
-        #self.config = config
-        #self.daemon = daemon
         self.plugins = plugins
         self.app = ElectrumQmlApplication(sys.argv, config, daemon)
         # timer
