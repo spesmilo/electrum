@@ -1,8 +1,10 @@
+from datetime import datetime
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
-from electrum.util import Satoshis
+from electrum.util import Satoshis, TxMinedInfo
 
 class QETransactionListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
@@ -18,6 +20,7 @@ class QETransactionListModel(QAbstractListModel):
                  'inputs','outputs')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
+    _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
     def rowCount(self, index):
         return len(self.tx_history)
@@ -55,3 +58,28 @@ class QETransactionListModel(QAbstractListModel):
         self.tx_history.reverse()
         self.endInsertRows()
 
+    def update_tx(self, txid, info):
+        i = 0
+        for tx in self.tx_history:
+            if tx['txid'] == txid:
+                tx['height'] = info.height
+                tx['confirmations'] = info.conf
+                tx['timestamp'] = info.timestamp
+                tx['date'] = datetime.fromtimestamp(info.timestamp)
+                index = self.index(i,0)
+                roles = [self._ROLE_RMAP[x] for x in ['height','confirmations','timestamp','date']]
+                self.dataChanged.emit(index, index, roles)
+                return
+            i = i + 1
+
+    @pyqtSlot(int)
+    def updateBlockchainHeight(self, height):
+        self._logger.debug('updating height to %d' % height)
+        i = 0
+        for tx in self.tx_history:
+            if tx['height'] > 0:
+                tx['confirmations'] = height - tx['height'] + 1
+                index = self.index(i,0)
+                roles = [self._ROLE_RMAP['confirmations']]
+                self.dataChanged.emit(index, index, roles)
+            i = i + 1

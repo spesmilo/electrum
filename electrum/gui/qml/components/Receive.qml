@@ -347,4 +347,11 @@ Pane {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onRequestStatusChanged(key, status) {
+            Daemon.currentWallet.requestModel.updateRequest(key, status)
+        }
+    }
+
 }

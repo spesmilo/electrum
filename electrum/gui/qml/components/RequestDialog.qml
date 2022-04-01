@@ -13,11 +13,10 @@ Dialog {
 
     parent: Overlay.overlay
     modal: true
+    standardButtons: Dialog.Ok
 
-    width: parent.width - constants.paddingXLarge
-    height: parent.height - constants.paddingXLarge
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
+    width: parent.width
+    height: parent.height
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -42,6 +41,7 @@ Dialog {
             icon.width: 32
             icon.height: 32
             onClicked: dialog.close()
+            visible: false
         }
     }
     GridLayout {
@@ -122,12 +122,18 @@ Dialog {
             text: qsTr('Address')
         }
         Label {
-            Layout.columnSpan: 2
             Layout.fillWidth: true
             font.family: FixedFont
             font.pixelSize: constants.fontSizeLarge
             wrapMode: Text.WrapAnywhere
             text: modelItem.address
+        }
+        ToolButton {
+            icon.source: '../../icons/copy.png'
+            icon.color: 'transparent'
+            onClicked: {
+                AppController.textToClipboard(modelItem.address)
+            }
         }
 
         Label {
@@ -162,4 +168,12 @@ Dialog {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onRequestStatusChanged(key, code) {
+            if (key != modelItem.key)
+                return
+            modelItem = Daemon.currentWallet.get_request(key)
+        }
+    }
 }

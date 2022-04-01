@@ -28,7 +28,7 @@ class QEWallet(QObject):
     dataChanged = pyqtSignal()
 
     isUptodateChanged = pyqtSignal()
-    requestStatus = pyqtSignal()
+    requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal()
     requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
 
@@ -37,6 +37,7 @@ class QEWallet(QObject):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
+
         self._historyModel = QETransactionListModel(wallet)
         self._addressModel = QEAddressListModel(wallet)
         self._requestModel = QERequestListModel(wallet)
@@ -53,10 +54,9 @@ class QEWallet(QObject):
         self.notification_timer.timeout.connect(self.notify_transactions)
 
         self._network_signal.connect(self.on_network_qt)
-        interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
-                        'new_transaction', 'status', 'verified', 'on_history',
-                        'channel', 'channels_updated', 'payment_failed',
-                        'payment_succeeded', 'invoice_status', 'request_status']
+        interests = ['wallet_updated', 'new_transaction', 'status', 'verified',
+                     'on_history', 'channel', 'channels_updated', 'payment_failed',
+                     'payment_succeeded', 'invoice_status', 'request_status']
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
@@ -77,13 +77,24 @@ class QEWallet(QObject):
         if event == 'status':
             self.isUptodateChanged.emit()
         elif event == 'request_status':
-            self._logger.info(str(args))
-            self.requestStatus.emit()
+            wallet, addr, c = args
+            if wallet == self.wallet:
+                self._logger.debug('request status %d for address %s' % (c, addr))
+                self.requestStatusChanged.emit(addr, c)
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
                 self.add_tx_notification(tx)
-                self._historyModel.init_model()
+                self._historyModel.init_model() # TODO: be less dramatic
+        elif event == 'verified':
+            wallet, txid, info = args
+            if wallet == self.wallet:
+                self._historyModel.update_tx(txid, info)
+        elif event == 'wallet_updated':
+            wallet, = args
+            if wallet == self.wallet:
+                self._logger.debug('wallet %s updated' % str(wallet))
+                self.balanceChanged.emit()
         else:
             self._logger.debug('unhandled event: %s %s' % (event, str(args)))
 
@@ -115,8 +126,7 @@ class QEWallet(QObject):
             except queue.Empty:
                 break
 
-        from .qeapp import ElectrumQmlApplication
-        config = ElectrumQmlApplication._config
+        config = self.wallet.config
         # Combine the transactions if there are at least three
         if len(txns) >= 3:
             total_amount = 0
@@ -222,10 +232,7 @@ class QEWallet(QObject):
             self._logger.info('no change output??? : %s' % str(tx.to_json()['outputs']))
             return
 
-        from .qeapp import ElectrumQmlApplication
-        self.config = ElectrumQmlApplication._config
-
-        use_rbf = bool(self.config.get('use_rbf', True))
+        use_rbf = bool(self.wallet.config.get('use_rbf', True))
         tx.set_rbf(use_rbf)
 
         def cb(result):
@@ -235,7 +242,7 @@ class QEWallet(QObject):
             self._logger.info('tx not complete')
             return
 
-        self.network = ElectrumQmlApplication._daemon.network
+        self.network = self.wallet.network # TODO not always defined?
 
         try:
             self._logger.info('running broadcast in thread')
@@ -318,3 +325,8 @@ class QEWallet(QObject):
     def delete_request(self, key: str):
         self.wallet.delete_request(key)
         self._requestModel.delete_request(key)
+
+    @pyqtSlot('QString', result='QVariant')
+    def get_request(self, key: str):
+        req = self.wallet.get_request(key)
+        return self._requestModel.request_to_model(req)

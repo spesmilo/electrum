@@ -45,6 +45,8 @@ Frame {
         }
     }
 
+    // instead of all these explicit connections, we should expose
+    // formatted balances directly as a property
     Connections {
         target: Config
         function onBaseUnitChanged() { setBalances() }
@@ -54,6 +56,13 @@ Frame {
     Connections {
         target: Daemon
         function onWalletLoaded() { setBalances() }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onBalanceChanged() {
+            setBalances()
+        }
     }
 
     Component.onCompleted: setBalances()

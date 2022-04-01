@@ -17,6 +17,7 @@ class QERequestListModel(QAbstractListModel):
     _ROLE_NAMES=('key','type','timestamp','message','amount','status','address')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
+    _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
     def rowCount(self, index):
         return len(self.requests)
@@ -86,4 +87,16 @@ class QERequestListModel(QAbstractListModel):
                 self.requests.pop(i)
                 self.endRemoveRows()
                 break
+            i = i + 1
+
+    @pyqtSlot(str, int)
+    def updateRequest(self, key, status):
+        self._logger.debug('updating request for %s to %d' % (key,status))
+        i = 0
+        for item in self.requests:
+            if item['key'] == key:
+                req = self.wallet.get_request(key)
+                item['status'] = req.get_status_str(status)
+                index = self.index(i,0)
+                self.dataChanged.emit(index, index, [self._ROLE_RMAP['status']])
             i = i + 1

@@ -133,4 +133,10 @@ Pane {
 
     }
 
+    Connections {
+        target: Network
+        function onHeightChanged(height) {
+            Daemon.currentWallet.historyModel.updateBlockchainHeight(height)
+        }
+    }
 }
