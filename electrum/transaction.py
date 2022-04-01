@@ -194,6 +194,12 @@ class TxOutpoint(NamedTuple):
         return TxOutpoint(txid=bfh(hash_str),
                           out_idx=int(idx_str))
 
+    def __str__(self) -> str:
+        return f"""TxOutpoint("{self.to_str()}")"""
+
+    def __repr__(self):
+        return f"<{str(self)}>"
+
     def to_str(self) -> str:
         return f"{self.txid.hex()}:{self.out_idx}"
 
