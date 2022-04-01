@@ -1595,6 +1595,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
+            self.request_list.delete_item(key)
             self.need_update.set()
         else:
             self.request_list.refresh_item(key)
