@@ -92,6 +92,7 @@ class SwapData(StoredObject):
     funding_txid = attr.ib(type=Optional[str])
     spending_txid = attr.ib(type=Optional[str])
     is_redeemed = attr.ib(type=bool)
+    _funding_prevout = None # for RBF
 
 
 def create_claim_tx(
@@ -171,6 +172,7 @@ class SwapManager(Logger):
                 self.logger.info('amount too low, we should not reveal the preimage')
                 continue
             swap.funding_txid = txin.prevout.txid.hex()
+            swap._funding_prevout = txin.prevout
             spent_height = txin.spent_height
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
@@ -542,7 +544,7 @@ class SwapManager(Logger):
 
     def get_swap_by_claim_txin(self, txin: TxInput) -> Optional[SwapData]:
         for key, swap in self.swaps.items():
-            if txin.prevout.txid.hex() == swap.funding_txid:
+            if txin.prevout == swap._funding_prevout:
                 return swap
         return None
 
