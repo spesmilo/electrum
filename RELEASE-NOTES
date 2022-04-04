@@ -1,4 +1,4 @@
-# Release 4.2.1 - (March 24, 2022)
+# Release 4.2.1 - (March 26, 2022)
  * Binaries:
    - Windows: we are dropping support for Windows 7. (#7728)
      Version 4.2.0 already unintentionally broke compatibility with
@@ -22,6 +22,8 @@
    - during LN chan open, do not backup wallet automatically (#7733)
    - Imported wallets: fix delete_address rm-ing too many txs (#7587)
    - fix potential deadlock in wallet.py (d3476b6b)
+ * Hardware wallets:
+   - ledger: add progress indicator to sign_transaction (#7516)
  * fix the "--portable" flag for AppImage, and for pip installs (#7732)
 
 

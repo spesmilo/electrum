@@ -33,11 +33,10 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.transaction import Transaction, PartialTransaction
-from electrum_ltc.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum_ltc.wallet import InternalAddressCorruption
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
-                   BlockingWaitingDialog, PasswordLineEdit)
+                   BlockingWaitingDialog, PasswordLineEdit, WWLabel)
 
 from .fee_slider import FeeSlider, FeeComboBox
 
@@ -166,8 +165,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.fee_slider, 5, 1)
         grid.addWidget(self.fee_combo, 5, 2)
 
-        self.message_label = QLabel(self.default_message())
-        self.message_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.message_label = WWLabel(self.default_message())
         grid.addWidget(self.message_label, 6, 0, 1, -1)
         self.pw_label = QLabel(_('Password'))
         self.pw_label.setVisible(self.password_required)
