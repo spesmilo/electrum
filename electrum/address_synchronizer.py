@@ -85,8 +85,10 @@ class AddressSynchronizer(Logger):
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
         self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted height
-        # Transactions pending verification.  txid -> tx_height. Access with self.lock.
-        self.unverified_tx = defaultdict(int)
+        # Txs the server claims are mined but still pending verification:
+        self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
+        # Txs the server claims are in the mempool:
+        self.unconfirmed_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # true when synchronized
         self._up_to_date = False
         # thread local storage for caching stuff
@@ -176,7 +178,7 @@ class AddressSynchronizer(Logger):
             hist = self.db.get_addr_history(addr)
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
-                self.add_unverified_tx(tx_hash, tx_height)
+                self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
 
     def start_network(self, network: Optional['Network']) -> None:
         self.network = network
@@ -379,6 +381,7 @@ class AddressSynchronizer(Logger):
             self.db.remove_tx_fee(tx_hash)
             self.db.remove_verified_tx(tx_hash)
             self.unverified_tx.pop(tx_hash, None)
+            self.unconfirmed_tx.pop(tx_hash, None)
             if tx:
                 for idx, txo in enumerate(tx.outputs()):
                     scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
@@ -396,7 +399,7 @@ class AddressSynchronizer(Logger):
             return children
 
     def receive_tx_callback(self, tx_hash: str, tx: Transaction, tx_height: int) -> None:
-        self.add_unverified_tx(tx_hash, tx_height)
+        self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
@@ -406,6 +409,7 @@ class AddressSynchronizer(Logger):
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
+                    self.unconfirmed_tx.pop(tx_hash, None)
                     self.db.remove_verified_tx(tx_hash)
                     if self.verifier:
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
@@ -413,7 +417,7 @@ class AddressSynchronizer(Logger):
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
-            self.add_unverified_tx(tx_hash, tx_height)
+            self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
@@ -459,17 +463,26 @@ class AddressSynchronizer(Logger):
                 self._history_local.clear()
                 self._get_addr_balance_cache = {}  # invalidate cache
 
-    def get_txpos(self, tx_hash):
+    def get_txpos(self, tx_hash: str) -> Tuple[int, int]:
         """Returns (height, txpos) tuple, even if the tx is unverified."""
         with self.lock:
             verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
             if verified_tx_mined_info:
-                return verified_tx_mined_info.height, verified_tx_mined_info.txpos
+                height = verified_tx_mined_info.height
+                txpos = verified_tx_mined_info.txpos
+                assert height > 0, height
+                assert txpos is not None
+                return height, txpos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return (height, -1) if height > 0 else ((1e9 - height), -1)
+                assert height > 0, height
+                return height, -1
+            elif tx_hash in self.unconfirmed_tx:
+                height = self.unconfirmed_tx[tx_hash]
+                assert height <= 0, height
+                return (10**9 - height), -1
             else:
-                return (1e9+1, -1)
+                return (10**9 + 1), -1
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -558,17 +571,21 @@ class AddressSynchronizer(Logger):
         assert self.is_mine(addr), "address needs to be is_mine to be watched"
         await self._address_history_changed_events[addr].wait()
 
-    def add_unverified_tx(self, tx_hash, tx_height):
+    def add_unverified_or_unconfirmed_tx(self, tx_hash, tx_height):
         if self.db.is_in_verified_tx(tx_hash):
-            if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            if tx_height <= 0:
+                # tx was previously SPV-verified but now in mempool (probably reorg)
                 with self.lock:
                     self.db.remove_verified_tx(tx_hash)
+                    self.unconfirmed_tx[tx_hash] = tx_height
                 if self.verifier:
                     self.verifier.remove_spv_proof_for_tx(tx_hash)
         else:
             with self.lock:
-                # tx will be verified only if height > 0
-                self.unverified_tx[tx_hash] = tx_height
+                if tx_height > 0:
+                    self.unverified_tx[tx_hash] = tx_height
+                else:
+                    self.unconfirmed_tx[tx_hash] = tx_height
 
     def remove_unverified_tx(self, tx_hash, tx_height):
         with self.lock:
@@ -584,7 +601,7 @@ class AddressSynchronizer(Logger):
         tx_mined_status = self.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
-    def get_unverified_txs(self):
+    def get_unverified_txs(self) -> Dict[str, int]:
         '''Returns a map from tx hash to transaction height'''
         with self.lock:
             return dict(self.unverified_tx)  # copy
@@ -637,6 +654,9 @@ class AddressSynchronizer(Logger):
                 return verified_tx_mined_info._replace(conf=conf)
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
+                return TxMinedInfo(height=height, conf=0)
+            elif tx_hash in self.unconfirmed_tx:
+                height = self.unconfirmed_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
             elif tx_hash in self.future_tx:
                 num_blocks_remainining = self.future_tx[tx_hash] - self.get_local_height()

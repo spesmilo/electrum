@@ -187,7 +187,8 @@ class SPV(NetworkJobOnDefaultServer):
         self.requested_merkle.discard(tx_hash)
 
     def is_up_to_date(self):
-        return not self.requested_merkle
+        return (not self.requested_merkle
+                and not self.wallet.unverified_tx)
 
 
 def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
