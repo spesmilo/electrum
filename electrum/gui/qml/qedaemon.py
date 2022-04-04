@@ -43,6 +43,11 @@ class QEWalletListModel(QAbstractListModel):
     def add_wallet(self, wallet_path = None, wallet: Abstract_Wallet = None):
         if wallet_path == None and wallet == None:
             return
+        # only add wallet instance if instance not yet in model
+        if wallet:
+            for name,path,w in self.wallets:
+                if w == wallet:
+                    return
         self.beginInsertRows(QModelIndex(), len(self.wallets), len(self.wallets));
         if wallet == None:
             wallet_name = os.path.basename(wallet_path)
@@ -117,7 +122,7 @@ class QEDaemon(QObject):
             wallet = self.daemon.load_wallet(self._path, password)
             if wallet != None:
                 self._loaded_wallets.add_wallet(wallet=wallet)
-                self._current_wallet = QEWallet(wallet)
+                self._current_wallet = QEWallet.getInstanceFor(wallet)
                 self.walletLoaded.emit()
                 self.daemon.config.save_last_wallet(wallet)
             else:

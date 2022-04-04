@@ -18,6 +18,19 @@ from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
 
 class QEWallet(QObject):
+    __instances = []
+
+    # this factory method should be used to instantiate QEWallet
+    # so we have only one QEWallet for each electrum.wallet
+    @classmethod
+    def getInstanceFor(cls, wallet):
+        for i in cls.__instances:
+            if i.wallet == wallet:
+                return i
+        i = QEWallet(wallet)
+        cls.__instances.append(i)
+        return i
+
     _logger = get_logger(__name__)
 
     # emitted when wallet wants to display a user notification
