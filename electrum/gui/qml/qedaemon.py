@@ -96,6 +96,7 @@ class QEDaemon(QObject):
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
     walletOpenError = pyqtSignal([str], arguments=["error"])
+    currenciesChanged = pyqtSignal()
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -150,3 +151,7 @@ class QEDaemon(QObject):
             self._available_wallets = QEAvailableWalletListModel(self.daemon)
 
         return self._available_wallets
+
+    @pyqtProperty('QVariantList', notify=currenciesChanged)
+    def currencies(self):
+        return [''] + self.daemon.fx.get_currencies(False)

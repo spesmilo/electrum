@@ -56,6 +56,15 @@ Pane {
                     text: qsTr('Write logs to file')
                     enabled: false
                 }
+
+                Label {
+                    text: qsTr('Fiat Currency')
+                }
+
+                ComboBox {
+                    id: currencies
+                    model: Daemon.currencies
+                }
             }
 
         }
@@ -73,11 +82,13 @@ Pane {
     function save() {
         Config.baseUnit = baseUnit.currentValue
         Config.thousandsSeparator = thousands.checked
+        Config.fiatCurrency = currencies.currentValue ? currencies.currentValue : ''
         app.stack.pop()
     }
 
     Component.onCompleted: {
         baseUnit.currentIndex = ['BTC','mBTC','bits','sat'].indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
+        currencies.currentIndex = currencies.indexOfValue(Config.fiatCurrency)
     }
 }
