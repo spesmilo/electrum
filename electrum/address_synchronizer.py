@@ -90,7 +90,7 @@ class AddressSynchronizer(Logger):
         # Txs the server claims are in the mempool:
         self.unconfirmed_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # true when synchronized
-        self._up_to_date = False
+        self._up_to_date = False  # considers both Synchronizer and Verifier
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
@@ -922,5 +922,6 @@ class AddressSynchronizer(Logger):
         c, u, x = self.get_addr_balance(address)
         return c+u+x == 0
 
-    def synchronize(self):
-        pass
+    def synchronize(self) -> int:
+        """Returns the number of new addresses we generated."""
+        return 0

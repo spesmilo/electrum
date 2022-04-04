@@ -260,8 +260,14 @@ class Synchronizer(SynchronizerBase):
         # main loop
         while True:
             await asyncio.sleep(0.1)
-            await run_in_thread(self.wallet.synchronize)
-            up_to_date = self.is_up_to_date()
+            # note: we only generate new HD addresses if the existing ones
+            #       have history that are mined and SPV-verified. This inherently couples
+            #       the Sychronizer and the Verifier.
+            hist_done = self.is_up_to_date()
+            spv_done = self.wallet.verifier.is_up_to_date() if self.wallet.verifier else True
+            num_new_addrs = await run_in_thread(self.wallet.synchronize)
+            up_to_date = hist_done and spv_done and num_new_addrs == 0
+            # see if status changed
             if (up_to_date != self.wallet.is_up_to_date()
                     or up_to_date and self._processed_some_notifications):
                 self._processed_some_notifications = False
