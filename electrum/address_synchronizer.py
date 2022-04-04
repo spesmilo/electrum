@@ -672,8 +672,14 @@ class AddressSynchronizer(Logger):
         with self.lock:
             status_changed = self._up_to_date != up_to_date
             self._up_to_date = up_to_date
-        if self.network:
-            self.network.notify('status')
+        # reset sync state progress indicator
+        if up_to_date:
+            if self.synchronizer:
+                self.synchronizer.reset_request_counters()
+            if self.verifier:
+                self.verifier.reset_request_counters()
+        # fire triggers
+        util.trigger_callback('status')
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
@@ -681,10 +687,16 @@ class AddressSynchronizer(Logger):
         return self._up_to_date
 
     def get_history_sync_state_details(self) -> Tuple[int, int]:
+        nsent, nans = 0, 0
         if self.synchronizer:
-            return self.synchronizer.num_requests_sent_and_answered()
-        else:
-            return 0, 0
+            n1, n2 = self.synchronizer.num_requests_sent_and_answered()
+            nsent += n1
+            nans += n2
+        if self.verifier:
+            n1, n2 = self.verifier.num_requests_sent_and_answered()
+            nsent += n1
+            nans += n2
+        return nsent, nans
 
     @with_transaction_lock
     def get_tx_delta(self, tx_hash: str, address: str) -> int:
