@@ -81,15 +81,19 @@ Pane {
 
         TextField {
             id: amountFiat
+            visible: Config.fiatCurrency != ''
             font.family: FixedFont
             Layout.fillWidth: true
             inputMethodHints: Qt.ImhDigitsOnly
         }
 
         Label {
-            text: qsTr('EUR')
+            visible: Config.fiatCurrency != ''
+            text: Config.fiatCurrency
             color: Material.accentColor
         }
+
+        Item { visible: Config.fiatCurrency == ''; width: 1; height: 1; Layout.columnSpan: 2 }
 
         RowLayout {
             Layout.columnSpan: 4
@@ -343,6 +347,31 @@ Pane {
         target: Daemon.currentWallet
         function onRequestStatusChanged(key, status) {
             Daemon.currentWallet.requestModel.updateRequest(key, status)
+        }
+    }
+
+    Connections {
+        target: amount
+        function onTextChanged() {
+            if (amountFiat.activeFocus)
+                return
+            var a = Config.unitsToSats(amount.text)
+            amountFiat.text = Daemon.fiatValue(a)
+        }
+    }
+    Connections {
+        target: amountFiat
+        function onTextChanged() {
+            if (amountFiat.activeFocus) {
+                amount.text = Daemon.satoshiValue(amountFiat.text)
+            }
+        }
+    }
+    Connections {
+        target: Network
+        function onFiatUpdated() {
+            var a = Config.unitsToSats(amount.text)
+            amountFiat.text = Daemon.fiatValue(a)
         }
     }
 

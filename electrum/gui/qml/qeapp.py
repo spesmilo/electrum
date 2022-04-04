@@ -121,6 +121,8 @@ class ElectrumQmlApplication(QGuiApplication):
             'protocol_version': version.PROTOCOL_VERSION
         })
 
+        self._qeconfig.fiatCurrencyChanged.connect(self._qedaemon.setFiatCurrency)
+
         qInstallMessageHandler(self.message_handler)
 
         # get notified whether root QML document loads or not
