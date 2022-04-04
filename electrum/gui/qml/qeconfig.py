@@ -78,8 +78,8 @@ class QEConfig(QObject):
         self.config.set_key('currency', currency)
         self.fiatCurrencyChanged.emit()
 
-    @pyqtSlot(int, result=str)
-    @pyqtSlot(int, bool, result=str)
+    @pyqtSlot('qint64', result=str)
+    @pyqtSlot('qint64', bool, result=str)
     def formatSats(self, satoshis, with_unit=False):
         if with_unit:
             return self.config.format_amount_and_units(satoshis)
@@ -93,7 +93,7 @@ class QEConfig(QObject):
     def max_precision(self):
         return self.decimal_point() + 0 #self.extra_precision
 
-    @pyqtSlot(str, result=int)
+    @pyqtSlot(str, result='qint64')
     def unitsToSats(self, unitAmount):
         # returns amt in satoshis
         try:
