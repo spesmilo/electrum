@@ -196,9 +196,14 @@ ApplicationWindow
     }
 
     onClosing: {
-        // destroy most GUI components so that we don't dump so many null reference warnings on exit
-        app.header.visible = false
-        mainStackView.clear()
+        if (stack.depth > 1) {
+            close.accepted = false
+            stack.pop()
+        } else {
+            // destroy most GUI components so that we don't dump so many null reference warnings on exit
+            app.header.visible = false
+            mainStackView.clear()
+        }
     }
 
     Connections {
