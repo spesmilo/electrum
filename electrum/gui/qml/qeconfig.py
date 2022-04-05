@@ -68,16 +68,6 @@ class QEConfig(QObject):
         self.config.amt_add_thousands_sep = checked
         self.thousandsSeparatorChanged.emit()
 
-    fiatCurrencyChanged = pyqtSignal()
-    @pyqtProperty(str, notify=fiatCurrencyChanged)
-    def fiatCurrency(self):
-        return self.config.get('currency')
-
-    @fiatCurrency.setter
-    def fiatCurrency(self, currency):
-        self.config.set_key('currency', currency)
-        self.fiatCurrencyChanged.emit()
-
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     def formatSats(self, satoshis, with_unit=False):

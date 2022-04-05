@@ -15,7 +15,6 @@ class QENetwork(QObject):
         register_callback(self.on_proxy_set, ['proxy_set'])
         register_callback(self.on_status, ['status'])
         register_callback(self.on_fee_histogram, ['fee_histogram'])
-        register_callback(self.on_fiat, ['on_quotes','on_history'])
 
     _logger = get_logger(__name__)
 
@@ -27,7 +26,6 @@ class QENetwork(QObject):
     proxyChanged = pyqtSignal()
     statusChanged = pyqtSignal()
     feeHistogramUpdated = pyqtSignal()
-    fiatUpdated = pyqtSignal()
 
     # shared signal for static properties
     dataChanged = pyqtSignal()
@@ -61,10 +59,6 @@ class QENetwork(QObject):
     def on_fee_histogram(self, event, *args):
         self._logger.debug('fee histogram updated')
         self.feeHistogramUpdated.emit()
-
-    def on_fiat(self, event, *args):
-        self._logger.debug('new fiat quotes')
-        self.fiatUpdated.emit()
 
     @pyqtProperty(int,notify=heightChanged)
     def height(self):

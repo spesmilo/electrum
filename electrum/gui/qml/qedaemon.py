@@ -8,9 +8,9 @@ from electrum.util import register_callback, get_new_wallet_name, WalletFileExce
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.bitcoin import COIN
 
 from .qewallet import QEWallet
+from .qefx import QEFX
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
@@ -86,6 +86,7 @@ class QEDaemon(QObject):
     def __init__(self, daemon, parent=None):
         super().__init__(parent)
         self.daemon = daemon
+        self.qefx = QEFX(daemon.fx, daemon.config)
 
     _logger = get_logger(__name__)
     _loaded_wallets = QEWalletListModel()
@@ -98,7 +99,7 @@ class QEDaemon(QObject):
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
     walletOpenError = pyqtSignal([str], arguments=["error"])
-    currenciesChanged = pyqtSignal()
+    fxChanged = pyqtSignal()
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -135,31 +136,6 @@ class QEDaemon(QObject):
             self._logger.error(str(e))
             self.walletOpenError.emit(str(e))
 
-    @pyqtSlot(str, result=str)
-    def fiatValue(self, satoshis):
-        rate = self.daemon.fx.exchange_rate()
-        try:
-            sd = Decimal(satoshis)
-            if sd == 0:
-                return ''
-        except:
-            return ''
-        return self.daemon.fx.value_str(satoshis,rate)
-
-    # TODO: move conversion to FxThread
-    @pyqtSlot(str, result=str)
-    def satoshiValue(self, fiat):
-        rate = self.daemon.fx.exchange_rate()
-        try:
-            fd = Decimal(fiat)
-        except:
-            return ''
-        v = fd / Decimal(rate) * COIN
-        return '' if v.is_nan() else self.daemon.config.format_amount(v)
-
-    @pyqtSlot()
-    def setFiatCurrency(self):
-        self.daemon.fx.set_currency(self.daemon.config.get('currency'))
 
     @pyqtProperty('QString')
     def path(self):
@@ -180,6 +156,7 @@ class QEDaemon(QObject):
 
         return self._available_wallets
 
-    @pyqtProperty('QVariantList', notify=currenciesChanged)
-    def currencies(self):
-        return [''] + self.daemon.fx.get_currencies(False)
+    @pyqtProperty(QEFX, notify=fxChanged)
+    def fx(self):
+        return self.qefx
+

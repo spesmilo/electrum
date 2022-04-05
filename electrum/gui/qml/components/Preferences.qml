@@ -35,12 +35,20 @@ Pane {
                 ComboBox {
                     id: baseUnit
                     model: ['BTC','mBTC','bits','sat']
+                    onCurrentValueChanged: {
+                        if (activeFocus)
+                            Config.baseUnit = currentValue
+                    }
                 }
 
                 CheckBox {
                     id: thousands
                     Layout.columnSpan: 2
                     text: qsTr('Add thousands separators to bitcoin amounts')
+                    onCheckedChanged: {
+                        if (activeFocus)
+                            Config.thousandsSeparator = checked
+                    }
                 }
 
                 CheckBox {
@@ -50,45 +58,58 @@ Pane {
                     enabled: false
                 }
 
-                CheckBox {
-                    id: writeLogs
-                    Layout.columnSpan: 2
-                    text: qsTr('Write logs to file')
-                    enabled: false
-                }
-
                 Label {
                     text: qsTr('Fiat Currency')
                 }
 
                 ComboBox {
                     id: currencies
-                    model: Daemon.currencies
+                    model: Daemon.fx.currencies
+                    onCurrentValueChanged: {
+                        if (activeFocus)
+                            Daemon.fx.fiatCurrency = currentValue
+                    }
+                }
+
+                CheckBox {
+                    id: historyRates
+                    text: qsTr('History rates')
+                    enabled: currencies.currentValue != ''
+                    Layout.columnSpan: 2
+                    onCheckStateChanged: {
+                        if (activeFocus)
+                            Daemon.fx.historyRates = checked
+                    }
+                }
+
+                Label {
+                    text: qsTr('Source')
+                    enabled: currencies.currentValue != ''
+                }
+
+                ComboBox {
+                    id: rateSources
+                    enabled: currencies.currentValue != ''
+                    model: Daemon.fx.rateSources
+                    onModelChanged: {
+                        currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
+                    }
+                    onCurrentValueChanged: {
+                        if (activeFocus)
+                            Daemon.fx.rateSource = currentValue
+                    }
                 }
             }
 
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignHCenter
-            Button {
-                text: qsTr('Save')
-                onClicked: save()
-            }
-        }
-    }
-
-    function save() {
-        Config.baseUnit = baseUnit.currentValue
-        Config.thousandsSeparator = thousands.checked
-        Config.fiatCurrency = currencies.currentValue ? currencies.currentValue : ''
-        app.stack.pop()
     }
 
     Component.onCompleted: {
         baseUnit.currentIndex = ['BTC','mBTC','bits','sat'].indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
-        currencies.currentIndex = currencies.indexOfValue(Config.fiatCurrency)
+        currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)
+        historyRates.checked = Daemon.fx.historyRates
+        rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
     }
 }

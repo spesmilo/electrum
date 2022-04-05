@@ -16,6 +16,7 @@ from .qewallet import QEWallet
 from .qeqr import QEQRParser, QEQRImageProvider
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
+from .qefx import QEFX
 
 class QEAppController(QObject):
     userNotify = pyqtSignal(str)
@@ -83,7 +84,6 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.logger = get_logger(__name__)
 
-        #ElectrumQmlApplication._config = config
         ElectrumQmlApplication._daemon = daemon
 
         qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
@@ -91,6 +91,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEWalletDB, 'org.electrum', 1, 0, 'WalletDB')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
+        qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
@@ -120,8 +121,6 @@ class ElectrumQmlApplication(QGuiApplication):
             'apk_version': version.APK_VERSION,
             'protocol_version': version.PROTOCOL_VERSION
         })
-
-        self._qeconfig.fiatCurrencyChanged.connect(self._qedaemon.setFiatCurrency)
 
         qInstallMessageHandler(self.message_handler)
 

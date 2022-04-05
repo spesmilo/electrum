@@ -81,19 +81,19 @@ Pane {
 
         TextField {
             id: amountFiat
-            visible: Config.fiatCurrency != ''
+            visible: Daemon.fx.fiatCurrency != ''
             font.family: FixedFont
             Layout.fillWidth: true
             inputMethodHints: Qt.ImhDigitsOnly
         }
 
         Label {
-            visible: Config.fiatCurrency != ''
-            text: Config.fiatCurrency
+            visible: Daemon.fx.fiatCurrency != ''
+            text: Daemon.fx.fiatCurrency
             color: Material.accentColor
         }
 
-        Item { visible: Config.fiatCurrency == ''; width: 1; height: 1; Layout.columnSpan: 2 }
+        Item { visible: Daemon.fx.fiatCurrency == ''; width: 1; height: 1; Layout.columnSpan: 2 }
 
         RowLayout {
             Layout.columnSpan: 4
@@ -356,22 +356,22 @@ Pane {
             if (amountFiat.activeFocus)
                 return
             var a = Config.unitsToSats(amount.text)
-            amountFiat.text = Daemon.fiatValue(a)
+            amountFiat.text = Daemon.fx.fiatValue(a)
         }
     }
     Connections {
         target: amountFiat
         function onTextChanged() {
             if (amountFiat.activeFocus) {
-                amount.text = Daemon.satoshiValue(amountFiat.text)
+                amount.text = Daemon.fx.satoshiValue(amountFiat.text)
             }
         }
     }
     Connections {
-        target: Network
-        function onFiatUpdated() {
+        target: Daemon.fx
+        function onQuotesUpdated() {
             var a = Config.unitsToSats(amount.text)
-            amountFiat.text = Daemon.fiatValue(a)
+            amountFiat.text = Daemon.fx.fiatValue(a)
         }
     }
 
