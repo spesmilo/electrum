@@ -8,10 +8,12 @@ Pane {
 
     GridLayout {
         width: parent.width
-        columns: 6
+        rowSpacing: constants.paddingSmall
+        columnSpacing: constants.paddingSmall
+        columns: 4
 
         BalanceSummary {
-            Layout.columnSpan: 6
+            Layout.columnSpan: 4
             Layout.alignment: Qt.AlignHCenter
         }
 
@@ -19,19 +21,20 @@ Pane {
             text: qsTr('Recipient')
         }
 
-        TextField {
+        TextArea {
             id: address
-            Layout.columnSpan: 4
+            Layout.columnSpan: 2
             Layout.fillWidth: true
             font.family: FixedFont
+            wrapMode: Text.Wrap
             placeholderText: qsTr('Paste address or invoice')
         }
 
         ToolButton {
             icon.source: '../../icons/copy.png'
             icon.color: 'transparent'
-            icon.height: 16
-            icon.width: 16
+            icon.height: constants.iconSizeSmall
+            icon.width: constants.iconSizeSmall
         }
 
         Label {
@@ -42,31 +45,38 @@ Pane {
             id: amount
             font.family: FixedFont
             placeholderText: qsTr('Amount')
+            Layout.preferredWidth: parent.width /2
             inputMethodHints: Qt.ImhPreferNumbers
         }
 
         Label {
-            text: Config.baseUnit + '  ' // add spaces for easy right margin
+            text: Config.baseUnit
             color: Material.accentColor
+            Layout.fillWidth: true
         }
+
+        Item { width: 1; height: 1 }
+
+
+        Item { width: 1; height: 1; visible: Daemon.fx.enabled }
 
         TextField {
             id: amountFiat
-            visible: Daemon.fx.fiatCurrency != ''
+            visible: Daemon.fx.enabled
             font.family: FixedFont
+            Layout.preferredWidth: parent.width /2
             placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhPreferNumbers
         }
 
         Label {
-            visible: Daemon.fx.fiatCurrency != ''
+            visible: Daemon.fx.enabled
             text: Daemon.fx.fiatCurrency
             color: Material.accentColor
+            Layout.fillWidth: true
         }
 
-        Item { visible: Daemon.fx.fiatCurrency == ''; height: 1; Layout.columnSpan: 2; Layout.fillWidth: true }
-
-        Item { width: 1; height: 1 } // workaround colspan on baseunit messing up row above
+        Item { visible: Daemon.fx.enabled ; height: 1; width: 1 }
 
         Label {
             text: qsTr('Fee')
@@ -76,13 +86,15 @@ Pane {
             id: fee
             font.family: FixedFont
             placeholderText: qsTr('sat/vB')
-            Layout.columnSpan: 5
+            Layout.columnSpan: 2
         }
 
+        Item { width: 1; height: 1 }
+
         RowLayout {
-            Layout.columnSpan: 6
+            Layout.columnSpan: 4
             Layout.alignment: Qt.AlignHCenter
-            spacing: 10
+            spacing: constants.paddingMedium
 
             Button {
                 text: qsTr('Pay')

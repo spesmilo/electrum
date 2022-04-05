@@ -13,8 +13,8 @@ Pane {
     GridLayout {
         id: form
         width: parent.width
-        rowSpacing: 10
-        columnSpacing: 10
+        rowSpacing: constants.paddingSmall
+        columnSpacing: constants.paddingSmall
         columns: 4
 
         Label {
@@ -23,22 +23,22 @@ Pane {
 
         TextField {
             id: message
+            placeholderText: qsTr('Description of payment request')
             Layout.columnSpan: 3
             Layout.fillWidth: true
         }
 
         Label {
-            text: qsTr('Requested Amount')
+            text: qsTr('Request')
             wrapMode: Text.WordWrap
-            Layout.preferredWidth: 50 // trigger wordwrap
             Layout.rightMargin: constants.paddingXLarge
-            Layout.rowSpan: 2
         }
 
         TextField {
             id: amount
             font.family: FixedFont
-            Layout.fillWidth: true
+            Layout.preferredWidth: parent.width /2
+            placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhPreferNumbers
         }
 
@@ -47,102 +47,62 @@ Pane {
             color: Material.accentColor
         }
 
-        ColumnLayout {
-            Layout.rowSpan: 2
-            Layout.preferredWidth: rootItem.width /3
-            Layout.leftMargin: constants.paddingXLarge
+        Item { width: 1; height: 1; Layout.fillWidth: true }
 
-            Label {
-                text: qsTr('Expires after')
-                Layout.fillWidth: false
-            }
-
-            ComboBox {
-                id: expires
-                Layout.fillWidth: true
-                textRole: 'text'
-                valueRole: 'value'
-
-                model: ListModel {
-                    id: expiresmodel
-                    Component.onCompleted: {
-                        // we need to fill the model like this, as ListElement can't evaluate script
-                        expiresmodel.append({'text': qsTr('10 minutes'), 'value': 10*60})
-                        expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
-                        expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
-                        expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
-                        expiresmodel.append({'text': qsTr('1 month'), 'value': 31*7*24*60*60})
-                        expiresmodel.append({'text': qsTr('Never'), 'value': 0})
-                        expires.currentIndex = 0
-                    }
-                }
-            }
-        }
+        Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
 
         TextField {
             id: amountFiat
-            visible: Daemon.fx.fiatCurrency != ''
+            visible: Daemon.fx.enabled
             font.family: FixedFont
-            Layout.fillWidth: true
+            Layout.preferredWidth: parent.width /2
+            placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhDigitsOnly
         }
 
         Label {
-            visible: Daemon.fx.fiatCurrency != ''
+            visible: Daemon.fx.enabled
             text: Daemon.fx.fiatCurrency
             color: Material.accentColor
         }
 
-        Item { visible: Daemon.fx.fiatCurrency == ''; width: 1; height: 1; Layout.columnSpan: 2 }
+        Item { width: 1; height: 1; Layout.fillWidth: true }
 
-        RowLayout {
-            Layout.columnSpan: 4
-            Layout.alignment: Qt.AlignHCenter
-            visible: false
-            CheckBox {
-                id: cb_onchain
-                text: qsTr('Onchain')
-                checked: true
-                contentItem: RowLayout {
-                    Text {
-                        text: cb_onchain.text
-                        font: cb_onchain.font
-                        opacity: enabled ? 1.0 : 0.3
-                        color: Material.foreground
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: cb_onchain.indicator.width + cb_onchain.spacing
-                    }
-                    Image {
-                        x: 16
-                        Layout.preferredWidth: 16
-                        Layout.preferredHeight: 16
-                        source: '../../icons/bitcoin.png'
-                    }
+        Label {
+            text: qsTr('Expires after')
+            Layout.fillWidth: false
+        }
+
+        ComboBox {
+            id: expires
+            Layout.columnSpan: 2
+
+            textRole: 'text'
+            valueRole: 'value'
+
+            model: ListModel {
+                id: expiresmodel
+                Component.onCompleted: {
+                    // we need to fill the model like this, as ListElement can't evaluate script
+                    expiresmodel.append({'text': qsTr('10 minutes'), 'value': 10*60})
+                    expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
+                    expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
+                    expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
+                    expiresmodel.append({'text': qsTr('1 month'), 'value': 31*7*24*60*60})
+                    expiresmodel.append({'text': qsTr('Never'), 'value': 0})
+                    expires.currentIndex = 0
                 }
             }
 
-            CheckBox {
-                id: cb_lightning
-                text: qsTr('Lightning')
-                enabled: false
-                contentItem: RowLayout {
-                    Text {
-                        text: cb_lightning.text
-                        font: cb_lightning.font
-                        opacity: enabled ? 1.0 : 0.3
-                        color: Material.foreground
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: cb_lightning.indicator.width + cb_lightning.spacing
-                    }
-                    Image {
-                        x: 16
-                        Layout.preferredWidth: 16
-                        Layout.preferredHeight: 16
-                        source: '../../icons/lightning.png'
-                    }
-                }
+            // redefine contentItem, as the default crops the widest item
+            contentItem: Label {
+                text: expires.currentText
+                padding: constants.paddingLarge
+                font.pixelSize: constants.fontSizeMedium
             }
         }
+
+        Item { width: 1; height: 1; Layout.fillWidth: true }
 
         Button {
             Layout.columnSpan: 4
