@@ -46,18 +46,18 @@ Dialog {
             id: rootLayout
             width: parent.width
             rowSpacing: constants.paddingMedium
-            columns: 3
+            columns: 4
 
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 color: Material.accentColor
             }
 
             Image {
                 id: qr
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
@@ -84,12 +84,12 @@ Dialog {
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 color: Material.accentColor
             }
 
             RowLayout {
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 Layout.alignment: Qt.AlignHCenter
                 Button {
                     icon.source: '../../icons/delete.png'
@@ -117,7 +117,7 @@ Dialog {
             }
             Label {
                 visible: modelItem.message != ''
-                Layout.columnSpan: 2
+                Layout.columnSpan: 3
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
                 text: modelItem.message
@@ -137,6 +137,7 @@ Dialog {
             Label {
                 visible: modelItem.amount > 0
                 Layout.fillWidth: true
+                Layout.columnSpan: 2
                 text: Config.baseUnit
                 color: Material.accentColor
                 font.pixelSize: constants.fontSizeLarge
@@ -147,6 +148,7 @@ Dialog {
             }
             Label {
                 Layout.fillWidth: true
+                Layout.columnSpan: 2
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
                 wrapMode: Text.WrapAnywhere
@@ -163,7 +165,7 @@ Dialog {
                 text: qsTr('Status')
             }
             Label {
-                Layout.columnSpan: 2
+                Layout.columnSpan: 3
                 Layout.fillWidth: true
                 font.pixelSize: constants.fontSizeLarge
                 text: modelItem.status

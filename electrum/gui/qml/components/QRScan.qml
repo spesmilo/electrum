@@ -24,12 +24,14 @@ Item {
         Rectangle {
             width: parent.width
             height: (parent.height - parent.width) / 2
+            visible: camera.cameraStatus == Camera.ActiveStatus
             anchors.top: parent.top
             color: Qt.rgba(0,0,0,0.5)
         }
         Rectangle {
             width: parent.width
             height: (parent.height - parent.width) / 2
+            visible: camera.cameraStatus == Camera.ActiveStatus
             anchors.bottom: parent.bottom
             color: Qt.rgba(0,0,0,0.5)
         }

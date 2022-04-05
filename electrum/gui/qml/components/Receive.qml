@@ -85,7 +85,7 @@ Pane {
             color: Material.accentColor
         }
 
-        Item { width: 1; height: 1; Layout.fillWidth: true }
+        Item { visible: Daemon.fx.enabled; width: 1; height: 1; Layout.fillWidth: true }
 
         Label {
             text: qsTr('Expires after')

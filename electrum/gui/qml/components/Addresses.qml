@@ -8,6 +8,7 @@ import org.electrum 1.0
 Pane {
     id: rootItem
     padding: 0
+    width: parent.width
     property string title: Daemon.currentWallet.name + ' - ' + qsTr('Addresses')
 
     ColumnLayout {
@@ -73,6 +74,7 @@ Pane {
                             Label {
                                 font.family: FixedFont
                                 text: model.address
+                                elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                             }
 
