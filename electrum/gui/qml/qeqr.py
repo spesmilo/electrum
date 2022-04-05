@@ -4,8 +4,7 @@ from PyQt5.QtQuick import QQuickImageProvider
 
 import asyncio
 import qrcode
-#from qrcode.image.styledpil import StyledPilImage
-#from qrcode.image.styles.moduledrawers import *
+
 from PIL import Image, ImageQt
 
 from electrum.logging import get_logger
@@ -126,10 +125,10 @@ class QEQRImageProvider(QQuickImageProvider):
 
     def requestImage(self, qstr, size):
         self._logger.debug('QR requested for %s' % qstr)
-        qr = qrcode.QRCode(version=1, box_size=8, border=2)
+        qr = qrcode.QRCode(version=1, box_size=6, border=2)
         qr.add_data(qstr)
         qr.make(fit=True)
 
-        pimg = qr.make_image(fill_color='black', back_color='white') #image_factory=StyledPilImage, module_drawer=CircleModuleDrawer())
+        pimg = qr.make_image(fill_color='black', back_color='white')
         self.qimg = ImageQt.ImageQt(pimg)
         return self.qimg, self.qimg.size()

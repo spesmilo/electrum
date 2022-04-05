@@ -40,6 +40,21 @@ Pane {
             Layout.preferredWidth: parent.width /2
             placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhPreferNumbers
+
+            property string textAsSats
+            onTextChanged: {
+                textAsSats = Config.unitsToSats(amount.text)
+                if (amountFiat.activeFocus)
+                    return
+                amountFiat.text = Daemon.fx.fiatValue(amount.textAsSats)
+            }
+
+            Connections {
+                target: Config
+                function onBaseUnitChanged() {
+                    amount.text = amount.textAsSats != 0 ? Config.satsToUnits(amount.textAsSats) : ''
+                }
+            }
         }
 
         Label {
@@ -58,6 +73,10 @@ Pane {
             Layout.preferredWidth: parent.width /2
             placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhDigitsOnly
+            onTextChanged: {
+                if (amountFiat.activeFocus)
+                    amount.text = Daemon.fx.satoshiValue(amountFiat.text)
+            }
         }
 
         Label {
@@ -216,7 +235,7 @@ Pane {
                                 text: qsTr('Timestamp: ')
                             }
                             Label {
-                                text: model.timestamp
+                                text: model.date
                             }
 
                             Label {
@@ -301,32 +320,11 @@ Pane {
             }
             dialog.open()
         }
-    }
-
-    Connections {
-        target: Daemon.currentWallet
         function onRequestStatusChanged(key, status) {
             Daemon.currentWallet.requestModel.updateRequest(key, status)
         }
     }
 
-    Connections {
-        target: amount
-        function onTextChanged() {
-            if (amountFiat.activeFocus)
-                return
-            var a = Config.unitsToSats(amount.text)
-            amountFiat.text = Daemon.fx.fiatValue(a)
-        }
-    }
-    Connections {
-        target: amountFiat
-        function onTextChanged() {
-            if (amountFiat.activeFocus) {
-                amount.text = Daemon.fx.satoshiValue(amountFiat.text)
-            }
-        }
-    }
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {

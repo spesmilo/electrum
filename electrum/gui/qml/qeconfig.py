@@ -100,3 +100,7 @@ class QEConfig(QObject):
         #amount = Decimal(max_prec_amount) / Decimal(pow(10, self.max_precision()-self.decimal_point()))
         #return int(amount) #Decimal(amount) if not self.is_int else int(amount)
         return 0
+
+    @pyqtSlot('quint64', result=float)
+    def satsToUnits(self, satoshis):
+        return satoshis / pow(10,self.config.decimal_point)

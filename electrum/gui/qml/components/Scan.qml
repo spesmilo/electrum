@@ -1,6 +1,8 @@
 import QtQuick 2.6
 import QtQuick.Controls 2.0
 
+import org.electrum 1.0
+
 Item {
     id: scanPage
     property string title: qsTr('Scan')
@@ -8,6 +10,8 @@ Item {
     property bool toolbar: false
 
     property string scanData
+    property var invoiceData: undefined
+    property string error
 
     signal found
 
@@ -18,6 +22,16 @@ Item {
 
         onFound: {
             scanPage.scanData = scanData
+            var invoice = bitcoin.parse_uri(scanData)
+            if (invoice['error']) {
+                error = invoice['error']
+                console.log(error)
+                app.stack.pop()
+                return
+            }
+
+            invoiceData = invoice
+            console.log(invoiceData['address'])
             scanPage.found()
             app.stack.pop()
         }
@@ -31,4 +45,7 @@ Item {
         onClicked: app.stack.pop()
     }
 
+    Bitcoin {
+        id: bitcoin
+    }
 }

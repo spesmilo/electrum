@@ -56,12 +56,11 @@ Dialog {
             }
 
             Image {
+                id: qr
                 Layout.columnSpan: 3
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
-
-                source: 'image://qrgen/' + modelItem.address
 
                 Rectangle {
                     property int size: 57 // should be qr pixel multiple
@@ -131,7 +130,7 @@ Dialog {
             }
             Label {
                 visible: modelItem.amount > 0
-                text: Config.formatSats(modelItem.amount, false)
+                text: Config.formatSats(modelItem.amount)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
             }
@@ -180,5 +179,14 @@ Dialog {
                 return
             modelItem = Daemon.currentWallet.get_request(key)
         }
+    }
+
+    Component.onCompleted: {
+        var bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.exp)
+        qr.source = 'image://qrgen/' + bip21uri
+    }
+
+    Bitcoin {
+        id: bitcoin
     }
 }

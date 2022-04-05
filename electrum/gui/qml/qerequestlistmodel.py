@@ -14,7 +14,7 @@ class QERequestListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('key','type','timestamp','message','amount','status','address')
+    _ROLE_NAMES=('key','type','timestamp','date','message','amount','status','address','exp')
     _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -46,10 +46,11 @@ class QERequestListModel(QAbstractListModel):
         status = self.wallet.get_request_status(key)
         item['status'] = req.get_status_str(status)
         item['type'] = req.type # 0=onchain, 2=LN
-        timestamp = req.time
-        item['timestamp'] = format_time(timestamp)
+        item['timestamp'] = req.time
+        item['date'] = format_time(item['timestamp'])
         item['amount'] = req.get_amount_sat()
         item['message'] = req.message
+        item['exp'] = req.exp
         if req.type == 0: # OnchainInvoice
             item['key'] = item['address'] = req.get_address()
         elif req.type == 2: # LNInvoice
