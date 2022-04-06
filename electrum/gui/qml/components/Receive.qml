@@ -75,7 +75,7 @@ Pane {
             inputMethodHints: Qt.ImhDigitsOnly
             onTextChanged: {
                 if (amountFiat.activeFocus)
-                    amount.text = Daemon.fx.satoshiValue(amountFiat.text)
+                    amount.text = text == '' ? '' : Config.satsToUnits(Daemon.fx.satoshiValue(amountFiat.text))
             }
         }
 

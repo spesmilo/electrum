@@ -86,7 +86,8 @@ class QEFX(QObject):
             self.enabledChanged.emit()
 
     @pyqtSlot(str, result=str)
-    def fiatValue(self, satoshis):
+    @pyqtSlot(str, bool, result=str)
+    def fiatValue(self, satoshis, plain=True):
         rate = self.fx.exchange_rate()
         try:
             sd = Decimal(satoshis)
@@ -94,14 +95,23 @@ class QEFX(QObject):
                 return ''
         except:
             return ''
-        return self.fx.value_str(satoshis,rate)
+        if plain:
+            return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), False)
+        else:
+            return self.fx.value_str(satoshis,rate)
 
     @pyqtSlot(str, result=str)
-    def satoshiValue(self, fiat):
+    @pyqtSlot(str, bool, result=str)
+    def satoshiValue(self, fiat, plain=True):
         rate = self.fx.exchange_rate()
         try:
             fd = Decimal(fiat)
         except:
             return ''
         v = fd / Decimal(rate) * COIN
-        return '' if v.is_nan() else self.config.format_amount(v)
+        if v.is_nan():
+            return ''
+        if plain:
+            return str(v.to_integral_value())
+        else:
+            return self.config.format_amount(v)
