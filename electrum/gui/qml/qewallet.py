@@ -81,8 +81,11 @@ class QEWallet(QObject):
         return self.wallet.is_up_to_date()
 
     def on_network(self, event, *args):
-        # Handle in GUI thread (_network_signal -> on_network_qt)
-        self._network_signal.emit(event, args)
+        if event == 'new_transaction':
+            # Handle in GUI thread (_network_signal -> on_network_qt)
+            self._network_signal.emit(event, args)
+        else:
+            self.on_network_qt(event, args)
 
     def on_network_qt(self, event, args=None):
         # note: we get events from all wallets! args are heterogenous so we can't
@@ -241,10 +244,6 @@ class QEWallet(QObject):
         tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
         self._logger.info(str(tx.to_json()))
 
-        if len(tx.to_json()['outputs']) < 2:
-            self._logger.info('no change output??? : %s' % str(tx.to_json()['outputs']))
-            return
-
         use_rbf = bool(self.wallet.config.get('use_rbf', True))
         tx.set_rbf(use_rbf)
 
@@ -304,9 +303,9 @@ class QEWallet(QObject):
         self._requestModel.add_request(req)
         return addr
 
-    @pyqtSlot(int, 'QString', int)
-    @pyqtSlot(int, 'QString', int, bool)
-    @pyqtSlot(int, 'QString', int, bool, bool)
+    @pyqtSlot('quint64', 'QString', int)
+    @pyqtSlot('quint64', 'QString', int, bool)
+    @pyqtSlot('quint64', 'QString', int, bool, bool)
     def create_request(self, amount: int, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         expiry = expiration #TODO: self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
@@ -327,12 +326,6 @@ class QEWallet(QObject):
 
         assert key is not None
         self.requestCreateSuccess.emit()
-
-        # TODO:copy to clipboard
-        #r = self.wallet.get_request(key)
-        #content = r.invoice if r.is_lightning() else r.get_address()
-        #title = _('Invoice') if is_lightning else _('Address')
-        #self.do_copy(content, title=title)
 
     @pyqtSlot('QString')
     def delete_request(self, key: str):
