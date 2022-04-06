@@ -6,6 +6,8 @@ import QtQml.Models 2.1
 
 import org.electrum 1.0
 
+import "controls"
+
 Pane {
     id: rootItem
     visible: Daemon.currentWallet !== undefined

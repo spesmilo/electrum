@@ -4,6 +4,8 @@ import QtQuick.Controls 2.1
 
 import org.electrum 1.0
 
+import "controls"
+
 Pane {
     id: openwalletdialog
 

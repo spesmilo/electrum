@@ -23,11 +23,4 @@ Rectangle {
         color: Qt.lighter(Material.background, 1.50)
     }
     color: Qt.darker(Material.background, 1.15)
-    Image {
-        source: '../../icons/electrum_lightblue.svg'
-        anchors.centerIn: parent
-        sourceSize.width: 128
-        sourceSize.height: 128
-        opacity: 0.1
-    }
 }

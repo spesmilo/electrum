@@ -3,6 +3,8 @@ import QtQuick.Controls 2.0
 
 import org.electrum 1.0
 
+import "controls"
+
 Item {
     id: scanPage
     property string title: qsTr('Scan')

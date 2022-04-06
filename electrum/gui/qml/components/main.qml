@@ -6,6 +6,8 @@ import QtQuick.Controls.Material 2.0
 import QtQml 2.6
 import QtMultimedia 5.6
 
+import "controls"
+
 ApplicationWindow
 {
     id: app
