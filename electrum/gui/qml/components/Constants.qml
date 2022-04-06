@@ -21,4 +21,7 @@ QtObject {
     readonly property int iconSizeLarge: 32
     readonly property int iconSizeXLarge: 48
     readonly property int iconSizeXXLarge: 64
+
+    property color colorCredit: "#ff80ff80"
+    property color colorDebit: "#ffff8080"
 }
