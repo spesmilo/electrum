@@ -29,10 +29,10 @@ Dialog {
             text: dialog.title
             visible: dialog.title
             elide: Label.ElideRight
-            padding: 24
+            padding: constants.paddingXLarge
             bottomPadding: 0
             font.bold: true
-            font.pixelSize: 16
+            font.pixelSize: constants.fontSizeMedium
         }
     }
 

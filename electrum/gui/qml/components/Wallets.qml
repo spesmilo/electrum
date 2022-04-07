@@ -88,7 +88,7 @@ Pane {
                         }
 
                         Label {
-                            font.pixelSize: 18
+                            font.pixelSize: constants.fontSizeLarge
                             text: model.name
                             Layout.fillWidth: true
                         }

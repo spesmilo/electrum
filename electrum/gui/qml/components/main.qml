@@ -21,7 +21,8 @@ ApplicationWindow
     Material.primary: Material.Indigo
     Material.accent: Material.LightBlue
 
-    property QtObject constants: Constants {}
+    property Item constants: appconstants
+    Constants { id: appconstants }
 
     property alias stack: mainStackView
 

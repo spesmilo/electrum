@@ -53,12 +53,12 @@ Item {
     ColumnLayout {
         anchors.centerIn: parent
         width: parent.width
-        spacing: 40
+        spacing: 2*constants.paddingXLarge
         visible: Daemon.currentWallet == null
 
         Label {
             text: qsTr('No wallet loaded')
-            font.pixelSize: 24
+            font.pixelSize: constants.fontSizeXXLarge
             Layout.alignment: Qt.AlignHCenter
         }
 

@@ -28,8 +28,8 @@ GridLayout {
         id: infotext
         Layout.fillWidth: true
         readOnly: true
-        rightPadding: 16
-        leftPadding: 64
+        rightPadding: constants.paddingLarge
+        leftPadding: 2*constants.iconSizeLarge
         wrapMode: TextInput.WordWrap
         textFormat: TextEdit.RichText
         background: Rectangle {
@@ -40,10 +40,10 @@ GridLayout {
             source: iconStyle == InfoTextArea.IconStyle.Info ? "../../../icons/info.png" : InfoTextArea.IconStyle.Warn ? "../../../icons/warning.png" : InfoTextArea.IconStyle.Error ? "../../../icons/expired.png" : ""
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: 16
-            anchors.topMargin: 16
-            height: 32
-            width: 32
+            anchors.leftMargin: constants.paddingLarge
+            anchors.topMargin: constants.paddingLarge
+            height: constants.iconSizeLarge
+            width: constants.iconSizeLarge
             fillMode: Image.PreserveAspectCrop
         }
 
