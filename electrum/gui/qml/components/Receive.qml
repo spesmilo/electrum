@@ -129,6 +129,7 @@ Pane {
             Layout.columnSpan: 4
             Layout.alignment: Qt.AlignHCenter
             text: qsTr('Create Request')
+            icon.source: '../../icons/qrcode.png'
             onClicked: {
                 createRequest()
             }
@@ -202,52 +203,90 @@ Pane {
                                 rightMargin: constants.paddingSmall
                             }
 
-                            columns: 5
+                            columns: 2
 
                             Rectangle {
-                                Layout.columnSpan: 5
+                                Layout.columnSpan: 2
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: constants.paddingTiny
                                 color: 'transparent'
                             }
+
                             Image {
                                 Layout.rowSpan: 2
                                 Layout.preferredWidth: constants.iconSizeLarge
                                 Layout.preferredHeight: constants.iconSizeLarge
                                 source: model.type == 0 ? "../../icons/bitcoin.png" : "../../icons/lightning.png"
                             }
-                            Label {
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                Layout.columnSpan: 2
-                                text: model.message
-                                elide: Text.ElideRight
-                                font.pixelSize: constants.fontSizeLarge
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: model.message ? model.message : model.address
+                                    elide: Text.ElideRight
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: 2
+                                    font.pixelSize: model.message ? constants.fontSizeMedium : constants.fontSizeSmall
+                                }
+
+                                Label {
+                                    id: amount
+                                    text: model.amount == 0 ? '' : Config.formatSats(model.amount)
+                                    font.pixelSize: constants.fontSizeMedium
+                                    font.family: FixedFont
+                                }
+
+                                Label {
+                                    text: model.amount == 0 ? '' : Config.baseUnit
+                                    font.pixelSize: constants.fontSizeMedium
+                                    color: Material.accentColor
+                                }
                             }
 
-                            Label {
-                                text: qsTr('Amount: ')
-                            }
-                            Label {
-                                id: amount
-                                text: Config.formatSats(model.amount, true)
-                                font.family: FixedFont
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Label {
+                                    text: model.status_str
+                                    color: Material.accentColor
+                                }
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: status_icon.height
+                                    Image {
+                                        id: status_icon
+                                        source: model.status == 0
+                                                    ? '../../icons/unpaid.png'
+                                                    : model.status == 1
+                                                        ? '../../icons/expired.png'
+                                                        : model.status == 3
+                                                            ? '../../icons/confirmed.png'
+                                                            : model.status == 7
+                                                                ? '../../icons/unconfirmed.png'
+                                                                : ''
+                                        width: constants.iconSizeSmall
+                                        height: constants.iconSizeSmall
+                                    }
+                                }
+                                Label {
+                                    id: fiatValue
+                                    visible: Daemon.fx.enabled
+                                    Layout.alignment: Qt.AlignRight
+                                    text: model.amount == 0 ? '' : Daemon.fx.fiatValue(model.amount, false)
+                                    font.family: FixedFont
+                                    font.pixelSize: constants.fontSizeSmall
+                                }
+                                Label {
+                                    visible: Daemon.fx.enabled
+                                    Layout.alignment: Qt.AlignRight
+                                    text: model.amount == 0 ? '' : Daemon.fx.fiatCurrency
+                                    font.pixelSize: constants.fontSizeSmall
+                                    color: Material.accentColor
+                                }
                             }
 
-                            Label {
-                                text: qsTr('Timestamp: ')
-                            }
-                            Label {
-                                text: model.date
-                            }
-
-                            Label {
-                                text: qsTr('Status: ')
-                            }
-                            Label {
-                                text: model.status
-                            }
                             Rectangle {
-                                Layout.columnSpan: 5
+                                Layout.columnSpan: 2
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: constants.paddingTiny
                                 color: 'transparent'
@@ -257,10 +296,16 @@ Pane {
                         Connections {
                             target: Config
                             function onBaseUnitChanged() {
-                                amount.text = Config.formatSats(model.amount, true)
+                                amount.text = model.amount == 0 ? '' : Config.formatSats(model.amount)
                             }
                             function onThousandsSeparatorChanged() {
-                                amount.text = Config.formatSats(model.amount, true)
+                                amount.text = model.amount == 0 ? '' : Config.formatSats(model.amount)
+                            }
+                        }
+                        Connections {
+                            target: Daemon.fx
+                            function onQuotesUpdated() {
+                                fiatValue.text = model.amount == 0 ? '' : Daemon.fx.fiatValue(model.amount, false)
                             }
                         }
 
@@ -269,11 +314,14 @@ Pane {
                 }
 
                 remove: Transition {
-                    NumberAnimation { properties: 'scale'; to: 0; duration: 400 }
+                    NumberAnimation { properties: 'scale'; to: 0.75; duration: 300 }
                     NumberAnimation { properties: 'opacity'; to: 0; duration: 300 }
                 }
                 removeDisplaced: Transition {
-                    SpringAnimation { properties: 'y'; duration: 100; spring: 5; damping: 0.5; mass: 2 }
+                    SequentialAnimation {
+                        PauseAnimation { duration: 200 }
+                        SpringAnimation { properties: 'y'; duration: 100; spring: 5; damping: 0.5; mass: 2 }
+                    }
                 }
 
                 ScrollIndicator.vertical: ScrollIndicator { }
@@ -330,8 +378,7 @@ Pane {
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {
-            var a = Config.unitsToSats(amount.text)
-            amountFiat.text = Daemon.fx.fiatValue(a)
+            amountFiat.text = Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
         }
     }
 

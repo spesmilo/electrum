@@ -11,6 +11,8 @@ Dialog {
 
     property var modelItem
 
+    property string _bip21uri
+
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Ok
@@ -46,18 +48,18 @@ Dialog {
             id: rootLayout
             width: parent.width
             rowSpacing: constants.paddingMedium
-            columns: 4
+            columns: 5
 
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 4
+                Layout.columnSpan: 5
                 color: Material.accentColor
             }
 
             Image {
                 id: qr
-                Layout.columnSpan: 4
+                Layout.columnSpan: 5
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
@@ -71,6 +73,7 @@ Dialog {
                     height: size
 
                     Image {
+
                         source: '../../icons/electrum.png'
                         x: 1
                         y: 1
@@ -84,12 +87,12 @@ Dialog {
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 4
+                Layout.columnSpan: 5
                 color: Material.accentColor
             }
 
             RowLayout {
-                Layout.columnSpan: 4
+                Layout.columnSpan: 5
                 Layout.alignment: Qt.AlignHCenter
                 Button {
                     icon.source: '../../icons/delete.png'
@@ -103,7 +106,9 @@ Dialog {
                     icon.source: '../../icons/copy_bw.png'
                     icon.color: 'transparent'
                     text: 'Copy'
-                    enabled: false
+                    onClicked: {
+                        AppController.textToClipboard(_bip21uri)
+                    }
                 }
                 Button {
                     icon.source: '../../icons/share.png'
@@ -117,9 +122,9 @@ Dialog {
             }
             Label {
                 visible: modelItem.message != ''
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 Layout.fillWidth: true
-                wrapMode: Text.WordWrap
+                wrapMode: Text.Wrap
                 text: modelItem.message
                 font.pixelSize: constants.fontSizeLarge
             }
@@ -136,11 +141,21 @@ Dialog {
             }
             Label {
                 visible: modelItem.amount > 0
-                Layout.fillWidth: true
-                Layout.columnSpan: 2
                 text: Config.baseUnit
                 color: Material.accentColor
                 font.pixelSize: constants.fontSizeLarge
+            }
+
+            Label {
+                id: fiatValue
+                visible: modelItem.amount > 0
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                text: Daemon.fx.enabled
+                        ? '(' + Daemon.fx.fiatValue(modelItem.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+                        : ''
+                font.pixelSize: constants.fontSizeMedium
+                wrapMode: Text.Wrap
             }
 
             Label {
@@ -148,7 +163,7 @@ Dialog {
             }
             Label {
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
+                Layout.columnSpan: 3
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
                 wrapMode: Text.WrapAnywhere
@@ -165,10 +180,10 @@ Dialog {
                 text: qsTr('Status')
             }
             Label {
-                Layout.columnSpan: 3
+                Layout.columnSpan: 4
                 Layout.fillWidth: true
                 font.pixelSize: constants.fontSizeLarge
-                text: modelItem.status
+                text: modelItem.status_str
             }
 
         }
@@ -184,8 +199,8 @@ Dialog {
     }
 
     Component.onCompleted: {
-        var bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.exp)
-        qr.source = 'image://qrgen/' + bip21uri
+        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.exp)
+        qr.source = 'image://qrgen/' + _bip21uri
     }
 
     Bitcoin {
