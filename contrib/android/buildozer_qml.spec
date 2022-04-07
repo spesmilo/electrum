@@ -21,10 +21,15 @@ source.exclude_exts = spec
 # (list) List of directory to exclude (let empty to not exclude anything)
 source.exclude_dirs = bin, build, dist, contrib, env,
     electrum/tests,
+    electrum/www,
     electrum/gui/qt,
     electrum/gui/kivy,
     packages/qdarkstyle,
-    packages/qtpy
+    packages/qtpy,
+    packages/bin,
+    packages/share,
+    packages/pkg_resources,
+    packages/setuptools
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
