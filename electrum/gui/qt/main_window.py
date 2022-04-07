@@ -37,6 +37,7 @@ from functools import partial
 import queue
 import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
+import concurrent.futures
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QPoint
@@ -318,16 +319,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.start()
 
     def run_coroutine_from_thread(self, coro, on_result=None):
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         def task():
             try:
-                f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-                r = f.result()
+                r = fut.result()
                 if on_result:
                     on_result(r)
+            except concurrent.futures.CancelledError:
+                self.logger.info(f"wallet.thread coro got cancelled: {coro}")
             except Exception as e:
                 self.logger.exception("exception in coro scheduled via window.wallet")
-                self.show_error_signal.emit(str(e))
-        self.wallet.thread.add(task)
+                self.show_error_signal.emit(repr(e))
+        self.wallet.thread.add(task, cancel=fut.cancel)
 
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
@@ -400,7 +403,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_error(self, exc_info):
         e = exc_info[1]
-        if isinstance(e, UserCancelled):
+        if isinstance(e, (UserCancelled, concurrent.futures.CancelledError)):
             pass
         elif isinstance(e, UserFacingException):
             self.show_error(str(e))
@@ -1592,11 +1595,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not self.question(msg):
             return
         self.save_pending_invoice()
-        def task():
-            coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
-            fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-            return fut.result()
-        self.wallet.thread.add(task)
+        coro = self.wallet.lnworker.pay_invoice(invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
+        self.run_coroutine_from_thread(coro)
 
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
