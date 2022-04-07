@@ -1553,7 +1553,7 @@ class LNWallet(LNWorker):
 
             if not self.channel_db:
                 # in the case of a legacy payment, we don't allow splitting via different
-                # trampoline nodes, as currently no forwarder supports this
+                # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
                 use_single_node, _ = is_legacy_relay(invoice_features, r_tags)
                 split_configurations = suggest_splits(
                     amount_msat,
