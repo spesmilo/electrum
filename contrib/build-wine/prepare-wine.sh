@@ -6,7 +6,7 @@ NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.08/$NSIS_FILE
 NSIS_SHA256=bbc76be36ecb2fc00d493c91befdaf71654226ad8a4fc4dc338458916bf224d0
 
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="63438b1842eacd7f081fc53f1f5212bc20b7d02e"
+PYINSTALLER_COMMIT="0fe956a2c6157e1b276819de1a050c242de70a29"
 # ^ latest commit from "v4" branch, somewhat after "4.10" tag
 
 PYTHON_VERSION=3.9.11
