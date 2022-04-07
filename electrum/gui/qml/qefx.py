@@ -1,6 +1,7 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
-
 from decimal import Decimal
+from datetime import datetime
+
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.exchange_rate import FxThread
@@ -31,12 +32,12 @@ class QEFX(QObject):
     currenciesChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=currenciesChanged)
     def currencies(self):
-        return [''] + self.fx.get_currencies(self.historyRates)
+        return self.fx.get_currencies(self.historicRates)
 
     rateSourcesChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=rateSourcesChanged)
     def rateSources(self):
-        return self.fx.get_exchanges_by_ccy(self.fiatCurrency, self.historyRates)
+        return self.fx.get_exchanges_by_ccy(self.fiatCurrency, self.historicRates)
 
     fiatCurrencyChanged = pyqtSignal()
     @pyqtProperty(str, notify=fiatCurrencyChanged)
@@ -47,20 +48,20 @@ class QEFX(QObject):
     def fiatCurrency(self, currency):
         if currency != self.fiatCurrency:
             self.fx.set_currency(currency)
-            self.enabled = currency != ''
+            self.enabled = self.enabled and currency != ''
             self.fiatCurrencyChanged.emit()
             self.rateSourcesChanged.emit()
 
-    historyRatesChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=historyRatesChanged)
-    def historyRates(self):
+    historicRatesChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=historicRatesChanged)
+    def historicRates(self):
         return self.fx.get_history_config()
 
-    @historyRates.setter
-    def historyRates(self, checked):
-        if checked != self.historyRates:
+    @historicRates.setter
+    def historicRates(self, checked):
+        if checked != self.historicRates:
             self.fx.set_history_config(checked)
-            self.historyRatesChanged.emit()
+            self.historicRatesChanged.emit()
             self.rateSourcesChanged.emit()
 
     rateSourceChanged = pyqtSignal()
@@ -74,8 +75,8 @@ class QEFX(QObject):
             self.fx.set_exchange(source)
             self.rateSourceChanged.emit()
 
-    enabledChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=enabledChanged)
+    enabledUpdated = pyqtSignal() # curiously, enabledChanged is clashing, so name it enabledUpdated
+    @pyqtProperty(bool, notify=enabledUpdated)
     def enabled(self):
         return self.fx.is_enabled()
 
@@ -83,7 +84,7 @@ class QEFX(QObject):
     def enabled(self, enable):
         if enable != self.enabled:
             self.fx.set_enabled(enable)
-            self.enabledChanged.emit()
+            self.enabledUpdated.emit()
 
     @pyqtSlot(str, result=str)
     @pyqtSlot(str, bool, result=str)
@@ -98,7 +99,24 @@ class QEFX(QObject):
         if plain:
             return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), False)
         else:
-            return self.fx.value_str(satoshis,rate)
+            return self.fx.value_str(satoshis, rate)
+
+    @pyqtSlot(str, str, result=str)
+    def fiatValueHistoric(self, satoshis, timestamp, plain=True):
+        try:
+            sd = Decimal(satoshis)
+            if sd == 0:
+                return ''
+            td = Decimal(timestamp)
+            if td == 0:
+                return ''
+        except:
+            return ''
+        dt = datetime.fromtimestamp(td)
+        if plain:
+            return self.fx.ccy_amount_str(self.fx.historical_value(satoshis, dt), False)
+        else:
+            return self.fx.historical_value_str(satoshis, dt)
 
     @pyqtSlot(str, result=str)
     @pyqtSlot(str, bool, result=str)

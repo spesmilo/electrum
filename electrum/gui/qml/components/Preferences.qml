@@ -58,13 +58,19 @@ Pane {
                     enabled: false
                 }
 
-                Label {
+                CheckBox {
+                    id: fiatEnable
                     text: qsTr('Fiat Currency')
+                    onCheckedChanged: {
+                        if (activeFocus)
+                            Daemon.fx.enabled = checked
+                    }
                 }
 
                 ComboBox {
                     id: currencies
                     model: Daemon.fx.currencies
+                    enabled: Daemon.fx.enabled
                     onCurrentValueChanged: {
                         if (activeFocus)
                             Daemon.fx.fiatCurrency = currentValue
@@ -72,24 +78,24 @@ Pane {
                 }
 
                 CheckBox {
-                    id: historyRates
-                    text: qsTr('History rates')
-                    enabled: currencies.currentValue != ''
+                    id: historicRates
+                    text: qsTr('Historic rates')
+                    enabled: Daemon.fx.enabled
                     Layout.columnSpan: 2
                     onCheckStateChanged: {
                         if (activeFocus)
-                            Daemon.fx.historyRates = checked
+                            Daemon.fx.historicRates = checked
                     }
                 }
 
                 Label {
                     text: qsTr('Source')
-                    enabled: currencies.currentValue != ''
+                    enabled: Daemon.fx.enabled
                 }
 
                 ComboBox {
                     id: rateSources
-                    enabled: currencies.currentValue != ''
+                    enabled: Daemon.fx.enabled
                     model: Daemon.fx.rateSources
                     onModelChanged: {
                         currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
@@ -109,7 +115,8 @@ Pane {
         baseUnit.currentIndex = ['BTC','mBTC','bits','sat'].indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)
-        historyRates.checked = Daemon.fx.historyRates
+        historicRates.checked = Daemon.fx.historicRates
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
+        fiatEnable.checked = Daemon.fx.enabled
     }
 }
