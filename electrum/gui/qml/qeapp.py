@@ -1,10 +1,11 @@
 import re
 import queue
 import time
+import os
 
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
-from PyQt5.QtQml import qmlRegisterType, QQmlApplicationEngine #, QQmlComponent
+from PyQt5.QtQml import qmlRegisterType, QQmlApplicationEngine
 
 from electrum.logging import Logger, get_logger
 from electrum import version
@@ -17,6 +18,8 @@ from .qeqr import QEQRParser, QEQRImageProvider
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
+
+notification = None
 
 class QEAppController(QObject):
     userNotify = pyqtSignal(str)
@@ -37,6 +40,8 @@ class QEAppController(QObject):
         self.notification_timer.timeout.connect(self.on_notification_timer)
 
         self._qedaemon.walletLoaded.connect(self.on_wallet_loaded)
+
+        self.userNotify.connect(self.notifyAndroid)
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
@@ -71,6 +76,18 @@ class QEAppController(QObject):
         except queue.Empty:
             pass
 
+    def notifyAndroid(self, message):
+        try:
+            # TODO: lazy load not in UI thread please
+            global notification
+            if not notification:
+                from plyer import notification
+            icon = (os.path.dirname(os.path.realpath(__file__))
+                    + '/../icons/electrum.png')
+            notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
+        except ImportError:
+            self.logger.error('Notification: needs plyer; `sudo python3 -m pip install plyer`')
+
     @pyqtSlot('QString')
     def textToClipboard(self, text):
         QGuiApplication.clipboard().setText(text)
@@ -101,8 +118,8 @@ class ElectrumQmlApplication(QGuiApplication):
 
         # add a monospace font as we can't rely on device having one
         self.fixedFont = 'PT Mono'
-        if QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Regular.ttf') < 0:
-            if QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Bold.ttf') < 0:
+        if (QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Regular.ttf') < 0 and
+            QFontDatabase.addApplicationFont('electrum/gui/qml/fonts/PTMono-Bold.ttf') < 0):
                 self.logger.warning('Could not load font PT Mono')
                 self.fixedFont = 'Monospace' # hope for the best
 
