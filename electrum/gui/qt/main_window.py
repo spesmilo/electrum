@@ -205,6 +205,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         Logger.__init__(self)
 
         self._coroutines_scheduled = set()  # type: Set[concurrent.futures.Future]
+        self.thread = TaskThread(self, self.on_error)
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -512,7 +513,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     @profiler
     def load_wallet(self, wallet: Abstract_Wallet):
-        wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
         if wallet.has_lightning():
             util.trigger_callback('channels_updated', wallet)
@@ -2716,7 +2716,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 # (signature) wrapped C/C++ object has been deleted
                 pass
 
-        self.wallet.thread.add(task, on_success=show_signed_message)
+        self.thread.add(task, on_success=show_signed_message)
 
     def do_verify(self, address, message, signature):
         address  = address.text().strip()
@@ -2789,7 +2789,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 # (message_e) wrapped C/C++ object has been deleted
                 pass
 
-        self.wallet.thread.add(task, on_success=setText)
+        self.thread.add(task, on_success=setText)
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
@@ -3241,9 +3241,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self._cleaned_up:
             return
         self._cleaned_up = True
-        if self.wallet.thread:
-            self.wallet.thread.stop()
-            self.wallet.thread = None
+        if self.thread:
+            self.thread.stop()
+            self.thread = None
         for fut in self._coroutines_scheduled:
             fut.cancel()
         util.unregister_callback(self.on_network)
