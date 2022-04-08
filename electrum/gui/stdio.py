@@ -118,7 +118,7 @@ class ElectrumGui(BaseElectrumGui):
 
     def get_balance(self):
         if self.wallet.network.is_connected():
-            if not self.wallet.up_to_date:
+            if not self.wallet.is_up_to_date():
                 msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()
