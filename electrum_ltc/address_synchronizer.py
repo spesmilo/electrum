@@ -88,7 +88,7 @@ class AddressSynchronizer(Logger):
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
-        self.up_to_date = False
+        self._up_to_date = False
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
@@ -650,15 +650,15 @@ class AddressSynchronizer(Logger):
 
     def set_up_to_date(self, up_to_date):
         with self.lock:
-            status_changed = self.up_to_date != up_to_date
-            self.up_to_date = up_to_date
+            status_changed = self._up_to_date != up_to_date
+            self._up_to_date = up_to_date
         if self.network:
             self.network.notify('status')
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
     def is_up_to_date(self):
-        with self.lock: return self.up_to_date
+        return self._up_to_date
 
     def get_history_sync_state_details(self) -> Tuple[int, int]:
         if self.synchronizer:

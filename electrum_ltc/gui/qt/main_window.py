@@ -822,7 +822,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def notify_transactions(self):
         if self.tx_notification_queue.qsize() == 0:
             return
-        if not self.wallet.up_to_date:
+        if not self.wallet.is_up_to_date():
             return  # no notifications while syncing
         now = time.time()
         rate_limit = 20  # seconds
@@ -869,7 +869,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
-        elif not self.wallet.up_to_date:
+        elif not self.wallet.is_up_to_date():
             # this updates "synchronizing" progress
             self.update_status()
         # resolve aliases
@@ -963,7 +963,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # Server height can be 0 after switching to a new server
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
-            if not self.wallet.up_to_date or server_height == 0:
+            if not self.wallet.is_up_to_date() or server_height == 0:
                 num_sent, num_answered = self.wallet.get_history_sync_state_details()
                 network_text = ("{} ({}/{})"
                                 .format(_("Synchronizing..."), num_answered, num_sent))
@@ -1008,7 +1008,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_wallet(self):
         self.update_status()
-        if self.wallet.up_to_date or not self.network or not self.network.is_connected():
+        if self.wallet.is_up_to_date() or not self.network or not self.network.is_connected():
             self.update_tabs()
 
     def update_tabs(self, wallet=None):
