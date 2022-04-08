@@ -10,24 +10,19 @@ $ cd electrum
 $ git submodule update --init
 ```
 
-Run install (this should install dependencies):
+Run install (this should install most dependencies):
 ```
-python3 -m pip install --user -e .
-```
-
-2. cryptography and will need to be manually installed. It will mention pycryptodomex, but prefer cryptography:
-
-```
-$ pip install cryptography
+$ python3 -m pip install --user -e ".[crypto]"
 ```
 
-3. Install libsecp256k1
+2. Install libsecp256k1
 
 ```
 $ contrib/make_libsecp256k1.sh
 ```
 
-4. `pip install pyqt5` will work on intel x86, however for M1, to bypass pyqt5 install issue, do the following:
+3. `pip install pyqt5` would work on intel x86, however there are no prebuilt wheels on PyPI for M1.
+As a workaround, we can install it from brew:
 
 ```
 $ brew install pyqt5
@@ -36,14 +31,14 @@ $ echo 'export PATH="/opt/homebrew/opt/pyqt@5/5.15.4_1/bin:$PATH"' >> ~/.zshrc
 $ source ~/.zshrc
 ```
 
-Finally, try it in python to ensure it works: 
+Try it in python to ensure it works: 
 
 ```
 $ python3
 >>> import PyQt5
 ```
 
-5. Run electrum: 
+4. Run electrum: 
 
 ```
 $ ./run_electrum
