@@ -2,10 +2,12 @@ from decimal import Decimal
 import getpass
 import datetime
 import logging
+from typing import Optional
 
 from electrum_grs.gui import BaseElectrumGui
 from electrum_grs import util
 from electrum_grs import WalletStorage, Wallet
+from electrum_grs.wallet import Abstract_Wallet
 from electrum_grs.wallet_db import WalletDB
 from electrum_grs.util import format_satoshis
 from electrum_grs.bitcoin import is_address, COIN
@@ -41,7 +43,7 @@ class ElectrumGui(BaseElectrumGui):
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(db, storage, config=config)
+        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
@@ -118,7 +120,7 @@ class ElectrumGui(BaseElectrumGui):
 
     def get_balance(self):
         if self.wallet.network.is_connected():
-            if not self.wallet.up_to_date:
+            if not self.wallet.is_up_to_date():
                 msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()

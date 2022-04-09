@@ -87,6 +87,7 @@ class SPV(NetworkJobOnDefaultServer):
             header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
+                    # FIXME these requests are not counted (self._requests_sent += 1)
                     await self.taskgroup.spawn(self.interface.request_chunk(tx_height, None, can_return_early=True))
                 continue
             # request now
@@ -96,6 +97,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
+            self._requests_sent += 1
             async with self._network_request_semaphore:
                 merkle = await self.interface.get_merkle_for_transaction(tx_hash, tx_height)
         except aiorpcx.jsonrpc.RPCError:
@@ -103,6 +105,8 @@ class SPV(NetworkJobOnDefaultServer):
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
             self.requested_merkle.discard(tx_hash)
             return
+        finally:
+            self._requests_answered += 1
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
         if tx_height != merkle.get('block_height'):
@@ -187,7 +191,8 @@ class SPV(NetworkJobOnDefaultServer):
         self.requested_merkle.discard(tx_hash)
 
     def is_up_to_date(self):
-        return not self.requested_merkle
+        return (not self.requested_merkle
+                and not self.wallet.unverified_tx)
 
 
 def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
