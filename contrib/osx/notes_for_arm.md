@@ -1,12 +1,12 @@
-# Notes on running Electrum from source on ARM-based Macs (Apple M1 OSX)
+# Notes on running Electrum-GRS from source on ARM-based Macs (Apple M1 OSX)
 
 Development version (git clone)
 
 1. Check out the code from GitHub:
 
 ```
-$ git clone https://github.com/spesmilo/electrum.git
-$ cd electrum
+$ git clone https://github.com/Groestlcoin/electrum-grs.git
+$ cd electrum-grs
 $ git submodule update --init
 ```
 
@@ -31,16 +31,15 @@ $ echo 'export PATH="/opt/homebrew/opt/pyqt@5/5.15.4_1/bin:$PATH"' >> ~/.zshrc
 $ source ~/.zshrc
 ```
 
-Try it in python to ensure it works: 
+Try it in python to ensure it works:
 
 ```
 $ python3
 >>> import PyQt5
 ```
 
-4. Run electrum: 
+4. Run electrum-grs:
 
 ```
-$ ./run_electrum
+$ ./run_electrum_grs
 ```
-
