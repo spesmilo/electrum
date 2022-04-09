@@ -157,7 +157,6 @@ class SettingsDialog(WindowModalDialog):
         def on_instant_swaps_checked(allow_instant_swaps):
             self.config.set_key('allow_instant_swaps', bool(allow_instant_swaps))
         instant_swaps_cb.stateChanged.connect(on_instant_swaps_checked)
-        lightning_widgets.append((instant_swaps_cb, None))
 
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
@@ -498,6 +497,7 @@ class SettingsDialog(WindowModalDialog):
         lightning_widgets = []
         lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
+        lightning_widgets.append((instant_swaps_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
