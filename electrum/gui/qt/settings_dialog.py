@@ -147,6 +147,18 @@ class SettingsDialog(WindowModalDialog):
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
 
+        help_instant_swaps = ' '.join([
+            _("If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed."),
+            _("Note you are at risk of losing the funds in the swap, if the funding transaction never confirms.")
+            ])
+        instant_swaps_cb = QCheckBox(_("Allow instant swaps"))
+        instant_swaps_cb.setToolTip(messages.to_rtf(help_instant_swaps))
+        trampoline_cb.setChecked(not bool(self.config.get('allow_instant_swaps', False)))
+        def on_instant_swaps_checked(allow_instant_swaps):
+            self.config.set_key('allow_instant_swaps', bool(allow_instant_swaps))
+        instant_swaps_cb.stateChanged.connect(on_instant_swaps_checked)
+        lightning_widgets.append((instant_swaps_cb, None))
+
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
             _("If you have private a watchtower, enter its URL here."),
