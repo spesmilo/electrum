@@ -1090,6 +1090,40 @@ class LNWallet(LNWorker):
             if invoice.is_lightning() and self.can_pay_invoice(invoice):
                 await self.pay_invoice(invoice.lightning_invoice, attempts=10)
 
+    def can_pay_invoice(self, invoice: Invoice) -> bool:
+        assert invoice.is_lightning()
+        if invoice.get_amount_sat() > self.num_sats_can_send():
+            return False
+        # if we dont find a path because of unsynchronized DB, this method should not return False
+        if self.channel_db:
+            return True
+        # trampoline nodes currently cannot do legacy payments over multiple nodes
+        # we call create_routes_for_payment in order to find out
+        lnaddr = self._check_invoice(invoice.lightning_invoice, amount_msat=invoice.get_amount_msat())
+        min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
+        invoice_pubkey = lnaddr.pubkey.serialize()
+        invoice_features = lnaddr.get_features()
+        r_tags = lnaddr.get_routing_info('r')
+        amount_to_pay = lnaddr.get_amount_msat()
+        try:
+            routes = self.create_routes_for_payment(
+                amount_msat=amount_to_pay,
+                final_total_msat=amount_to_pay,
+                invoice_pubkey=invoice_pubkey,
+                min_cltv_expiry=min_cltv_expiry,
+                r_tags=r_tags,
+                invoice_features=invoice_features,
+                full_path=None,
+                payment_hash=bytes(32),
+                payment_secret=bytes(32),
+                trampoline_fee_level=self.INITIAL_TRAMPOLINE_FEE_LEVEL,
+                use_two_trampolines=False,
+                fwd_trampoline_onion=None
+            )
+            return True
+        except NoPathFound:
+            return False
+
     @log_exceptions
     async def pay_invoice(
             self, invoice: str, *,
@@ -2084,10 +2118,6 @@ class LNWallet(LNWorker):
             ]
             can_receive = max([c.available_to_spend(REMOTE) for c in channels]) if channels else 0
         return Decimal(can_receive) / 1000
-
-    def can_pay_invoice(self, invoice: Invoice) -> bool:
-        assert invoice.is_lightning()
-        return invoice.get_amount_sat() <= self.num_sats_can_send()
 
     def can_receive_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()

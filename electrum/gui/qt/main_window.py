@@ -1671,8 +1671,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         key = self.wallet.get_key_for_outgoing_invoice(invoice)
         if amount_sat is None:
             raise Exception("missing amount for LN invoice")
-        num_sats_can_send = int(self.wallet.lnworker.num_sats_can_send())
-        if amount_sat > num_sats_can_send:
+        if not self.wallet.lnworker.can_pay_invoice(invoice):
+            num_sats_can_send = int(self.wallet.lnworker.num_sats_can_send())
             lightning_needed = amount_sat - num_sats_can_send
             lightning_needed += (lightning_needed // 20) # operational safety margin
             coins = self.get_coins(nonlocal_only=True)
