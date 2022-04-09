@@ -1106,7 +1106,9 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
 
+        self.logger.info(f"pay_invoice starting session for RHASH={payment_hash.hex()}")
         self.set_invoice_status(key, PR_INFLIGHT)
+        success = False
         try:
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
@@ -1121,8 +1123,9 @@ class LNWallet(LNWorker):
             success = True
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
-            success = False
             reason = str(e)
+        finally:
+            self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
         if success:
             self.set_invoice_status(key, PR_PAID)
             util.trigger_callback('payment_succeeded', self.wallet, key)

@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
+from electrum.logging import Logger
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -902,7 +903,7 @@ class PasswordLineEdit(QLineEdit):
         super().clear()
 
 
-class TaskThread(QThread):
+class TaskThread(QThread, Logger):
     '''Thread that runs background tasks.  Callbacks are guaranteed
     to happen in the context of its parent.'''
 
@@ -911,24 +912,35 @@ class TaskThread(QThread):
         cb_success: Optional[Callable]
         cb_done: Optional[Callable]
         cb_error: Optional[Callable]
+        cancel: Optional[Callable] = None
 
     doneSig = pyqtSignal(object, object, object)
 
     def __init__(self, parent, on_error=None):
-        super(TaskThread, self).__init__(parent)
+        QThread.__init__(self, parent)
+        Logger.__init__(self)
         self.on_error = on_error
         self.tasks = queue.Queue()
+        self._cur_task = None  # type: Optional[TaskThread.Task]
+        self._stopping = False
         self.doneSig.connect(self.on_done)
         self.start()
 
-    def add(self, task, on_success=None, on_done=None, on_error=None):
+    def add(self, task, on_success=None, on_done=None, on_error=None, *, cancel=None):
+        if self._stopping:
+            self.logger.warning(f"stopping or already stopped but tried to add new task.")
+            return
         on_error = on_error or self.on_error
-        self.tasks.put(TaskThread.Task(task, on_success, on_done, on_error))
+        task_ = TaskThread.Task(task, on_success, on_done, on_error, cancel=cancel)
+        self.tasks.put(task_)
 
     def run(self):
         while True:
+            if self._stopping:
+                break
             task = self.tasks.get()  # type: TaskThread.Task
-            if not task:
+            self._cur_task = task
+            if not task or self._stopping:
                 break
             try:
                 result = task.task()
@@ -944,7 +956,21 @@ class TaskThread(QThread):
             cb_result(result)
 
     def stop(self):
-        self.tasks.put(None)
+        self._stopping = True
+        # try to cancel currently running task now.
+        # if the task does not implement "cancel", we will have to wait until it finishes.
+        task = self._cur_task
+        if task and task.cancel:
+            task.cancel()
+        # cancel the remaining tasks in the queue
+        while True:
+            try:
+                task = self.tasks.get_nowait()
+            except queue.Empty:
+                break
+            if task and task.cancel:
+                task.cancel()
+        self.tasks.put(None)  # in case the thread is still waiting on the queue
         self.exit()
         self.wait()
 
