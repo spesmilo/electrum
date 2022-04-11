@@ -82,7 +82,7 @@ Pane {
                                     "../../../gui/icons/clock3.png",
                                     "../../../gui/icons/clock4.png",
                                     "../../../gui/icons/clock5.png",
-                                    "../../../gui/icons/confirmed.png"
+                                    "../../../gui/icons/confirmed_bw.png"
                                 ]
 
                                 Layout.preferredWidth: constants.iconSizeLarge
@@ -106,18 +106,34 @@ Pane {
                                 font.family: FixedFont
                                 font.pixelSize: constants.fontSizeMedium
                                 Layout.alignment: Qt.AlignRight
-                                text: Config.formatSats(model.bc_value)
                                 font.bold: true
                                 color: model.incoming ? constants.colorCredit : constants.colorDebit
+
+                                function updateText() {
+                                    text = Config.formatSats(model.bc_value)
+                                }
+                                Component.onCompleted: updateText()
                             }
                             Label {
                                 font.pixelSize: constants.fontSizeSmall
                                 text: model.date
                             }
                             Label {
-                                font.pixelSize: constants.fontSizeXSmall
+                                id: fiatLabel
+                                font.pixelSize: constants.fontSizeSmall
                                 Layout.alignment: Qt.AlignRight
-                                text: model.fee !== undefined ? 'fee: ' + model.fee : ''
+                                color: constants.mutedForeground
+
+                                function updateText() {
+                                    if (!Daemon.fx.enabled) {
+                                        text = ''
+                                    } else if (Daemon.fx.historicRates) {
+                                        text = Daemon.fx.fiatValueHistoric(model.bc_value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
+                                    } else {
+                                        text = Daemon.fx.fiatValue(model.bc_value, false) + ' ' + Daemon.fx.fiatCurrency
+                                    }
+                                }
+                                Component.onCompleted: updateText()
                             }
                             Item { Layout.columnSpan: 3; Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
                         }
@@ -135,12 +151,16 @@ Pane {
                 // hook up events that might change the appearance
                 Connections {
                     target: Config
-                    function onBaseUnitChanged() {
-                        valueLabel.text = Config.formatSats(model.bc_value)
-                    }
-                    function onThousandsSeparatorChanged() {
-                        valueLabel.text = Config.formatSats(model.bc_value)
-                    }
+                    function onBaseUnitChanged() { valueLabel.updateText() }
+                    function onThousandsSeparatorChanged() { valueLabel.updateText() }
+                }
+
+                Connections {
+                    target: Daemon.fx
+                    function onHistoricRatesChanged() { fiatLabel.updateText() }
+                    function onQuotesUpdated() { fiatLabel.updateText() }
+                    function onHistoryUpdated() { fiatLabel.updateText() }
+                    function onEnabledUpdated() { fiatLabel.updateText() }
                 }
 
                 Component.onCompleted: {
