@@ -29,16 +29,19 @@ import sys
 import os
 from typing import TYPE_CHECKING
 
+from electrum import GuiImportError
+
 KIVY_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
 os.environ['KIVY_DATA_DIR'] = os.path.join(KIVY_GUI_PATH, 'data')
 
 try:
     sys.argv = ['']
     import kivy
-except ImportError:
+except ImportError as e:
     # This error ideally shouldn't be raised with pre-built packages
-    sys.exit("Error: Could not import kivy. Please install it using the "
-             "instructions mentioned here `https://kivy.org/#download` .")
+    raise GuiImportError(
+        "Error: Could not import kivy. Please install it using the "
+        "instructions mentioned here `https://kivy.org/#download` .") from e
 
 # minimum required version for kivy
 kivy.require('1.8.0')

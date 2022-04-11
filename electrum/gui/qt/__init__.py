@@ -30,12 +30,15 @@ import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List
 
+from electrum import GuiImportError
 
 try:
     import PyQt5
     import PyQt5.QtGui
-except Exception:
-    sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
+except Exception as e:
+    raise GuiImportError(
+        "Error: Could not import PyQt5 on Linux systems, "
+        "you may try 'sudo apt-get install python3-pyqt5'") from e
 
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
