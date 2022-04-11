@@ -472,3 +472,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
     def stop(self):
         self.logger.info('closing GUI')
         self.app.quit_signal.emit()
+
+    @classmethod
+    def version_info(cls):
+        ret = {
+            "qt.version": QtCore.QT_VERSION_STR,
+            "pyqt.version": QtCore.PYQT_VERSION_STR,
+        }
+        if hasattr(PyQt5, "__path__"):
+            ret["pyqt.path"] = ", ".join(PyQt5.__path__ or [])
+        return ret

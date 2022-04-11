@@ -29,7 +29,7 @@ import time
 import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
-                    Dict, Iterable, List, Sequence, Callable, TypeVar)
+                    Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
 from concurrent import futures
 from functools import wraps, partial
@@ -749,3 +749,25 @@ class DeviceMgr(ThreadJob):
                 client.handler.update_status(False)
 
         return devices
+
+    @classmethod
+    def version_info(cls) -> Mapping[str, Optional[str]]:
+        ret = {}
+        # add libusb
+        try:
+            import usb1
+        except Exception as e:
+            ret["libusb.version"] = None
+        else:
+            ret["libusb.version"] = ".".join(map(str, usb1.getVersion()[:4]))
+            try:
+                ret["libusb.path"] = usb1.libusb1.libusb._name
+            except AttributeError:
+                ret["libusb.path"] = None
+        # add hidapi
+        from importlib.metadata import version
+        try:
+            ret["hidapi.version"] = version("hidapi")
+        except ImportError:
+            ret["hidapi.version"] = None
+        return ret

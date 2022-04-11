@@ -102,5 +102,11 @@ def find_system_cameras() -> Mapping[str, str]:
     return devices
 
 
+def version_info() -> Mapping[str, Optional[str]]:
+    return {
+        "libzbar.path": libzbar._name if libzbar else None,
+    }
+
+
 if __name__ == "__main__":
     print(scan_barcode())

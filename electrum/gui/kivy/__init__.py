@@ -80,3 +80,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not app:
             return
         Clock.schedule_once(lambda dt: app.stop())
+
+    @classmethod
+    def version_info(cls):
+        ret = {
+            "kivy.version": kivy.__version__,
+        }
+        if hasattr(kivy, "__path__"):
+            ret["kivy.path"] = ", ".join(kivy.__path__ or [])
+        return ret
