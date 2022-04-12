@@ -735,11 +735,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         uu = u - fu
         xx = x - fx
         frozen = fc + fu + fx
-        # subtract unconfirmed if negative.
-        # (this does not make sense if positive and negative tx cancel eachother out)
-        if uu < 0:
-            cc = cc + uu
-            uu = 0
         return cc, uu, xx, frozen, lightning - f_lightning, f_lightning
 
     def balance_at_timestamp(self, domain, target_timestamp):
