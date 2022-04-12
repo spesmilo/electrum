@@ -3,10 +3,13 @@ import QtQuick.Controls 2.0
 import QtQuick.Layouts 1.0
 import QtQuick.Controls.Material 2.0
 
+import "controls"
+
 Pane {
     id: rootItem
 
     GridLayout {
+        id: form
         width: parent.width
         rowSpacing: constants.paddingSmall
         columnSpacing: constants.paddingSmall
@@ -30,11 +33,29 @@ Pane {
             placeholderText: qsTr('Paste address or invoice')
         }
 
-        ToolButton {
-            icon.source: '../../icons/copy.png'
-            icon.color: 'transparent'
-            icon.height: constants.iconSizeSmall
-            icon.width: constants.iconSizeSmall
+        RowLayout {
+            spacing: 0
+            ToolButton {
+                icon.source: '../../icons/paste.png'
+                icon.height: constants.iconSizeMedium
+                icon.width: constants.iconSizeMedium
+                onClicked: address.text = AppController.clipboardToText()
+            }
+            ToolButton {
+                icon.source: '../../icons/qrcode.png'
+                icon.height: constants.iconSizeMedium
+                icon.width: constants.iconSizeMedium
+                scale: 1.2
+                onClicked: {
+                    var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
+                    page.onFound.connect(function() {
+                        console.log('got ' + page.invoiceData)
+                        address.text = page.invoiceData['address']
+                        amount.text = Config.satsToUnits(page.invoiceData['amount'])
+                        description.text = page.invoiceData['message']
+                    })
+                }
+            }
         }
 
         Label {
@@ -71,7 +92,6 @@ Pane {
 
         Item { width: 1; height: 1 }
 
-
         Item { width: 1; height: 1; visible: Daemon.fx.enabled }
 
         TextField {
@@ -97,17 +117,16 @@ Pane {
         Item { visible: Daemon.fx.enabled ; height: 1; width: 1 }
 
         Label {
-            text: qsTr('Fee')
+            text: qsTr('Description')
         }
 
         TextField {
-            id: fee
+            id: description
             font.family: FixedFont
-            placeholderText: qsTr('sat/vB')
-            Layout.columnSpan: 2
+            placeholderText: qsTr('Description')
+            Layout.columnSpan: 3
+            Layout.fillWidth: true
         }
-
-        Item { width: 1; height: 1 }
 
         RowLayout {
             Layout.columnSpan: 4
@@ -115,36 +134,85 @@ Pane {
             spacing: constants.paddingMedium
 
             Button {
-                text: qsTr('Pay')
+                text: qsTr('Save')
+                enabled: false
+                onClicked: {
+                    console.log('TODO: save')
+                }
+            }
+
+            Button {
+                text: qsTr('Pay now')
                 enabled: amount.text != '' && address.text != ''// TODO proper validation
                 onClicked: {
                     var f_amount = parseFloat(amount.text)
                     if (isNaN(f_amount))
                         return
-                    var sats = Config.unitsToSats(f_amount)
-                    var result = Daemon.currentWallet.send_onchain(address.text, sats, undefined, false)
-                }
-            }
-
-            Button {
-                text: qsTr('Scan QR Code')
-                onClicked: {
-                    var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
-                    page.onFound.connect(function() {
-                        console.log('got ' + page.invoiceData)
-                        address.text = page.invoiceData['address']
-                        amount.text = Config.formatSats(page.invoiceData['amount'])
+                    var sats = Config.unitsToSats(amount.text).toString()
+                    var dialog = confirmPaymentDialog.createObject(app, {
+                        'address': address.text,
+                        'satoshis': sats,
+                        'message': description.text
                     })
+                    dialog.open()
                 }
             }
         }
     }
 
+    Frame {
+        verticalPadding: 0
+        horizontalPadding: 0
+
+        anchors {
+            top: form.bottom
+            topMargin: constants.paddingXLarge
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+        }
+
+        background: PaneInsetBackground {}
+
+        ColumnLayout {
+            spacing: 0
+            anchors.fill: parent
+
+            Item {
+                Layout.preferredHeight: hitem.height
+                Layout.preferredWidth: parent.width
+                Rectangle {
+                    anchors.fill: parent
+                    color: Qt.lighter(Material.background, 1.25)
+                }
+                RowLayout {
+                    id: hitem
+                    width: parent.width
+                    Label {
+                        text: qsTr('Send queue')
+                        font.pixelSize: constants.fontSizeXLarge
+                    }
+                }
+            }
+
+            ListView {
+                id: listview
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+                clip: true
+            }
+        }
+    }
+
+    Component {
+        id: confirmPaymentDialog
+        ConfirmPaymentDialog {}
+    }
+
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {
-            var a = Config.unitsToSats(amount.text)
-            amountFiat.text = Daemon.fx.fiatValue(a)
+            amountFiat.text = Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
         }
     }
 

@@ -18,6 +18,7 @@ from .qeqr import QEQRParser, QEQRImageProvider
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
+from .qetxfinalizer import QETxFinalizer
 
 notification = None
 
@@ -92,6 +93,10 @@ class QEAppController(QObject):
     def textToClipboard(self, text):
         QGuiApplication.clipboard().setText(text)
 
+    @pyqtSlot(result='QString')
+    def clipboardToText(self):
+        return QGuiApplication.clipboard().text()
+
 class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
@@ -109,6 +114,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
+        qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
