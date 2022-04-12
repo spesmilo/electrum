@@ -20,6 +20,7 @@ ApplicationWindow
     Material.theme: Material.Dark
     Material.primary: Material.Indigo
     Material.accent: Material.LightBlue
+    font.pixelSize: constants.fontSizeMedium
 
     property Item constants: appconstants
     Constants { id: appconstants }

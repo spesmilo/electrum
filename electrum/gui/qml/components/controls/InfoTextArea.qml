@@ -27,6 +27,7 @@ GridLayout {
     TextArea {
         id: infotext
         Layout.fillWidth: true
+        Layout.minimumHeight: constants.iconSizeLarge + 2*constants.paddingLarge
         readOnly: true
         rightPadding: constants.paddingLarge
         leftPadding: 2*constants.iconSizeLarge

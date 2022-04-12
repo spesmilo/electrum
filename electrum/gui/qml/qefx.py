@@ -112,7 +112,7 @@ class QEFX(QObject):
                 return ''
         except:
             return ''
-        dt = datetime.fromtimestamp(td)
+        dt = datetime.fromtimestamp(int(td))
         if plain:
             return self.fx.ccy_amount_str(self.fx.historical_value(satoshis, dt), False)
         else:
