@@ -33,6 +33,7 @@ from typing import Optional, TYPE_CHECKING, List
 
 try:
     import PyQt5
+    import PyQt5.QtGui
 except Exception:
     sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
 
