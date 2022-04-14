@@ -199,7 +199,7 @@ Dialog {
     }
 
     Component.onCompleted: {
-        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.exp)
+        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration)
         qr.source = 'image://qrgen/' + _bip21uri
     }
 

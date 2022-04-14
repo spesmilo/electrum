@@ -16,7 +16,7 @@ class QEAddressListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES=('type','iaddr','address','label','balance','numtx', 'held')
-    _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
     def rowCount(self, index):
@@ -30,7 +30,7 @@ class QEAddressListModel(QAbstractListModel):
             address = self.change_addresses[index.row() - len(self.receive_addresses)]
         else:
             address = self.receive_addresses[index.row()]
-        role_index = role - (Qt.UserRole + 1)
+        role_index = role - Qt.UserRole
         value = address[self._ROLE_NAMES[role_index]]
         if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
             return value

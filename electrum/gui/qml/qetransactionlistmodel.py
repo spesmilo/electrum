@@ -18,7 +18,7 @@ class QETransactionListModel(QAbstractListModel):
     _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp',
                  'incoming','bc_value','bc_balance','date','label','txpos_in_block','fee',
                  'inputs','outputs','section')
-    _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -30,7 +30,7 @@ class QETransactionListModel(QAbstractListModel):
 
     def data(self, index, role):
         tx = self.tx_history[index.row()]
-        role_index = role - (Qt.UserRole + 1)
+        role_index = role - Qt.UserRole
         value = tx[self._ROLE_NAMES[role_index]]
         if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
             return value

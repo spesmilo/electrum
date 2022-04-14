@@ -14,8 +14,8 @@ class QERequestListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
-    _ROLE_NAMES=('key','type','timestamp','date','message','amount','status','status_str','address','exp')
-    _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
+    _ROLE_NAMES=('key','type','timestamp','date','message','amount','status','status_str','address','expiration')
+    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
@@ -27,7 +27,7 @@ class QERequestListModel(QAbstractListModel):
 
     def data(self, index, role):
         request = self.requests[index.row()]
-        role_index = role - (Qt.UserRole + 1)
+        role_index = role - Qt.UserRole
         value = request[self._ROLE_NAMES[role_index]]
         if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
             return value
@@ -41,22 +41,11 @@ class QERequestListModel(QAbstractListModel):
         self.endResetModel()
 
     def request_to_model(self, req: Invoice):
-        item = {}
-        key = self.wallet.get_key_for_receive_request(req) # (verified) address for onchain, rhash for LN
-        status = self.wallet.get_request_status(key)
-        item['status'] = status
-        item['status_str'] = req.get_status_str(status)
+        item = self.wallet.export_request(req)
+        item['key'] = self.wallet.get_key_for_receive_request(req)
         item['type'] = req.type # 0=onchain, 2=LN
-        item['timestamp'] = req.time
         item['date'] = format_time(item['timestamp'])
         item['amount'] = req.get_amount_sat()
-        item['message'] = req.message
-        item['exp'] = req.exp
-        if req.type == 0: # OnchainInvoice
-            item['key'] = item['address'] = req.get_address()
-        elif req.type == 2: # LNInvoice
-            #item['key'] = req.getrhash()
-            pass
 
         return item
 

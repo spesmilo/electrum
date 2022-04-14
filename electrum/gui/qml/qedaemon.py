@@ -22,7 +22,7 @@ class QEWalletListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES= ('name','path','active')
-    _ROLE_KEYS = range(Qt.UserRole + 1, Qt.UserRole + 1 + len(_ROLE_NAMES))
+    _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
 
     def rowCount(self, index):
@@ -33,7 +33,7 @@ class QEWalletListModel(QAbstractListModel):
 
     def data(self, index, role):
         (wallet_name, wallet_path, wallet) = self.wallets[index.row()]
-        role_index = role - (Qt.UserRole + 1)
+        role_index = role - Qt.UserRole
         role_name = self._ROLE_NAMES[role_index]
         if role_name == 'name':
             return wallet_name
