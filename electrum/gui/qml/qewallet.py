@@ -13,7 +13,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.invoices import   (Invoice, InvoiceError, PR_TYPE_ONCHAIN, PR_TYPE_LN,
                                  PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_TYPE_ONCHAIN, PR_TYPE_LN)
 
-from .qerequestlistmodel import QERequestListModel
+from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
 
@@ -54,9 +54,11 @@ class QEWallet(QObject):
         self._historyModel = QETransactionListModel(wallet)
         self._addressModel = QEAddressListModel(wallet)
         self._requestModel = QERequestListModel(wallet)
+        self._invoiceModel = QEInvoiceListModel(wallet)
 
         self._historyModel.init_model()
         self._requestModel.init_model()
+        self._invoiceModel.init_model()
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -174,6 +176,11 @@ class QEWallet(QObject):
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
         return self._requestModel
+
+    invoiceModelChanged = pyqtSignal()
+    @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
+    def invoiceModel(self):
+        return self._invoiceModel
 
     nameChanged = pyqtSignal()
     @pyqtProperty('QString', notify=nameChanged)
