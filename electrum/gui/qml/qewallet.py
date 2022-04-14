@@ -307,7 +307,7 @@ class QEWallet(QObject):
             # TODO: check this flow. Only if alias is defined in config. OpenAlias?
             pass
             #self.sign_payment_request(addr)
-        self._requestModel.add_request(req)
+        self._requestModel.add_invoice(req)
         return addr
 
     @pyqtSlot('quint64', 'QString', int)
@@ -337,9 +337,19 @@ class QEWallet(QObject):
     @pyqtSlot('QString')
     def delete_request(self, key: str):
         self.wallet.delete_request(key)
-        self._requestModel.delete_request(key)
+        self._requestModel.delete_invoice(key)
 
     @pyqtSlot('QString', result='QVariant')
     def get_request(self, key: str):
         req = self.wallet.get_request(key)
-        return self._requestModel.request_to_model(req)
+        return self._requestModel.invoice_to_model(req)
+
+    @pyqtSlot('QString')
+    def delete_invoice(self, key: str):
+        self.wallet.delete_invoice(key)
+        self._invoiceModel.delete_invoice(key)
+
+    @pyqtSlot('QString', result='QVariant')
+    def get_invoice(self, key: str):
+        req = self.wallet.get_invoice(key)
+        return self._invoiceModel.invoice_to_model(req)
