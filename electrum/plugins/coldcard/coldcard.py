@@ -2,6 +2,7 @@
 # Coldcard Electrum plugin main code.
 #
 #
+import copy
 import os, time, io
 import traceback
 from typing import TYPE_CHECKING, Optional

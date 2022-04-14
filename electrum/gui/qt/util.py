@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os.path
 import time
 import sys
@@ -389,7 +390,7 @@ def text_dialog(
         return txt.toPlainText()
 
 class ChoicesLayout(object):
-    def __init__(self, msg, choices, on_clicked=None, checked_index=0):
+    def __init__(self, msg, choices, on_clicked=None, checked_index=0, disable_buttons=False):
         vbox = QVBoxLayout()
         if len(msg) > 50:
             vbox.addWidget(WWLabel(msg))
@@ -403,12 +404,21 @@ class ChoicesLayout(object):
         self.group = group = QButtonGroup()
         for i,c in enumerate(choices):
             button = QRadioButton(gb2)
-            button.setText(c)
+            if isinstance(c, tuple):
+                # tuple of text, icon path
+                logo = QIcon()
+                logo.addPixmap(QPixmap(icon_path(c[1])))
+                button.setText(c[0])
+                button.setIcon(logo)
+            else:
+                button.setText(c)
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
             if i==checked_index:
                 button.setChecked(True)
+            if disable_buttons:
+                button.setEnabled(False)
 
         if on_clicked:
             group.buttonClicked.connect(partial(on_clicked, self))

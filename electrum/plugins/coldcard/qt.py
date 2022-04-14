@@ -1,12 +1,12 @@
 import time, os
 from functools import partial
-import copy
+import json
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout
+from PyQt5.QtWidgets import QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout, QHBoxLayout
 
 from electrum.gui.qt.util import (WindowModalDialog, CloseButton, Buttons, getOpenFileName,
-                                  getSaveFileName)
+                                  getSaveFileName, WWLabel)
 from electrum.gui.qt.transaction_dialog import TxDialog
 from electrum.gui.qt.main_window import ElectrumWindow
 
@@ -47,19 +47,25 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def wallet_info_buttons(self, main_window, dialog):
         # user is about to see the "Wallet Information" dialog
         # - add a button if multisig wallet, and a Coldcard is a cosigner.
+        buttons = []
         wallet = main_window.wallet
 
         if type(wallet) is not Multisig_Wallet:
             return
 
-        if not any(type(ks) == self.keystore_class for ks in wallet.get_keystores()):
+        coldcard_keystores = [
+            ks
+            for ks in wallet.get_keystores()
+            if type(ks) == self.keystore_class
+        ]
+        if not coldcard_keystores:
             # doesn't involve a Coldcard wallet, hide feature
             return
 
         btn = QPushButton(_("Export for Coldcard"))
         btn.clicked.connect(lambda unused: self.export_multisig_setup(main_window, wallet))
-
-        return btn
+        buttons.append(btn)
+        return buttons
 
     def export_multisig_setup(self, main_window, wallet):
 
@@ -73,7 +79,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             config=self.config,
         )
         if fileName:
-            with open(fileName, "wt") as f:
+            with open(fileName, "w") as f:
                 ColdcardPlugin.export_ms_wallet(wallet, f, basename)
             main_window.show_message(_("Wallet setup file exported successfully"))
 

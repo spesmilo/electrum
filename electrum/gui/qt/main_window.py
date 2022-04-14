@@ -33,7 +33,8 @@ import weakref
 import csv
 from decimal import Decimal
 import base64
-from functools import partial
+from functools import partial, reduce
+import operator
 import queue
 import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set
@@ -604,15 +605,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if cb_checked:
             self.config.set_key('dont_show_testnet_warning', True)
 
-    def open_wallet(self):
+    def open_wallet(self, filename=None):
         try:
             wallet_folder = self.get_wallet_folder()
         except FileNotFoundError as e:
             self.show_error(str(e))
             return
-        filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
         if not filename:
-            return
+            filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
+            if not filename:
+                return
         self.gui_object.new_window(filename)
 
     def select_backup_dir(self, b):
@@ -2497,6 +2499,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             seed_available += f" ({ks.get_seed_type()})"
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
+        # this can be changed to self.wallet.storage.basename()
         basename = os.path.basename(self.wallet.storage.path)
         grid.addWidget(WWLabel(_("Wallet name")+ ':'), 0, 0)
         grid.addWidget(WWLabel(basename), 0, 1)
@@ -2597,17 +2600,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 ks_vbox.addWidget(WWLabel(_("Master Public Key")))
                 ks_vbox.addWidget(mpk_text)
                 ks_vbox.addLayout(der_path_hbox)
-
                 ks_stack.addWidget(ks_w)
 
             select_ks(0)
             vbox.addWidget(ks_stack)
 
         vbox.addStretch(1)
-        btn_export_info = run_hook('wallet_info_buttons', self, dialog)
+        wallet_info_btns = run_hook('wallet_info_buttons', self, dialog)
         btn_close = CloseButton(dialog)
-        btns = Buttons(btn_export_info, btn_close)
-        vbox.addLayout(btns)
+        if wallet_info_btns:
+            # now more than one wallet_info_butons hook, needs concat
+            wallet_info_btns = reduce(operator.concat, wallet_info_btns)
+            buttons = Buttons(*wallet_info_btns, btn_close)
+        else:
+            buttons = Buttons(btn_close)
+        vbox.addLayout(buttons)
         dialog.setLayout(vbox)
         dialog.exec_()
 
