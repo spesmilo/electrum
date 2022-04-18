@@ -26,9 +26,9 @@ else
 fi
 
 # create symlink
-rm -f .buildozer
-mkdir -p ".buildozer_$1"
-ln -s ".buildozer_$1" .buildozer
+rm -f ${PROJECT_ROOT}/.buildozer
+mkdir -p "${PROJECT_ROOT}/.buildozer_$1"
+ln -s ".buildozer_$1" ${PROJECT_ROOT}/.buildozer
 
 DOCKER_BUILD_FLAGS=""
 if [ ! -z "$ELECBUILD_NOCACHE" ] ; then

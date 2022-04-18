@@ -2,10 +2,12 @@ from decimal import Decimal
 import getpass
 import datetime
 import logging
+from typing import Optional
 
 from electrum_ltc.gui import BaseElectrumGui
 from electrum_ltc import util
 from electrum_ltc import WalletStorage, Wallet
+from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.util import format_satoshis
 from electrum_ltc.bitcoin import is_address, COIN
@@ -41,7 +43,7 @@ class ElectrumGui(BaseElectrumGui):
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(db, storage, config=config)
+        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 

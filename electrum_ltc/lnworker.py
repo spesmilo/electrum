@@ -893,7 +893,10 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            if not swap.is_redeemed and swap.spending_txid is None and delta < 0:
+            tx_height = self.lnwatcher.get_tx_height(swap.funding_txid)
+            if swap.is_reverse and tx_height.height <=0:
+                label += ' (%s)' % _('waiting for funding tx confirmation')
+            if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                 label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
                 'txid': txid,
@@ -1091,7 +1094,9 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
 
+        self.logger.info(f"pay_invoice starting session for RHASH={payment_hash.hex()}")
         self.set_invoice_status(key, PR_INFLIGHT)
+        success = False
         try:
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
@@ -1106,8 +1111,9 @@ class LNWallet(LNWorker):
             success = True
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
-            success = False
             reason = str(e)
+        finally:
+            self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
         if success:
             self.set_invoice_status(key, PR_PAID)
             util.trigger_callback('payment_succeeded', self.wallet, key)

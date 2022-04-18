@@ -6,7 +6,7 @@ import locale
 from decimal import Decimal
 import getpass
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import electrum_ltc as electrum
 from electrum_ltc.gui import BaseElectrumGui
@@ -14,7 +14,7 @@ from electrum_ltc import util
 from electrum_ltc.util import format_satoshis
 from electrum_ltc.bitcoin import is_address, COIN
 from electrum_ltc.transaction import PartialTxOutput
-from electrum_ltc.wallet import Wallet
+from electrum_ltc.wallet import Wallet, Abstract_Wallet
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.network import NetworkParameters, TxBroadcastError, BestEffortRequestFailed
@@ -42,7 +42,7 @@ class ElectrumGui(BaseElectrumGui):
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
         db = WalletDB(storage.read(), manual_upgrades=False)
-        self.wallet = Wallet(db, storage, config=config)
+        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 

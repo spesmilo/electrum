@@ -20,6 +20,7 @@ from .logging import Logger
 from .lnutil import hex_to_bytes
 from .json_db import StoredObject
 from . import constants
+from .address_synchronizer import TX_HEIGHT_LOCAL
 
 if TYPE_CHECKING:
     from .network import Network
@@ -191,10 +192,17 @@ class SwapManager(Logger):
             spent_height = txin.spent_height
             if spent_height is not None:
                 swap.spending_txid = txin.spent_txid
-                if spent_height > 0 and current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
-                    self.logger.info(f'stop watching swap {swap.lockup_address}')
-                    self.lnwatcher.remove_callback(swap.lockup_address)
-                    swap.is_redeemed = True
+                if spent_height > 0:
+                    if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
+                        self.logger.info(f'stop watching swap {swap.lockup_address}')
+                        self.lnwatcher.remove_callback(swap.lockup_address)
+                        swap.is_redeemed = True
+                elif spent_height == TX_HEIGHT_LOCAL:
+                    if txin.block_height > 0 or self.wallet.config.get('allow_instant_swaps', False):
+                        tx = self.lnwatcher.get_transaction(txin.spent_txid)
+                        self.logger.info(f'broadcasting tx {txin.spent_txid}')
+                        await self.network.broadcast_transaction(tx)
+                # already in mempool
                 continue
             if not swap.is_reverse and delta < 0:
                 # too early for refund
@@ -221,7 +229,9 @@ class SwapManager(Logger):
                 locktime=locktime,
             )
             self.sign_tx(tx, swap)
-            await self.network.broadcast_transaction(tx)
+            self.logger.info(f'adding claim tx {tx.txid()}')
+            self.wallet.add_transaction(tx)
+            self.lnwatcher.add_transaction(tx)
 
     def get_claim_fee(self):
         return self.wallet.config.estimate_fee(136, allow_fallback_to_static_rates=True)

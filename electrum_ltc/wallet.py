@@ -3043,11 +3043,13 @@ class Deterministic_Wallet(Abstract_Wallet):
                 self._not_old_change_addresses.append(address)
             return address
 
-    def synchronize_sequence(self, for_change):
+    def synchronize_sequence(self, for_change: bool) -> int:
+        count = 0  # num new addresses we generated
         limit = self.gap_limit_for_change if for_change else self.gap_limit
         while True:
             num_addr = self.db.num_change_addresses() if for_change else self.db.num_receiving_addresses()
             if num_addr < limit:
+                count += 1
                 self.create_new_address(for_change)
                 continue
             if for_change:
@@ -3055,15 +3057,19 @@ class Deterministic_Wallet(Abstract_Wallet):
             else:
                 last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
             if any(map(self.address_is_old, last_few_addresses)):
+                count += 1
                 self.create_new_address(for_change)
             else:
                 break
+        return count
 
     @AddressSynchronizer.with_local_height_cached
     def synchronize(self):
+        count = 0
         with self.lock:
-            self.synchronize_sequence(False)
-            self.synchronize_sequence(True)
+            count += self.synchronize_sequence(False)
+            count += self.synchronize_sequence(True)
+        return count
 
     def get_all_known_addresses_beyond_gap_limit(self):
         # note that we don't stop at first large gap
