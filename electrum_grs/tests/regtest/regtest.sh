@@ -115,12 +115,12 @@ if [[ $1 == "breach" ]]; then
     channel=$($alice open_channel $bob_node 0.15)
     new_blocks 3
     wait_until_channel_open alice
-    request=$($bob add_lightning_request 0.01 -m "blah" | jq -r ".invoice")
+    request=$($bob add_request 0.01 -m "blah" | jq -r ".lightning_invoice")
     echo "alice pays"
     $alice lnpay $request
     sleep 2
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
-    request=$($bob add_lightning_request 0.01 -m "blah2" | jq -r ".invoice")
+    request=$($bob add_request 0.01 -m "blah2" | jq -r ".lightning_invoice")
     echo "alice pays again"
     $alice lnpay $request
     echo "alice broadcasts old ctx"
@@ -181,7 +181,7 @@ if [[ $1 == "extract_preimage" ]]; then
     wait_until_channel_open alice
     chan_id=$($alice list_channels | jq -r ".[0].channel_point")
     # alice pays bob
-    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    invoice=$($bob add_request 0.04 -m "test" | jq -r ".lightning_invoice")
     screen -S alice_payment -dm -L -Logfile /tmp/alice/screen.log $alice lnpay $invoice --timeout=600
     sleep 1
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
@@ -211,7 +211,7 @@ if [[ $1 == "redeem_htlcs" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     # alice pays bob
-    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    invoice=$($bob add_request 0.04 -m "test" | jq -r ".lightning_invoice")
     $alice lnpay $invoice --timeout=1 || true
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
     if [[ "$unsettled" == "0" ]]; then
@@ -253,7 +253,7 @@ if [[ $1 == "breach_with_unspent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    invoice=$($bob add_request 0.04 -m "test" | jq -r ".lightning_invoice")
     $alice lnpay $invoice --timeout=1 || true
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
     if [[ "$unsettled" == "0" ]]; then
@@ -282,7 +282,7 @@ if [[ $1 == "breach_with_spent_htlc" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice=$($bob add_lightning_request 0.04 -m "test" | jq -r ".invoice")
+    invoice=$($bob add_request 0.04 -m "test" | jq -r ".lightning_invoice")
     $alice lnpay $invoice --timeout=1 || true
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     unsettled=$($alice list_channels | jq '.[] | .local_unsettled_sent')
@@ -347,11 +347,11 @@ if [[ $1 == "watchtower" ]]; then
     new_blocks 3
     wait_until_channel_open alice
     echo "alice pays bob"
-    invoice1=$($bob add_lightning_request 0.01 -m "invoice1" | jq -r ".invoice")
+    invoice1=$($bob add_request 0.01 -m "invoice1" | jq -r ".lightning_invoice")
     $alice lnpay $invoice1
     ctx=$($alice get_channel_ctx $channel --iknowwhatimdoing)
     echo "alice pays bob again"
-    invoice2=$($bob add_lightning_request 0.01 -m "invoice2" | jq -r ".invoice")
+    invoice2=$($bob add_request 0.01 -m "invoice2" | jq -r ".lightning_invoice")
     $alice lnpay $invoice2
     msg="waiting until watchtower is synchronized"
     while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != "3" ]]; do
