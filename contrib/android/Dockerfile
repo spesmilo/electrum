@@ -109,7 +109,7 @@ RUN apt -y update -qq \
         patch \
         sudo \
         software-properties-common \
-        git \
+        git=1:2.25.1-1ubuntu3 \
         zip \
         unzip \
         build-essential \
