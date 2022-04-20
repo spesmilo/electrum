@@ -29,7 +29,7 @@ class SwapDialog(WindowModalDialog):
     tx: Optional[PartialTransaction]
     update_signal = pyqtSignal()
 
-    def __init__(self, window: 'ElectrumWindow'):
+    def __init__(self, window: 'ElectrumWindow', is_reverse=True, recv_amount_sat=None):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
@@ -37,7 +37,7 @@ class SwapDialog(WindowModalDialog):
         self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
         self.tx = None  # for the forward-swap only
-        self.is_reverse = True
+        self.is_reverse = is_reverse
         vbox = QVBoxLayout(self)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -87,6 +87,8 @@ class SwapDialog(WindowModalDialog):
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
         self.update_signal.connect(self.update)
         self.update()
+        if recv_amount_sat:
+            self.recv_amount_e.setAmount(recv_amount_sat)
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:

@@ -8,7 +8,7 @@ from kivy.clock import Clock
 
 from electrum_ltc.gui.kivy.i18n import _
 from electrum_ltc.invoices import pr_tooltips, pr_color
-from electrum_ltc.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum_ltc.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED
 
 if TYPE_CHECKING:
     from electrum_ltc.gui.kivy.main_window import ElectrumWindow

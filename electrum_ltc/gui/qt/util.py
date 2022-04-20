@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum_ltc.i18n import _, languages
 from electrum_ltc.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum_ltc.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
+from electrum_ltc.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_SCHEDULED
 from electrum_ltc.logging import Logger
 
 if TYPE_CHECKING:
@@ -56,6 +56,7 @@ pr_icons = {
     PR_FAILED:"warning.png",
     PR_ROUTING:"unconfirmed.png",
     PR_UNCONFIRMED:"unconfirmed.png",
+    PR_SCHEDULED:"unconfirmed.png",
 }
 
 
@@ -396,23 +397,23 @@ class ChoicesLayout(object):
             msg = ""
         gb2 = QGroupBox(msg)
         vbox.addWidget(gb2)
-
         vbox2 = QVBoxLayout()
         gb2.setLayout(vbox2)
-
         self.group = group = QButtonGroup()
-        for i,c in enumerate(choices):
+        if isinstance(choices, list):
+            iterator = enumerate(choices)
+        else:
+            iterator = choices.items()
+        for i, c in iterator:
             button = QRadioButton(gb2)
             button.setText(c)
             vbox2.addWidget(button)
             group.addButton(button)
             group.setId(button, i)
-            if i==checked_index:
+            if i == checked_index:
                 button.setChecked(True)
-
         if on_clicked:
             group.buttonClicked.connect(partial(on_clicked, self))
-
         self.vbox = vbox
 
     def layout(self):
@@ -1299,6 +1300,47 @@ class ImageGraphicsEffect(QObject):
         self.graphics_scene.render(painter)
         self.graphics_item.setPixmap(QPixmap())
         return result
+
+
+# vertical tabs
+# from https://stackoverflow.com/questions/51230544/pyqt5-how-to-set-tabwidget-west-but-keep-the-text-horizontal
+from PyQt5 import QtWidgets, QtCore
+
+class VTabBar(QtWidgets.QTabBar):
+
+    def tabSizeHint(self, index):
+        s = QtWidgets.QTabBar.tabSizeHint(self, index)
+        s.transpose()
+        return s
+
+    def paintEvent(self, event):
+        painter = QtWidgets.QStylePainter(self)
+        opt = QtWidgets.QStyleOptionTab()
+
+        for i in range(self.count()):
+            self.initStyleOption(opt, i)
+            painter.drawControl(QtWidgets.QStyle.CE_TabBarTabShape, opt)
+            painter.save()
+
+            s = opt.rect.size()
+            s.transpose()
+            r = QtCore.QRect(QtCore.QPoint(), s)
+            r.moveCenter(opt.rect.center())
+            opt.rect = r
+
+            c = self.tabRect(i).center()
+            painter.translate(c)
+            painter.rotate(90)
+            painter.translate(-c)
+            painter.drawControl(QtWidgets.QStyle.CE_TabBarTabLabel, opt);
+            painter.restore()
+
+
+class VTabWidget(QtWidgets.QTabWidget):
+    def __init__(self, *args, **kwargs):
+        QtWidgets.QTabWidget.__init__(self, *args, **kwargs)
+        self.setTabBar(VTabBar(self))
+        self.setTabPosition(QtWidgets.QTabWidget.West)
 
 
 if __name__ == "__main__":

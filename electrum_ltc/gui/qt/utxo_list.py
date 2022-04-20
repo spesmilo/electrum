@@ -128,6 +128,10 @@ class UTXOList(MyTreeView):
         if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
+        else:
+            tooltip = ("\n" + SELECTED_TO_SPEND_TOOLTIP) if key in (self._spend_set or set()) else ""
+            utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.DEFAULT.as_color(True))
+            utxo_item[self.Columns.ADDRESS].setToolTip(key + tooltip)
         if self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{key}\n{_('Coin is frozen')}")

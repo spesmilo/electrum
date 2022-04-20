@@ -41,7 +41,7 @@ except ImportError:
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, make_aiohttp_session
-from .invoices import OnchainInvoice
+from .invoices import Invoice
 from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
@@ -324,7 +324,7 @@ class PaymentRequest:
             return False, error
 
 
-def make_unsigned_request(req: 'OnchainInvoice'):
+def make_unsigned_request(req: 'Invoice'):
     addr = req.get_address()
     time = req.time
     exp = req.exp
@@ -465,7 +465,7 @@ def serialize_request(req):  # FIXME this is broken
     return pr
 
 
-def make_request(config: 'SimpleConfig', req: 'OnchainInvoice'):
+def make_request(config: 'SimpleConfig', req: 'Invoice'):
     pr = make_unsigned_request(req)
     key_path = config.get('ssl_keyfile')
     cert_path = config.get('ssl_certfile')
