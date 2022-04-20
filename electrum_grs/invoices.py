@@ -170,7 +170,7 @@ class Invoice(StoredObject):
         if lightning:
             extra['lightning'] = lightning
         if not addr and lightning:
-            return "bitcoin:?lightning="+lightning
+            return "groestlcoin:?lightning="+lightning
         uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
         return str(uri)
 
