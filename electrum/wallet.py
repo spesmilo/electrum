@@ -1570,7 +1570,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 else:
                     self._frozen_addresses -= set(addrs)
                 self.db.put('frozen_addresses', list(self._frozen_addresses))
-                return True
+            util.trigger_callback('status')
+            return True
         return False
 
     def set_frozen_state_of_coins(self, utxos: Sequence[str], freeze: bool) -> None:
@@ -1580,6 +1581,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         with self._freeze_lock:
             for utxo in utxos:
                 self._frozen_coins[utxo] = bool(freeze)
+        util.trigger_callback('status')
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
