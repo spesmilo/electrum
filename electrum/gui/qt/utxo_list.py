@@ -121,24 +121,20 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.LABEL].setText(label)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if key in (self._spend_set or set()):
-            for col in utxo_item:
-                col.setBackground(ColorScheme.GREEN.as_color(True))
-                if col != self.Columns.OUTPOINT:
-                    col.setToolTip(SELECTED_TO_SPEND_TOOLTIP)
+            tooltip = key + "\n" + SELECTED_TO_SPEND_TOOLTIP
+            color = ColorScheme.GREEN.as_color(True)
+        else:
+            tooltip = key
+            color = ColorScheme.DEFAULT.as_color(True)
+        for col in utxo_item:
+            col.setBackground(color)
+            col.setToolTip(tooltip)
         if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
-        else:
-            tooltip = ("\n" + SELECTED_TO_SPEND_TOOLTIP) if key in (self._spend_set or set()) else ""
-            utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.DEFAULT.as_color(True))
-            utxo_item[self.Columns.ADDRESS].setToolTip(key + tooltip)
         if self.wallet.is_frozen_coin(utxo):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{key}\n{_('Coin is frozen')}")
-        else:
-            tooltip = ("\n" + SELECTED_TO_SPEND_TOOLTIP) if key in (self._spend_set or set()) else ""
-            utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.DEFAULT.as_color(True))
-            utxo_item[self.Columns.OUTPOINT].setToolTip(key + tooltip)
 
     def get_selected_outpoints(self) -> Optional[List[str]]:
         if not self.model():
