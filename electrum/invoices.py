@@ -187,7 +187,7 @@ class Invoice(StoredObject):
             if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN * 1000):
                 raise InvoiceError(f"amount is out-of-bounds: {value!r} msat")
         elif isinstance(value, str):
-            if value != '!':
+            if value[0] != '!':
                 raise InvoiceError(f"unexpected amount: {value!r}")
         else:
             raise InvoiceError(f"unexpected amount: {value!r}")
