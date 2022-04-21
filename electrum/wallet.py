@@ -2122,9 +2122,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         domain = self.get_receiving_addresses()
         # TODO we should index receive_requests by id
         # add lightning requests. (use as key)
-        in_use_by_request = [k for k in self.receive_requests.keys()
-                             if self.get_request_status(k) != PR_EXPIRED]
-        in_use_by_request = set(in_use_by_request)
+        in_use_by_request = set(self.receive_requests.keys())
         return [addr for addr in domain if not self.is_used(addr)
                 and addr not in in_use_by_request]
 
