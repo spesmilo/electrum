@@ -776,13 +776,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         height=self.get_local_height()
         if pr:
             return Invoice.from_bip70_payreq(pr, height)
-        amount = 0
+        amount_msat = 0
         for x in outputs:
             if parse_max_spend(x.value):
-                amount = '!'
+                amount_msat = '!'
                 break
             else:
-                amount += x.value
+                amount_msat += x.value * 1000
         timestamp = None
         exp = None
         if URI:
@@ -791,7 +791,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         timestamp = timestamp or int(time.time())
         exp = exp or 0
         invoice = Invoice(
-            amount_msat=amount*1000,
+            amount_msat=amount_msat,
             message=message,
             time=timestamp,
             exp=exp,
