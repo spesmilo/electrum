@@ -1170,7 +1170,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_e = ButtonsTextEdit()
         self.receive_URI_e = ButtonsTextEdit()
         self.receive_lightning_e = ButtonsTextEdit()
-        self.receive_lightning_help = WWLabel('You do not have the capacity to receive this amount using Lightning')
+        self.receive_lightning_help = WWLabel('')
         self.receive_lightning_help.setVisible(False)
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
@@ -1260,6 +1260,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         URI = req.get_bip21_URI(lightning=bip21_lightning)
         lnaddr = lnaddr or ''
         icon_name = "lightning.png" if can_receive_lightning else "lightning_disconnected.png"
+        if not lnaddr:
+            if can_receive_lightning:
+                ln_help = _('No lightning invoice')
+            else:
+                ln_help = _('You do not have the capacity to receive this amount using Lightning')
+        else:
+            ln_help = ''
+
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
         # alphanumeric mode; resulting in smaller QR codes
@@ -1269,6 +1277,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
+        self.receive_lightning_help.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr_qr)
         # macOS hack (similar to #4777)
         self.receive_lightning_e.repaint()
@@ -1648,8 +1657,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         key = self.wallet.get_key_for_outgoing_invoice(invoice)
         if amount_sat is None:
             raise Exception("missing amount for LN invoice")
-        num_sats_can_send = int(self.wallet.lnworker.num_sats_can_send())
-        if amount_sat > num_sats_can_send:
+        if not self.wallet.lnworker.can_pay_invoice(invoice):
+            num_sats_can_send = int(self.wallet.lnworker.num_sats_can_send())
             lightning_needed = amount_sat - num_sats_can_send
             lightning_needed += (lightning_needed // 20) # operational safety margin
             coins = self.get_coins(nonlocal_only=True)

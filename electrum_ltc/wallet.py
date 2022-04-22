@@ -776,13 +776,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         height=self.get_local_height()
         if pr:
             return Invoice.from_bip70_payreq(pr, height)
-        amount = 0
+        amount_msat = 0
         for x in outputs:
             if parse_max_spend(x.value):
-                amount = '!'
+                amount_msat = '!'
                 break
             else:
-                amount += x.value
+                amount_msat += x.value * 1000
         timestamp = None
         exp = None
         if URI:
@@ -791,7 +791,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         timestamp = timestamp or int(time.time())
         exp = exp or 0
         invoice = Invoice(
-            amount_msat=amount*1000,
+            amount_msat=amount_msat,
             message=message,
             time=timestamp,
             exp=exp,
@@ -1570,7 +1570,8 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
                 else:
                     self._frozen_addresses -= set(addrs)
                 self.db.put('frozen_addresses', list(self._frozen_addresses))
-                return True
+            util.trigger_callback('status')
+            return True
         return False
 
     def set_frozen_state_of_coins(self, utxos: Sequence[str], freeze: bool) -> None:
@@ -1580,6 +1581,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         with self._freeze_lock:
             for utxo in utxos:
                 self._frozen_coins[utxo] = bool(freeze)
+        util.trigger_callback('status')
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
@@ -2120,9 +2122,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         domain = self.get_receiving_addresses()
         # TODO we should index receive_requests by id
         # add lightning requests. (use as key)
-        in_use_by_request = [k for k in self.receive_requests.keys()
-                             if self.get_request_status(k) != PR_EXPIRED]
-        in_use_by_request = set(in_use_by_request)
+        in_use_by_request = set(self.receive_requests.keys())
         return [addr for addr in domain if not self.is_used(addr)
                 and addr not in in_use_by_request]
 
