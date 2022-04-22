@@ -10,7 +10,7 @@ from PIL import Image, ImageQt
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
-
+from electrum.util import profiler
 
 class QEQRParser(QObject):
     def __init__(self, text=None, parent=None):
@@ -123,6 +123,7 @@ class QEQRImageProvider(QQuickImageProvider):
 
     _logger = get_logger(__name__)
 
+    @profiler
     def requestImage(self, qstr, size):
         self._logger.debug('QR requested for %s' % qstr)
         qr = qrcode.QRCode(version=1, box_size=6, border=2)

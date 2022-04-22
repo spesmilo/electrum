@@ -100,24 +100,33 @@ Item {
             currentIndex: tabbar.currentIndex
 
             Item {
-                Receive {
-                    id: receive
+                Loader {
                     anchors.fill: parent
+                    Receive {
+                        id: receive
+                        anchors.fill: parent
+                    }
                 }
             }
 
             Item {
-                History {
-                    id: history
+                Loader {
                     anchors.fill: parent
+                    History {
+                        id: history
+                        anchors.fill: parent
+                    }
                 }
             }
 
 
             Item {
                 enabled: !Daemon.currentWallet.isWatchOnly
-                Send {
+                Loader {
                     anchors.fill: parent
+                    Send {
+                        anchors.fill: parent
+                    }
                 }
             }
 

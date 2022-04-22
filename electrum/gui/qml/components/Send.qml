@@ -4,10 +4,17 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls.Material 2.0
 import QtQml.Models 2.1
 
+import org.electrum 1.0
+
 import "controls"
 
 Pane {
     id: rootItem
+
+    function clear() {
+        recipient.text = ''
+        amount.text = ''
+    }
 
     GridLayout {
         id: form
@@ -26,12 +33,16 @@ Pane {
         }
 
         TextArea {
-            id: address
+            id: recipient
             Layout.columnSpan: 2
             Layout.fillWidth: true
             font.family: FixedFont
             wrapMode: Text.Wrap
             placeholderText: qsTr('Paste address or invoice')
+            onTextChanged: {
+                if (activeFocus)
+                    invoice.recipient = text
+            }
         }
 
         RowLayout {
@@ -40,7 +51,7 @@ Pane {
                 icon.source: '../../icons/paste.png'
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
-                onClicked: address.text = AppController.clipboardToText()
+                onClicked: invoice.recipient = AppController.clipboardToText()
             }
             ToolButton {
                 icon.source: '../../icons/qrcode.png'
@@ -50,10 +61,7 @@ Pane {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                     page.onFound.connect(function() {
-                        console.log('got ' + page.invoiceData)
-                        address.text = page.invoiceData['address']
-                        amount.text = Config.satsToUnits(page.invoiceData['amount'])
-                        description.text = page.invoiceData['message']
+                        invoice.recipient = page.scanData
                     })
                 }
             }
@@ -122,9 +130,9 @@ Pane {
         }
 
         TextField {
-            id: description
+            id: message
             font.family: FixedFont
-            placeholderText: qsTr('Description')
+            placeholderText: qsTr('Message')
             Layout.columnSpan: 3
             Layout.fillWidth: true
         }
@@ -136,24 +144,24 @@ Pane {
 
             Button {
                 text: qsTr('Save')
-                enabled: false
+                enabled: invoice.invoiceType != Invoice.Invalid
                 onClicked: {
-                    console.log('TODO: save')
+                    Daemon.currentWallet.create_invoice(recipient.text, amount.text, message.text)
                 }
             }
 
             Button {
                 text: qsTr('Pay now')
-                enabled: amount.text != '' && address.text != ''// TODO proper validation
+                enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
                 onClicked: {
                     var f_amount = parseFloat(amount.text)
                     if (isNaN(f_amount))
                         return
                     var sats = Config.unitsToSats(amount.text).toString()
                     var dialog = confirmPaymentDialog.createObject(app, {
-                        'address': address.text,
+                        'address': recipient.text,
                         'satoshis': sats,
-                        'message': description.text
+                        'message': message.text
                     })
                     dialog.open()
                 }
@@ -224,6 +232,24 @@ Pane {
         }
     }
 
+    Component {
+        id: confirmPaymentDialog
+        ConfirmPaymentDialog {}
+    }
+
+    Component {
+        id: confirmInvoiceDialog
+        ConfirmInvoiceDialog {}
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onInvoiceStatusChanged(key, status) {
+            // TODO: status from?
+            //Daemon.currentWallet.invoiceModel.updateInvoice(key, status)
+        }
+    }
+
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {
@@ -240,4 +266,43 @@ Pane {
         FocusScope { id: parkFocus }
     }
 
+    Invoice {
+        id: invoice
+        wallet: Daemon.currentWallet
+        onValidationError: {
+            if (recipient.activeFocus) {
+                // no popups when editing
+                return
+            }
+            console.log(code + ' ' + message)
+
+            var dialog = app.messageDialog.createObject(app, {'text': message })
+            dialog.open()
+            rootItem.clear()
+        }
+        onValidationWarning: {
+            if (code == 'no_channels') {
+                var dialog = app.messageDialog.createObject(app, {'text': message })
+                dialog.open()
+                // TODO: ask user to open a channel, if funds allow
+                // and maybe store invoice if expiry allows
+            }
+        }
+        onInvoiceTypeChanged: {
+            if (invoiceType == Invoice.Invalid)
+                return
+            // address only -> fill form fields
+            // else -> show invoice confirmation dialog
+            if (invoiceType == Invoice.OnchainOnlyAddress)
+                recipient.text = invoice.recipient
+            else {
+                var dialog = confirmInvoiceDialog.createObject(rootItem, {'invoice': invoice})
+                dialog.open()
+            }
+        }
+        onInvoiceSaved: {
+            console.log('invoice got saved')
+            Daemon.currentWallet.invoiceModel.init_model()
+        }
+    }
 }

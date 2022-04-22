@@ -44,6 +44,9 @@ class QEWallet(QObject):
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal()
     requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    invoiceStatusChanged = pyqtSignal([str], arguments=['key'])
+    invoiceCreateSuccess = pyqtSignal()
+    invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
 
     _network_signal = pyqtSignal(str, object)
 
@@ -95,10 +98,15 @@ class QEWallet(QObject):
         if event == 'status':
             self.isUptodateChanged.emit()
         elif event == 'request_status':
-            wallet, addr, c = args
+            wallet, key, status = args
             if wallet == self.wallet:
-                self._logger.debug('request status %d for address %s' % (c, addr))
-                self.requestStatusChanged.emit(addr, c)
+                self._logger.debug('request status %d for key %s' % (status, key))
+                self.requestStatusChanged.emit(key, status)
+        elif event == 'invoice_status':
+            wallet, key = args
+            if wallet == self.wallet:
+                self._logger.debug('invoice status %d for key %s' % (c, key))
+                self.invoiceStatusChanged.emit(key)
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -351,5 +359,5 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString', result='QVariant')
     def get_invoice(self, key: str):
-        req = self.wallet.get_invoice(key)
-        return self._invoiceModel.invoice_to_model(req)
+        invoice = self.wallet.get_invoice(key)
+        return self._invoiceModel.invoice_to_model(invoice)

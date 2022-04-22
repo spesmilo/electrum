@@ -51,7 +51,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
             invoices.append(item)
 
         self.clear()
-        self.beginInsertRows(QModelIndex(), 0, len(self.invoices) - 1)
+        self.beginInsertRows(QModelIndex(), 0, len(invoices) - 1)
         self.invoices = invoices
         self.endInsertRows()
 
@@ -79,7 +79,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         i = 0
         for item in self.invoices:
             if item['key'] == key:
-                invoice = self.get_invoice_for_key(key) #self.wallet.get_invoice(key)
+                invoice = self.get_invoice_for_key(key)
                 item['status'] = status
                 item['status_str'] = invoice.get_status_str(status)
                 index = self.index(i,0)

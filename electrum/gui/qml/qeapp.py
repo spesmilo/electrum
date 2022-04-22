@@ -19,6 +19,7 @@ from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer
+from .qeinvoice import QEInvoice
 
 notification = None
 
@@ -115,6 +116,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEQRParser, 'org.electrum', 1, 0, 'QRParser')
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
+        qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
