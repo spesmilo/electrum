@@ -37,7 +37,7 @@ from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
-from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, RevocationStore
+from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, ChannelType
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 43     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 45     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -192,6 +192,8 @@ class WalletDB(JsonDB):
         self._convert_version_41()
         self._convert_version_42()
         self._convert_version_43()
+        self._convert_version_44()
+        self._convert_version_45()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -850,6 +852,62 @@ class WalletDB(JsonDB):
         self.data['channels'] = channels
         self.data['seed_version'] = 43
 
+    def _convert_version_44(self):
+        if not self._is_upgrade_method_needed(43, 43):
+            return
+        channels = self.data.get('channels', {})
+        for key, item in channels.items():
+            if bool(item.get('static_remotekey_enabled')):
+                channel_type = ChannelType.OPTION_STATIC_REMOTEKEY
+            else:
+                channel_type = ChannelType(0)
+            item.pop('static_remotekey_enabled', None)
+            item['channel_type'] = channel_type
+        self.data['seed_version'] = 44
+
+    def _convert_version_45(self):
+        from .lnaddr import lndecode
+        if not self._is_upgrade_method_needed(44, 44):
+            return
+        swaps = self.data.get('submarine_swaps', {})
+        for key, item in swaps.items():
+            item['receive_address'] = None
+        # note: we set height to zero
+        # the new key for all requests is a wallet address, not done here
+        for name in ['invoices', 'payment_requests']:
+            invoices = self.data.get(name, {})
+            for key, item in invoices.items():
+                is_lightning = item['type'] == 2
+                lightning_invoice = item['invoice'] if is_lightning else None
+                outputs = item['outputs'] if not is_lightning else None
+                bip70 = item['bip70'] if not is_lightning else None
+                if is_lightning:
+                    lnaddr = lndecode(item['invoice'])
+                    amount_msat = lnaddr.get_amount_msat()
+                    timestamp = lnaddr.date
+                    exp_delay = lnaddr.get_expiry()
+                    message = lnaddr.get_description()
+                    height = 0
+                else:
+                    amount_sat = item['amount_sat']
+                    amount_msat = amount_sat * 1000 if amount_sat not in [None, '!'] else amount_sat
+                    message = item['message']
+                    timestamp = item['time']
+                    exp_delay = item['exp']
+                    height = item['height']
+
+                invoices[key] = {
+                    'amount_msat':amount_msat,
+                    'message':message,
+                    'time':timestamp,
+                    'exp':exp_delay,
+                    'height':height,
+                    'outputs':outputs,
+                    'bip70':bip70,
+                    'lightning_invoice':lightning_invoice,
+                }
+        self.data['seed_version'] = 45
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1336,9 +1394,9 @@ class WalletDB(JsonDB):
             # note: for performance, "deserialize=False" so that we will deserialize these on-demand
             v = dict((k, tx_from_any(x, deserialize=False)) for k, x in v.items())
         if key == 'invoices':
-            v = dict((k, Invoice.from_json(x)) for k, x in v.items())
+            v = dict((k, Invoice(**x)) for k, x in v.items())
         if key == 'payment_requests':
-            v = dict((k, Invoice.from_json(x)) for k, x in v.items())
+            v = dict((k, Invoice(**x)) for k, x in v.items())
         elif key == 'adds':
             v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
         elif key == 'fee_updates':
@@ -1377,6 +1435,8 @@ class WalletDB(JsonDB):
             v = ChannelConstraints(**v)
         elif key == 'funding_outpoint':
             v = Outpoint(**v)
+        elif key == 'channel_type':
+            v = ChannelType(v)
         return v
 
     def _should_convert_to_stored_dict(self, key) -> bool:

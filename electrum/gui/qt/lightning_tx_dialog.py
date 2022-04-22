@@ -31,7 +31,6 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
 from electrum.i18n import _
-from electrum.invoices import LNInvoice
 
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
 from .qrtextedit import ShowQRTextEdit
@@ -55,8 +54,8 @@ class LightningTxDialog(WindowModalDialog):
         invoice = (self.parent.wallet.get_invoice(self.payment_hash)
                    or self.parent.wallet.get_request(self.payment_hash))
         if invoice:
-            assert isinstance(invoice, LNInvoice), f"{self.invoice!r}"
-            self.invoice = invoice.invoice
+            assert invoice.is_lightning(), f"{self.invoice!r}"
+            self.invoice = invoice.lightning_invoice
         else:
             self.invoice = ''
 

@@ -41,11 +41,15 @@ from typing import TYPE_CHECKING, Optional
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-is_bundle = getattr(sys, 'frozen', False)
-is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
+is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
+is_appimage = 'APPIMAGE' in os.environ
+# is_local: unpacked tar.gz but not pip installed, or git clone
+is_local = (not is_pyinstaller and not is_android and not is_appimage
+            and os.path.exists(os.path.join(script_dir, "electrum.desktop")))
+is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
-if is_local:  # running from source
+if is_git_clone:
     # developers should probably see all deprecation warnings.
     warnings.simplefilter('default', DeprecationWarning)
 
@@ -327,14 +331,25 @@ def main():
         if config_options.get('server'):
             config_options['auto_connect'] = False
 
-    config_options['cwd'] = os.getcwd()
+    config_options['cwd'] = cwd = os.getcwd()
 
     # fixme: this can probably be achieved with a runtime hook (pyinstaller)
-    if is_bundle and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
+    if is_pyinstaller and os.path.exists(os.path.join(sys._MEIPASS, 'is_portable')):
         config_options['portable'] = True
 
     if config_options.get('portable'):
-        config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        if is_local:
+            # running from git clone or local source: put datadir next to main script
+            datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
+        else:
+            # Running a binary or installed source. The most generic but still reasonable thing
+            # is to use the current working directory. (see #7732)
+            # note: The main script is often unpacked to a temporary directory from a bundled executable,
+            #       and we don't want to put the datadir inside a temp dir.
+            # note: Re the portable .exe on Windows, when the user double-clicks it, CWD gets set
+            #       to the parent dir, i.e. we will put the datadir next to the exe.
+            datadir = os.path.join(os.path.realpath(cwd), 'electrum_data')
+        config_options['electrum_path'] = datadir
 
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)

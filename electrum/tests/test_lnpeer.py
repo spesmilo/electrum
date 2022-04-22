@@ -22,9 +22,8 @@ from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
 from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
-from electrum.lnpeer import Peer, UpfrontShutdownScriptViolation
+from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
-from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
 from electrum.lnchannel import ChannelState, PeerState, Channel
 from electrum.lnrouter import LNPathFinder, PathEdge, LNPathInconsistent
@@ -38,6 +37,7 @@ from electrum.lnonion import OnionFailureCode
 from electrum.lnutil import derive_payment_secret_from_payment_preimage
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
+from electrum.interface import GracefulDisconnect
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -138,6 +138,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -156,6 +157,9 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.downstream_htlc_to_upstream_peer_map = {}
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
+
+    def pay_scheduled_invoices(self):
+        pass
 
     def get_invoice_status(self, key):
         pass
@@ -230,12 +234,12 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice
     force_close_channel = LNWallet.force_close_channel
-    try_force_closing = LNWallet.try_force_closing
+    schedule_force_closing = LNWallet.schedule_force_closing
     get_first_timestamp = lambda self: 0
     on_peer_successfully_established = LNWallet.on_peer_successfully_established
     get_channel_by_id = LNWallet.get_channel_by_id
     channels_for_peer = LNWallet.channels_for_peer
-    _calc_routing_hints_for_invoice = LNWallet._calc_routing_hints_for_invoice
+    calc_routing_hints_for_invoice = LNWallet.calc_routing_hints_for_invoice
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
     is_trampoline_peer = LNWallet.is_trampoline_peer
     wait_for_received_pending_htlcs_to_get_removed = LNWallet.wait_for_received_pending_htlcs_to_get_removed
@@ -468,7 +472,7 @@ class TestPeer(TestCaseForTestnet):
         return graph
 
     @staticmethod
-    async def prepare_invoice(
+    def prepare_invoice(
             w2: MockLNWallet,  # receiver
             *,
             amount_msat=100_000_000,
@@ -481,7 +485,7 @@ class TestPeer(TestCaseForTestnet):
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints = await w2._calc_routing_hints_for_invoice(amount_msat)
+            routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
         trampoline_hints = []
@@ -531,7 +535,7 @@ class TestPeer(TestCaseForTestnet):
         alice_channel, bob_channel = create_test_channels(random_seed=random_seed)
         alice_channel_0, bob_channel_0 = create_test_channels(random_seed=random_seed)  # these are identical
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        lnaddr, pay_req = run(self.prepare_invoice(w2))
+        lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
             result, log = await w1.pay_invoice(pay_req)
             self.assertEqual(result, True)
@@ -574,7 +578,7 @@ class TestPeer(TestCaseForTestnet):
                 await group.spawn(p2._message_loop())
                 await group.spawn(p2.htlc_switch())
                 await asyncio.sleep(0.01)
-                lnaddr, pay_req = await self.prepare_invoice(w2)
+                lnaddr, pay_req = self.prepare_invoice(w2)
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
@@ -596,8 +600,8 @@ class TestPeer(TestCaseForTestnet):
             # prep
             _maybe_send_commitment1 = p1.maybe_send_commitment
             _maybe_send_commitment2 = p2.maybe_send_commitment
-            lnaddr2, pay_req2 = await self.prepare_invoice(w2)
-            lnaddr1, pay_req1 = await self.prepare_invoice(w1)
+            lnaddr2, pay_req2 = self.prepare_invoice(w2)
+            lnaddr1, pay_req1 = self.prepare_invoice(w1)
             # create the htlc queues now (side-effecting defaultdict)
             q1 = w1.sent_htlcs[lnaddr2.paymenthash]
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
@@ -669,11 +673,8 @@ class TestPeer(TestCaseForTestnet):
                 await w1.pay_invoice(pay_req)
         async def many_payments():
             async with OldTaskGroup() as group:
-                pay_reqs_tasks = [await group.spawn(self.prepare_invoice(w2, amount_msat=payment_value_msat))
-                                  for i in range(num_payments)]
-            async with OldTaskGroup() as group:
-                for pay_req_task in pay_reqs_tasks:
-                    lnaddr, pay_req = pay_req_task.result()
+                for i in range(num_payments):
+                    lnaddr, pay_req = self.prepare_invoice(w2, amount_msat=payment_value_msat)
                     await group.spawn(single_payment(pay_req))
             gath.cancel()
         gath = asyncio.gather(many_payments(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
@@ -702,7 +703,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -746,7 +747,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -770,7 +771,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -805,7 +806,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
@@ -868,7 +869,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], amount_msat=amount_to_pay, include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], amount_msat=amount_to_pay, include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
             run(f())
@@ -899,7 +900,7 @@ class TestPeer(TestCaseForTestnet):
                     graph.workers['alice'].network.channel_db = None
             else:
                 assert graph.workers['alice'].network.channel_db is not None
-            lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
+            lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
             self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
             result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=attempts)
             if not bob_forwarding:
@@ -959,7 +960,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
-                lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
+                lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
 
         for is_legacy in (True, False):
@@ -1034,7 +1035,7 @@ class TestPeer(TestCaseForTestnet):
             graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
             graph.workers['bob'].enable_htlc_forwarding = False  # Bob will hold forwarded HTLCs
             assert graph.workers['alice'].network.channel_db is not None
-            lnaddr, pay_req = await self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
+            lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
             try:
                 async with timeout_after(0.5):
                     result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=1)
@@ -1062,15 +1063,48 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_close(self):
+    def test_legacy_shutdown_low(self):
+        self._test_shutdown(alice_fee=100, bob_fee=150)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_legacy_shutdown_high(self):
+        self._test_shutdown(alice_fee=2000, bob_fee=100)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_modern_shutdown_with_overlap(self):
+        self._test_shutdown(
+            alice_fee=1,
+            bob_fee=200,
+            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+            bob_fee_range={'min_fee_satoshis': 10, 'max_fee_satoshis': 300})
+
+    ## This test works but it is too slow (LN_P2P_NETWORK_TIMEOUT)
+    ## because tests do not use a proper LNWorker object
+    #@needs_test_with_all_chacha20_implementations
+    #def test_modern_shutdown_no_overlap(self):
+    #    self.assertRaises(Exception, lambda: asyncio.run(
+    #        self._test_shutdown(
+    #            alice_fee=1,
+    #            bob_fee=200,
+    #            alice_fee_range={'min_fee_satoshis': 1, 'max_fee_satoshis': 10},
+    #            bob_fee_range={'min_fee_satoshis': 50, 'max_fee_satoshis': 300})
+    #    ))
+
+    def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('dynamic_fees', False)
-        w2.network.config.set_key('dynamic_fees', False)
-        w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w1.network.config.set_key('test_shutdown_fee', alice_fee)
+        w2.network.config.set_key('test_shutdown_fee', bob_fee)
+        if alice_fee_range is not None:
+            w1.network.config.set_key('test_shutdown_fee_range', alice_fee_range)
+        else:
+            w1.network.config.set_key('test_shutdown_legacy', True)
+        if bob_fee_range is not None:
+            w2.network.config.set_key('test_shutdown_fee_range', bob_fee_range)
+        else:
+            w2.network.config.set_key('test_shutdown_legacy', True)
         w2.enable_htlc_settle = False
-        lnaddr, pay_req = run(self.prepare_invoice(w2))
+        lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
             await asyncio.wait_for(p1.initialized, 1)
             await asyncio.wait_for(p2.initialized, 1)
@@ -1093,6 +1127,38 @@ class TestPeer(TestCaseForTestnet):
         async def f():
             await gath
         with self.assertRaises(concurrent.futures.CancelledError):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_warning(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_warning(alice_channel.channel_id, 'be warned!', close_connection=True)
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_error(self):
+        alice_channel, bob_channel = create_test_channels()
+        p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+
+        async def action():
+            await asyncio.wait_for(p1.initialized, 1)
+            await asyncio.wait_for(p2.initialized, 1)
+            await p1.send_error(alice_channel.channel_id, 'some error happened!', force_close_channel=True)
+            assert alice_channel.is_closed()
+            gath.cancel()
+        gath = asyncio.gather(action(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
+        async def f():
+            await gath
+        with self.assertRaises(GracefulDisconnect):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
@@ -1134,7 +1200,7 @@ class TestPeer(TestCaseForTestnet):
             gath = asyncio.gather(*coros)
             await gath
 
-        with self.assertRaises(UpfrontShutdownScriptViolation):
+        with self.assertRaises(GracefulDisconnect):
             run(test())
 
         # bob sends the same upfront_shutdown_script has he announced
@@ -1168,7 +1234,7 @@ class TestPeer(TestCaseForTestnet):
     def test_channel_usage_after_closing(self):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        lnaddr, pay_req = run(self.prepare_invoice(w2))
+        lnaddr, pay_req = self.prepare_invoice(w2)
 
         lnaddr = w1._check_invoice(pay_req)
         route, amount_msat = run(w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]

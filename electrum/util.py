@@ -498,6 +498,9 @@ def standardize_path(path):
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
+    """Returns a file basename for a new wallet to be used.
+    Can raise OSError.
+    """
     i = 1
     while True:
         filename = "wallet_%d" % i
@@ -939,6 +942,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+    from .lnaddr import lndecode
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -1001,6 +1005,17 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
+    if 'lightning' in out:
+        try:
+            lnaddr = lndecode(out['lightning'])
+            amount_sat = out.get('amount')
+            if amount:
+                assert int(lnaddr.get_amount_sat()) == amount_sat
+            address = out.get('address')
+            if address:
+                assert lnaddr.get_fallback_address() == address
+        except Exception as e:
+            raise InvalidBitcoinURI(f"Inconsistent lightning field: {repr(e)}") from e
 
     r = out.get('r')
     sig = out.get('sig')
@@ -1323,6 +1338,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         server connection changes.
         """
         self.taskgroup = OldTaskGroup()
+        self.reset_request_counters()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
@@ -1353,6 +1369,13 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             await self.stop(full_shutdown=False)
             self._reset()
             await self._start(interface)
+
+    def reset_request_counters(self):
+        self._requests_sent = 0
+        self._requests_answered = 0
+
+    def num_requests_sent_and_answered(self) -> Tuple[int, int]:
+        return self._requests_sent, self._requests_answered
 
     @property
     def session(self):

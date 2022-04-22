@@ -27,7 +27,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
-from .invoices import PR_TYPE_LN, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LNInvoice, LN_EXPIRY_NEVER
+from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_SCHEDULED, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
@@ -89,7 +89,7 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
+SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_SCHEDULED] # status that are persisted
 
 
 NUM_PEERS_TARGET = 4
@@ -167,7 +167,7 @@ BASE_FEATURES = LnFeatures(0)\
     | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
     | LnFeatures.VAR_ONION_OPT\
     | LnFeatures.PAYMENT_SECRET_OPT\
-    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT\
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
 LNWALLET_FEATURES = BASE_FEATURES\
@@ -177,10 +177,11 @@ LNWALLET_FEATURES = BASE_FEATURES\
     | LnFeatures.BASIC_MPP_OPT\
     | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT\
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
+    | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
 
 LNGOSSIP_FEATURES = BASE_FEATURES\
     | LnFeatures.GOSSIP_QUERIES_OPT\
-    | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.GOSSIP_QUERIES_REQ\
 
 
 class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
@@ -907,7 +908,10 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            if not swap.is_redeemed and swap.spending_txid is None and delta < 0:
+            tx_height = self.lnwatcher.get_tx_height(swap.funding_txid)
+            if swap.is_reverse and tx_height.height <=0:
+                label += ' (%s)' % _('waiting for funding tx confirmation')
+            if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                 label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
                 'txid': txid,
@@ -965,7 +969,7 @@ class LNWallet(LNWorker):
 
         if chan.get_state() == ChannelState.OPEN and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height()):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.try_force_closing(chan.channel_id)
+            await self.schedule_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
             peer = self._peers.get(chan.node_id)
@@ -1024,9 +1028,6 @@ class LNWallet(LNWorker):
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         try:
             self.save_channel(chan)
-            backup_dir = self.config.get_backup_dir()
-            if backup_dir is not None:
-                self.wallet.save_backup(backup_dir)
         except:
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
@@ -1081,6 +1082,48 @@ class LNWallet(LNWorker):
             if chan.short_channel_id == short_channel_id:
                 return chan
 
+    def pay_scheduled_invoices(self):
+        asyncio.ensure_future(self._pay_scheduled_invoices())
+
+    async def _pay_scheduled_invoices(self):
+        for invoice in self.wallet.get_scheduled_invoices():
+            if invoice.is_lightning() and self.can_pay_invoice(invoice):
+                await self.pay_invoice(invoice.lightning_invoice, attempts=10)
+
+    def can_pay_invoice(self, invoice: Invoice) -> bool:
+        assert invoice.is_lightning()
+        if invoice.get_amount_sat() > self.num_sats_can_send():
+            return False
+        # if we dont find a path because of unsynchronized DB, this method should not return False
+        if self.channel_db:
+            return True
+        # trampoline nodes currently cannot do legacy payments over multiple nodes
+        # we call create_routes_for_payment in order to find out
+        lnaddr = self._check_invoice(invoice.lightning_invoice, amount_msat=invoice.get_amount_msat())
+        min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
+        invoice_pubkey = lnaddr.pubkey.serialize()
+        invoice_features = lnaddr.get_features()
+        r_tags = lnaddr.get_routing_info('r')
+        amount_to_pay = lnaddr.get_amount_msat()
+        try:
+            routes = self.create_routes_for_payment(
+                amount_msat=amount_to_pay,
+                final_total_msat=amount_to_pay,
+                invoice_pubkey=invoice_pubkey,
+                min_cltv_expiry=min_cltv_expiry,
+                r_tags=r_tags,
+                invoice_features=invoice_features,
+                full_path=None,
+                payment_hash=bytes(32),
+                payment_secret=bytes(32),
+                trampoline_fee_level=self.INITIAL_TRAMPOLINE_FEE_LEVEL,
+                use_two_trampolines=False,
+                fwd_trampoline_onion=None
+            )
+            return True
+        except NoPathFound:
+            return False
+
     @log_exceptions
     async def pay_invoice(
             self, invoice: str, *,
@@ -1108,7 +1151,9 @@ class LNWallet(LNWorker):
         self.save_payment_info(info)
         self.wallet.set_label(key, lnaddr.get_description())
 
+        self.logger.info(f"pay_invoice starting session for RHASH={payment_hash.hex()}")
         self.set_invoice_status(key, PR_INFLIGHT)
+        success = False
         try:
             await self.pay_to_node(
                 node_pubkey=invoice_pubkey,
@@ -1123,8 +1168,9 @@ class LNWallet(LNWorker):
             success = True
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
-            success = False
             reason = str(e)
+        finally:
+            self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
         if success:
             self.set_invoice_status(key, PR_PAID)
             util.trigger_callback('payment_succeeded', self.wallet, key)
@@ -1555,7 +1601,7 @@ class LNWallet(LNWorker):
 
             if not self.channel_db:
                 # in the case of a legacy payment, we don't allow splitting via different
-                # trampoline nodes, as currently no forwarder supports this
+                # trampoline nodes, because of https://github.com/ACINQ/eclair/issues/2127
                 use_single_node, _ = is_legacy_relay(invoice_features, r_tags)
                 split_configurations = suggest_splits(
                     amount_msat,
@@ -1733,25 +1779,17 @@ class LNWallet(LNWorker):
         route[-1].node_features |= invoice_features
         return route
 
-    def add_request(self, amount_sat, message, expiry) -> str:
-        coro = self._add_request_coro(amount_sat, message, expiry)
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        try:
-            return fut.result(timeout=5)
-        except concurrent.futures.TimeoutError:
-            raise Exception(_("add invoice timed out"))
-
-    @log_exceptions
-    async def create_invoice(
+    def create_invoice(
             self, *,
             amount_msat: Optional[int],
             message: str,
             expiry: int,
+            fallback_address: str,
             write_to_disk: bool = True,
     ) -> Tuple[LnAddr, str]:
 
         timestamp = int(time.time())
-        routing_hints = await self._calc_routing_hints_for_invoice(amount_msat)
+        routing_hints = self.calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
             self.logger.info(
                 "Warning. No routing hints added to invoice. "
@@ -1776,7 +1814,9 @@ class LNWallet(LNWorker):
                 ('d', message),
                 ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE),
                 ('x', expiry),
-                ('9', invoice_features)]
+                ('9', invoice_features),
+                ('f', fallback_address),
+            ]
             + routing_hints
             + trampoline_hints,
             date=timestamp,
@@ -1788,20 +1828,18 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return lnaddr, invoice
 
-    async def _add_request_coro(self, amount_sat: Optional[int], message, expiry: int) -> str:
+    def add_request(self, amount_sat: Optional[int], message:str, expiry: int, fallback_address:str) -> str:
+        # passed expiry is relative, it is absolute in the lightning invoice
         amount_msat = amount_sat * 1000 if amount_sat is not None else None
-        lnaddr, invoice = await self.create_invoice(
+        timestamp = int(time.time())
+        lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message=message,
             expiry=expiry,
+            fallback_address=fallback_address,
             write_to_disk=False,
         )
-        key = bh2u(lnaddr.paymenthash)
-        req = LNInvoice.from_bech32(invoice)
-        self.wallet.add_payment_request(req, write_to_disk=False)
-        self.wallet.set_label(key, message)
-        self.wallet.save_db()
-        return key
+        return invoice
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
@@ -1861,7 +1899,7 @@ class LNWallet(LNWorker):
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
 
-    def get_invoice_status(self, invoice: LNInvoice) -> int:
+    def get_invoice_status(self, invoice: Invoice) -> int:
         key = invoice.rhash
         log = self.logs[key]
         if key in self.inflight_payments:
@@ -1888,9 +1926,12 @@ class LNWallet(LNWorker):
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
-        if info is None:
+        if info is None and status != PR_SCHEDULED:
             # if we are forwarding
             return
+        if info is None and status == PR_SCHEDULED:
+            # we should add a htlc to our ctx, so that the funds are 'reserved'
+            info = PaymentInfo(payment_hash, 0, SENT, PR_SCHEDULED)
         info = info._replace(status=status)
         self.save_payment_info(info)
 
@@ -1980,7 +2021,7 @@ class LNWallet(LNWorker):
             self.set_invoice_status(key, PR_UNPAID)
             util.trigger_callback('payment_failed', self.wallet, key, '')
 
-    async def _calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
+    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         channels = list(self.channels.values())
@@ -2078,10 +2119,8 @@ class LNWallet(LNWorker):
             can_receive = max([c.available_to_spend(REMOTE) for c in channels]) if channels else 0
         return Decimal(can_receive) / 1000
 
-    def can_pay_invoice(self, invoice: LNInvoice) -> bool:
-        return invoice.get_amount_sat() <= self.num_sats_can_send()
-
-    def can_receive_invoice(self, invoice: LNInvoice) -> bool:
+    def can_receive_invoice(self, invoice: Invoice) -> bool:
+        assert invoice.is_lightning()
         return invoice.get_amount_sat() <= self.num_sats_can_receive()
 
     async def close_channel(self, chan_id):
@@ -2108,16 +2147,21 @@ class LNWallet(LNWorker):
         """Force-close the channel. Network-related exceptions are propagated to the caller.
         (automatic rebroadcasts will be scheduled)
         """
+        # note: as we are async, it can take a few event loop iterations between the caller
+        #       "calling us" and us getting to run, and we only set the channel state now:
         tx = self._force_close_channel(chan_id)
         await self.network.broadcast_transaction(tx)
         return tx.txid()
 
-    async def try_force_closing(self, chan_id: bytes) -> None:
-        """Force-close the channel. Network-related exceptions are suppressed.
+    def schedule_force_closing(self, chan_id: bytes) -> 'asyncio.Task[None]':
+        """Schedules a task to force-close the channel and returns it.
+        Network-related exceptions are suppressed.
         (automatic rebroadcasts will be scheduled)
+        Note: this method is intentionally not async so that callers have a guarantee
+              that the channel state is set immediately.
         """
         tx = self._force_close_channel(chan_id)
-        await self.network.try_broadcasting(tx, 'force-close')
+        return asyncio.create_task(self.network.try_broadcasting(tx, 'force-close'))
 
     def remove_channel(self, chan_id):
         chan = self.channels[chan_id]

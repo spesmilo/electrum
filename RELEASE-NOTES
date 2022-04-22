@@ -1,3 +1,68 @@
+# Release 4.2.1 - (March 26, 2022)
+ * Binaries:
+   - Windows: we are dropping support for Windows 7. (#7728)
+     Version 4.2.0 already unintentionally broke compatibility with
+     Win7 and there is no easy way to restore and maintain support.
+     Existing users can keep using version 4.1.5 for now, but should
+     consider upgrading or changing their OS.
+     Win8.1 still works but only Win10 is regularly tested.
+   - bump bundled Python version (win, mac, appimage) to 3.9.11,
+     (android) to 3.8.13 (1bb7ef92, #7721)
+     (note these include a fix to an openssl DOS-vector CVE-2022-0778)
+   - windows: bump pyinstaller to 4.10 and wine to 7.0 (#7721)
+ * Kivy GUI:
+   - fix "Child Pays For Parent" not working on Android (#7723)
+   - revert to defaulting the UI language to English (25fee6a6)
+ * Qt GUI:
+   - macOS: fix opening "Preferences" segfaulting for some (#7725)
+   - more resilient startup: better error-handling and fallback (#7447)
+ * Library:
+   - fix LN error/warning message-handling, and fix regression that
+     errors during channel-open were not properly shown in GUI (a92dede4)
+   - during LN chan open, do not backup wallet automatically (#7733)
+   - Imported wallets: fix delete_address rm-ing too many txs (#7587)
+   - fix potential deadlock in wallet.py (d3476b6b)
+ * Hardware wallets:
+   - ledger: add progress indicator to sign_transaction (#7516)
+ * fix the "--portable" flag for AppImage, and for pip installs (#7732)
+
+
+# Release 4.2.0 - (March 16, 2022)
+ * The minimum python version was increased to 3.8 (#7661)
+ * Lightning:
+   - redesigned MPP splitting algorithm (#7202)
+   - trampoline: implement multi-trampoline MPP (#7623)
+   - implement option_shutdown_anysegwit, and allow dust limits
+     below 546 sat (#7542)
+   - implement option_channel_type (#7636)
+   - implement modern closing negotiation (#7586, #7680)
+ * improve support for "lightning:" URIs on all platforms (#7301)
+ * Qt GUI:
+   - add setting "show amounts with msat precision" (5891e039)
+   - add setting "add thousand separators to bitcoin amounts" (#7427)
+ * CLI/RPC:
+   - implement Unix sockets and make them the default (#7545, #7566)
+   - add "bumpfee" command (#7438)
+ * Kivy GUI:
+   - show network setup on first start before wallet creation (#7464)
+   - add "Child Pays For Parent" option (#7487)
+   - improved locale handling (22bb52d5, 7cb11ced, 4293d6ec)
+ * Hardware wallets:
+   - trezor: bump trezorlib to 0.13 (#7590)
+   - bitbox02: bump bitbox02 to 6.0, support send-to-taproot (#7693)
+   - ledger: support "Ledger Nano S Plus" (#7692)
+ * Library:
+   - added support for sighash types beside "ALL" (#7453)
+   - signmessage: also accept Trezor-type sigs for segwit addrs (#7668)
+   - network: make request timeout configurable (#7696)
+   - paytomany (onchain txout batching) now allows multiple max("!")
+     amounts with specified weights (#7492)
+ * Binary builds
+   - AppImage: changed base image from ubuntu 16.04 to 18.04 (5d0aa63a)
+ * migrated from Travis CI to Cirrus CI (#7431)
+ * Lots of other minor bugfixes and usability improvements.
+
+
 # Release 4.1.5 - (July 19, 2021)
  * Builds/binaries:
    - macOS: the .dmg binary should now be reproducible

@@ -60,7 +60,7 @@ from .lnpeer import channel_id_from_funding_tx
 from .plugin import run_hook
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
-from .invoices import LNInvoice
+from .invoices import Invoice
 from . import submarine_swaps
 
 
@@ -913,15 +913,9 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        req = wallet.make_payment_request(addr, amount, memo, expiration)
-        wallet.add_payment_request(req)
+        key = wallet.create_request(amount, memo, expiration, addr, True)
+        req = wallet.get_request(key)
         return wallet.export_request(req)
-
-    @command('wnl')
-    async def add_lightning_request(self, amount, memo='', expiration=3600, wallet: Abstract_Wallet = None):
-        amount_sat = int(satoshis(amount))
-        key = await wallet.lnworker._add_request_coro(amount_sat, memo, expiration)
-        return wallet.get_formatted_request(key)
 
     @command('w')
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
@@ -1066,7 +1060,7 @@ class Commands:
 
     @command('')
     async def decode_invoice(self, invoice: str):
-        invoice = LNInvoice.from_bech32(invoice)
+        invoice = Invoice.from_bech32(invoice)
         return invoice.to_debug_json()
 
     @command('wnl')
@@ -1074,7 +1068,7 @@ class Commands:
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
-        wallet.save_invoice(LNInvoice.from_bech32(invoice))
+        wallet.save_invoice(Invoice.from_bech32(invoice))
         success, log = await lnworker.pay_invoice(invoice, attempts=attempts)
         return {
             'payment_hash': payment_hash.hex(),

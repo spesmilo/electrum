@@ -476,8 +476,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
         elif exp_n is not None:
-            text = '%.2f MB'%(exp_n/1000000)
-            self.date_label.setText(_('Position in mempool: {} from tip').format(text))
+            text = "{}: {}".format(
+                _('Position in mempool'),
+                self.config.depth_tooltip(exp_n))
+            self.date_label.setText(text)
             self.date_label.show()
         else:
             self.date_label.hide()

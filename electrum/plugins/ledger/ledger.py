@@ -290,7 +290,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     @runs_in_hwd_thread
     @test_pin_unlocked
     @set_and_unset_signing
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
@@ -444,10 +444,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 else:
                     output = txout.address
 
-        self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
             # Get trusted inputs from the original transactions
-            for utxo in inputs:
+            for input_idx, utxo in enumerate(inputs):
+                self.handler.show_message(_("Preparing transaction inputs...")
+                                          + f" (phase1, {input_idx}/{len(inputs)})")
                 sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction and not client_electrum.supports_segwit_trustedInputs():
                     tmp = bfh(utxo[3])[::-1]
@@ -472,6 +473,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     chipInputs.append({'value' : tmp, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
 
+            self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
@@ -493,6 +495,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         raise UserWarning()
                     self.handler.show_message(_("Confirmed. Signing Transaction..."))
                 while inputIndex < len(inputs):
+                    self.handler.show_message(_("Signing transaction...")
+                                              + f" (phase2, {inputIndex}/{len(inputs)})")
                     singleInput = [chipInputs[inputIndex]]
                     client_ledger.startUntrustedTransaction(False, 0,
                                                             singleInput, redeemScripts[inputIndex], version=tx.version)
@@ -505,6 +509,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     inputIndex = inputIndex + 1
             else:
                 while inputIndex < len(inputs):
+                    self.handler.show_message(_("Signing transaction...")
+                                              + f" (phase2, {inputIndex}/{len(inputs)})")
                     client_ledger.startUntrustedTransaction(firstTransaction, inputIndex,
                                                                 chipInputs, redeemScripts[inputIndex], version=tx.version)
                     # we don't set meaningful outputAddress, amount and fees
@@ -588,7 +594,7 @@ class LedgerPlugin(HW_PluginBase):
                    (0x2c97, 0x0000), # Blue
                    (0x2c97, 0x0001), # Nano-S
                    (0x2c97, 0x0004), # Nano-X
-                   (0x2c97, 0x0005), # RFU
+                   (0x2c97, 0x0005), # Nano-S Plus
                    (0x2c97, 0x0006), # RFU
                    (0x2c97, 0x0007), # RFU
                    (0x2c97, 0x0008), # RFU
@@ -599,6 +605,7 @@ class LedgerPlugin(HW_PluginBase):
     LEDGER_MODEL_IDS = {
         0x10: "Ledger Nano S",
         0x40: "Ledger Nano X",
+        0x50: "Ledger Nano S Plus",
     }
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
@@ -639,6 +646,8 @@ class LedgerPlugin(HW_PluginBase):
                 return True, "Ledger Nano S"
             if product_key == (0x2c97, 0x0004):
                 return True, "Ledger Nano X"
+            if product_key == (0x2c97, 0x0005):
+                return True, "Ledger Nano S Plus"
             return True, None
         # modern product_keys
         if product_key[0] == 0x2c97:

@@ -3,7 +3,7 @@ import sys
 
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_address, is_private_key,
-                              var_int, _op_push, address_to_script,
+                              var_int, _op_push, address_to_script, OnchainOutputType, address_to_payload,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, EncodeBase58Check, DecodeBase58Check,
@@ -224,6 +224,25 @@ class Test_bitcoin(ElectrumTestCase):
         self.assertEqual(base64.b64encode(sig2), b'HyFaND+87TtVbRhkTfT3mPNBCQcJ32XXtNZGW8sFldJsNpOPCegEmdcCf5Thy18hdMH88GLxZLkOby/EwVUuSeA=')
         self.assertTrue(ecc.verify_message_with_address(addr2, sig2, msg))
         self.assertFalse(ecc.verify_message_with_address(addr2, sig2, b'heyheyhey'))
+
+    def test_signmessage_segwit_witness_v0_address_test_we_also_accept_sigs_from_trezor(self):
+        """Trezor and some other projects use a slightly different scheme for message-signing
+        with p2wpkh and p2wpkh-p2sh addresses. Test that we also accept signatures from them.
+        see #3861
+        tests from https://github.com/trezor/trezor-firmware/blob/2ce1e6ba7dbe5bbaeeb336fff0a038e59cb40ef8/tests/device_tests/bitcoin/test_signmessage.py#L39
+        """
+        msg = b"This is an example of a signed message."
+        addr1 = "3L6TyTisPBmrDAj6RoKmDzNnj4eQi54gD2"
+        addr2 = "bc1qannfxke2tfd4l7vhepehpvt05y83v3qsf6nfkk"
+        sig1 = bytes.fromhex("23744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2 = bytes.fromhex("28b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertTrue(ecc.verify_message_with_address(address=addr1, sig65=sig1, message=msg))
+        self.assertTrue(ecc.verify_message_with_address(address=addr2, sig65=sig2, message=msg))
+        # if there is type information in the header of the sig (first byte), enforce that:
+        sig1_wrongtype = bytes.fromhex("27744de4516fac5c140808015664516a32fead94de89775cec7e24dbc24fe133075ac09301c4cc8e197bea4b6481661d5b8e9bf19d8b7b8a382ecdb53c2ee0750d")
+        sig2_wrongtype = bytes.fromhex("24b55d7600d9e9a7e2a49155ddf3cfdb8e796c207faab833010fa41fb7828889bc47cf62348a7aaa0923c0832a589fab541e8f12eb54fb711c90e2307f0f66b194")
+        self.assertFalse(ecc.verify_message_with_address(address=addr1, sig65=sig1_wrongtype, message=msg))
+        self.assertFalse(ecc.verify_message_with_address(address=addr2, sig65=sig2_wrongtype, message=msg))
 
     @needs_test_with_all_aes_implementations
     def test_decrypt_message(self):
@@ -518,6 +537,32 @@ class Test_bitcoin(ElectrumTestCase):
         # base58 P2SH
         self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
+
+    def test_address_to_payload(self):
+        # bech32 P2WPKH
+        self.assertEqual(
+            address_to_payload('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'),
+            (OnchainOutputType.WITVER0_P2WPKH, bytes.fromhex('751e76e8199196d454941c45d1b3a323f1433bd6')))
+
+        # bech32 P2WSH
+        self.assertEqual(
+            address_to_payload('bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3'),
+            (OnchainOutputType.WITVER0_P2WSH, bytes.fromhex('1863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')))
+
+        # bech32m P2TR
+        self.assertEqual(
+            address_to_payload('bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr'),
+            (OnchainOutputType.WITVER1_P2TR, bytes.fromhex('a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c')))
+
+        # base58 P2PKH
+        self.assertEqual(
+            address_to_payload('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'),
+            (OnchainOutputType.P2PKH, bytes.fromhex('28662c67561b95c79d2257d2a93d9d151c977e91')))
+
+        # base58 P2SH
+        self.assertEqual(
+            address_to_payload('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'),
+            (OnchainOutputType.P2SH, bytes.fromhex('2a84cf00d47f699ee7bbc1dea5ec1bdecb4ac154')))
 
     def test_bech32_decode(self):
         # bech32 native segwit

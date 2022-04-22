@@ -50,6 +50,7 @@ class ContactList(MyTreeView):
     filter_columns = [Columns.NAME, Columns.ADDRESS]
 
     ROLE_CONTACT_KEY = Qt.UserRole + 1000
+    key_role = ROLE_CONTACT_KEY
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
@@ -58,6 +59,7 @@ class ContactList(MyTreeView):
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
+        self.std_model = self.model()
         self.update()
 
     def on_edited(self, idx, edit_key, *, text):
@@ -120,6 +122,10 @@ class ContactList(MyTreeView):
         self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
         self.filter()
         run_hook('update_contacts_tab', self)
+
+    def refresh_row(self, key):
+        # nothing to update here
+        pass
 
     def get_edit_key_from_coordinate(self, row, col):
         if col != self.Columns.NAME:
