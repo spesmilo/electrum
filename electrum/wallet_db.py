@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 45     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 46     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -194,6 +194,7 @@ class WalletDB(JsonDB):
         self._convert_version_43()
         self._convert_version_44()
         self._convert_version_45()
+        self._convert_version_46()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -907,6 +908,30 @@ class WalletDB(JsonDB):
                     'lightning_invoice':lightning_invoice,
                 }
         self.data['seed_version'] = 45
+
+    def _convert_version_46(self):
+        from .crypto import sha256d
+        if not self._is_upgrade_method_needed(45, 45):
+            return
+        # recalc keys of outgoing on-chain invoices
+        def get_id_from_onchain_outputs(raw_outputs, timestamp):
+            outputs = [PartialTxOutput.from_legacy_tuple(*output) for output in raw_outputs]
+            outputs_str = "\n".join(f"{txout.scriptpubkey.hex()}, {txout.value}" for txout in outputs)
+            return sha256d(outputs_str + "%d" % timestamp).hex()[0:10]
+
+        invoices = self.data.get('invoices', {})
+        for key, item in list(invoices.items()):
+            is_lightning = item['lightning_invoice'] is not None
+            if is_lightning:
+                continue
+            outputs_raw = item['outputs']
+            assert outputs_raw, outputs_raw
+            timestamp = item['time']
+            newkey = get_id_from_onchain_outputs(outputs_raw, timestamp)
+            if newkey != key:
+                invoices[newkey] = item
+                del invoices[key]
+        self.data['seed_version'] = 46
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
