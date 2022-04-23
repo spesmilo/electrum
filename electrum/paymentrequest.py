@@ -121,7 +121,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
 
 class PaymentRequest:
 
-    def __init__(self, data, *, error=None):
+    def __init__(self, data: bytes, *, error=None):
         self.raw = data
         self.error = error  # FIXME overloaded and also used when 'verify' succeeds
         self.parse(data)
@@ -131,7 +131,7 @@ class PaymentRequest:
     def __str__(self):
         return str(self.raw)
 
-    def parse(self, r):
+    def parse(self, r: bytes):
         self.outputs = []  # type: List[PartialTxOutput]
         if self.error:
             return

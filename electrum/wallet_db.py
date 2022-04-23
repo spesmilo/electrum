@@ -42,7 +42,6 @@ from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
 from .json_db import StoredDict, JsonDB, locked, modifier
 from .plugin import run_hook, plugin_loaders
-from .paymentrequest import PaymentRequest
 from .submarine_swaps import SwapData
 
 if TYPE_CHECKING:
@@ -559,6 +558,7 @@ class WalletDB(JsonDB):
         self.data['seed_version'] = 24
 
     def _convert_version_25(self):
+        from .crypto import sha256
         if not self._is_upgrade_method_needed(24, 24):
             return
         # add 'type' field to onchain requests
@@ -575,25 +575,15 @@ class WalletDB(JsonDB):
                     'time': r.get('time'),
                     'type': PR_TYPE_ONCHAIN,
                 }
-        # convert bip70 invoices
+        # delete bip70 invoices
+        # note: this upgrade was changed ~2 years after-the-fact to delete instead of converting
         invoices = self.data.get('invoices', {})
         for k, r in list(invoices.items()):
             data = r.get("hex")
-            if data:
-                pr = PaymentRequest(bytes.fromhex(data))
-                if pr.id != k:
-                    continue
-                invoices[k] = {
-                    'type': PR_TYPE_ONCHAIN,
-                    'amount': pr.get_amount(),
-                    'bip70': data,
-                    'exp': pr.get_expiration_date() - pr.get_time(),
-                    'id': pr.id,
-                    'message': pr.get_memo(),
-                    'outputs': [x.to_legacy_tuple() for x in pr.get_outputs()],
-                    'time': pr.get_time(),
-                    'requestor': pr.get_requestor(),
-                }
+            pr_id = sha256(bytes.fromhex(data))[0:16].hex()
+            if pr_id != k:
+                continue
+            del invoices[k]
         self.data['seed_version'] = 25
 
     def _convert_version_26(self):
