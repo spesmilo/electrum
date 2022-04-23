@@ -1287,6 +1287,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         # alphanumeric mode; resulting in smaller QR codes
         lnaddr_qr = lnaddr.upper()
         self.receive_address_e.setText(addr)
+        self.update_receive_address_styling()
         self.receive_address_qr.setData(addr)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
