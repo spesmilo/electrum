@@ -1195,7 +1195,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             e.addCopyButton(self.app)
             e.setReadOnly(True)
             e.setFixedSize(fixedSize, fixedSize)
-            e.addButton(qr_icon, self.toggle_receive_qr, _("Show as QR code"))
 
         self.receive_address_qr = QRCodeWidget(fixedSize=fixedSize)
         self.receive_URI_qr = QRCodeWidget(fixedSize=fixedSize)
@@ -1226,6 +1225,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
+        self.receive_tabs.setToolTip(_('Click tabs to switch between text and QR code view'))
         def on_current_changed(index):
             self.update_receive_qr_window()
         def on_tab_bar_clicked(index):
