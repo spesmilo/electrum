@@ -138,7 +138,7 @@ class Invoice(StoredObject):
         # 0 means never
         return self.exp + self.time if self.exp else 0
 
-    def get_amount_msat(self):
+    def get_amount_msat(self) -> Union[int, str, None]:
         return self.amount_msat
 
     def get_time(self):
@@ -147,15 +147,15 @@ class Invoice(StoredObject):
     def get_message(self):
         return self.message
 
-    def get_amount_sat(self) -> Union[int, str]:
+    def get_amount_sat(self) -> Union[int, str, None]:
         """
         Returns an integer satoshi amount, or '!' or None.
         Callers who need msat precision should call get_amount_msat()
         """
         amount_msat = self.amount_msat
-        if amount_msat is None:
-            return None
-        return int(amount_msat / 1000)
+        if amount_msat in [None, "!"]:
+            return amount_msat
+        return int(amount_msat // 1000)
 
     def get_bip21_URI(self, lightning=None):
         from electrum.util import create_bip21_uri

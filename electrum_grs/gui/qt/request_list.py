@@ -118,7 +118,6 @@ class RequestList(MyTreeView):
 
     def update(self):
         # not calling maybe_defer_update() as it interferes with conditional-visibility
-        self.parent.update_receive_address_styling()
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
