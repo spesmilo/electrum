@@ -893,9 +893,10 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            tx_height = self.lnwatcher.get_tx_height(swap.funding_txid)
-            if swap.is_reverse and tx_height.height <=0:
-                label += ' (%s)' % _('waiting for funding tx confirmation')
+            if self.lnwatcher:
+                tx_height = self.lnwatcher.get_tx_height(swap.funding_txid)
+                if swap.is_reverse and tx_height.height <= 0:
+                    label += ' (%s)' % _('waiting for funding tx confirmation')
             if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                 label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
@@ -1773,6 +1774,7 @@ class LNWallet(LNWorker):
             write_to_disk: bool = True,
     ) -> Tuple[LnAddr, str]:
 
+        assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
         routing_hints = self.calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
@@ -1815,7 +1817,7 @@ class LNWallet(LNWorker):
 
     def add_request(self, amount_sat: Optional[int], message:str, expiry: int, fallback_address:str) -> str:
         # passed expiry is relative, it is absolute in the lightning invoice
-        amount_msat = amount_sat * 1000 if amount_sat is not None else None
+        amount_msat = amount_sat * 1000 if amount_sat else None
         timestamp = int(time.time())
         lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
@@ -1916,7 +1918,8 @@ class LNWallet(LNWorker):
             return
         if info is None and status == PR_SCHEDULED:
             # we should add a htlc to our ctx, so that the funds are 'reserved'
-            info = PaymentInfo(payment_hash, 0, SENT, PR_SCHEDULED)
+            # Note: info.amount will be added by pay_invoice
+            info = PaymentInfo(payment_hash, None, SENT, PR_SCHEDULED)
         info = info._replace(status=status)
         self.save_payment_info(info)
 
