@@ -1924,7 +1924,9 @@ class LNWallet(LNWorker):
     def set_request_status(self, payment_hash: bytes, status: int) -> None:
         if self.get_payment_status(payment_hash) != status:
             self.set_payment_status(payment_hash, status)
-            util.trigger_callback('request_status', self.wallet, payment_hash.hex(), status)
+            for key, req in self.wallet.receive_requests.items():
+                if req.is_lightning() and req.rhash == payment_hash.hex():
+                    util.trigger_callback('request_status', self.wallet, key, status)
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
