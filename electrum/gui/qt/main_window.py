@@ -1736,6 +1736,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if status == PR_PAID:
             self.notify(_('Payment received') + '\n' + key)
             self.request_list.delete_item(key)
+            self.receive_tabs.setVisible(False)
             self.need_update.set()
         else:
             self.request_list.refresh_item(key)
@@ -1754,7 +1755,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def on_payment_succeeded(self, wallet, key):
         description = self.wallet.get_label(key)
-        self.notify(_('Payment succeeded') + '\n\n' + description)
+        self.notify(_('Payment sent') + '\n\n' + description)
         self.need_update.set()
 
     def on_payment_failed(self, wallet, key, reason):
