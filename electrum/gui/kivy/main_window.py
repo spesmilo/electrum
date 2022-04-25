@@ -1461,7 +1461,7 @@ class ElectrumWindow(App, Logger):
             else:
                 msg = _(
                     "Warning: this wallet type does not support channel recovery from seed. "
-                    "You will need to backup your wallet everytime you create a new wallet. "
+                    "You will need to backup your wallet everytime you create a new channel. "
                     "Create lightning keys?")
             d = Question(msg, self._enable_lightning, title=_('Enable Lightning?'))
             d.open()
