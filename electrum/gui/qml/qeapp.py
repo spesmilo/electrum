@@ -5,7 +5,7 @@ import os
 
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
-from PyQt5.QtQml import qmlRegisterType, QQmlApplicationEngine
+from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
 from electrum.logging import Logger, get_logger
 from electrum import version
@@ -20,6 +20,7 @@ from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer
 from .qeinvoice import QEInvoice
+from .qetypes import QEAmount
 
 notification = None
 
@@ -117,6 +118,8 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEFX, 'org.electrum', 1, 0, 'FX')
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
         qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
+
+        qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')

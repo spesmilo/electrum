@@ -6,6 +6,8 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
 
+from .qetypes import QEAmount
+
 class QETransactionListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
@@ -36,6 +38,8 @@ class QETransactionListModel(QAbstractListModel):
             return value
         if isinstance(value, Satoshis):
             return value.value
+        if isinstance(value, QEAmount):
+            return value
         return str(value)
 
     def clear(self):
@@ -47,6 +51,9 @@ class QETransactionListModel(QAbstractListModel):
         item = tx
         for output in item['outputs']:
             output['value'] = output['value'].value
+
+        item['bc_value'] = QEAmount(amount_sat=item['bc_value'].value)
+        item['bc_balance'] = QEAmount(amount_sat=item['bc_balance'].value)
 
         # newly arriving txs have no (block) timestamp
         # TODO?

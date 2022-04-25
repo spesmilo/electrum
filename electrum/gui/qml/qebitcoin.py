@@ -10,6 +10,8 @@ from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum import mnemonic
 from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI
 
+from .qetypes import QEAmount
+
 class QEBitcoin(QObject):
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -121,11 +123,11 @@ class QEBitcoin(QObject):
         except InvalidBitcoinURI as e:
             return { 'error': str(e) }
 
-    @pyqtSlot(str, 'qint64', str, int, int, result=str)
+    @pyqtSlot(str, QEAmount, str, int, int, result=str)
     def create_uri(self, address, satoshis, message, timestamp, expiry):
         extra_params = {}
         if expiry:
             extra_params['time'] = str(timestamp)
             extra_params['exp'] = str(expiry)
 
-        return create_bip21_uri(address, satoshis, message, extra_query_params=extra_params)
+        return create_bip21_uri(address, satoshis.satsInt, message, extra_query_params=extra_params)

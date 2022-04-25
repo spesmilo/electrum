@@ -213,7 +213,12 @@ Pane {
                 model: DelegateModel {
                     id: delegateModel
                     model: Daemon.currentWallet.invoiceModel
-                    delegate: InvoiceDelegate {}
+                    delegate: InvoiceDelegate {
+                        onClicked: {
+                            var dialog = confirmInvoiceDialog.createObject(app, {'invoice' : invoice, 'invoice_key': model.key})
+                            dialog.open()
+                        }
+                    }
                 }
 
                 remove: Transition {
@@ -288,9 +293,7 @@ Pane {
                 // and maybe store invoice if expiry allows
             }
         }
-        onInvoiceTypeChanged: {
-            if (invoiceType == Invoice.Invalid)
-                return
+        onValidationSuccess: {
             // address only -> fill form fields
             // else -> show invoice confirmation dialog
             if (invoiceType == Invoice.OnchainOnlyAddress)

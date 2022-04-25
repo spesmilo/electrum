@@ -11,6 +11,7 @@ Dialog {
     id: dialog
 
     property Invoice invoice
+    property string invoice_key
 
     width: parent.width
     height: parent.height
@@ -84,9 +85,20 @@ Dialog {
             }
         }
 
+        Label {
+            text: qsTr('Expiration')
+            visible: true
+        }
+
+        Label {
+            id: expiration
+            text: invoice.time + invoice.expiration
+        }
+
         RowLayout {
             Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
+            Layout.fillHeight: true
             spacing: constants.paddingMedium
 
             Button {
@@ -115,4 +127,9 @@ Dialog {
 
     }
 
+    Component.onCompleted: {
+        if (invoice_key != '') {
+            invoice.initFromKey(invoice_key)
+        }
+    }
 }

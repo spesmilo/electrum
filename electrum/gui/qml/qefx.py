@@ -9,6 +9,8 @@ from electrum.simple_config import SimpleConfig
 from electrum.util import register_callback
 from electrum.bitcoin import COIN
 
+from .qetypes import QEAmount
+
 class QEFX(QObject):
     def __init__(self, fxthread: FxThread, config: SimpleConfig, parent=None):
         super().__init__(parent)
@@ -88,25 +90,40 @@ class QEFX(QObject):
 
     @pyqtSlot(str, result=str)
     @pyqtSlot(str, bool, result=str)
+    @pyqtSlot(QEAmount, result=str)
+    @pyqtSlot(QEAmount, bool, result=str)
     def fiatValue(self, satoshis, plain=True):
         rate = self.fx.exchange_rate()
-        try:
-            sd = Decimal(satoshis)
-            if sd == 0:
+        if isinstance(satoshis, QEAmount):
+            satoshis = satoshis.satsInt
+        else:
+            try:
+                sd = Decimal(satoshis)
+                if sd == 0:
+                    return ''
+            except:
                 return ''
-        except:
-            return ''
         if plain:
             return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), False)
         else:
             return self.fx.value_str(satoshis, rate)
 
     @pyqtSlot(str, str, result=str)
+    @pyqtSlot(str, str, bool, result=str)
+    @pyqtSlot(QEAmount, str, result=str)
+    @pyqtSlot(QEAmount, str, bool, result=str)
     def fiatValueHistoric(self, satoshis, timestamp, plain=True):
-        try:
-            sd = Decimal(satoshis)
-            if sd == 0:
+        if isinstance(satoshis, QEAmount):
+            satoshis = satoshis.satsInt
+        else:
+            try:
+                sd = Decimal(satoshis)
+                if sd == 0:
+                    return ''
+            except:
                 return ''
+
+        try:
             td = Decimal(timestamp)
             if td == 0:
                 return ''

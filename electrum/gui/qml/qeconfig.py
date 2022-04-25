@@ -5,6 +5,8 @@ from decimal import Decimal
 from electrum.logging import get_logger
 from electrum.util import DECIMAL_POINT_DEFAULT
 
+from .qetypes import QEAmount
+
 class QEConfig(QObject):
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -70,7 +72,11 @@ class QEConfig(QObject):
 
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
+    @pyqtSlot(QEAmount, result=str)
+    @pyqtSlot(QEAmount, bool, result=str)
     def formatSats(self, satoshis, with_unit=False):
+        if isinstance(satoshis, QEAmount):
+            satoshis = satoshis.satsInt
         if with_unit:
             return self.config.format_amount_and_units(satoshis)
         else:
@@ -85,11 +91,11 @@ class QEConfig(QObject):
 
     @pyqtSlot(str, result='qint64')
     def unitsToSats(self, unitAmount):
-        # returns amt in satoshis
         try:
             x = Decimal(unitAmount)
         except:
             return 0
+
         # scale it to max allowed precision, make it an int
         max_prec_amount = int(pow(10, self.max_precision()) * x)
         # if the max precision is simply what unit conversion allows, just return

@@ -7,6 +7,8 @@ from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
 from electrum.invoices import Invoice
 
+from .qetypes import QEAmount
+
 class QEAbstractInvoiceListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
@@ -35,6 +37,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
             return value
         if isinstance(value, Satoshis):
             return value.value
+        if isinstance(value, QEAmount):
+            return value
         return str(value)
 
     def clear(self):
@@ -111,7 +115,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel):
         item = self.wallet.export_invoice(invoice)
         item['type'] = invoice.type # 0=onchain, 2=LN
         item['date'] = format_time(item['timestamp'])
-        item['amount'] = invoice.get_amount_sat()
+        item['amount'] = QEAmount(amount_sat=invoice.get_amount_sat())
         if invoice.type == 0:
             item['key'] = invoice.id
         elif invoice.type == 2:
@@ -136,7 +140,7 @@ class QERequestListModel(QEAbstractInvoiceListModel):
         item['key'] = self.wallet.get_key_for_receive_request(req)
         item['type'] = req.type # 0=onchain, 2=LN
         item['date'] = format_time(item['timestamp'])
-        item['amount'] = req.get_amount_sat()
+        item['amount'] = QEAmount(amount_sat=req.get_amount_sat())
 
         return item
 
