@@ -2608,7 +2608,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             msg = _(
                 "Warning: this wallet type does not support channel recovery from seed. "
-                "You will need to backup your wallet everytime you create a new wallet. "
+                "You will need to backup your wallet everytime you create a new channel. "
                 "Create lightning keys?")
         if self.question(msg):
             self._init_lightning_dialog(dialog=dialog)
