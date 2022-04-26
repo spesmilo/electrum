@@ -13,6 +13,8 @@ Dialog {
     property Invoice invoice
     property string invoice_key
 
+    signal doPay
+
     width: parent.width
     height: parent.height
 
@@ -57,6 +59,9 @@ Dialog {
         Label {
             text: invoice.message
             Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            maximumLineCount: 4
+            elide: Text.ElideRight
         }
 
         Label {
@@ -93,10 +98,11 @@ Dialog {
             text: invoice.status_str
         }
 
+        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+
         RowLayout {
             Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
-            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignHCenter
             spacing: constants.paddingMedium
 
             Button {
@@ -117,7 +123,11 @@ Dialog {
                 text: qsTr('Pay now')
                 enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
                 onClicked: {
-                    console.log('pay now')
+                    invoice.save_invoice()
+                    dialog.close()
+                    if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                        doPay() // only signal here
+                    }
                 }
             }
         }

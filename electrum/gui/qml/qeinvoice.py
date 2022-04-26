@@ -117,8 +117,8 @@ class QEInvoice(QObject):
     @pyqtProperty(int, notify=statusChanged)
     def status(self):
         if not self._effectiveInvoice:
-            return ''
-        status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
+            return PR_UNKNOWN
+        return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
 
     @pyqtProperty(str, notify=statusChanged)
     def status_str(self):
@@ -126,6 +126,11 @@ class QEInvoice(QObject):
             return ''
         status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
         return self._effectiveInvoice.get_status_str(status)
+
+    # single address only, TODO: n outputs
+    @pyqtProperty(str, notify=invoiceChanged)
+    def address(self):
+        return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
     @pyqtSlot()
     def clear(self):

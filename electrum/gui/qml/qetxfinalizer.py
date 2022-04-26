@@ -18,7 +18,7 @@ class QETxFinalizer(QObject):
 
     _address = ''
     _amount = QEAmount()
-    _fee = ''
+    _fee = QEAmount()
     _feeRate = ''
     _wallet = None
     _valid = False
@@ -66,12 +66,12 @@ class QETxFinalizer(QObject):
     @amount.setter
     def amount(self, amount):
         if self._amount != amount:
-            self._logger.info('amount = "%s"' % repr(amount))
+            self._logger.debug(str(amount))
             self._amount = amount
             self.amountChanged.emit()
 
     feeChanged = pyqtSignal()
-    @pyqtProperty(str, notify=feeChanged)
+    @pyqtProperty(QEAmount, notify=feeChanged)
     def fee(self):
         return self._fee
 
@@ -211,9 +211,10 @@ class QETxFinalizer(QObject):
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte
 
-        self.fee = str(fee)
+        self.fee = QEAmount(amount_sat=fee)
         self.feeRate = f'{feerate:.1f}'
 
+        #TODO
         #x_fee = run_hook('get_tx_extra_fee', self._wallet.wallet, tx)
         fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
             invoice_amt=amount, tx_size=tx_size, fee=fee)

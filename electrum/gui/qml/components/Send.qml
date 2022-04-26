@@ -157,10 +157,9 @@ Pane {
                     var f_amount = parseFloat(amount.text)
                     if (isNaN(f_amount))
                         return
-                    var sats = Config.unitsToSats(amount.text).toString()
                     var dialog = confirmPaymentDialog.createObject(app, {
                         'address': recipient.text,
-                        'satoshis': sats,
+                        'satoshis': Config.unitsToSats(amount.text),
                         'message': message.text
                     })
                     dialog.open()
@@ -244,7 +243,18 @@ Pane {
 
     Component {
         id: confirmInvoiceDialog
-        ConfirmInvoiceDialog {}
+        ConfirmInvoiceDialog {
+            onDoPay: {
+                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                    var dialog = confirmPaymentDialog.createObject(rootItem, {
+                            'address': invoice.address,
+                            'satoshis': invoice.amount,
+                            'message': invoice.message
+                    })
+                    dialog.open()
+                }
+            }
+        }
     }
 
     Connections {

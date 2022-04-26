@@ -44,7 +44,6 @@ class QEAmount(QObject):
         return self._is_max
 
     def __eq__(self, other):
-        self._logger.debug('__eq__')
         if isinstance(other, QEAmount):
             return self._amount_sat == other._amount_sat and self._amount_msat == other._amount_msat and self._is_max == other._is_max
         elif isinstance(other, int):
@@ -53,3 +52,9 @@ class QEAmount(QObject):
             return self.satsStr == other
 
         return False
+
+    def __str__(self):
+        s = _('Amount')
+        if self._is_max:
+            return '%s(MAX)' % s
+        return '%s(sats=%d, msats=%d)' % (s, self._amount_sat, self._amount_msat)

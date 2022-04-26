@@ -164,6 +164,8 @@ Dialog {
             color: Material.accentColor
         }
 
+        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+
         RowLayout {
             Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
@@ -184,12 +186,11 @@ Dialog {
                 }
             }
         }
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
     }
 
     TxFinalizer {
         id: finalizer
         wallet: Daemon.currentWallet
-        onAmountChanged: console.log(amount)
+        onAmountChanged: console.log(amount.satsInt)
     }
 }
