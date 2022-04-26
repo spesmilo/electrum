@@ -97,6 +97,7 @@ class MockBlockchain:
 
 
 class MockWallet:
+    receive_requests = {}
 
     def set_label(self, x, y):
         pass
