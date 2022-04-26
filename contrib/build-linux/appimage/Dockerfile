@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -q && \
     apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.10 \
+        git=1:2.17.1-1ubuntu0.11 \
         wget=1.19.4-1ubuntu2.2 \
         make=4.1-9.1ubuntu1 \
         autotools-dev=20180224.1 \
