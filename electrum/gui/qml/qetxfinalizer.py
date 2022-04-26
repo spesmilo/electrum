@@ -8,6 +8,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.util import NotEnoughFunds, profiler
 
 from .qewallet import QEWallet
+from .qetypes import QEAmount
 
 class QETxFinalizer(QObject):
     def __init__(self, parent=None):
@@ -16,7 +17,7 @@ class QETxFinalizer(QObject):
     _logger = get_logger(__name__)
 
     _address = ''
-    _amount = ''
+    _amount = QEAmount()
     _fee = ''
     _feeRate = ''
     _wallet = None
@@ -58,14 +59,14 @@ class QETxFinalizer(QObject):
             self.addressChanged.emit()
 
     amountChanged = pyqtSignal()
-    @pyqtProperty(str, notify=amountChanged)
+    @pyqtProperty(QEAmount, notify=amountChanged)
     def amount(self):
         return self._amount
 
     @amount.setter
     def amount(self, amount):
         if self._amount != amount:
-            self._logger.info('amount = "%s"' % amount)
+            self._logger.info('amount = "%s"' % repr(amount))
             self._amount = amount
             self.amountChanged.emit()
 
@@ -181,7 +182,7 @@ class QETxFinalizer(QObject):
     @profiler
     def make_tx(self, rbf: bool):
         coins = self._wallet.wallet.get_spendable_coins(None)
-        outputs = [PartialTxOutput.from_address_and_value(self.address, int(self.amount))]
+        outputs = [PartialTxOutput.from_address_and_value(self.address, self._amount.satsInt)]
         tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
         return tx
@@ -204,7 +205,8 @@ class QETxFinalizer(QObject):
             self.validChanged.emit()
             return
 
-        amount = int(self.amount) if self.amount != '!' else tx.output_value()
+        amount = self._amount.satsInt if not self._amount.isMax else tx.output_value()
+
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte

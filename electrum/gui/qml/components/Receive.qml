@@ -43,12 +43,12 @@ Pane {
             placeholderText: qsTr('Amount')
             inputMethodHints: Qt.ImhPreferNumbers
 
-            property string textAsSats
+            property Amount textAsSats
             onTextChanged: {
                 textAsSats = Config.unitsToSats(amount.text)
                 if (amountFiat.activeFocus)
                     return
-                amountFiat.text = Daemon.fx.fiatValue(amount.textAsSats)
+                amountFiat.text = text == '' ? '' : Daemon.fx.fiatValue(amount.textAsSats)
             }
 
             Connections {
@@ -109,7 +109,7 @@ Pane {
                     expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
                     expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
                     expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
-                    expiresmodel.append({'text': qsTr('1 month'), 'value': 31*7*24*60*60})
+                    expiresmodel.append({'text': qsTr('1 month'), 'value': 31*24*60*60})
                     expiresmodel.append({'text': qsTr('Never'), 'value': 0})
                     expires.currentIndex = 0
                 }

@@ -77,7 +77,7 @@ Pane {
             placeholderText: qsTr('Amount')
             Layout.preferredWidth: parent.width /2
             inputMethodHints: Qt.ImhPreferNumbers
-            property string textAsSats
+            property Amount textAsSats
             onTextChanged: {
                 textAsSats = Config.unitsToSats(amount.text)
                 if (amountFiat.activeFocus)

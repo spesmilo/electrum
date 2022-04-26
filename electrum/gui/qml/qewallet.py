@@ -16,6 +16,7 @@ from electrum.invoices import   (Invoice, InvoiceError, PR_TYPE_ONCHAIN, PR_TYPE
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
+from .qetypes import QEAmount
 
 class QEWallet(QObject):
     __instances = []
@@ -318,10 +319,10 @@ class QEWallet(QObject):
         self._requestModel.add_invoice(req)
         return addr
 
-    @pyqtSlot('quint64', 'QString', int)
-    @pyqtSlot('quint64', 'QString', int, bool)
-    @pyqtSlot('quint64', 'QString', int, bool, bool)
-    def create_request(self, amount: int, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
+    @pyqtSlot(QEAmount, 'QString', int)
+    @pyqtSlot(QEAmount, 'QString', int, bool)
+    @pyqtSlot(QEAmount, 'QString', int, bool, bool)
+    def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         expiry = expiration #TODO: self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
             if is_lightning:
@@ -329,9 +330,9 @@ class QEWallet(QObject):
                     self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
                     return
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-                key = self.wallet.lnworker.add_request(amount, message, expiry)
+                key = self.wallet.lnworker.add_request(amount.satsInt, message, expiry)
             else:
-                key = self.create_bitcoin_request(amount, message, expiry, ignore_gap)
+                key = self.create_bitcoin_request(amount.satsInt, message, expiry, ignore_gap)
                 if not key:
                     return
                 self._addressModel.init_model()

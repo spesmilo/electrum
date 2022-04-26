@@ -89,23 +89,25 @@ class QEConfig(QObject):
     def max_precision(self):
         return self.decimal_point() + 0 #self.extra_precision
 
-    @pyqtSlot(str, result='qint64')
+    @pyqtSlot(str, result=QEAmount)
     def unitsToSats(self, unitAmount):
+        self._amount = QEAmount()
         try:
             x = Decimal(unitAmount)
         except:
-            return 0
+            return self._amount
 
         # scale it to max allowed precision, make it an int
         max_prec_amount = int(pow(10, self.max_precision()) * x)
         # if the max precision is simply what unit conversion allows, just return
         if self.max_precision() == self.decimal_point():
-            return max_prec_amount
+            self._amount = QEAmount(amount_sat=max_prec_amount)
+            return self._amount
         self._logger.debug('fallthrough')
         # otherwise, scale it back to the expected unit
         #amount = Decimal(max_prec_amount) / Decimal(pow(10, self.max_precision()-self.decimal_point()))
         #return int(amount) #Decimal(amount) if not self.is_int else int(amount)
-        return 0
+        return self._amount
 
     @pyqtSlot('quint64', result=float)
     def satsToUnits(self, satoshis):
