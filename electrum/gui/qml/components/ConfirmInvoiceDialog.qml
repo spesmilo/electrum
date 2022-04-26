@@ -86,13 +86,11 @@ Dialog {
         }
 
         Label {
-            text: qsTr('Expiration')
-            visible: true
+            text: qsTr('Status')
         }
 
         Label {
-            id: expiration
-            text: invoice.time + invoice.expiration
+            text: invoice.status_str
         }
 
         RowLayout {
@@ -108,7 +106,6 @@ Dialog {
 
             Button {
                 text: qsTr('Save')
-//                 enabled: invoice.invoiceType != Invoice.Invalid
                 enabled: invoice.invoiceType == Invoice.OnchainInvoice
                 onClicked: {
                     invoice.save_invoice()

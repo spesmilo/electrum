@@ -279,8 +279,6 @@ Pane {
                 // no popups when editing
                 return
             }
-            console.log(code + ' ' + message)
-
             var dialog = app.messageDialog.createObject(app, {'text': message })
             dialog.open()
             rootItem.clear()

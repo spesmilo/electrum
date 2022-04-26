@@ -9,6 +9,8 @@ from electrum.keystore import bip39_is_checksum_valid
 from electrum.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_bolt11_invoice)
 from electrum.invoices import Invoice, OnchainInvoice, LNInvoice
+from electrum.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
+                               PR_FAILED,PR_ROUTING,PR_UNCONFIRMED)
 from electrum.transaction import PartialTxOutput
 
 from .qewallet import QEWallet
@@ -25,7 +27,18 @@ class QEInvoice(QObject):
         LightningInvoice = 2
         LightningAndOnchainInvoice = 3
 
+    class Status:
+        Unpaid = PR_UNPAID
+        Expired = PR_EXPIRED
+        Unknown = PR_UNKNOWN
+        Paid = PR_PAID
+        Inflight = PR_INFLIGHT
+        Failed = PR_FAILED
+        Routing = PR_ROUTING
+        Unconfirmed = PR_UNCONFIRMED
+
     Q_ENUMS(Type)
+    Q_ENUMS(Status)
 
     _wallet = None
     _invoiceType = Type.Invalid
@@ -83,7 +96,7 @@ class QEInvoice(QObject):
     @pyqtProperty(QEAmount, notify=invoiceChanged)
     def amount(self):
         # store ref to QEAmount on instance, otherwise we get destroyed when going out of scope
-        self._amount = QEAmount() #
+        self._amount = QEAmount()
         if not self._effectiveInvoice:
             return self._amount
         sats = self._effectiveInvoice.get_amount_sat()
@@ -99,6 +112,20 @@ class QEInvoice(QObject):
     @pyqtProperty('quint64', notify=invoiceChanged)
     def time(self):
         return self._effectiveInvoice.time if self._effectiveInvoice else 0
+
+    statusChanged = pyqtSignal()
+    @pyqtProperty(int, notify=statusChanged)
+    def status(self):
+        if not self._effectiveInvoice:
+            return ''
+        status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
+
+    @pyqtProperty(str, notify=statusChanged)
+    def status_str(self):
+        if not self._effectiveInvoice:
+            return ''
+        status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
+        return self._effectiveInvoice.get_status_str(status)
 
     @pyqtSlot()
     def clear(self):
@@ -124,6 +151,7 @@ class QEInvoice(QObject):
         else:
             self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
         self.invoiceChanged.emit()
+        self.statusChanged.emit()
 
     def setValidAddressOnly(self):
         self._logger.debug('setValidAddressOnly')
@@ -226,8 +254,8 @@ class QEInvoice(QObject):
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
         self.invoiceSaved.emit()
 
-    @pyqtSlot(str, 'quint64', str)
-    def create_invoice(self, address: str, amount: int, message: str):
+    @pyqtSlot(str, QEAmount, str)
+    def create_invoice(self, address: str, amount: QEAmount, message: str):
         # create onchain invoice from user entered fields
         # (any other type of invoice is created from parsing recipient)
         self._logger.debug('saving invoice to %s' % address)
