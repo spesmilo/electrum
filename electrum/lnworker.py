@@ -266,7 +266,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
-                await group.spawn(self._maintain_connectivity())
+                await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
@@ -516,9 +516,13 @@ class LNGossip(LNWorker):
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
-        assert network
         super().start_network(network)
-        asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
+        for coro in [
+                self._maintain_connectivity(),
+                self.maintain_db(),
+        ]:
+            tg_coro = self.taskgroup.spawn(coro)
+            asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
 
     async def maintain_db(self):
         await self.channel_db.data_loaded.wait()
@@ -727,9 +731,7 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
-        assert network
-        self.network = network
-        self.config = network.config
+        super().start_network(network)
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
