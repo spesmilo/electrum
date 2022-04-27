@@ -51,6 +51,7 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
+from . import GuiImportError
 
 if TYPE_CHECKING:
     from electrum import gui
@@ -622,7 +623,10 @@ class Daemon(Logger):
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')
         try:
-            gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
+            try:
+                gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
+            except GuiImportError as e:
+                sys.exit(str(e))
             self.gui_object = gui.ElectrumGui(config=config, daemon=self, plugins=plugins)
             if not self._stop_entered:
                 self.gui_object.main()

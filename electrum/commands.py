@@ -38,6 +38,7 @@ from functools import wraps, partial
 from itertools import repeat
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Dict, List
+import os
 
 from .import util, ecc
 from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
@@ -57,11 +58,13 @@ from .lnutil import SENT, RECEIVED
 from .lnutil import LnFeatures
 from .lnutil import extract_nodeid
 from .lnpeer import channel_id_from_funding_tx
-from .plugin import run_hook
+from .plugin import run_hook, DeviceMgr
 from .version import ELECTRUM_VERSION
 from .simple_config import SimpleConfig
 from .invoices import Invoice
 from . import submarine_swaps
+from . import GuiImportError
+from . import crypto
 
 
 if TYPE_CHECKING:
@@ -546,8 +549,44 @@ class Commands:
     @command('')
     async def version(self):
         """Return the version of Electrum."""
-        from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
+
+    @command('')
+    async def version_info(self):
+        """Return information about dependencies, such as their version and path."""
+        ret = {
+            "electrum.version": ELECTRUM_VERSION,
+            "electrum.path": os.path.dirname(os.path.realpath(__file__)),
+        }
+        # add currently running GUI
+        if self.daemon and self.daemon.gui_object:
+            ret.update(self.daemon.gui_object.version_info())
+        # always add Qt GUI, so we get info even when running this from CLI
+        try:
+            from .gui.qt import ElectrumGui as QtElectrumGui
+            ret.update(QtElectrumGui.version_info())
+        except GuiImportError:
+            pass
+        # Add shared libs (.so/.dll), and non-pure-python dependencies.
+        # Such deps can be installed in various ways - often via the Linux distro's pkg manager,
+        # instead of using pip, hence it is useful to list them for debugging.
+        from . import ecc_fast
+        ret.update(ecc_fast.version_info())
+        from . import qrscanner
+        ret.update(qrscanner.version_info())
+        ret.update(DeviceMgr.version_info())
+        ret.update(crypto.version_info())
+        # add some special cases
+        import aiohttp
+        ret["aiohttp.version"] = aiohttp.__version__
+        import aiorpcx
+        ret["aiorpcx.version"] = aiorpcx._version_str
+        import certifi
+        ret["certifi.version"] = certifi.__version__
+        import dns
+        ret["dnspython.version"] = dns.__version__
+
+        return ret
 
     @command('w')
     async def getmpk(self, wallet: Abstract_Wallet = None):
