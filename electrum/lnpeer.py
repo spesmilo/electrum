@@ -208,7 +208,8 @@ class Peer(Logger):
             if message_type not in ('error', 'warning') and 'channel_id' in payload:
                 chan = self.get_channel_by_id(payload['channel_id'])
                 if chan is None:
-                    raise Exception('Got unknown '+ message_type)
+                    self.logger.info(f"Received {message_type} for unknown channel {payload['channel_id'].hex()}")
+                    return
                 args = (chan, payload)
             else:
                 args = (payload,)
