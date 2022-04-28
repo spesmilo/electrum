@@ -2100,6 +2100,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         tmp_tx = copy.deepcopy(tx)
         tmp_tx.add_info_from_wallet(self, include_xpubs=True)
         # sign. start with ready keystores.
+        # note: ks.ready_to_sign() side-effect: we trigger pairings with potential hw devices.
+        #       We only do this once, before the loop, however we could rescan after each iteration,
+        #       to see if the user connected/disconnected devices in the meantime.
         for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
                 if k.can_sign(tmp_tx):
