@@ -632,7 +632,7 @@ class DeviceMgr(ThreadJob):
             if not allow_user_interaction:
                 raise CannotAutoSelectDevice()
             msg = _('Please insert your {}').format(plugin.device)
-            if keystore.label:
+            if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
                 msg += ' ({})'.format(keystore.label)
             msg += '. {}\n\n{}'.format(
                 _('Verify the cable is connected and that '
@@ -671,7 +671,12 @@ class DeviceMgr(ThreadJob):
         if not allow_user_interaction:
             raise CannotAutoSelectDevice()
         # ask user to select device manually
-        msg = _("Please select which {} device to use:").format(plugin.device)
+        msg = ""
+        if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
+            msg += _(
+                """Could not automatically pair with device """
+                """for keystore labelled "{}".\n""").format(keystore.label)
+        msg += _("Please select which {} device to use:").format(plugin.device)
         descriptions = ["{label} ({maybe_model}{init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),
