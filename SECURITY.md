@@ -2,8 +2,6 @@
 
 ## Reporting a Vulnerability
 
-To report security issues send an email to electrumdev@gmail.com.
-
 The following keys may be used to communicate sensitive information to developers:
 
 | Name | Email | Fingerprint |
