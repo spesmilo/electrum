@@ -476,7 +476,7 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
 
-def match_script_against_template(script, template) -> bool:
+def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""
     if script is None:
         return False
@@ -485,8 +485,14 @@ def match_script_against_template(script, template) -> bool:
         try:
             script = [x for x in script_GetOp(script)]
         except MalformedBitcoinScript:
+            if debug:
+                _logger.debug(f"malformed script")
             return False
+    if debug:
+        _logger.debug(f"match script against template: {script}")
     if len(script) != len(template):
+        if debug:
+            _logger.debug(f"length mismatch {len(script)} != {len(template)}")
         return False
     for i in range(len(script)):
         template_item = template[i]
@@ -496,6 +502,8 @@ def match_script_against_template(script, template) -> bool:
         if OPGeneric.is_instance(template_item) and template_item.match(script_item[0]):
             continue
         if template_item != script_item[0]:
+            if debug:
+                _logger.debug(f"item mismatch at position {i}: {template_item} != {script_item[0]}")
             return False
     return True
 

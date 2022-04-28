@@ -24,7 +24,8 @@ from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
 from .bip32 import BIP32Node, BIP32_PRIME
-from .transaction import BCDataStream
+from .transaction import BCDataStream, OPPushDataGeneric
+
 
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
@@ -635,6 +636,68 @@ def make_received_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
         opcodes.OP_ENDIF,
     ]))
     return script
+
+WITNESS_TEMPLATE_OFFERED_HTLC = [
+    opcodes.OP_DUP,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ELSE,
+    OPPushDataGeneric(None),
+    opcodes.OP_SWAP,
+    opcodes.OP_SIZE,
+    OPPushDataGeneric(lambda x: x==1),
+    opcodes.OP_EQUAL,
+    opcodes.OP_NOTIF,
+    opcodes.OP_DROP,
+    opcodes.OP_2,
+    opcodes.OP_SWAP,
+    OPPushDataGeneric(None),
+    opcodes.OP_2,
+    opcodes.OP_CHECKMULTISIG,
+    opcodes.OP_ELSE,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUALVERIFY,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ENDIF,
+    opcodes.OP_ENDIF,
+]
+
+WITNESS_TEMPLATE_RECEIVED_HTLC = [
+    opcodes.OP_DUP,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ELSE,
+    OPPushDataGeneric(None),
+    opcodes.OP_SWAP,
+    opcodes.OP_SIZE,
+    OPPushDataGeneric(lambda x: x==1),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUALVERIFY,
+    opcodes.OP_2,
+    opcodes.OP_SWAP,
+    OPPushDataGeneric(None),
+    opcodes.OP_2,
+    opcodes.OP_CHECKMULTISIG,
+    opcodes.OP_ELSE,
+    opcodes.OP_DROP,
+    OPPushDataGeneric(None),
+    opcodes.OP_CHECKLOCKTIMEVERIFY,
+    opcodes.OP_DROP,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ENDIF,
+    opcodes.OP_ENDIF,
+]
+
 
 def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pubkey: bytes, remote_htlc_pubkey: bytes,
                                     local_htlc_pubkey: bytes, payment_hash: bytes, cltv_expiry: Optional[int]) -> bytes:
