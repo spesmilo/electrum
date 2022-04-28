@@ -773,9 +773,9 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             }
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
-        height=self.get_local_height()
+        height = self.get_local_height()
         if pr:
-            return Invoice.from_bip70_payreq(pr, height)
+            return Invoice.from_bip70_payreq(pr, height=height)
         amount_msat = 0
         for x in outputs:
             if parse_max_spend(x.value):
@@ -2380,11 +2380,7 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     @classmethod
     def get_key_for_outgoing_invoice(cls, invoice: Invoice) -> str:
         """Return the key to use for this invoice in self.invoices."""
-        if invoice.is_lightning():
-            key = invoice.rhash
-        else:
-            key = bh2u(sha256d(repr(invoice.get_outputs()) + "%d"%invoice.time))[0:10]
-        return key
+        return invoice.get_id()
 
     def get_key_for_receive_request(self, req: Invoice, *, sanity_checks: bool = False) -> str:
         """Return the key to use for this invoice in self.receive_requests."""
