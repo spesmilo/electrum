@@ -15,6 +15,7 @@ from aiorpcx import timeout_after, TaskTimeout
 import electrum
 import electrum.trampoline
 from electrum import bitcoin
+from electrum import util
 from electrum import constants
 from electrum.network import Network
 from electrum.ecc import ECPrivkey
@@ -62,7 +63,7 @@ class MockNetwork:
         user_config = {}
         user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
@@ -1361,4 +1362,4 @@ class TestPeer(TestCaseForTestnet):
 
 
 def run(coro):
-    return asyncio.run_coroutine_threadsafe(coro, loop=asyncio.get_event_loop()).result()
+    return asyncio.run_coroutine_threadsafe(coro, loop=util.get_asyncio_loop()).result()

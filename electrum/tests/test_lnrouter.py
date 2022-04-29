@@ -4,6 +4,7 @@ import tempfile
 import shutil
 import asyncio
 
+from electrum import util
 from electrum.util import bh2u, bfh, create_and_start_event_loop
 from electrum.lnutil import ShortChannelID
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
@@ -64,7 +65,7 @@ class Test_LNRouter(TestCaseForTestnet):
         """
         class fake_network:
             config = self.config
-            asyncio_loop = asyncio.get_event_loop()
+            asyncio_loop = util.get_asyncio_loop()
             trigger_callback = lambda *args: None
             register_callback = lambda *args: None
             interface = None
