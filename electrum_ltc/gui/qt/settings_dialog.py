@@ -168,7 +168,7 @@ class SettingsDialog(WindowModalDialog):
             ])
         instant_swaps_cb = QCheckBox(_("Allow instant swaps"))
         instant_swaps_cb.setToolTip(messages.to_rtf(help_instant_swaps))
-        trampoline_cb.setChecked(not bool(self.config.get('allow_instant_swaps', False)))
+        instant_swaps_cb.setChecked(not bool(self.config.get('allow_instant_swaps', False)))
         def on_instant_swaps_checked(allow_instant_swaps):
             self.config.set_key('allow_instant_swaps', bool(allow_instant_swaps))
         instant_swaps_cb.stateChanged.connect(on_instant_swaps_checked)

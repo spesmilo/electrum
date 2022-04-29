@@ -138,3 +138,9 @@ except BaseException as e:
 if _libsecp256k1 is None:
     # hard fail:
     sys.exit(f"Error: Failed to load libsecp256k1.")
+
+
+def version_info() -> dict:
+    return {
+        "libsecp256k1.path": _libsecp256k1._name if _libsecp256k1 else None,
+    }

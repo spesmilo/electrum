@@ -26,6 +26,7 @@ class SqlDB(Logger):
     def __init__(self, asyncio_loop: asyncio.BaseEventLoop, path, commit_interval=None):
         Logger.__init__(self)
         self.asyncio_loop = asyncio_loop
+        asyncio.set_event_loop(asyncio_loop)
         self.stopping = False
         self.stopped_event = asyncio.Event()
         self.path = path

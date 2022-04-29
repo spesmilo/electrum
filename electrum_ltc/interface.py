@@ -363,7 +363,7 @@ class Interface(Logger):
     LOGGING_SHORTCUT = 'i'
 
     def __init__(self, *, network: 'Network', server: ServerAddr, proxy: Optional[dict]):
-        self.ready = asyncio.Future()
+        self.ready = network.asyncio_loop.create_future()
         self.got_disconnected = asyncio.Event()
         self.server = server
         Logger.__init__(self)

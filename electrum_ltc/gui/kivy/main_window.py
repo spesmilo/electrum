@@ -19,7 +19,7 @@ from electrum_ltc import util
 from electrum_ltc.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                                format_satoshis, format_satoshis_plain, format_fee_satoshis,
                                maybe_extract_bolt11_invoice, parse_max_spend)
-from electrum_ltc.invoices import PR_PAID, PR_FAILED
+from electrum_ltc.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum_ltc import blockchain
 from electrum_ltc.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum_ltc.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
@@ -447,8 +447,7 @@ class ElectrumWindow(App, Logger):
             self.show_error(_('No wallet loaded.'))
             return
         if pr.verify(self.wallet.contacts):
-            key = pr.get_id()
-            invoice = self.wallet.get_invoice(key)  # FIXME wrong key...
+            invoice = Invoice.from_bip70_payreq(pr, height=0)
             if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()

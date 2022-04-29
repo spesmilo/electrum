@@ -1710,7 +1710,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not self.question(msg):
             return
         self.save_pending_invoice()
-        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
+        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
 
     def on_request_status(self, wallet, key, status):
@@ -2080,9 +2080,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         pr = self.payment_request
         if not pr:
             return
-        key = pr.get_id()
-        invoice = self.wallet.get_invoice(key)
-        if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
+        invoice = Invoice.from_bip70_payreq(pr, height=0)
+        if self.wallet.get_invoice_status(invoice) == PR_PAID:
             self.show_message("invoice already paid")
             self.do_clear()
             self.payment_request = None
@@ -2321,8 +2320,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(_("Signature") + ':'), 6, 0)
             grid.addWidget(QLabel(pr.get_verify_status()), 6, 1)
             def do_export():
-                key = pr.get_id()
-                name = str(key) + '.bip70'
+                name = pr.get_name_for_export() or "payment_request"
+                name = f"{name}.bip70"
                 fn = getSaveFileName(
                     parent=self,
                     title=_("Save invoice to file"),

@@ -251,7 +251,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.logger.info("starting taskgroup.")
         try:
             async with self.taskgroup as group:
-                await group.spawn(self._maintain_connectivity())
+                await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
@@ -501,9 +501,13 @@ class LNGossip(LNWorker):
         self.unknown_ids = set()
 
     def start_network(self, network: 'Network'):
-        assert network
         super().start_network(network)
-        asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.maintain_db()), self.network.asyncio_loop)
+        for coro in [
+                self._maintain_connectivity(),
+                self.maintain_db(),
+        ]:
+            tg_coro = self.taskgroup.spawn(coro)
+            asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
 
     async def maintain_db(self):
         await self.channel_db.data_loaded.wait()
@@ -588,6 +592,7 @@ class LNWallet(LNWorker):
     lnwatcher: Optional['LNWalletWatcher']
     MPP_EXPIRY = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
+    PAYMENT_TIMEOUT = 120
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
@@ -712,9 +717,7 @@ class LNWallet(LNWorker):
                 await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
-        assert network
-        self.network = network
-        self.config = network.config
+        super().start_network(network)
         self.lnwatcher = LNWalletWatcher(self, network)
         self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
@@ -1074,7 +1077,7 @@ class LNWallet(LNWorker):
     async def _pay_scheduled_invoices(self):
         for invoice in self.wallet.get_scheduled_invoices():
             if invoice.is_lightning() and self.can_pay_invoice(invoice):
-                await self.pay_invoice(invoice.lightning_invoice, attempts=10)
+                await self.pay_invoice(invoice.lightning_invoice)
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
@@ -1114,7 +1117,7 @@ class LNWallet(LNWorker):
     async def pay_invoice(
             self, invoice: str, *,
             amount_msat: int = None,
-            attempts: int = 1,
+            attempts: int = None, # used only in unit tests
             full_path: LNPaymentPath = None) -> Tuple[bool, List[HtlcLog]]:
 
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
@@ -1175,7 +1178,7 @@ class LNWallet(LNWorker):
             min_cltv_expiry: int,
             r_tags,
             invoice_features: int,
-            attempts: int = 1,
+            attempts: int = None,
             full_path: LNPaymentPath = None,
             fwd_trampoline_onion=None,
             fwd_trampoline_fee=None,
@@ -1196,7 +1199,7 @@ class LNWallet(LNWorker):
         use_two_trampolines = True
 
         trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
-
+        start_time = time.time()
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         while True:
             amount_to_send = amount_to_pay - amount_inflight
@@ -1252,7 +1255,7 @@ class LNWallet(LNWorker):
                     self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
                 return
             # htlc failed
-            if len(log) >= attempts:
+            if (attempts is not None and len(log) >= attempts) or (attempts is None and time.time() - start_time > self.PAYMENT_TIMEOUT):
                 raise PaymentFailure('Giving up after %d attempts'%len(log))
             # if we get a tmp channel failure, it might work to split the amount and try more routes
             # if we get a channel update, we might retry the same route and amount

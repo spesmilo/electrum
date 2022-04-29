@@ -847,7 +847,13 @@ class Hardware_KeyStore(Xpub, KeyStore):
     def has_usable_connection_with_device(self) -> bool:
         if not hasattr(self, 'plugin'):
             return False
-        client = self.plugin.get_client(self, force_pair=False)
+        # we try to create a client even if there isn't one already,
+        # but do not prompt the user if auto-select fails:
+        client = self.plugin.get_client(
+            self,
+            force_pair=True,
+            allow_user_interaction=False,
+        )
         if client is None:
             return False
         return client.has_usable_connection_with_device()

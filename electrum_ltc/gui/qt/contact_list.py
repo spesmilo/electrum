@@ -123,7 +123,7 @@ class ContactList(MyTreeView):
         self.filter()
         run_hook('update_contacts_tab', self)
 
-    def refresh_row(self, key):
+    def refresh_row(self, key, row):
         # nothing to update here
         pass
 
