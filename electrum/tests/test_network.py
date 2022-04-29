@@ -55,14 +55,8 @@ class TestNetwork(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.interface = MockInterface(self.config)
-
-    def tearDown(self):
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        super().tearDown()
 
     def test_fork_noconflict(self):
         blockchain.blockchains = {}

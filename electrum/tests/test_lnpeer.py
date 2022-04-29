@@ -22,7 +22,7 @@ from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
+from electrum.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -369,7 +369,6 @@ class TestPeer(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self._lnworkers_created = []  # type: List[MockLNWallet]
 
     def tearDown(self):
@@ -380,8 +379,6 @@ class TestPeer(TestCaseForTestnet):
             self._lnworkers_created.clear()
         run(cleanup_lnworkers())
 
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
         super().tearDown()
 
     def prepare_peers(self, alice_channel: Channel, bob_channel: Channel):

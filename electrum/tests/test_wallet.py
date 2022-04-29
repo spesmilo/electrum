@@ -35,7 +35,6 @@ class WalletTestCase(ElectrumTestCase):
 
     def setUp(self):
         super(WalletTestCase, self).setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.user_dir = tempfile.mkdtemp()
         self.config = SimpleConfig({'electrum_path': self.user_dir})
 
@@ -46,8 +45,6 @@ class WalletTestCase(ElectrumTestCase):
         sys.stdout = self._stdout_buffer
 
     def tearDown(self):
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
         super(WalletTestCase, self).tearDown()
         shutil.rmtree(self.user_dir)
         # Restore the "real" stdout

@@ -18,12 +18,6 @@ from .test_wallet import WalletTestCase
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
 class TestStorageUpgrade(WalletTestCase):
 
-    def setUp(self):
-        super().setUp()
-
-    def tearDown(self):
-        super().tearDown()
-
     def testnet_wallet(func):
         # note: it's ok to modify global network constants in subclasses of SequentialTestCase
         def wrapper(self, *args, **kwargs):

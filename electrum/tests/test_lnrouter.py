@@ -5,7 +5,7 @@ import shutil
 import asyncio
 
 from electrum import util
-from electrum.util import bh2u, bfh, create_and_start_event_loop
+from electrum.util import bh2u, bfh
 from electrum.lnutil import ShortChannelID
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
@@ -33,7 +33,6 @@ class Test_LNRouter(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
 
     def tearDown(self):
@@ -41,8 +40,6 @@ class Test_LNRouter(TestCaseForTestnet):
         if self.cdb:
             self.cdb.stop()
             asyncio.run_coroutine_threadsafe(self.cdb.stopped_event.wait(), self.asyncio_loop).result()
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
         super().tearDown()
 
     def prepare_graph(self):

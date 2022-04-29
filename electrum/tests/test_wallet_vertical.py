@@ -14,7 +14,7 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCON
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet, BumpFeeStrategy)
 from electrum.util import (
-    bfh, bh2u, create_and_start_event_loop, NotEnoughFunds, UnrelatedTransactionException,
+    bfh, bh2u, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
 from electrum.transaction import (TxOutput, Transaction, PartialTransaction, PartialTxOutput,
                                   PartialTxInput, tx_from_any, TxOutpoint)
@@ -701,13 +701,7 @@ class TestWalletSending(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-
-    def tearDown(self):
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        super().tearDown()
 
     def create_standard_wallet_from_seed(self, seed_words, *, config=None, gap_limit=2):
         if config is None:
@@ -3271,13 +3265,7 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-
-    def tearDown(self):
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        super().tearDown()
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_restoring_wallet_without_manual_delete(self, mock_save_db):
