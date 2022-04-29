@@ -1103,12 +1103,12 @@ class Commands:
         return invoice.to_debug_json()
 
     @command('wnl')
-    async def lnpay(self, invoice, attempts=1, timeout=30, wallet: Abstract_Wallet = None):
+    async def lnpay(self, invoice, timeout=120, wallet: Abstract_Wallet = None):
         lnworker = wallet.lnworker
         lnaddr = lnworker._check_invoice(invoice)
         payment_hash = lnaddr.paymenthash
         wallet.save_invoice(Invoice.from_bech32(invoice))
-        success, log = await lnworker.pay_invoice(invoice, attempts=attempts)
+        success, log = await lnworker.pay_invoice(invoice)
         return {
             'payment_hash': payment_hash.hex(),
             'success': success,
@@ -1347,7 +1347,6 @@ command_options = {
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
     'expiration':  (None, "Time in seconds"),
-    'attempts':    (None, "Number of payment attempts"),
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
     'pending':     (None, "Show only pending requests."),
@@ -1394,7 +1393,6 @@ arg_types = {
     'encrypt_file': eval_bool,
     'rbf': eval_bool,
     'timeout': float,
-    'attempts': int,
 }
 
 config_variables = {

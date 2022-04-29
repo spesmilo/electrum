@@ -607,6 +607,7 @@ class LNWallet(LNWorker):
     lnwatcher: Optional['LNWalletWatcher']
     MPP_EXPIRY = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 3  # seconds
+    PAYMENT_TIMEOUT = 120
 
     def __init__(self, wallet: 'Abstract_Wallet', xprv):
         self.wallet = wallet
@@ -1091,7 +1092,7 @@ class LNWallet(LNWorker):
     async def _pay_scheduled_invoices(self):
         for invoice in self.wallet.get_scheduled_invoices():
             if invoice.is_lightning() and self.can_pay_invoice(invoice):
-                await self.pay_invoice(invoice.lightning_invoice, attempts=10)
+                await self.pay_invoice(invoice.lightning_invoice)
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
@@ -1131,7 +1132,7 @@ class LNWallet(LNWorker):
     async def pay_invoice(
             self, invoice: str, *,
             amount_msat: int = None,
-            attempts: int = 1,
+            attempts: int = None, # used only in unit tests
             full_path: LNPaymentPath = None) -> Tuple[bool, List[HtlcLog]]:
 
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
@@ -1192,7 +1193,7 @@ class LNWallet(LNWorker):
             min_cltv_expiry: int,
             r_tags,
             invoice_features: int,
-            attempts: int = 1,
+            attempts: int = None,
             full_path: LNPaymentPath = None,
             fwd_trampoline_onion=None,
             fwd_trampoline_fee=None,
@@ -1213,7 +1214,7 @@ class LNWallet(LNWorker):
         use_two_trampolines = True
 
         trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
-
+        start_time = time.time()
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         while True:
             amount_to_send = amount_to_pay - amount_inflight
@@ -1269,7 +1270,7 @@ class LNWallet(LNWorker):
                     self.network.path_finder.update_inflight_htlcs(htlc_log.route, add_htlcs=False)
                 return
             # htlc failed
-            if len(log) >= attempts:
+            if (attempts is not None and len(log) >= attempts) or (attempts is None and time.time() - start_time > self.PAYMENT_TIMEOUT):
                 raise PaymentFailure('Giving up after %d attempts'%len(log))
             # if we get a tmp channel failure, it might work to split the amount and try more routes
             # if we get a channel update, we might retry the same route and amount

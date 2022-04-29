@@ -1724,7 +1724,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if not self.question(msg):
             return
         self.save_pending_invoice()
-        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat, attempts=LN_NUM_PAYMENT_ATTEMPTS)
+        coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
 
     def on_request_status(self, wallet, key, status):
