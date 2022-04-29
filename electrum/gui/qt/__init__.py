@@ -95,6 +95,11 @@ class OpenFileEventFilter(QObject):
 class QElectrumApplication(QApplication):
     new_window_signal = pyqtSignal(str, object)
     quit_signal = pyqtSignal()
+    refresh_tabs_signal = pyqtSignal()
+    refresh_amount_edits_signal = pyqtSignal()
+    update_status_signal = pyqtSignal()
+    update_fiat_signal = pyqtSignal()
+    alias_received_signal = pyqtSignal()
 
 
 class QNetworkUpdatedSignalObject(QObject):
