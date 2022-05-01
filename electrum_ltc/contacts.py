@@ -21,15 +21,15 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
-
 import dns
+import threading
 from dns.exception import DNSException
 
 from . import bitcoin
 from . import dnssec
 from .util import read_json_file, write_json_file, to_string
 from .logging import Logger
-
+from .util import trigger_callback
 
 class Contacts(dict, Logger):
 
@@ -93,6 +93,18 @@ class Contacts(dict, Logger):
                 'validated': validated
             }
         raise Exception("Invalid Litecoin address or alias", k)
+
+    def fetch_openalias(self, config):
+        self.alias_info = None
+        alias = config.get('alias')
+        if alias:
+            alias = str(alias)
+            def f():
+                self.alias_info = self.resolve_openalias(alias)
+                trigger_callback('alias_received')
+            t = threading.Thread(target=f)
+            t.setDaemon(True)
+            t.start()
 
     def resolve_openalias(self, url):
         # support email-style addresses, per the OA standard

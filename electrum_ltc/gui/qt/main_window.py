@@ -170,7 +170,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     payment_request_error_signal = pyqtSignal()
     network_signal = pyqtSignal(str, object)
     #ln_payment_attempt_signal = pyqtSignal(str)
-    alias_received_signal = pyqtSignal()
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     show_error_signal = pyqtSignal(str)
@@ -274,6 +273,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         for i in range(wrtabs.count()):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
 
+        self.app.refresh_tabs_signal.connect(self.refresh_tabs)
+        self.app.refresh_amount_edits_signal.connect(self.refresh_amount_edits)
+        self.app.update_status_signal.connect(self.update_status)
+        self.app.update_fiat_signal.connect(self.update_fiat)
+
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.show_error_signal.connect(self.show_error)
@@ -301,7 +305,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         #self.fee_slider.update()
         self.load_wallet(wallet)
         gui_object.timer.timeout.connect(self.timer_actions)
-        self.fetch_alias()
+        self.contacts.fetch_openalias(self.config)
 
         # If the option hasn't been set yet
         if config.get('check_updates') is None:
@@ -495,18 +499,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_cert_mismatch_error()
         else:
             self.logger.info(f"unexpected network event: {event} {args}")
-
-    def fetch_alias(self):
-        self.alias_info = None
-        alias = self.config.get('alias')
-        if alias:
-            alias = str(alias)
-            def f():
-                self.alias_info = self.contacts.resolve_openalias(alias)
-                self.alias_received_signal.emit()
-            t = threading.Thread(target=f)
-            t.setDaemon(True)
-            t.start()
 
     def close_wallet(self):
         if self.wallet:
@@ -3334,21 +3326,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
         self._do_import(title, header_layout, lambda x: self.wallet.import_private_keys(x, password))
 
+    def refresh_amount_edits(self):
+        edits = self.amount_e, self.receive_amount_e
+        amounts = [edit.get_amount() for edit in edits]
+        for edit, amount in zip(edits, amounts):
+            edit.setAmount(amount)
+
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()
         self.fiat_send_e.setVisible(b)
         self.fiat_receive_e.setVisible(b)
+        self.history_model.refresh('update_fiat')
         self.history_list.update()
         self.address_list.refresh_headers()
-        self.address_list.refresh_all()
+        self.address_list.update()
         self.update_status()
 
     def settings_dialog(self):
         from .settings_dialog import SettingsDialog
         d = SettingsDialog(self, self.config)
-        self.alias_received_signal.connect(d.set_alias_color)
         d.exec_()
-        self.alias_received_signal.disconnect(d.set_alias_color)
         if self.fx:
             self.fx.trigger_update()
         run_hook('close_settings_dialog')

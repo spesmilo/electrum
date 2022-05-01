@@ -555,8 +555,8 @@ class Commands:
     async def version_info(self):
         """Return information about dependencies, such as their version and path."""
         ret = {
-            "electrum.version": ELECTRUM_VERSION,
-            "electrum.path": os.path.dirname(os.path.realpath(__file__)),
+            "electrum_ltc.version": ELECTRUM_VERSION,
+            "electrum_ltc.path": os.path.dirname(os.path.realpath(__file__)),
         }
         # add currently running GUI
         if self.daemon and self.daemon.gui_object:
