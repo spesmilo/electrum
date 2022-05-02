@@ -29,16 +29,19 @@ import sys
 import os
 from typing import TYPE_CHECKING
 
+from electrum import GuiImportError
+
 KIVY_GUI_PATH = os.path.abspath(os.path.dirname(__file__))
 os.environ['KIVY_DATA_DIR'] = os.path.join(KIVY_GUI_PATH, 'data')
 
 try:
     sys.argv = ['']
     import kivy
-except ImportError:
+except ImportError as e:
     # This error ideally shouldn't be raised with pre-built packages
-    sys.exit("Error: Could not import kivy. Please install it using the "
-             "instructions mentioned here `https://kivy.org/#download` .")
+    raise GuiImportError(
+        "Error: Could not import kivy. Please install it using the "
+        "instructions mentioned here `https://kivy.org/#download` .") from e
 
 # minimum required version for kivy
 kivy.require('1.8.0')
@@ -77,3 +80,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not app:
             return
         Clock.schedule_once(lambda dt: app.stop())
+
+    @classmethod
+    def version_info(cls):
+        ret = {
+            "kivy.version": kivy.__version__,
+        }
+        if hasattr(kivy, "__path__"):
+            ret["kivy.path"] = ", ".join(kivy.__path__ or [])
+        return ret

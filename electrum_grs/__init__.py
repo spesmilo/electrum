@@ -11,6 +11,10 @@ if is_local and os.name == 'nt':
         os.add_dll_directory(os.path.dirname(__file__))
 
 
+class GuiImportError(ImportError):
+    pass
+
+
 from .version import ELECTRUM_VERSION
 from .util import format_satoshis
 from .wallet import Wallet

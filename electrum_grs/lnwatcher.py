@@ -14,6 +14,9 @@ from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
 from .transaction import Transaction, TxOutpoint
+from .transaction import match_script_against_template
+from .lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
+
 
 if TYPE_CHECKING:
     from .network import Network
@@ -222,24 +225,46 @@ class LNWatcher(AddressSynchronizer):
         raise NotImplementedError()  # implemented by subclasses
 
     def inspect_tx_candidate(self, outpoint, n):
+        """
+        returns a dict of spenders for a transaction of interest.
+        subscribes to addresses as a side effect.
+        n==0 => outpoint is a channel funding.
+        n==1 => outpoint is a commitment or close output: to_local, to_remote or first-stage htlc
+        n==2 => outpoint is a second-stage htlc
+        """
         prev_txid, index = outpoint.split(':')
-        txid = self.db.get_spent_outpoint(prev_txid, int(index))
-        result = {outpoint:txid}
-        if txid is None:
-            self.channel_status[outpoint] = 'open'
+        spender_txid = self.db.get_spent_outpoint(prev_txid, int(index))
+        result = {outpoint:spender_txid}
+        if n == 0:
+            if spender_txid is None:
+                self.channel_status[outpoint] = 'open'
+            elif not self.is_deeply_mined(spender_txid):
+                self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(spender_txid).conf
+            else:
+                self.channel_status[outpoint] = 'closed (deep)'
+        if spender_txid is None:
             return result
-        if n == 0 and not self.is_deeply_mined(txid):
-            self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
-        else:
-            self.channel_status[outpoint] = 'closed (deep)'
-        tx = self.db.get_transaction(txid)
-        for i, o in enumerate(tx.outputs()):
+        spender_tx = self.db.get_transaction(spender_txid)
+        if n == 1:
+            # if tx input is not a first-stage HTLC, we can stop recursion
+            if len(spender_tx.inputs()) != 1:
+                return result
+            o = spender_tx.inputs()[0]
+            witness = o.witness_elements()
+            redeem_script = witness[-1]
+            if match_script_against_template(redeem_script, WITNESS_TEMPLATE_OFFERED_HTLC):
+                self.logger.info(f"input script matches offered htlc {redeem_script.hex()}")
+            elif match_script_against_template(redeem_script, WITNESS_TEMPLATE_RECEIVED_HTLC):
+                self.logger.info(f"input script matches received htlc {redeem_script.hex()}")
+            else:
+                return result
+        for i, o in enumerate(spender_tx.outputs()):
             if o.address is None:
                 continue
             if not self.is_mine(o.address):
                 self.add_address(o.address)
             elif n < 2:
-                r = self.inspect_tx_candidate(txid+':%d'%i, n+1)
+                r = self.inspect_tx_candidate(spender_txid+':%d'%i, n+1)
                 result.update(r)
         return result
 

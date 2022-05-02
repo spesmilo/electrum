@@ -12,6 +12,7 @@ from . import constants
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
+from .crypto import sha256d
 
 if TYPE_CHECKING:
     from .paymentrequest import PaymentRequest
@@ -65,7 +66,7 @@ pr_expiration_values = {
 assert PR_DEFAULT_EXPIRATION_WHEN_CREATING in pr_expiration_values
 
 
-def _decode_outputs(outputs) -> List[PartialTxOutput]:
+def _decode_outputs(outputs) -> Optional[List[PartialTxOutput]]:
     if outputs is None:
         return None
     ret = []
@@ -98,13 +99,13 @@ class Invoice(StoredObject):
     # an invoice (outgoing) is constructed from a source: bip21, bip70, lnaddr
 
     # onchain only
-    outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: List[PartialTxOutput]
+    outputs = attr.ib(kw_only=True, converter=_decode_outputs)  # type: Optional[List[PartialTxOutput]]
     height = attr.ib(type=int, kw_only=True, validator=attr.validators.instance_of(int)) # only for receiving
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
     # lightning only
-    lightning_invoice = attr.ib(type=str, kw_only=True)
+    lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
     __lnaddr = None
 
@@ -227,7 +228,7 @@ class Invoice(StoredObject):
         )
 
     @classmethod
-    def from_bip70_payreq(cls, pr: 'PaymentRequest', height:int) -> 'Invoice':
+    def from_bip70_payreq(cls, pr: 'PaymentRequest', *, height: int = 0) -> 'Invoice':
         return Invoice(
             amount_msat=pr.get_amount()*1000,
             message=pr.get_memo(),
@@ -251,3 +252,14 @@ class Invoice(StoredObject):
             # 'tags': str(lnaddr.tags),
         })
         return d
+
+    def get_id(self) -> str:
+        if self.is_lightning():
+            return self.rhash
+        else:  # on-chain
+            return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
+
+
+def get_id_from_onchain_outputs(outputs: List[PartialTxOutput], *, timestamp: int) -> str:
+    outputs_str = "\n".join(f"{txout.scriptpubkey.hex()}, {txout.value}" for txout in outputs)
+    return sha256d(outputs_str + "%d" % timestamp).hex()[0:10]

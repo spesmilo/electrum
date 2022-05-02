@@ -361,7 +361,7 @@ class SendScreen(CScreen, Logger):
         amount_msat = invoice.get_amount_msat()
         def pay_thread():
             try:
-                coro = self.app.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat, attempts=10)
+                coro = self.app.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)
                 fut.result()
             except Exception as e:

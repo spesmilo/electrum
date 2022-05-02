@@ -23,7 +23,6 @@
 
 import asyncio
 import threading
-import asyncio
 import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
@@ -71,6 +70,7 @@ class AddressSynchronizer(Logger):
     """
 
     network: Optional['Network']
+    asyncio_loop: Optional['asyncio.AbstractEventLoop'] = None
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
@@ -185,6 +185,7 @@ class AddressSynchronizer(Logger):
         if self.network is not None:
             self.synchronizer = Synchronizer(self)
             self.verifier = SPV(self.network, self)
+            self.asyncio_loop = network.asyncio_loop
             util.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
 
     def on_blockchain_updated(self, event, *args):
@@ -560,10 +561,14 @@ class AddressSynchronizer(Logger):
                     self._history_local[addr] = cur_hist
 
     def _mark_address_history_changed(self, addr: str) -> None:
-        # history for this address changed, wake up coroutines:
-        self._address_history_changed_events[addr].set()
-        # clear event immediately so that coroutines can wait() for the next change:
-        self._address_history_changed_events[addr].clear()
+        def set_and_clear():
+            event = self._address_history_changed_events[addr]
+            # history for this address changed, wake up coroutines:
+            event.set()
+            # clear event immediately so that coroutines can wait() for the next change:
+            event.clear()
+        if self.asyncio_loop:
+            self.asyncio_loop.call_soon_threadsafe(set_and_clear)
 
     async def wait_for_address_history_to_change(self, addr: str) -> None:
         """Wait until the server tells us about a new transaction related to addr.

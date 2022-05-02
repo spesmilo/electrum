@@ -41,7 +41,7 @@ except ImportError:
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, make_aiohttp_session
-from .invoices import Invoice
+from .invoices import Invoice, get_id_from_onchain_outputs
 from .crypto import sha256
 from .bitcoin import address_to_script
 from .transaction import PartialTxOutput
@@ -121,7 +121,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
 
 class PaymentRequest:
 
-    def __init__(self, data, *, error=None):
+    def __init__(self, data: bytes, *, error=None):
         self.raw = data
         self.error = error  # FIXME overloaded and also used when 'verify' succeeds
         self.parse(data)
@@ -131,11 +131,10 @@ class PaymentRequest:
     def __str__(self):
         return str(self.raw)
 
-    def parse(self, r):
+    def parse(self, r: bytes):
         self.outputs = []  # type: List[PartialTxOutput]
         if self.error:
             return
-        self.id = bh2u(sha256(r)[0:16])
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
@@ -275,8 +274,10 @@ class PaymentRequest:
     def get_memo(self):
         return self.memo
 
-    def get_id(self):
-        return self.id if self.requestor else self.get_address()
+    def get_name_for_export(self) -> Optional[str]:
+        if not hasattr(self, 'details'):
+            return None
+        return get_id_from_onchain_outputs(self.outputs, timestamp=self.get_time())
 
     def get_outputs(self):
         return self.outputs[:]

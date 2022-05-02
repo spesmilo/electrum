@@ -19,12 +19,12 @@ from electrum_grs import util
 from electrum_grs.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
                            maybe_extract_bolt11_invoice, parse_max_spend)
-from electrum_grs.invoices import PR_PAID, PR_FAILED
+from electrum_grs.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum_grs import blockchain
 from electrum_grs.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
-from electrum_grs.bitcoin import COIN
 from electrum_grs.logging import Logger
+from electrum_grs.bitcoin import COIN
 
 from electrum_grs.gui import messages
 from .i18n import _
@@ -447,8 +447,7 @@ class ElectrumWindow(App, Logger):
             self.show_error(_('No wallet loaded.'))
             return
         if pr.verify(self.wallet.contacts):
-            key = pr.get_id()
-            invoice = self.wallet.get_invoice(key)  # FIXME wrong key...
+            invoice = Invoice.from_bip70_payreq(pr, height=0)
             if invoice and self.wallet.get_invoice_status(invoice) == PR_PAID:
                 self.show_error("invoice already paid")
                 self.send_screen.do_clear()
@@ -1461,7 +1460,7 @@ class ElectrumWindow(App, Logger):
             else:
                 msg = _(
                     "Warning: this wallet type does not support channel recovery from seed. "
-                    "You will need to backup your wallet everytime you create a new wallet. "
+                    "You will need to backup your wallet everytime you create a new channel. "
                     "Create lightning keys?")
             d = Question(msg, self._enable_lightning, title=_('Enable Lightning?'))
             d.open()

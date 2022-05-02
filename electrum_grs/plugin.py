@@ -29,7 +29,7 @@ import time
 import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
-                    Dict, Iterable, List, Sequence, Callable, TypeVar)
+                    Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
 from concurrent import futures
 from functools import wraps, partial
@@ -632,7 +632,7 @@ class DeviceMgr(ThreadJob):
             if not allow_user_interaction:
                 raise CannotAutoSelectDevice()
             msg = _('Please insert your {}').format(plugin.device)
-            if keystore.label:
+            if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
                 msg += ' ({})'.format(keystore.label)
             msg += '. {}\n\n{}'.format(
                 _('Verify the cable is connected and that '
@@ -671,7 +671,12 @@ class DeviceMgr(ThreadJob):
         if not allow_user_interaction:
             raise CannotAutoSelectDevice()
         # ask user to select device manually
-        msg = _("Please select which {} device to use:").format(plugin.device)
+        msg = ""
+        if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
+            msg += _(
+                """Could not automatically pair with device """
+                """for keystore labelled "{}".\n""").format(keystore.label)
+        msg += _("Please select which {} device to use:").format(plugin.device)
         descriptions = ["{label} ({maybe_model}{init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),
@@ -749,3 +754,25 @@ class DeviceMgr(ThreadJob):
                 client.handler.update_status(False)
 
         return devices
+
+    @classmethod
+    def version_info(cls) -> Mapping[str, Optional[str]]:
+        ret = {}
+        # add libusb
+        try:
+            import usb1
+        except Exception as e:
+            ret["libusb.version"] = None
+        else:
+            ret["libusb.version"] = ".".join(map(str, usb1.getVersion()[:4]))
+            try:
+                ret["libusb.path"] = usb1.libusb1.libusb._name
+            except AttributeError:
+                ret["libusb.path"] = None
+        # add hidapi
+        from importlib.metadata import version
+        try:
+            ret["hidapi.version"] = version("hidapi")
+        except ImportError:
+            ret["hidapi.version"] = None
+        return ret
