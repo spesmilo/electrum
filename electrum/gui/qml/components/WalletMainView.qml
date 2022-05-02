@@ -81,13 +81,16 @@ Item {
             currentIndex: swipeview.currentIndex
             TabButton {
                 text: qsTr('Receive')
+                font.pixelSize: constants.fontSizeLarge
             }
             TabButton {
                 text: qsTr('History')
+                font.pixelSize: constants.fontSizeLarge
             }
             TabButton {
                 enabled: !Daemon.currentWallet.isWatchOnly
                 text: qsTr('Send')
+                font.pixelSize: constants.fontSizeLarge
             }
             Component.onCompleted: tabbar.setCurrentIndex(1)
         }

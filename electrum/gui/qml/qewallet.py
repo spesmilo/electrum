@@ -225,15 +225,15 @@ class QEWallet(QObject):
 
     balanceChanged = pyqtSignal()
 
-    @pyqtProperty(int, notify=balanceChanged)
+    @pyqtProperty('quint64', notify=balanceChanged)
     def frozenBalance(self):
         return self.wallet.get_frozen_balance()
 
-    @pyqtProperty(int, notify=balanceChanged)
+    @pyqtProperty('quint64', notify=balanceChanged)
     def unconfirmedBalance(self):
         return self.wallet.get_balance()[1]
 
-    @pyqtProperty(int, notify=balanceChanged)
+    @pyqtProperty('quint64', notify=balanceChanged)
     def confirmedBalance(self):
         c, u, x = self.wallet.get_balance()
         self._logger.info('balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')

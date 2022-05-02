@@ -10,7 +10,7 @@ import "controls"
 Pane {
     id: rootItem
 
-    property string title: 'Wallets'
+    property string title: qsTr('Wallets')
 
     ColumnLayout {
         id: layout
