@@ -6,12 +6,11 @@ The following keys may be used to communicate sensitive information to developer
 
 | Name | Email | Fingerprint |
 |------|-------|----------------|
-| ThomasV | thomasv@electrum.org | 6694 D8DE 7BE8 EE56 31BE D950 2BD5 824B 7F94 70E6 |
-| SomberNight | somber.night@protonmail.com | 4AD6 4339 DFA0 5E20 B3F6 AD51 E7B7 48CD AF5E 5ED9 |
+| jackielove4u | groestlcoin@gmail.com | 287A E4CA 1187 C68C 08B4 9CB2 D11B D4F3 3F1D B499 |
 
 You can import a key by running the following command with that
 individual’s fingerprint: `gpg --recv-keys "<fingerprint>"`
 Ensure that you put quotes around fingerprints containing spaces.
 
-These public keys can also be found in the Electrum git repository,
+These public keys can also be found in the Electrum-grs git repository,
 in the top-level `pubkeys` folder.

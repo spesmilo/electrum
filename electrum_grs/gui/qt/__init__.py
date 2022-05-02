@@ -30,7 +30,7 @@ import traceback
 import threading
 from typing import Optional, TYPE_CHECKING, List
 
-from electrum import GuiImportError
+from electrum_grs import GuiImportError
 
 try:
     import PyQt5
