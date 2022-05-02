@@ -10,10 +10,16 @@ Frame {
 
     property string formattedBalance
     property string formattedUnconfirmed
+    property string formattedBalanceFiat
+    property string formattedUnconfirmedFiat
 
     function setBalances() {
-        root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance, true)
-        root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance, true)
+        root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
+        root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance)
+        if (Daemon.fx.enabled) {
+            root.formattedBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance.toString(), false)
+            root.formattedUnconfirmedFiat = Daemon.fx.fiatValue(Daemon.currentWallet.unconfirmedBalance.toString(), false)
+        }
     }
 
     GridLayout {
@@ -24,24 +30,67 @@ Frame {
             font.pixelSize: constants.fontSizeLarge
             text: qsTr('Balance: ')
         }
-        Label {
-            font.pixelSize: constants.fontSizeLarge
-            color: Material.accentColor
-            text: formattedBalance
+        RowLayout {
+            Label {
+                font.pixelSize: constants.fontSizeLarge
+                font.family: FixedFont
+                text: formattedBalance
+            }
+            Label {
+                font.pixelSize: constants.fontSizeMedium
+                color: Material.accentColor
+                text: Config.baseUnit
+            }
+            Label {
+                font.pixelSize: constants.fontSizeMedium
+                text: Daemon.fx.enabled
+                    ? '(' + root.formattedBalanceFiat + ' ' + Daemon.fx.fiatCurrency + ')'
+                    : ''
+            }
         }
         Label {
             text: qsTr('Confirmed: ')
+            font.pixelSize: constants.fontSizeSmall
+        }
+        RowLayout {
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                font.family: FixedFont
+                text: formattedBalance
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                color: Material.accentColor
+                text: Config.baseUnit
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                text: Daemon.fx.enabled
+                    ? '(' + root.formattedBalanceFiat + ' ' + Daemon.fx.fiatCurrency + ')'
+                    : ''
+            }
         }
         Label {
-            color: Material.accentColor
-            text: formattedBalance
-        }
-        Label {
+            font.pixelSize: constants.fontSizeSmall
             text: qsTr('Unconfirmed: ')
         }
-        Label {
-            color: Material.accentColor
-            text: formattedUnconfirmed
+        RowLayout {
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                font.family: FixedFont
+                text: formattedUnconfirmed
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                color: Material.accentColor
+                text: Config.baseUnit
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                text: Daemon.fx.enabled
+                    ? '(' + root.formattedUnconfirmedFiat + ' ' + Daemon.fx.fiatCurrency + ')'
+                    : ''
+            }
         }
     }
 
