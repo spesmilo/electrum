@@ -44,6 +44,16 @@ class QEAddressListModel(QAbstractListModel):
         self.change_addresses = []
         self.endResetModel()
 
+    def addr_to_model(self, address):
+        item = {}
+        item['address'] = address
+        item['numtx'] = self.wallet.get_address_history_len(address)
+        item['label'] = self.wallet.get_label(address)
+        c, u, x = self.wallet.get_addr_balance(address)
+        item['balance'] = c + u + x
+        item['held'] = self.wallet.is_frozen_address(address)
+        return item
+
     # initial model data
     @pyqtSlot()
     def init_model(self):
@@ -52,16 +62,10 @@ class QEAddressListModel(QAbstractListModel):
         n_addresses = len(r_addresses) + len(c_addresses)
 
         def insert_row(atype, alist, address, iaddr):
-            item = {}
+            item = self.addr_to_model(address)
             item['type'] = atype
-            item['address'] = address
-            item['numtx'] = self.wallet.get_address_history_len(address)
-            item['label'] = self.wallet.get_label(address)
-            c, u, x = self.wallet.get_addr_balance(address)
-            item['balance'] = c + u + x
-            item['held'] = self.wallet.is_frozen_address(address)
-            alist.append(item)
             item['iaddr'] = iaddr
+            alist.append(item)
 
         self.clear()
         self.beginInsertRows(QModelIndex(), 0, n_addresses - 1)
@@ -75,3 +79,23 @@ class QEAddressListModel(QAbstractListModel):
             i = i + 1
         self.endInsertRows()
 
+    @pyqtSlot(str)
+    def update_address(self, address):
+        i = 0
+        for a in self.receive_addresses:
+            if a['address'] == address:
+                self.do_update(i,a)
+                return
+            i = i + 1
+        for a in self.change_addresses:
+            if a['address'] == address:
+                self.do_update(i,a)
+                return
+            i = i + 1
+
+    def do_update(self, modelindex, modelitem):
+        mi = self.createIndex(modelindex, 0)
+        self._logger.debug(repr(modelitem))
+        modelitem |= self.addr_to_model(modelitem['address'])
+        self._logger.debug(repr(modelitem))
+        self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
