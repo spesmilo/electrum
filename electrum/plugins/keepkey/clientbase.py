@@ -162,6 +162,9 @@ class KeepKeyClientBase(HardwareClientBase, GuiMixin, Logger):
         self.transport.write(self.proto.Cancel())
 
     def i4b(self, x):
+        if x < 0:
+            # hack. workaround for https://github.com/spesmilo/electrum/issues/7779
+            x += 2 ** 32
         return pack('>I', x)
 
     @runs_in_hwd_thread
