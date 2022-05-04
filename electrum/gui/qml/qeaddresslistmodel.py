@@ -96,6 +96,6 @@ class QEAddressListModel(QAbstractListModel):
     def do_update(self, modelindex, modelitem):
         mi = self.createIndex(modelindex, 0)
         self._logger.debug(repr(modelitem))
-        modelitem |= self.addr_to_model(modelitem['address'])
+        modelitem.update(self.addr_to_model(modelitem['address']))
         self._logger.debug(repr(modelitem))
         self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
