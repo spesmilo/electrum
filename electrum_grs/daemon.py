@@ -124,7 +124,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         rpc_user, rpc_password = get_rpc_credentials(config)
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
-        loop = asyncio.get_event_loop()
+        loop = util.get_asyncio_loop()
         async def request_coroutine():
             if socktype == 'unix':
                 connector = aiohttp.UnixConnector(path=path)
@@ -467,7 +467,7 @@ class Daemon(Logger):
         if 'wallet_path' in config.cmdline_options:
             self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
                                 "Use the load_wallet command instead.")
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         self.network = None
         if not config.get('offline'):
             self.network = Network(config, daemon=self)

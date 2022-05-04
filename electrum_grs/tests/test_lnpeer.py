@@ -15,13 +15,14 @@ from aiorpcx import timeout_after, TaskTimeout
 import electrum_grs
 import electrum_grs.trampoline
 from electrum_grs import bitcoin
+from electrum_grs import util
 from electrum_grs import constants
 from electrum_grs.network import Network
 from electrum_grs.ecc import ECPrivkey
 from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
-from electrum_grs.util import bh2u, create_and_start_event_loop, NetworkRetryManager, bfh, OldTaskGroup
+from electrum_grs.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -62,7 +63,7 @@ class MockNetwork:
         user_config = {}
         user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
         self.channel_db.data_loaded.set()
         self.path_finder = LNPathFinder(self.channel_db)
@@ -368,7 +369,6 @@ class TestPeer(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self._lnworkers_created = []  # type: List[MockLNWallet]
 
     def tearDown(self):
@@ -379,8 +379,6 @@ class TestPeer(TestCaseForTestnet):
             self._lnworkers_created.clear()
         run(cleanup_lnworkers())
 
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
         super().tearDown()
 
     def prepare_peers(self, alice_channel: Channel, bob_channel: Channel):
@@ -1361,4 +1359,4 @@ class TestPeer(TestCaseForTestnet):
 
 
 def run(coro):
-    return asyncio.run_coroutine_threadsafe(coro, loop=asyncio.get_event_loop()).result()
+    return asyncio.run_coroutine_threadsafe(coro, loop=util.get_asyncio_loop()).result()

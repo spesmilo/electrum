@@ -6,6 +6,7 @@ import shutil
 import electrum_grs
 import electrum_grs.logging
 from electrum_grs import constants
+from electrum_grs import util
 
 
 # Set this locally to make the test suite run faster.
@@ -37,9 +38,12 @@ class ElectrumTestCase(SequentialTestCase):
 
     def setUp(self):
         super().setUp()
+        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.electrum_path = tempfile.mkdtemp()
 
     def tearDown(self):
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
         super().tearDown()
         shutil.rmtree(self.electrum_path)
 

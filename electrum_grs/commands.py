@@ -187,7 +187,7 @@ class Commands:
                 kwargs.pop('wallet')
 
         coro = f(*args, **kwargs)
-        fut = asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop())
+        fut = asyncio.run_coroutine_threadsafe(coro, util.get_asyncio_loop())
         result = fut.result()
 
         if self._callback:

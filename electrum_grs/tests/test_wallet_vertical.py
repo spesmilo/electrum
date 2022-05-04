@@ -9,15 +9,17 @@ import copy
 from electrum_grs import storage, bitcoin, keystore, bip32, slip39, wallet
 from electrum_grs import Transaction
 from electrum_grs import SimpleConfig
+from electrum_grs import util
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum_grs.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet, BumpFeeStrategy)
 from electrum_grs.util import (
-    bfh, bh2u, create_and_start_event_loop, NotEnoughFunds, UnrelatedTransactionException,
+    bfh, bh2u, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
 from electrum_grs.transaction import (TxOutput, Transaction, PartialTransaction, PartialTxOutput,
                                   PartialTxInput, tx_from_any, TxOutpoint)
 from electrum_grs.mnemonic import seed_type
+from electrum_grs.network import Network
 
 from electrum_grs.plugins.trustedcoin import trustedcoin
 
@@ -1369,14 +1371,7 @@ class TestWalletSending(TestCaseForTestnet):
                     raise Exception("unexpected txid")
             def has_internet_connection(self):
                 return True
-            def run_from_another_thread(self, coro, *, timeout=None):
-                loop, stop_loop, loop_thread = create_and_start_event_loop()
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                try:
-                    return fut.result(timeout)
-                finally:
-                    loop.call_soon_threadsafe(stop_loop.set_result, 1)
-                    loop_thread.join(timeout=1)
+            run_from_another_thread = Network.run_from_another_thread
             def get_local_height(self):
                 return 0
             def blockchain(self):
@@ -1429,14 +1424,7 @@ class TestWalletSending(TestCaseForTestnet):
                     raise Exception("unexpected txid")
             def has_internet_connection(self):
                 return True
-            def run_from_another_thread(self, coro, *, timeout=None):
-                loop, stop_loop, loop_thread = create_and_start_event_loop()
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                try:
-                    return fut.result(timeout)
-                finally:
-                    loop.call_soon_threadsafe(stop_loop.set_result, 1)
-                    loop_thread.join(timeout=1)
+            run_from_another_thread = Network.run_from_another_thread
             def get_local_height(self):
                 return 0
             def blockchain(self):
@@ -1844,8 +1832,8 @@ class TestWalletSending(TestCaseForTestnet):
         network = NetworkMock()
         dest_addr = 'tb1q3ws2p0qjk5vrravv065xqlnkckvzcpclk79eu2'
         sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=1325785, tx_version=1)
-        loop = asyncio.get_event_loop()
-        tx = loop.run_until_complete(sweep_coro)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
 
         tx_copy = tx_from_any(tx.serialize())
         self.assertEqual('010000000129349e5641d79915e9d0282fdbaee8c3df0b6731bab9d70bf626e8588bde24ac010000004847304402206bf0d0a93abae0d5873a62ebf277a5dd2f33837821e8b93e74d04e19d71b578002201a6d729bc159941ef5c4c9e5fe13ece9fc544351ba531b00f68ba549c8b38a9a01fdffffff01b82e0f00000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071fd93a1400',
@@ -2199,14 +2187,7 @@ class TestWalletSending(TestCaseForTestnet):
                     raise Exception("unexpected txid")
             def has_internet_connection(self):
                 return True
-            def run_from_another_thread(self, coro, *, timeout=None):
-                loop, stop_loop, loop_thread = create_and_start_event_loop()
-                fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                try:
-                    return fut.result(timeout)
-                finally:
-                    loop.call_soon_threadsafe(stop_loop.set_result, 1)
-                    loop_thread.join(timeout=1)
+            run_from_another_thread = Network.run_from_another_thread
             def get_local_height(self):
                 return 0
             def blockchain(self):
