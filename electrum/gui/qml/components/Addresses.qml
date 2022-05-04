@@ -40,17 +40,13 @@ Pane {
 
                     font.pixelSize: constants.fontSizeMedium // set default font size for child controls
 
-                    onClicked: ListView.view.currentIndex == index
-                        ? ListView.view.currentIndex = -1
-                        : ListView.view.currentIndex = index
-
-                    states: [
-                        State {
-                            name: 'highlighted'; when: highlighted
-                            PropertyChanges { target: drawer; visible: true }
-                            PropertyChanges { target: labelLabel; maximumLineCount: 4 }
-                        }
-                    ]
+                    onClicked: {
+                        var page = app.stack.push(Qt.resolvedUrl('AddressDetails.qml'), {'address': model.address})
+                        page.addressDetailsChanged.connect(function() {
+                            // update listmodel when details change
+                            listview.model.update_address(model.address)
+                        })
+                    }
 
                     ColumnLayout {
                         id: delegateLayout
@@ -83,7 +79,7 @@ Pane {
                                 Layout.preferredWidth: constants.iconSizeMedium
                                 Layout.preferredHeight: constants.iconSizeMedium
                                 color: model.held
-                                        ? Qt.rgba(1,0.93,0,0.75)
+                                        ? Qt.rgba(1,0,0,0.75)
                                         : model.numtx > 0
                                             ? model.balance == 0
                                                 ? Qt.rgba(0.5,0.5,0.5,1)
@@ -123,64 +119,6 @@ Pane {
                                     text: qsTr('tx')
                                     visible: model.numtx > 0
                                 }
-                            }
-                        }
-
-                        RowLayout {
-                            id: drawer
-                            visible: false
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: copyButton.height
-
-                            ToolButton {
-                                id: copyButton
-                                icon.source: '../../icons/copy.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: copy address')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/info.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: show details screen')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/key.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: sign/verify dialog')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/mail_icon.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: encrypt/decrypt message dialog')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/globe.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: show on block explorer')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/unlock.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: freeze/unfreeze')
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/tab_send.png'
-                                icon.color: 'transparent'
-                                icon.width: constants.iconSizeMedium
-                                icon.height: constants.iconSizeMedium
-                                onClicked: console.log('TODO: spend from address')
                             }
                         }
 
