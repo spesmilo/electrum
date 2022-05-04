@@ -70,15 +70,9 @@ setup(
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
-    packages=[
-        'electrum',
-        'electrum.qrreader',
-        'electrum.gui',
-        'electrum.gui.qt',
-        'electrum.gui.qt.qrreader',
-        'electrum.gui.qt.qrreader.qtmultimedia',
-        'electrum.plugins',
-    ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
+    packages=(['electrum',]
+              + [('electrum.'+pkg) for pkg in
+                 find_packages('electrum/', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
     package_dir={
         'electrum': 'electrum'
     },
