@@ -70,15 +70,9 @@ setup(
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
-    packages=[
-        'electrum_grs',
-        'electrum_grs.qrreader',
-        'electrum_grs.gui',
-        'electrum_grs.gui.qt',
-        'electrum_grs.gui.qt.qrreader',
-        'electrum_grs.gui.qt.qrreader.qtmultimedia',
-        'electrum_grs.plugins',
-    ] + [('electrum_grs.plugins.'+pkg) for pkg in find_packages('electrum_grs/plugins')],
+    packages=(['electrum_grs',]
+              + [('electrum_grs.'+pkg) for pkg in
+                 find_packages('electrum_grs', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
     package_dir={
         'electrum_grs': 'electrum_grs'
     },
