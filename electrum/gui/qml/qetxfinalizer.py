@@ -13,6 +13,7 @@ from .qetypes import QEAmount
 class QETxFinalizer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._tx = None
 
     _logger = get_logger(__name__)
 
@@ -27,6 +28,8 @@ class QETxFinalizer(QObject):
     _method = -1
     _warning = ''
     _target = ''
+    _rbf = False
+    _outputs = []
     config = None
 
     validChanged = pyqtSignal()
@@ -103,6 +106,29 @@ class QETxFinalizer(QObject):
             self._target = target
             self.targetChanged.emit()
 
+    rbfChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=rbfChanged)
+    def rbf(self):
+        return self._rbf
+
+    @rbf.setter
+    def rbf(self, rbf):
+        if self._rbf != rbf:
+            self._rbf = rbf
+            self.update()
+            self.rbfChanged.emit()
+
+    outputsChanged = pyqtSignal()
+    @pyqtProperty('QVariantList', notify=outputsChanged)
+    def outputs(self):
+        return self._outputs
+
+    @outputs.setter
+    def outputs(self, outputs):
+        if self._outputs != outputs:
+            self._outputs = outputs
+            self.outputsChanged.emit()
+
     warningChanged = pyqtSignal()
     @pyqtProperty(str, notify=warningChanged)
     def warning(self):
@@ -163,7 +189,7 @@ class QETxFinalizer(QObject):
         self._method = (2 if mempool else 1) if dynfees else 0
         self.update_slider()
         self.methodChanged.emit()
-        self.update(False)
+        self.update()
 
     def save_config(self):
         value = int(self._sliderPos)
@@ -177,22 +203,26 @@ class QETxFinalizer(QObject):
                 self.config.set_key('fee_level', value, True)
         else:
             self.config.set_key('fee_per_kb', self.config.static_fee(value), True)
-        self.update(False)
+        self.update()
 
     @profiler
-    def make_tx(self, rbf: bool):
+    def make_tx(self):
         coins = self._wallet.wallet.get_spendable_coins(None)
         outputs = [PartialTxOutput.from_address_and_value(self.address, self._amount.satsInt)]
-        tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
+        tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None,rbf=self._rbf)
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
+        self._logger.debug(repr(tx.outputs()))
+        outputs = []
+        for o in tx.outputs():
+            outputs.append(o.to_json())
+        self.outputs = outputs
         return tx
 
-    @pyqtSlot(bool)
-    def update(self, rbf):
-        #rbf = not bool(self.ids.final_cb.active) if self.show_final else False
+    @pyqtSlot()
+    def update(self):
         try:
             # make unsigned transaction
-            tx = self.make_tx(rbf)
+            tx = self.make_tx()
         except NotEnoughFunds:
             self.warning = _("Not enough funds")
             self._valid = False
@@ -204,6 +234,8 @@ class QETxFinalizer(QObject):
             self._valid = False
             self.validChanged.emit()
             return
+
+        self._tx = tx
 
         amount = self._amount.satsInt if not self._amount.isMax else tx.output_value()
 
@@ -229,3 +261,11 @@ class QETxFinalizer(QObject):
 
         self._valid = True
         self.validChanged.emit()
+
+    @pyqtSlot()
+    def send_onchain(self):
+        if not self._valid or not self._tx:
+            self._logger.debug('no valid tx')
+            return
+
+        self._wallet.sign_and_broadcast(self._tx)

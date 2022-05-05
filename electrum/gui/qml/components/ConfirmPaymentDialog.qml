@@ -153,8 +153,34 @@ Dialog {
 
         CheckBox {
             id: final_cb
-            text: qsTr('Final')
+            text: qsTr('Replace-by-Fee')
             Layout.columnSpan: 2
+            checked: finalizer.rbf
+        }
+
+        Rectangle {
+            height: 1
+            Layout.fillWidth: true
+            Layout.columnSpan: 2
+            color: Material.accentColor
+        }
+
+        Label {
+            text: qsTr('Outputs')
+            Layout.columnSpan: 2
+        }
+
+        Repeater {
+            model: finalizer.outputs
+            delegate: RowLayout {
+                Layout.columnSpan: 2
+                Label {
+                    text: modelData.address
+                }
+                Label {
+                    text: modelData.value_sats
+                }
+            }
         }
 
         Rectangle {
@@ -179,10 +205,7 @@ Dialog {
                 text: qsTr('Pay')
                 enabled: finalizer.valid
                 onClicked: {
-                    var f_amount = parseFloat(dialog.satoshis)
-                    if (isNaN(f_amount))
-                        return
-                    var result = Daemon.currentWallet.send_onchain(dialog.address, dialog.satoshis, undefined, false)
+                    finalizer.send_onchain()
                 }
             }
         }

@@ -264,7 +264,9 @@ class QEWallet(QObject):
 
         use_rbf = bool(self.wallet.config.get('use_rbf', True))
         tx.set_rbf(use_rbf)
+        self.sign_and_broadcast(tx)
 
+    def sign_and_broadcast(self, tx):
         def cb(result):
             self._logger.info('signing was succesful? %s' % str(result))
         tx = self.wallet.sign_transaction(tx, None)
