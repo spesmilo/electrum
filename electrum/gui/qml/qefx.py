@@ -99,8 +99,6 @@ class QEFX(QObject):
         else:
             try:
                 sd = Decimal(satoshis)
-                #if sd == 0:
-                    #return ''
             except:
                 return ''
         if plain:
@@ -118,8 +116,6 @@ class QEFX(QObject):
         else:
             try:
                 sd = Decimal(satoshis)
-                if sd == 0:
-                    return ''
             except:
                 return ''
 

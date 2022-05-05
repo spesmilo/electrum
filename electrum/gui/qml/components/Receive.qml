@@ -253,7 +253,9 @@ Pane {
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {
-            amountFiat.text = Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
+            amountFiat.text = amount.text == ''
+                ? ''
+                : Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
         }
     }
 

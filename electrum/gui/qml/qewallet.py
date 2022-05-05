@@ -225,20 +225,22 @@ class QEWallet(QObject):
 
     balanceChanged = pyqtSignal()
 
-    @pyqtProperty('quint64', notify=balanceChanged)
+    @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
-        return self.wallet.get_frozen_balance()
+        self._frozenbalance = QEAmount(amount_sat=self.wallet.get_frozen_balance())
+        return self._frozenbalance
 
-    @pyqtProperty('quint64', notify=balanceChanged)
+    @pyqtProperty(QEAmount, notify=balanceChanged)
     def unconfirmedBalance(self):
-        return self.wallet.get_balance()[1]
+        self._unconfirmedbalance = QEAmount(amount_sat=self.wallet.get_balance()[1])
+        return self._unconfirmedbalance
 
-    @pyqtProperty('quint64', notify=balanceChanged)
+    @pyqtProperty(QEAmount, notify=balanceChanged)
     def confirmedBalance(self):
         c, u, x = self.wallet.get_balance()
         self._logger.info('balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
-
-        return c+x
+        self._confirmedbalance = QEAmount(amount_sat=c+x)
+        return self._confirmedbalance
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):
