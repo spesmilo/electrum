@@ -34,7 +34,7 @@ class QETransactionListModel(QAbstractListModel):
         tx = self.tx_history[index.row()]
         role_index = role - Qt.UserRole
         value = tx[self._ROLE_NAMES[role_index]]
-        if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
+        if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:
             return value
         if isinstance(value, Satoshis):
             return value.value
@@ -110,7 +110,7 @@ class QETransactionListModel(QAbstractListModel):
                 tx['height'] = info.height
                 tx['confirmations'] = info.conf
                 tx['timestamp'] = info.timestamp
-                tx['date'] = self.format_date_by_section(datetime.fromtimestamp(info.timestamp), tx['section'])
+                tx['date'] = self.format_date_by_section(tx['section'], datetime.fromtimestamp(info.timestamp))
                 index = self.index(i,0)
                 roles = [self._ROLE_RMAP[x] for x in ['height','confirmations','timestamp','date']]
                 self.dataChanged.emit(index, index, roles)

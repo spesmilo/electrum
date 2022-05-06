@@ -32,14 +32,22 @@ Rectangle {
         }
     ]
 
+    function show(message) {
+        root.text = message
+        root.hide = false
+        closetimer.start()
+    }
+
     RowLayout {
         id: layout
         width: parent.width
         Text {
             id: textItem
             Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
             font.pixelSize: constants.fontSizeLarge
             color: Material.foreground
+            wrapMode: Text.Wrap
         }
     }
 
@@ -50,8 +58,4 @@ Rectangle {
         onTriggered: hide = true
     }
 
-    Component.onCompleted: {
-        hide = false
-        closetimer.start()
-    }
 }

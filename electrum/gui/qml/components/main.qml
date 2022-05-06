@@ -174,13 +174,13 @@ ApplicationWindow
     property alias messageDialog: _messageDialog
     Component {
         id: _messageDialog
-        MessageDialog {}
+        MessageDialog {
+            onClosed: destroy()
+        }
     }
 
-    property alias notificationPopup: _notificationPopup
-    Component {
-        id: _notificationPopup
-        NotificationPopup {}
+    NotificationPopup {
+        id: notificationPopup
     }
 
     Component.onCompleted: {
@@ -226,7 +226,7 @@ ApplicationWindow
     Connections {
         target: AppController
         function onUserNotify(message) {
-            var item = app.notificationPopup.createObject(app, {'text': message})
+            notificationPopup.show(message)
         }
     }
 }

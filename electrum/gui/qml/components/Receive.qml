@@ -215,7 +215,9 @@ Pane {
 
     Component {
         id: requestdialog
-        RequestDialog {}
+        RequestDialog {
+            onClosed: destroy()
+        }
     }
 
     function createRequest(ignoreGaplimit = false) {

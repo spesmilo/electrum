@@ -33,12 +33,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         invoice = self.invoices[index.row()]
         role_index = role - Qt.UserRole
         value = invoice[self._ROLE_NAMES[role_index]]
-        if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
+
+        if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:
             return value
         if isinstance(value, Satoshis):
             return value.value
-        if isinstance(value, QEAmount):
-            return value
         return str(value)
 
     def clear(self):
@@ -76,6 +75,12 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
                 self.endRemoveRows()
                 break
             i = i + 1
+
+    def get_model_invoice(self, key: str):
+        for invoice in self.invoices:
+            if invoice['key'] == key:
+                return invoice
+        return None
 
     @pyqtSlot(str, int)
     def updateInvoice(self, key, status):

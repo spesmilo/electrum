@@ -4,6 +4,8 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from electrum.logging import get_logger
 from electrum.util import Satoshis
 
+from .qetypes import QEAmount
+
 class QEAddressListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
@@ -32,7 +34,7 @@ class QEAddressListModel(QAbstractListModel):
             address = self.receive_addresses[index.row()]
         role_index = role - Qt.UserRole
         value = address[self._ROLE_NAMES[role_index]]
-        if isinstance(value, bool) or isinstance(value, list) or isinstance(value, int) or value is None:
+        if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:
             return value
         if isinstance(value, Satoshis):
             return value.value
@@ -50,7 +52,7 @@ class QEAddressListModel(QAbstractListModel):
         item['numtx'] = self.wallet.get_address_history_len(address)
         item['label'] = self.wallet.get_label(address)
         c, u, x = self.wallet.get_addr_balance(address)
-        item['balance'] = c + u + x
+        item['balance'] = QEAmount(amount_sat=c + u + x)
         item['held'] = self.wallet.is_frozen_address(address)
         return item
 

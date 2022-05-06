@@ -103,12 +103,12 @@ Pane {
                                 Label {
                                     font.family: FixedFont
                                     text: Config.formatSats(model.balance, false)
-                                    visible: model.balance > 0
+                                    visible: model.balance.satsInt != 0
                                 }
                                 Label {
                                     color: Material.accentColor
                                     text: Config.baseUnit + ','
-                                    visible: model.balance > 0
+                                    visible: model.balance.satsInt != 0
                                 }
                                 Label {
                                     text: model.numtx

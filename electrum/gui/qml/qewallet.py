@@ -322,22 +322,21 @@ class QEWallet(QObject):
             #pass
             ##self.sign_payment_request(addr)
         self._requestModel.add_invoice(self.wallet.get_request(req_key))
-        #return addr
+        return addr
 
     @pyqtSlot(QEAmount, 'QString', int)
     @pyqtSlot(QEAmount, 'QString', int, bool)
     @pyqtSlot(QEAmount, 'QString', int, bool, bool)
     def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
-        expiry = expiration #TODO: self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
         try:
             if is_lightning:
                 if not self.wallet.lnworker.channels:
                     self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
                     return
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-                key = self.wallet.lnworker.add_request(amount.satsInt, message, expiry)
+                key = self.wallet.lnworker.add_request(amount.satsInt, message, expiration)
             else:
-                key = self.create_bitcoin_request(amount.satsInt, message, expiry, ignore_gap)
+                key = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap)
                 if not key:
                     return
                 self._addressModel.init_model()
@@ -356,8 +355,7 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString', result='QVariant')
     def get_request(self, key: str):
-        req = self.wallet.get_request(key)
-        return self._requestModel.invoice_to_model(req)
+        return self._requestModel.get_model_invoice(key)
 
     @pyqtSlot('QString')
     def delete_invoice(self, key: str):
@@ -367,5 +365,4 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString', result='QVariant')
     def get_invoice(self, key: str):
-        invoice = self.wallet.get_invoice(key)
-        return self._invoiceModel.invoice_to_model(invoice)
+        return self._invoiceModel.get_model_invoice(key)

@@ -206,6 +206,7 @@ Dialog {
                 enabled: finalizer.valid
                 onClicked: {
                     finalizer.send_onchain()
+                    dialog.close()
                 }
             }
         }

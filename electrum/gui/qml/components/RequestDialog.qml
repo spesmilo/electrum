@@ -130,17 +130,17 @@ Dialog {
             }
 
             Label {
-                visible: modelItem.amount != 0
+                visible: modelItem.amount.satsInt != 0
                 text: qsTr('Amount')
             }
             Label {
-                visible: modelItem.amount != 0
+                visible: modelItem.amount.satsInt != 0
                 text: Config.formatSats(modelItem.amount)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
             }
             Label {
-                visible: modelItem.amount != 0
+                visible: modelItem.amount.satsInt != 0
                 text: Config.baseUnit
                 color: Material.accentColor
                 font.pixelSize: constants.fontSizeLarge
@@ -148,7 +148,7 @@ Dialog {
 
             Label {
                 id: fiatValue
-                visible: modelItem.amount != 0
+                visible: modelItem.amount.satsInt != 0
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 text: Daemon.fx.enabled
@@ -191,7 +191,7 @@ Dialog {
 
     Connections {
         target: Daemon.currentWallet
-        function onRequestStatusChanged(key, code) {
+        function onRequestStatusChanged(key, status) {
             if (key != modelItem.key)
                 return
             modelItem = Daemon.currentWallet.get_request(key)
