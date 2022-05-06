@@ -96,6 +96,7 @@ Dialog {
                 onClicked: AppController.textToClipboard(dialog.text)
             }
             Button {
+                enabled: false
                 text: qsTr('Share')
                 icon.source: '../../../icons/share.png'
                 onClicked: console.log('TODO')

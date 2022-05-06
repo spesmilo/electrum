@@ -130,17 +130,17 @@ Dialog {
             }
 
             Label {
-                visible: modelItem.amount > 0
+                visible: modelItem.amount != 0
                 text: qsTr('Amount')
             }
             Label {
-                visible: modelItem.amount > 0
+                visible: modelItem.amount != 0
                 text: Config.formatSats(modelItem.amount)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
             }
             Label {
-                visible: modelItem.amount > 0
+                visible: modelItem.amount != 0
                 text: Config.baseUnit
                 color: Material.accentColor
                 font.pixelSize: constants.fontSizeLarge
@@ -148,7 +148,7 @@ Dialog {
 
             Label {
                 id: fiatValue
-                visible: modelItem.amount > 0
+                visible: modelItem.amount != 0
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 text: Daemon.fx.enabled
@@ -199,7 +199,7 @@ Dialog {
     }
 
     Component.onCompleted: {
-        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration)
+        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
         qr.source = 'image://qrgen/' + _bip21uri
     }
 

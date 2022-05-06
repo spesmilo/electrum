@@ -311,18 +311,18 @@ class QEWallet(QObject):
                     return
                 addr = self.wallet.create_new_address(False)
 
-        req = self.wallet.make_payment_request(addr, amount, message, expiration)
-        try:
-            self.wallet.add_payment_request(req)
-        except Exception as e:
-            self.logger.exception('Error adding payment request')
-            self.requestCreateError.emit('fatal',_('Error adding payment request') + ':\n' + repr(e))
-        else:
-            # TODO: check this flow. Only if alias is defined in config. OpenAlias?
-            pass
-            #self.sign_payment_request(addr)
-        self._requestModel.add_invoice(req)
-        return addr
+        req_key = self.wallet.create_request(amount, message, expiration, addr, False)
+        #try:
+            #self.wallet.add_payment_request(req)
+        #except Exception as e:
+            #self.logger.exception('Error adding payment request')
+            #self.requestCreateError.emit('fatal',_('Error adding payment request') + ':\n' + repr(e))
+        #else:
+            ## TODO: check this flow. Only if alias is defined in config. OpenAlias?
+            #pass
+            ##self.sign_payment_request(addr)
+        self._requestModel.add_invoice(self.wallet.get_request(req_key))
+        #return addr
 
     @pyqtSlot(QEAmount, 'QString', int)
     @pyqtSlot(QEAmount, 'QString', int, bool)
@@ -350,6 +350,7 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString')
     def delete_request(self, key: str):
+        self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
         self._requestModel.delete_invoice(key)
 
@@ -360,6 +361,7 @@ class QEWallet(QObject):
 
     @pyqtSlot('QString')
     def delete_invoice(self, key: str):
+        self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
         self._invoiceModel.delete_invoice(key)
 

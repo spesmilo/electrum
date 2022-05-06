@@ -17,8 +17,8 @@ Frame {
         root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
         root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance)
         if (Daemon.fx.enabled) {
-            root.formattedBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance.toString(), false)
-            root.formattedUnconfirmedFiat = Daemon.fx.fiatValue(Daemon.currentWallet.unconfirmedBalance.toString(), false)
+            root.formattedBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance, false)
+            root.formattedUnconfirmedFiat = Daemon.fx.fiatValue(Daemon.currentWallet.unconfirmedBalance, false)
         }
     }
 

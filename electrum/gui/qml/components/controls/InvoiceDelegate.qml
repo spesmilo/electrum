@@ -42,7 +42,11 @@ ItemDelegate {
             Layout.fillWidth: true
             Label {
                 Layout.fillWidth: true
-                text: model.message ? model.message : model.address
+                text: model.message
+                    ? model.message
+                    : model.type == 'request'
+                        ? model.address
+                        : ''
                 elide: Text.ElideRight
                 wrapMode: Text.Wrap
                 maximumLineCount: 2

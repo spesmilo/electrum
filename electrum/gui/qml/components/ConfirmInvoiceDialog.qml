@@ -106,6 +106,15 @@ Dialog {
             spacing: constants.paddingMedium
 
             Button {
+                text: qsTr('Delete')
+                visible: invoice_key != ''
+                onClicked: {
+                    invoice.wallet.delete_invoice(invoice_key)
+                    dialog.close()
+                }
+            }
+
+            Button {
                 text: qsTr('Cancel')
                 onClicked: dialog.close()
             }
