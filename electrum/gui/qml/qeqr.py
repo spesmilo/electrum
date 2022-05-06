@@ -10,7 +10,7 @@ from PIL import Image, ImageQt
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
 from electrum.i18n import _
-from electrum.util import profiler
+from electrum.util import profiler, get_asyncio_loop
 
 class QEQRParser(QObject):
     def __init__(self, text=None, parent=None):
@@ -81,8 +81,7 @@ class QEQRParser(QObject):
             self._busy = False
             self.busyChanged.emit()
 
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(co_parse_qr(frame_cropped), loop)
+        asyncio.run_coroutine_threadsafe(co_parse_qr(frame_cropped), get_asyncio_loop())
 
     def _get_crop(self, image: QImage, scan_size: int) -> QRect:
         """

@@ -8,7 +8,7 @@ from electrum.keystore import bip39_is_checksum_valid
 from electrum.bip32 import is_bip32_derivation
 from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum import mnemonic
-from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI
+from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
 
 from .qetypes import QEAmount
 
@@ -58,8 +58,7 @@ class QEBitcoin(QObject):
             self._logger.debug('seed generated')
             self.generatedSeedChanged.emit()
 
-        loop = asyncio.get_event_loop()
-        asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), loop)
+        asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), get_asyncio_loop())
 
     @pyqtSlot(str)
     @pyqtSlot(str,bool,bool)

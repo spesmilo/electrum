@@ -5,7 +5,6 @@ from decimal import Decimal
 from electrum.logging import get_logger
 from electrum.util import DECIMAL_POINT_DEFAULT
 
-from .qetransactionlistmodel import QEAddressTransactionListModel
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 

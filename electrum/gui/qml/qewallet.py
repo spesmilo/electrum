@@ -10,8 +10,9 @@ from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum import bitcoin
 from electrum.transaction import PartialTxOutput
-from electrum.invoices import   (Invoice, InvoiceError, PR_TYPE_ONCHAIN, PR_TYPE_LN,
-                                 PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_TYPE_ONCHAIN, PR_TYPE_LN)
+from electrum.invoices import   (Invoice, InvoiceError,
+                                 PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID,
+                                 PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED)
 
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel

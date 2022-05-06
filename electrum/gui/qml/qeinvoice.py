@@ -8,7 +8,7 @@ from electrum.i18n import _
 from electrum.keystore import bip39_is_checksum_valid
 from electrum.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_bolt11_invoice)
-from electrum.invoices import Invoice, OnchainInvoice, LNInvoice
+from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
                                PR_FAILED,PR_ROUTING,PR_UNCONFIRMED)
 from electrum.transaction import PartialTxOutput
@@ -164,12 +164,16 @@ class QEInvoice(QObject):
         self._effectiveInvoice = None ###TODO
         self.invoiceChanged.emit()
 
-    def setValidOnchainInvoice(self, invoice: OnchainInvoice):
+    def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')
+        if invoice.is_lightning():
+            raise Exception('unexpected LN invoice')
         self.set_effective_invoice(invoice)
 
-    def setValidLightningInvoice(self, invoice: LNInvoice):
+    def setValidLightningInvoice(self, invoice: Invoice):
         self._logger.debug('setValidLightningInvoice')
+        if not invoice.is_lightning():
+            raise Exception('unexpected Onchain invoice')
         self.set_effective_invoice(invoice)
 
     def create_onchain_invoice(self, outputs, message, payment_request, uri):
@@ -215,7 +219,7 @@ class QEInvoice(QObject):
         lninvoice = None
         try:
             maybe_lightning_invoice = maybe_extract_bolt11_invoice(maybe_lightning_invoice)
-            lninvoice = LNInvoice.from_bech32(maybe_lightning_invoice)
+            lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
         except InvoiceError as e:
             pass
 

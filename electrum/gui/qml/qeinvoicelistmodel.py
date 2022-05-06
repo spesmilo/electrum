@@ -18,7 +18,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.invoices = []
 
     # define listmodel rolemap
-    _ROLE_NAMES=('key','type','timestamp','date','message','amount','status','status_str','address','expiration')
+    _ROLE_NAMES=('key','is_lightning','timestamp','date','message','amount','status','status_str','address','expiration')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -113,13 +113,10 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel):
 
     def invoice_to_model(self, invoice: Invoice):
         item = self.wallet.export_invoice(invoice)
-        item['type'] = invoice.type # 0=onchain, 2=LN
+        item['is_lightning'] = invoice.is_lightning()
         item['date'] = format_time(item['timestamp'])
         item['amount'] = QEAmount(amount_sat=invoice.get_amount_sat())
-        if invoice.type == 0:
-            item['key'] = invoice.id
-        elif invoice.type == 2:
-            item['key'] = invoice.rhash
+        item['key'] = invoice.get_id()
 
         return item
 
@@ -137,8 +134,8 @@ class QERequestListModel(QEAbstractInvoiceListModel):
 
     def invoice_to_model(self, req: Invoice):
         item = self.wallet.export_request(req)
-        item['key'] = self.wallet.get_key_for_receive_request(req)
-        item['type'] = req.type # 0=onchain, 2=LN
+        item['key'] = req.get_id() #self.wallet.get_key_for_receive_request(req)
+        item['is_lightning'] = req.is_lightning()
         item['date'] = format_time(item['timestamp'])
         item['amount'] = QEAmount(amount_sat=req.get_amount_sat())
 

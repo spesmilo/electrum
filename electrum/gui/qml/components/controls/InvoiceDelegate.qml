@@ -33,7 +33,9 @@ ItemDelegate {
             Layout.rowSpan: 2
             Layout.preferredWidth: constants.iconSizeLarge
             Layout.preferredHeight: constants.iconSizeLarge
-            source: model.type == 0 ? "../../../icons/bitcoin.png" : "../../../icons/lightning.png"
+            source: model.is_lightning
+                ? "../../../icons/lightning.png"
+                : "../../../icons/bitcoin.png"
         }
 
         RowLayout {
