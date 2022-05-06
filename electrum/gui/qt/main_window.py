@@ -1264,6 +1264,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.request_list)
         vbox.setStretchFactor(self.request_list, 1000)
+        self.request_list.update()  # after parented and put into a layout, can update without flickering
 
         return w
 
@@ -1553,6 +1554,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
         w.searchable_list = self.invoice_list
+        self.invoice_list.update()  # after parented and put into a layout, can update without flickering
         run_hook('create_send_tab', grid)
         return w
 
