@@ -24,5 +24,5 @@ Item {
 
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
-    property color mutedForeground: Qt.lighter(Material.background, 2)
+    property color mutedForeground: 'gray' //Qt.lighter(Material.background, 2)
 }

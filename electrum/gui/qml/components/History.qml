@@ -36,7 +36,7 @@ Pane {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingLarge
                 font.pixelSize: constants.fontSizeLarge
-                color: constants.mutedForeground
+                color: Material.accentColor
             }
         }
 
@@ -96,7 +96,7 @@ Pane {
                                 Layout.fillWidth: true
                                 font.pixelSize: model.label !== '' ? constants.fontSizeLarge : constants.fontSizeMedium
                                 text: model.label !== '' ? model.label : '<no label>'
-                                color: model.label !== '' ? Material.foreground : 'gray'
+                                color: model.label !== '' ? Material.foreground : constants.mutedForeground
                                 wrapMode: Text.Wrap
                                 maximumLineCount: 2
                                 elide: Text.ElideRight
@@ -117,7 +117,7 @@ Pane {
                             Label {
                                 font.pixelSize: constants.fontSizeSmall
                                 text: model.date
-                                color: Material.accentColor
+                                color: constants.mutedForeground
                             }
                             Label {
                                 id: fiatLabel
