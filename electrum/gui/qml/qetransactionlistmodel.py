@@ -74,7 +74,19 @@ class QETransactionListModel(QAbstractListModel):
         else:
             item['section'] = 'older'
 
+        item['date'] = self.format_date_by_section(item['section'], datetime.fromtimestamp(item['timestamp']))
         return item
+
+    def format_date_by_section(self, section, date):
+        #TODO: l10n
+        dfmt = {
+            'today': '%H:%M:%S',
+            'yesterday': '%H:%M:%S',
+            'lastweek': '%a, %H:%M:%S',
+            'lastmonth': '%a %d, %H:%M:%S',
+            'older': '%G-%m-%d %H:%M:%S'
+        }[section]
+        return date.strftime(dfmt)
 
     # initial model data
     def init_model(self):
@@ -96,7 +108,7 @@ class QETransactionListModel(QAbstractListModel):
                 tx['height'] = info.height
                 tx['confirmations'] = info.conf
                 tx['timestamp'] = info.timestamp
-                tx['date'] = datetime.fromtimestamp(info.timestamp)
+                tx['date'] = self.format_date_by_section(datetime.fromtimestamp(info.timestamp), tx['section'])
                 index = self.index(i,0)
                 roles = [self._ROLE_RMAP[x] for x in ['height','confirmations','timestamp','date']]
                 self.dataChanged.emit(index, index, roles)
