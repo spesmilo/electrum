@@ -82,6 +82,8 @@ Dialog {
                 width: parent.width
                 text: dialog.text
                 wrapMode: Text.Wrap
+                font.pixelSize: constants.fontSizeLarge
+                font.family: FixedFont
             }
         }
 

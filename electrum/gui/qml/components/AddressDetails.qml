@@ -58,6 +58,7 @@ Pane {
             Label {
                 text: qsTr('Address')
                 Layout.columnSpan: 2
+                color: Material.accentColor
             }
 
             TextHighlightPane {
@@ -70,8 +71,10 @@ Pane {
                     width: parent.width
                     Label {
                         text: root.address
+                        font.pixelSize: constants.fontSizeLarge
                         font.family: FixedFont
                         Layout.fillWidth: true
+                        wrapMode: Text.Wrap
                     }
                     ToolButton {
                         icon.source: '../../icons/share.png'
@@ -87,6 +90,7 @@ Pane {
             Label {
                 text: qsTr('Label')
                 Layout.columnSpan: 2
+                color: Material.accentColor
             }
 
             TextHighlightPane {
@@ -106,6 +110,7 @@ Pane {
                         text: addressdetails.label
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
+                        font.pixelSize: constants.fontSizeLarge
                     }
                     ToolButton {
                         visible: !labelContent.editmode
@@ -120,6 +125,7 @@ Pane {
                         id: labelEdit
                         visible: labelContent.editmode
                         text: addressdetails.label
+                        font.pixelSize: constants.fontSizeLarge
                         Layout.fillWidth: true
                     }
                     ToolButton {
@@ -143,6 +149,7 @@ Pane {
             Label {
                 text: qsTr('Public keys')
                 Layout.columnSpan: 2
+                color: Material.accentColor
             }
 
             Repeater {
@@ -158,6 +165,7 @@ Pane {
                             text: modelData
                             Layout.fillWidth: true
                             wrapMode: Text.Wrap
+                            font.pixelSize: constants.fontSizeLarge
                             font.family: FixedFont
                         }
                         ToolButton {
@@ -174,6 +182,7 @@ Pane {
 
             Label {
                 text: qsTr('Script type')
+                color: Material.accentColor
             }
 
             Label {
@@ -183,6 +192,7 @@ Pane {
 
             Label {
                 text: qsTr('Balance')
+                color: Material.accentColor
             }
 
             RowLayout {
@@ -203,6 +213,7 @@ Pane {
 
             Label {
                 text: qsTr('Derivation path')
+                color: Material.accentColor
             }
 
             Label {
@@ -211,6 +222,7 @@ Pane {
 
             Label {
                 text: qsTr('Frozen')
+                color: Material.accentColor
             }
 
             Label {
