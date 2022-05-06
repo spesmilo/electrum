@@ -85,8 +85,10 @@ class QETransactionListModel(QAbstractListModel):
             'lastweek': '%a, %H:%M:%S',
             'lastmonth': '%a %d, %H:%M:%S',
             'older': '%G-%m-%d %H:%M:%S'
-        }[section]
-        return date.strftime(dfmt)
+        }
+        if section not in dfmt:
+            section = 'older'
+        return date.strftime(dfmt[section])
 
     # initial model data
     def init_model(self):

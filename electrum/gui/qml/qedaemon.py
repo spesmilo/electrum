@@ -8,8 +8,10 @@ from electrum.util import register_callback, get_new_wallet_name, WalletFileExce
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
+from electrum.wallet_db import WalletDB
 
 from .qewallet import QEWallet
+from .qewalletdb import QEWalletDB
 from .qefx import QEFX
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
@@ -87,6 +89,8 @@ class QEDaemon(QObject):
         super().__init__(parent)
         self.daemon = daemon
         self.qefx = QEFX(daemon.fx, daemon.config)
+        self._walletdb = QEWalletDB()
+        self._walletdb.invalidPasswordChanged.connect(self.passwordValidityCheck)
 
     _logger = get_logger(__name__)
     _loaded_wallets = QEWalletListModel()
@@ -94,12 +98,18 @@ class QEDaemon(QObject):
     _current_wallet = None
     _path = None
 
+
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
     walletOpenError = pyqtSignal([str], arguments=["error"])
     fxChanged = pyqtSignal()
+
+    @pyqtSlot()
+    def passwordValidityCheck(self):
+        if self._walletdb._invalidPassword:
+            self.walletRequiresPassword.emit()
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -113,14 +123,13 @@ class QEDaemon(QObject):
             return
 
         self._logger.debug('load wallet ' + str(self._path))
-        try:
-            storage = WalletStorage(self._path)
-            if not storage.file_exists():
-                self.walletOpenError.emit('File not found')
+
+        if path not in self.daemon._wallets:
+            # pre-checks, let walletdb trigger any necessary user interactions
+            self._walletdb.path = self._path
+            self._walletdb.password = password
+            if not self._walletdb.ready:
                 return
-        except StorageReadWriteError as e:
-            self.walletOpenError.emit('Storage read/write error')
-            return
 
         try:
             wallet = self.daemon.load_wallet(self._path, password)
@@ -130,8 +139,8 @@ class QEDaemon(QObject):
                 self.walletLoaded.emit()
                 self.daemon.config.save_last_wallet(wallet)
             else:
-                self._logger.info('password required but unset or incorrect')
-                self.walletRequiresPassword.emit()
+                self._logger.info('could not open wallet')
+                self.walletOpenError.emit('could not open wallet')
         except WalletFileException as e:
             self._logger.error(str(e))
             self.walletOpenError.emit(str(e))
@@ -159,4 +168,3 @@ class QEDaemon(QObject):
     @pyqtProperty(QEFX, notify=fxChanged)
     def fx(self):
         return self.qefx
-

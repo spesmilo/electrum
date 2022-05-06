@@ -139,7 +139,7 @@ class QEWallet(QObject):
             self._logger.debug('queue empty, stopping wallet notification timer')
             self.notification_timer.stop()
             return
-        if not self.wallet.up_to_date:
+        if not self.wallet.is_up_to_date():
             return  # no notifications while syncing
         now = time.time()
         rate_limit = 20  # seconds
@@ -218,7 +218,7 @@ class QEWallet(QObject):
         return self.wallet.storage.is_encrypted_with_hw_device()
 
     @pyqtProperty('QString', notify=dataChanged)
-    def derivationPath(self):
+    def derivationPrefix(self):
         keystores = self.wallet.get_keystores()
         if len(keystores) > 1:
             self._logger.debug('multiple keystores not supported yet')

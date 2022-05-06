@@ -9,8 +9,6 @@ from electrum.bip32 import normalize_bip32_derivation
 from electrum.util import InvalidPassword
 from electrum import keystore
 
-from .qedaemon import QEDaemon
-
 class QEWalletDB(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -116,6 +114,12 @@ class QEWalletDB(QObject):
     def invalidPassword(self):
         return self._invalidPassword
 
+    @invalidPassword.setter
+    def invalidPassword(self, invalidPassword):
+        if self._invalidPassword != invalidPassword:
+            self._invalidPassword = invalidPassword
+            self.invalidPasswordChanged.emit()
+
     @pyqtProperty(bool, notify=readyChanged)
     def ready(self):
         return self._ready
@@ -143,11 +147,10 @@ class QEWalletDB(QObject):
             self.needsPassword = True
 
             try:
-                self._storage.decrypt(self._password)
-                self._invalidPassword = False
+                self._storage.decrypt('' if not self._password else self._password)
+                self.invalidPassword = False
             except InvalidPassword as e:
-                self._invalidPassword = True
-            self.invalidPasswordChanged.emit()
+                self.invalidPassword = True
 
         if not self._storage.is_past_initial_decryption():
             self._storage = None

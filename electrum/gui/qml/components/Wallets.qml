@@ -30,8 +30,8 @@ Pane {
                     Label { text: 'Wallet'; Layout.columnSpan: 2 }
                     Label { text: Daemon.currentWallet.name; Layout.columnSpan: 2; color: Material.accentColor }
 
-                    Label { text: 'derivation path (BIP32)'; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
-                    Label { text: Daemon.currentWallet.derivationPath; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
+                    Label { text: 'derivation prefix (BIP32)'; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
+                    Label { text: Daemon.currentWallet.derivationPrefix; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
 
                     Label { text: 'txinType' }
                     Label { text: Daemon.currentWallet.txinType; color: Material.accentColor }
@@ -69,9 +69,6 @@ Pane {
                 delegate: AbstractButton {
                     width: ListView.view.width
                     height: row.height
-                    onClicked: {
-                        wallet_db.path = model.path
-                    }
 
                     RowLayout {
                         id: row
@@ -83,8 +80,8 @@ Pane {
                             id: walleticon
                             source: "../../icons/wallet.png"
                             fillMode: Image.PreserveAspectFit
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
+                            Layout.preferredWidth: constants.iconSizeLarge
+                            Layout.preferredHeight: constants.iconSizeLarge
                         }
 
                         Label {
@@ -129,7 +126,4 @@ Pane {
         }
     }
 
-    WalletDB {
-        id: wallet_db
-    }
 }
