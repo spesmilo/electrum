@@ -74,7 +74,6 @@ class RequestList(MyTreeView):
         self.setSortingEnabled(True)
         self.selectionModel().currentRowChanged.connect(self.item_changed)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.update()
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):

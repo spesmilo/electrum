@@ -20,6 +20,7 @@ class QRCodeWidget(QWidget):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
+        self.margin = 0
         self.fixedSize=fixedSize
         if fixedSize:
             self.setFixedSize(fixedSize, fixedSize)
@@ -69,10 +70,10 @@ class QRCodeWidget(QWidget):
         qp = QtGui.QPainter()
         qp.begin(self)
         r = qp.viewport()
-
-        margin = 10
         framesize = min(r.width(), r.height())
-        boxsize = int((framesize - 2*margin)/k)
+        boxsize = int((framesize - 2*self.margin)/k)
+        if boxsize < 2:
+            print('Warning: cannot draw qr code, boxsize too small')
         size = k*boxsize
         left = (framesize - size)/2
         top = (framesize - size)/2

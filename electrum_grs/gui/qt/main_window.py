@@ -1095,10 +1095,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_widgets(self):
         b = self.config.get('receive_qr_visible', False)
-        self.receive_address_e.setVisible(b)
-        self.receive_address_qr.setVisible(not b)
         self.receive_URI_e.setVisible(b)
         self.receive_URI_qr.setVisible(not b)
+        if str(self.receive_address_e.text()):
+            self.receive_address_help.setVisible(False)
+            self.receive_address_e.setVisible(b)
+            self.receive_address_qr.setVisible(not b)
+        else:
+            self.receive_address_help.setVisible(True)
+            self.receive_address_e.setVisible(False)
+            self.receive_address_qr.setVisible(False)
         if str(self.receive_lightning_e.text()):
             self.receive_lightning_help.setVisible(False)
             self.receive_lightning_e.setVisible(b)
@@ -1174,6 +1180,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addLayout(buttons, 4, 0, 1, -1)
 
         self.receive_address_e = ButtonsTextEdit()
+        self.receive_address_help = WWLabel('')
+        self.receive_address_help.setVisible(False)
         self.receive_URI_e = ButtonsTextEdit()
         self.receive_lightning_e = ButtonsTextEdit()
         self.receive_lightning_help = WWLabel('')
@@ -1197,6 +1205,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_address_layout = QHBoxLayout()
         receive_address_layout.addWidget(self.receive_address_e)
         receive_address_layout.addWidget(self.receive_address_qr)
+        receive_address_layout.addWidget(self.receive_address_help)
         receive_URI_layout = QHBoxLayout()
         receive_URI_layout.addWidget(self.receive_URI_e)
         receive_URI_layout.addWidget(self.receive_URI_qr)
@@ -1255,11 +1264,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.request_list)
         vbox.setStretchFactor(self.request_list, 1000)
+        self.request_list.update()  # after parented and put into a layout, can update without flickering
 
         return w
 
     def show_receive_request(self, req):
         addr = req.get_address() or ''
+        address_help = '' if addr else _('Amount too small to be received onchain')
         can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
         lnaddr = req.lightning_invoice if can_receive_lightning else None
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
@@ -1281,6 +1292,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_e.setText(addr)
         self.update_receive_address_styling()
         self.receive_address_qr.setData(addr)
+        self.receive_address_help.setText(address_help)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
@@ -1542,6 +1554,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
         w.searchable_list = self.invoice_list
+        self.invoice_list.update()  # after parented and put into a layout, can update without flickering
         run_hook('create_send_tab', grid)
         return w
 
