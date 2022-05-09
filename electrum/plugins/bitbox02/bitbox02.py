@@ -559,7 +559,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
     def __init__(self, d: dict):
         super().__init__(d)
-        self.force_watching_only = False
         self.ux_busy = False
 
     def get_client(self) -> Optional['BitBox02Client']:

@@ -442,7 +442,6 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
-        self.force_watching_only = False
         self.maxInputs = 14 # maximum inputs per single sign command
 
     def give_error(self, message, clear_client = False):
