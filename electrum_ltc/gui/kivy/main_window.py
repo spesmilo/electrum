@@ -394,7 +394,7 @@ class ElectrumWindow(App, Logger):
         self.is_exit = False
         self.wallet = None  # type: Optional[Abstract_Wallet]
         self.pause_time = 0
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         self.password = None
         self._use_single_password = False
         self.resume_dialog = None

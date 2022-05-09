@@ -522,23 +522,22 @@ class AddressSynchronizer(Logger):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
+        history.sort(key = lambda x: self.get_txpos(x[0]))
         # 3. add balance
-        c, u, x = self.get_balance(domain)
-        balance = c + u + x
         h2 = []
+        balance = 0
         for tx_hash, tx_mined_status, delta, fee in history:
-            h2.append(HistoryItem(txid=tx_hash,
-                                  tx_mined_status=tx_mined_status,
-                                  delta=delta,
-                                  fee=fee,
-                                  balance=balance))
-            balance -= delta
-        h2.reverse()
-
-        if balance != 0:
+            balance += delta
+            h2.append(HistoryItem(
+                txid=tx_hash,
+                tx_mined_status=tx_mined_status,
+                delta=delta,
+                fee=fee,
+                balance=balance))
+        # sanity check
+        c, u, x = self.get_balance(domain=domain)
+        if balance != c + u + x:
             raise Exception("wallet.get_history() failed balance sanity-check")
-
         return h2
 
     def _add_tx_to_local_history(self, txid):

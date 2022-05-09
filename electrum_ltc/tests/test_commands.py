@@ -2,7 +2,6 @@ import unittest
 from unittest import mock
 from decimal import Decimal
 
-from electrum_ltc.util import create_and_start_event_loop
 from electrum_ltc.commands import Commands, eval_bool
 from electrum_ltc import storage, wallet
 from electrum_ltc.wallet import restore_wallet_from_text
@@ -18,13 +17,7 @@ class TestCommands(ElectrumTestCase):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-
-    def tearDown(self):
-        super().tearDown()
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
 
     def test_setconfig_non_auth_number(self):
         self.assertEqual(7777, Commands._setconfig_normalize_value('rpcport', "7777"))
@@ -135,13 +128,7 @@ class TestCommandsTestnet(TestCaseForTestnet):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-
-    def tearDown(self):
-        super().tearDown()
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
 
     def test_convert_xkey(self):
         cmds = Commands(config=self.config)

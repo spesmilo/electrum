@@ -148,7 +148,7 @@ class ExchangeBase(Logger):
         if h is None:
             h = self.read_historical_rates(ccy, cache_dir)
         if h is None or h['timestamp'] < time.time() - 24*3600:
-            asyncio.get_event_loop().create_task(self.get_historical_rates_safe(ccy, cache_dir))
+            util.get_asyncio_loop().create_task(self.get_historical_rates_safe(ccy, cache_dir))
 
     def history_ccys(self) -> Sequence[str]:
         return []
@@ -395,7 +395,7 @@ def get_exchanges_and_currencies():
                 for name, klass in exchanges.items():
                     exchange = klass(None, None)
                     await group.spawn(get_currencies_safe(name, exchange))
-    loop = asyncio.get_event_loop()
+    loop = util.get_asyncio_loop()
     try:
         loop.run_until_complete(query_all_exchanges_for_their_ccys_over_network())
     except Exception as e:

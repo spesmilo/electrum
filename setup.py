@@ -33,21 +33,11 @@ version_spec.loader.exec_module(version_module)
 data_files = []
 
 if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--root=', dest='root_path', metavar='dir', default='/')
-    opts, _ = parser.parse_known_args(sys.argv[1:])
-    usr_share = os.path.join(sys.prefix, "share")
-    icons_dirname = 'pixmaps'
-    if not os.access(opts.root_path + usr_share, os.W_OK) and \
-       not os.access(opts.root_path, os.W_OK):
-        icons_dirname = 'icons'
-        if 'XDG_DATA_HOME' in os.environ.keys():
-            usr_share = os.environ['XDG_DATA_HOME']
-        else:
-            usr_share = os.path.expanduser('~/.local/share')
+    # note: we can't use absolute paths here. see #7787
     data_files += [
-        (os.path.join(usr_share, 'applications/'), ['electrum-ltc.desktop']),
-        (os.path.join(usr_share, icons_dirname), ['electrum_ltc/gui/icons/electrum-ltc.png']),
+        (os.path.join('share', 'applications'),               ['electrum-ltc.desktop']),
+        (os.path.join('share', 'pixmaps'),                    ['electrum_ltc/gui/icons/electrum-ltc.png']),
+        (os.path.join('share', 'icons/hicolor/128x128/apps'), ['electrum_ltc/gui/icons/electrum-ltc.png']),
     ]
 
 extras_require = {
@@ -70,15 +60,9 @@ setup(
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
-    packages=[
-        'electrum_ltc',
-        'electrum_ltc.qrreader',
-        'electrum_ltc.gui',
-        'electrum_ltc.gui.qt',
-        'electrum_ltc.gui.qt.qrreader',
-        'electrum_ltc.gui.qt.qrreader.qtmultimedia',
-        'electrum_ltc.plugins',
-    ] + [('electrum_ltc.plugins.'+pkg) for pkg in find_packages('electrum_ltc/plugins')],
+    packages=(['electrum_ltc',]
+              + [('electrum_ltc.'+pkg) for pkg in
+                 find_packages('electrum_ltc', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
     package_dir={
         'electrum_ltc': 'electrum_ltc'
     },

@@ -73,7 +73,6 @@ class InvoiceList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.update()
 
     def refresh_row(self, key, row):
         invoice = self.parent.wallet.invoices.get(key)

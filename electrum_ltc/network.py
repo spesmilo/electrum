@@ -273,7 +273,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             init_retry_delay_urgent=1,
         )
 
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
@@ -381,9 +381,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.channel_db = None
             self.path_finder = None
 
-    def run_from_another_thread(self, coro, *, timeout=None):
-        assert util.get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
-        fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
+    @classmethod
+    def run_from_another_thread(cls, coro, *, timeout=None):
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
+        fut = asyncio.run_coroutine_threadsafe(coro, loop)
         return fut.result(timeout)
 
     @staticmethod
@@ -1321,7 +1323,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             assert util.get_running_loop() != network.asyncio_loop
             loop = network.asyncio_loop
         else:
-            loop = asyncio.get_event_loop()
+            loop = util.get_asyncio_loop()
         coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
         # note: _send_http_on_proxy has its own timeout, so no timeout here:
         return coro.result()

@@ -481,7 +481,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
             # Try DNS-resolving the host (if needed). This is simply so that
             # the caller gets a nice exception if it cannot be resolved.
             try:
-                await asyncio.get_event_loop().getaddrinfo(host, port)
+                await asyncio.get_running_loop().getaddrinfo(host, port)
             except socket.gaierror:
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
             # add peer

@@ -4,7 +4,6 @@
 
 import asyncio
 import base64
-from distutils.version import LooseVersion
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
@@ -17,6 +16,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.util import make_aiohttp_session
 from electrum_ltc.logging import Logger
 from electrum_ltc.network import Network
+from electrum_ltc._vendor.distutils.version import LooseVersion
 
 
 class UpdateCheck(QDialog, Logger):

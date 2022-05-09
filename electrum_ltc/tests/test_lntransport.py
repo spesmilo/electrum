@@ -1,5 +1,6 @@
 import asyncio
 
+from electrum_ltc import util
 from electrum_ltc.ecc import ECPrivkey
 from electrum_ltc.lnutil import LNPeerAddr
 from electrum_ltc.lntransport import LNResponderTransport, LNTransport
@@ -38,11 +39,11 @@ class TestLNTransport(ElectrumTestCase):
                     assert num_bytes == 66
                     return bytes.fromhex('00b9e3a702e93e3a9948c2ed6e5fd7590a6e1c3a0344cfc9d5b57357049aa22355361aa02e55a8fc28fef5bd6d71ad0c38228dc68b1c466263b47fdf31e560e139ba')
         transport = LNResponderTransport(ls_priv, Reader(), Writer())
-        asyncio.get_event_loop().run_until_complete(transport.handshake(epriv=e_priv))
+        asyncio.run_coroutine_threadsafe(
+            transport.handshake(epriv=e_priv), self.asyncio_loop).result()
 
     @needs_test_with_all_chacha20_implementations
     def test_loop(self):
-        loop = asyncio.get_event_loop()
         responder_shaked = asyncio.Event()
         server_shaked = asyncio.Event()
         responder_key = ECPrivkey.generate_random_key()
@@ -96,4 +97,4 @@ class TestLNTransport(ElectrumTestCase):
                 server.close()
                 await server.wait_closed()
 
-        loop.run_until_complete(f())
+        asyncio.run_coroutine_threadsafe(f(), self.asyncio_loop).result()
