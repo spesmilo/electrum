@@ -6,5 +6,6 @@ import QtQuick.Controls.Material 2.0
 Pane {
     background: Rectangle {
         color: Qt.lighter(Material.background, 1.15)
+        radius: constants.paddingSmall
     }
 }

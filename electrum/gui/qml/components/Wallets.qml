@@ -17,39 +17,71 @@ Pane {
         width: parent.width
         height: parent.height
 
-        Item {
-            width: parent.width
-            height: detailsLayout.height
+        GridLayout {
+            id: detailsLayout
+            Layout.preferredWidth: parent.width
 
+            columns: 4
 
-                GridLayout {
-                    id: detailsLayout
+            Label { text: 'Wallet'; Layout.columnSpan: 2; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.name; Layout.columnSpan: 2 }
+
+            Label { text: 'derivation prefix (BIP32)'; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
+            Label { text: Daemon.currentWallet.derivationPrefix; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
+
+            Label { text: 'txinType'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.txinType }
+
+            Label { text: 'is deterministic'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.isDeterministic }
+
+            Label { text: 'is watch only'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.isWatchOnly }
+
+            Label { text: 'is Encrypted'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.isEncrypted }
+
+            Label { text: 'is Hardware'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.isHardware }
+
+            Label { text: 'is Lightning'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.isLightning }
+
+            Label { text: 'has Seed'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.hasSeed; Layout.columnSpan: 3 }
+
+            Label { Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor }
+
+            TextHighlightPane {
+                Layout.columnSpan: 4
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+
+                RowLayout {
                     width: parent.width
-                    columns: 4
-
-                    Label { text: 'Wallet'; Layout.columnSpan: 2 }
-                    Label { text: Daemon.currentWallet.name; Layout.columnSpan: 2; color: Material.accentColor }
-
-                    Label { text: 'derivation prefix (BIP32)'; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
-                    Label { text: Daemon.currentWallet.derivationPrefix; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
-
-                    Label { text: 'txinType' }
-                    Label { text: Daemon.currentWallet.txinType; color: Material.accentColor }
-
-                    Label { text: 'is deterministic' }
-                    Label { text: Daemon.currentWallet.isDeterministic; color: Material.accentColor }
-
-                    Label { text: 'is watch only' }
-                    Label { text: Daemon.currentWallet.isWatchOnly; color: Material.accentColor }
-
-                    Label { text: 'is Encrypted' }
-                    Label { text: Daemon.currentWallet.isEncrypted; color: Material.accentColor }
-
-                    Label { text: 'is Hardware' }
-                    Label { text: Daemon.currentWallet.isHardware; color: Material.accentColor }
+                    Label {
+                        text: Daemon.currentWallet.masterPubkey
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                        font.pixelSize: constants.fontSizeMedium
+                    }
+                    ToolButton {
+                        icon.source: '../../icons/share.png'
+                        icon.color: 'transparent'
+                        onClicked: {
+                            var dialog = share.createObject(rootItem, {
+                                'title': qsTr('Master Public Key'),
+                                'text': Daemon.currentWallet.masterPubkey
+                            })
+                            dialog.open()
+                        }
+                    }
                 }
             }
-//        }
+        }
+
+        Item { width: 1; height: 1 }
 
         Frame {
             id: detailsFrame
@@ -59,49 +91,71 @@ Pane {
             horizontalPadding: 0
             background: PaneInsetBackground {}
 
-            ListView {
-                id: listview
-                width: parent.width
-                height: parent.height
-                clip: true
-                model: Daemon.availableWallets
+            ColumnLayout {
+                spacing: 0
+                anchors.fill: parent
 
-                delegate: AbstractButton {
-                    width: ListView.view.width
-                    height: row.height
-
+                Item {
+                    Layout.preferredHeight: hitem.height
+                    Layout.preferredWidth: parent.width
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Qt.lighter(Material.background, 1.25)
+                    }
                     RowLayout {
-                        id: row
-                        spacing: 10
-                        x: constants.paddingSmall
-                        width: parent.width - 2 * constants.paddingSmall
-
-                        Image {
-                            id: walleticon
-                            source: "../../icons/wallet.png"
-                            fillMode: Image.PreserveAspectFit
-                            Layout.preferredWidth: constants.iconSizeLarge
-                            Layout.preferredHeight: constants.iconSizeLarge
-                        }
-
+                        id: hitem
+                        width: parent.width
                         Label {
+                            text: qsTr('Available wallets')
                             font.pixelSize: constants.fontSizeLarge
-                            text: model.name
-                            Layout.fillWidth: true
-                        }
-
-                        Button {
-                            text: 'Open'
-                            onClicked: {
-                                Daemon.load_wallet(model.path)
-                            }
+                            color: Material.accentColor
                         }
                     }
                 }
 
-                ScrollIndicator.vertical: ScrollIndicator { }
-            }
+                ListView {
+                    id: listview
+                    Layout.preferredWidth: parent.width
+                    Layout.fillHeight: true
+                    clip: true
+                    model: Daemon.availableWallets
 
+                    delegate: AbstractButton {
+                        width: ListView.view.width
+                        height: row.height
+
+                        RowLayout {
+                            id: row
+                            spacing: 10
+                            x: constants.paddingSmall
+                            width: parent.width - 2 * constants.paddingSmall
+
+                            Image {
+                                id: walleticon
+                                source: "../../icons/wallet.png"
+                                fillMode: Image.PreserveAspectFit
+                                Layout.preferredWidth: constants.iconSizeLarge
+                                Layout.preferredHeight: constants.iconSizeLarge
+                            }
+
+                            Label {
+                                font.pixelSize: constants.fontSizeLarge
+                                text: model.name
+                                Layout.fillWidth: true
+                            }
+
+                            Button {
+                                text: 'Open'
+                                onClicked: {
+                                    Daemon.load_wallet(model.path)
+                                }
+                            }
+                        }
+                    }
+
+                    ScrollIndicator.vertical: ScrollIndicator { }
+                }
+            }
         }
 
         Button {
@@ -126,4 +180,10 @@ Pane {
         }
     }
 
+    Component {
+        id: share
+        GenericShareDialog {
+            onClosed: destroy()
+        }
+    }
 }

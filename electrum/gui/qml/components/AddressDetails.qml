@@ -122,6 +122,7 @@ Pane {
                         onClicked: {
                             labelEdit.text = addressdetails.label
                             labelContent.editmode = true
+                            labelEdit.focus = true
                         }
                     }
                     TextField {

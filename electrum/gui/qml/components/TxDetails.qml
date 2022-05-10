@@ -175,6 +175,7 @@ Pane {
                         onClicked: {
                             labelEdit.text = txdetails.label
                             labelContent.editmode = true
+                            labelEdit.focus = true
                         }
                     }
                     TextField {

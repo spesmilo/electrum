@@ -197,6 +197,15 @@ class QEWallet(QObject):
     def name(self):
         return self.wallet.basename()
 
+    isLightningChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=isLightningChanged)
+    def isLightning(self):
+        return bool(self.wallet.lnworker)
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def hasSeed(self):
+        return self.wallet.has_seed()
+
     @pyqtProperty('QString', notify=dataChanged)
     def txinType(self):
         return self.wallet.get_txin_type(self.wallet.dummy_address())
@@ -224,6 +233,10 @@ class QEWallet(QObject):
             self._logger.debug('multiple keystores not supported yet')
         return keystores[0].get_derivation_prefix()
 
+    @pyqtProperty(str, notify=dataChanged)
+    def masterPubkey(self):
+        return self.wallet.get_master_public_key()
+
     balanceChanged = pyqtSignal()
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
@@ -242,6 +255,13 @@ class QEWallet(QObject):
         self._logger.info('balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
         self._confirmedbalance = QEAmount(amount_sat=c+x)
         return self._confirmedbalance
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningBalance(self):
+        if not self.isLightning:
+            return QEAmount()
+        self._lightningbalance = QEAmount(amount_sat=self.wallet.lnworker.get_balance())
+        return self._lightningbalance
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):
