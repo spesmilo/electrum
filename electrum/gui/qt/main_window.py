@@ -106,7 +106,7 @@ from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
 from .swap_dialog import SwapDialog
-from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING
+from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -992,15 +992,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 network_text = _("Connected")
-                confirmed, unconfirmed, unmatured, frozen, lightning = self.wallet.get_balances_for_piechart()
+                confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
                 self.balance_label.update_list([
                     (_('Frozen'), COLOR_FROZEN, frozen),
                     (_('Unmatured'), COLOR_UNMATURED, unmatured),
                     (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
                     (_('Confirmed'), COLOR_CONFIRMED, confirmed),
                     (_('Lightning'), COLOR_LIGHTNING, lightning),
+                    (_('Lightning (frozen)'), COLOR_FROZEN_LIGHTNING, f_lightning),
                 ])
-                balance = confirmed + unconfirmed + unmatured + frozen + lightning
+                balance = confirmed + unconfirmed + unmatured + frozen + lightning + f_lightning
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
                 # append fiat balance and price
                 if self.fx.is_enabled():
