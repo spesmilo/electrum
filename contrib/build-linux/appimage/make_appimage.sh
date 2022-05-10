@@ -127,7 +127,7 @@ info "installing electrum and its dependencies."
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 
 info "Installing neoscrypt module"
-cd $CONTRIB/neoscrypt-python
+#cd $CONTRIB/neoscrypt-python
 "$python" -m pip install  \
 	--cache-dir "$PIP_CACHE_DIR" "neoscrypt-python"
 #CFLAGS="-DDEBUG" "$python" ./setup.py install
