@@ -133,7 +133,7 @@ class BaseWizard(Logger):
             # pop 'previous' frame
             self._stack.pop()
             # rerun 'previous' frame
-            self.run(prev_frame.action, *prev_frame.args, **prev_frame.kwargs)
+            self.run(prev_frame.action, *prev_frame.args, **prev_frame.kwargs)o you want to create a new seed, or to restore a wallet using an existing seed?
 
     def reset_stack(self):
         self._stack = []
@@ -205,7 +205,7 @@ class BaseWizard(Logger):
         i = len(self.keystores)
         title = _('Add cosigner') + ' (%d of %d)'%(i+1, self.n) if self.wallet_type=='multisig' else _('Keystore')
         if self.wallet_type =='standard' or i==0:
-            message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+            message = _('Do you want to create a new seed or restore a wallet using an existing seed?')
             choices = [
                 ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
