@@ -44,6 +44,15 @@ Item {
             }
         }
 
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('About');
+                onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
+                icon.source: '../../icons/electrum.png'
+            }
+        }
+
         function openPage(url) {
             stack.push(url)
             currentIndex = -1
