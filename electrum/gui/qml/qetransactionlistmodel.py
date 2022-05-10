@@ -117,6 +117,17 @@ class QETransactionListModel(QAbstractListModel):
                 return
             i = i + 1
 
+    @pyqtSlot(str, str)
+    def update_tx_label(self, txid, label):
+        i = 0
+        for tx in self.tx_history:
+            if tx['txid'] == txid:
+                tx['label'] = label
+                index = self.index(i,0)
+                self.dataChanged.emit(index, index, [self._ROLE_RMAP['label']])
+                return
+            i = i + 1
+
     @pyqtSlot(int)
     def updateBlockchainHeight(self, height):
         self._logger.debug('updating height to %d' % height)

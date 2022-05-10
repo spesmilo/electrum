@@ -66,6 +66,14 @@ Pane {
                         Layout.fillWidth: true
                         Layout.preferredHeight: txinfo.height
 
+                        onClicked: {
+                            var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': model.txid})
+                            page.txDetailsChanged.connect(function() {
+                                // update listmodel when details change
+                                visualModel.model.update_tx_label(model.txid, page.label)
+                            })
+                        }
+
                         GridLayout {
                             id: txinfo
                             columns: 3

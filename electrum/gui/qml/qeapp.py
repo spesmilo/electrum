@@ -22,6 +22,7 @@ from .qetxfinalizer import QETxFinalizer
 from .qeinvoice import QEInvoice
 from .qetypes import QEAmount
 from .qeaddressdetails import QEAddressDetails
+from .qetxdetails import QETxDetails
 
 notification = None
 
@@ -120,6 +121,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxFinalizer, 'org.electrum', 1, 0, 'TxFinalizer')
         qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
         qmlRegisterType(QEAddressDetails, 'org.electrum', 1, 0, 'AddressDetails')
+        qmlRegisterType(QETxDetails, 'org.electrum', 1, 0, 'TxDetails')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
 

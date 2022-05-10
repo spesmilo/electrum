@@ -3,6 +3,7 @@ import QtQuick.Controls.Material 2.0
 
 Item {
     readonly property int paddingTiny: 4
+    readonly property int paddingXSmall: 6
     readonly property int paddingSmall: 8
     readonly property int paddingMedium: 12
     readonly property int paddingLarge: 16
@@ -25,4 +26,5 @@ Item {
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
     property color mutedForeground: 'gray' //Qt.lighter(Material.background, 2)
+    property color colorMine: "yellow"
 }
