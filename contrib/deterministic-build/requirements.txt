@@ -203,6 +203,4 @@ colorama==0.4.4 \
     --hash=sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2
 scrypt==0.8.18 \
     --hash=sha256:04c256912a4271ad2a0856737800e06965431412bd5b36d361febffb67dc30ba \
-neoscrypt==1.0 \
-    --hash=sha256:3d0f404f7e4b9c7b33c4f08b4750dbb573a0d6a2e195bdc7e3bdee24a0895262\
     
