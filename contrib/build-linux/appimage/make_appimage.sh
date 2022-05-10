@@ -12,6 +12,9 @@ CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 PIP_CACHE_DIR="$CACHEDIR/pip_cache"
 
 export GCC_STRIP_BINARIES="1"
+git config --global --add safe.directory /opt/electrum
+git config --global --add safe.directory /opt/electrum/contrib/secp256k1
+git config --global --add safe.directory /opt/electrum/contrib/osx/CalinsQRReader
 
 # pinned versions
 PYTHON_VERSION=3.9.7
@@ -49,7 +52,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
     # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
-    patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
+    #patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
     ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
@@ -123,6 +126,12 @@ info "installing electrum and its dependencies."
 "$python" -m pip install --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-hw.txt"
 
+info "Installing neoscrypt module"
+cd $CONTRIB/neoscrypt-python
+"$python" -m pip install  \
+	--cache-dir "$PIP_CACHE_DIR" "neoscrypt-python"
+#CFLAGS="-DDEBUG" "$python" ./setup.py install
+
 "$python" -m pip install --no-dependencies --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" "$PROJECT_ROOT"
 
@@ -180,7 +189,7 @@ strip_binaries()
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
-strip_binaries
+#strip_binaries
 
 remove_emptydirs()
 {
