@@ -26,6 +26,7 @@ Pane {
                 text: qsTr('Spend from')
                 //onTriggered:
                 icon.source: '../../icons/tab_send.png'
+                enabled: false
             }
         }
         MenuItem {
@@ -33,6 +34,7 @@ Pane {
             action: Action {
                 text: qsTr('Sign/Verify')
                 icon.source: '../../icons/key.png'
+                enabled: false
             }
         }
         MenuItem {
@@ -40,6 +42,7 @@ Pane {
             action: Action {
                 text: qsTr('Encrypt/Decrypt')
                 icon.source: '../../icons/mail_icon.png'
+                enabled: false
             }
         }
     }

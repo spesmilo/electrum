@@ -93,6 +93,27 @@ class QEAppController(QObject):
         except ImportError:
             self.logger.error('Notification: needs plyer; `sudo python3 -m pip install plyer`')
 
+    @pyqtSlot(str, str)
+    def doShare(self, data, title):
+        #if platform != 'android':
+            #return
+        try:
+            from jnius import autoclass, cast
+        except ImportError:
+            self.logger.error('Share: needs jnius. Platform not Android?')
+            return
+
+        JS = autoclass('java.lang.String')
+        Intent = autoclass('android.content.Intent')
+        sendIntent = Intent()
+        sendIntent.setAction(Intent.ACTION_SEND)
+        sendIntent.setType("text/plain")
+        sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
+        pythonActivity = autoclass('org.kivy.android.PythonActivity')
+        currentActivity = cast('android.app.Activity', pythonActivity.mActivity)
+        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
+        currentActivity.startActivity(it)
+
     @pyqtSlot('QString')
     def textToClipboard(self, text):
         QGuiApplication.clipboard().setText(text)

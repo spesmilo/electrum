@@ -113,7 +113,11 @@ Dialog {
                 Button {
                     icon.source: '../../icons/share.png'
                     text: 'Share'
-                    enabled: false
+                    onClicked: {
+                        enabled = false
+                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                        enabled = true
+                    }
                 }
             }
             Label {
