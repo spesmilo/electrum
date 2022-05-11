@@ -661,7 +661,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
     libraries_available = DIGIBOX
     keystore_class = DigitalBitbox_KeyStore
-    client = None
     DEVICE_IDS = [
                    (0x03eb, 0x2402) # Digital Bitbox
                  ]
