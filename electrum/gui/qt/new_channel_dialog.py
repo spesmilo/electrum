@@ -7,6 +7,7 @@ from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.lnutil import LN_MAX_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum import ecc
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
@@ -83,8 +84,8 @@ class NewChannelDialog(WindowModalDialog):
         self.amount_e.setFrozen(False)
         self.amount_e.repaint()  # macOS hack for #6269
         if self.network.channel_db:
-            remote_nodeid.setText('')
-            remote_nodeid.repaint()  # macOS hack for #6269
+            self.remote_nodeid.setText('')
+            self.remote_nodeid.repaint()  # macOS hack for #6269
         self.max_button.setChecked(False)
         self.max_button.repaint()  # macOS hack for #6269
 
@@ -97,7 +98,7 @@ class NewChannelDialog(WindowModalDialog):
         try:
             tx = make_tx(None)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
-            max_button.setChecked(False)
+            self.max_button.setChecked(False)
             self.amount_e.setFrozen(False)
             self.main_window.show_error(str(e))
             return
