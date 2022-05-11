@@ -15,9 +15,8 @@ from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
 from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnworker import LNWallet
-from electrum import ecc
 from electrum.gui import messages
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
@@ -384,105 +383,9 @@ class ChannelsList(MyTreeView):
         d.exec_()
 
     def new_channel_dialog(self, *, amount_sat=None):
-        lnworker = self.parent.wallet.lnworker
-        d = WindowModalDialog(self.parent, _('Open Channel'))
-        vbox = QVBoxLayout(d)
-        if self.parent.network.channel_db:
-            vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-            remote_nodeid = QLineEdit()
-            remote_nodeid.setMinimumWidth(700)
-            suggest_button = QPushButton(d, text=_('Suggest Peer'))
-            def on_suggest():
-                self.parent.wallet.network.start_gossip()
-                nodeid = bh2u(lnworker.suggest_peer() or b'')
-                if not nodeid:
-                    remote_nodeid.setText("")
-                    remote_nodeid.setPlaceholderText(
-                        "Please wait until the graph is synchronized to 30%, and then try again.")
-                else:
-                    remote_nodeid.setText(nodeid)
-                remote_nodeid.repaint()  # macOS hack for #6269
-            suggest_button.clicked.connect(on_suggest)
-        else:
-            from electrum.lnworker import hardcoded_trampoline_nodes
-            vbox.addWidget(QLabel(_('Choose a trampoline node to open a channel with')))
-            trampolines = hardcoded_trampoline_nodes()
-            trampoline_names = list(trampolines.keys())
-            trampoline_combo = QComboBox()
-            trampoline_combo.addItems(trampoline_names)
-            trampoline_combo.setCurrentIndex(1)
-
-        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
-        amount_e.setAmount(amount_sat)
-        # max button
-        def spend_max():
-            amount_e.setFrozen(max_button.isChecked())
-            if not max_button.isChecked():
-                return
-            dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-            make_tx = self.parent.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
-            try:
-                tx = make_tx(None)
-            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
-                max_button.setChecked(False)
-                amount_e.setFrozen(False)
-                self.main_window.show_error(str(e))
-                return
-            amount = tx.output_value()
-            amount = min(amount, LN_MAX_FUNDING_SAT)
-            amount_e.setAmount(amount)
-        max_button = EnterButton(_("Max"), spend_max)
-        max_button.setFixedWidth(100)
-        max_button.setCheckable(True)
-
-        clear_button = QPushButton(d, text=_('Clear'))
-        def on_clear():
-            amount_e.setText('')
-            amount_e.setFrozen(False)
-            amount_e.repaint()  # macOS hack for #6269
-            if self.parent.network.channel_db:
-                remote_nodeid.setText('')
-                remote_nodeid.repaint()  # macOS hack for #6269
-            max_button.setChecked(False)
-            max_button.repaint()  # macOS hack for #6269
-        clear_button.clicked.connect(on_clear)
-        clear_button.setFixedWidth(100)
-        h = QGridLayout()
-        if self.parent.network.channel_db:
-            h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
-            h.addWidget(remote_nodeid, 0, 1, 1, 4)
-            h.addWidget(suggest_button, 0, 5)
-        else:
-            h.addWidget(QLabel(_('Trampoline')), 0, 0)
-            h.addWidget(trampoline_combo, 0, 1, 1, 4)
-
-        h.addWidget(QLabel('Amount'), 2, 0)
-        h.addWidget(amount_e, 2, 1)
-        h.addWidget(max_button, 2, 2)
-        h.addWidget(clear_button, 2, 3)
-        vbox.addLayout(h)
-        vbox.addStretch()
-        ok_button = OkButton(d)
-        ok_button.setDefault(True)
-        vbox.addLayout(Buttons(CancelButton(d), ok_button))
-        if not d.exec_():
-            return
-        if max_button.isChecked() and amount_e.get_amount() < LN_MAX_FUNDING_SAT:
-            # if 'max' enabled and amount is strictly less than max allowed,
-            # that means we have fewer coins than max allowed, and hence we can
-            # spend all coins
-            funding_sat = '!'
-        else:
-            funding_sat = amount_e.get_amount()
-        if self.parent.network.channel_db:
-            connect_str = str(remote_nodeid.text()).strip()
-        else:
-            name = trampoline_names[trampoline_combo.currentIndex()]
-            connect_str = str(trampolines[name])
-        if not connect_str or not funding_sat:
-            return
-        self.parent.open_channel(connect_str, funding_sat, 0)
-        return True
+        from .new_channel_dialog import NewChannelDialog
+        d = NewChannelDialog(self.parent, amount_sat)
+        return d.run()
 
     def swap_dialog(self):
         from .swap_dialog import SwapDialog
