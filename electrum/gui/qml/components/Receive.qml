@@ -143,7 +143,8 @@ Pane {
                     width: parent.width
                     Label {
                         text: qsTr('Receive queue')
-                        font.pixelSize: constants.fontSizeXLarge
+                        font.pixelSize: constants.fontSizeLarge
+                        color: Material.accentColor
                     }
                 }
             }

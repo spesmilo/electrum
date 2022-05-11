@@ -81,7 +81,7 @@ Pane {
                                 color: model.held
                                         ? Qt.rgba(1,0,0,0.75)
                                         : model.numtx > 0
-                                            ? model.balance == 0
+                                            ? model.balance.satsInt == 0
                                                 ? Qt.rgba(0.5,0.5,0.5,1)
                                                 : Qt.rgba(0.75,0.75,0.75,1)
                                             : model.type == 'receive'

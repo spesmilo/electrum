@@ -176,7 +176,8 @@ Pane {
                     width: parent.width
                     Label {
                         text: qsTr('Send queue')
-                        font.pixelSize: constants.fontSizeXLarge
+                        font.pixelSize: constants.fontSizeLarge
+                        color: Material.accentColor
                     }
                 }
             }
