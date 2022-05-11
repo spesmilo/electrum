@@ -855,7 +855,8 @@ class AddressSynchronizer(Logger):
             excluded_coins = set()
         assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
 
-        cache_key = sha256(''.join(sorted(domain)) + ''.join(excluded_coins))
+        cache_key = sha256(','.join(sorted(domain)) + ';'
+                           + ','.join(sorted(excluded_coins)))
         cached_value = self._get_balance_cache.get(cache_key)
         if cached_value:
             return cached_value
