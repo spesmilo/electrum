@@ -507,9 +507,6 @@ class ColdcardPlugin(HW_PluginBase):
 
     @runs_in_hwd_thread
     def create_client(self, device, handler):
-        if handler:
-            self.handler = handler
-
         # We are given a HID device, or at least some details about it.
         # Not sure why not we aren't just given a HID library handle, but
         # the 'path' is unabiguous, so we'll use that.
