@@ -444,9 +444,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         Hardware_KeyStore.__init__(self, d)
         self.maxInputs = 14 # maximum inputs per single sign command
 
-    def give_error(self, message, clear_client = False):
-        if clear_client:
-            self.client = None
+    def give_error(self, message):
         raise Exception(message)
 
 
@@ -652,7 +650,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         except UserCancelled:
             raise
         except BaseException as e:
-            self.give_error(e, True)
+            self.give_error(e)
         else:
             _logger.info(f"Transaction is_complete {tx.is_complete()}")
 

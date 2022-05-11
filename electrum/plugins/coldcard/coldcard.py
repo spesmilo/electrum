@@ -280,14 +280,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         return rv
 
-    def give_error(self, message, clear_client=False):
+    def give_error(self, message):
         self.logger.info(message)
         if not self.ux_busy:
             self.handler.show_error(message)
         else:
             self.ux_busy = False
-        if clear_client:
-            self.client = None
         raise UserFacingException(message)
 
     def wrap_busy(func):
@@ -351,7 +349,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.handler.show_error('{}\n\n{}'.format(
                 _('Error showing address') + ':', str(exc)))
         except Exception as e:
-            self.give_error(e, True)
+            self.give_error(e)
 
         # give empty bytes for error cases; it seems to clear the old signature box
         return b''
@@ -397,7 +395,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             return
         except BaseException as e:
             self.logger.exception('')
-            self.give_error(e, True)
+            self.give_error(e)
             return
 
         tx2 = PartialTransaction.from_raw_psbt(raw_resp)

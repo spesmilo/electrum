@@ -260,14 +260,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def get_client_electrum(self) -> Optional[Ledger_Client]:
         return self.plugin.get_client(self)
 
-    def give_error(self, message, clear_client = False):
+    def give_error(self, message):
         _logger.info(message)
         if not self.signing:
             self.handler.show_error(message)
         else:
             self.signing = False
-        if clear_client:
-            self.client = None
         raise UserFacingException(message)
 
     def set_and_unset_signing(func):
@@ -306,18 +304,20 @@ class Ledger_KeyStore(Hardware_KeyStore):
             signature = client_ledger.signMessageSign(pin)
         except BTChipException as e:
             if e.sw == 0x6a80:
-                self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
+                self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. "
+                                "Only alphanumerical messages shorter than 140 characters are supported. "
+                                "Please remove any extra characters (tab, carriage return) and retry.")
             elif e.sw == 0x6985:  # cancelled by user
                 return b''
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
             else:
-                self.give_error(e, True)
+                self.give_error(e)
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return b''
         except Exception as e:
-            self.give_error(e, True)
+            self.give_error(e)
         finally:
             self.handler.finished()
         # Parse the ASN.1 signature
@@ -541,10 +541,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 raise  # pin lock. decorator will catch it
             else:
                 self.logger.exception('')
-                self.give_error(e, True)
+                self.give_error(e)
         except BaseException as e:
             self.logger.exception('')
-            self.give_error(e, True)
+            self.give_error(e)
         finally:
             self.handler.finished()
 

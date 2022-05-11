@@ -564,14 +564,12 @@ class BitBox02_KeyStore(Hardware_KeyStore):
     def get_client(self) -> Optional['BitBox02Client']:
         return self.plugin.get_client(self)
 
-    def give_error(self, message: Exception, clear_client: bool = False):
+    def give_error(self, message: Exception):
         self.logger.info(message)
         if not self.ux_busy:
             self.handler.show_error(message)
         else:
             self.ux_busy = False
-        if clear_client:
-            self.client = None
         raise UserFacingException(message)
 
     def decrypt_message(self, pubkey, message, password):
@@ -606,7 +604,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
         except Exception as e:
             self.logger.exception("")
-            self.give_error(e, True)
+            self.give_error(e)
             return
 
     @runs_in_hwd_thread
