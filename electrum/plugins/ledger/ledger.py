@@ -687,9 +687,6 @@ class LedgerPlugin(HW_PluginBase):
 
     @runs_in_hwd_thread
     def create_client(self, device, handler):
-        if handler:
-            self.handler = handler
-
         client = self.get_btchip_device(device)
         if client is not None:
             client = Ledger_Client(client, product_key=device.product_key, plugin=self)

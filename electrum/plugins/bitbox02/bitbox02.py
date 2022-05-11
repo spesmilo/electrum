@@ -22,7 +22,7 @@ from electrum.bitcoin import OnchainOutputType
 import electrum.bitcoin as bitcoin
 import electrum.ecc as ecc
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
 
 _logger = get_logger(__name__)
@@ -47,7 +47,7 @@ except ImportError as e:
 
 class BitBox02Client(HardwareClientBase):
     # handler is a BitBox02_Handler, importing it would lead to a circular dependency
-    def __init__(self, handler: Any, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
+    def __init__(self, handler: HardwareHandlerBase, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
         self.bitbox02_device = None  # type: Optional[bitbox02.BitBox02]
         self.handler = handler
@@ -653,11 +653,8 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             raise ImportError()
 
-    # handler is a BitBox02_Handler
     @runs_in_hwd_thread
-    def create_client(self, device: Device, handler: Any) -> BitBox02Client:
-        if not handler:
-            self.handler = handler
+    def create_client(self, device, handler) -> BitBox02Client:
         return BitBox02Client(handler, device, self.config, plugin=self)
 
     def setup_device(
