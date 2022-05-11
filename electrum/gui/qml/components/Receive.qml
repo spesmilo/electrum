@@ -36,27 +36,10 @@ Pane {
             Layout.rightMargin: constants.paddingXLarge
         }
 
-        TextField {
+        BtcField {
             id: amount
-            font.family: FixedFont
+            fiatfield: amountFiat
             Layout.preferredWidth: parent.width /2
-            placeholderText: qsTr('Amount')
-            inputMethodHints: Qt.ImhPreferNumbers
-
-            property Amount textAsSats
-            onTextChanged: {
-                textAsSats = Config.unitsToSats(amount.text)
-                if (amountFiat.activeFocus)
-                    return
-                amountFiat.text = text == '' ? '' : Daemon.fx.fiatValue(amount.textAsSats)
-            }
-
-            Connections {
-                target: Config
-                function onBaseUnitChanged() {
-                    amount.text = amount.textAsSats != 0 ? Config.satsToUnits(amount.textAsSats) : ''
-                }
-            }
         }
 
         Label {
@@ -68,17 +51,11 @@ Pane {
 
         Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
 
-        TextField {
+        FiatField {
             id: amountFiat
+            btcfield: amount
             visible: Daemon.fx.enabled
-            font.family: FixedFont
             Layout.preferredWidth: parent.width /2
-            placeholderText: qsTr('Amount')
-            inputMethodHints: Qt.ImhDigitsOnly
-            onTextChanged: {
-                if (amountFiat.activeFocus)
-                    amount.text = text == '' ? '' : Config.satsToUnits(Daemon.fx.satoshiValue(amountFiat.text))
-            }
         }
 
         Label {
