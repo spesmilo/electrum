@@ -230,13 +230,4 @@ Pane {
         }
     }
 
-    Connections {
-        target: Daemon.fx
-        function onQuotesUpdated() {
-            amountFiat.text = amount.text == ''
-                ? ''
-                : Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
-        }
-    }
-
 }

@@ -244,15 +244,6 @@ Pane {
         }
     }
 
-    Connections {
-        target: Daemon.fx
-        function onQuotesUpdated() {
-            amountFiat.text = amount.text == ''
-                ? ''
-                : Daemon.fx.fiatValue(Config.unitsToSats(amount.text))
-        }
-    }
-
     // make clicking the dialog background move the scope away from textedit fields
     // so the keyboard goes away
     MouseArea {

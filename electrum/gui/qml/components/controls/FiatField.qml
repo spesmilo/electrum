@@ -15,4 +15,14 @@ TextField {
         if (amountFiat.activeFocus)
             btcfield.text = text == '' ? '' : Config.satsToUnits(Daemon.fx.satoshiValue(amountFiat.text))
     }
+
+    Connections {
+        target: Daemon.fx
+        function onQuotesUpdated() {
+            amountFiat.text = btcfield.text == ''
+                ? ''
+                : Daemon.fx.fiatValue(Config.unitsToSats(btcfield.text))
+        }
+    }
+
 }
