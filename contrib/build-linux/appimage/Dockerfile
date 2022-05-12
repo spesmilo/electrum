@@ -31,7 +31,7 @@ RUN apt-get update -q && \
         libudev1=237-3ubuntu10.53 \
         gettext=0.19.8.1-6ubuntu0.3 \
         libzbar0=0.10+doc-10.1build2  \
-        libdbus-1-3=1.12.2-1ubuntu1.2 \
+        libdbus-1-3=1.12.2-1ubuntu1.3 \
         libxkbcommon0=0.8.0-1ubuntu0.1 \
         libxkbcommon-x11-0=0.8.0-1ubuntu0.1 \
         libxcb1=1.13-1 \

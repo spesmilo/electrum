@@ -2056,10 +2056,10 @@ class LNWallet(LNWorker):
             return
         self.wallet.save_db()
 
-    def get_balance(self):
+    def get_balance(self, frozen=False):
         with self.lock:
             return Decimal(sum(
-                chan.balance(LOCAL) if not chan.is_closed() else 0
+                chan.balance(LOCAL) if not chan.is_closed() and (chan.is_frozen_for_sending() if frozen else True) else 0
                 for chan in self.channels.values())) / 1000
 
     def num_sats_can_send(self) -> Decimal:

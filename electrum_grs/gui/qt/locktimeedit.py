@@ -142,7 +142,7 @@ class LockTimeHeightEdit(LockTimeRawEdit):
         textRect.adjust(2, 0, -10, 0)
         painter = QPainter(self)
         painter.setPen(ColorScheme.GRAY.as_color())
-        painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, "height")
+        painter.drawText(textRect, int(Qt.AlignRight | Qt.AlignVCenter), "height")
 
 
 def get_max_allowed_timestamp() -> int:
