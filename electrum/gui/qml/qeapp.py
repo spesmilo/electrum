@@ -23,6 +23,7 @@ from .qeinvoice import QEInvoice
 from .qetypes import QEAmount
 from .qeaddressdetails import QEAddressDetails
 from .qetxdetails import QETxDetails
+from .qechannelopener import QEChannelOpener
 
 notification = None
 
@@ -143,6 +144,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEInvoice, 'org.electrum', 1, 0, 'Invoice')
         qmlRegisterType(QEAddressDetails, 'org.electrum', 1, 0, 'AddressDetails')
         qmlRegisterType(QETxDetails, 'org.electrum', 1, 0, 'TxDetails')
+        qmlRegisterType(QEChannelOpener, 'org.electrum', 1, 0, 'ChannelOpener')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
 
@@ -165,11 +167,13 @@ class ElectrumQmlApplication(QGuiApplication):
         self._qenetwork = QENetwork(daemon.network)
         self._qedaemon = QEDaemon(daemon)
         self._appController = QEAppController(self._qedaemon)
+        self._maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self._appController)
         self.context.setContextProperty('Config', self._qeconfig)
         self.context.setContextProperty('Network', self._qenetwork)
         self.context.setContextProperty('Daemon', self._qedaemon)
         self.context.setContextProperty('FixedFont', self.fixedFont)
+        self.context.setContextProperty('MAX', self._maxAmount)
         self.context.setContextProperty('BUILD', {
             'electrum_version': version.ELECTRUM_VERSION,
             'apk_version': version.APK_VERSION,

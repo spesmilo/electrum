@@ -12,7 +12,6 @@ Item {
     property bool toolbar: false
 
     property string scanData
-    property var invoiceData: undefined
     property string error
 
     signal found
@@ -24,16 +23,6 @@ Item {
 
         onFound: {
             scanPage.scanData = scanData
-            var invoice = bitcoin.parse_uri(scanData)
-            if (invoice['error']) {
-                error = invoice['error']
-                console.log(error)
-                app.stack.pop()
-                return
-            }
-
-            invoiceData = invoice
-            console.log(invoiceData['address'])
             scanPage.found()
             app.stack.pop()
         }
@@ -45,9 +34,5 @@ Item {
         anchors.bottom: parent.bottom
         text: 'Cancel'
         onClicked: app.stack.pop()
-    }
-
-    Bitcoin {
-        id: bitcoin
     }
 }

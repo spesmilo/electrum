@@ -17,6 +17,7 @@ from electrum.invoices import   (Invoice, InvoiceError,
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
+from .qechannellistmodel import QEChannelListModel
 from .qetypes import QEAmount
 
 class QEWallet(QObject):
@@ -60,6 +61,7 @@ class QEWallet(QObject):
         self._addressModel = QEAddressListModel(wallet)
         self._requestModel = QERequestListModel(wallet)
         self._invoiceModel = QEInvoiceListModel(wallet)
+        self._channelModel = None
 
         self._historyModel.init_model()
         self._requestModel.init_model()
@@ -191,6 +193,13 @@ class QEWallet(QObject):
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
         return self._invoiceModel
+
+    channelModelChanged = pyqtSignal()
+    @pyqtProperty(QEChannelListModel, notify=channelModelChanged)
+    def channelModel(self):
+        if self._channelModel is None:
+            self._channelModel = QEChannelListModel(self.wallet)
+        return self._channelModel
 
     nameChanged = pyqtSignal()
     @pyqtProperty('QString', notify=nameChanged)
