@@ -772,7 +772,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addSeparator()
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
-        tools_menu.addAction(_("&Show QR code in separate window"), self.toggle_receive_qr_window)
+        tools_menu.addAction(_("&Show QR code in separate window"), self.toggle_qr_window)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
@@ -1096,20 +1096,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_widgets(self):
         b = self.config.get('receive_qr_visible', False)
-        self.receive_URI_e.setVisible(b)
-        self.receive_URI_qr.setVisible(not b)
+        self.receive_URI_e.setVisible(not b)
+        self.receive_URI_qr.setVisible(b)
         if str(self.receive_address_e.text()):
             self.receive_address_help.setVisible(False)
-            self.receive_address_e.setVisible(b)
-            self.receive_address_qr.setVisible(not b)
+            self.receive_address_e.setVisible(not b)
+            self.receive_address_qr.setVisible(b)
         else:
             self.receive_address_help.setVisible(True)
             self.receive_address_e.setVisible(False)
             self.receive_address_qr.setVisible(False)
         if str(self.receive_lightning_e.text()):
             self.receive_lightning_help.setVisible(False)
-            self.receive_lightning_e.setVisible(b)
-            self.receive_lightning_qr.setVisible(not b)
+            self.receive_lightning_e.setVisible(not b)
+            self.receive_lightning_qr.setVisible(b)
         else:
             self.receive_lightning_help.setVisible(True)
             self.receive_lightning_e.setVisible(False)
@@ -1428,7 +1428,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_combo.show()
         self.request_list.clearSelection()
 
-    def toggle_receive_qr_window(self):
+    def toggle_qr_window(self):
         from . import qrwindow
         if not self.qr_window:
             self.qr_window = qrwindow.QR_Window(self)
