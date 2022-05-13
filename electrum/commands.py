@@ -1479,6 +1479,8 @@ def add_global_options(parser):
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
     group.add_argument("--signet", action="store_true", dest="signet", default=False, help="Use Signet")
     group.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+    group.add_argument("--rpcuser", dest="rpcuser", default=argparse.SUPPRESS, help="RPC user")
+    group.add_argument("--rpcpassword", dest="rpcpassword", default=argparse.SUPPRESS, help="RPC password")
 
 def add_wallet_option(parser):
     parser.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
@@ -1506,6 +1508,10 @@ def get_parser():
     # daemon
     parser_daemon = subparsers.add_parser('daemon', help="Run Daemon")
     parser_daemon.add_argument("-d", "--detached", action="store_true", dest="detach", default=False, help="run daemon in detached mode")
+    # FIXME: all these options are rpc-server-side. The CLI client-side cannot use e.g. --rpcport,
+    #        instead it reads it from the daemon lockfile.
+    parser_daemon.add_argument("--rpchost", dest="rpchost", default=argparse.SUPPRESS, help="RPC host")
+    parser_daemon.add_argument("--rpcport", dest="rpcport", type=int, default=argparse.SUPPRESS, help="RPC port")
     parser_daemon.add_argument("--rpcsock", dest="rpcsock", default=None, help="what socket type to which to bind RPC daemon", choices=['unix', 'tcp', 'auto'])
     parser_daemon.add_argument("--rpcsockpath", dest="rpcsockpath", help="where to place RPC file socket")
     add_network_options(parser_daemon)
