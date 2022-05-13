@@ -98,7 +98,8 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
 from .util import ButtonsTextEdit, ButtonsLineEdit
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
-from .update_checker import UpdateCheck, UpdateCheckThread
+# updatecheck doesn't work for FTC
+#from .update_checker import UpdateCheck, UpdateCheckThread
 from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
@@ -768,12 +769,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Check for updates"), self.show_update_check)
+        # update check not working for FTC
+        #help_menu.addAction(_("&Check for updates"), self.show_update_check)
         help_menu.addAction(_("&Official website"), lambda: webopen("https://electrum.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webopen("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
-        if not constants.net.TESTNET:
-            help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
+        # bitcoin paper doesn't work for FTC
+        #if not constants.net.TESTNET:
+        #    help_menu.addAction(_("&Bitcoin Paper"), self.show_bitcoin_paper)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
