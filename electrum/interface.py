@@ -736,24 +736,30 @@ class Interface(Logger):
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
             self._mark_ready()
-            await self._process_header_at_tip()
+            blockchain_updated = await self._process_header_at_tip()
             # header processing done
-            util.trigger_callback('blockchain_updated')
+            if blockchain_updated:
+                util.trigger_callback('blockchain_updated')
             util.trigger_callback('network_updated')
             await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
 
-    async def _process_header_at_tip(self):
+    async def _process_header_at_tip(self) -> bool:
+        """Returns:
+        False - boring fast-forward: we already have this header as part of this blockchain from another interface,
+        True - new header we didn't have, or reorg
+        """
         height, header = self.tip, self.tip_header
         async with self.network.bhi_lock:
             if self.blockchain.height() >= height and self.blockchain.check_header(header):
                 # another interface amended the blockchain
                 self.logger.info(f"skipping header {height}")
-                return
+                return False
             _, height = await self.step(height, header)
             # in the simple case, height == self.tip+1
             if height <= self.tip:
                 await self.sync_until(height)
+            return True
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
