@@ -2898,8 +2898,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
-        signature_e = QTextEdit()
-        signature_e.setAcceptRichText(False)
+        signature_e = ButtonsTextEdit()
+        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+        signature_e.addButton(qr_icon, lambda: self.show_qrcode(signature_e.text()), _("Show QR Code"))
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
