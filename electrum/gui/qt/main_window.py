@@ -2432,8 +2432,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         console.updateNamespace(methods)
 
     def show_balance_dialog(self):
+        balance = sum(self.wallet.get_balances_for_piechart())
+        if balance == 0:
+            return
         from .balance_dialog import BalanceDialog
-        d = BalanceDialog(self, self.wallet)
+        d = BalanceDialog(self, wallet=self.wallet)
         d.run()
 
     def create_status_bar(self):
