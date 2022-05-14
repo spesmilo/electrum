@@ -853,7 +853,7 @@ class ButtonsWidget(QWidget):
         self.buttons.append(button)
         return button
 
-    def addCopyButton(self, app):
+    def addCopyButton(self, app: QApplication):
         self.app = app
         self.addButton("copy.png", self.on_copy, _("Copy to clipboard"))
 
@@ -861,12 +861,90 @@ class ButtonsWidget(QWidget):
         self.app.clipboard().setText(self.text())
         QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
-    def addPasteButton(self, app):
+    def addPasteButton(self, app: QApplication):
         self.app = app
         self.addButton("copy.png", self.on_paste, _("Paste from clipboard"))
 
     def on_paste(self):
         self.setText(self.app.clipboard().text())
+
+    def add_qr_show_button(self, *, config: 'SimpleConfig'):
+        def qr_show():
+            from .qrcodewidget import QRDialog
+            try:
+                s = str(self.text())
+            except:
+                s = self.text()
+            if not s:
+                return
+            QRDialog(
+                data=s,
+                parent=self,
+                config=config,
+            ).exec_()
+
+        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+        self.addButton(icon, qr_show, _("Show as QR code"))
+        # side-effect: we export this method:
+        self.on_qr_show_btn = qr_show
+
+    def add_qr_input_button(
+            self,
+            *,
+            config: 'SimpleConfig',
+            allow_multi: bool = False,
+            show_error: Callable[[str], None],
+    ):
+        def qr_input():
+            def cb(success: bool, error: str, data):
+                if not success:
+                    if error:
+                        show_error(error)
+                    return
+                if not data:
+                    data = ''
+                if allow_multi:
+                    new_text = self.text() + data + '\n'
+                else:
+                    new_text = data
+                self.setText(new_text)
+
+            from .qrreader import scan_qrcode
+            scan_qrcode(parent=self, config=config, callback=cb)
+
+        icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
+        self.addButton(icon, qr_input, _("Read QR code"))
+        # side-effect: we export this method:
+        self.on_qr_input_btn = qr_input
+
+    def add_file_input_button(
+            self,
+            *,
+            config: 'SimpleConfig',
+            show_error: Callable[[str], None],
+    ) -> None:
+        def file_input():
+            fileName = getOpenFileName(
+                parent=self,
+                title='select file',
+                config=config,
+            )
+            if not fileName:
+                return
+            try:
+                try:
+                    with open(fileName, "r") as f:
+                        data = f.read()
+                except UnicodeError as e:
+                    with open(fileName, "rb") as f:
+                        data = f.read()
+                    data = data.hex()
+            except BaseException as e:
+                show_error(_('Error opening file') + ':\n' + repr(e))
+            else:
+                self.setText(data)
+
+        self.addButton("file.png", file_input, _("Read file"))
 
 
 class ButtonsLineEdit(QLineEdit, ButtonsWidget):
