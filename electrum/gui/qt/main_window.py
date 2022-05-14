@@ -85,7 +85,7 @@ from electrum.lnaddr import lndecode, LnInvoiceException
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
-from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit, ScanShowQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
@@ -2898,9 +2898,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
-        signature_e = ButtonsTextEdit()
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        signature_e.addButton(qr_icon, lambda: self.show_qrcode(signature_e.text()), _("Show QR Code"))
+        signature_e = ScanShowQRTextEdit(config=self.config)
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
