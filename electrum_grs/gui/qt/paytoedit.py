@@ -257,13 +257,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
 
-    def qr_input(self, *, callback=None):
-        def _on_qr_success(data):
-            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-                self.win.pay_to_URI(data)
-                # TODO: update fee
-        super(PayToEdit, self).qr_input(callback=_on_qr_success)
-
     def resolve(self):
         self.is_alias = False
         if self.hasFocus():

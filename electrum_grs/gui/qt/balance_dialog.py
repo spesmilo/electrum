@@ -39,6 +39,10 @@ from electrum_grs.i18n import _
 
 from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme
 
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+    from electrum.wallet import Abstract_Wallet
+
 
 # Todo:
 #  show lightning funds that are not usable
@@ -140,7 +144,7 @@ class LegendWidget(QWidget):
 
 class BalanceDialog(WindowModalDialog):
 
-    def __init__(self, parent, wallet):
+    def __init__(self, parent: 'ElectrumWindow', *, wallet: 'Abstract_Wallet'):
 
         WindowModalDialog.__init__(self, parent, _("Wallet Balance"))
         self.wallet = wallet

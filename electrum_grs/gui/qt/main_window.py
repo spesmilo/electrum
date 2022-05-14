@@ -85,7 +85,7 @@ from electrum_grs.lnaddr import lndecode, LnInvoiceException
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
-from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit, ScanShowQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
@@ -1190,7 +1190,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
         fixedSize = 200
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
@@ -2432,8 +2431,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         console.updateNamespace(methods)
 
     def show_balance_dialog(self):
+        balance = sum(self.wallet.get_balances_for_piechart())
+        if balance == 0:
+            return
         from .balance_dialog import BalanceDialog
-        d = BalanceDialog(self, self.wallet)
+        d = BalanceDialog(self, wallet=self.wallet)
         d.run()
 
     def create_status_bar(self):
@@ -2673,11 +2675,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 grid.addWidget(HelpButton(msg), 5, 3)
             grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
-            # TODO: ButtonsLineEdit should have a addQrButton method
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ButtonsLineEdit(nodeid_text)
-            qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-            nodeid_e.addButton(qr_icon, lambda: self.show_qrcode(nodeid_text, _("Node ID")), _("Show QR Code"))
+            nodeid_e.add_qr_show_button(config=self.config, title=_("Node ID"))
             nodeid_e.addCopyButton(self.app)
             nodeid_e.setReadOnly(True)
             nodeid_e.setFont(QFont(MONOSPACE_FONT))
@@ -2895,8 +2895,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
-        signature_e = QTextEdit()
-        signature_e.setAcceptRichText(False)
+        signature_e = ScanShowQRTextEdit(config=self.config)
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)

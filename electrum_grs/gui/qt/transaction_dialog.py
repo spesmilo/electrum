@@ -120,10 +120,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
-        self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
+        self.tx_hash_e = ButtonsLineEdit()
+        self.tx_hash_e.add_qr_show_button(config=self.config, title='Transaction ID')
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
 
