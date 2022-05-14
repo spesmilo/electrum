@@ -1190,7 +1190,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
         fixedSize = 200
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
@@ -2676,11 +2675,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 grid.addWidget(HelpButton(msg), 5, 3)
             grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
-            # TODO: ButtonsLineEdit should have a addQrButton method
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ButtonsLineEdit(nodeid_text)
-            qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-            nodeid_e.addButton(qr_icon, lambda: self.show_qrcode(nodeid_text, _("Node ID")), _("Show QR Code"))
+            nodeid_e.add_qr_show_button(config=self.config, title=_("Node ID"))
             nodeid_e.addCopyButton(self.app)
             nodeid_e.setReadOnly(True)
             nodeid_e.setFont(QFont(MONOSPACE_FONT))

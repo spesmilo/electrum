@@ -868,7 +868,10 @@ class ButtonsWidget(QWidget):
     def on_paste(self):
         self.setText(self.app.clipboard().text())
 
-    def add_qr_show_button(self, *, config: 'SimpleConfig'):
+    def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
+        if title is None:
+            title = _("QR code")
+
         def qr_show():
             from .qrcodewidget import QRDialog
             try:
@@ -880,6 +883,7 @@ class ButtonsWidget(QWidget):
             QRDialog(
                 data=s,
                 parent=self,
+                title=title,
                 config=config,
             ).exec_()
 
