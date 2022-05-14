@@ -20,7 +20,7 @@ class QRCodeWidget(QWidget):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
-        self.margin = 0
+        self.margin = 1
         self.fixedSize=fixedSize
         if fixedSize:
             self.setFixedSize(fixedSize, fixedSize)
