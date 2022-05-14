@@ -41,7 +41,7 @@ from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
-    from electrum.wallet import Abstract_Wallet
+    from electrum_grs.wallet import Abstract_Wallet
 
 
 # Todo:
