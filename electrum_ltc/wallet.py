@@ -729,17 +729,13 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
         c, u, x = self.get_balance()
         fc, fu, fx = self.get_frozen_balance()
         lightning = self.lnworker.get_balance() if self.has_lightning() else 0
+        f_lightning = self.lnworker.get_balance(frozen=True) if self.has_lightning() else 0
         # subtract frozen funds
         cc = c - fc
         uu = u - fu
         xx = x - fx
         frozen = fc + fu + fx
-        # subtract unconfirmed if negative.
-        # (this does not make sense if positive and negative tx cancel eachother out)
-        if uu < 0:
-            cc = cc + uu
-            uu = 0
-        return cc, uu, xx, frozen, lightning
+        return cc, uu, xx, frozen, lightning - f_lightning, f_lightning
 
     def balance_at_timestamp(self, domain, target_timestamp):
         # we assume that get_history returns items ordered by block height

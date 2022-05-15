@@ -129,7 +129,8 @@ class WalletDB(JsonDB):
             data2['suffix'] = 'imported'
             result = [data1, data2]
 
-        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip', 'digitalbitbox', 'safe_t']:
+        # note: do not add new hardware types here, this code is for converting legacy wallets
+        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip']:
             mpk = self.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
@@ -258,7 +259,8 @@ class WalletDB(JsonDB):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type in ['trezor', 'keepkey', 'ledger', 'digitalbitbox', 'safe_t']:
+        # note: do not add new hardware types here, this code is for converting legacy wallets
+        elif wallet_type in ['trezor', 'keepkey', 'ledger']:
             xpub = xpubs["x/0'"]
             derivation = self.get('derivation', bip44_derivation(0))
             d = {

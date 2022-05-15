@@ -251,10 +251,6 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
-        # Errors and other user interaction is done through the wallet's
-        # handler.  The handler is per-window and preserved across
-        # device reconnects
-        self.force_watching_only = False
         self.ux_busy = False
 
         # we need to know at least the fingerprint of the master xpub to verify against MiTM
@@ -284,14 +280,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         return rv
 
-    def give_error(self, message, clear_client=False):
+    def give_error(self, message):
         self.logger.info(message)
         if not self.ux_busy:
             self.handler.show_error(message)
         else:
             self.ux_busy = False
-        if clear_client:
-            self.client = None
         raise UserFacingException(message)
 
     def wrap_busy(func):
@@ -355,7 +349,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.handler.show_error('{}\n\n{}'.format(
                 _('Error showing address') + ':', str(exc)))
         except Exception as e:
-            self.give_error(e, True)
+            self.give_error(e)
 
         # give empty bytes for error cases; it seems to clear the old signature box
         return b''
@@ -401,7 +395,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             return
         except BaseException as e:
             self.logger.exception('')
-            self.give_error(e, True)
+            self.give_error(e)
             return
 
         tx2 = PartialTransaction.from_raw_psbt(raw_resp)
@@ -513,9 +507,6 @@ class ColdcardPlugin(HW_PluginBase):
 
     @runs_in_hwd_thread
     def create_client(self, device, handler):
-        if handler:
-            self.handler = handler
-
         # We are given a HID device, or at least some details about it.
         # Not sure why not we aren't just given a HID library handle, but
         # the 'path' is unabiguous, so we'll use that.

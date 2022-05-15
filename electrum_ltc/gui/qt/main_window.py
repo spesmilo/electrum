@@ -85,7 +85,7 @@ from electrum_ltc.lnaddr import lndecode, LnInvoiceException
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
-from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
+from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit, ScanShowQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
@@ -106,7 +106,7 @@ from .transaction_dialog import PreviewTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
 from .swap_dialog import SwapDialog
-from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING
+from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -772,7 +772,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tools_menu.addSeparator()
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
-        tools_menu.addAction(_("&Show QR code in separate window"), self.toggle_receive_qr_window)
+        tools_menu.addAction(_("&Show QR code in separate window"), self.toggle_qr_window)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
@@ -978,15 +978,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 icon = read_QIcon("status_lagging%s.png"%fork_str)
             else:
                 network_text = _("Connected")
-                confirmed, unconfirmed, unmatured, frozen, lightning = self.wallet.get_balances_for_piechart()
+                confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
                 self.balance_label.update_list([
                     (_('Frozen'), COLOR_FROZEN, frozen),
                     (_('Unmatured'), COLOR_UNMATURED, unmatured),
                     (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
                     (_('Confirmed'), COLOR_CONFIRMED, confirmed),
                     (_('Lightning'), COLOR_LIGHTNING, lightning),
+                    (_('Lightning (frozen)'), COLOR_FROZEN_LIGHTNING, f_lightning),
                 ])
-                balance = confirmed + unconfirmed + unmatured + frozen + lightning
+                balance = confirmed + unconfirmed + unmatured + frozen + lightning + f_lightning
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -1081,20 +1082,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_widgets(self):
         b = self.config.get('receive_qr_visible', False)
-        self.receive_URI_e.setVisible(b)
-        self.receive_URI_qr.setVisible(not b)
+        self.receive_URI_e.setVisible(not b)
+        self.receive_URI_qr.setVisible(b)
         if str(self.receive_address_e.text()):
             self.receive_address_help.setVisible(False)
-            self.receive_address_e.setVisible(b)
-            self.receive_address_qr.setVisible(not b)
+            self.receive_address_e.setVisible(not b)
+            self.receive_address_qr.setVisible(b)
         else:
             self.receive_address_help.setVisible(True)
             self.receive_address_e.setVisible(False)
             self.receive_address_qr.setVisible(False)
         if str(self.receive_lightning_e.text()):
             self.receive_lightning_help.setVisible(False)
-            self.receive_lightning_e.setVisible(b)
-            self.receive_lightning_qr.setVisible(not b)
+            self.receive_lightning_e.setVisible(not b)
+            self.receive_lightning_qr.setVisible(b)
         else:
             self.receive_lightning_help.setVisible(True)
             self.receive_lightning_e.setVisible(False)
@@ -1175,7 +1176,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
         fixedSize = 200
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
@@ -1413,7 +1413,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_combo.show()
         self.request_list.clearSelection()
 
-    def toggle_receive_qr_window(self):
+    def toggle_qr_window(self):
         from . import qrwindow
         if not self.qr_window:
             self.qr_window = qrwindow.QR_Window(self)
@@ -2417,8 +2417,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         console.updateNamespace(methods)
 
     def show_balance_dialog(self):
+        balance = sum(self.wallet.get_balances_for_piechart())
+        if balance == 0:
+            return
         from .balance_dialog import BalanceDialog
-        d = BalanceDialog(self, self.wallet)
+        d = BalanceDialog(self, wallet=self.wallet)
         d.run()
 
     def create_status_bar(self):
@@ -2658,11 +2661,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
                 grid.addWidget(HelpButton(msg), 5, 3)
             grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
-            # TODO: ButtonsLineEdit should have a addQrButton method
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ButtonsLineEdit(nodeid_text)
-            qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-            nodeid_e.addButton(qr_icon, lambda: self.show_qrcode(nodeid_text, _("Node ID")), _("Show QR Code"))
+            nodeid_e.add_qr_show_button(config=self.config, title=_("Node ID"))
             nodeid_e.addCopyButton(self.app)
             nodeid_e.setReadOnly(True)
             nodeid_e.setFont(QFont(MONOSPACE_FONT))
@@ -2880,8 +2881,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
-        signature_e = QTextEdit()
-        signature_e.setAcceptRichText(False)
+        signature_e = ScanShowQRTextEdit(config=self.config)
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
