@@ -1089,7 +1089,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = LightningTxDialog(self, tx_item)
         d.show()
 
-    def toggle_receive_qr(self, toggle=False):
+    def toggle_receive_qr(self, e):
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()
@@ -1223,18 +1223,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_lightning_widget = QWidget()
         receive_lightning_widget.setLayout(receive_lightning_layout)
 
+        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_address_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_address_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_URI_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_lightning_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_qr.mousePressEvent = self.toggle_receive_qr
+
         self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.setToolTip(_('Click tabs to switch between text and QR code view'))
-        def on_current_changed(index):
-            self.update_receive_qr_window()
-        def on_tab_bar_clicked(index):
-            w = self.receive_tabs.widget(index)
-            if w == self.receive_tabs.currentWidget() and self.receive_tabs.isTabEnabled(index):
-                self.toggle_receive_qr()
-        self.receive_tabs.tabBarClicked.connect(on_tab_bar_clicked)
-        self.receive_tabs.currentChanged.connect(on_current_changed)
+        self.receive_tabs.setToolTip(_('Click to switch between text and QR code view'))
+        self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
         receive_tabs_sp = self.receive_tabs.sizePolicy()
