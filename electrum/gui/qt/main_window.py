@@ -2553,6 +2553,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 hw_dev_pw = self.wallet.keystore.get_password_for_storage_encryption()
             except UserCancelled:
                 return
+            except ValueError:
+                self.show_error('No hardware device detected')
+                return
             except BaseException as e:
                 self.logger.exception('')
                 self.show_error(repr(e))
