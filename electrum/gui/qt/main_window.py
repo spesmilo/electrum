@@ -2554,7 +2554,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             except UserCancelled:
                 return
             except ValueError:
-                self.show_error('No hardware device detected')
+                self.show_error(_('No hardware device detected'))
                 return
             except BaseException as e:
                 self.logger.exception('')
