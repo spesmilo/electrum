@@ -7,6 +7,7 @@ import os
 from decimal import Decimal
 import random
 import time
+import operator
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
                     NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict)
 import threading
@@ -91,6 +92,7 @@ if TYPE_CHECKING:
 
 SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_SCHEDULED] # status that are persisted
 
+MPP_RECEIVE_CUTOFF = 0.2
 
 NUM_PEERS_TARGET = 4
 
@@ -1764,18 +1766,12 @@ class LNWallet(LNWorker):
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
-        routing_hints = self.calc_routing_hints_for_invoice(amount_msat)
+        routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat)
         if not routing_hints:
             self.logger.info(
                 "Warning. No routing hints added to invoice. "
                 "Other clients will likely not be able to send to us.")
-        # if not all hints are trampoline, do not create trampoline invoice
         invoice_features = self.features.for_invoice()
-        trampoline_hints = []
-        for r in routing_hints:
-            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
-            if len(r[1])== 1 and self.is_trampoline_peer(node_id):
-                trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
@@ -2002,16 +1998,12 @@ class LNWallet(LNWorker):
     def calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
-        channels = list(self.channels.values())
-        # do minimal filtering of channels.
-        # we include channels that cannot *right now* receive (e.g. peer disconnected or balance insufficient)
-        channels = [chan for chan in channels
-                    if (chan.is_open() and not chan.is_frozen_for_receiving())]
-        # Filter out channels that have very low receive capacity compared to invoice amt.
-        # Even with MPP, below a certain threshold, including these channels probably
-        # hurts more than help, as they lead to many failed attempts for the sender.
-        channels = [chan for chan in channels
-                    if chan.available_to_spend(REMOTE) > (amount_msat or 0) * 0.05]
+        with self.lock:
+            nodes = self.border_nodes_that_can_receive(amount_msat)
+            channels = []
+            for c in self.channels.values():
+                if c.node_id in nodes:
+                    channels.append(c)
         # cap max channels to include to keep QR code reasonably scannable
         channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
         channels = channels[:15]
@@ -2047,7 +2039,12 @@ class LNWallet(LNWorker):
                 fee_base_msat,
                 fee_proportional_millionths,
                 cltv_expiry_delta)]))
-        return routing_hints
+        trampoline_hints = []
+        for r in routing_hints:
+            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
+            if len(r[1])== 1 and self.is_trampoline_peer(node_id):
+                trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
+        return routing_hints, trampoline_hints
 
     def delete_payment(self, payment_hash_hex: str):
         try:
@@ -2085,14 +2082,38 @@ class LNWallet(LNWorker):
         can_send_minus_fees = max(0, can_send_minus_fees)
         return Decimal(can_send_minus_fees) / 1000
 
-    def num_sats_can_receive(self) -> Decimal:
+    def border_nodes_that_can_receive(self, amount_msat=None):
+        # if amount_msat is None, use the max amount we can receive
+        #
+        # Filter out nodes that have very low receive capacity compared to invoice amt.
+        # Even with MPP, below a certain threshold, including these channels probably
+        # hurts more than help, as they lead to many failed attempts for the sender.
+        #
+        # We condider nodes instead of channels because both non-strict forwardring
+        # and trampoline end-to-end payments allow it
+        nodes_that_can_receive = defaultdict(int)
         with self.lock:
-            channels = [
-                c for c in self.channels.values()
-                if c.is_active() and not c.is_frozen_for_receiving()
-            ]
-            can_receive = sum([c.available_to_spend(REMOTE) for c in channels]) if channels else 0
-        return Decimal(can_receive) / 1000
+            for c in self.channels.values():
+                if not c.is_active() or c.is_frozen_for_receiving():
+                    continue
+                nodes_that_can_receive[c.node_id] += c.available_to_spend(REMOTE)
+        while True:
+            max_can_receive = sum(nodes_that_can_receive.values())
+            receive_amount = amount_msat or max_can_receive
+            items = sorted(list(nodes_that_can_receive.items()), key=operator.itemgetter(1))
+            for node_id, v in items:
+                if v < receive_amount * MPP_RECEIVE_CUTOFF:
+                    nodes_that_can_receive.pop(node_id)
+                    # break immediately because max_can_receive needs to be recomputed
+                    break
+            else:
+                break
+        return nodes_that_can_receive
+
+    def num_sats_can_receive(self) -> Decimal:
+        can_receive_nodes = self.border_nodes_that_can_receive(None)
+        can_receive_msat = sum(can_receive_nodes.values())
+        return Decimal(can_receive_msat) / 1000
 
     def num_sats_can_receive_no_mpp(self) -> Decimal:
         with self.lock:
