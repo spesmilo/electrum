@@ -243,6 +243,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     get_channel_by_id = LNWallet.get_channel_by_id
     channels_for_peer = LNWallet.channels_for_peer
     calc_routing_hints_for_invoice = LNWallet.calc_routing_hints_for_invoice
+    border_nodes_that_can_receive = LNWallet.border_nodes_that_can_receive
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
     is_trampoline_peer = LNWallet.is_trampoline_peer
     wait_for_received_pending_htlcs_to_get_removed = LNWallet.wait_for_received_pending_htlcs_to_get_removed
@@ -485,14 +486,10 @@ class TestPeer(TestCaseForTestnet):
         w2.save_preimage(RHASH, payment_preimage)
         w2.save_payment_info(info)
         if include_routing_hints:
-            routing_hints = w2.calc_routing_hints_for_invoice(amount_msat)
+            routing_hints, trampoline_hints = w2.calc_routing_hints_for_invoice(amount_msat)
         else:
             routing_hints = []
-        trampoline_hints = []
-        for r in routing_hints:
-            node_id, short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = r[1][0]
-            if len(r[1])== 1 and w2.is_trampoline_peer(node_id):
-                trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
+            trampoline_hints = []
         invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
             payment_secret = derive_payment_secret_from_payment_preimage(payment_preimage)
