@@ -399,7 +399,7 @@ class Interface(Logger):
         self.taskgroup = OldTaskGroup()
 
         async def spawn_task():
-            task = await self.network.taskgroup.spawn(self.run())
+            task = await self.network.taskgroup.spawn(await self.run())
             task.set_name(f"interface::{str(server)}")
         asyncio.run_coroutine_threadsafe(spawn_task(), self.network.asyncio_loop)
 
