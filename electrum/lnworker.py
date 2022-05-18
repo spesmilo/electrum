@@ -1096,37 +1096,7 @@ class LNWallet(LNWorker):
 
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
-        if invoice.get_amount_sat() > self.num_sats_can_send():
-            return False
-        # if we dont find a path because of unsynchronized DB, this method should not return False
-        if self.channel_db:
-            return True
-        # trampoline nodes currently cannot do legacy payments over multiple nodes
-        # we call create_routes_for_payment in order to find out
-        lnaddr = self._check_invoice(invoice.lightning_invoice, amount_msat=invoice.get_amount_msat())
-        min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
-        invoice_pubkey = lnaddr.pubkey.serialize()
-        invoice_features = lnaddr.get_features()
-        r_tags = lnaddr.get_routing_info('r')
-        amount_to_pay = lnaddr.get_amount_msat()
-        try:
-            routes = self.create_routes_for_payment(
-                amount_msat=amount_to_pay,
-                final_total_msat=amount_to_pay,
-                invoice_pubkey=invoice_pubkey,
-                min_cltv_expiry=min_cltv_expiry,
-                r_tags=r_tags,
-                invoice_features=invoice_features,
-                full_path=None,
-                payment_hash=bytes(32),
-                payment_secret=bytes(32),
-                trampoline_fee_level=self.INITIAL_TRAMPOLINE_FEE_LEVEL,
-                use_two_trampolines=False,
-                fwd_trampoline_onion=None
-            )
-            return True
-        except NoPathFound:
-            return False
+        return invoice.get_amount_sat() <= self.num_sats_can_send()
 
     @log_exceptions
     async def pay_invoice(
@@ -2094,12 +2064,18 @@ class LNWallet(LNWorker):
                 for chan in self.channels.values())) / 1000
 
     def num_sats_can_send(self) -> Decimal:
-        can_send = 0
+        can_send_dict = defaultdict(int)
         with self.lock:
             if self.channels:
                 for c in self.channels.values():
                     if c.is_active() and not c.is_frozen_for_sending():
-                        can_send += c.available_to_spend(LOCAL)
+                        if not self.channel_db and not self.is_trampoline_peer(c.node_id):
+                            continue
+                        if self.channel_db:
+                            can_send_dict[0] += c.available_to_spend(LOCAL)
+                        else:
+                            can_send_dict[c.node_id] += c.available_to_spend(LOCAL)
+        can_send = max(can_send_dict.values()) if can_send_dict else 0
         # Here we have to guess a fee, because some callers (submarine swaps)
         # use this method to initiate a payment, which would otherwise fail.
         fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
