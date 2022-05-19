@@ -27,7 +27,6 @@ Do you want to continue?
 class SwapDialog(WindowModalDialog):
 
     tx: Optional[PartialTransaction]
-    update_signal = pyqtSignal()
 
     def __init__(self, window: 'ElectrumWindow', is_reverse=True, recv_amount_sat=None):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
@@ -85,11 +84,9 @@ class SwapDialog(WindowModalDialog):
         self.ok_button.setDefault(True)
         self.ok_button.setEnabled(False)
         vbox.addLayout(Buttons(CancelButton(self), self.ok_button))
-        self.update_signal.connect(self.update)
-        self.update()
         if recv_amount_sat:
             self.init_recv_amount(recv_amount_sat)
-            self.update_signal.connect(lambda: self.init_recv_amount(recv_amount_sat))
+        self.update()
 
     def init_recv_amount(self, recv_amount_sat):
         recv_amount_sat = max(recv_amount_sat, self.swap_manager.min_amount)
@@ -218,10 +215,6 @@ class SwapDialog(WindowModalDialog):
         self.fee_label.repaint()  # macOS hack for #6269
 
     def run(self):
-        if not self.network:
-            self.window.show_error(_("You are offline."))
-            return
-        self.window.run_coroutine_from_thread(self.swap_manager.get_pairs(), lambda x: self.update_signal.emit())
         if not self.exec_():
             return
         if self.is_reverse:

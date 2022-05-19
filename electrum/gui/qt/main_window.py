@@ -1721,8 +1721,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     if self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat):
                         self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
                 elif r == 2:
-                    d = SwapDialog(self, is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
-                    if d.run():
+                    if self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat):
                         self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
             return
 
@@ -1734,6 +1733,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.save_pending_invoice()
         coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
+
+    def run_swap_dialog(self, is_reverse=True, recv_amount_sat=None):
+        if not self.network:
+            self.window.show_error(_("You are offline."))
+            return
+        def get_pairs_thread():
+            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
+        BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
+        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat)
+        return d.run()
 
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
