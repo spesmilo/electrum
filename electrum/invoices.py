@@ -161,7 +161,9 @@ class Invoice(StoredObject):
     def get_bip21_URI(self, lightning=None):
         from electrum.util import create_bip21_uri
         addr = self.get_address()
-        amount = int(self.get_amount_sat())
+        amount = self.get_amount_sat()
+        if amount is not None:
+            amount = int(amount)
         message = self.message
         extra = {}
         if self.time and self.exp:

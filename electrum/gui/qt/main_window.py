@@ -1278,7 +1278,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
         lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
-        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
+        can_receive_lightning = self.wallet.lnworker and (req.get_amount_sat() or 0) <= self.wallet.lnworker.num_sats_can_receive()
         if lnaddr is None:
             ln_help = _('This request does not have a Lightning invoice.')
             lnaddr = ''
