@@ -1738,7 +1738,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
 
-    def run_swap_dialog(self, is_reverse=True, recv_amount_sat=None):
+    def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None):
         if not self.network:
             self.window.show_error(_("You are offline."))
             return
