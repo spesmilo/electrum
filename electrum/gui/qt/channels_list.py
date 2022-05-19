@@ -345,7 +345,7 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
-        self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
+        self.swap_button = EnterButton(_('Swap'), lambda x: self.parent.run_swap_dialog())
         self.swap_button.setToolTip("Have at least one channel to do swaps.")
         self.swap_button.setDisabled(True)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
@@ -386,11 +386,6 @@ class ChannelsList(MyTreeView):
         from .new_channel_dialog import NewChannelDialog
         d = NewChannelDialog(self.parent, amount_sat)
         return d.run()
-
-    def swap_dialog(self):
-        from .swap_dialog import SwapDialog
-        d = SwapDialog(self.parent)
-        d.run()
 
 
 class ChannelFeature(ABC):
