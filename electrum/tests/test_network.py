@@ -12,6 +12,11 @@ from electrum import util
 
 from . import ElectrumTestCase
 
+try:
+    from pytest import mark
+    pytestmark = mark.filterwarnings("ignore:.*coroutine.*await.*:RuntimeWarning:electrum")
+except:
+    pass
 
 class MockTaskGroup:
     async def spawn(self, x): return
