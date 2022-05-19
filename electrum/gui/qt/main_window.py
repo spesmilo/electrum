@@ -1274,20 +1274,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_receive_request(self, req):
         addr = req.get_address() or ''
         address_help = '' if addr else _('Amount too small to be received onchain')
-        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
-        lnaddr = req.lightning_invoice if can_receive_lightning else None
+        lnaddr = req.lightning_invoice
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
-        lnaddr = lnaddr or ''
-        icon_name = "lightning.png" if can_receive_lightning else "lightning_disconnected.png"
-        if not lnaddr:
-            if can_receive_lightning:
-                ln_help = _('No lightning invoice')
-            else:
-                ln_help = _('You do not have the capacity to receive this amount using Lightning')
+        lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
+        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
+        if lnaddr is None:
+            ln_help = _('This request does not have a Lightning invoice.')
+            lnaddr = ''
+        elif not lightning_online:
+            ln_help = _('You must be online to receive Lightning payments.')
+            lnaddr = ''
+        elif not can_receive_lightning:
+            ln_help = _('Your Lightning channels do not have the capacity to receive this amount.')
+            lnaddr = ''
         else:
             ln_help = ''
 
+        icon_name = "lightning.png" if lnaddr else "lightning_disconnected.png"
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
         # alphanumeric mode; resulting in smaller QR codes
