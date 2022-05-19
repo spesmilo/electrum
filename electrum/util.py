@@ -1009,7 +1009,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         try:
             lnaddr = lndecode(out['lightning'])
             amount_sat = out.get('amount')
-            if amount:
+            if amount_sat:
                 assert int(lnaddr.get_amount_sat()) == amount_sat
             address = out.get('address')
             if address:
