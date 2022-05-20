@@ -92,8 +92,6 @@ if TYPE_CHECKING:
 
 SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_SCHEDULED] # status that are persisted
 
-MPP_RECEIVE_CUTOFF = 0.2
-
 NUM_PEERS_TARGET = 4
 
 # onchain channel backup data
@@ -1998,15 +1996,7 @@ class LNWallet(LNWorker):
     def calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
-        with self.lock:
-            nodes = self.border_nodes_that_can_receive(amount_msat)
-            channels = []
-            for c in self.channels.values():
-                if c.node_id in nodes:
-                    channels.append(c)
-        # cap max channels to include to keep QR code reasonably scannable
-        channels = sorted(channels, key=lambda chan: (not chan.is_active(), -chan.available_to_spend(REMOTE)))
-        channels = channels[:15]
+        channels = list(self.get_channels_to_include_in_invoice(amount_msat))
         random.shuffle(channels)  # let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
@@ -2082,37 +2072,51 @@ class LNWallet(LNWorker):
         can_send_minus_fees = max(0, can_send_minus_fees)
         return Decimal(can_send_minus_fees) / 1000
 
-    def border_nodes_that_can_receive(self, amount_msat=None):
-        # if amount_msat is None, use the max amount we can receive
-        #
-        # Filter out nodes that have very low receive capacity compared to invoice amt.
-        # Even with MPP, below a certain threshold, including these channels probably
-        # hurts more than help, as they lead to many failed attempts for the sender.
-        #
-        # We condider nodes instead of channels because both non-strict forwardring
-        # and trampoline end-to-end payments allow it
-        nodes_that_can_receive = defaultdict(int)
+    def get_channels_to_include_in_invoice(self, amount_msat=None) -> Sequence[Channel]:
+        if not amount_msat:  # assume we want to recv a large amt, e.g. finding max.
+            amount_msat = float('inf')
         with self.lock:
-            for c in self.channels.values():
-                if not c.is_active() or c.is_frozen_for_receiving():
-                    continue
-                nodes_that_can_receive[c.node_id] += c.available_to_spend(REMOTE)
-        while True:
-            max_can_receive = sum(nodes_that_can_receive.values())
-            receive_amount = amount_msat or max_can_receive
-            items = sorted(list(nodes_that_can_receive.items()), key=operator.itemgetter(1))
-            for node_id, v in items:
-                if v < receive_amount * MPP_RECEIVE_CUTOFF:
-                    nodes_that_can_receive.pop(node_id)
-                    # break immediately because max_can_receive needs to be recomputed
+            channels = list(self.channels.values())
+            # we exclude channels that cannot *right now* receive (e.g. peer offline)
+            channels = [chan for chan in channels
+                        if (chan.is_active() and not chan.is_frozen_for_receiving())]
+            # Filter out nodes that have low receive capacity compared to invoice amt.
+            # Even with MPP, below a certain threshold, including these channels probably
+            # hurts more than help, as they lead to many failed attempts for the sender.
+            channels = sorted(channels, key=lambda chan: -chan.available_to_spend(REMOTE))
+            selected_channels = []
+            running_sum = 0
+            cutoff_factor = 0.2  # heuristic
+            for chan in channels:
+                recv_capacity = chan.available_to_spend(REMOTE)
+                chan_can_handle_payment_as_single_part = recv_capacity >= amount_msat
+                chan_small_compared_to_running_sum = recv_capacity < cutoff_factor * running_sum
+                if not chan_can_handle_payment_as_single_part and chan_small_compared_to_running_sum:
                     break
-            else:
-                break
-        return nodes_that_can_receive
+                running_sum += recv_capacity
+                selected_channels.append(chan)
+            channels = selected_channels
+            del selected_channels
+            # cap max channels to include to keep QR code reasonably scannable
+            channels = channels[:10]
+            return channels
 
     def num_sats_can_receive(self) -> Decimal:
-        can_receive_nodes = self.border_nodes_that_can_receive(None)
-        can_receive_msat = sum(can_receive_nodes.values())
+        """Return a conservative estimate of max sat value we can realistically receive
+        in a single payment. (MPP is allowed)
+
+        The theoretical max would be `sum(chan.available_to_spend(REMOTE) for chan in self.channels)`,
+        but that would require a sender using MPP to magically guess all our channel liquidities.
+        """
+        with self.lock:
+            recv_channels = self.get_channels_to_include_in_invoice()
+            recv_chan_msats = [chan.available_to_spend(REMOTE) for chan in recv_channels]
+        if not recv_chan_msats:
+            return Decimal(0)
+        can_receive_msat = max(
+            max(recv_chan_msats),       # single-part payment baseline
+            sum(recv_chan_msats) // 2,  # heuristic for MPP
+        )
         return Decimal(can_receive_msat) / 1000
 
     def num_sats_can_receive_no_mpp(self) -> Decimal:
