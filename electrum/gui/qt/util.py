@@ -592,6 +592,8 @@ class MyTreeView(QTreeView):
         self._pending_update = False
         self._forced_update = False
 
+        self._default_bg_brush = QStandardItem().background()
+
     def set_editability(self, items):
         for idx, i in enumerate(items):
             i.setEditable(idx in self.editable_columns)
