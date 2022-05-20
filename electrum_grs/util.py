@@ -971,7 +971,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         try:
             lnaddr = lndecode(out['lightning'])
             amount_sat = out.get('amount')
-            if amount:
+            if amount_sat:
                 assert int(lnaddr.get_amount_sat()) == amount_sat
             address = out.get('address')
             if address:
@@ -1491,8 +1491,21 @@ def is_ip_address(x: Union[str, bytes]) -> bool:
         return False
 
 
-def is_private_netaddress(host: str) -> bool:
+def is_localhost(host: str) -> bool:
     if str(host) in ('localhost', 'localhost.',):
+        return True
+    if host[0] == '[' and host[-1] == ']':  # IPv6
+        host = host[1:-1]
+    try:
+        ip_addr = ipaddress.ip_address(host)  # type: Union[IPv4Address, IPv6Address]
+        return ip_addr.is_loopback
+    except ValueError:
+        pass  # not an IP
+    return False
+
+
+def is_private_netaddress(host: str) -> bool:
+    if is_localhost(host):
         return True
     if host[0] == '[' and host[-1] == ']':  # IPv6
         host = host[1:-1]

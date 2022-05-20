@@ -1089,7 +1089,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = LightningTxDialog(self, tx_item)
         d.show()
 
-    def toggle_receive_qr(self, toggle=False):
+    def toggle_receive_qr(self, e):
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()
@@ -1223,18 +1223,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_lightning_widget = QWidget()
         receive_lightning_widget.setLayout(receive_lightning_layout)
 
+        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_address_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_address_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_URI_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_lightning_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_qr.mousePressEvent = self.toggle_receive_qr
+
         self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(receive_address_widget, read_QIcon("groestlcoin.png"), _('Address'))
         self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.setToolTip(_('Click tabs to switch between text and QR code view'))
-        def on_current_changed(index):
-            self.update_receive_qr_window()
-        def on_tab_bar_clicked(index):
-            w = self.receive_tabs.widget(index)
-            if w == self.receive_tabs.currentWidget() and self.receive_tabs.isTabEnabled(index):
-                self.toggle_receive_qr()
-        self.receive_tabs.tabBarClicked.connect(on_tab_bar_clicked)
-        self.receive_tabs.currentChanged.connect(on_current_changed)
+        self.receive_tabs.setToolTip(_('Click to switch between text and QR code view'))
+        self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
         receive_tabs_sp = self.receive_tabs.sizePolicy()
@@ -1271,20 +1274,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_receive_request(self, req):
         addr = req.get_address() or ''
         address_help = '' if addr else _('Amount too small to be received onchain')
-        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
-        lnaddr = req.lightning_invoice if can_receive_lightning else None
+        lnaddr = req.lightning_invoice
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
-        lnaddr = lnaddr or ''
-        icon_name = "lightning.png" if can_receive_lightning else "lightning_disconnected.png"
-        if not lnaddr:
-            if can_receive_lightning:
-                ln_help = _('No lightning invoice')
-            else:
-                ln_help = _('You do not have the capacity to receive this amount using Lightning')
+        lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
+        can_receive_lightning = self.wallet.lnworker and (req.get_amount_sat() or 0) <= self.wallet.lnworker.num_sats_can_receive()
+        if lnaddr is None:
+            ln_help = _('This request does not have a Lightning invoice.')
+            lnaddr = ''
+        elif not lightning_online:
+            ln_help = _('You must be online to receive Lightning payments.')
+            lnaddr = ''
+        elif not can_receive_lightning:
+            ln_help = _('Your Lightning channels do not have the capacity to receive this amount.')
+            lnaddr = ''
         else:
             ln_help = ''
 
+        icon_name = "lightning.png" if lnaddr else "lightning_disconnected.png"
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
         # alphanumeric mode; resulting in smaller QR codes
@@ -1718,8 +1725,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     if self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat):
                         self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
                 elif r == 2:
-                    d = SwapDialog(self, is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
-                    if d.run():
+                    if self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat):
                         self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
             return
 
@@ -1731,6 +1737,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.save_pending_invoice()
         coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
+
+    def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None):
+        if not self.network:
+            self.window.show_error(_("You are offline."))
+            return
+        def get_pairs_thread():
+            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
+        BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
+        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat)
+        return d.run()
 
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
