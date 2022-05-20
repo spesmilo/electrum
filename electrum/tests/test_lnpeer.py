@@ -243,7 +243,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     get_channel_by_id = LNWallet.get_channel_by_id
     channels_for_peer = LNWallet.channels_for_peer
     calc_routing_hints_for_invoice = LNWallet.calc_routing_hints_for_invoice
-    get_channels_to_include_in_invoice = LNWallet.get_channels_to_include_in_invoice
+    get_channels_for_receiving = LNWallet.get_channels_for_receiving
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
     is_trampoline_peer = LNWallet.is_trampoline_peer
     wait_for_received_pending_htlcs_to_get_removed = LNWallet.wait_for_received_pending_htlcs_to_get_removed
