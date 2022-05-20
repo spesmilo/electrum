@@ -2562,25 +2562,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not ok:
                 return
 
-            try:
-                hw_dev_pw = self.wallet.keystore.get_password_for_storage_encryption()
-            except UserCancelled:
-                return
-            except BaseException as e:
-                self.logger.exception('')
-                self.show_error(repr(e))
-                return
-            old_password = hw_dev_pw if self.wallet.has_password() else None
-            new_password = hw_dev_pw if encrypt_file else None
+            def on_password(hw_dev_pw):
+                old_password = hw_dev_pw if self.wallet.has_password() else None
+                new_password = hw_dev_pw if encrypt_file else None
+                self._update_wallet_password(
+                    old_password=old_password, new_password=new_password, encrypt_storage=encrypt_file)
+
+            self.thread.add(
+                self.wallet.keystore.get_password_for_storage_encryption,
+                on_success=on_password)
         else:
             from .password_dialog import ChangePasswordDialogForSW
             d = ChangePasswordDialogForSW(self, self.wallet)
             ok, old_password, new_password, encrypt_file = d.run()
+            if not ok:
+                return
+            self._update_wallet_password(
+                old_password=old_password, new_password=new_password, encrypt_storage=encrypt_file)
 
-        if not ok:
-            return
+    def _update_wallet_password(self, *, old_password, new_password, encrypt_storage: bool):
         try:
-            self.wallet.update_password(old_password, new_password, encrypt_storage=encrypt_file)
+            self.wallet.update_password(old_password, new_password, encrypt_storage=encrypt_storage)
         except InvalidPassword as e:
             self.show_error(str(e))
             return
