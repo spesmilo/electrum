@@ -1189,7 +1189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_lightning_help.setVisible(False)
         #self.receive_URI_e.setFocusPolicy(Qt.ClickFocus)
 
-        fixedSize = 200
+        fixedSize = 250
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
@@ -2913,7 +2913,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         layout.addWidget(QLabel(_('Address')), 2, 0)
         layout.addWidget(address_e, 2, 1)
 
-        signature_e = ScanShowQRTextEdit(config=self.config, margin=1)
+        signature_e = ScanShowQRTextEdit(config=self.config, fixedSize=250)
         layout.addWidget(QLabel(_('Signature')), 3, 0)
         layout.addWidget(signature_e, 3, 1)
         layout.setRowStretch(3,1)
