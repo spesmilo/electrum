@@ -873,7 +873,7 @@ class ButtonsWidget(QWidget):
     def on_paste(self):
         self.setText(self.app.clipboard().text())
 
-    def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
+    def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None, **kwargs):
         if title is None:
             title = _("QR code")
 
@@ -890,6 +890,7 @@ class ButtonsWidget(QWidget):
                 parent=self,
                 title=title,
                 config=config,
+                **kwargs
             ).exec_()
 
         icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
