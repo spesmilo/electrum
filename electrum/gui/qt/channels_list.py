@@ -202,8 +202,18 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
             menu.exec_(self.viewport().mapToGlobal(position))
             return
-        multi_select = len(selected) > 1
-        if multi_select:
+        if len(selected) == 2:
+            idx1 = selected[0]
+            idx2 = selected[1]
+            channel_id1 = idx1.sibling(idx1.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            chan1 = self.lnworker.channels.get(channel_id1)
+            chan2 = self.lnworker.channels.get(channel_id2)
+            if chan1 and chan2:
+                menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
+                menu.exec_(self.viewport().mapToGlobal(position))
+            return
+        elif len(selected) > 2:
             return
         idx = self.indexAt(position)
         if not idx.isValid():

@@ -1103,7 +1103,9 @@ class LNWallet(LNWorker):
             self, invoice: str, *,
             amount_msat: int = None,
             attempts: int = None, # used only in unit tests
-            full_path: LNPaymentPath = None) -> Tuple[bool, List[HtlcLog]]:
+            full_path: LNPaymentPath = None,
+            channels: Optional[Sequence[Channel]] = None,
+    ) -> Tuple[bool, List[HtlcLog]]:
 
         lnaddr = self._check_invoice(invoice, amount_msat=amount_msat)
         min_cltv_expiry = lnaddr.get_min_final_cltv_expiry()
@@ -1138,7 +1140,8 @@ class LNWallet(LNWorker):
                 r_tags=r_tags,
                 invoice_features=invoice_features,
                 attempts=attempts,
-                full_path=full_path)
+                full_path=full_path,
+                channels=channels)
             success = True
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
@@ -1167,7 +1170,9 @@ class LNWallet(LNWorker):
             full_path: LNPaymentPath = None,
             fwd_trampoline_onion=None,
             fwd_trampoline_fee=None,
-            fwd_trampoline_cltv_delta=None) -> None:
+            fwd_trampoline_cltv_delta=None,
+            channels: Optional[Sequence[Channel]] = None,
+    ) -> None:
 
         if fwd_trampoline_onion:
             # todo: compare to the fee of the actual route we found
@@ -1204,7 +1209,8 @@ class LNWallet(LNWorker):
                     payment_secret=payment_secret,
                     trampoline_fee_level=trampoline_fee_level,
                     use_two_trampolines=use_two_trampolines,
-                    fwd_trampoline_onion=fwd_trampoline_onion
+                    fwd_trampoline_onion=fwd_trampoline_onion,
+                    channels=channels,
                 )
                 # 2. send htlcs
                 async for route, amount_msat, total_msat, amount_receiver_msat, cltv_delta, bucket_payment_secret, trampoline_onion in routes:
@@ -1493,7 +1499,9 @@ class LNWallet(LNWorker):
             trampoline_fee_level: int,
             use_two_trampolines: bool,
             fwd_trampoline_onion=None,
-            full_path: LNPaymentPath = None) -> AsyncGenerator[Tuple[LNPaymentRoute, int], None]:
+            full_path: LNPaymentPath = None,
+            channels: Optional[Sequence[Channel]] = None,
+    ) -> AsyncGenerator[Tuple[LNPaymentRoute, int], None]:
 
         """Creates multiple routes for splitting a payment over the available
         private channels.
@@ -1503,8 +1511,12 @@ class LNWallet(LNWorker):
         invoice_features = LnFeatures(invoice_features)
         trampoline_features = LnFeatures.VAR_ONION_OPT
         local_height = self.network.get_local_height()
-        my_active_channels = [chan for chan in self.channels.values() if
-            chan.is_active() and not chan.is_frozen_for_sending()]
+        if channels:
+            my_active_channels = channels
+        else:
+            my_active_channels = [
+                chan for chan in self.channels.values() if
+                chan.is_active() and not chan.is_frozen_for_sending()]
         try:
             self.logger.info("trying single-part payment")
             # try to send over a single channel
@@ -1760,11 +1772,12 @@ class LNWallet(LNWorker):
             expiry: int,
             fallback_address: str,
             write_to_disk: bool = True,
+            channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[LnAddr, str]:
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
-        routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat)
+        routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
         if not routing_hints:
             self.logger.info(
                 "Warning. No routing hints added to invoice. "
@@ -1993,11 +2006,12 @@ class LNWallet(LNWorker):
             self.set_invoice_status(key, PR_UNPAID)
             util.trigger_callback('payment_failed', self.wallet, key, '')
 
-    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int]):
+    def calc_routing_hints_for_invoice(self, amount_msat: Optional[int], channels=None):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
-        channels = list(self.get_channels_to_include_in_invoice(amount_msat))
-        random.shuffle(channels)  # let's not leak channel order
+        if channels is None:
+            channels = list(self.get_channels_to_include_in_invoice(amount_msat))
+            random.shuffle(channels)  # let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
         for chan in channels:
@@ -2118,6 +2132,17 @@ class LNWallet(LNWorker):
             sum(recv_chan_msats) // 2,  # heuristic for MPP
         )
         return Decimal(can_receive_msat) / 1000
+
+    async def rebalance_channels(self, chan1, chan2, amount_msat):
+        lnaddr, invoice = self.create_invoice(
+            amount_msat=amount_msat,
+            message='rebalance',
+            expiry=3600,
+            fallback_address=None,
+            channels = [chan2]
+        )
+        await self.pay_invoice(
+            invoice, channels=[chan1])
 
     def num_sats_can_receive_no_mpp(self) -> Decimal:
         with self.lock:
