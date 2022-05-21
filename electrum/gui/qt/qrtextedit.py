@@ -36,11 +36,11 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
 class ScanShowQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text="", allow_multi: bool = False, *, config: SimpleConfig):
+    def __init__(self, text="", allow_multi: bool = False, *, config: SimpleConfig, **kwargs):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(False)
         self.add_qr_input_button(config=config, show_error=self.show_error, allow_multi=allow_multi)
-        self.add_qr_show_button(config=config)
+        self.add_qr_show_button(config=config, **kwargs)
         run_hook('scan_text_edit', self)
         run_hook('show_text_edit', self)
 
