@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QMenu, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QH
 
 from electrum_ltc.i18n import _
 from electrum_ltc.util import format_time
-from electrum_ltc.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_SCHEDULED
+from electrum_ltc.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum_ltc.lnutil import HtlcLog
 
 from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
@@ -160,8 +160,6 @@ class InvoiceList(MyTreeView):
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             menu.addAction(_("Pay") + "...", lambda: self.parent.do_pay_invoice(invoice))
-        if status == PR_SCHEDULED:
-            menu.addAction(_("Cancel") + "...", lambda: self.parent.cancel_scheduled_invoice(key))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.parent.do_pay_invoice(invoice))
         if self.parent.wallet.lnworker:

@@ -193,6 +193,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
     def run(self):
         cancelled = not self.exec_()
         password = self.pw.text() or None
+        self.deleteLater()  # see #3956
         return cancelled, self.is_send, password, self.tx
 
     def on_send(self):

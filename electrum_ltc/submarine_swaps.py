@@ -419,7 +419,7 @@ class SwapManager(Logger):
             raise Exception("rswap check failed: locktime too close")
         # verify invoice preimage_hash
         lnaddr = self.lnworker._check_invoice(invoice)
-        invoice_amount = lnaddr.get_amount_sat()
+        invoice_amount = int(lnaddr.get_amount_sat())
         if lnaddr.paymenthash != preimage_hash:
             raise Exception("rswap check failed: inconsistent RHASH and invoice")
         # check that the lightning amount is what we requested

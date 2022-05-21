@@ -28,7 +28,6 @@ PR_INFLIGHT = 4     # only for LN. payment attempt in progress
 PR_FAILED   = 5     # only for LN. we attempted to pay it, but all attempts failed
 PR_ROUTING  = 6     # only for LN. *unused* atm.
 PR_UNCONFIRMED = 7  # only onchain. invoice is satisfied but tx is not mined yet.
-PR_SCHEDULED = 8  # lightning invoice will be paid once channel liquidity is available
 
 
 pr_color = {
@@ -40,7 +39,6 @@ pr_color = {
     PR_FAILED:   (.9, .2, .2, 1),
     PR_ROUTING: (.9, .6, .3, 1),
     PR_UNCONFIRMED: (.9, .6, .3, 1),
-    PR_SCHEDULED: (.9, .6, .3, 1),
 }
 
 pr_tooltips = {
@@ -52,7 +50,6 @@ pr_tooltips = {
     PR_FAILED:_('Failed'),
     PR_ROUTING: _('Computing route...'),
     PR_UNCONFIRMED: _('Unconfirmed'),
-    PR_SCHEDULED: _('Scheduled'),
 }
 
 PR_DEFAULT_EXPIRATION_WHEN_CREATING = 24*60*60  # 1 day
@@ -161,7 +158,9 @@ class Invoice(StoredObject):
     def get_bip21_URI(self, lightning=None):
         from electrum_ltc.util import create_bip21_uri
         addr = self.get_address()
-        amount = int(self.get_amount_sat())
+        amount = self.get_amount_sat()
+        if amount is not None:
+            amount = int(amount)
         message = self.message
         extra = {}
         if self.time and self.exp:

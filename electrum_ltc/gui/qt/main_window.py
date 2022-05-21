@@ -67,7 +67,7 @@ from electrum_ltc.util import (format_time,
                                AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                                InvoiceError, parse_max_spend)
 from electrum_ltc.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum_ltc.invoices import PR_PAID, PR_UNPAID, PR_FAILED, PR_SCHEDULED, pr_expiration_values, Invoice
+from electrum_ltc.invoices import PR_PAID, PR_UNPAID, PR_FAILED, pr_expiration_values, Invoice
 from electrum_ltc.transaction import (Transaction, PartialTxInput,
                                       PartialTransaction, PartialTxOutput)
 from electrum_ltc.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1075,7 +1075,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = LightningTxDialog(self, tx_item)
         d.show()
 
-    def toggle_receive_qr(self, toggle=False):
+    def toggle_receive_qr(self, e):
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()
@@ -1209,18 +1209,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         receive_lightning_widget = QWidget()
         receive_lightning_widget.setLayout(receive_lightning_layout)
 
+        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_address_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_address_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_URI_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_URI_qr.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_e.setFocusPolicy(Qt.NoFocus)
+        self.receive_lightning_e.mousePressEvent = self.toggle_receive_qr
+        self.receive_lightning_qr.mousePressEvent = self.toggle_receive_qr
+
         self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.setToolTip(_('Click tabs to switch between text and QR code view'))
-        def on_current_changed(index):
-            self.update_receive_qr_window()
-        def on_tab_bar_clicked(index):
-            w = self.receive_tabs.widget(index)
-            if w == self.receive_tabs.currentWidget() and self.receive_tabs.isTabEnabled(index):
-                self.toggle_receive_qr()
-        self.receive_tabs.tabBarClicked.connect(on_tab_bar_clicked)
-        self.receive_tabs.currentChanged.connect(on_current_changed)
+        self.receive_tabs.setToolTip(_('Click to switch between text and QR code view'))
+        self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
         receive_tabs_sp = self.receive_tabs.sizePolicy()
@@ -1257,20 +1260,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_receive_request(self, req):
         addr = req.get_address() or ''
         address_help = '' if addr else _('Amount too small to be received onchain')
-        can_receive_lightning = self.wallet.lnworker and req.get_amount_sat() <= self.wallet.lnworker.num_sats_can_receive()
-        lnaddr = req.lightning_invoice if can_receive_lightning else None
+        lnaddr = req.lightning_invoice
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
-        lnaddr = lnaddr or ''
-        icon_name = "lightning.png" if can_receive_lightning else "lightning_disconnected.png"
-        if not lnaddr:
-            if can_receive_lightning:
-                ln_help = _('No lightning invoice')
-            else:
-                ln_help = _('You do not have the capacity to receive this amount using Lightning')
+        lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
+        can_receive_lightning = self.wallet.lnworker and (req.get_amount_sat() or 0) <= self.wallet.lnworker.num_sats_can_receive()
+        if lnaddr is None:
+            ln_help = _('This request does not have a Lightning invoice.')
+            lnaddr = ''
+        elif not lightning_online:
+            ln_help = _('You must be online to receive Lightning payments.')
+            lnaddr = ''
+        elif not can_receive_lightning:
+            ln_help = _('Your Lightning channels do not have the capacity to receive this amount.')
+            lnaddr = ''
         else:
             ln_help = ''
 
+        icon_name = "lightning.png" if lnaddr else "lightning_disconnected.png"
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
         # alphanumeric mode; resulting in smaller QR codes
@@ -1681,13 +1688,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if can_pay_with_new_channel:
                 msg = ''.join([
                     _('Open a new channel'), '\n',
-                    _('Your payment will be scheduled for when the channel is open.')
+                    _('You will be able to pay once the channel is open.')
                 ])
                 choices[1] = msg
             if can_pay_with_swap:
                 msg = ''.join([
                     _('Rebalance your channels with a submarine swap'), '\n',
-                    _('Your payment will be scheduled after the  swap is confirmed.')
+                    _('You will be able to pay once the swap is confirmed.')
                 ])
                 choices[2] = msg
             if not choices:
@@ -1701,12 +1708,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if r == 0:
                     self.pay_onchain_dialog(coins, invoice.get_outputs())
                 elif r == 1:
-                    if self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat):
-                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+                    self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat)
                 elif r == 2:
-                    d = SwapDialog(self, is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
-                    if d.run():
-                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+                    self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
             return
 
         # FIXME this is currently lying to user as we truncate to satoshis
@@ -1717,6 +1721,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.save_pending_invoice()
         coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro)
+
+    def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None):
+        if not self.network:
+            self.window.show_error(_("You are offline."))
+            return
+        def get_pairs_thread():
+            self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
+        BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
+        d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat)
+        return d.run()
 
     def on_request_status(self, wallet, key, status):
         if wallet != self.wallet:
@@ -1821,9 +1835,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_lightning_invoice(invoice)
         else:
             self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
-
-    def cancel_scheduled_invoice(self, key):
-        self.wallet.lnworker.set_invoice_status(key, PR_UNPAID)
 
     def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
@@ -2532,25 +2543,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if not ok:
                 return
 
-            try:
-                hw_dev_pw = self.wallet.keystore.get_password_for_storage_encryption()
-            except UserCancelled:
-                return
-            except BaseException as e:
-                self.logger.exception('')
-                self.show_error(repr(e))
-                return
-            old_password = hw_dev_pw if self.wallet.has_password() else None
-            new_password = hw_dev_pw if encrypt_file else None
+            def on_password(hw_dev_pw):
+                old_password = hw_dev_pw if self.wallet.has_password() else None
+                new_password = hw_dev_pw if encrypt_file else None
+                self._update_wallet_password(
+                    old_password=old_password, new_password=new_password, encrypt_storage=encrypt_file)
+
+            self.thread.add(
+                self.wallet.keystore.get_password_for_storage_encryption,
+                on_success=on_password)
         else:
             from .password_dialog import ChangePasswordDialogForSW
             d = ChangePasswordDialogForSW(self, self.wallet)
             ok, old_password, new_password, encrypt_file = d.run()
+            if not ok:
+                return
+            self._update_wallet_password(
+                old_password=old_password, new_password=new_password, encrypt_storage=encrypt_file)
 
-        if not ok:
-            return
+    def _update_wallet_password(self, *, old_password, new_password, encrypt_storage: bool):
         try:
-            self.wallet.update_password(old_password, new_password, encrypt_storage=encrypt_file)
+            self.wallet.update_password(old_password, new_password, encrypt_storage=encrypt_storage)
         except InvalidPassword as e:
             self.show_error(str(e))
             return
@@ -3620,3 +3633,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                                _("Electrum will now exit."))
         self.showing_cert_mismatch_error = False
         self.close()
+
+    def rebalance_dialog(self, chan1, chan2, amount_sat=None):
+        d = WindowModalDialog(self, _("Rebalance channels"))
+        d.reverse = False
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(WWLabel(_('Rebalance your channels in order to increase your sending or receiving capacity') + ':'))
+        grid = QGridLayout()
+        amount_e = BTCAmountEdit(self.get_decimal_point)
+        amount_e.setAmount(amount_sat)
+        rev_button = QPushButton(u'\U000021c4')
+        label1 = QLabel('')
+        label2 = QLabel('')
+        def update():
+            if d.reverse:
+                d.chan_from = chan2
+                d.chan_to = chan1
+            else:
+                d.chan_from = chan1
+                d.chan_to = chan2
+            label1.setText(d.chan_from.short_id_for_GUI())
+            label2.setText(d.chan_to.short_id_for_GUI())
+        update()
+        def on_reverse():
+            d.reverse = not d.reverse
+            update()
+        rev_button.clicked.connect(on_reverse)
+        grid.addWidget(QLabel(_("From")), 0, 0)
+        grid.addWidget(label1, 0, 1)
+        grid.addWidget(QLabel(_("To")), 1, 0)
+        grid.addWidget(label2, 1, 1)
+        grid.addWidget(QLabel(_("Amount")), 2, 0)
+        grid.addWidget(amount_e, 2, 1)
+        grid.addWidget(rev_button, 0, 2)
+        vbox.addLayout(grid)
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
+        amount_msat = amount_e.get_amount() * 1000
+        coro = self.wallet.lnworker.rebalance_channels(d.chan_from, d.chan_to, amount_msat=amount_msat)
+        self.run_coroutine_from_thread(coro)
