@@ -16,11 +16,11 @@ from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None, fixedSize=False, margin=0):
+    def __init__(self, data = None, fixedSize=False, **kwargs):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
-        self.margin = margin
+        self.margin = kwargs['margin'] if kwargs['margin'] is not None else 0
         self.fixedSize=fixedSize
         if fixedSize:
             self.setFixedSize(fixedSize, fixedSize)
@@ -101,18 +101,18 @@ class QRDialog(WindowModalDialog):
             data,
             parent=None,
             title="",
-            margin=0,
             show_text=False,
             help_text=None,
             show_copy_text_btn=False,
             config: SimpleConfig,
+            **kwargs
     ):
         WindowModalDialog.__init__(self, parent, title)
         self.config = config
 
         vbox = QVBoxLayout()
 
-        qrw = QRCodeWidget(data, margin=margin)
+        qrw = QRCodeWidget(data, **kwargs)
         qr_hbox = QHBoxLayout()
         qr_hbox.addWidget(qrw)
         qr_hbox.addStretch(1)
