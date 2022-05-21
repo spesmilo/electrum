@@ -74,7 +74,7 @@ from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
 from .invoices import Invoice
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_SCHEDULED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
 from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
@@ -825,10 +825,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
     def get_unpaid_invoices(self):
         invoices = self.get_invoices()
         return [x for x in invoices if self.get_invoice_status(x) != PR_PAID]
-
-    def get_scheduled_invoices(self):
-        invoices = self.get_invoices()
-        return [x for x in invoices if self.get_invoice_status(x) == PR_SCHEDULED]
 
     def get_invoice(self, key):
         return self.invoices.get(key)

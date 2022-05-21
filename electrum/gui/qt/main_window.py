@@ -67,7 +67,7 @@ from electrum.util import (format_time,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
 from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum.invoices import PR_PAID, PR_UNPAID, PR_FAILED, PR_SCHEDULED, pr_expiration_values, Invoice
+from electrum.invoices import PR_PAID, PR_UNPAID, PR_FAILED, pr_expiration_values, Invoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1702,13 +1702,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             if can_pay_with_new_channel:
                 msg = ''.join([
                     _('Open a new channel'), '\n',
-                    _('Your payment will be scheduled for when the channel is open.')
+                    _('You will be able to pay once the channel is open.')
                 ])
                 choices[1] = msg
             if can_pay_with_swap:
                 msg = ''.join([
                     _('Rebalance your channels with a submarine swap'), '\n',
-                    _('Your payment will be scheduled after the  swap is confirmed.')
+                    _('You will be able to pay once the swap is confirmed.')
                 ])
                 choices[2] = msg
             if not choices:
@@ -1722,11 +1722,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if r == 0:
                     self.pay_onchain_dialog(coins, invoice.get_outputs())
                 elif r == 1:
-                    if self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat):
-                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+                    self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat)
                 elif r == 2:
-                    if self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat):
-                        self.wallet.lnworker.set_invoice_status(key, PR_SCHEDULED)
+                    self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat)
             return
 
         # FIXME this is currently lying to user as we truncate to satoshis
@@ -1851,9 +1849,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.pay_lightning_invoice(invoice)
         else:
             self.pay_onchain_dialog(self.get_coins(), invoice.outputs)
-
-    def cancel_scheduled_invoice(self, key):
-        self.wallet.lnworker.set_invoice_status(key, PR_UNPAID)
 
     def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()

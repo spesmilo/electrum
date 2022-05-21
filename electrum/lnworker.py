@@ -28,7 +28,7 @@ from aiorpcx import run_in_thread, NetAddress, ignore_after
 from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
-from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, PR_SCHEDULED, LN_EXPIRY_NEVER
+from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
@@ -90,7 +90,7 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-SAVED_PR_STATUS = [PR_PAID, PR_UNPAID, PR_SCHEDULED] # status that are persisted
+SAVED_PR_STATUS = [PR_PAID, PR_UNPAID] # status that are persisted
 
 NUM_PEERS_TARGET = 4
 
@@ -1086,14 +1086,6 @@ class LNWallet(LNWorker):
             if chan.short_channel_id == short_channel_id:
                 return chan
 
-    def pay_scheduled_invoices(self):
-        asyncio.ensure_future(self._pay_scheduled_invoices())
-
-    async def _pay_scheduled_invoices(self):
-        for invoice in self.wallet.get_scheduled_invoices():
-            if invoice.is_lightning() and self.can_pay_invoice(invoice):
-                await self.pay_invoice(invoice.lightning_invoice)
-
     def can_pay_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
         return (invoice.get_amount_sat() or 0) <= self.num_sats_can_send()
@@ -1910,13 +1902,9 @@ class LNWallet(LNWorker):
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
-        if info is None and status != PR_SCHEDULED:
+        if info is None:
             # if we are forwarding
             return
-        if info is None and status == PR_SCHEDULED:
-            # we should add a htlc to our ctx, so that the funds are 'reserved'
-            # Note: info.amount will be added by pay_invoice
-            info = PaymentInfo(payment_hash, None, SENT, PR_SCHEDULED)
         info = info._replace(status=status)
         self.save_payment_info(info)
 
