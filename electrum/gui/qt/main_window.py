@@ -1742,7 +1742,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             lightning_needed += (lightning_needed // 20) # operational safety margin
             coins = self.get_coins(nonlocal_only=True)
             can_pay_onchain = invoice.get_address() and self.wallet.can_pay_onchain(invoice.get_outputs(), coins=coins)
-            can_pay_with_new_channel, channel_funding_sat = self.wallet.can_pay_with_new_channel(amount_sat, coins=coins)
+            can_pay_with_new_channel = self.wallet.lnworker.suggest_funding_amount(amount_sat, coins=coins)
             can_pay_with_swap = self.wallet.lnworker.suggest_swap_to_send(amount_sat, coins=coins)
             can_rebalance = self.wallet.lnworker.suggest_rebalance_to_send(amount_sat)
             choices = {}
@@ -1784,7 +1784,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 elif r == 1:
                     self.pay_onchain_dialog(coins, invoice.get_outputs())
                 elif r == 2:
-                    self.channels_list.new_channel_dialog(amount_sat=channel_funding_sat)
+                    amount_sat, min_amount_sat = can_pay_with_new_channel
+                    self.channels_list.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
                 elif r == 3:
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])

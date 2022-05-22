@@ -1067,6 +1067,29 @@ class LNWallet(LNWorker):
         tx.set_rbf(False)
         return tx
 
+    def suggest_funding_amount(self, amount_to_pay, coins):
+        """ wether we can pay amount_sat after opening a new channel"""
+        num_sats_can_send = int(self.num_sats_can_send())
+        lightning_needed = amount_to_pay - num_sats_can_send
+        assert lightning_needed > 0
+        min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000 # safety margin
+        min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
+        if min_funding_sat > LN_MAX_FUNDING_SAT:
+            return
+        try:
+            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_est=None)
+            funding_sat = min_funding_sat
+        except NotEnoughFunds:
+            return
+        # if available, suggest twice that amount:
+        if 2 * min_funding_sat <= LN_MAX_FUNDING_SAT:
+            try:
+                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=None)
+                funding_sat = 2 * min_funding_sat
+            except NotEnoughFunds:
+                pass
+        return funding_sat, min_funding_sat
+
     def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
                      funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
         if funding_sat > LN_MAX_FUNDING_SAT:

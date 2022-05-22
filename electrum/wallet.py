@@ -1342,22 +1342,6 @@ class Abstract_Wallet(AddressSynchronizer, ABC):
             return False
         return True
 
-    def can_pay_with_new_channel(self, amount_sat, coins=None):
-        """ wether we can pay amount_sat after opening a new channel"""
-        if self.lnworker is None:
-            return False, None
-        num_sats_can_send = int(self.lnworker.num_sats_can_send())
-        if amount_sat <= num_sats_can_send:
-            return True, None
-        lightning_needed = amount_sat - num_sats_can_send
-        lightning_needed += (lightning_needed // 20) # operational safety margin
-        channel_funding_sat = lightning_needed + 1000 # channel reserves safety margin
-        try:
-            self.lnworker.mktx_for_open_channel(coins=coins, funding_sat=channel_funding_sat, node_id=bytes(32), fee_est=None)
-        except NotEnoughFunds:
-            return False, None
-        return True, channel_funding_sat
-
     def make_unsigned_transaction(
             self, *,
             coins: Sequence[PartialTxInput],

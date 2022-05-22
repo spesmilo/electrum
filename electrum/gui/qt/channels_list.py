@@ -392,9 +392,9 @@ class ChannelsList(MyTreeView):
         vbox.addLayout(Buttons(OkButton(d)))
         d.exec_()
 
-    def new_channel_dialog(self, *, amount_sat=None):
+    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
         from .new_channel_dialog import NewChannelDialog
-        d = NewChannelDialog(self.parent, amount_sat)
+        d = NewChannelDialog(self.parent, amount_sat, min_amount_sat)
         return d.run()
 
 
