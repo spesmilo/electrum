@@ -203,6 +203,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.showing_cert_mismatch_error = False
         self.tl_windows = []
         self.pending_invoice = None
+        self.current_request = None # request shown in the receive tab
         Logger.__init__(self)
 
         self._coroutines_scheduled = set()  # type: Set[concurrent.futures.Future]
@@ -1039,6 +1040,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.history_model.refresh('update_tabs')
         self.request_list.update()
+        self.update_current_request()
         self.invoice_list.update()
         self.address_list.update()
         self.utxo_list.update()
@@ -1293,7 +1295,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
-    def show_receive_request(self, req):
+    def set_current_request(self, req):
+        self.current_request = req
+        self.update_current_request()
+
+    def update_current_request(self):
+        req = self.current_request
+        if req is None:
+            self.receive_URI_e.setText('')
+            self.receive_lightning_e.setText('')
+            self.receive_address_e.setText('')
+            return
         addr = req.get_address() or ''
         amount_sat = req.get_amount_sat() or 0
         address_help = '' if addr else _('Amount too small to be received onchain')
