@@ -1305,23 +1305,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if lnaddr is None:
             ln_help = _('This request does not have a Lightning invoice.')
             lnaddr = ''
+            can_rebalance = False
+            can_swap = False
         elif not lightning_online:
             ln_help = _('You must be online to receive Lightning payments.')
             lnaddr = ''
+            can_rebalance = False
+            can_swap = False
         elif not can_receive_lightning:
             self.receive_rebalance_button.suggestion = self.wallet.lnworker.suggest_rebalance_to_receive(amount_sat)
             self.receive_swap_button.suggestion = self.wallet.lnworker.suggest_swap_to_receive(amount_sat)
             ln_help = _('Your Lightning channels do not have the capacity to receive this amount.')
             can_rebalance = bool(self.receive_rebalance_button.suggestion)
             can_swap = bool(self.receive_swap_button.suggestion)
-            self.receive_rebalance_button.setEnabled(can_rebalance)
-            self.receive_rebalance_button.setVisible(can_rebalance)
-            self.receive_swap_button.setEnabled(can_swap)
-            self.receive_swap_button.setVisible(can_swap)
+            if can_rebalance:
+                ln_help += '\n\n' + _('You may receive this amount if you rebalance your channels.')
+            elif can_swap:
+                ln_help += '\n\n' + _('You may receive this amount if you swap some of your funds.')
             lnaddr = ''
         else:
             ln_help = ''
-
+            can_rebalance = False
+            can_swap = False
+        self.receive_rebalance_button.setEnabled(can_rebalance)
+        self.receive_rebalance_button.setVisible(can_rebalance)
+        self.receive_swap_button.setEnabled(can_swap)
+        self.receive_swap_button.setVisible(can_swap)
         icon_name = "lightning.png" if lnaddr else "lightning_disconnected.png"
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
