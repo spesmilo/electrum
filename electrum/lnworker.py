@@ -2170,6 +2170,9 @@ class LNWallet(LNWorker):
             for chan in channels:
                 if func(deltas={chan:delta}) >= amount_sat:
                     suggestions.append((chan, delta))
+                elif direction==RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
+                    # MPP heuristics has a 0.5 slope
+                    suggestions.append((chan, 2*delta))
         if not suggestions:
             raise NotEnoughFunds
         return suggestions
