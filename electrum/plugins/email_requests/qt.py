@@ -51,7 +51,7 @@ from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.wallet import Abstract_Wallet
-from electrum.invoices import OnchainInvoice
+from electrum.invoices import Invoice
 
 
 class Processor(threading.Thread, Logger):
@@ -170,7 +170,7 @@ class Plugin(BasePlugin):
         self.wallets -= {wallet}
 
     def new_invoice(self):
-        invoice = OnchainInvoice.from_bip70_payreq(self.pr)
+        invoice = Invoice.from_bip70_payreq(self.pr)
         for wallet in self.wallets:
             wallet.save_invoice(invoice)
         #main_window.invoice_list.update()
@@ -181,10 +181,8 @@ class Plugin(BasePlugin):
 
     def send(self, window: ElectrumWindow, addr):
         from electrum import paymentrequest
-        req = window.wallet.receive_requests.get(addr)
-        if not isinstance(req, OnchainInvoice):
-            window.show_error("Only on-chain requests are supported.")
-            return
+        req = window.wallet.get_request(addr)
+        # FIXME only on-chain requests are supported
         message = req.message
         if req.bip70:
             payload = bytes.fromhex(req.bip70)
