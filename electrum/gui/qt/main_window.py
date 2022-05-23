@@ -1212,22 +1212,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_lightning_help = QWidget()
         self.receive_lightning_help.setVisible(False)
         self.receive_lightning_help.setLayout(vbox)
-
-        fixedSize = 200
-        for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
-            e.setFont(QFont(MONOSPACE_FONT))
-            e.addCopyButton(self.app)
-            e.setReadOnly(True)
-            e.setFixedSize(fixedSize, fixedSize)
-        for w in [self.receive_address_help, self.receive_lightning_help]:
-            w.setFixedSize(fixedSize, fixedSize)
-
         self.receive_address_qr = QRCodeWidget()
         self.receive_URI_qr = QRCodeWidget()
         self.receive_lightning_qr = QRCodeWidget()
 
+        min_size = QSize(200, 200)
+        for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
+            e.setFont(QFont(MONOSPACE_FONT))
+            e.addCopyButton(self.app)
+            e.setReadOnly(True)
+            e.setMinimumSize(min_size)
+        for w in [self.receive_address_help, self.receive_lightning_help]:
+            w.setMinimumSize(min_size)
         for w in [self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
-            w.setFixedSize(fixedSize, fixedSize)
+            w.setMinimumSize(min_size)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
@@ -1291,11 +1289,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         w.searchable_list = self.request_list
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
-
-        vbox.addStretch(1)
+        vbox.addStretch()
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.request_list)
-        vbox.setStretchFactor(self.request_list, 1000)
+        vbox.setStretchFactor(hbox, 40)
+        vbox.setStretchFactor(self.request_list, 60)
         self.request_list.update()  # after parented and put into a layout, can update without flickering
 
         return w
