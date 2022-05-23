@@ -1222,9 +1222,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         for w in [self.receive_address_help, self.receive_lightning_help]:
             w.setFixedSize(fixedSize, fixedSize)
 
-        self.receive_address_qr = QRCodeWidget(fixedSize=fixedSize)
-        self.receive_URI_qr = QRCodeWidget(fixedSize=fixedSize)
-        self.receive_lightning_qr = QRCodeWidget(fixedSize=fixedSize)
+        self.receive_address_qr = QRCodeWidget()
+        self.receive_URI_qr = QRCodeWidget()
+        self.receive_lightning_qr = QRCodeWidget()
+
+        for w in [self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
+            w.setFixedSize(fixedSize, fixedSize)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
