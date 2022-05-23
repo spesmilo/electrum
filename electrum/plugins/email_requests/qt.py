@@ -30,7 +30,7 @@ from functools import partial
 import traceback
 import sys
 from typing import Set
-
+import ssl
 import smtplib
 import imaplib
 import email
@@ -41,6 +41,7 @@ from email.encoders import encode_base64
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
                              QInputDialog)
+import certifi
 
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog)
@@ -52,6 +53,10 @@ from electrum.i18n import _
 from electrum.logging import Logger
 from electrum.wallet import Abstract_Wallet
 from electrum.invoices import Invoice
+
+
+ca_path = certifi.where()
+ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
 
 
 class Processor(threading.Thread, Logger):
@@ -93,7 +98,7 @@ class Processor(threading.Thread, Logger):
     def run(self):
         while True:
             try:
-                self.M = imaplib.IMAP4_SSL(self.imap_server)
+                self.M = imaplib.IMAP4_SSL(self.imap_server, ssl_context=ssl_context)
                 self.M.login(self.username, self.password)
             except BaseException as e:
                 self.logger.info(f'connecting failed: {repr(e)}')
@@ -121,7 +126,7 @@ class Processor(threading.Thread, Logger):
         part.add_header('Content-Disposition', 'attachment; filename="payreq.btc"')
         msg.attach(part)
         try:
-            s = smtplib.SMTP_SSL(self.imap_server, timeout=2)
+            s = smtplib.SMTP_SSL(self.imap_server, timeout=2, context=ssl_context)
             s.login(self.username, self.password)
             s.sendmail(self.username, [recipient], msg.as_string())
             s.quit()
@@ -271,7 +276,7 @@ class CheckConnectionThread(QThread):
 
     def run(self):
         try:
-            conn = imaplib.IMAP4_SSL(self.server)
+            conn = imaplib.IMAP4_SSL(self.server, ssl_context=ssl_context)
             conn.login(self.username, self.password)
         except BaseException as e:
             self.connection_error_signal.emit(repr(e))
