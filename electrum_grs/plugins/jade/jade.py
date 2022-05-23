@@ -3,17 +3,17 @@ import base64
 import json
 from typing import Optional
 
-from electrum import bip32, constants
-from electrum.crypto import sha256
-from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import Transaction
-from electrum.wallet import Multisig_Wallet
-from electrum.util import UserFacingException
-from electrum.base_wizard import ScriptTypeNotSupported
-from electrum.logging import get_logger
-from electrum.plugin import runs_in_hwd_thread, Device
-from electrum.network import Network
+from electrum_grs import bip32, constants
+from electrum_grs.crypto import sha256
+from electrum_grs.i18n import _
+from electrum_grs.keystore import Hardware_KeyStore
+from electrum_grs.transaction import Transaction
+from electrum_grs.wallet import Multisig_Wallet
+from electrum_grs.util import UserFacingException
+from electrum_grs.base_wizard import ScriptTypeNotSupported
+from electrum_grs.logging import get_logger
+from electrum_grs.plugin import runs_in_hwd_thread, Device
+from electrum_grs.network import Network
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
 from ..hw_wallet.plugin import OutdatedHwFirmwareException

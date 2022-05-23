@@ -11,4 +11,4 @@ requires = [
     )
 ]
 registers_keystore = ("hardware", "bitbox02", _("BitBox02"))
-available_for = ["qt"]
+available_for = [] # Disabled
