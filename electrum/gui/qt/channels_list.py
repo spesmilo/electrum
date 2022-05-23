@@ -209,7 +209,7 @@ class ChannelsList(MyTreeView):
             channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
             chan1 = self.lnworker.channels.get(channel_id1)
             chan2 = self.lnworker.channels.get(channel_id2)
-            if chan1 and chan2:
+            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
                 menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
                 menu.exec_(self.viewport().mapToGlobal(position))
             return
