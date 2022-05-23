@@ -73,7 +73,10 @@ class QRCodeWidget(QWidget):
         framesize = min(r.width(), r.height())
         boxsize = int((framesize - 2*self.margin)/k)
         if boxsize < 2:
-            print('Warning: cannot draw qr code, boxsize too small')
+            qp.drawText(0, 20, 'Cannot draw QR code:')
+            qp.drawText(0, 40, 'Boxsize too small')
+            qp.end()
+            return
         size = k*boxsize
         left = (framesize - size)/2
         top = (framesize - size)/2
