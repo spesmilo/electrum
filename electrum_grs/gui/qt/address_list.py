@@ -236,8 +236,8 @@ class AddressList(MyTreeView):
         address_item[self.Columns.COIN_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
         address_item[self.Columns.FIAT_BALANCE].setText(fiat_balance_str)
         address_item[self.Columns.NUM_TXS].setText("%d"%num)
-        c = ColorScheme.BLUE if self.wallet.is_frozen_address(address) else ColorScheme.DEFAULT
-        address_item[self.Columns.ADDRESS].setBackground(c.as_color(True))
+        c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
+        address_item[self.Columns.ADDRESS].setBackground(c)
 
     def create_menu(self, position):
         from electrum_grs.wallet import Multisig_Wallet

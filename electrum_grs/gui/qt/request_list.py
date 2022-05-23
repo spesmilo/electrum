@@ -85,9 +85,7 @@ class RequestList(MyTreeView):
 
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
-            self.parent.receive_URI_e.setText('')
-            self.parent.receive_lightning_e.setText('')
-            self.parent.receive_address_e.setText('')
+            self.parent.set_current_request(None)
             return
         if not idx.isValid():
             return
@@ -98,7 +96,7 @@ class RequestList(MyTreeView):
         if req is None:
             self.update()
             return
-        self.parent.show_receive_request(req)
+        self.parent.set_current_request(req)
 
     def clearSelection(self):
         super().clearSelection()

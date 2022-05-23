@@ -524,7 +524,7 @@ class TrustedCoinPlugin(BasePlugin):
         if self.requesting is False:
             self.requesting = True
             t = Thread(target=self.request_billing_info, args=(wallet,))
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
             return t
 

@@ -125,7 +125,7 @@ class UTXOList(MyTreeView):
             color = ColorScheme.GREEN.as_color(True)
         else:
             tooltip = key
-            color = ColorScheme.DEFAULT.as_color(True)
+            color = self._default_bg_brush
         for col in utxo_item:
             col.setBackground(color)
             col.setToolTip(tooltip)

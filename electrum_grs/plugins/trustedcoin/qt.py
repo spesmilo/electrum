@@ -278,7 +278,7 @@ class Plugin(TrustedCoinPlugin):
         tos_e.tos_signal.connect(on_result)
         tos_e.error_signal.connect(on_error)
         t = threading.Thread(target=request_TOS)
-        t.setDaemon(True)
+        t.daemon = True
         t.start()
         email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)

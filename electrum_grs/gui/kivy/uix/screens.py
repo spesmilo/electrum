@@ -448,7 +448,7 @@ class ReceiveScreen(CScreen):
         amount_sat = self.app.get_amount(amount_str) if amount_str else 0
         message = self.message
         expiry = self.expiry()
-        if amount_sat and amount_sat < self.wallet.dust_threshold():
+        if amount_sat and amount_sat < self.app.wallet.dust_threshold():
             self.address = ''
             if not self.app.wallet.has_lightning():
                 return

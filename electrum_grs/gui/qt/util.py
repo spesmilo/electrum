@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum_grs.i18n import _, languages
 from electrum_grs.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
-from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_SCHEDULED
+from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 from electrum_grs.logging import Logger
 
 if TYPE_CHECKING:
@@ -56,7 +56,6 @@ pr_icons = {
     PR_FAILED:"warning.png",
     PR_ROUTING:"unconfirmed.png",
     PR_UNCONFIRMED:"unconfirmed.png",
-    PR_SCHEDULED:"unconfirmed.png",
 }
 
 
@@ -337,15 +336,18 @@ class BlockingWaitingDialog(WindowModalDialog):
         self.message_label = QLabel(message)
         vbox = QVBoxLayout(self)
         vbox.addWidget(self.message_label)
+        self.finished.connect(self.deleteLater)  # see #3956
         # show popup
         self.show()
         # refresh GUI; needed for popup to appear and for message_label to get drawn
         QCoreApplication.processEvents()
         QCoreApplication.processEvents()
-        # block and run given task
-        task()
-        # close popup
-        self.accept()
+        try:
+            # block and run given task
+            task()
+        finally:
+            # close popup
+            self.accept()
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
@@ -588,6 +590,8 @@ class MyTreeView(QTreeView):
 
         self._pending_update = False
         self._forced_update = False
+
+        self._default_bg_brush = QStandardItem().background()
 
     def set_editability(self, items):
         for idx, i in enumerate(items):
@@ -1423,6 +1427,13 @@ class VTabWidget(QtWidgets.QTabWidget):
         QtWidgets.QTabWidget.__init__(self, *args, **kwargs)
         self.setTabBar(VTabBar(self))
         self.setTabPosition(QtWidgets.QTabWidget.West)
+
+    def resizeEvent(self, e):
+        # keep square aspect ratio when resized
+        size = e.size()
+        w = self.tabBar().width() + size.height()
+        self.setFixedWidth(w)
+        return super().resizeEvent(e)
 
 
 if __name__ == "__main__":

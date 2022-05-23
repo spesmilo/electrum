@@ -180,7 +180,7 @@ class SafeTPlugin(HW_PluginBase):
             import threading
             settings = self.request_safe_t_init_settings(wizard, method, self.device)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
             exit_code = wizard.loop.exec_()
             if exit_code != 0:

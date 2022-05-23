@@ -495,8 +495,8 @@ class Interface(Logger):
             sslc = ca_sslc
         else:
             # pinned self-signed cert
-            sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
-            sslc.check_hostname = 0
+            sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
+            sslc.check_hostname = False
         return sslc
 
     def handle_disconnect(func):
@@ -582,7 +582,9 @@ class Interface(Logger):
                 raise GracefulDisconnect("could not get certificate after 10 tries")
 
     async def _fetch_certificate(self) -> bytes:
-        sslc = ssl.SSLContext()
+        sslc = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+        sslc.check_hostname = False
+        sslc.verify_mode = ssl.CERT_NONE
         async with _RSClient(session_factory=RPCSession,
                              host=self.host, port=self.port,
                              ssl=sslc, proxy=self.proxy) as session:

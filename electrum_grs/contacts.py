@@ -103,7 +103,7 @@ class Contacts(dict, Logger):
                 self.alias_info = self.resolve_openalias(alias)
                 trigger_callback('alias_received')
             t = threading.Thread(target=f)
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
 
     def resolve_openalias(self, url):
