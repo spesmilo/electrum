@@ -1331,9 +1331,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             can_rebalance = bool(self.receive_rebalance_button.suggestion)
             can_swap = bool(self.receive_swap_button.suggestion)
             if can_rebalance:
-                ln_help += '\n\n' + _('You may receive this amount if you rebalance your channels.')
+                ln_help += '\n\n' + _('You may have that capacity after rebalancing your channels.')
             elif can_swap:
-                ln_help += '\n\n' + _('You may receive this amount if you swap some of your funds.')
+                ln_help += '\n\n' + _('You may have that capacity after swapping some of your funds.')
             lnaddr = ''
         else:
             ln_help = ''
@@ -1748,26 +1748,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             choices = {}
             if can_rebalance:
                 msg = ''.join([
-                    _('Rebalance channels'), '\n',
-                    _('Funds will be sent between your channels in order to raise your sending capacity.')
+                    _('Rebalance existing channels'), '\n',
+                    _('Move funds between your channels in order to increase your sending capacity.')
                 ])
                 choices[0] = msg
-            if can_pay_onchain:
-                msg = ''.join([
-                    _('Pay onchain'), '\n',
-                    _('Funds will be sent to the invoice fallback address.')
-                ])
-                choices[1] = msg
             if can_pay_with_new_channel:
                 msg = ''.join([
                     _('Open a new channel'), '\n',
                     _('You will be able to pay once the channel is open.')
                 ])
-                choices[2] = msg
+                choices[1] = msg
             if can_pay_with_swap:
                 msg = ''.join([
-                    _('Rebalance your channels with a submarine swap'), '\n',
+                    _('Swap onchain funds for lightning funds'), '\n',
                     _('You will be able to pay once the swap is confirmed.')
+                ])
+                choices[2] = msg
+            if can_pay_onchain:
+                msg = ''.join([
+                    _('Pay onchain'), '\n',
+                    _('Funds will be sent to the invoice fallback address.')
                 ])
                 choices[3] = msg
             if not choices:
@@ -1782,13 +1782,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                     chan1, chan2, delta = can_rebalance
                     self.rebalance_dialog(chan1, chan2, amount_sat=delta)
                 elif r == 1:
-                    self.pay_onchain_dialog(coins, invoice.get_outputs())
-                elif r == 2:
                     amount_sat, min_amount_sat = can_pay_with_new_channel
                     self.channels_list.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
-                elif r == 3:
+                elif r == 2:
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
+                elif r == 3:
+                    self.pay_onchain_dialog(coins, invoice.get_outputs())
             return
 
         # FIXME this is currently lying to user as we truncate to satoshis
