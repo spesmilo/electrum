@@ -1371,9 +1371,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.qr_window and self.qr_window.isVisible():
             i = self.receive_tabs.currentIndex()
             if i == 0:
-                data = self.receive_address_qr.data
-            elif i == 1:
                 data = self.receive_URI_qr.data
+            elif i == 1:
+                data = self.receive_address_qr.data
             else:
                 data = self.receive_lightning_qr.data
             self.qr_window.qrw.setData(data)
