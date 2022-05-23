@@ -262,6 +262,7 @@ class SwapManager(Logger):
             expected_onchain_amount_sat: int,
             password,
             tx: PartialTransaction = None,
+            channels = None,
     ) -> str:
         """send on-chain BTC, receive on Lightning
 
@@ -279,6 +280,7 @@ class SwapManager(Logger):
             message='swap',
             expiry=3600 * 24,
             fallback_address=None,
+            channels=channels,
         )
         payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
@@ -358,6 +360,7 @@ class SwapManager(Logger):
             *,
             lightning_amount_sat: int,
             expected_onchain_amount_sat: int,
+            channels = None,
     ) -> bool:
         """send on Lightning, receive on-chain
 
@@ -457,7 +460,7 @@ class SwapManager(Logger):
             self.prepayments[prepay_hash] = preimage_hash
             asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice, attempts=10))
         # initiate payment.
-        success, log = await self.lnworker.pay_invoice(invoice, attempts=10)
+        success, log = await self.lnworker.pay_invoice(invoice, attempts=10, channels=channels)
         return success
 
     def _add_or_reindex_swap(self, swap: SwapData) -> None:
