@@ -1219,6 +1219,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             e.addCopyButton(self.app)
             e.setReadOnly(True)
             e.setFixedSize(fixedSize, fixedSize)
+        for w in [self.receive_address_help, self.receive_lightning_help]:
+            w.setFixedSize(fixedSize, fixedSize)
 
         self.receive_address_qr = QRCodeWidget(fixedSize=fixedSize)
         self.receive_URI_qr = QRCodeWidget(fixedSize=fixedSize)
