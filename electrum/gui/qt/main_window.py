@@ -1279,11 +1279,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_lightning_e.setFocusPolicy(Qt.NoFocus)
         self.receive_lightning_e.mousePressEvent = self.toggle_receive_qr
         self.receive_lightning_qr.mousePressEvent = self.toggle_receive_qr
+        # add tooltip to QR and edits, not to the help widget
+        switch_tooltip = _('Click to switch between text and QR code view')
+        for w in [
+                self.receive_address_e, self.receive_URI_e, self.receive_lightning_e,
+                self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
+            w.setToolTip(switch_tooltip)
 
         self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.setToolTip(_('Click to switch between text and QR code view'))
         self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
