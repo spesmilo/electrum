@@ -206,7 +206,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.current_request = None # request shown in the receive tab
         Logger.__init__(self)
 
-        self._coroutines_scheduled = set()  # type: Set[concurrent.futures.Future]
+        self._coroutines_scheduled = {}  # type: Dict[concurrent.futures.Future, str]
         self.thread = TaskThread(self, self.on_error)
 
         self.tx_notification_queue = queue.Queue()
@@ -328,7 +328,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self._update_check_thread.checked.connect(on_version_received)
             self._update_check_thread.start()
 
-    def run_coroutine_from_thread(self, coro, on_result=None):
+    def run_coroutine_from_thread(self, coro, name, on_result=None):
         if self._cleaned_up:
             self.logger.warning(f"stopping or already stopped but run_coroutine_from_thread was called.")
             return
@@ -342,11 +342,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 if on_result:
                     on_result(res)
             finally:
-                self._coroutines_scheduled.discard(fut)
+                self._coroutines_scheduled.pop(fut)
                 self.need_update.set()
 
         fut = asyncio.run_coroutine_threadsafe(wrapper(), self.network.asyncio_loop)
-        self._coroutines_scheduled.add(fut)
+        self._coroutines_scheduled[fut] = name
         self.need_update.set()
 
     def on_fx_history(self):
@@ -1031,7 +1031,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.status_button.setIcon(icon)
 
         num_tasks = self.num_tasks()
-        self.tasks_label.setText("(%d %s)"%(num_tasks, _("tasks")))
+        if num_tasks == 0:
+            name = ''
+        elif num_tasks == 1:
+            name = list(self._coroutines_scheduled.values())[0]  + '...'
+        else:
+            name = "%d"%num_tasks + _('tasks')  + '...'
+        self.tasks_label.setText(name)
         self.tasks_label.setVisible(num_tasks > 0)
 
     def num_tasks(self):
@@ -1813,7 +1819,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         self.save_pending_invoice()
         coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
-        self.run_coroutine_from_thread(coro)
+        self.run_coroutine_from_thread(coro, _('Sending payment'))
 
     def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None, channels=None):
         if not self.network:
@@ -3486,7 +3492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.thread:
             self.thread.stop()
             self.thread = None
-        for fut in self._coroutines_scheduled:
+        for fut in self._coroutines_scheduled.keys():
             fut.cancel()
         util.unregister_callback(self.on_network)
         self.config.set_key("is_maximized", self.isMaximized())
@@ -3768,5 +3774,5 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return
         amount_msat = amount_e.get_amount() * 1000
         coro = self.wallet.lnworker.rebalance_channels(d.chan_from, d.chan_to, amount_msat=amount_msat)
-        self.run_coroutine_from_thread(coro)
+        self.run_coroutine_from_thread(coro, _('Rebalancing channels'))
         self.update_current_request()
