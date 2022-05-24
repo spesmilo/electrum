@@ -1238,22 +1238,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
             e.setReadOnly(True)
-            e.setMinimumSize(min_size)
+            e.sizeHint = lambda: min_size
         for w in [self.receive_address_help, self.receive_lightning_help]:
-            w.setMinimumSize(min_size)
+            w.sizeHint = lambda: min_size
         for w in [self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
-            w.setMinimumSize(min_size)
+            w.sizeHint = lambda: min_size
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
         receive_address_layout = QHBoxLayout()
+        receive_address_layout.setContentsMargins(0, 0, 0, 0)
         receive_address_layout.addWidget(self.receive_address_e)
         receive_address_layout.addWidget(self.receive_address_qr)
         receive_address_layout.addWidget(self.receive_address_help)
         receive_URI_layout = QHBoxLayout()
+        receive_URI_layout.setContentsMargins(0, 0, 0, 0)
         receive_URI_layout.addWidget(self.receive_URI_e)
         receive_URI_layout.addWidget(self.receive_URI_qr)
         receive_lightning_layout = QHBoxLayout()
+        receive_lightning_layout.setContentsMargins(0, 0, 0, 0)
         receive_lightning_layout.addWidget(self.receive_lightning_e)
         receive_lightning_layout.addWidget(self.receive_lightning_qr)
         receive_lightning_layout.addWidget(self.receive_lightning_help)
@@ -1284,7 +1287,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
-        receive_tabs_sp = self.receive_tabs.sizePolicy()
+        receive_tabs_sp = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
         receive_tabs_sp.setRetainSizeWhenHidden(True)
         self.receive_tabs.setSizePolicy(receive_tabs_sp)
         self.receive_tabs.setVisible(False)
