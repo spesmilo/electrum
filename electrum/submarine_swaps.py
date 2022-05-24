@@ -224,7 +224,6 @@ class SwapManager(Logger):
                 txin=txin,
                 witness_script=swap.redeem_script,
                 preimage=preimage,
-                privkey=swap.privkey,
                 address=swap.receive_address,
                 amount_sat=amount_sat,
                 locktime=locktime,
