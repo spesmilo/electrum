@@ -1200,11 +1200,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addLayout(buttons, 4, 0, 1, -1)
 
         self.receive_address_e = ButtonsTextEdit()
-        self.receive_address_help = WWLabel('')
+        self.receive_address_help_text = WWLabel('')
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.receive_address_help_text)
+        self.receive_address_help = QWidget()
         self.receive_address_help.setVisible(False)
+        self.receive_address_help.setLayout(vbox)
+
         self.receive_URI_e = ButtonsTextEdit()
         self.receive_lightning_e = ButtonsTextEdit()
-
         self.receive_lightning_help_text = WWLabel('')
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
@@ -1238,11 +1242,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
             e.setReadOnly(True)
-            e.sizeHint = lambda: min_size
+            e.setMinimumSize(min_size)
         for w in [self.receive_address_help, self.receive_lightning_help]:
-            w.sizeHint = lambda: min_size
+            w.setMinimumSize(min_size)
         for w in [self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
-            w.sizeHint = lambda: min_size
+            w.setMinimumSize(min_size)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
@@ -1263,6 +1267,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         from .util import VTabWidget
         self.receive_tabs = VTabWidget()
+        self.receive_tabs.setMinimumHeight(min_size.height() + 4) # for margins
         receive_address_widget = QWidget()
         receive_address_widget.setLayout(receive_address_layout)
         receive_URI_widget = QWidget()
@@ -1379,7 +1384,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_e.setText(addr)
         self.update_receive_address_styling()
         self.receive_address_qr.setData(addr)
-        self.receive_address_help.setText(address_help)
+        self.receive_address_help_text.setText(address_help)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
