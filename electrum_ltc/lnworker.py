@@ -29,7 +29,7 @@ from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
-from .util import NetworkRetryManager, JsonRPCClient
+from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -1052,6 +1052,29 @@ class LNWallet(LNWorker):
         tx.set_rbf(False)
         return tx
 
+    def suggest_funding_amount(self, amount_to_pay, coins):
+        """ wether we can pay amount_sat after opening a new channel"""
+        num_sats_can_send = int(self.num_sats_can_send())
+        lightning_needed = amount_to_pay - num_sats_can_send
+        assert lightning_needed > 0
+        min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000 # safety margin
+        min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
+        if min_funding_sat > LN_MAX_FUNDING_SAT:
+            return
+        try:
+            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_est=None)
+            funding_sat = min_funding_sat
+        except NotEnoughFunds:
+            return
+        # if available, suggest twice that amount:
+        if 2 * min_funding_sat <= LN_MAX_FUNDING_SAT:
+            try:
+                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=None)
+                funding_sat = 2 * min_funding_sat
+            except NotEnoughFunds:
+                pass
+        return funding_sat, min_funding_sat
+
     def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
                      funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
         if funding_sat > LN_MAX_FUNDING_SAT:
@@ -1983,7 +2006,7 @@ class LNWallet(LNWorker):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
         if channels is None:
-            channels = list(self.get_channels_to_include_in_invoice(amount_msat))
+            channels = list(self.get_channels_for_receiving(amount_msat))
             random.shuffle(channels)  # let's not leak channel order
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
@@ -2037,29 +2060,50 @@ class LNWallet(LNWorker):
                 chan.balance(LOCAL) if not chan.is_closed() and (chan.is_frozen_for_sending() if frozen else True) else 0
                 for chan in self.channels.values())) / 1000
 
-    def num_sats_can_send(self) -> Decimal:
-        can_send_dict = defaultdict(int)
-        with self.lock:
-            if self.channels:
-                for c in self.channels.values():
-                    if c.is_active() and not c.is_frozen_for_sending():
-                        if not self.channel_db and not self.is_trampoline_peer(c.node_id):
-                            continue
-                        if self.channel_db:
-                            can_send_dict[0] += c.available_to_spend(LOCAL)
-                        else:
-                            can_send_dict[c.node_id] += c.available_to_spend(LOCAL)
-        can_send = max(can_send_dict.values()) if can_send_dict else 0
+    def get_channels_for_sending(self):
+        for c in self.channels.values():
+            if c.is_active() and not c.is_frozen_for_sending():
+                if self.channel_db or self.is_trampoline_peer(c.node_id):
+                    yield c
+
+    def fee_estimate(self, amount_sat):
         # Here we have to guess a fee, because some callers (submarine swaps)
         # use this method to initiate a payment, which would otherwise fail.
         fee_base_msat = TRAMPOLINE_FEES[3]['fee_base_msat']
         fee_proportional_millionths = TRAMPOLINE_FEES[3]['fee_proportional_millionths']
         # inverse of fee_for_edge_msat
-        can_send_minus_fees = (can_send - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
-        can_send_minus_fees = max(0, can_send_minus_fees)
-        return Decimal(can_send_minus_fees) / 1000
+        amount_msat = amount_sat * 1000
+        amount_minus_fees = (amount_msat - fee_base_msat) * 1_000_000 // ( 1_000_000 + fee_proportional_millionths)
+        return Decimal(amount_msat - amount_minus_fees) / 1000
 
-    def get_channels_to_include_in_invoice(self, amount_msat=None) -> Sequence[Channel]:
+    def num_sats_can_send(self, deltas=None) -> Decimal:
+        """
+        without trampoline, sum of all channel capacity
+        with trampoline, MPP must use a single trampoline
+        """
+        if deltas is None:
+            deltas = {}
+        def send_capacity(chan):
+            if chan in deltas:
+                delta_msat = deltas[chan] * 1000
+                if delta_msat > chan.available_to_spend(REMOTE):
+                    delta_msat = 0
+            else:
+                delta_msat = 0
+            return chan.available_to_spend(LOCAL) + delta_msat
+        can_send_dict = defaultdict(int)
+        with self.lock:
+            for c in self.get_channels_for_sending():
+                if self.channel_db:
+                    can_send_dict[0] += send_capacity(c)
+                else:
+                    can_send_dict[c.node_id] += send_capacity(c)
+        can_send = max(can_send_dict.values()) if can_send_dict else 0
+        can_send_sat = Decimal(can_send)/1000
+        can_send_sat -= self.fee_estimate(can_send_sat)
+        return max(can_send_sat, 0)
+
+    def get_channels_for_receiving(self, amount_msat=None) -> Sequence[Channel]:
         if not amount_msat:  # assume we want to recv a large amt, e.g. finding max.
             amount_msat = float('inf')
         with self.lock:
@@ -2088,16 +2132,26 @@ class LNWallet(LNWorker):
             channels = channels[:10]
             return channels
 
-    def num_sats_can_receive(self) -> Decimal:
+    def num_sats_can_receive(self, deltas=None) -> Decimal:
         """Return a conservative estimate of max sat value we can realistically receive
         in a single payment. (MPP is allowed)
 
         The theoretical max would be `sum(chan.available_to_spend(REMOTE) for chan in self.channels)`,
         but that would require a sender using MPP to magically guess all our channel liquidities.
         """
+        if deltas is None:
+            deltas = {}
+        def recv_capacity(chan):
+            if chan in deltas:
+                delta_msat = deltas[chan] * 1000
+                if delta_msat > chan.available_to_spend(LOCAL):
+                    delta_msat = 0
+            else:
+                delta_msat = 0
+            return chan.available_to_spend(REMOTE) + delta_msat
         with self.lock:
-            recv_channels = self.get_channels_to_include_in_invoice()
-            recv_chan_msats = [chan.available_to_spend(REMOTE) for chan in recv_channels]
+            recv_channels = self.get_channels_for_receiving()
+            recv_chan_msats = [recv_capacity(chan) for chan in recv_channels]
         if not recv_chan_msats:
             return Decimal(0)
         can_receive_msat = max(
@@ -2105,6 +2159,93 @@ class LNWallet(LNWorker):
             sum(recv_chan_msats) // 2,  # heuristic for MPP
         )
         return Decimal(can_receive_msat) / 1000
+
+    def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
+        """
+        Suggest a channel and amount to send/receive with that channel, so that we will be able to receive/send amount_sat
+        This is used when suggesting a swap or rebalance in order to receive a payment
+        """
+        with self.lock:
+            func = self.num_sats_can_send if direction == SENT else self.num_sats_can_receive
+            delta = amount_sat - func()
+            assert delta > 0
+            delta += self.fee_estimate(amount_sat)
+            # add safety margin, for example if channel reserves is not met
+            # also covers swap server percentage fee
+            delta += delta // 20
+            suggestions = []
+            channels = self.get_channels_for_sending() if direction == SENT else self.get_channels_for_receiving()
+            for chan in channels:
+                if func(deltas={chan:delta}) >= amount_sat:
+                    suggestions.append((chan, delta))
+                elif direction==RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
+                    # MPP heuristics has a 0.5 slope
+                    suggestions.append((chan, 2*delta))
+        if not suggestions:
+            raise NotEnoughFunds
+        return suggestions
+
+    def _suggest_rebalance(self, direction, amount_sat):
+        """
+        Suggest a rebalance in order to be able to send or receive amount_sat.
+        Returns (from_channel, to_channel, amount to shuffle)
+        """
+        try:
+            suggestions = self._suggest_channels_for_rebalance(direction, amount_sat)
+        except NotEnoughFunds:
+            return False
+        for chan2, delta in suggestions:
+            # margin for fee caused by rebalancing
+            delta += self.fee_estimate(amount_sat)
+            # find other channel or trampoline that can send delta
+            for chan1 in self.channels.values():
+                if chan1.is_frozen_for_sending() or not chan1.is_active():
+                    continue
+                if chan1 == chan2:
+                    continue
+                if not self.channel_db and chan1.node_id == chan2.node_id:
+                    continue
+                if direction == SENT:
+                    if chan1.can_pay(delta*1000):
+                        return (chan1, chan2, delta)
+                else:
+                    if chan1.can_receive(delta*1000):
+                        return (chan2, chan1, delta)
+            else:
+                continue
+        else:
+            return False
+
+    def suggest_rebalance_to_send(self, amount_sat):
+        return self._suggest_rebalance(SENT, amount_sat)
+
+    def suggest_rebalance_to_receive(self, amount_sat):
+        return self._suggest_rebalance(RECEIVED, amount_sat)
+
+    def suggest_swap_to_send(self, amount_sat, coins):
+        # fixme: if swap_amount_sat is lower than the minimum swap amount, we need to propose a higher value
+        assert amount_sat > self.num_sats_can_send()
+        try:
+            suggestions = self._suggest_channels_for_rebalance(SENT, amount_sat)
+        except NotEnoughFunds:
+            return
+        for chan, swap_recv_amount in suggestions:
+            # check that we can send onchain
+            swap_server_mining_fee = 10000 # guessing, because we have not called get_pairs yet
+            swap_funding_sat = swap_recv_amount + swap_server_mining_fee
+            swap_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), int(swap_funding_sat))
+            if not self.wallet.can_pay_onchain([swap_output], coins=coins):
+                continue
+            return (chan, swap_recv_amount)
+
+    def suggest_swap_to_receive(self, amount_sat):
+        assert amount_sat > self.num_sats_can_receive()
+        try:
+            suggestions = self._suggest_channels_for_rebalance(RECEIVED, amount_sat)
+        except NotEnoughFunds:
+            return
+        for chan, swap_recv_amount in suggestions:
+            return (chan, swap_recv_amount)
 
     async def rebalance_channels(self, chan1, chan2, amount_msat):
         lnaddr, invoice = self.create_invoice(

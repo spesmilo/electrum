@@ -49,7 +49,7 @@ class TestBolt11(ElectrumTestCase):
         b.tags = [t for t in b.tags if t[0] != 'h' and t[0] != 'n']
 
         assert b.pubkey.serialize() == PUBKEY, (hexlify(b.pubkey.serialize()), hexlify(PUBKEY))
-        assert b.signature != None
+        assert b.signature is not None
 
         # Unset these, they are generated during encoding/decoding
         b.pubkey = None

@@ -444,7 +444,7 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
-            if tx_script_type == None:
+            if tx_script_type is None:
                 tx_script_type = txin.script_type
             elif tx_script_type != txin.script_type:
                 raise Exception("Cannot mix different input script types")

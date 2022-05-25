@@ -79,7 +79,7 @@ def numberToByteArray(n, howManyBytes=None):
     not be larger.  The returned bytearray will contain a big-endian
     encoding of the input integer (n).
     """
-    if howManyBytes == None:
+    if howManyBytes is None:
         howManyBytes = numBytes(n)
     b = bytearray(howManyBytes)
     for count in range(howManyBytes-1, -1, -1):

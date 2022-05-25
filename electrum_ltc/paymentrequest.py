@@ -333,7 +333,7 @@ def make_unsigned_request(req: 'Invoice'):
         time = 0
     if exp and type(exp) != int:
         exp = 0
-    amount = req.amount_sat
+    amount = req.get_amount_sat()
     if amount is None:
         amount = 0
     memo = req.message

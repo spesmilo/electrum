@@ -757,7 +757,7 @@ class MyTreeView(QTreeView):
         self.show_toolbar(not self.toolbar_shown, config)
 
     def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
-        cc = menu.addMenu(_("Copy"))
+        cc = menu.addMenu(_("Copy Column"))
         for column in self.Columns:
             column_title = self.original_model().horizontalHeaderItem(column).text()
             if not column_title:
@@ -1427,6 +1427,13 @@ class VTabWidget(QtWidgets.QTabWidget):
         QtWidgets.QTabWidget.__init__(self, *args, **kwargs)
         self.setTabBar(VTabBar(self))
         self.setTabPosition(QtWidgets.QTabWidget.West)
+
+    def resizeEvent(self, e):
+        # keep square aspect ratio when resized
+        size = e.size()
+        w = self.tabBar().width() + size.height()
+        self.setFixedWidth(w)
+        return super().resizeEvent(e)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 class NewChannelDialog(WindowModalDialog):
 
-    def __init__(self, window: 'ElectrumWindow', amount_sat: Optional[int] = None):
+    def __init__(self, window: 'ElectrumWindow', amount_sat: Optional[int] = None, min_amount_sat: Optional[int] = None):
         WindowModalDialog.__init__(self, window, _('Open Channel'))
         self.window = window
         self.network = window.network
@@ -30,7 +30,13 @@ class NewChannelDialog(WindowModalDialog):
         self.lnworker = self.window.wallet.lnworker
         self.trampolines = hardcoded_trampoline_nodes()
         self.trampoline_names = list(self.trampolines.keys())
+        self.min_amount_sat = min_amount_sat or 10_000
         vbox = QVBoxLayout(self)
+        msg = _('Choose a remote node and an amount to fund the channel.')
+        if min_amount_sat:
+            # only displayed if min_amount_sat is passed as parameter
+            msg += '\n' + _('You need to put at least') + ': ' + self.window.format_amount_and_units(self.min_amount_sat)
+        vbox.addWidget(WWLabel(msg))
         if self.network.channel_db:
             vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
             self.remote_nodeid = QLineEdit()
@@ -38,12 +44,13 @@ class NewChannelDialog(WindowModalDialog):
             self.suggest_button = QPushButton(self, text=_('Suggest Peer'))
             self.suggest_button.clicked.connect(self.on_suggest)
         else:
-            vbox.addWidget(QLabel(_('Choose a trampoline node to open a channel with')))
             self.trampoline_combo = QComboBox()
             self.trampoline_combo.addItems(self.trampoline_names)
             self.trampoline_combo.setCurrentIndex(1)
         self.amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.amount_e.setAmount(amount_sat)
+        self.min_button = EnterButton(_("Min"), self.spend_min)
+        self.min_button.setEnabled(bool(self.min_amount_sat))
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(100)
         self.max_button.setCheckable(True)
@@ -56,12 +63,13 @@ class NewChannelDialog(WindowModalDialog):
             h.addWidget(self.remote_nodeid, 0, 1, 1, 4)
             h.addWidget(self.suggest_button, 0, 5)
         else:
-            h.addWidget(QLabel(_('Trampoline')), 0, 0)
+            h.addWidget(QLabel(_('Remote Node')), 0, 0)
             h.addWidget(self.trampoline_combo, 0, 1, 1, 4)
         h.addWidget(QLabel('Amount'), 2, 0)
         h.addWidget(self.amount_e, 2, 1)
-        h.addWidget(self.max_button, 2, 2)
-        h.addWidget(self.clear_button, 2, 3)
+        h.addWidget(self.min_button, 2, 2)
+        h.addWidget(self.max_button, 2, 3)
+        h.addWidget(self.clear_button, 2, 4)
         vbox.addLayout(h)
         vbox.addStretch()
         ok_button = OkButton(self)
@@ -88,6 +96,10 @@ class NewChannelDialog(WindowModalDialog):
             self.remote_nodeid.repaint()  # macOS hack for #6269
         self.max_button.setChecked(False)
         self.max_button.repaint()  # macOS hack for #6269
+
+    def spend_min(self):
+        self.max_button.setChecked(False)
+        self.amount_e.setAmount(self.min_amount_sat)
 
     def spend_max(self):
         self.amount_e.setFrozen(self.max_button.isChecked())
@@ -116,12 +128,17 @@ class NewChannelDialog(WindowModalDialog):
             funding_sat = '!'
         else:
             funding_sat = self.amount_e.get_amount()
+        if not funding_sat:
+            return
+        if self.min_amount_sat and funding_sat < self.min_amount_sat:
+            self.window.show_error(_('Amount too low'))
+            return
         if self.network.channel_db:
             connect_str = str(self.remote_nodeid.text()).strip()
         else:
             name = self.trampoline_names[self.trampoline_combo.currentIndex()]
             connect_str = str(self.trampolines[name])
-        if not connect_str or not funding_sat:
+        if not connect_str:
             return
         self.window.open_channel(connect_str, funding_sat, 0)
         return True

@@ -16,14 +16,10 @@ from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None, fixedSize=False):
+    def __init__(self, data = None):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
-        self.margin = 0
-        self.fixedSize=fixedSize
-        if fixedSize:
-            self.setFixedSize(fixedSize, fixedSize)
         self.setData(data)
 
 
@@ -37,9 +33,6 @@ class QRCodeWidget(QWidget):
                 border=0,
             )
             self.qr.add_data(self.data)
-            if not self.fixedSize:
-                k = len(self.qr.get_matrix())
-                self.setMinimumSize(k*5,k*5)
         else:
             self.qr = None
 
@@ -71,9 +64,12 @@ class QRCodeWidget(QWidget):
         qp.begin(self)
         r = qp.viewport()
         framesize = min(r.width(), r.height())
-        boxsize = int((framesize - 2*self.margin)/k)
+        boxsize = int(framesize/(k + 2))
         if boxsize < 2:
-            print('Warning: cannot draw qr code, boxsize too small')
+            qp.drawText(0, 20, 'Cannot draw QR code:')
+            qp.drawText(0, 40, 'Boxsize too small')
+            qp.end()
+            return
         size = k*boxsize
         left = (framesize - size)/2
         top = (framesize - size)/2
@@ -112,6 +108,7 @@ class QRDialog(WindowModalDialog):
         vbox = QVBoxLayout()
 
         qrw = QRCodeWidget(data)
+        qrw.setMinimumSize(250, 250)
         qr_hbox = QHBoxLayout()
         qr_hbox.addWidget(qrw)
         qr_hbox.addStretch(1)

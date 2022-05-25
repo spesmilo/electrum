@@ -439,14 +439,14 @@ class LNWalletWatcher(LNWatcher):
         broadcast = True
         local_height = self.network.get_local_height()
         if sweep_info.cltv_expiry:
-            wanted_height = sweep_info.cltv_expiry - local_height
+            wanted_height = sweep_info.cltv_expiry
             if wanted_height - local_height > 0:
                 broadcast = False
                 reason = 'waiting for {}: CLTV ({} > {}), prevout {}'.format(name, local_height, sweep_info.cltv_expiry, prevout)
         if sweep_info.csv_delay:
             prev_height = self.get_tx_height(prev_txid)
             wanted_height = sweep_info.csv_delay + prev_height.height - 1
-            if wanted_height - local_height > 0:
+            if prev_height.height <= 0 or wanted_height - local_height > 0:
                 broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
         tx = sweep_info.gen_tx()

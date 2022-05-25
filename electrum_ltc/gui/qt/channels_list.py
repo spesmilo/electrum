@@ -209,7 +209,7 @@ class ChannelsList(MyTreeView):
             channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
             chan1 = self.lnworker.channels.get(channel_id1)
             chan2 = self.lnworker.channels.get(channel_id2)
-            if chan1 and chan2:
+            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
                 menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
                 menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -234,30 +234,10 @@ class ChannelsList(MyTreeView):
             return
         chan = self.lnworker.channels[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
-        cc = self.add_copy_menu(menu, idx)
-        cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
-            chan.node_id.hex(), title=_("Node ID")))
-        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(
-            channel_id.hex(), title=_("Long Channel ID")))
-        if not chan.is_closed():
-            if not chan.is_frozen_for_sending():
-                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))  #
-            else:
-                menu.addAction(_("Unfreeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, False))
-            if not chan.is_frozen_for_receiving():
-                menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
-            else:
-                menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
-
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-        if not chan.is_closed():
-            menu.addSeparator()
-            if chan.peer_state == PeerState.GOOD:
-                menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
-            menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
-        else:
+        if chan.is_closed():
             item = chan.get_closing_height()
             if item:
                 txid, height, timestamp = item
@@ -265,6 +245,27 @@ class ChannelsList(MyTreeView):
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()
+
+        cc = self.add_copy_menu(menu, idx)
+        cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
+            chan.node_id.hex(), title=_("Node ID")))
+        cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(
+            channel_id.hex(), title=_("Long Channel ID")))
+        if not chan.is_closed():
+            fm = menu.addMenu(_("Freeze"))
+            if not chan.is_frozen_for_sending():
+                fm.addAction(_("Freeze for sending"), lambda: self.freeze_channel_for_sending(chan, True))
+            else:
+                fm.addAction(_("Unfreeze for sending"), lambda: self.freeze_channel_for_sending(chan, False))
+            if not chan.is_frozen_for_receiving():
+                fm.addAction(_("Freeze for receiving"), lambda: chan.set_frozen_for_receiving(True))
+            else:
+                fm.addAction(_("Unfreeze for receiving"), lambda: chan.set_frozen_for_receiving(False))
+        if not chan.is_closed():
+            cm = menu.addMenu(_("Close"))
+            if chan.peer_state == PeerState.GOOD:
+                cm.addAction(_("Cooperative close"), lambda: self.close_channel(channel_id))
+            cm.addAction(_("Force-close"), lambda: self.force_close(channel_id))
         menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
         if chan.can_be_deleted():
             menu.addSeparator()
@@ -393,9 +394,9 @@ class ChannelsList(MyTreeView):
         vbox.addLayout(Buttons(OkButton(d)))
         d.exec_()
 
-    def new_channel_dialog(self, *, amount_sat=None):
+    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
         from .new_channel_dialog import NewChannelDialog
-        d = NewChannelDialog(self.parent, amount_sat)
+        d = NewChannelDialog(self.parent, amount_sat, min_amount_sat)
         return d.run()
 
 

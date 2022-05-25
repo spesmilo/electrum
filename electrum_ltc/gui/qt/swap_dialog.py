@@ -28,7 +28,7 @@ class SwapDialog(WindowModalDialog):
 
     tx: Optional[PartialTransaction]
 
-    def __init__(self, window: 'ElectrumWindow', is_reverse=None, recv_amount_sat=None):
+    def __init__(self, window: 'ElectrumWindow', is_reverse=None, recv_amount_sat=None, channels=None):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
         self.window = window
         self.config = window.config
@@ -36,6 +36,7 @@ class SwapDialog(WindowModalDialog):
         self.swap_manager = self.lnworker.swap_manager
         self.network = window.network
         self.tx = None  # for the forward-swap only
+        self.channels = channels
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
         self.description_label = WWLabel(self.get_description())
@@ -230,7 +231,7 @@ class SwapDialog(WindowModalDialog):
                 lightning_amount_sat=lightning_amount,
                 expected_onchain_amount_sat=onchain_amount + self.swap_manager.get_claim_fee(),
             )
-            self.window.run_coroutine_from_thread(coro)
+            self.window.run_coroutine_from_thread(coro, _('Swapping funds'))
             return True
         else:
             lightning_amount = self.recv_amount_e.get_amount()
@@ -287,8 +288,9 @@ class SwapDialog(WindowModalDialog):
             expected_onchain_amount_sat=onchain_amount,
             password=password,
             tx=tx,
+            channels=self.channels,
         )
-        self.window.run_coroutine_from_thread(coro)
+        self.window.run_coroutine_from_thread(coro, _('Swapping funds'))
 
     def get_description(self):
         onchain_funds = "onchain funds"
