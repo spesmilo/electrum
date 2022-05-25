@@ -156,6 +156,7 @@ class AbstractChannel(Logger, ABC):
     lnworker: Optional['LNWallet']
     _fallback_sweep_address: str
     channel_id: bytes
+    short_channel_id: Optional[ShortChannelID] = None
     funding_outpoint: Outpoint
     node_id: bytes  # note that it might not be the full 33 bytes; for OCB it is only the prefix
     _state: ChannelState
@@ -180,7 +181,7 @@ class AbstractChannel(Logger, ABC):
         old_state = self._state
         if not force and (old_state, state) not in state_transitions:
             raise Exception(f"Transition not allowed: {old_state.name} -> {state.name}")
-        self.logger.debug(f'({self.get_id_for_log()}) Setting channel state: {old_state.name} -> {state.name}')
+        self.logger.debug(f'Setting channel state: {old_state.name} -> {state.name}')
         self._state = state
         self.storage['state'] = self._state.name
         if self.lnworker:
@@ -551,7 +552,9 @@ class Channel(AbstractChannel):
 
     def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
-        Logger.__init__(self)
+        self.channel_id = bfh(state["channel_id"])
+        self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
+        Logger.__init__(self)  # should be after short_channel_id is set
         self.lnworker = lnworker
         self._fallback_sweep_address = sweep_address
         self.storage = state
@@ -559,11 +562,9 @@ class Channel(AbstractChannel):
         self.config = {}
         self.config[LOCAL] = state["local_config"]
         self.config[REMOTE] = state["remote_config"]
-        self.channel_id = bfh(state["channel_id"])
         self.constraints = state["constraints"]  # type: ChannelConstraints
         self.funding_outpoint = state["funding_outpoint"]
         self.node_id = bfh(state["node_id"])
-        self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
         self.onion_keys = state['onion_keys']  # type: Dict[int, bytes]
         self.data_loss_protect_remote_pcp = state['data_loss_protect_remote_pcp']
         self.hm = HTLCManager(log=state['log'], initial_feerate=initial_feerate)
@@ -601,10 +602,7 @@ class Channel(AbstractChannel):
     def diagnostic_name(self):
         if self.name:
             return str(self.name)
-        try:
-            return f"lnchannel_{bh2u(self.channel_id[-4:])}"
-        except:
-            return super().diagnostic_name()
+        return self.get_id_for_log()
 
     def set_onion_key(self, key: int, value: bytes):
         self.onion_keys[key] = value
