@@ -446,7 +446,7 @@ class LNWalletWatcher(LNWatcher):
         if sweep_info.csv_delay:
             prev_height = self.get_tx_height(prev_txid)
             wanted_height = sweep_info.csv_delay + prev_height.height - 1
-            if prev_height.height > 0 and wanted_height - local_height > 0:
+            if prev_height.height <= 0 or wanted_height - local_height > 0:
                 broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
         tx = sweep_info.gen_tx()
