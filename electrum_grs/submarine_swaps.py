@@ -224,7 +224,6 @@ class SwapManager(Logger):
                 txin=txin,
                 witness_script=swap.redeem_script,
                 preimage=preimage,
-                privkey=swap.privkey,
                 address=swap.receive_address,
                 amount_sat=amount_sat,
                 locktime=locktime,
@@ -552,6 +551,7 @@ class SwapManager(Logger):
         return x
 
     def get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        # first, add percentage fee
         recv_amount = self._get_recv_amount(send_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted
         if recv_amount is not None:
@@ -560,12 +560,16 @@ class SwapManager(Logger):
             if abs(send_amount - inverted_send_amount) > 1:
                 raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
                                 f"send_amount={send_amount} -> recv_amount={recv_amount} -> inverted_send_amount={inverted_send_amount}")
-        # account for on-chain claim tx fee
+        # second, add on-chain claim tx fee
         if is_reverse and recv_amount is not None:
             recv_amount -= self.get_claim_fee()
         return recv_amount
 
     def get_send_amount(self, recv_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
+        # first, add on-chain claim tx fee
+        if is_reverse and recv_amount is not None:
+            recv_amount += self.get_claim_fee()
+        # second, add percentage fee
         send_amount = self._get_send_amount(recv_amount, is_reverse=is_reverse)
         # sanity check calculation can be inverted
         if send_amount is not None:
@@ -573,9 +577,6 @@ class SwapManager(Logger):
             if recv_amount != inverted_recv_amount:
                 raise Exception(f"calc-invert-sanity-check failed. is_reverse={is_reverse}. "
                                 f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_recv_amount={inverted_recv_amount}")
-        # account for on-chain claim tx fee
-        if is_reverse and send_amount is not None:
-            send_amount += self.get_claim_fee()
         return send_amount
 
     def get_swap_by_tx(self, tx: Transaction) -> Optional[SwapData]:

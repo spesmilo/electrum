@@ -228,7 +228,7 @@ class CKCCClient(HardwareClientBase):
         resp = self.dev.send_recv(CCProtocolPacker.sign_transaction(dlen, chk, finalize=finalize),
                                     timeout=None)
 
-        if resp != None:
+        if resp is not None:
             raise ValueError(resp)
 
     @runs_in_hwd_thread
