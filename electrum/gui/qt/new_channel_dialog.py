@@ -130,9 +130,10 @@ class NewChannelDialog(WindowModalDialog):
             funding_sat = self.amount_e.get_amount()
         if not funding_sat:
             return
-        if self.min_amount_sat and funding_sat < self.min_amount_sat:
-            self.window.show_error(_('Amount too low'))
-            return
+        if funding_sat != '!':
+            if self.min_amount_sat and funding_sat < self.min_amount_sat:
+                self.window.show_error(_('Amount too low'))
+                return
         if self.network.channel_db:
             connect_str = str(self.remote_nodeid.text()).strip()
         else:
