@@ -7,6 +7,7 @@ from enum import Enum, auto
 
 from .util import bfh, bh2u
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
+from .invoices import PR_PAID
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -289,6 +290,10 @@ def create_sweeptxs_for_our_ctx(
         subject=LOCAL,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        if direction == RECEIVED:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) != PR_PAID:
+                # do not redeem this, it might publish the preimage of an incomplete MPP
+                continue
         create_txns_for_htlc(
             htlc=htlc,
             htlc_direction=direction,
@@ -433,6 +438,10 @@ def create_sweeptxs_for_their_ctx(
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        if not direction == RECEIVED:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) != PR_PAID:
+                # do not redeem this, it might publish the preimage of an incomplete MPP
+                continue
         create_sweeptx_for_htlc(
             htlc=htlc,
             is_received_htlc=direction == RECEIVED,
@@ -441,10 +450,14 @@ def create_sweeptxs_for_their_ctx(
 
 
 def create_htlctx_that_spends_from_our_ctx(
-        chan: 'Channel', our_pcp: bytes,
-        ctx: Transaction, htlc: 'UpdateAddHtlc',
-        local_htlc_privkey: bytes, preimage: Optional[bytes],
-        htlc_direction: Direction, htlc_relative_idx: int,
+        chan: 'Channel',
+        our_pcp: bytes,
+        ctx: Transaction,
+        htlc: 'UpdateAddHtlc',
+        local_htlc_privkey: bytes,
+        preimage: Optional[bytes],
+        htlc_direction: Direction,
+        htlc_relative_idx: int,
         ctx_output_idx: int) -> Tuple[bytes, Transaction]:
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
