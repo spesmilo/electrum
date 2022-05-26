@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComb
 
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.lnutil import LN_MAX_FUNDING_SAT
+from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum import ecc
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -30,7 +30,7 @@ class NewChannelDialog(WindowModalDialog):
         self.lnworker = self.window.wallet.lnworker
         self.trampolines = hardcoded_trampoline_nodes()
         self.trampoline_names = list(self.trampolines.keys())
-        self.min_amount_sat = min_amount_sat or 10_000
+        self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
         msg = _('Choose a remote node and an amount to fund the channel.')
         if min_amount_sat:
