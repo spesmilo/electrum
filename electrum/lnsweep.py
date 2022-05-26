@@ -245,12 +245,11 @@ def create_sweeptxs_for_our_ctx(
 
     # HTLCs
     def create_txns_for_htlc(
-            *, htlc: 'UpdateAddHtlc', htlc_direction: Direction,
-            ctx_output_idx: int, htlc_relative_idx: int):
-        if htlc_direction == RECEIVED:
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-        else:
-            preimage = None
+            *, htlc: 'UpdateAddHtlc',
+            htlc_direction: Direction,
+            ctx_output_idx: int,
+            htlc_relative_idx: int,
+            preimage: Optional[bytes]):
         htlctx_witness_script, htlc_tx = create_htlctx_that_spends_from_our_ctx(
             chan=chan,
             our_pcp=our_pcp,
@@ -291,14 +290,19 @@ def create_sweeptxs_for_our_ctx(
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
         if direction == RECEIVED:
-            if chan.lnworker.get_payment_status(htlc.payment_hash) != PR_PAID:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) == PR_PAID:
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            else:
                 # do not redeem this, it might publish the preimage of an incomplete MPP
                 continue
+        else:
+            preimage = None
         create_txns_for_htlc(
             htlc=htlc,
             htlc_direction=direction,
             ctx_output_idx=ctx_output_idx,
-            htlc_relative_idx=htlc_relative_idx)
+            htlc_relative_idx=htlc_relative_idx,
+            preimage=preimage)
     return txs
 
 
@@ -398,12 +402,10 @@ def create_sweeptxs_for_their_ctx(
                 gen_tx=sweep_tx)
     # HTLCs
     def create_sweeptx_for_htlc(
-            htlc: 'UpdateAddHtlc', is_received_htlc: bool,
-            ctx_output_idx: int) -> None:
-        if not is_received_htlc and not is_revocation:
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-        else:
-            preimage = None
+            *, htlc: 'UpdateAddHtlc',
+            is_received_htlc: bool,
+            ctx_output_idx: int,
+            preimage: Optional[bytes]) -> None:
         htlc_output_witness_script = make_htlc_output_witness_script(
             is_received_htlc=is_received_htlc,
             remote_revocation_pubkey=our_revocation_pubkey,
@@ -438,14 +440,20 @@ def create_sweeptxs_for_their_ctx(
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
-        if not direction == RECEIVED:
-            if chan.lnworker.get_payment_status(htlc.payment_hash) != PR_PAID:
+        is_received_htlc = direction == RECEIVED
+        if not is_received_htlc and not is_revocation:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) == PR_PAID:
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            else:
                 # do not redeem this, it might publish the preimage of an incomplete MPP
                 continue
+        else:
+            preimage = None
         create_sweeptx_for_htlc(
             htlc=htlc,
-            is_received_htlc=direction == RECEIVED,
-            ctx_output_idx=ctx_output_idx)
+            is_received_htlc=is_received_htlc,
+            ctx_output_idx=ctx_output_idx,
+            preimage=preimage)
     return txs
 
 
