@@ -253,9 +253,11 @@ class LNWatcher(AddressSynchronizer):
             witness = o.witness_elements()
             redeem_script = witness[-1]
             if match_script_against_template(redeem_script, WITNESS_TEMPLATE_OFFERED_HTLC):
-                self.logger.info(f"input script matches offered htlc {redeem_script.hex()}")
+                #self.logger.info(f"input script matches offered htlc {redeem_script.hex()}")
+                pass
             elif match_script_against_template(redeem_script, WITNESS_TEMPLATE_RECEIVED_HTLC):
-                self.logger.info(f"input script matches received htlc {redeem_script.hex()}")
+                #self.logger.info(f"input script matches received htlc {redeem_script.hex()}")
+                pass
             else:
                 return result
         for i, o in enumerate(spender_tx.outputs()):
