@@ -105,13 +105,6 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                     _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
                                  f"{repr(e)} text: {error_text_received}")
             data = None
-    elif u.scheme == 'file':
-        try:
-            with open(u.path, 'r', encoding='utf-8') as f:
-                data = f.read()
-        except IOError:
-            data = None
-            error = "payment URL not pointing to a valid file"
     else:
         data = None
         error = f"Unknown scheme for payment request. URL: {url}"
