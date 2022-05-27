@@ -102,7 +102,11 @@ if test -f "dist/$win1"; then
     info "file exists: $win1"
 else
     pushd .
-    ./contrib/build-wine/build.sh
+    if test -f "contrib/build-wine/dist/$win1"; then
+	info "unsigned file exists: $win1"
+    else
+	./contrib/build-wine/build.sh
+    fi
     cd contrib/build-wine/
     if [ ! -z "$RELEASEMANAGER" ] ; then
         ./sign.sh

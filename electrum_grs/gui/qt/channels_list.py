@@ -87,7 +87,7 @@ class ChannelsList(MyTreeView):
                 bal_other = chan.balance(other)//1000
                 bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
                 if bal_other != bal_minus_htlcs_other:
-                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=True) + ')'
+                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=False) + ')'
             else:
                 assert isinstance(chan, ChannelBackup)
                 label = ''
