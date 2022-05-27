@@ -20,9 +20,14 @@ mkdir -p signed >/dev/null 2>&1
 
 cd dist
 echo "Found $(ls *.exe | wc -w) files to sign."
+
+echo -n "Windows codesign passphrase:"
+read -s password
+
 for f in $(ls *.exe); do
     echo "Signing $f..."
     osslsigncode sign \
+      -pass $password\
       -h sha256 \
       -certs "$CERT_FILE" \
       -key "$KEY_FILE" \
