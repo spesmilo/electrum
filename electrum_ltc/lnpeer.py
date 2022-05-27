@@ -115,6 +115,7 @@ class Peer(Logger):
         self._htlc_switch_iterstart_event = asyncio.Event()
         self._htlc_switch_iterdone_event = asyncio.Event()
         self._received_revack_event = asyncio.Event()
+        self.received_commitsig_event = asyncio.Event()
         self.downstream_htlc_resolved_event = asyncio.Event()
 
     def send_message(self, message_name: str, **kwargs):
@@ -1221,25 +1222,28 @@ class Peer(Logger):
         await fut
         we_must_resend_revoke_and_ack, their_next_local_ctn = fut.result()
 
-        # Replay un-acked local updates (including commitment_signed) byte-for-byte.
-        # If we have sent them a commitment signature that they "lost" (due to disconnect),
-        # we need to make sure we replay the same local updates, as otherwise they could
-        # end up with two (or more) signed valid commitment transactions at the same ctn.
-        # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
-        # e.g. for watchtowers, hence we must ensure these ctxs coincide.
-        # We replay the local updates even if they were not yet committed.
-        unacked = chan.hm.get_unacked_local_updates()
-        n_replayed_msgs = 0
-        for ctn, messages in unacked.items():
-            if ctn < their_next_local_ctn:
-                # They claim to have received these messages and the corresponding
-                # commitment_signed, hence we must not replay them.
-                continue
-            for raw_upd_msg in messages:
-                self.transport.send_bytes(raw_upd_msg)
-                n_replayed_msgs += 1
-        self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replayed {n_replayed_msgs} unacked messages')
-        if we_must_resend_revoke_and_ack:
+        def replay_updates_and_commitsig():
+            # Replay un-acked local updates (including commitment_signed) byte-for-byte.
+            # If we have sent them a commitment signature that they "lost" (due to disconnect),
+            # we need to make sure we replay the same local updates, as otherwise they could
+            # end up with two (or more) signed valid commitment transactions at the same ctn.
+            # Multiple valid ctxs at the same ctn is a major headache for pre-signing spending txns,
+            # e.g. for watchtowers, hence we must ensure these ctxs coincide.
+            # We replay the local updates even if they were not yet committed.
+            unacked = chan.hm.get_unacked_local_updates()
+            replayed_msgs = []
+            for ctn, messages in unacked.items():
+                if ctn < their_next_local_ctn:
+                    # They claim to have received these messages and the corresponding
+                    # commitment_signed, hence we must not replay them.
+                    continue
+                for raw_upd_msg in messages:
+                    self.transport.send_bytes(raw_upd_msg)
+                    replayed_msgs.append(raw_upd_msg)
+            self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replayed {len(replayed_msgs)} unacked messages. '
+                             f'{[decode_msg(raw_upd_msg)[0] for raw_upd_msg in replayed_msgs]}')
+
+        def resend_revoke_and_ack():
             last_secret, last_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn - 1)
             next_secret, next_point = chan.get_secret_and_point(LOCAL, oldest_unrevoked_local_ctn + 1)
             self.send_message(
@@ -1247,6 +1251,21 @@ class Peer(Logger):
                 channel_id=chan.channel_id,
                 per_commitment_secret=last_secret,
                 next_per_commitment_point=next_point)
+
+        # We need to preserve relative order of last revack and commitsig.
+        # note: it is not possible to recover and reestablish a channel if we are out-of-sync by
+        # more than one ctns, i.e. we will only ever retransmit up to one commitment_signed message.
+        # Hence, if we need to retransmit a revack, without loss of generality, we can either replay
+        # it as the first message or as the last message.
+        was_revoke_last = chan.hm.was_revoke_last()
+        if we_must_resend_revoke_and_ack and not was_revoke_last:
+            self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replaying a revoke_and_ack first.')
+            resend_revoke_and_ack()
+        replay_updates_and_commitsig()
+        if we_must_resend_revoke_and_ack and was_revoke_last:
+            self.logger.info(f'channel_reestablish ({chan.get_id_for_log()}): replaying a revoke_and_ack last.')
+            resend_revoke_and_ack()
+
         chan.peer_state = PeerState.GOOD
         if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
             self.send_funding_locked(chan)
@@ -1478,6 +1497,8 @@ class Peer(Logger):
         htlc_sigs = list(chunks(data, 64))
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
         self.send_revoke_and_ack(chan)
+        self.received_commitsig_event.set()
+        self.received_commitsig_event.clear()
 
     def on_update_fulfill_htlc(self, chan: Channel, payload):
         preimage = payload["payment_preimage"]

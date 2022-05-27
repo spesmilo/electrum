@@ -35,7 +35,7 @@ from electrum_ltc import lnmsg
 from electrum_ltc.logging import console_stderr_handler, Logger
 from electrum_ltc.lnworker import PaymentInfo, RECEIVED
 from electrum_ltc.lnonion import OnionFailureCode
-from electrum_ltc.lnutil import derive_payment_secret_from_payment_preimage
+from electrum_ltc.lnutil import derive_payment_secret_from_payment_preimage, UpdateAddHtlc
 from electrum_ltc.lnutil import LOCAL, REMOTE
 from electrum_ltc.invoices import PR_PAID, PR_UNPAID
 from electrum_ltc.interface import GracefulDisconnect
@@ -256,7 +256,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
 
 class MockTransport:
     def __init__(self, name):
-        self.queue = asyncio.Queue()
+        self.queue = asyncio.Queue()  # incoming messages
         self._name = name
         self.peer_addr = None
 
@@ -265,7 +265,11 @@ class MockTransport:
 
     async def read_messages(self):
         while True:
-            yield await self.queue.get()
+            data = await self.queue.get()
+            if isinstance(data, asyncio.Event):  # to artificially delay messages
+                await data.wait()
+                continue
+            yield data
 
 class NoFeaturesTransport(MockTransport):
     """
@@ -382,8 +386,14 @@ class TestPeer(TestCaseForTestnet):
 
         super().tearDown()
 
-    def prepare_peers(self, alice_channel: Channel, bob_channel: Channel):
-        k1, k2 = keypair(), keypair()
+    def prepare_peers(
+            self, alice_channel: Channel, bob_channel: Channel,
+            *, k1: Keypair = None, k2: Keypair = None,
+    ):
+        if k1 is None:
+            k1 = keypair()
+        if k2 is None:
+            k2 = keypair()
         alice_channel.node_id = k2.pubkey
         bob_channel.node_id = k1.pubkey
         t1, t2 = transport_pair(k1, k2, alice_channel.name, bob_channel.name)
@@ -556,6 +566,130 @@ class TestPeer(TestCaseForTestnet):
             run(f())
         self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
         self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
+
+    @staticmethod
+    def _send_fake_htlc(peer: Peer, chan: Channel) -> UpdateAddHtlc:
+        htlc = UpdateAddHtlc(amount_msat=10000, payment_hash=os.urandom(32), cltv_expiry=999, timestamp=1)
+        htlc = chan.add_htlc(htlc)
+        peer.send_message(
+            "update_add_htlc",
+            channel_id=chan.channel_id,
+            id=htlc.htlc_id,
+            cltv_expiry=htlc.cltv_expiry,
+            amount_msat=htlc.amount_msat,
+            payment_hash=htlc.payment_hash,
+            onion_routing_packet=1366 * b"0",
+        )
+        return htlc
+
+    def test_reestablish_replay_messages_rev_then_sig(self):
+        """
+        See https://github.com/lightning/bolts/pull/810#issue-728299277
+
+        Rev then Sig
+        A            B
+         <---add-----
+         ----add---->
+         <---sig-----
+         ----rev----x
+         ----sig----x
+
+        A needs to retransmit:
+        ----rev-->      (note that 'add' can be first too)
+        ----add-->
+        ----sig-->
+        """
+        chan_AB, chan_BA = create_test_channels()
+        k1, k2 = keypair(), keypair()
+        # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
+        async def f():
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                await p1.initialized
+                await p2.initialized
+                self._send_fake_htlc(p2, chan_BA)
+                self._send_fake_htlc(p1, chan_AB)
+                p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
+                self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                await p1.received_commitsig_event.wait()
+                await group.cancel_remaining()
+            # simulating disconnection. recreate transports.
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
+            for chan in (chan_AB, chan_BA):
+                chan.peer_state = PeerState.DISCONNECTED
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                with self.assertLogs('electrum_ltc', level='INFO') as logs:
+                    async with OldTaskGroup() as group2:
+                        await group2.spawn(p1.reestablish_channel(chan_AB))
+                        await group2.spawn(p2.reestablish_channel(chan_BA))
+                self.assertTrue(any(("alice->bob" in msg and
+                                     "replaying a revoke_and_ack first" in msg) for msg in logs.output))
+                self.assertTrue(any(("alice->bob" in msg and
+                                     "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
+                self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
+                self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
+                raise SuccessfulTest()
+        with self.assertRaises(SuccessfulTest):
+            run(f())
+
+    def test_reestablish_replay_messages_sig_then_rev(self):
+        """
+        See https://github.com/lightning/bolts/pull/810#issue-728299277
+
+        Sig then Rev
+        A            B
+         <---add-----
+         ----add---->
+         ----sig----x
+         <---sig-----
+         ----rev----x
+
+        A needs to retransmit:
+        ----add-->
+        ----sig-->
+        ----rev-->
+        """
+        chan_AB, chan_BA = create_test_channels()
+        k1, k2 = keypair(), keypair()
+        # note: we don't start peer.htlc_switch() so that the fake htlcs are left alone.
+        async def f():
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                await p1.initialized
+                await p2.initialized
+                self._send_fake_htlc(p2, chan_BA)
+                self._send_fake_htlc(p1, chan_AB)
+                p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
+                self.assertTrue(p1.maybe_send_commitment(chan_AB))
+                self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                await p1.received_commitsig_event.wait()
+                await group.cancel_remaining()
+            # simulating disconnection. recreate transports.
+            p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(chan_AB, chan_BA, k1=k1, k2=k2)
+            for chan in (chan_AB, chan_BA):
+                chan.peer_state = PeerState.DISCONNECTED
+            async with OldTaskGroup() as group:
+                await group.spawn(p1._message_loop())
+                await group.spawn(p2._message_loop())
+                with self.assertLogs('electrum_ltc', level='INFO') as logs:
+                    async with OldTaskGroup() as group2:
+                        await group2.spawn(p1.reestablish_channel(chan_AB))
+                        await group2.spawn(p2.reestablish_channel(chan_BA))
+                self.assertTrue(any(("alice->bob" in msg and
+                                     "replaying a revoke_and_ack last" in msg) for msg in logs.output))
+                self.assertTrue(any(("alice->bob" in msg and
+                                     "replayed 2 unacked messages. ['update_add_htlc', 'commitment_signed']" in msg) for msg in logs.output))
+                self.assertEqual(chan_AB.peer_state, PeerState.GOOD)
+                self.assertEqual(chan_BA.peer_state, PeerState.GOOD)
+                raise SuccessfulTest()
+        with self.assertRaises(SuccessfulTest):
+            run(f())
 
     @needs_test_with_all_chacha20_implementations
     def test_payment(self):

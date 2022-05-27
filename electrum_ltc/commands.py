@@ -280,12 +280,17 @@ class Commands:
         }
 
     @command('wp')
-    async def password(self, password=None, new_password=None, wallet: Abstract_Wallet = None):
+    async def password(self, password=None, new_password=None, encrypt_file=None, wallet: Abstract_Wallet = None):
         """Change wallet password. """
         if wallet.storage.is_encrypted_with_hw_device() and new_password:
             raise Exception("Can't change the password of a wallet encrypted with a hw device.")
-        b = wallet.storage.is_encrypted()
-        wallet.update_password(password, new_password, encrypt_storage=b)
+        if encrypt_file is None:
+            if not password and new_password:
+                # currently no password, setting one now: we encrypt by default
+                encrypt_file = True
+            else:
+                encrypt_file = wallet.storage.is_encrypted()
+        wallet.update_password(password, new_password, encrypt_storage=encrypt_file)
         wallet.save_db()
         return {'password':wallet.has_password()}
 
