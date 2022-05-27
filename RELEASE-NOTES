@@ -1,3 +1,19 @@
+# Release 4.2.2 - (May 27, 2022)
+ * Lightning:
+   - watching onchain outputs: significant perf. improvements (#7781)
+   - enforce relative order of some msgs during chan reestablishment,
+     lack of which can lead to unwanted force-closures (#7830)
+   - fix: in case of a force-close containing incoming HTLCs, we were
+     redeeming all HTLCs that we know the preimage for. This might
+     publish the preimage of an incomplete MPP. (1a5ef554, e74e9d8e)
+ * Hardware wallets:
+   - smarter pairing during sign_transaction (238619f1)
+   - keepkey: fix pairing with device using a workaround (#7779)
+ * fix AppImage failing to run on certain systems (#7784)
+ * fix "Automated BIP39 recovery" not scanning change paths (#7804)
+ * bypass network proxy for localhost electrum server (#3126)
+
+
 # Release 4.2.1 - (March 26, 2022)
  * Binaries:
    - Windows: we are dropping support for Windows 7. (#7728)
