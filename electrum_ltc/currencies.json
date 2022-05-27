@@ -184,9 +184,6 @@
     "Bitfinex": [
         "USD"
     ],
-    "Bitragem": [
-        "BRL"
-    ],
     "Bitso": [
         "MXN"
     ],
@@ -434,11 +431,7 @@
     "CoinSpot": [
         "AUD"
     ],
-    "GoCoin": [
-        "USD"
-    ],
     "HitBTC": [
-        "EUR",
         "USD"
     ],
     "Kraken": [
@@ -450,9 +443,6 @@
     ],
     "MercadoBitcoin": [
         "BRL"
-    ],
-    "QuadrigaCX": [
-        "CAD"
     ],
     "TheRockTrading": [
         "EUR"
