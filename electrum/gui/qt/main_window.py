@@ -203,7 +203,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.showing_cert_mismatch_error = False
         self.tl_windows = []
         self.pending_invoice = None
-        self.current_request = None # request shown in the receive tab
         Logger.__init__(self)
 
         self._coroutines_scheduled = {}  # type: Dict[concurrent.futures.Future, str]
@@ -1328,12 +1327,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
-    def set_current_request(self, req):
-        self.current_request = req
-        self.update_current_request()
-
     def update_current_request(self):
-        req = self.current_request
+        key = self.request_list.get_current_key()
+        req = self.wallet.get_request(key) if key else None
         if req is None:
             self.receive_URI_e.setText('')
             self.receive_lightning_e.setText('')
@@ -1471,7 +1467,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         assert key is not None
         self.address_list.refresh_all()
         self.request_list.update()
-        self.request_list.select_key(key)
+        self.request_list.set_current_key(key)
         # clear request fields
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
@@ -3788,4 +3784,4 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         amount_msat = amount_e.get_amount() * 1000
         coro = self.wallet.lnworker.rebalance_channels(d.chan_from, d.chan_to, amount_msat=amount_msat)
         self.run_coroutine_from_thread(coro, _('Rebalancing channels'))
-        self.update_current_request()
+        self.update_current_request() # this will gray out the button
