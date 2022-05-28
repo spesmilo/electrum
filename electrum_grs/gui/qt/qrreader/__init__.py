@@ -62,7 +62,7 @@ def find_system_cameras() -> Mapping[str, str]:
         else:
             return find_system_cameras()
     else:  # desktop Linux and similar
-        from electrum import qrscanner
+        from electrum_grs import qrscanner
         return qrscanner.find_system_cameras()
 
 
@@ -74,7 +74,7 @@ def _scan_qrcode_using_zbar(
         config: 'SimpleConfig',
         callback: Callable[[bool, str, Optional[str]], None],
 ) -> None:
-    from electrum import qrscanner
+    from electrum_grs import qrscanner
     data = None
     try:
         data = qrscanner.scan_barcode(config.get_video_device())
