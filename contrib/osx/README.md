@@ -68,20 +68,30 @@ Unfortunately, you need an "Apple ID" account.
 
 (note: the last Xcode that runs on macOS 10.14.6 is Xcode 11.3.1)
 
-The recommended versions are:
+Install full Xcode:
 ```
 $ shasum -a 256 "$HOME/Downloads/Xcode_11.3.1.xip"
 9a92379b90734a9068832f858d594d3c3a30a7ddc3bdb6da49c738aed9ad34b5  /Users/vagrant/Downloads/Xcode_11.3.1.xip
-$ shasum -a 256 "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
-1c4b477285641cca5313f456b712bf726aca8db77f38793420e1d451588673f9  /Users/vagrant/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg
+$ xip -x "$HOME/Downloads/Xcode_11.3.1.xip"
+$ sudo xcode-select -s "$HOME/Downloads/Xcode.app/Contents/Developer/"
+$ # agree with licence
+$ sudo xcodebuild -license
 ```
 
-After downloading, uncompress it.
+(note: unsure if needed:)
+```
+$ # try this to install additional component:
+$ sudo xcodebuild -runFirstLaunch
+```
 
-Make sure it is the "selected" xcode (e.g.):
-
-    sudo xcode-select -s $HOME/Downloads/Xcode.app/Contents/Developer/
-
+Install Xcode CLI tools:
+```
+$ shasum -a 256 "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
+1c4b477285641cca5313f456b712bf726aca8db77f38793420e1d451588673f9  /Users/vagrant/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg
+$ hdiutil attach "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
+$ sudo installer -package "/Volumes/Command Line Developer Tools/Command Line Tools.pkg" -target /
+$ hdiutil detach "/Volumes/Command Line Developer Tools"
+```
 
 #### 2. Build Electrum-LTC
 
