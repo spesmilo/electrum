@@ -2182,15 +2182,14 @@ class LNWallet(LNWorker):
         """
         with self.lock:
             func = self.num_sats_can_send if direction == SENT else self.num_sats_can_receive
-            delta = amount_sat - func()
-            assert delta > 0
-            delta += self.fee_estimate(amount_sat)
-            # add safety margin, for example if channel reserves is not met
-            # also covers swap server percentage fee
-            delta += delta // 20
             suggestions = []
             channels = self.get_channels_for_sending() if direction == SENT else self.get_channels_for_receiving()
             for chan in channels:
+                available_sat = chan.available_to_spend(LOCAL if direction == SENT else REMOTE) // 1000
+                delta = amount_sat - available_sat
+                delta += self.fee_estimate(amount_sat)
+                # add safety margin
+                delta += delta // 100 + 1
                 if func(deltas={chan:delta}) >= amount_sat:
                     suggestions.append((chan, delta))
                 elif direction==RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
