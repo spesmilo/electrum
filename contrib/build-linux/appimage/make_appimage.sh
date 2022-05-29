@@ -68,7 +68,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 
 
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp -f "$PROJECT_ROOT/electrum-ltc/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+cp -f "$PROJECT_ROOT/electrum_ltc/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
 
 
 appdir_python() {
@@ -97,9 +97,9 @@ info "preparing electrum-ltc-locale."
         fail "Please install gettext"
     fi
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$PROJECT_ROOT/electrum-ltc/locale/"
+    rm -rf "$PROJECT_ROOT/electrum_ltc/locale/"
     for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum-ltc/$i/LC_MESSAGES"
+        dir="$PROJECT_ROOT/electrum_ltc/$i/LC_MESSAGES"
         mkdir -p $dir
         msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
     done
@@ -138,7 +138,7 @@ cp "/usr/lib/x86_64-linux-gnu/libzbar.so.0" "$APPDIR/usr/lib/libzbar.so.0"
 
 info "desktop integration."
 cp "$PROJECT_ROOT/electrum-ltc.desktop" "$APPDIR/electrum-ltc.desktop"
-cp "$PROJECT_ROOT/electrum-ltc/gui/icons/electrum-ltc.png" "$APPDIR/electrum-ltc.png"
+cp "$PROJECT_ROOT/electrum_ltc/gui/icons/electrum-ltc.png" "$APPDIR/electrum-ltc.png"
 
 
 # add launcher
