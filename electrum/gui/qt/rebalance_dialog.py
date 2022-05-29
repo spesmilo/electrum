@@ -57,7 +57,7 @@ class RebalanceDialog(WindowModalDialog):
         self.label1.setText(self.chan1.short_id_for_GUI())
         self.label2.setText(self.chan2.short_id_for_GUI())
         amount_sat = self.amount_e.get_amount()
-        b = bool(amount_sat) and self.wallet.lnworker.num_sats_can_rebalance(self.chan1, self.chan2) <= amount_sat
+        b = bool(amount_sat) and self.wallet.lnworker.num_sats_can_rebalance(self.chan1, self.chan2) >= amount_sat
         self.ok_button.setEnabled(b)
 
     def run(self):
