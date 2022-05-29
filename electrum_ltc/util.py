@@ -799,12 +799,8 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
-    'Bchain.info': ('https://bchain.info/',
-                        {'tx': 'LTC/tx/', 'addr': 'LTC/addr/'}),
     'Bitaps.com': ('https://ltc.bitaps.com/',
                         {'tx': '', 'addr': ''}),
-    'Bitupper Explorer': ('https://bitupper.com/en/explorer/litecoin/',
-                        {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Blockchair.com': ('https://blockchair.com/litecoin/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'Blockchair.com (Tor)': ('http://blkchairbknpn73cfjhevhla7rkp4ed5gg2knctvv7it4lioy22defid.onion/litecoin/',
@@ -863,7 +859,7 @@ def block_explorer(config: 'SimpleConfig') -> Optional[str]:
     """
     if config.get('block_explorer_custom') is not None:
         return None
-    default_ = 'LiteCore'
+    default_ = 'Bitaps.com'
     be_key = config.get('block_explorer', default_)
     be_tuple = block_explorer_info().get(be_key)
     if be_tuple is None:
