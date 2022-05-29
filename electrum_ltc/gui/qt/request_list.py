@@ -75,7 +75,7 @@ class RequestList(MyTreeView):
         self.selectionModel().currentRowChanged.connect(self.item_changed)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
-    def select_key(self, key):
+    def set_current_key(self, key):
         for i in range(self.model().rowCount()):
             item = self.model().index(i, self.Columns.DATE)
             row_key = item.data(ROLE_KEY)
@@ -83,9 +83,12 @@ class RequestList(MyTreeView):
                 self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
                 break
 
+    def get_current_key(self):
+        return self.get_role_data_for_current_item(col=self.Columns.DATE, role=ROLE_KEY)
+
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
-            self.parent.set_current_request(None)
+            self.parent.update_current_request()
             return
         if not idx.isValid():
             return
@@ -95,8 +98,7 @@ class RequestList(MyTreeView):
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
-            return
-        self.parent.set_current_request(req)
+        self.parent.update_current_request()
 
     def clearSelection(self):
         super().clearSelection()
@@ -114,6 +116,7 @@ class RequestList(MyTreeView):
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
 
     def update(self):
+        current_key = self.get_current_key()
         # not calling maybe_defer_update() as it interferes with conditional-visibility
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
@@ -140,6 +143,8 @@ class RequestList(MyTreeView):
         # sort requests by date
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         self.hide_if_empty()
+        if current_key is not None:
+            self.set_current_key(current_key)
 
     def hide_if_empty(self):
         b = self.std_model.rowCount() > 0

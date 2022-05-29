@@ -138,6 +138,36 @@ class StatusBarButton(QToolButton):
         if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
 
+class ReceiveTabWidget(QWidget):
+    min_size = QSize(200, 200)
+    def __init__(self, window, textedit, qr, help_widget):
+        self.textedit = textedit
+        self.qr = qr
+        self.help_widget = help_widget
+        QWidget.__init__(self)
+        for w in [textedit, qr, help_widget]:
+            w.setMinimumSize(self.min_size)
+        for w in [textedit, qr]:
+            w.mousePressEvent = window.toggle_receive_qr
+            tooltip = _('Click to switch between text and QR code view')
+            w.setToolTip(tooltip)
+        textedit.setFocusPolicy(Qt.NoFocus)
+        hbox = QHBoxLayout()
+        hbox.setContentsMargins(0, 0, 0, 0)
+        hbox.addWidget(textedit)
+        hbox.addWidget(help_widget)
+        hbox.addWidget(qr)
+        self.setLayout(hbox)
+
+    def update_visibility(self, is_qr):
+        if str(self.textedit.text()):
+            self.help_widget.setVisible(False)
+            self.textedit.setVisible(not is_qr)
+            self.qr.setVisible(is_qr)
+        else:
+            self.help_widget.setVisible(True)
+            self.textedit.setVisible(False)
+            self.qr.setVisible(False)
 
 def protected(func):
     '''Password request wrapper.  The password is passed to the function
@@ -203,7 +233,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.showing_cert_mismatch_error = False
         self.tl_windows = []
         self.pending_invoice = None
-        self.current_request = None # request shown in the receive tab
         Logger.__init__(self)
 
         self._coroutines_scheduled = {}  # type: Dict[concurrent.futures.Future, str]
@@ -1101,24 +1130,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_widgets(self):
         b = self.config.get('receive_qr_visible', False)
-        self.receive_URI_e.setVisible(not b)
-        self.receive_URI_qr.setVisible(b)
-        if str(self.receive_address_e.text()):
-            self.receive_address_help.setVisible(False)
-            self.receive_address_e.setVisible(not b)
-            self.receive_address_qr.setVisible(b)
-        else:
-            self.receive_address_help.setVisible(True)
-            self.receive_address_e.setVisible(False)
-            self.receive_address_qr.setVisible(False)
-        if str(self.receive_lightning_e.text()):
-            self.receive_lightning_help.setVisible(False)
-            self.receive_lightning_e.setVisible(not b)
-            self.receive_lightning_qr.setVisible(b)
-        else:
-            self.receive_lightning_help.setVisible(True)
-            self.receive_lightning_e.setVisible(False)
-            self.receive_lightning_qr.setVisible(False)
+        self.receive_URI_widget.update_visibility(b)
+        self.receive_address_widget.update_visibility(b)
+        self.receive_lightning_widget.update_visibility(b)
 
     def create_receive_tab(self):
         # A 4-column grid layout.  All the stretch is in the last column.
@@ -1194,6 +1208,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_help.setLayout(vbox)
 
         self.receive_URI_e = ButtonsTextEdit()
+        self.receive_URI_help = WWLabel('')
         self.receive_lightning_e = ButtonsTextEdit()
         self.receive_lightning_help_text = WWLabel('')
         self.receive_rebalance_button = QPushButton('Rebalance')
@@ -1223,63 +1238,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_URI_qr = QRCodeWidget()
         self.receive_lightning_qr = QRCodeWidget()
 
-        min_size = QSize(200, 200)
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
             e.addCopyButton(self.app)
             e.setReadOnly(True)
-            e.setMinimumSize(min_size)
-        for w in [self.receive_address_help, self.receive_lightning_help]:
-            w.setMinimumSize(min_size)
-        for w in [self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
-            w.setMinimumSize(min_size)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
-        receive_address_layout = QHBoxLayout()
-        receive_address_layout.setContentsMargins(0, 0, 0, 0)
-        receive_address_layout.addWidget(self.receive_address_e)
-        receive_address_layout.addWidget(self.receive_address_qr)
-        receive_address_layout.addWidget(self.receive_address_help)
-        receive_URI_layout = QHBoxLayout()
-        receive_URI_layout.setContentsMargins(0, 0, 0, 0)
-        receive_URI_layout.addWidget(self.receive_URI_e)
-        receive_URI_layout.addWidget(self.receive_URI_qr)
-        receive_lightning_layout = QHBoxLayout()
-        receive_lightning_layout.setContentsMargins(0, 0, 0, 0)
-        receive_lightning_layout.addWidget(self.receive_lightning_e)
-        receive_lightning_layout.addWidget(self.receive_lightning_qr)
-        receive_lightning_layout.addWidget(self.receive_lightning_help)
+        self.receive_address_widget = ReceiveTabWidget(self,
+            self.receive_address_e, self.receive_address_qr, self.receive_address_help)
+        self.receive_URI_widget = ReceiveTabWidget(self,
+            self.receive_URI_e, self.receive_URI_qr, self.receive_URI_help)
+        self.receive_lightning_widget = ReceiveTabWidget(self,
+            self.receive_lightning_e, self.receive_lightning_qr, self.receive_lightning_help)
 
         from .util import VTabWidget
         self.receive_tabs = VTabWidget()
-        self.receive_tabs.setMinimumHeight(min_size.height() + 4) # for margins
-        receive_address_widget = QWidget()
-        receive_address_widget.setLayout(receive_address_layout)
-        receive_URI_widget = QWidget()
-        receive_URI_widget.setLayout(receive_URI_layout)
-        receive_lightning_widget = QWidget()
-        receive_lightning_widget.setLayout(receive_lightning_layout)
-
-        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
-        self.receive_address_e.mousePressEvent = self.toggle_receive_qr
-        self.receive_address_qr.mousePressEvent = self.toggle_receive_qr
-        self.receive_URI_e.setFocusPolicy(Qt.NoFocus)
-        self.receive_URI_e.mousePressEvent = self.toggle_receive_qr
-        self.receive_URI_qr.mousePressEvent = self.toggle_receive_qr
-        self.receive_lightning_e.setFocusPolicy(Qt.NoFocus)
-        self.receive_lightning_e.mousePressEvent = self.toggle_receive_qr
-        self.receive_lightning_qr.mousePressEvent = self.toggle_receive_qr
-        # add tooltip to QR and edits, not to the help widget
-        switch_tooltip = _('Click to switch between text and QR code view')
-        for w in [
-                self.receive_address_e, self.receive_URI_e, self.receive_lightning_e,
-                self.receive_address_qr, self.receive_URI_qr, self.receive_lightning_qr]:
-            w.setToolTip(switch_tooltip)
-
-        self.receive_tabs.addTab(receive_URI_widget, read_QIcon("link.png"), _('URI'))
-        self.receive_tabs.addTab(receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
-        self.receive_tabs.addTab(receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
+        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
+        self.receive_tabs.addTab(self.receive_URI_widget, read_QIcon("link.png"), _('URI'))
+        self.receive_tabs.addTab(self.receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
+        self.receive_tabs.addTab(self.receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
         self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
         self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
@@ -1314,12 +1292,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         return w
 
-    def set_current_request(self, req):
-        self.current_request = req
-        self.update_current_request()
-
     def update_current_request(self):
-        req = self.current_request
+        key = self.request_list.get_current_key()
+        req = self.wallet.get_request(key) if key else None
         if req is None:
             self.receive_URI_e.setText('')
             self.receive_lightning_e.setText('')
@@ -1457,7 +1432,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         assert key is not None
         self.address_list.refresh_all()
         self.request_list.update()
-        self.request_list.select_key(key)
+        self.request_list.set_current_key(key)
         # clear request fields
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
@@ -3736,42 +3711,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.close()
 
     def rebalance_dialog(self, chan1, chan2, amount_sat=None):
-        d = WindowModalDialog(self, _("Rebalance channels"))
-        d.reverse = False
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(WWLabel(_('Rebalance your channels in order to increase your sending or receiving capacity') + ':'))
-        grid = QGridLayout()
-        amount_e = BTCAmountEdit(self.get_decimal_point)
-        amount_e.setAmount(amount_sat)
-        rev_button = QPushButton(u'\U000021c4')
-        label1 = QLabel('')
-        label2 = QLabel('')
-        def update():
-            if d.reverse:
-                d.chan_from = chan2
-                d.chan_to = chan1
-            else:
-                d.chan_from = chan1
-                d.chan_to = chan2
-            label1.setText(d.chan_from.short_id_for_GUI())
-            label2.setText(d.chan_to.short_id_for_GUI())
-        update()
-        def on_reverse():
-            d.reverse = not d.reverse
-            update()
-        rev_button.clicked.connect(on_reverse)
-        grid.addWidget(QLabel(_("From")), 0, 0)
-        grid.addWidget(label1, 0, 1)
-        grid.addWidget(QLabel(_("To")), 1, 0)
-        grid.addWidget(label2, 1, 1)
-        grid.addWidget(QLabel(_("Amount")), 2, 0)
-        grid.addWidget(amount_e, 2, 1)
-        grid.addWidget(rev_button, 0, 2)
-        vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_():
+        from .rebalance_dialog import RebalanceDialog
+        if chan1 is None or chan2 is None:
             return
-        amount_msat = amount_e.get_amount() * 1000
-        coro = self.wallet.lnworker.rebalance_channels(d.chan_from, d.chan_to, amount_msat=amount_msat)
-        self.run_coroutine_from_thread(coro, _('Rebalancing channels'))
-        self.update_current_request()
+        d = RebalanceDialog(self, chan1, chan2, amount_sat)
+        d.run()
