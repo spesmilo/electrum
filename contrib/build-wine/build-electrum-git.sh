@@ -23,7 +23,7 @@ if ! which msgfmt > /dev/null 2>&1; then
     fail "Please install gettext"
 fi
 # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-rm -rf "$WINEPREFIX/drive_c/electrum/electrum/locale/"
+rm -rf "$WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/locale/"
 for i in ./locale/*; do
     dir="$WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/$i/LC_MESSAGES"
     mkdir -p $dir
