@@ -1532,6 +1532,8 @@ class LNWallet(LNWorker):
             my_active_channels = [
                 chan for chan in self.channels.values() if
                 chan.is_active() and not chan.is_frozen_for_sending()]
+        # try random order
+        random.shuffle(my_active_channels)
         try:
             self.logger.info("trying single-part payment")
             # try to send over a single channel
