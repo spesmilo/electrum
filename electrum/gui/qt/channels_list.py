@@ -71,6 +71,7 @@ class ChannelsList(MyTreeView):
         self.network = self.parent.network
         self.wallet = self.parent.wallet
         self.setSortingEnabled(True)
+        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
     @property
     # property because lnworker might be initialized at runtime
@@ -194,6 +195,27 @@ class ChannelsList(MyTreeView):
             msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
             self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
 
+    def get_rebalance_pair(self):
+        selected = self.selected_in_column(self.Columns.NODE_ALIAS)
+        if len(selected) == 2:
+            idx1 = selected[0]
+            idx2 = selected[1]
+            channel_id1 = idx1.sibling(idx1.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            chan1 = self.lnworker.channels.get(channel_id1)
+            chan2 = self.lnworker.channels.get(channel_id2)
+            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
+                return chan1, chan2
+        return None, None
+
+    def on_rebalance(self):
+        chan1, chan2 = self.get_rebalance_pair()
+        self.parent.rebalance_dialog(chan1, chan2)
+
+    def on_selection_changed(self):
+        chan1, chan2 = self.get_rebalance_pair()
+        self.rebalance_button.setEnabled(chan1 is not None)
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
@@ -203,13 +225,8 @@ class ChannelsList(MyTreeView):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         if len(selected) == 2:
-            idx1 = selected[0]
-            idx2 = selected[1]
-            channel_id1 = idx1.sibling(idx1.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-            channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-            chan1 = self.lnworker.channels.get(channel_id1)
-            chan2 = self.lnworker.channels.get(channel_id2)
-            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
+            chan1, chan2 = self.get_rebalance_pair()
+            if chan1 and chan2:
                 menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
                 menu.exec_(self.viewport().mapToGlobal(position))
             return
@@ -356,12 +373,16 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
+        self.rebalance_button = EnterButton(_('Rebalance'), lambda x: self.on_rebalance())
+        self.rebalance_button.setToolTip("Select two active channels to rebalance.")
+        self.rebalance_button.setDisabled(True)
         self.swap_button = EnterButton(_('Swap'), lambda x: self.parent.run_swap_dialog())
         self.swap_button.setToolTip("Have at least one channel to do swaps.")
         self.swap_button.setDisabled(True)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
+        h.addWidget(self.rebalance_button)
         h.addWidget(self.swap_button)
         return h
 

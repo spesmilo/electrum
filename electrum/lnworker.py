@@ -2232,6 +2232,14 @@ class LNWallet(LNWorker):
         else:
             return False
 
+    def num_sats_can_rebalance(self, chan1, chan2):
+        # TODO: we should be able to spend 'max', with variable fee
+        n1 = chan1.available_to_spend(LOCAL)
+        n1 -= self.fee_estimate(n1)
+        n2 = chan2.available_to_spend(REMOTE)
+        amount_sat = min(n1, n2) // 1000
+        return amount_sat
+
     def suggest_rebalance_to_send(self, amount_sat):
         return self._suggest_rebalance(SENT, amount_sat)
 

@@ -3725,42 +3725,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.close()
 
     def rebalance_dialog(self, chan1, chan2, amount_sat=None):
-        d = WindowModalDialog(self, _("Rebalance channels"))
-        d.reverse = False
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(WWLabel(_('Rebalance your channels in order to increase your sending or receiving capacity') + ':'))
-        grid = QGridLayout()
-        amount_e = BTCAmountEdit(self.get_decimal_point)
-        amount_e.setAmount(amount_sat)
-        rev_button = QPushButton(u'\U000021c4')
-        label1 = QLabel('')
-        label2 = QLabel('')
-        def update():
-            if d.reverse:
-                d.chan_from = chan2
-                d.chan_to = chan1
-            else:
-                d.chan_from = chan1
-                d.chan_to = chan2
-            label1.setText(d.chan_from.short_id_for_GUI())
-            label2.setText(d.chan_to.short_id_for_GUI())
-        update()
-        def on_reverse():
-            d.reverse = not d.reverse
-            update()
-        rev_button.clicked.connect(on_reverse)
-        grid.addWidget(QLabel(_("From")), 0, 0)
-        grid.addWidget(label1, 0, 1)
-        grid.addWidget(QLabel(_("To")), 1, 0)
-        grid.addWidget(label2, 1, 1)
-        grid.addWidget(QLabel(_("Amount")), 2, 0)
-        grid.addWidget(amount_e, 2, 1)
-        grid.addWidget(rev_button, 0, 2)
-        vbox.addLayout(grid)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
-        if not d.exec_():
+        from .rebalance_dialog import RebalanceDialog
+        if chan1 is None or chan2 is None:
             return
-        amount_msat = amount_e.get_amount() * 1000
-        coro = self.wallet.lnworker.rebalance_channels(d.chan_from, d.chan_to, amount_msat=amount_msat)
-        self.run_coroutine_from_thread(coro, _('Rebalancing channels'))
-        self.update_current_request() # this will gray out the button
+        d = RebalanceDialog(self, chan1, chan2, amount_sat)
+        d.run()
