@@ -95,7 +95,8 @@ class Peer(Logger):
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         assert self.node_ids[0] != self.node_ids[1]
-        self.ping_time = 0
+        self.last_message_time = 0
+        self.pong_event = asyncio.Event()
         self.reply_channel_range = asyncio.Queue()
         # gossip uses a single queue to preserve message order
         self.gossip_queue = asyncio.Queue()
@@ -187,10 +188,11 @@ class Peer(Logger):
     def diagnostic_name(self):
         return self.lnworker.__class__.__name__ + ', ' + self.transport.name()
 
-    def ping_if_required(self):
-        if time.time() - self.ping_time > 120:
+    async def ping_if_required(self):
+        if time.time() - self.last_message_time > 30:
             self.send_message('ping', num_pong_bytes=4, byteslen=4)
-            self.ping_time = time.time()
+            self.pong_event.clear()
+            await self.pong_event.wait()
 
     def process_message(self, message):
         try:
@@ -198,6 +200,7 @@ class Peer(Logger):
         except UnknownOptionalMsgType as e:
             self.logger.info(f"received unknown message from peer. ignoring: {e!r}")
             return
+        self.last_message_time = time.time()
         if message_type not in self.SPAMMY_MESSAGES:
             self.logger.debug(f"Received {message_type.upper()}")
         # only process INIT if we are a backup
@@ -319,7 +322,7 @@ class Peer(Logger):
         self.send_message('pong', byteslen=l)
 
     def on_pong(self, payload):
-        pass
+        self.pong_event.set()
 
     async def wait_for_message(self, expected_name, channel_id):
         q = self.ordered_message_queues[channel_id]
@@ -2171,6 +2174,7 @@ class Peer(Logger):
     async def htlc_switch(self):
         await self.initialized
         while True:
+            await self.ping_if_required()
             self._htlc_switch_iterdone_event.set()
             self._htlc_switch_iterdone_event.clear()
             # We poll every 0.1 sec to check if there is work to do,
@@ -2184,7 +2188,6 @@ class Peer(Logger):
                     await group.spawn(self.downstream_htlc_resolved_event.wait())
             self._htlc_switch_iterstart_event.set()
             self._htlc_switch_iterstart_event.clear()
-            self.ping_if_required()
             self._maybe_cleanup_received_htlcs_pending_removal()
             for chan_id, chan in self.channels.items():
                 if not chan.can_send_ctx_updates():
