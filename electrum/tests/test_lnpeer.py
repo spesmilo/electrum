@@ -612,7 +612,7 @@ class TestPeer(TestCaseForTestnet):
                 self._send_fake_htlc(p2, chan_BA)
                 self._send_fake_htlc(p1, chan_AB)
                 p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
-                self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                self.assertTrue(await p2.maybe_send_commitment(chan_BA))
                 await p1.received_commitsig_event.wait()
                 await group.cancel_remaining()
             # simulating disconnection. recreate transports.
@@ -666,8 +666,8 @@ class TestPeer(TestCaseForTestnet):
                 self._send_fake_htlc(p2, chan_BA)
                 self._send_fake_htlc(p1, chan_AB)
                 p2.transport.queue.put_nowait(asyncio.Event())  # break Bob's incoming pipe
-                self.assertTrue(p1.maybe_send_commitment(chan_AB))
-                self.assertTrue(p2.maybe_send_commitment(chan_BA))
+                self.assertTrue(await p1.maybe_send_commitment(chan_AB))
+                self.assertTrue(await p2.maybe_send_commitment(chan_BA))
                 await p1.received_commitsig_event.wait()
                 await group.cancel_remaining()
             # simulating disconnection. recreate transports.
@@ -737,7 +737,7 @@ class TestPeer(TestCaseForTestnet):
             q1 = w1.sent_htlcs[lnaddr2.paymenthash]
             q2 = w2.sent_htlcs[lnaddr1.paymenthash]
             # alice sends htlc BUT NOT COMMITMENT_SIGNED
-            p1.maybe_send_commitment = lambda x: None
+            p1.maybe_send_commitment = lambda x: asyncio.sleep(0)
             route1 = (await w1.create_routes_from_invoice(lnaddr2.get_amount_msat(), decoded_invoice=lnaddr2))[0][0]
             amount_msat = lnaddr2.get_amount_msat()
             await w1.pay_to_route(
@@ -752,7 +752,7 @@ class TestPeer(TestCaseForTestnet):
             )
             p1.maybe_send_commitment = _maybe_send_commitment1
             # bob sends htlc BUT NOT COMMITMENT_SIGNED
-            p2.maybe_send_commitment = lambda x: None
+            p2.maybe_send_commitment = lambda x: asyncio.sleep(0)
             route2 = (await w2.create_routes_from_invoice(lnaddr1.get_amount_msat(), decoded_invoice=lnaddr1))[0][0]
             amount_msat = lnaddr1.get_amount_msat()
             await w2.pay_to_route(
@@ -769,8 +769,8 @@ class TestPeer(TestCaseForTestnet):
             # sleep a bit so that they both receive msgs sent so far
             await asyncio.sleep(0.2)
             # now they both send COMMITMENT_SIGNED
-            p1.maybe_send_commitment(alice_channel)
-            p2.maybe_send_commitment(bob_channel)
+            await p1.maybe_send_commitment(alice_channel)
+            await p2.maybe_send_commitment(bob_channel)
 
             htlc_log1 = await q1.get()
             assert htlc_log1.success
@@ -1241,7 +1241,7 @@ class TestPeer(TestCaseForTestnet):
             await asyncio.wait_for(p2.initialized, 1)
             # alice sends htlc
             route, amount_msat = (await w1.create_routes_from_invoice(lnaddr.get_amount_msat(), decoded_invoice=lnaddr))[0][0:2]
-            p1.pay(route=route,
+            await p1.pay(route=route,
                    chan=alice_channel,
                    amount_msat=lnaddr.get_amount_msat(),
                    total_msat=lnaddr.get_amount_msat(),
