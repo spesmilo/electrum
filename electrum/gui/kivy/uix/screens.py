@@ -315,22 +315,12 @@ class SendScreen(CScreen, Logger):
         self.locked = True
         self.payment_request = pr
 
-    def do_paste(self):  # TODO duplicate of app.on_qr
+    def do_paste(self):
         data = self.app._clipboard.paste().strip()
         if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
-        # try to decode as transaction
-        try:
-            tx = tx_from_any(data)
-            tx.deserialize()
-        except:
-            tx = None
-        if tx:
-            self.app.tx_dialog(tx)
-            return
-        # try to decode as URI/address
-        self.set_URI(data)
+        self.app.on_data_input(data)
 
     def read_invoice(self):
         address = str(self.address)

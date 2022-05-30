@@ -475,20 +475,16 @@ class ElectrumWindow(App, Logger, EventListener):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def on_qr(self, data: str):  # TODO duplicate of send_screen.do_paste
-        from electrum.bitcoin import is_address
+    def on_qr(self, data: str):
+        self.on_data_input(data)
+
+    def on_data_input(self, data: str) -> None:
+        """on_qr / on_paste shared logic"""
         data = data.strip()
-        if is_address(data):
-            self.set_URI(data)
-            return
-        if is_uri(data) or maybe_extract_lightning_payment_identifier(data):
-            # TODO what about "lightning address"?
-            self.set_URI(data)
-            return
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
-        # try to decode transaction
+        # try to decode as transaction
         from electrum.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
@@ -497,8 +493,8 @@ class ElectrumWindow(App, Logger, EventListener):
         if tx:
             self.tx_dialog(tx)
             return
-        # show error
-        self.show_error("Unable to decode QR data")
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
