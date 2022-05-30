@@ -1607,14 +1607,17 @@ class Peer(Logger):
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
-        self.logger.info(f'forwarding htlc to {next_chan.node_id}')
+        self.logger.info(f'forwarding htlc to {next_chan.node_id.hex()}')
+        next_peer = self.lnworker.peers.get(next_chan.node_id)
+        if next_peer is None:
+            self.logger.info(f"failed to forward htlc: next_peer offline ({next_chan.node_id.hex()})")
+            raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         next_htlc = UpdateAddHtlc(
             amount_msat=next_amount_msat_htlc,
             payment_hash=htlc.payment_hash,
             cltv_expiry=next_cltv_expiry,
             timestamp=int(time.time()))
         next_htlc = next_chan.add_htlc(next_htlc)
-        next_peer = self.lnworker.peers[next_chan.node_id]
         try:
             next_peer.send_message(
                 "update_add_htlc",
