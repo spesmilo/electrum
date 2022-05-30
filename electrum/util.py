@@ -1079,7 +1079,7 @@ def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
 def is_uri(data: str) -> bool:
     data = data.lower()
     if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
-        data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
+            data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
         return True
     return False
 

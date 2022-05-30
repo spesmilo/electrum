@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_lightning_payment_identifier, parse_max_spend, is_uri)
+                           parse_max_spend)
 from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum import blockchain
@@ -475,13 +475,14 @@ class ElectrumWindow(App, Logger, EventListener):
             self.show_error("invoice error:" + pr.error)
             self.send_screen.do_clear()
 
-    def on_qr(self, data: str):
+    def on_qr(self, data: str):  # TODO duplicate of send_screen.do_paste
         from electrum.bitcoin import is_address
         data = data.strip()
-        if is_address(data):  # TODO does this actually work?
+        if is_address(data):
             self.set_URI(data)
             return
         if is_uri(data) or maybe_extract_lightning_payment_identifier(data):
+            # TODO what about "lightning address"?
             self.set_URI(data)
             return
         if data.lower().startswith('channel_backup:'):

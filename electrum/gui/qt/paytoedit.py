@@ -29,14 +29,13 @@ from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
-from PyQt5.QtCore import QTimer
 
 from electrum import bitcoin
 from electrum.util import bfh, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
-from electrum.lnurl import LNURLError
+from electrum.lnurl import LNURLError, lightning_address_to_url, request_lnurl, LNURL6Data
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -85,10 +84,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
 
         self.c = None
-        self.timer = QTimer()
-        self.timer.setSingleShot(True)
-        self.textChanged.connect(self.start_timer)
-        self.timer.timeout.connect(self.check_text)
         self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: List[PayToLineError]
         self.is_pr = False
@@ -98,22 +93,22 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.lightning_invoice = None
         self.previous_payto = ''
 
-    def start_timer(self):
-        # we insert a timer between textChanged and check_text to not immediately
-        # resolve lightning addresses, but rather to wait until the address is typed out fully
-        delay_time_msec = 300  # about the average typing time in msec a person types a character
-        self.logger.info("timer fires")
-        self.timer.start(delay_time_msec)
-
     def setFrozen(self, b):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
         self.overlay_widget.setHidden(b)
 
-    def setTextNosignal(self, text: str):
-        self.blockSignals(True)
+    def setTextNoCheck(self, text: str):
+        """Sets the text, while also ensuring the new value will not be resolved/checked."""
         self.setText(text)
-        self.blockSignals(False)
+        self.previous_payto = text
+
+    def do_clear(self):
+        self.is_pr = False
+        self.is_alias = False
+        self.setText('')
+        self.setFrozen(False)
+        self.setEnabled(True)
 
     def setGreen(self):
         self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
@@ -174,6 +169,18 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return address
 
     def check_text(self):
+        if self.hasFocus():
+            return
+        if self.is_pr:
+            return
+        text = str(self.toPlainText())
+        text = text.strip()  # strip whitespaces
+        if text == self.previous_payto:
+            return
+        self.previous_payto = text
+        self._check_text()
+
+    def _check_text(self):
         self.errors = []
         if self.is_pr:
             return
@@ -189,6 +196,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             try:
                 self.win.handle_payment_identifier(data)
             except LNURLError as e:
+                self.logger.exception("")
                 self.show_error(e)
             except ValueError:
                 pass
@@ -209,6 +217,17 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             else:
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
+                return
+            # try lightning address lnurl-16 (note: names can collide with openalias, so order matters)
+            lnurl_data = self._resolve_lightning_address_lnurl16(data)
+            if lnurl_data:
+                url = lightning_address_to_url(data)
+                self.win.set_lnurl6_url(url, lnurl_data=lnurl_data)
+                return
+            # try openalias
+            oa_data = self._resolve_openalias(data)
+            if oa_data:
+                self._set_openalias(key=data, data=oa_data)
                 return
         else:
             # there are multiple lines
@@ -271,7 +290,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return len(self.lines()) > 1
 
     def paytomany(self):
-        self.setText("\n\n\n")
+        self.setTextNoCheck("\n\n\n")
         self.update_size()
 
     def update_size(self):
@@ -291,38 +310,28 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         # The scrollbar visibility can have changed so we update the overlay position here
         self._updateOverlayPos()
 
-    def resolve(self):
-        self.is_alias = False
-        if self.hasFocus():
-            return
-        if self.is_multiline():  # only supports single line entries atm
-            return
-        if self.is_pr:
-            return
-        key = str(self.toPlainText())
+    def _resolve_openalias(self, text: str) -> Optional[dict]:
+        key = text
         key = key.strip()  # strip whitespaces
-        if key == self.previous_payto:
-            return
-        self.previous_payto = key
-        if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
-            return
+        if not (('.' in key) and ('<' not in key) and (' ' not in key)):
+            return None
         parts = key.split(sep=',')  # assuming single line
         if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
-            return
+            return None
         try:
             data = self.win.contacts.resolve(key)
         except Exception as e:
             self.logger.info(f'error resolving address/alias: {repr(e)}')
-            return
-        if not data:
-            return
-        self.is_alias = True
+            return None
+        return data or None
 
+    def _set_openalias(self, *, key: str, data: dict) -> bool:
+        self.is_alias = True
+        key = key.strip()  # strip whitespaces
         address = data.get('address')
         name = data.get('name')
         new_url = key + ' <' + address + '>'
-        self.setText(new_url)
-        self.previous_payto = new_url
+        self.setTextNoCheck(new_url)
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
@@ -337,3 +346,15 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 self.setExpired()
         else:
             self.validated = None
+        return True
+
+    def _resolve_lightning_address_lnurl16(self, text: str) -> Optional[LNURL6Data]:
+        url = lightning_address_to_url(text)
+        if not url:
+            return None
+        try:
+            lnurl_data = request_lnurl(url, self.win.network.send_http_on_proxy)
+            return lnurl_data
+        except LNURLError as e:
+            self.logger.info(f"failed to resolve {text} as lnurl16 lightning address. got exc: {e!r}")
+            return None

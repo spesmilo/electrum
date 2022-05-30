@@ -4,7 +4,7 @@
 
 import asyncio
 import json
-from typing import Callable, Optional
+from typing import Callable, Optional, NamedTuple, Any
 import re
 
 import aiohttp.client_exceptions
@@ -36,10 +36,18 @@ def decode_lnurl(lnurl: str) -> str:
     return url
 
 
-def request_lnurl(url: str, request_over_proxy: Callable) -> dict:
+class LNURL6Data(NamedTuple):
+    callback_url: str
+    max_sendable_sat: int
+    min_sendable_sat: int
+    metadata_plaintext: str
+    #tag: str = "payRequest"
+
+
+def _request_lnurl(url: str, request_over_proxy: Callable) -> dict:
     """Requests payment data from a lnurl."""
     try:
-        response = request_over_proxy("get", url, timeout=2)
+        response = request_over_proxy("get", url, timeout=10)
     except asyncio.TimeoutError as e:
         raise LNURLError("Server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
@@ -52,6 +60,25 @@ def request_lnurl(url: str, request_over_proxy: Callable) -> dict:
     if status and status == "ERROR":
         raise LNURLError(f"LNURL request encountered an error: {response['reason']}")
     return response
+
+
+def request_lnurl(url: str, request_over_proxy: Callable) -> Optional[LNURL6Data]:
+    lnurl_dict = _request_lnurl(url, request_over_proxy)
+    tag = lnurl_dict.get('tag')
+    if tag != 'payRequest':  # only LNURL6 is handled atm
+        return None
+    metadata = lnurl_dict.get('metadata')
+    metadata_plaintext = ""
+    for m in metadata:
+        if m[0] == 'text/plain':
+            metadata_plaintext = str(m[1])
+    data = LNURL6Data(
+        callback_url=lnurl_dict['callback'],
+        max_sendable_sat=int(lnurl_dict['maxSendable']) // 1000,
+        min_sendable_sat=int(lnurl_dict['minSendable']) // 1000,
+        metadata_plaintext=metadata_plaintext,
+    )
+    return data
 
 
 def callback_lnurl(url: str, params: dict, request_over_proxy: Callable) -> dict:
@@ -69,7 +96,9 @@ def callback_lnurl(url: str, params: dict, request_over_proxy: Callable) -> dict
 
 
 def lightning_address_to_url(address: str) -> Optional[str]:
-    """Converts an email-type lightning address to a decoded lnurl."""
+    """Converts an email-type lightning address to a decoded lnurl.
+    see https://github.com/fiatjaf/lnurl-rfc/blob/luds/16.md
+    """
     if re.match(r"[^@]+@[^@]+\.[^@]+", address):
         username, domain = address.split("@")
         return f"https://{domain}/.well-known/lnurlp/{username}"
