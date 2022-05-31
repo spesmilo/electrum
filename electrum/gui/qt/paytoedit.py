@@ -63,9 +63,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config)
+        ScanQRTextEdit.__init__(self, config=win.config, setText=self._on_input_btn)
         Logger.__init__(self)
         self.win = win
+        self.app = win.app
         self.amount_edit = win.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
         document = self.document()
@@ -84,6 +85,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
 
         self.c = None
+        self.addPasteButton(setText=self._on_input_btn)
+        self.textChanged.connect(self._on_text_changed)
         self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: List[PayToLineError]
         self.is_pr = False
@@ -100,8 +103,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def setTextNoCheck(self, text: str):
         """Sets the text, while also ensuring the new value will not be resolved/checked."""
-        self.setText(text)
         self.previous_payto = text
+        self.setText(text)
 
     def do_clear(self):
         self.is_pr = False
@@ -168,19 +171,27 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         assert bitcoin.is_address(address)
         return address
 
-    def check_text(self):
+    def _on_input_btn(self, text: str):
+        self.setText(text)
+        self._check_text(full_check=True)
+
+    def _on_text_changed(self):
+        if self.app.clipboard().text() == self.toPlainText():
+            # user likely pasted from clipboard
+            self._check_text(full_check=True)
+        else:
+            self._check_text(full_check=False)
+
+    def on_timer_check_text(self):
         if self.hasFocus():
             return
-        if self.is_pr:
-            return
-        text = str(self.toPlainText())
-        text = text.strip()  # strip whitespaces
-        if text == self.previous_payto:
-            return
-        self.previous_payto = text
-        self._check_text()
+        self._check_text(full_check=True)
 
-    def _check_text(self):
+    def _check_text(self, *, full_check: bool):
+        if self.previous_payto == str(self.toPlainText()).strip():
+            return
+        if full_check:
+            self.previous_payto = str(self.toPlainText()).strip()
         self.errors = []
         if self.is_pr:
             return
@@ -194,10 +205,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         if len(lines) == 1:
             data = lines[0]
             try:
-                self.win.handle_payment_identifier(data)
+                self.win.handle_payment_identifier(data, can_use_network=full_check)
             except LNURLError as e:
                 self.logger.exception("")
-                self.show_error(e)
+                self.win.show_error(e)
             except ValueError:
                 pass
             else:
@@ -218,17 +229,18 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
                 return
-            # try lightning address lnurl-16 (note: names can collide with openalias, so order matters)
-            lnurl_data = self._resolve_lightning_address_lnurl16(data)
-            if lnurl_data:
-                url = lightning_address_to_url(data)
-                self.win.set_lnurl6_url(url, lnurl_data=lnurl_data)
-                return
-            # try openalias
-            oa_data = self._resolve_openalias(data)
-            if oa_data:
-                self._set_openalias(key=data, data=oa_data)
-                return
+            if full_check:  # network requests
+                # try lightning address lnurl-16 (note: names can collide with openalias, so order matters)
+                lnurl_data = self._resolve_lightning_address_lnurl16(data)
+                if lnurl_data:
+                    url = lightning_address_to_url(data)
+                    self.win.set_lnurl6_url(url, lnurl_data=lnurl_data)
+                    return
+                # try openalias
+                oa_data = self._resolve_openalias(data)
+                if oa_data:
+                    self._set_openalias(key=data, data=oa_data)
+                    return
         else:
             # there are multiple lines
             self._parse_as_multiline(lines, raise_errors=False)

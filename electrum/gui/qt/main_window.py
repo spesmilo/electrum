@@ -916,7 +916,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.update_status()
         # resolve aliases
         # FIXME this might do blocking network calls that has a timeout of several seconds
-        self.payto_e.check_text()
+        self.payto_e.on_timer_check_text()
         self.notify_transactions()
 
     def format_amount(self, amount_sat, is_diff=False, whitespaces=False) -> str:
@@ -1527,7 +1527,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        self.payto_e.addPasteButton()
         msg = (_("Recipient of the funds.") + "\n\n"
                + _("You may enter a Bitcoin address, a label from your list of contacts "
                    "(a list of completions will be proposed), "
@@ -2252,17 +2251,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.payment_request_error_signal.emit()
 
-    def set_lnurl6_bech32(self, lnurl: str):
+    def set_lnurl6_bech32(self, lnurl: str, *, can_use_network: bool = True):
         try:
             url = decode_lnurl(lnurl)
         except LnInvoiceException as e:
             self.show_error(_("Error parsing Lightning invoice") + f":\n{e}")
             return
-        self.set_lnurl6_url(url)
+        self.set_lnurl6_url(url, can_use_network=can_use_network)
 
-    def set_lnurl6_url(self, url: str, *, lnurl_data: LNURL6Data = None):
+    def set_lnurl6_url(self, url: str, *, lnurl_data: LNURL6Data = None, can_use_network: bool = True):
         domain = urlparse(url).netloc
-        if lnurl_data is None:
+        if lnurl_data is None and can_use_network:
             lnurl_data = request_lnurl(url, self.network.send_http_on_proxy)
         if not lnurl_data:
             return
@@ -2303,9 +2302,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self._is_onchain = b
         self.max_button.setEnabled(b)
 
-    def set_bip21(self, text: str):
+    def set_bip21(self, text: str, *, can_use_network: bool = True):
+        on_bip70_pr = self.on_pr if can_use_network else None
         try:
-            out = util.parse_URI(text, self.on_pr)
+            out = util.parse_URI(text, on_bip70_pr)
         except InvalidBitcoinURI as e:
             self.show_error(_("Error parsing URI") + f":\n{e}")
             return
@@ -2313,7 +2313,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         r = out.get('r')
         sig = out.get('sig')
         name = out.get('name')
-        if r or (name and sig):
+        if (r or (name and sig)) and can_use_network:
             self.prepare_for_payment_request()
             return
         address = out.get('address')
@@ -2322,7 +2322,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         message = out.get('message')
         lightning = out.get('lightning')
         if lightning:
-            self.handle_payment_identifier(lightning)
+            self.handle_payment_identifier(lightning, can_use_network=can_use_network)
             return
         # use label as description (not BIP21 compliant)
         if label and not message:
@@ -2334,7 +2334,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if amount:
             self.amount_e.setAmount(amount)
 
-    def handle_payment_identifier(self, text: str):
+    def handle_payment_identifier(self, text: str, *, can_use_network: bool = True):
         """Takes
         Lightning identifiers:
         * lightning-URI (containing bolt11 or lnurl)
@@ -2350,7 +2350,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         invoice_or_lnurl = maybe_extract_lightning_payment_identifier(text)
         if invoice_or_lnurl:
             if invoice_or_lnurl.startswith('lnurl'):
-                self.set_lnurl6_bech32(invoice_or_lnurl)
+                self.set_lnurl6_bech32(invoice_or_lnurl, can_use_network=can_use_network)
             else:
                 self.set_bolt11(invoice_or_lnurl)
         elif text.lower().startswith(util.BITCOIN_BIP21_URI_SCHEME + ':'):
