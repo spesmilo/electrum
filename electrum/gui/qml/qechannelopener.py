@@ -1,13 +1,14 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import format_time
-from electrum.lnutil import extract_nodeid, ConnStringFormatError, LNPeerAddr
+from electrum.lnutil import extract_nodeid, ConnStringFormatError, LNPeerAddr, ln_dummy_address
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.gui import messages
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .qetxfinalizer import QETxFinalizer
 
 class QEChannelOpener(QObject):
     def __init__(self, parent=None):
@@ -23,6 +24,8 @@ class QEChannelOpener(QObject):
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
+    channelOpenError = pyqtSignal([str], arguments=['message'])
+    channelOpenSuccess = pyqtSignal([bool], arguments=['has_backup'])
 
     dataChanged = pyqtSignal() # generic notify signal
 
@@ -67,10 +70,10 @@ class QEChannelOpener(QObject):
     def valid(self):
         return self._valid
 
-    openTxChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=openTxChanged)
-    def openTx(self):
-        return self._opentx
+    finalizerChanged = pyqtSignal()
+    @pyqtProperty(QETxFinalizer, notify=finalizerChanged)
+    def finalizer(self):
+        return self._finalizer
 
     @pyqtProperty(list, notify=dataChanged)
     def trampolineNodeNames(self):
@@ -118,45 +121,45 @@ class QEChannelOpener(QObject):
 
         self._logger.debug('Connect String: %s' % str(self._peer))
 
-        amount = '!' if self._amount.isMax else self._amount.satsInt
-
         lnworker = self._wallet.wallet.lnworker
         if lnworker.has_conflicting_backup_with(self._peer.pubkey) and not confirm_backup_conflict:
             self.conflictingBackup.emit(messages.MGS_CONFLICTING_BACKUP_INSTANCE)
             return
 
+        amount = '!' if self._amount.isMax else self._amount.satsInt
         coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
-        #node_id, rest = extract_nodeid(conn_str)
-        make_tx = lambda rbf: lnworker.mktx_for_open_channel(
+
+        mktx = lambda: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amount,
             node_id=self._peer.pubkey,
             fee_est=None)
-        #on_pay = lambda tx: self.app.protected('Create a new channel?', self.do_open_channel, (tx, conn_str))
-        #d = ConfirmTxDialog(
-            #self.app,
-            #amount = amount,
-            #make_tx=make_tx,
-            #on_pay=on_pay,
-            #show_final=False)
-        #d.open()
 
-    #def do_open_channel(self, funding_tx, conn_str, password):
-        ## read funding_sat from tx; converts '!' to int value
-        #funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
-        #lnworker = self.app.wallet.lnworker
-        #try:
-            #chan, funding_tx = lnworker.open_channel(
-                #connect_str=conn_str,
-                #funding_tx=funding_tx,
-                #funding_sat=funding_sat,
-                #push_amt_sat=0,
-                #password=password)
-        #except Exception as e:
-            #self.app.logger.exception("Problem opening channel")
-            #self.app.show_error(_('Problem opening channel: ') + '\n' + repr(e))
-            #return
-        ## TODO: it would be nice to show this before broadcasting
+        acpt = lambda tx: self.do_open_channel(tx, str(self._peer), None)
+
+        self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
+        self._finalizer.wallet = self._wallet
+        self.finalizerChanged.emit()
+
+    def do_open_channel(self, funding_tx, conn_str, password):
+        # read funding_sat from tx; converts '!' to int value
+        funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
+        lnworker = self._wallet.wallet.lnworker
+        try:
+            chan, funding_tx = lnworker.open_channel(
+                connect_str=conn_str,
+                funding_tx=funding_tx,
+                funding_sat=funding_sat,
+                push_amt_sat=0,
+                password=password)
+        except Exception as e:
+            self._logger.exception("Problem opening channel")
+            self.channelOpenError.emit(_('Problem opening channel: ') + '\n' + repr(e))
+            return
+
+        self.channelOpenSuccess.emit(chan.has_onchain_backup())
+
+        # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():
             #self.maybe_show_funding_tx(chan, funding_tx)
         #else:

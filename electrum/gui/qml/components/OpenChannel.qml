@@ -136,6 +136,16 @@ Pane {
         }
     }
 
+    Component {
+        id: confirmOpenChannelDialog
+        ConfirmTxDialog {
+            title: qsTr('Confirm Open Channel')
+            amountLabelText: qsTr('Channel capacity')
+            sendButtonText: qsTr('Open Channel')
+            finalizer: channelopener.finalizer
+        }
+    }
+
 
     ChannelOpener {
         id: channelopener
@@ -147,11 +157,28 @@ Pane {
             }
         }
         onConflictingBackup: {
-            var dialog = app.messageDialog.createObject(root, { 'text': message })
+            var dialog = app.messageDialog.createObject(root, { 'text': message, 'yesno': true })
             dialog.open()
             dialog.yesClicked.connect(function() {
                 channelopener.open_channel(true)
             })
+        }
+        onFinalizerChanged: {
+            var dialog = confirmOpenChannelDialog.createObject(root, {
+                'satoshis': channelopener.amount
+            })
+            dialog.open()
+        }
+        onChannelOpenError: {
+            var dialog = app.messageDialog.createObject(root, { 'text': message })
+            dialog.open()
+        }
+        onChannelOpenSuccess: {
+            var message = 'success!'
+            if (!has_backup)
+                message = message = ' (but no backup. TODO: show QR)'
+            var dialog = app.messageDialog.createObject(root, { 'text': message })
+            dialog.open()
         }
     }
 
