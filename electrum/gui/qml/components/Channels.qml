@@ -89,36 +89,10 @@ Pane {
                     Layout.preferredWidth: parent.width
                     Layout.fillHeight: true
                     clip: true
-                    model: 3 //Daemon.currentWallet.channelsModel
+                    model: Daemon.currentWallet.channelModel
 
-                    delegate: ItemDelegate {
-                        width: ListView.view.width
-                        height: row.height
+                    delegate: ChannelDelegate {
                         highlighted: ListView.isCurrentItem
-
-                        font.pixelSize: constants.fontSizeMedium // set default font size for child controls
-
-                        RowLayout {
-                            id: row
-                            spacing: 10
-                            x: constants.paddingSmall
-                            width: parent.width - 2 * constants.paddingSmall
-
-                            Image {
-                                id: walleticon
-                                source: "../../icons/lightning.png"
-                                fillMode: Image.PreserveAspectFit
-                                Layout.preferredWidth: constants.iconSizeLarge
-                                Layout.preferredHeight: constants.iconSizeLarge
-                            }
-
-                            Label {
-                                font.pixelSize: constants.fontSizeLarge
-                                text: index
-                                Layout.fillWidth: true
-                            }
-
-                        }
                     }
 
                     ScrollIndicator.vertical: ScrollIndicator { }

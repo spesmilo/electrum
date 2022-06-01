@@ -38,8 +38,6 @@ class QETransactionListModel(QAbstractListModel):
             return value
         if isinstance(value, Satoshis):
             return value.value
-        if isinstance(value, QEAmount):
-            return value
         return str(value)
 
     def clear(self):
