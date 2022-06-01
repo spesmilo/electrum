@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import QMessageBox, QWidget
 from electrum.i18n import _
 from electrum.util import UserFacingException
 from electrum.logging import get_logger
+from electrum.qrreader import MissingQrDetectionLib
 
 from electrum.gui.qt.util import MessageBoxMixin, custom_message_box
 
@@ -102,7 +103,7 @@ def _scan_qrcode_using_qtmultimedia(
         callback: Callable[[bool, str, Optional[str]], None],
 ) -> None:
     try:
-        from .qtmultimedia import QrReaderCameraDialog, CameraError, MissingQrDetectionLib
+        from .qtmultimedia import QrReaderCameraDialog, CameraError
     except ImportError as e:
         icon = QMessageBox.Warning
         title = _("QR Reader Error")
