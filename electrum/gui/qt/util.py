@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem,
+                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
                              QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem)
 
 from electrum.i18n import _, languages
@@ -830,31 +830,49 @@ class MySortModel(QSortFilterProxyModel):
             return v1 < v2
 
 
-class ButtonsWidget(QWidget):
+class OverlayControlMixin:
+    STYLE_SHEET_COMMON = '''
+    QWidget { background-color: transparent; }
+    QToolButton { border-width: 1px; padding: 0px; margin: 0px; }
+    '''
 
-    def __init__(self):
-        super(QWidget, self).__init__()
-        self.buttons = []  # type: List[QToolButton]
+    STYLE_SHEET_LIGHT = '''
+    QToolButton:hover { border: 1px solid #3daee9; }
+    '''
 
-    def resizeButtons(self):
-        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth - 10
-        y = self.rect().bottom() - frameWidth
-        for button in self.buttons:
-            sz = button.sizeHint()
-            x -= sz.width()
-            button.move(x, y - sz.height())
+    def __init__(self, middle: bool = False):
+        assert isinstance(self, QWidget)
+        assert isinstance(self, OverlayControlMixin)  # only here for type-hints in IDE
+        self.middle = middle
+        self.overlay_widget = QWidget(self)
+        style_sheet = self.STYLE_SHEET_COMMON
+        if not ColorScheme.dark_scheme:
+            style_sheet = style_sheet + self.STYLE_SHEET_LIGHT
+        self.overlay_widget.setStyleSheet(style_sheet)
+        self.overlay_layout = QHBoxLayout(self.overlay_widget)
+        self.overlay_layout.setContentsMargins(0, 0, 0, 0)
+        self.overlay_layout.setSpacing(1)
 
-    def addButton(self, icon_name, on_click, tooltip):
-        button = QToolButton(self)
-        button.setIcon(read_QIcon(icon_name))
-        button.setIconSize(QSize(25,25))
-        button.setCursor(QCursor(Qt.PointingHandCursor))
-        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
-        button.setVisible(True)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        overlay_size = self.overlay_widget.sizeHint()
+        x = self.rect().right() - frame_width - overlay_size.width()
+        y = self.rect().bottom() - overlay_size.height()
+        y = y / 2 if self.middle else y - frame_width
+        self.overlay_widget.move(int(x), int(y))
+
+    def addWidget(self, widget: QWidget):
+        # The old code positioned the items the other way around, so we just insert at position 0 instead
+        self.overlay_layout.insertWidget(0, widget)
+
+    def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
+        button = QToolButton(self.overlay_widget)
         button.setToolTip(tooltip)
+        button.setIcon(read_QIcon(icon_name))
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.clicked.connect(on_click)
-        self.buttons.append(button)
+        self.addWidget(button)
         return button
 
     def addCopyButton(self):
@@ -967,27 +985,18 @@ class ButtonsWidget(QWidget):
         self.addButton("file.png", file_input, _("Read file"))
 
 
-class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
-        self.buttons = []
+        OverlayControlMixin.__init__(self, middle=True)
 
-    def resizeEvent(self, e):
-        o = QLineEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
 
-class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
+        OverlayControlMixin.__init__(self)
         self.setText = self.setPlainText
         self.text = self.toPlainText
-        self.buttons = []
-
-    def resizeEvent(self, e):
-        o = QPlainTextEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
 
 
 class PasswordLineEdit(QLineEdit):
