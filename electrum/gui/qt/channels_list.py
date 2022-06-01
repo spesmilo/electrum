@@ -258,7 +258,7 @@ class ChannelsList(MyTreeView):
             item = chan.get_closing_height()
             if item:
                 txid, height, timestamp = item
-                closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
+                closing_tx = self.parent.wallet.db.get_transaction(txid)
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()

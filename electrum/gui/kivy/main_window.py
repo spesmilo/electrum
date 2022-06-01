@@ -957,7 +957,7 @@ class ElectrumWindow(App, Logger):
             server_height = self.network.get_server_height()
             server_lag = self.num_blocks - server_height
             if not self.wallet.is_up_to_date() or server_height == 0:
-                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                num_sent, num_answered = self.wallet.adb.get_history_sync_state_details()
                 status = ("{} [size=18dp]({}/{})[/size]"
                           .format(_("Synchronizing..."), num_answered, num_sent))
             elif server_lag > 1:
@@ -1164,7 +1164,7 @@ class ElectrumWindow(App, Logger):
     def show_transaction(self, txid):
         tx = self.wallet.db.get_transaction(txid)
         if not tx and self.wallet.lnworker:
-            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(txid)
+            tx = self.wallet.adb.get_transaction(txid)
         if tx:
             self.tx_dialog(tx)
         else:

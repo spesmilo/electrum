@@ -348,7 +348,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
-            self.local_watchtower.start_network(self)
+            self.local_watchtower.adb.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def has_internet_connection(self) -> bool:

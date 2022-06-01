@@ -2175,7 +2175,7 @@ class Peer(Logger):
             sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # save local transaction and set state
         try:
-            self.lnworker.wallet.add_transaction(closing_tx)
+            self.lnworker.wallet.adb.add_transaction(closing_tx)
         except UnrelatedTransactionException:
             pass  # this can happen if (~all the balance goes to REMOTE)
         chan.set_state(ChannelState.CLOSING)

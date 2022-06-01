@@ -734,7 +734,6 @@ class LNWallet(LNWorker):
     def start_network(self, network: 'Network'):
         super().start_network(network)
         self.lnwatcher = LNWalletWatcher(self, network)
-        self.lnwatcher.start_network(network)
         self.swap_manager.start_network(network=network, lnwatcher=self.lnwatcher)
         self.lnrater = LNRater(self, network)
 
@@ -745,7 +744,7 @@ class LNWallet(LNWorker):
 
         for coro in [
                 self.maybe_listen(),
-                self.lnwatcher.on_network_update('network_updated'), # shortcut (don't block) if funding tx locked and verified
+                self.lnwatcher.trigger_callbacks(), # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
                 self.sync_with_local_watchtower(),
                 self.sync_with_remote_watchtower(),
@@ -850,7 +849,7 @@ class LNWallet(LNWorker):
         return out
 
     def get_onchain_history(self):
-        current_height = self.wallet.get_local_height()
+        current_height = self.wallet.adb.get_local_height()
         out = {}
         # add funding events
         for chan in self.channels.values():
@@ -860,7 +859,7 @@ class LNWallet(LNWorker):
             if not self.lnwatcher:
                 continue  # lnwatcher not available with --offline (its data is not persisted)
             funding_txid, funding_height, funding_timestamp = item
-            tx_height = self.lnwatcher.get_tx_height(funding_txid)
+            tx_height = self.lnwatcher.adb.get_tx_height(funding_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -880,7 +879,7 @@ class LNWallet(LNWorker):
             if item is None:
                 continue
             closing_txid, closing_height, closing_timestamp = item
-            tx_height = self.lnwatcher.get_tx_height(closing_txid)
+            tx_height = self.lnwatcher.adb.get_tx_height(closing_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -912,7 +911,7 @@ class LNWallet(LNWorker):
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
             if self.lnwatcher:
-                tx_height = self.lnwatcher.get_tx_height(swap.funding_txid)
+                tx_height = self.lnwatcher.adb.get_tx_height(swap.funding_txid)
                 if swap.is_reverse and tx_height.height <= 0:
                     label += ' (%s)' % _('waiting for funding tx confirmation')
             if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
@@ -985,13 +984,13 @@ class LNWallet(LNWorker):
             peer = self._peers.get(chan.node_id)
             if peer:
                 await peer.maybe_update_fee(chan)
-                conf = self.lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
+                conf = self.lnwatcher.adb.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
 
         elif chan.get_state() == ChannelState.FORCE_CLOSING:
             force_close_tx = chan.force_close_tx()
             txid = force_close_tx.txid()
-            height = self.lnwatcher.get_tx_height(txid).height
+            height = self.lnwatcher.adb.get_tx_height(txid).height
             if height == TX_HEIGHT_LOCAL:
                 self.logger.info('REBROADCASTING CLOSING TX')
                 await self.network.try_broadcasting(force_close_tx, 'force-close')
@@ -1013,7 +1012,7 @@ class LNWallet(LNWorker):
             temp_channel_id=os.urandom(32))
         chan, funding_tx = await asyncio.wait_for(coro, LN_P2P_NETWORK_TIMEOUT)
         util.trigger_callback('channels_updated', self.wallet)
-        self.wallet.add_transaction(funding_tx)  # save tx as local into the wallet
+        self.wallet.adb.add_transaction(funding_tx)  # save tx as local into the wallet
         self.wallet.sign_transaction(funding_tx, password)
         self.wallet.set_label(funding_tx.txid(), _('Open channel'))
         if funding_tx.is_complete():
@@ -2311,7 +2310,7 @@ class LNWallet(LNWorker):
         chan.set_state(ChannelState.FORCE_CLOSING)
         # Add local tx to wallet to also allow manual rebroadcasts.
         try:
-            self.wallet.add_transaction(tx)
+            self.wallet.adb.add_transaction(tx)
         except UnrelatedTransactionException:
             pass  # this can happen if (~all the balance goes to REMOTE)
         return tx

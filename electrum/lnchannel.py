@@ -281,7 +281,7 @@ class AbstractChannel(Logger, ABC):
                     if spender_txid is None:
                         continue
                     if spender_txid != self.funding_outpoint.txid:
-                        tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
+                        tx_mined_height = self.lnworker.wallet.adb.get_tx_height(spender_txid)
                         if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                             self.logger.info(f'channel is double spent {inputs}')
                             self.set_state(ChannelState.REDEEMED)
@@ -486,7 +486,8 @@ class ChannelBackup(AbstractChannel):
     def get_capacity(self):
         lnwatcher = self.lnworker.lnwatcher
         if lnwatcher:
-            return lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+            # fixme: we should probably not call that method here
+            return lnwatcher.adb.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
         return None
 
     def is_backup(self):
@@ -1549,7 +1550,7 @@ class Channel(AbstractChannel):
             return False
         assert conf > 0
         # check funding_tx amount and script
-        funding_tx = self.lnworker.lnwatcher.db.get_transaction(funding_txid)
+        funding_tx = self.lnworker.lnwatcher.adb.get_transaction(funding_txid)
         if not funding_tx:
             self.logger.info(f"no funding_tx {funding_txid}")
             return False

@@ -1015,7 +1015,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             if not self.wallet.is_up_to_date() or server_height == 0:
-                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                num_sent, num_answered = self.wallet.adb.get_history_sync_state_details()
                 network_text = ("{} ({}/{})"
                                 .format(_("Synchronizing..."), num_answered, num_sent))
                 icon = read_QIcon("status_waiting.png")
@@ -1510,7 +1510,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_address_styling(self):
         addr = str(self.receive_address_e.text())
-        if is_address(addr) and self.wallet.is_used(addr):
+        if is_address(addr) and self.wallet.adb.is_used(addr):
             self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             self.receive_address_e.setToolTip(_("This address has already been used. "
                                                 "For better privacy, do not reuse it for new payments."))
@@ -3577,7 +3577,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
-        parent_fee = self.wallet.get_tx_fee(parent_txid)
+        parent_fee = self.wallet.adb.get_tx_fee(parent_txid)
         if parent_fee is None:
             self.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return
@@ -3699,7 +3699,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()
         try:
-            if not self.wallet.add_transaction(tx):
+            if not self.wallet.adb.add_transaction(tx):
                 win.show_error(_("Transaction could not be saved.") + "\n" +
                                _("It conflicts with current history."))
                 return False

@@ -66,9 +66,7 @@ class TxWalletDelta(NamedTuple):
 
 
 class AddressSynchronizer(Logger):
-    """
-    inherited by wallet
-    """
+    """ address database """
 
     network: Optional['Network']
     asyncio_loop: Optional['asyncio.AbstractEventLoop'] = None
@@ -207,7 +205,7 @@ class AddressSynchronizer(Logger):
                 self.db.put('stored_height', self.get_local_height())
 
     def add_address(self, address):
-        if not self.db.get_addr_history(address):
+        if address not in self.db.history:
             self.db.history[address] = []
             self.set_up_to_date(False)
         if self.synchronizer:
@@ -341,6 +339,7 @@ class AddressSynchronizer(Logger):
             # save
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
+            util.trigger_callback('adb_added_tx', self, tx_hash)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
@@ -504,10 +503,7 @@ class AddressSynchronizer(Logger):
     @with_lock
     @with_transaction_lock
     @with_local_height_cached
-    def get_history(self, *, domain=None) -> Sequence[HistoryItem]:
-        # get domain
-        if domain is None:
-            domain = self.get_addresses()
+    def get_history(self, domain) -> Sequence[HistoryItem]:
         domain = set(domain)
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
@@ -536,7 +532,7 @@ class AddressSynchronizer(Logger):
                 fee=fee,
                 balance=balance))
         # sanity check
-        c, u, x = self.get_balance(domain=domain)
+        c, u, x = self.get_balance(domain)
         if balance != c + u + x:
             raise Exception("wallet.get_history() failed balance sanity-check")
         return h2
@@ -607,8 +603,7 @@ class AddressSynchronizer(Logger):
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
             self.db.add_verified_tx(tx_hash, info)
-        tx_mined_status = self.get_tx_height(tx_hash)
-        util.trigger_callback('verified', self, tx_hash, tx_mined_status)
+        util.trigger_callback('adb_added_verified_tx', self, tx_hash)
 
     def get_unverified_txs(self) -> Dict[str, int]:
         '''Returns a map from tx hash to transaction height'''
@@ -637,6 +632,9 @@ class AddressSynchronizer(Logger):
                         # a status update, that will overwrite it.
                         self.unverified_tx[tx_hash] = tx_height
                         txs.add(tx_hash)
+
+        for tx_hash in txs:
+            util.trigger_callback('adb_removed_verified_tx', self, tx_hash)
         return txs
 
     def get_local_height(self) -> int:
@@ -688,7 +686,7 @@ class AddressSynchronizer(Logger):
             if self.verifier:
                 self.verifier.reset_request_counters()
         # fire triggers
-        util.trigger_callback('status')
+        util.trigger_callback('adb_set_up_to_date', self)
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
@@ -837,17 +835,12 @@ class AddressSynchronizer(Logger):
         received, sent = self.get_addr_io(address)
         return sum([v for height, v, is_cb in received.values()])
 
-    def get_addr_balance(self, address):
-        return self.get_balance([address])
-
     @with_local_height_cached
-    def get_balance(self, domain=None, *, excluded_addresses: Set[str] = None,
+    def get_balance(self, domain, *, excluded_addresses: Set[str] = None,
                     excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
         """Return the balance of a set of addresses:
         confirmed and matured, unconfirmed, unmatured
         """
-        if domain is None:
-            domain = self.get_addresses()
         if excluded_addresses is None:
             excluded_addresses = set()
         assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"
@@ -909,7 +902,7 @@ class AddressSynchronizer(Logger):
     @with_local_height_cached
     def get_utxos(
             self,
-            domain=None,
+            domain,
             *,
             excluded_addresses=None,
             mature_only: bool = False,
@@ -926,8 +919,6 @@ class AddressSynchronizer(Logger):
         else:
             block_height = self.get_local_height()
         coins = []
-        if domain is None:
-            domain = self.get_addresses()
         domain = set(domain)
         if excluded_addresses:
             domain = set(domain) - set(excluded_addresses)
@@ -957,7 +948,3 @@ class AddressSynchronizer(Logger):
     def is_empty(self, address: str) -> bool:
         coins = self.get_addr_utxo(address)
         return not bool(coins)
-
-    def synchronize(self) -> int:
-        """Returns the number of new addresses we generated."""
-        return 0

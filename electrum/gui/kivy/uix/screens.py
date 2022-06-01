@@ -102,7 +102,7 @@ class HistoryScreen(CScreen):
             self.app.lightning_tx_dialog(tx_item)
             return
         if tx_item.get('lightning'):
-            tx = self.app.wallet.lnworker.lnwatcher.db.get_transaction(key)
+            tx = self.app.wallet.adb.get_transaction(key)
         else:
             tx = self.app.wallet.db.get_transaction(key)
         if not tx:
