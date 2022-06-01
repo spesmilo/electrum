@@ -30,6 +30,7 @@ from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 from electrum.logging import Logger
+from electrum.qrreader import MissingQrDetectionLib
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -879,7 +880,7 @@ class OverlayControlMixin:
         # The old code positioned the items the other way around, so we just insert at position 0 instead
         self.overlay_layout.insertWidget(0, widget)
 
-    def addButton(self, icon_name: str, on_click, tooltip: str) -> QAbstractButton:
+    def addButton(self, icon_name: str, on_click, tooltip: str) -> QPushButton:
         button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
         button.setIcon(read_QIcon(icon_name))
@@ -943,7 +944,7 @@ class OverlayControlMixin:
     ):
         if setText is None:
             setText = self.setText
-        def qr_input():
+        def qr_from_camera_input() -> None:
             def cb(success: bool, error: str, data):
                 if not success:
                     if error:
@@ -960,10 +961,39 @@ class OverlayControlMixin:
             from .qrreader import scan_qrcode
             scan_qrcode(parent=self, config=config, callback=cb)
 
+        def qr_from_screenshot_input() -> None:
+            from .qrreader import scan_qr_from_image
+            scanned_qr = None
+            for screen in QApplication.instance().screens():
+                try:
+                    scan_result = scan_qr_from_image(screen.grabWindow(0).toImage())
+                except MissingQrDetectionLib as e:
+                    show_error(_("Unable to scan image.") + "\n" + repr(e))
+                    return
+                if len(scan_result) > 0:
+                    if (scanned_qr is not None) or len(scan_result) > 1:
+                        show_error(_("More than one QR code was found on the screen."))
+                        return
+                    scanned_qr = scan_result
+            if scanned_qr is None:
+                show_error(_("No QR code was found on the screen."))
+                return
+            data = scanned_qr[0].data
+            if allow_multi:
+                new_text = self.text() + data + '\n'
+            else:
+                new_text = data
+            setText(new_text)
+
         icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
-        self.addButton(icon, qr_input, _("Read QR code"))
-        # side-effect: we export this method:
-        self.on_qr_input_btn = qr_input
+        btn = self.addButton(icon, lambda: None, _("Read QR code"))
+        menu = QMenu()
+        menu.addAction(_("Read QR code from camera"), qr_from_camera_input)
+        menu.addAction(_("Read QR code from screen"), qr_from_screenshot_input)
+        btn.setMenu(menu)
+        # side-effect: we export these methods:
+        self.on_qr_from_camera_input_btn = qr_from_camera_input
+        self.on_qr_from_screenshot_input_btn = qr_from_screenshot_input
 
     def add_file_input_button(
             self,

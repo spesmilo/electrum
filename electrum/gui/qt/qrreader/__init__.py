@@ -22,14 +22,15 @@
 # Note: this module is safe to import on all platforms.
 
 import sys
-from typing import Callable, Optional, TYPE_CHECKING, Mapping
+from typing import Callable, Optional, TYPE_CHECKING, Mapping, Sequence
 
 from PyQt5.QtWidgets import QMessageBox, QWidget
+from PyQt5.QtGui import QImage
 
 from electrum.i18n import _
 from electrum.util import UserFacingException
 from electrum.logging import get_logger
-from electrum.qrreader import MissingQrDetectionLib
+from electrum.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
 
 from electrum.gui.qt.util import MessageBoxMixin, custom_message_box
 
@@ -47,10 +48,24 @@ def scan_qrcode(
         config: 'SimpleConfig',
         callback: Callable[[bool, str, Optional[str]], None],
 ) -> None:
+    """Scans QR code using camera."""
     if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
         _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
     else:  # desktop Linux and similar
         _scan_qrcode_using_zbar(parent=parent, config=config, callback=callback)
+
+
+def scan_qr_from_image(image: QImage) -> Sequence[QrCodeResult]:
+    """Might raise exception: MissingQrDetectionLib."""
+    qr_reader = get_qr_reader()
+    image_y800 = image.convertToFormat(QImage.Format_Grayscale8)
+    res = qr_reader.read_qr_code(
+        image_y800.constBits().__int__(), image_y800.byteCount(),
+        image_y800.bytesPerLine(),
+        image_y800.width(),
+        image_y800.height()
+    )
+    return res
 
 
 def find_system_cameras() -> Mapping[str, str]:
