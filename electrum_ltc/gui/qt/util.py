@@ -858,19 +858,24 @@ class ButtonsWidget(QWidget):
         return button
 
     def addCopyButton(self, app: QApplication):
-        self.app = app
-        self.addButton("copy.png", self.on_copy, _("Copy to clipboard"))
+        def on_copy():
+            app.clipboard().setText(self.text())
+            QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
-    def on_copy(self):
-        self.app.clipboard().setText(self.text())
-        QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
+        self.addButton("copy.png", on_copy, _("Copy to clipboard"))
 
-    def addPasteButton(self, app: QApplication):
-        self.app = app
-        self.addButton("copy.png", self.on_paste, _("Paste from clipboard"))
+    def addPasteButton(
+            self,
+            app: QApplication,
+            *,
+            setText: Callable[[str], None] = None,
+    ):
+        if setText is None:
+            setText = self.setText
+        def on_paste():
+            setText(app.clipboard().text())
 
-    def on_paste(self):
-        self.setText(self.app.clipboard().text())
+        self.addButton("copy.png", on_paste, _("Paste from clipboard"))
 
     def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
         if title is None:
@@ -902,7 +907,10 @@ class ButtonsWidget(QWidget):
             config: 'SimpleConfig',
             allow_multi: bool = False,
             show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
     ):
+        if setText is None:
+            setText = self.setText
         def qr_input():
             def cb(success: bool, error: str, data):
                 if not success:
@@ -915,7 +923,7 @@ class ButtonsWidget(QWidget):
                     new_text = self.text() + data + '\n'
                 else:
                     new_text = data
-                self.setText(new_text)
+                setText(new_text)
 
             from .qrreader import scan_qrcode
             scan_qrcode(parent=self, config=config, callback=cb)
@@ -930,7 +938,10 @@ class ButtonsWidget(QWidget):
             *,
             config: 'SimpleConfig',
             show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
     ) -> None:
+        if setText is None:
+            setText = self.setText
         def file_input():
             fileName = getOpenFileName(
                 parent=self,
@@ -950,7 +961,7 @@ class ButtonsWidget(QWidget):
             except BaseException as e:
                 show_error(_('Error opening file') + ':\n' + repr(e))
             else:
-                self.setText(data)
+                setText(data)
 
         self.addButton("file.png", file_input, _("Read file"))
 
