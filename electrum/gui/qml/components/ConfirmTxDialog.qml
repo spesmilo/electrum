@@ -10,14 +10,21 @@ import "controls"
 Dialog {
     id: dialog
 
-    property alias address: finalizer.address
-    property alias satoshis: finalizer.amount
+    required property QtObject finalizer
+    required property Amount satoshis
+    property string address
     property string message
+    property alias amountLabelText: amountLabel.text
+    property alias sendButtonText: sendButton.text
+
+    title: qsTr('Confirm Transaction')
+
+    // copy these to finalizer
+    onAddressChanged: finalizer.address = address
+    onSatoshisChanged: finalizer.amount = satoshis
 
     width: parent.width
     height: parent.height
-
-    title: qsTr('Confirm Payment')
 
     modal: true
     parent: Overlay.overlay
@@ -39,6 +46,7 @@ Dialog {
         }
 
         Label {
+            id: amountLabel
             text: qsTr('Amount to send')
         }
 
@@ -202,6 +210,7 @@ Dialog {
             }
 
             Button {
+                id: sendButton
                 text: qsTr('Pay')
                 enabled: finalizer.valid
                 onClicked: {
@@ -212,9 +221,4 @@ Dialog {
         }
     }
 
-    TxFinalizer {
-        id: finalizer
-        wallet: Daemon.currentWallet
-        onAmountChanged: console.log(amount.satsInt)
-    }
 }

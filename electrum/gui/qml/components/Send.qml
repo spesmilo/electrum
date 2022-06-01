@@ -217,7 +217,13 @@ Pane {
 
     Component {
         id: confirmPaymentDialog
-        ConfirmPaymentDialog {}
+        ConfirmTxDialog {
+            title: qsTr('Confirm Payment')
+            finalizer: TxFinalizer {
+                wallet: Daemon.currentWallet
+                onAmountChanged: console.log(amount.satsInt)
+            }
+        }
     }
 
     Component {
