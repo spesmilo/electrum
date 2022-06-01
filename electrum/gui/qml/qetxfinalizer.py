@@ -11,8 +11,10 @@ from .qewallet import QEWallet
 from .qetypes import QEAmount
 
 class QETxFinalizer(QObject):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, make_tx=None, accept=None):
         super().__init__(parent)
+        self.f_make_tx = make_tx
+        self.f_accept = accept
         self._tx = None
 
     _logger = get_logger(__name__)
@@ -207,6 +209,11 @@ class QETxFinalizer(QObject):
 
     @profiler
     def make_tx(self):
+        if self.f_make_tx:
+            tx = self.f_make_tx()
+            return tx
+
+        # default impl
         coins = self._wallet.wallet.get_spendable_coins(None)
         outputs = [PartialTxOutput.from_address_and_value(self.address, self._amount.satsInt)]
         tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None,rbf=self._rbf)
@@ -266,6 +273,10 @@ class QETxFinalizer(QObject):
     def send_onchain(self):
         if not self._valid or not self._tx:
             self._logger.debug('no valid tx')
+            return
+
+        if self.f_accept:
+            self.f_accept(self._tx)
             return
 
         self._wallet.sign_and_broadcast(self._tx)

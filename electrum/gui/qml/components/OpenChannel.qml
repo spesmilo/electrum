@@ -23,8 +23,10 @@ Pane {
             text: qsTr('Node')
         }
 
+        // gossip
         TextArea {
             id: node
+            visible: Config.useGossip
             Layout.columnSpan: 2
             Layout.fillWidth: true
             font.family: FixedFont
@@ -37,6 +39,7 @@ Pane {
         }
 
         RowLayout {
+            visible: Config.useGossip
             spacing: 0
             ToolButton {
                 icon.source: '../../icons/paste.png'
@@ -59,6 +62,18 @@ Pane {
                         node.text = channelopener.nodeid
                     })
                 }
+            }
+        }
+
+        // trampoline
+        ComboBox {
+            id: tnode
+            visible: !Config.useGossip
+            Layout.columnSpan: 3
+            Layout.fillWidth: true
+            model: channelopener.trampolineNodeNames
+            onCurrentValueChanged: {
+                channelopener.nodeid = tnode.currentValue
             }
         }
 
@@ -85,9 +100,7 @@ Pane {
                 id: is_max
                 text: qsTr('Max')
                 onCheckedChanged: {
-                    if (checked) {
-                        channelopener.amount = MAX
-                    }
+                    channelopener.amount = checked ? MAX : Config.unitsToSats(amount.text)
                 }
             }
         }

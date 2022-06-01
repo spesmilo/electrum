@@ -70,6 +70,16 @@ class QEConfig(QObject):
         self.config.amt_add_thousands_sep = checked
         self.thousandsSeparatorChanged.emit()
 
+    useGossipChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=useGossipChanged)
+    def useGossip(self):
+        return self.config.get('use_gossip', False)
+
+    @useGossip.setter
+    def useGossip(self, gossip):
+        self.config.set_key('use_gossip', gossip)
+        self.useGossipChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)

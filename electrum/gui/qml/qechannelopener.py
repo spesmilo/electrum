@@ -2,7 +2,8 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.util import format_time
-from electrum.lnutil import extract_nodeid, ConnStringFormatError
+from electrum.lnutil import extract_nodeid, ConnStringFormatError, LNPeerAddr
+from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.gui import messages
 
 from .qewallet import QEWallet
@@ -22,6 +23,8 @@ class QEChannelOpener(QObject):
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
+
+    dataChanged = pyqtSignal() # generic notify signal
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -69,14 +72,28 @@ class QEChannelOpener(QObject):
     def openTx(self):
         return self._opentx
 
+    @pyqtProperty(list, notify=dataChanged)
+    def trampolineNodeNames(self):
+        return list(hardcoded_trampoline_nodes().keys())
+
+    # FIXME min channel funding amount
+    # FIXME have requested funding amount
     def validate(self):
         nodeid_valid = False
         if self._nodeid:
-            try:
-                self._node_pubkey, self._host_port = extract_nodeid(self._nodeid)
+            if not self._wallet.wallet.config.get('use_gossip', False):
+                self._peer = hardcoded_trampoline_nodes()[self._nodeid]
                 nodeid_valid = True
-            except ConnStringFormatError as e:
-                self.validationError.emit('invalid_nodeid', repr(e))
+            else:
+                try:
+                    node_pubkey, host_port = extract_nodeid(self._nodeid)
+                    host, port = host_port.split(':',1)
+                    self._peer = LNPeerAddr(host, int(port), node_pubkey)
+                    nodeid_valid = True
+                except ConnStringFormatError as e:
+                    self.validationError.emit('invalid_nodeid', repr(e))
+                except ValueError as e:
+                    self.validationError.emit('invalid_nodeid', repr(e))
 
         if not nodeid_valid:
             self._valid = False
@@ -99,16 +116,12 @@ class QEChannelOpener(QObject):
         if not self.valid:
             return
 
-        #if self.use_gossip:
-            #conn_str = self.pubkey
-            #if self.ipport:
-                #conn_str += '@' + self.ipport.strip()
-        #else:
-            #conn_str = str(self.trampolines[self.pubkey])
+        self._logger.debug('Connect String: %s' % str(self._peer))
+
         amount = '!' if self._amount.isMax else self._amount.satsInt
 
         lnworker = self._wallet.wallet.lnworker
-        if lnworker.has_conflicting_backup_with(node_pubkey) and not confirm_backup_conflict:
+        if lnworker.has_conflicting_backup_with(self._peer.pubkey) and not confirm_backup_conflict:
             self.conflictingBackup.emit(messages.MGS_CONFLICTING_BACKUP_INSTANCE)
             return
 
@@ -117,7 +130,7 @@ class QEChannelOpener(QObject):
         make_tx = lambda rbf: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amount,
-            node_id=self._node_pubkey,
+            node_id=self._peer.pubkey,
             fee_est=None)
         #on_pay = lambda tx: self.app.protected('Create a new channel?', self.do_open_channel, (tx, conn_str))
         #d = ConfirmTxDialog(

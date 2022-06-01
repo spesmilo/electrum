@@ -105,6 +105,22 @@ Pane {
                             Daemon.fx.rateSource = currentValue
                     }
                 }
+
+                Label {
+                    text: qsTr('Lightning Routing')
+                    enabled: Daemon.currentWallet.isLightning
+                }
+
+                ComboBox {
+                    id: lnRoutingType
+                    valueRole: 'key'
+                    textRole: 'label'
+                    enabled: Daemon.currentWallet.isLightning && false
+                    model: ListModel {
+                        ListElement { key: 'gossip'; label: qsTr('Gossip') }
+                        ListElement { key: 'trampoline'; label: qsTr('Trampoline') }
+                    }
+                }
             }
 
         }
@@ -118,5 +134,6 @@ Pane {
         historicRates.checked = Daemon.fx.historicRates
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
         fiatEnable.checked = Daemon.fx.enabled
+        lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
     }
 }
