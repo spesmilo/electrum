@@ -68,9 +68,21 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.win = win
         self.amount_edit = win.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
-        self.document().contentsChanged.connect(self.update_size)
-        self.heightMin = 0
-        self.heightMax = 150
+        document = self.document()
+        document.contentsChanged.connect(self.update_size)
+
+        fontMetrics = QFontMetrics(document.defaultFont())
+        self.fontSpacing = fontMetrics.lineSpacing()
+
+        margins = self.contentsMargins()
+        documentMargin = document.documentMargin()
+        self.verticalMargins = margins.top() + margins.bottom()
+        self.verticalMargins += self.frameWidth() * 2
+        self.verticalMargins += documentMargin * 2
+
+        self.heightMin = self.fontSpacing + self.verticalMargins
+        self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
+
         self.c = None
         self.textChanged.connect(self.check_text)
         self.outputs = []  # type: List[PartialTxOutput]
@@ -248,13 +260,21 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.update_size()
 
     def update_size(self):
-        lineHeight = QFontMetrics(self.document().defaultFont()).height()
-        docHeight = self.document().size().height()
-        h = round(docHeight * lineHeight + 11)
+        docLineCount = self.document().lineCount()
+        if self.cursorRect().right() + 1 >= self.overlay_widget.pos().x():
+            # Add a line if we are under the overlay widget
+            docLineCount += 1
+        docHeight = docLineCount * self.fontSpacing
+
+        h = docHeight + self.verticalMargins
         h = min(max(h, self.heightMin), self.heightMax)
-        self.setMinimumHeight(h)
-        self.setMaximumHeight(h)
-        self.verticalScrollBar().hide()
+        self.setMinimumHeight(int(h))
+        self.setMaximumHeight(int(h))
+
+        self.verticalScrollBar().setHidden(docHeight + self.verticalMargins < self.heightMax)
+
+        # The scrollbar visibility can have changed so we update the overlay position here
+        self._updateOverlayPos()
 
     def resolve(self):
         self.is_alias = False
