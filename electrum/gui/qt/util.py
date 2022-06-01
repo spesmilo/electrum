@@ -857,8 +857,9 @@ class ButtonsWidget(QWidget):
         self.buttons.append(button)
         return button
 
-    def addCopyButton(self, app: QApplication):
+    def addCopyButton(self):
         def on_copy():
+            app = QApplication.instance()
             app.clipboard().setText(self.text())
             QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
@@ -866,13 +867,13 @@ class ButtonsWidget(QWidget):
 
     def addPasteButton(
             self,
-            app: QApplication,
             *,
             setText: Callable[[str], None] = None,
     ):
         if setText is None:
             setText = self.setText
         def on_paste():
+            app = QApplication.instance()
             setText(app.clipboard().text())
 
         self.addButton("copy.png", on_paste, _("Paste from clipboard"))

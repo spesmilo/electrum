@@ -75,7 +75,7 @@ class LightningTxDialog(WindowModalDialog):
 
         vbox.addWidget(QLabel(_("Payment hash") + ":"))
         self.hash_e = ButtonsLineEdit(self.payment_hash)
-        self.hash_e.addCopyButton(self.parent.app)
+        self.hash_e.addCopyButton()
         self.hash_e.add_qr_show_button(config=self.config, title=_("Payment hash"))
         self.hash_e.setReadOnly(True)
         self.hash_e.setFont(QFont(MONOSPACE_FONT))
@@ -83,7 +83,7 @@ class LightningTxDialog(WindowModalDialog):
 
         vbox.addWidget(QLabel(_("Preimage") + ":"))
         self.preimage_e = ButtonsLineEdit(self.preimage)
-        self.preimage_e.addCopyButton(self.parent.app)
+        self.preimage_e.addCopyButton()
         self.preimage_e.add_qr_show_button(config=self.config, title=_("Preimage"))
         self.preimage_e.setReadOnly(True)
         self.preimage_e.setFont(QFont(MONOSPACE_FONT))
@@ -92,7 +92,7 @@ class LightningTxDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
         self.invoice_e = ShowQRTextEdit(self.invoice, config=self.config)
         self.invoice_e.setMaximumHeight(150)
-        self.invoice_e.addCopyButton(self.parent.app)
+        self.invoice_e.addCopyButton()
         vbox.addWidget(self.invoice_e)
 
         vbox.addLayout(Buttons(CloseButton(self)))
