@@ -1,7 +1,7 @@
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
 
-from electrum.i18n import _
+from electrum_grs.i18n import _
 from .util import WindowModalDialog, Buttons, OkButton, CancelButton, WWLabel
 from .amountedit import BTCAmountEdit
 
