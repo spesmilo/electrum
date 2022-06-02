@@ -15,7 +15,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
-        self.invoices = []
+        self.init_model()
 
     # define listmodel rolemap
     _ROLE_NAMES=('key','is_lightning','timestamp','date','message','amount','status','status_str','address','expiration','type')

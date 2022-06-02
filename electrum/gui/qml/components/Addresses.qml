@@ -169,5 +169,4 @@ Pane {
         }
     }
 
-    Component.onCompleted: Daemon.currentWallet.addressModel.init_model()
 }

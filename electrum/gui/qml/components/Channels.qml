@@ -102,5 +102,4 @@ Pane {
 
     }
 
-    Component.onCompleted: Daemon.currentWallet.channelModel.init_model()
 }

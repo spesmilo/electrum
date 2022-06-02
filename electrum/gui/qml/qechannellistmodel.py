@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
-from electrum.util import Satoshis, TxMinedInfo
+from electrum.util import Satoshis, register_callback
 
 from .qetypes import QEAmount
 
@@ -12,7 +12,16 @@ class QEChannelListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
-        self.channels = []
+        self.init_model()
+
+        interests = ['channel', 'channels_updated', 'gossip_peers',
+                     'ln_gossip_sync_progress', 'unknown_channels',
+                     'channel_db', 'gossip_db_loaded']
+        # To avoid leaking references to "self" that prevent the
+        # window from being GC-ed when closed, callbacks should be
+        # methods of this class only, and specifically not be
+        # partials, lambdas or methods of subobjects.  Hence...
+        register_callback(self.on_network, interests)
 
     _logger = get_logger(__name__)
 
@@ -48,6 +57,7 @@ class QEChannelListModel(QAbstractListModel):
     def channel_to_model(self, lnc):
         lnworker = self.wallet.lnworker
         item = {}
+        item['channel_id'] = lnc.channel_id
         item['node_alias'] = lnworker.get_node_alias(lnc.node_id) or lnc.node_id.hex()
         item['short_cid'] = lnc.short_id_for_GUI()
         item['state'] = lnc.get_state_for_GUI()
@@ -57,6 +67,7 @@ class QEChannelListModel(QAbstractListModel):
 
     @pyqtSlot()
     def init_model(self):
+        self._logger.debug('init_model')
         if not self.wallet.lnworker:
             self._logger.warning('lnworker should be defined')
             return
@@ -73,3 +84,31 @@ class QEChannelListModel(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), 0, len(channels) - 1)
         self.channels = channels
         self.endInsertRows()
+
+    def on_network(self, event, *args):
+        if event == 'channel':
+            wallet, channel = args
+            if wallet == self.wallet:
+                self.on_channel_updated(channel)
+        elif event == 'channels_updated':
+            wallet, = args
+            if wallet == self.wallet:
+                self.init_model() # TODO: remove/add less crude than full re-init
+        else:
+            self._logger.debug('unhandled event %s: %s' % (event, repr(args)))
+
+    def on_channel_updated(self, channel):
+        i = 0
+        for c in self.channels:
+            if c['channel_id'] == channel.channel_id:
+                self.do_update(i,channel)
+                break
+            i = i + 1
+
+    def do_update(self, modelindex, channel):
+        modelitem = self.channels[modelindex]
+        self._logger.debug(repr(modelitem))
+        modelitem.update(self.channel_to_model(channel))
+
+        mi = self.createIndex(modelindex, 0)
+        self.dataChanged.emit(mi, mi, self._ROLE_KEYS)

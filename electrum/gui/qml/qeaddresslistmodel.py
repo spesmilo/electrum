@@ -10,9 +10,7 @@ class QEAddressListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
-        self.receive_addresses = []
-        self.change_addresses = []
-
+        self.init_model()
 
     _logger = get_logger(__name__)
 

@@ -12,7 +12,7 @@ class QETransactionListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
-        self.tx_history = []
+        self.init_model()
 
     _logger = get_logger(__name__)
 

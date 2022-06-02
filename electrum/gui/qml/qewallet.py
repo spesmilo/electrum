@@ -57,15 +57,11 @@ class QEWallet(QObject):
         super().__init__(parent)
         self.wallet = wallet
 
-        self._historyModel = QETransactionListModel(wallet)
-        self._addressModel = QEAddressListModel(wallet)
-        self._requestModel = QERequestListModel(wallet)
-        self._invoiceModel = QEInvoiceListModel(wallet)
+        self._historyModel = None
+        self._addressModel = None
+        self._requestModel = None
+        self._invoiceModel = None
         self._channelModel = None
-
-        self._historyModel.init_model()
-        self._requestModel.init_model()
-        self._invoiceModel.init_model()
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -125,6 +121,9 @@ class QEWallet(QObject):
             if wallet == self.wallet:
                 self._logger.debug('wallet %s updated' % str(wallet))
                 self.balanceChanged.emit()
+        elif event in ['channel','channels_updated']:
+            # TODO update balance/can-spend etc
+            pass
         else:
             self._logger.debug('unhandled event: %s %s' % (event, str(args)))
 
@@ -177,21 +176,29 @@ class QEWallet(QObject):
     historyModelChanged = pyqtSignal()
     @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
     def historyModel(self):
+        if self._historyModel is None:
+            self._historyModel = QETransactionListModel(self.wallet)
         return self._historyModel
 
     addressModelChanged = pyqtSignal()
     @pyqtProperty(QEAddressListModel, notify=addressModelChanged)
     def addressModel(self):
+        if self._addressModel is None:
+            self._addressModel = QEAddressListModel(self.wallet)
         return self._addressModel
 
     requestModelChanged = pyqtSignal()
     @pyqtProperty(QERequestListModel, notify=requestModelChanged)
     def requestModel(self):
+        if self._requestModel is None:
+            self._requestModel = QERequestListModel(self.wallet)
         return self._requestModel
 
     invoiceModelChanged = pyqtSignal()
     @pyqtProperty(QEInvoiceListModel, notify=invoiceModelChanged)
     def invoiceModel(self):
+        if self._invoiceModel is None:
+            self._invoiceModel = QEInvoiceListModel(self.wallet)
         return self._invoiceModel
 
     channelModelChanged = pyqtSignal()
