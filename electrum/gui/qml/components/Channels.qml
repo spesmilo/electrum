@@ -22,7 +22,8 @@ Pane {
 
             Label {
                 Layout.columnSpan: 2
-                text: ''
+                text: qsTr('You have %1 open channels').arg(listview.count)
+                color: Material.accentColor
             }
 
             Label {
@@ -30,8 +31,20 @@ Pane {
                 color: Material.accentColor
             }
 
-            Label {
-                text: ''
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    text: Config.formatSats(Daemon.currentWallet.lightningCanSend)
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                }
+                Label {
+                    text: Daemon.fx.enabled
+                        ? '(' + Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanSend) + ' ' + Daemon.fx.fiatCurrency + ')'
+                        : ''
+                }
             }
 
             Label {
@@ -39,20 +52,23 @@ Pane {
                 color: Material.accentColor
             }
 
-            Label {
-                text: ''
-            }
-
             RowLayout {
-                Layout.columnSpan: 2
-
-                Button {
-                    text: qsTr('Open Channel')
-                    onClicked: app.stack.push(Qt.resolvedUrl('OpenChannel.qml'))
+                Layout.fillWidth: true
+                Label {
+                    text: Config.formatSats(Daemon.currentWallet.lightningCanReceive)
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                }
+                Label {
+                    text: Daemon.fx.enabled
+                        ? '(' + Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanReceive) + ' ' + Daemon.fx.fiatCurrency + ')'
+                        : ''
                 }
             }
-        }
 
+        }
 
         Frame {
             id: channelsFrame
@@ -92,11 +108,20 @@ Pane {
                     model: Daemon.currentWallet.channelModel
 
                     delegate: ChannelDelegate {
-                        highlighted: ListView.isCurrentItem
+                        //highlighted: ListView.isCurrentItem
                     }
 
                     ScrollIndicator.vertical: ScrollIndicator { }
                 }
+            }
+        }
+
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+            Button {
+                text: qsTr('Open Channel')
+                onClicked: app.stack.push(Qt.resolvedUrl('OpenChannel.qml'))
             }
         }
 

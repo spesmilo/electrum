@@ -121,9 +121,14 @@ class QEWallet(QObject):
             if wallet == self.wallet:
                 self._logger.debug('wallet %s updated' % str(wallet))
                 self.balanceChanged.emit()
-        elif event in ['channel','channels_updated']:
-            # TODO update balance/can-spend etc
-            pass
+        elif event == 'channel':
+            wallet, channel = args
+            if wallet == self.wallet:
+                self.balanceChanged.emit()
+        elif event == 'channels_updated':
+            wallet, = args
+            if wallet == self.wallet:
+                self.balanceChanged.emit()
         else:
             self._logger.debug('unhandled event: %s %s' % (event, str(args)))
 
@@ -278,6 +283,21 @@ class QEWallet(QObject):
             return QEAmount()
         self._lightningbalance = QEAmount(amount_sat=self.wallet.lnworker.get_balance())
         return self._lightningbalance
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningCanSend(self):
+        if not self.isLightning:
+            return QEAmount()
+        self._lightningcansend = QEAmount(amount_sat=self.wallet.lnworker.num_sats_can_send())
+        return self._lightningcansend
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def lightningCanReceive(self):
+        if not self.isLightning:
+            return QEAmount()
+        self._lightningcanreceive = QEAmount(amount_sat=self.wallet.lnworker.num_sats_can_receive())
+        return self._lightningcanreceive
+
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):

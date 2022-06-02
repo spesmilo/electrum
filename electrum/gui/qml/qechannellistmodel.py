@@ -5,24 +5,11 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, register_callback
+from electrum.lnutil import LOCAL, REMOTE
 
 from .qetypes import QEAmount
 
 class QEChannelListModel(QAbstractListModel):
-    def __init__(self, wallet, parent=None):
-        super().__init__(parent)
-        self.wallet = wallet
-        self.init_model()
-
-        interests = ['channel', 'channels_updated', 'gossip_peers',
-                     'ln_gossip_sync_progress', 'unknown_channels',
-                     'channel_db', 'gossip_db_loaded']
-        # To avoid leaking references to "self" that prevent the
-        # window from being GC-ed when closed, callbacks should be
-        # methods of this class only, and specifically not be
-        # partials, lambdas or methods of subobjects.  Hence...
-        register_callback(self.on_network, interests)
-
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
@@ -32,6 +19,43 @@ class QEChannelListModel(QAbstractListModel):
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
+
+    _network_signal = pyqtSignal(str, object)
+
+    def __init__(self, wallet, parent=None):
+        super().__init__(parent)
+        self.wallet = wallet
+        self.init_model()
+
+        self._network_signal.connect(self.on_network_qt)
+        interests = ['channel', 'channels_updated', 'gossip_peers',
+                     'ln_gossip_sync_progress', 'unknown_channels',
+                     'channel_db', 'gossip_db_loaded']
+        # To avoid leaking references to "self" that prevent the
+        # window from being GC-ed when closed, callbacks should be
+        # methods of this class only, and specifically not be
+        # partials, lambdas or methods of subobjects.  Hence...
+        register_callback(self.on_network, interests)
+
+    def on_network(self, event, *args):
+        if event == 'channel':
+            # Handle in GUI thread (_network_signal -> on_network_qt)
+            self._network_signal.emit(event, args)
+        else:
+            self.on_network_qt(event, args)
+
+    def on_network_qt(self, event, args=None):
+        if event == 'channel':
+            wallet, channel = args
+            if wallet == self.wallet:
+                self.on_channel_updated(channel)
+        elif event == 'channels_updated':
+            wallet, = args
+            if wallet == self.wallet:
+                self.init_model() # TODO: remove/add less crude than full re-init
+        else:
+            self._logger.debug('unhandled event %s: %s' % (event, repr(args)))
+
 
     def rowCount(self, index):
         return len(self.channels)
@@ -62,6 +86,8 @@ class QEChannelListModel(QAbstractListModel):
         item['short_cid'] = lnc.short_id_for_GUI()
         item['state'] = lnc.get_state_for_GUI()
         item['capacity'] = QEAmount(amount_sat=lnc.get_capacity())
+        item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
+        item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
         self._logger.debug(repr(item))
         return item
 
@@ -84,18 +110,6 @@ class QEChannelListModel(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), 0, len(channels) - 1)
         self.channels = channels
         self.endInsertRows()
-
-    def on_network(self, event, *args):
-        if event == 'channel':
-            wallet, channel = args
-            if wallet == self.wallet:
-                self.on_channel_updated(channel)
-        elif event == 'channels_updated':
-            wallet, = args
-            if wallet == self.wallet:
-                self.init_model() # TODO: remove/add less crude than full re-init
-        else:
-            self._logger.debug('unhandled event %s: %s' % (event, repr(args)))
 
     def on_channel_updated(self, channel):
         i = 0
