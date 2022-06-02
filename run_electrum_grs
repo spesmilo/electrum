@@ -56,6 +56,12 @@ if is_git_clone:
 if is_local or is_android:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
+if is_pyinstaller:
+    # Keep an open file handle for the binary that started us. On Windows, this
+    # prevents users from moving or renaming the exe file while running (doing which
+    # causes ImportErrors and other runtime failures). (see #4072)
+    _file = open(sys.executable, 'rb')
+
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller

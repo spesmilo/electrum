@@ -558,6 +558,9 @@ class Channel(AbstractChannel):
     forwarding_fee_base_msat = 1000
     forwarding_fee_proportional_millionths = 1
 
+    def __repr__(self):
+        return "Channel(%s)"%self.get_id_for_log()
+
     def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         self.channel_id = bfh(state["channel_id"])

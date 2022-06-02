@@ -443,6 +443,9 @@ class ElectrumWindow(App, Logger):
         self._init_finished = True
 
     def on_pr(self, pr: 'PaymentRequest'):
+        Clock.schedule_once(lambda dt, pr=pr: self._on_pr(pr))
+
+    def _on_pr(self, pr: 'PaymentRequest'):
         if not self.wallet:
             self.show_error(_('No wallet loaded.'))
             return

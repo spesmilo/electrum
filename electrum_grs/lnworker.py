@@ -1501,6 +1501,8 @@ class LNWallet(LNWorker):
             my_active_channels = [
                 chan for chan in self.channels.values() if
                 chan.is_active() and not chan.is_frozen_for_sending()]
+        # try random order
+        random.shuffle(my_active_channels)
         try:
             self.logger.info("trying single-part payment")
             # try to send over a single channel
@@ -2151,15 +2153,14 @@ class LNWallet(LNWorker):
         """
         with self.lock:
             func = self.num_sats_can_send if direction == SENT else self.num_sats_can_receive
-            delta = amount_sat - func()
-            assert delta > 0
-            delta += self.fee_estimate(amount_sat)
-            # add safety margin, for example if channel reserves is not met
-            # also covers swap server percentage fee
-            delta += delta // 20
             suggestions = []
             channels = self.get_channels_for_sending() if direction == SENT else self.get_channels_for_receiving()
             for chan in channels:
+                available_sat = chan.available_to_spend(LOCAL if direction == SENT else REMOTE) // 1000
+                delta = amount_sat - available_sat
+                delta += self.fee_estimate(amount_sat)
+                # add safety margin
+                delta += delta // 100 + 1
                 if func(deltas={chan:delta}) >= amount_sat:
                     suggestions.append((chan, delta))
                 elif direction==RECEIVED and func(deltas={chan:2*delta}) >= amount_sat:
@@ -2199,6 +2200,14 @@ class LNWallet(LNWorker):
                 continue
         else:
             return False
+
+    def num_sats_can_rebalance(self, chan1, chan2):
+        # TODO: we should be able to spend 'max', with variable fee
+        n1 = chan1.available_to_spend(LOCAL)
+        n1 -= self.fee_estimate(n1)
+        n2 = chan2.available_to_spend(REMOTE)
+        amount_sat = min(n1, n2) // 1000
+        return amount_sat
 
     def suggest_rebalance_to_send(self, amount_sat):
         return self._suggest_rebalance(SENT, amount_sat)

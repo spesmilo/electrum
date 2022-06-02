@@ -163,7 +163,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addWidget(QLabel(_('Remote Node ID:')))
         remote_id_e = ButtonsLineEdit(bh2u(chan.node_id))
-        remote_id_e.addCopyButton(self.window.app)
+        remote_id_e.addCopyButton()
         remote_id_e.setReadOnly(True)
         vbox.addWidget(remote_id_e)
         funding_label_text = f'<a href=click_destination>{chan.funding_outpoint.txid}</a>:{chan.funding_outpoint.output_index}'

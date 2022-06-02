@@ -1031,7 +1031,8 @@ def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
     if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
-        data = data[10:]
+        cut_prefix = LIGHTNING_URI_SCHEME + ':'
+        data = data[len(cut_prefix):]
     if data.startswith('ln'):
         return data
     return None

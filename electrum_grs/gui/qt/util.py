@@ -23,13 +23,14 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
-                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem,
+                             QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
                              QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem)
 
 from electrum_grs.i18n import _, languages
 from electrum_grs.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
 from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 from electrum_grs.logging import Logger
+from electrum_grs.qrreader import MissingQrDetectionLib
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -830,47 +831,84 @@ class MySortModel(QSortFilterProxyModel):
             return v1 < v2
 
 
-class ButtonsWidget(QWidget):
+class OverlayControlMixin:
+    STYLE_SHEET_COMMON = '''
+    QPushButton { border-width: 1px; padding: 0px; margin: 0px; }
+    '''
 
-    def __init__(self):
-        super(QWidget, self).__init__()
-        self.buttons = []  # type: List[QToolButton]
+    STYLE_SHEET_LIGHT = '''
+    QPushButton { border: 1px solid transparent; }
+    QPushButton:hover { border: 1px solid #3daee9; }
+    '''
 
-    def resizeButtons(self):
-        frameWidth = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
-        x = self.rect().right() - frameWidth - 10
-        y = self.rect().bottom() - frameWidth
-        for button in self.buttons:
-            sz = button.sizeHint()
-            x -= sz.width()
-            button.move(x, y - sz.height())
+    def __init__(self, middle: bool = False):
+        assert isinstance(self, QWidget)
+        assert isinstance(self, OverlayControlMixin)  # only here for type-hints in IDE
+        self.middle = middle
+        self.overlay_widget = QWidget(self)
+        style_sheet = self.STYLE_SHEET_COMMON
+        if not ColorScheme.dark_scheme:
+            style_sheet = style_sheet + self.STYLE_SHEET_LIGHT
+        self.overlay_widget.setStyleSheet(style_sheet)
+        self.overlay_layout = QHBoxLayout(self.overlay_widget)
+        self.overlay_layout.setContentsMargins(0, 0, 0, 0)
+        self.overlay_layout.setSpacing(1)
+        self._updateOverlayPos()
 
-    def addButton(self, icon_name, on_click, tooltip):
-        button = QToolButton(self)
-        button.setIcon(read_QIcon(icon_name))
-        button.setIconSize(QSize(25,25))
-        button.setCursor(QCursor(Qt.PointingHandCursor))
-        button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
-        button.setVisible(True)
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._updateOverlayPos()
+
+    def _updateOverlayPos(self):
+        frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
+        overlay_size = self.overlay_widget.sizeHint()
+        x = self.rect().right() - frame_width - overlay_size.width()
+        y = self.rect().bottom() - overlay_size.height()
+        middle = self.middle
+        if hasattr(self, 'document'):
+            # Keep the buttons centered if we have less than 2 lines in the editor
+            line_spacing = QFontMetrics(self.document().defaultFont()).lineSpacing()
+            if self.rect().height() < (line_spacing * 2):
+                middle = True
+        y = (y / 2) + frame_width if middle else y - frame_width
+        if hasattr(self, 'verticalScrollBar') and self.verticalScrollBar().isVisible():
+            scrollbar_width = self.style().pixelMetric(QStyle.PM_ScrollBarExtent)
+            x -= scrollbar_width
+        self.overlay_widget.move(int(x), int(y))
+
+    def addWidget(self, widget: QWidget):
+        # The old code positioned the items the other way around, so we just insert at position 0 instead
+        self.overlay_layout.insertWidget(0, widget)
+
+    def addButton(self, icon_name: str, on_click, tooltip: str) -> QPushButton:
+        button = QPushButton(self.overlay_widget)
         button.setToolTip(tooltip)
+        button.setIcon(read_QIcon(icon_name))
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.clicked.connect(on_click)
-        self.buttons.append(button)
+        self.addWidget(button)
         return button
 
-    def addCopyButton(self, app: QApplication):
-        self.app = app
-        self.addButton("copy.png", self.on_copy, _("Copy to clipboard"))
+    def addCopyButton(self):
+        def on_copy():
+            app = QApplication.instance()
+            app.clipboard().setText(self.text())
+            QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
 
-    def on_copy(self):
-        self.app.clipboard().setText(self.text())
-        QToolTip.showText(QCursor.pos(), _("Text copied to clipboard"), self)
+        self.addButton("copy.png", on_copy, _("Copy to clipboard"))
 
-    def addPasteButton(self, app: QApplication):
-        self.app = app
-        self.addButton("copy.png", self.on_paste, _("Paste from clipboard"))
+    def addPasteButton(
+            self,
+            *,
+            setText: Callable[[str], None] = None,
+    ):
+        if setText is None:
+            setText = self.setText
+        def on_paste():
+            app = QApplication.instance()
+            setText(app.clipboard().text())
 
-    def on_paste(self):
-        self.setText(self.app.clipboard().text())
+        self.addButton("copy.png", on_paste, _("Paste from clipboard"))
 
     def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
         if title is None:
@@ -902,8 +940,11 @@ class ButtonsWidget(QWidget):
             config: 'SimpleConfig',
             allow_multi: bool = False,
             show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
     ):
-        def qr_input():
+        if setText is None:
+            setText = self.setText
+        def qr_from_camera_input() -> None:
             def cb(success: bool, error: str, data):
                 if not success:
                     if error:
@@ -915,22 +956,54 @@ class ButtonsWidget(QWidget):
                     new_text = self.text() + data + '\n'
                 else:
                     new_text = data
-                self.setText(new_text)
+                setText(new_text)
 
             from .qrreader import scan_qrcode
             scan_qrcode(parent=self, config=config, callback=cb)
 
+        def qr_from_screenshot_input() -> None:
+            from .qrreader import scan_qr_from_image
+            scanned_qr = None
+            for screen in QApplication.instance().screens():
+                try:
+                    scan_result = scan_qr_from_image(screen.grabWindow(0).toImage())
+                except MissingQrDetectionLib as e:
+                    show_error(_("Unable to scan image.") + "\n" + repr(e))
+                    return
+                if len(scan_result) > 0:
+                    if (scanned_qr is not None) or len(scan_result) > 1:
+                        show_error(_("More than one QR code was found on the screen."))
+                        return
+                    scanned_qr = scan_result
+            if scanned_qr is None:
+                show_error(_("No QR code was found on the screen."))
+                return
+            data = scanned_qr[0].data
+            if allow_multi:
+                new_text = self.text() + data + '\n'
+            else:
+                new_text = data
+            setText(new_text)
+
         icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
-        self.addButton(icon, qr_input, _("Read QR code"))
-        # side-effect: we export this method:
-        self.on_qr_input_btn = qr_input
+        btn = self.addButton(icon, lambda: None, _("Read QR code"))
+        menu = QMenu()
+        menu.addAction(_("Read QR code from camera"), qr_from_camera_input)
+        menu.addAction(_("Read QR code from screen"), qr_from_screenshot_input)
+        btn.setMenu(menu)
+        # side-effect: we export these methods:
+        self.on_qr_from_camera_input_btn = qr_from_camera_input
+        self.on_qr_from_screenshot_input_btn = qr_from_screenshot_input
 
     def add_file_input_button(
             self,
             *,
             config: 'SimpleConfig',
             show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
     ) -> None:
+        if setText is None:
+            setText = self.setText
         def file_input():
             fileName = getOpenFileName(
                 parent=self,
@@ -950,32 +1023,23 @@ class ButtonsWidget(QWidget):
             except BaseException as e:
                 show_error(_('Error opening file') + ':\n' + repr(e))
             else:
-                self.setText(data)
+                setText(data)
 
         self.addButton("file.png", file_input, _("Read file"))
 
 
-class ButtonsLineEdit(QLineEdit, ButtonsWidget):
+class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
     def __init__(self, text=None):
         QLineEdit.__init__(self, text)
-        self.buttons = []
+        OverlayControlMixin.__init__(self, middle=True)
 
-    def resizeEvent(self, e):
-        o = QLineEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
 
-class ButtonsTextEdit(QPlainTextEdit, ButtonsWidget):
+class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
     def __init__(self, text=None):
         QPlainTextEdit.__init__(self, text)
+        OverlayControlMixin.__init__(self)
         self.setText = self.setPlainText
         self.text = self.toPlainText
-        self.buttons = []
-
-    def resizeEvent(self, e):
-        o = QPlainTextEdit.resizeEvent(self, e)
-        self.resizeButtons()
-        return o
 
 
 class PasswordLineEdit(QLineEdit):
