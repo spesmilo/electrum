@@ -1546,6 +1546,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                + _("Integers weights can also be used in conjunction with '!', "
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
+        self.payto_e.addButton(
+            icon_name="help.png",
+            on_click=payto_label.show_help,
+            tooltip=_("Show help"),
+        )
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
 
