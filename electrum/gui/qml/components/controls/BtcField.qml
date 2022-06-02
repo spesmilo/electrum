@@ -22,7 +22,9 @@ TextField {
     Connections {
         target: Config
         function onBaseUnitChanged() {
-            amount.text = amount.textAsSats != 0 ? Config.satsToUnits(amount.textAsSats) : ''
+            amount.text = amount.textAsSats.satsInt != 0
+                ? Config.satsToUnits(amount.textAsSats)
+                : ''
         }
     }
 }

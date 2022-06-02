@@ -12,13 +12,17 @@ Frame {
     property string formattedUnconfirmed
     property string formattedBalanceFiat
     property string formattedUnconfirmedFiat
+    property string formattedLightningBalance
+    property string formattedLightningBalanceFiat
 
     function setBalances() {
         root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
         root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance)
+        root.formattedLightningBalance = Config.formatSats(Daemon.currentWallet.lightningBalance)
         if (Daemon.fx.enabled) {
             root.formattedBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance, false)
             root.formattedUnconfirmedFiat = Daemon.fx.fiatValue(Daemon.currentWallet.unconfirmedBalance, false)
+            root.formattedLightningBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.lightningBalance, false)
         }
     }
 
@@ -92,6 +96,30 @@ Frame {
                     : ''
             }
         }
+        Label {
+            visible: Daemon.currentWallet.isLightning
+            font.pixelSize: constants.fontSizeSmall
+            text: qsTr('Lightning: ')
+        }
+        RowLayout {
+            visible: Daemon.currentWallet.isLightning
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                font.family: FixedFont
+                text: formattedLightningBalance
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                color: Material.accentColor
+                text: Config.baseUnit
+            }
+            Label {
+                font.pixelSize: constants.fontSizeSmall
+                text: Daemon.fx.enabled
+                    ? '(' + root.formattedLightningBalanceFiat + ' ' + Daemon.fx.fiatCurrency + ')'
+                    : ''
+            }
+        }
     }
 
     // instead of all these explicit connections, we should expose
@@ -105,6 +133,12 @@ Frame {
     Connections {
         target: Daemon
         function onWalletLoaded() { setBalances() }
+    }
+
+    Connections {
+        target: Daemon.fx
+        function onEnabledUpdated() { setBalances() }
+        function onQuotesUpdated() { setBalances() }
     }
 
     Connections {

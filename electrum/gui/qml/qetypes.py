@@ -58,3 +58,6 @@ class QEAmount(QObject):
         if self._is_max:
             return '%s(MAX)' % s
         return '%s(sats=%d, msats=%d)' % (s, self._amount_sat, self._amount_msat)
+
+    def __repr__(self):
+        return f"<QEAmount max={self._is_max} sats={self._amount_sat} msats={self._amount_msat}>"
