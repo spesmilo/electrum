@@ -19,6 +19,7 @@ Dialog {
     height: parent.height
 
     title: qsTr('Invoice')
+    standardButtons: invoice_key != '' ? Dialog.Close : Dialog.Cancel
 
     modal: true
     parent: Overlay.overlay
@@ -60,7 +61,6 @@ Dialog {
             text: invoice.message
             Layout.fillWidth: true
             wrapMode: Text.Wrap
-            maximumLineCount: 4
             elide: Text.ElideRight
         }
 
@@ -98,7 +98,14 @@ Dialog {
             text: invoice.status_str
         }
 
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+        Rectangle {
+            height: 1
+            Layout.fillWidth: true
+            Layout.columnSpan: 2
+            color: Material.accentColor
+        }
+
+        Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
 
         RowLayout {
             Layout.columnSpan: 2
@@ -107,6 +114,7 @@ Dialog {
 
             Button {
                 text: qsTr('Delete')
+                icon.source: '../../icons/delete.png'
                 visible: invoice_key != ''
                 onClicked: {
                     invoice.wallet.delete_invoice(invoice_key)
@@ -115,12 +123,9 @@ Dialog {
             }
 
             Button {
-                text: qsTr('Cancel')
-                onClicked: dialog.close()
-            }
-
-            Button {
                 text: qsTr('Save')
+                icon.source: '../../icons/save.png'
+                visible: invoice_key == ''
                 enabled: invoice.invoiceType == Invoice.OnchainInvoice
                 onClicked: {
                     invoice.save_invoice()
@@ -130,6 +135,7 @@ Dialog {
 
             Button {
                 text: qsTr('Pay now')
+                icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
                 onClicked: {
                     invoice.save_invoice()
@@ -140,6 +146,8 @@ Dialog {
                 }
             }
         }
+
+        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
     }
 

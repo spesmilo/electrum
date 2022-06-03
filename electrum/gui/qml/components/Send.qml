@@ -228,7 +228,7 @@ Pane {
 
     Component {
         id: confirmInvoiceDialog
-        ConfirmInvoiceDialog {
+        InvoiceDialog {
             onDoPay: {
                 if (invoice.invoiceType == Invoice.OnchainInvoice) {
                     var dialog = confirmPaymentDialog.createObject(rootItem, {

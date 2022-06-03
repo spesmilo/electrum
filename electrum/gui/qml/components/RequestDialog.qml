@@ -15,7 +15,7 @@ Dialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Ok
+    standardButtons: Dialog.Close
 
     width: parent.width
     height: parent.height
