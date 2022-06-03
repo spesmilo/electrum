@@ -14,6 +14,7 @@ Pane {
     function clear() {
         recipient.text = ''
         amount.text = ''
+        message.text = ''
     }
 
     GridLayout {
@@ -21,10 +22,10 @@ Pane {
         width: parent.width
         rowSpacing: constants.paddingSmall
         columnSpacing: constants.paddingSmall
-        columns: 4
+        columns: 3
 
         BalanceSummary {
-            Layout.columnSpan: 4
+            Layout.columnSpan: 3
             Layout.alignment: Qt.AlignHCenter
         }
 
@@ -32,20 +33,22 @@ Pane {
             text: qsTr('Recipient')
         }
 
-        TextArea {
-            id: recipient
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-            font.family: FixedFont
-            wrapMode: Text.Wrap
-            placeholderText: qsTr('Paste address or invoice')
-            onTextChanged: {
-                if (activeFocus)
-                    invoice.recipient = text
-            }
-        }
-
         RowLayout {
+            Layout.fillWidth: true
+            Layout.columnSpan: 2
+
+            TextArea {
+                id: recipient
+                Layout.fillWidth: true
+                font.family: FixedFont
+                wrapMode: Text.Wrap
+                placeholderText: qsTr('Paste address or invoice')
+                onTextChanged: {
+                    if (activeFocus)
+                        invoice.recipient = text
+                }
+            }
+
             spacing: 0
             ToolButton {
                 icon.source: '../../icons/paste.png'
@@ -75,15 +78,26 @@ Pane {
             id: amount
             fiatfield: amountFiat
             Layout.preferredWidth: parent.width /3
+            onTextChanged: {
+                invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+            }
         }
 
-        Label {
-            text: Config.baseUnit
-            color: Material.accentColor
+        RowLayout {
             Layout.fillWidth: true
-        }
 
-        Item { width: 1; height: 1 }
+            Label {
+                text: Config.baseUnit
+                color: Material.accentColor
+            }
+            Switch {
+                id: is_max
+                text: qsTr('Max')
+                onCheckedChanged: {
+                    invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+                }
+            }
+        }
 
         Item { width: 1; height: 1; visible: Daemon.fx.enabled }
 
@@ -95,13 +109,11 @@ Pane {
         }
 
         Label {
+            Layout.fillWidth: true
             visible: Daemon.fx.enabled
             text: Daemon.fx.fiatCurrency
             color: Material.accentColor
-            Layout.fillWidth: true
         }
-
-        Item { visible: Daemon.fx.enabled ; height: 1; width: 1 }
 
         Label {
             text: qsTr('Description')
@@ -109,40 +121,44 @@ Pane {
 
         TextField {
             id: message
-            font.family: FixedFont
             placeholderText: qsTr('Message')
-            Layout.columnSpan: 3
+            Layout.columnSpan: 2
             Layout.fillWidth: true
+            onTextChanged: {
+                invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+            }
         }
 
         RowLayout {
-            Layout.columnSpan: 4
+            Layout.columnSpan: 3
             Layout.alignment: Qt.AlignHCenter
             spacing: constants.paddingMedium
 
             Button {
                 text: qsTr('Save')
-                enabled: invoice.invoiceType != Invoice.Invalid
+                enabled: invoice.canSave
                 icon.source: '../../icons/save.png'
                 onClicked: {
-                    Daemon.currentWallet.create_invoice(recipient.text, amount.text, message.text)
+                    invoice.save_invoice()
+                    invoice.clear()
+                    rootItem.clear()
                 }
             }
 
             Button {
                 text: qsTr('Pay now')
-                enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
+                enabled: invoice.canPay
                 icon.source: '../../icons/confirmed.png'
                 onClicked: {
-                    var f_amount = parseFloat(amount.text)
-                    if (isNaN(f_amount))
-                        return
+                    invoice.save_invoice()
                     var dialog = confirmPaymentDialog.createObject(app, {
                         'address': recipient.text,
                         'satoshis': Config.unitsToSats(amount.text),
                         'message': message.text
                     })
                     dialog.open()
+                    invoice.clear()
+                    rootItem.clear()
                 }
             }
         }
@@ -291,6 +307,8 @@ Pane {
                 dialog.open()
             }
         }
+        onInvoiceCreateError: console.log(code + ' ' + message)
+
         onInvoiceSaved: {
             console.log('invoice got saved')
             Daemon.currentWallet.invoiceModel.init_model()

@@ -5,13 +5,13 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
 from electrum.logging import get_logger
 from electrum.i18n import _
-from electrum.keystore import bip39_is_checksum_valid
 from electrum.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_bolt11_invoice)
 from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
                                PR_FAILED,PR_ROUTING,PR_UNCONFIRMED)
 from electrum.transaction import PartialTxOutput
+from electrum import bitcoin
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -44,6 +44,8 @@ class QEInvoice(QObject):
     _invoiceType = Type.Invalid
     _recipient = ''
     _effectiveInvoice = None
+    _canSave = False
+    _canPay = False
 
     invoiceChanged = pyqtSignal()
     invoiceSaved = pyqtSignal()
@@ -51,6 +53,8 @@ class QEInvoice(QObject):
     validationSuccess = pyqtSignal()
     validationWarning = pyqtSignal([str,str], arguments=['code', 'message'])
     validationError = pyqtSignal([str,str], arguments=['code', 'message'])
+
+    invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -99,10 +103,7 @@ class QEInvoice(QObject):
         self._amount = QEAmount()
         if not self._effectiveInvoice:
             return self._amount
-        sats = self._effectiveInvoice.get_amount_sat()
-        if not sats:
-            return self._amount
-        self._amount = QEAmount(amount_sat=sats)
+        self._amount = QEAmount(from_invoice=self._effectiveInvoice)
         return self._amount
 
     @pyqtProperty('quint64', notify=invoiceChanged)
@@ -132,12 +133,33 @@ class QEInvoice(QObject):
     def address(self):
         return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
+    @pyqtProperty(bool, notify=invoiceChanged)
+    def canSave(self):
+        return self._canSave
+
+    @canSave.setter
+    def canSave(self, _canSave):
+        if self._canSave != _canSave:
+            self._canSave = _canSave
+            self.invoiceChanged.emit()
+
+    @pyqtProperty(bool, notify=invoiceChanged)
+    def canPay(self):
+        return self._canPay
+
+    @canPay.setter
+    def canPay(self, _canPay):
+        if self._canPay != _canPay:
+            self._canPay = _canPay
+            self.invoiceChanged.emit()
+
     @pyqtSlot()
     def clear(self):
         self.recipient = ''
-        self.invoiceSetsAmount = False
         self.setInvoiceType(QEInvoice.Type.Invalid)
         self._bip21 = None
+        self._canSave = False
+        self._canPay = False
         self.invoiceChanged.emit()
 
     # don't parse the recipient string, but init qeinvoice from an invoice key
@@ -155,6 +177,9 @@ class QEInvoice(QObject):
             self.setInvoiceType(QEInvoice.Type.LightningInvoice)
         else:
             self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
+        # TODO check if exists?
+        self.canSave = True
+        self.canPay = True # TODO
         self.invoiceChanged.emit()
         self.statusChanged.emit()
 
@@ -257,6 +282,7 @@ class QEInvoice(QObject):
 
     @pyqtSlot()
     def save_invoice(self):
+        self.canSave = False
         if not self._effectiveInvoice:
             return
         # TODO detect duplicate?
@@ -265,9 +291,12 @@ class QEInvoice(QObject):
 
     @pyqtSlot(str, QEAmount, str)
     def create_invoice(self, address: str, amount: QEAmount, message: str):
-        # create onchain invoice from user entered fields
+        # create invoice from user entered fields
         # (any other type of invoice is created from parsing recipient)
-        self._logger.debug('saving invoice to %s' % address)
+        self._logger.debug('creating invoice to %s, amount=%s, message=%s' % (address, repr(amount), message))
+
+        self.clear()
+
         if not address:
             self.invoiceCreateError.emit('fatal', _('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
             return
@@ -276,19 +305,17 @@ class QEInvoice(QObject):
             self.invoiceCreateError.emit('fatal', _('Invalid Bitcoin address'))
             return
 
-        if not self.amount:
+        if amount.isEmpty:
             self.invoiceCreateError.emit('fatal', _('Invalid amount'))
             return
 
+        inv_amt = '!' if amount.isMax else (amount.satsInt * 1000) # FIXME msat precision from UI?
 
+        try:
+            outputs = [PartialTxOutput.from_address_and_value(address, inv_amt)]
+            invoice = self._wallet.wallet.create_invoice(outputs=outputs, message=message, pr=None, URI=None)
+        except InvoiceError as e:
+            self.invoiceCreateError.emit('fatal', _('Error creating payment') + ':\n' + str(e))
+            return
 
-        #
-        if self.is_max:
-            amount = '!'
-        else:
-            try:
-                amount = self.app.get_amount(self.amount)
-            except:
-                self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
-                return
-
+        self.set_effective_invoice(invoice)

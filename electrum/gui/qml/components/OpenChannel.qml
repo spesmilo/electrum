@@ -84,7 +84,7 @@ Pane {
         BtcField {
             id: amount
             fiatfield: amountFiat
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
             onTextChanged: channelopener.amount = Config.unitsToSats(amount.text)
             enabled: !is_max.checked
         }
@@ -111,7 +111,7 @@ Pane {
             id: amountFiat
             btcfield: amount
             visible: Daemon.fx.enabled
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
             enabled: !is_max.checked
         }
 
