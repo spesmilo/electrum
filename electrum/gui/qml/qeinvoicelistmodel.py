@@ -18,7 +18,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.init_model()
 
     # define listmodel rolemap
-    _ROLE_NAMES=('key','is_lightning','timestamp','date','message','amount','status','status_str','address','expiration','type')
+    _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
+                 'status', 'status_str', 'address', 'expiration', 'type', 'onchain_fallback')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -96,6 +97,19 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
                 return
             i = i + 1
 
+    def invoice_to_model(self, invoice: Invoice):
+        item = self.get_invoice_as_dict(invoice)
+        item['key'] = invoice.get_id()
+        item['is_lightning'] = invoice.is_lightning()
+        if invoice.is_lightning() and 'address' not in item:
+            item['address'] = ''
+        item['date'] = format_time(item['timestamp'])
+        item['amount'] = QEAmount(from_invoice=invoice)
+        item['onchain_fallback'] = invoice.is_lightning() and invoice._lnaddr.get_fallback_address()
+        item['type'] = 'invoice'
+
+        return item
+
     @abstractmethod
     def get_invoice_for_key(self, key: str):
         raise Exception('provide impl')
@@ -105,8 +119,9 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         raise Exception('provide impl')
 
     @abstractmethod
-    def invoice_to_model(self, invoice: Invoice):
+    def get_invoice_as_dict(self, invoice: Invoice):
         raise Exception('provide impl')
+
 
 class QEInvoiceListModel(QEAbstractInvoiceListModel):
     def __init__(self, wallet, parent=None):
@@ -114,22 +129,20 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel):
 
     _logger = get_logger(__name__)
 
-    def get_invoice_list(self):
-        return self.wallet.get_unpaid_invoices()
-
     def invoice_to_model(self, invoice: Invoice):
-        item = self.wallet.export_invoice(invoice)
-        item['is_lightning'] = invoice.is_lightning()
-        item['date'] = format_time(item['timestamp'])
-        item['amount'] = QEAmount(amount_sat=invoice.get_amount_sat())
-        item['key'] = invoice.get_id()
-
+        item = super().invoice_to_model(invoice)
         item['type'] = 'invoice'
 
         return item
 
+    def get_invoice_list(self):
+        return self.wallet.get_unpaid_invoices()
+
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_invoice(key)
+
+    def get_invoice_as_dict(self, invoice: Invoice):
+        return self.wallet.export_invoice(invoice)
 
 class QERequestListModel(QEAbstractInvoiceListModel):
     def __init__(self, wallet, parent=None):
@@ -137,22 +150,20 @@ class QERequestListModel(QEAbstractInvoiceListModel):
 
     _logger = get_logger(__name__)
 
-    def get_invoice_list(self):
-        return self.wallet.get_unpaid_requests()
-
     def invoice_to_model(self, req: Invoice):
-        item = self.wallet.export_request(req)
-        item['key'] = req.get_rhash() if req.is_lightning() else req.get_address()
-        item['is_lightning'] = req.is_lightning()
-        item['date'] = format_time(item['timestamp'])
-        item['amount'] = QEAmount(amount_sat=req.get_amount_sat())
-
+        item = super().invoice_to_model(req)
         item['type'] = 'request'
 
         return item
 
+    def get_invoice_list(self):
+        return self.wallet.get_unpaid_requests()
+
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)
+
+    def get_invoice_as_dict(self, req: Invoice):
+        return self.wallet.export_request(req)
 
     @pyqtSlot(str, int)
     def updateRequest(self, key, status):

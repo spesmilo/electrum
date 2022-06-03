@@ -164,10 +164,12 @@ Dialog {
 
             Label {
                 text: qsTr('Address')
+                visible: !modelItem.is_lightning
             }
             Label {
                 Layout.fillWidth: true
                 Layout.columnSpan: 3
+                visible: !modelItem.is_lightning
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
                 wrapMode: Text.WrapAnywhere
@@ -175,6 +177,7 @@ Dialog {
             }
             ToolButton {
                 icon.source: '../../icons/copy_bw.png'
+                visible: !modelItem.is_lightning
                 onClicked: {
                     AppController.textToClipboard(modelItem.address)
                 }
@@ -203,8 +206,10 @@ Dialog {
     }
 
     Component.onCompleted: {
-        _bip21uri = bitcoin.create_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
-        qr.source = 'image://qrgen/' + _bip21uri
+        if (!modelItem.is_lightning) {
+            _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
+            qr.source = 'image://qrgen/' + _bip21uri
+        }
     }
 
     Bitcoin {

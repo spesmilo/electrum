@@ -39,7 +39,7 @@ Pane {
         BtcField {
             id: amount
             fiatfield: amountFiat
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
         }
 
         Label {
@@ -55,7 +55,7 @@ Pane {
             id: amountFiat
             btcfield: amount
             visible: Daemon.fx.enabled
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
         }
 
         Label {

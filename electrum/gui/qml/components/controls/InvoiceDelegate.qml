@@ -36,6 +36,18 @@ ItemDelegate {
             source: model.is_lightning
                 ? "../../../icons/lightning.png"
                 : "../../../icons/bitcoin.png"
+
+            Image {
+                visible: model.onchain_fallback
+                z: -1
+                source: "../../../icons/bitcoin.png"
+                anchors {
+                    right: parent.right
+                    bottom: parent.bottom
+                }
+                width: parent.width /2
+                height: parent.height /2
+            }
         }
 
         RowLayout {
@@ -55,13 +67,13 @@ ItemDelegate {
 
             Label {
                 id: amount
-                text: model.amount == 0 ? '' : Config.formatSats(model.amount)
+                text: model.amount.isEmpty ? '' : Config.formatSats(model.amount)
                 font.pixelSize: constants.fontSizeMedium
                 font.family: FixedFont
             }
 
             Label {
-                text: model.amount == 0 ? '' : Config.baseUnit
+                text: model.amount.isEmpty ? '' : Config.baseUnit
                 font.pixelSize: constants.fontSizeMedium
                 color: Material.accentColor
             }
@@ -95,14 +107,14 @@ ItemDelegate {
                 id: fiatValue
                 visible: Daemon.fx.enabled
                 Layout.alignment: Qt.AlignRight
-                text: model.amount == 0 ? '' : Daemon.fx.fiatValue(model.amount, false)
+                text: model.amount.isEmpty ? '' : Daemon.fx.fiatValue(model.amount, false)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeSmall
             }
             Label {
                 visible: Daemon.fx.enabled
                 Layout.alignment: Qt.AlignRight
-                text: model.amount == 0 ? '' : Daemon.fx.fiatCurrency
+                text: model.amount.isEmpty ? '' : Daemon.fx.fiatCurrency
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
             }
@@ -119,16 +131,16 @@ ItemDelegate {
     Connections {
         target: Config
         function onBaseUnitChanged() {
-            amount.text = model.amount == 0 ? '' : Config.formatSats(model.amount)
+            amount.text = model.amount.isEmpty ? '' : Config.formatSats(model.amount)
         }
         function onThousandsSeparatorChanged() {
-            amount.text = model.amount == 0 ? '' : Config.formatSats(model.amount)
+            amount.text = model.amount.isEmpty ? '' : Config.formatSats(model.amount)
         }
     }
     Connections {
         target: Daemon.fx
         function onQuotesUpdated() {
-            fiatValue.text = model.amount == 0 ? '' : Daemon.fx.fiatValue(model.amount, false)
+            fiatValue.text = model.amount.isEmpty ? '' : Daemon.fx.fiatValue(model.amount, false)
         }
     }
 

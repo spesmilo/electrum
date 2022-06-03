@@ -13,7 +13,9 @@ TextField {
     inputMethodHints: Qt.ImhPreferNumbers
     onTextChanged: {
         if (amountFiat.activeFocus)
-            btcfield.text = text == '' ? '' : Config.satsToUnits(Daemon.fx.satoshiValue(amountFiat.text))
+            btcfield.text = text == ''
+                ? ''
+                : Config.satsToUnits(Daemon.fx.satoshiValue(amountFiat.text))
     }
 
     Connections {

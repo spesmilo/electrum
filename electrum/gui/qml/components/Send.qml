@@ -74,7 +74,7 @@ Pane {
         BtcField {
             id: amount
             fiatfield: amountFiat
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
         }
 
         Label {
@@ -91,7 +91,7 @@ Pane {
             id: amountFiat
             btcfield: amount
             visible: Daemon.fx.enabled
-            Layout.preferredWidth: parent.width /2
+            Layout.preferredWidth: parent.width /3
         }
 
         Label {
@@ -123,6 +123,7 @@ Pane {
             Button {
                 text: qsTr('Save')
                 enabled: invoice.invoiceType != Invoice.Invalid
+                icon.source: '../../icons/save.png'
                 onClicked: {
                     Daemon.currentWallet.create_invoice(recipient.text, amount.text, message.text)
                 }
@@ -131,6 +132,7 @@ Pane {
             Button {
                 text: qsTr('Pay now')
                 enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
+                icon.source: '../../icons/confirmed.png'
                 onClicked: {
                     var f_amount = parseFloat(amount.text)
                     if (isNaN(f_amount))
@@ -193,7 +195,7 @@ Pane {
                     model: Daemon.currentWallet.invoiceModel
                     delegate: InvoiceDelegate {
                         onClicked: {
-                            var dialog = confirmInvoiceDialog.createObject(app, {'invoice' : invoice, 'invoice_key': model.key})
+                            var dialog = invoiceDialog.createObject(app, {'invoice' : invoice, 'invoice_key': model.key})
                             dialog.open()
                         }
                     }
@@ -227,7 +229,7 @@ Pane {
     }
 
     Component {
-        id: confirmInvoiceDialog
+        id: invoiceDialog
         InvoiceDialog {
             onDoPay: {
                 if (invoice.invoiceType == Invoice.OnchainInvoice) {
@@ -285,7 +287,7 @@ Pane {
             if (invoiceType == Invoice.OnchainOnlyAddress)
                 recipient.text = invoice.recipient
             else {
-                var dialog = confirmInvoiceDialog.createObject(rootItem, {'invoice': invoice})
+                var dialog = invoiceDialog.createObject(rootItem, {'invoice': invoice})
                 dialog.open()
             }
         }

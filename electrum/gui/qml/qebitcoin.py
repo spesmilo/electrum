@@ -123,7 +123,7 @@ class QEBitcoin(QObject):
             return { 'error': str(e) }
 
     @pyqtSlot(str, QEAmount, str, int, int, result=str)
-    def create_uri(self, address, satoshis, message, timestamp, expiry):
+    def create_bip21_uri(self, address, satoshis, message, timestamp, expiry):
         extra_params = {}
         if expiry:
             extra_params['time'] = str(timestamp)

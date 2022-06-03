@@ -15,11 +15,18 @@ from electrum.util import profiler
 class QEAmount(QObject):
     _logger = get_logger(__name__)
 
-    def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, parent=None):
+    def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, from_invoice = None, parent=None):
         super().__init__(parent)
         self._amount_sat = amount_sat
         self._amount_msat = amount_msat
         self._is_max = is_max
+        if from_invoice:
+            inv_amt = from_invoice.get_amount_msat()
+            if inv_amt == '!':
+                self._is_max = True
+            elif inv_amt is not None:
+                self._amount_msat = inv_amt
+                self._amount_sat = from_invoice.get_amount_sat()
 
     valueChanged = pyqtSignal()
 
@@ -43,6 +50,10 @@ class QEAmount(QObject):
     def isMax(self):
         return self._is_max
 
+    @pyqtProperty(bool, notify=valueChanged)
+    def isEmpty(self):
+        return not(self._is_max or self._amount_sat or self._amount_msat)
+
     def __eq__(self, other):
         if isinstance(other, QEAmount):
             return self._amount_sat == other._amount_sat and self._amount_msat == other._amount_msat and self._is_max == other._is_max
@@ -60,4 +71,4 @@ class QEAmount(QObject):
         return '%s(sats=%d, msats=%d)' % (s, self._amount_sat, self._amount_msat)
 
     def __repr__(self):
-        return f"<QEAmount max={self._is_max} sats={self._amount_sat} msats={self._amount_msat}>"
+        return f"<QEAmount max={self._is_max} sats={self._amount_sat} msats={self._amount_msat} empty={self.isEmpty}>"
