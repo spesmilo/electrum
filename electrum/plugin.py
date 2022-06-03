@@ -43,7 +43,7 @@ from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
-    from .keystore import Hardware_KeyStore
+    from .keystore import Hardware_KeyStore, KeyStore
     from .wallet import Abstract_Wallet
 
 
@@ -776,3 +776,55 @@ class DeviceMgr(ThreadJob):
         except ImportError:
             ret["hidapi.version"] = None
         return ret
+
+    def trigger_pairings(
+            self,
+            keystores: Sequence['KeyStore'],
+            *,
+            allow_user_interaction: bool = True,
+            devices: Sequence['Device'] = None,
+    ) -> None:
+        """Given a list of keystores, try to pair each with a connected hardware device.
+
+        E.g. for a multisig-wallet, it is more user-friendly to use this method than to
+        try to pair each keystore individually. Consider the following scenario:
+        - three hw keystores in a 2-of-3 multisig wallet, devices d2 (for ks2) and d3 (for ks3) are connected
+        - assume none of the devices are paired yet
+        1. if we tried to individually pair keystores, we might try with ks1 first
+           - but ks1 cannot be paired automatically, as neither d2 nor d3 matches the stored fingerprint
+           - the user might then be prompted if they want to manually pair ks1 with either d2 or d3,
+             which is confusing and error-prone. It's especially problematic if the hw device does
+             not support labels (such as Ledger), as then the user cannot easily distinguish
+             same-type devices. (see #4199)
+        2. instead, if using this method, we would auto-pair ks2-d2 and ks3-d3 first,
+           and then tell the user ks1 could not be paired (and there are no devices left to try)
+        """
+        from .keystore import Hardware_KeyStore
+        keystores = [ks for ks in keystores if isinstance(ks, Hardware_KeyStore)]
+        if not keystores:
+            return
+        if devices is None:
+            devices = self.scan_devices()
+        # first pair with all devices that can be auto-selected
+        for ks in keystores:
+            try:
+                ks.plugin.get_client(
+                    keystore=ks,
+                    force_pair=True,
+                    allow_user_interaction=False,
+                    devices=devices,
+                )
+            except UserCancelled:
+                pass
+        if allow_user_interaction:
+            # now do manual selections
+            for ks in keystores:
+                try:
+                    ks.plugin.get_client(
+                        keystore=ks,
+                        force_pair=True,
+                        allow_user_interaction=True,
+                        devices=devices,
+                    )
+                except UserCancelled:
+                    pass
