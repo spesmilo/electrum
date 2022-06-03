@@ -269,16 +269,16 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         assert xfp is not None
         return xfp_int_from_xfp_bytes(bfh(xfp))
 
-    def get_client(self):
+    def get_client(self, *args, **kwargs):
         # called when user tries to do something like view address, sign somthing.
         # - not called during probing/setup
         # - will fail if indicated device can't produce the xpub (at derivation) expected
-        rv = self.plugin.get_client(self)
-        if rv:
+        client = super().get_client(*args, **kwargs)  # type: Optional[CKCCClient]
+        if client:
             xfp_int = self.get_xfp_int()
-            rv.verify_connection(xfp_int, self.ckcc_xpub)
+            client.verify_connection(xfp_int, self.ckcc_xpub)
 
-        return rv
+        return client
 
     def give_error(self, message):
         self.logger.info(message)

@@ -29,9 +29,6 @@ class SafeTKeyStore(Hardware_KeyStore):
 
     plugin: 'SafeTPlugin'
 
-    def get_client(self, force_pair=True):
-        return self.plugin.get_client(self, force_pair)
-
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 

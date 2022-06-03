@@ -808,8 +808,7 @@ class DeviceMgr(ThreadJob):
         # first pair with all devices that can be auto-selected
         for ks in keystores:
             try:
-                ks.plugin.get_client(
-                    keystore=ks,
+                ks.get_client(
                     force_pair=True,
                     allow_user_interaction=False,
                     devices=devices,
@@ -820,8 +819,7 @@ class DeviceMgr(ThreadJob):
             # now do manual selections
             for ks in keystores:
                 try:
-                    ks.plugin.get_client(
-                        keystore=ks,
+                    ks.get_client(
                         force_pair=True,
                         allow_user_interaction=True,
                         devices=devices,

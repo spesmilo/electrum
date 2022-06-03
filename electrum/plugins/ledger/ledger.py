@@ -143,7 +143,7 @@ class Ledger_Client(HardwareClientBase):
                          fingerprint=fingerprint_bytes,
                          child_number=childnum_bytes).to_xpub()
 
-    def has_detached_pin_support(self, client):
+    def has_detached_pin_support(self, client: 'btchip'):
         try:
             client.getVerifyPinRemainingAttempts()
             return True
@@ -152,7 +152,7 @@ class Ledger_Client(HardwareClientBase):
                 return False
             raise e
 
-    def is_pin_validated(self, client):
+    def is_pin_validated(self, client: 'btchip'):
         try:
             # Invalid SET OPERATION MODE to verify the PIN status
             client.dongle.exchange(bytearray([0xe0, 0x26, 0x00, 0x00, 0x01, 0xAB]))
@@ -254,11 +254,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         obj['cfg'] = self.cfg
         return obj
 
-    def get_client(self):
-        return self.plugin.get_client(self).dongleObject
-
-    def get_client_electrum(self) -> Optional[Ledger_Client]:
-        return self.plugin.get_client(self)
+    def get_client_dongle_object(self) -> 'btchip':
+        client_electrum = self.get_client()
+        return client_electrum.dongleObject
 
     def give_error(self, message):
         _logger.info(message)
@@ -288,8 +286,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
-        client_ledger = self.get_client()
-        client_electrum = self.get_client_electrum()
+        client_ledger = self.get_client_dongle_object()
+        client_electrum = self.get_client()
         address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
@@ -352,8 +350,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         p2shTransaction = False
         segwitTransaction = False
         pin = ""
-        client_ledger = self.get_client() # prompt for the PIN before displaying the dialog if necessary
-        client_electrum = self.get_client_electrum()
+        client_ledger = self.get_client_dongle_object() # prompt for the PIN before displaying the dialog if necessary
+        client_electrum = self.get_client()
         assert client_electrum
 
         # Fetch inputs of the transaction to sign
@@ -552,13 +550,13 @@ class Ledger_KeyStore(Hardware_KeyStore):
     @test_pin_unlocked
     @set_and_unset_signing
     def show_address(self, sequence, txin_type):
-        client = self.get_client()
+        client_ledger = self.get_client_dongle_object()
         address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
         segwit = is_segwit_script_type(txin_type)
         segwitNative = txin_type == 'p2wpkh'
         try:
-            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
+            client_ledger.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
         except BTChipException as e:
             if e.sw == 0x6985:  # cancelled by user
                 pass

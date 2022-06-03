@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from .gui.qt.util import TaskThread
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .wallet_db import WalletDB
+    from .plugin import Device
 
 
 class CannotDerivePubkey(Exception): pass
@@ -840,17 +841,28 @@ class Hardware_KeyStore(Xpub, KeyStore):
         assert not self.has_seed()
         return False
 
+    def get_client(
+            self,
+            force_pair: bool = True,
+            *,
+            devices: Sequence['Device'] = None,
+            allow_user_interaction: bool = True,
+    ) -> Optional['HardwareClientBase']:
+        return self.plugin.get_client(
+            self,
+            force_pair=force_pair,
+            devices=devices,
+            allow_user_interaction=allow_user_interaction,
+        )
+
     def get_password_for_storage_encryption(self) -> str:
-        client = self.plugin.get_client(self)
+        client = self.get_client()
         return client.get_password_for_storage_encryption()
 
     def has_usable_connection_with_device(self) -> bool:
-        if not hasattr(self, 'plugin'):
-            return False
         # we try to create a client even if there isn't one already,
         # but do not prompt the user if auto-select fails:
-        client = self.plugin.get_client(
-            self,
+        client = self.get_client(
             force_pair=True,
             allow_user_interaction=False,
         )
