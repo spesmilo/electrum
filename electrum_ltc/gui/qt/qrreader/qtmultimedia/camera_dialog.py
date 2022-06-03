@@ -36,7 +36,7 @@ from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
 
 from electrum_ltc.simple_config import SimpleConfig
 from electrum_ltc.i18n import _
-from electrum_ltc.qrreader import get_qr_reader, QrCodeResult
+from electrum_ltc.qrreader import get_qr_reader, QrCodeResult, MissingQrDetectionLib
 from electrum_ltc.logging import Logger
 
 from electrum_ltc.gui.qt.util import MessageBoxMixin, FixedAspectRatioLayout, ImageGraphicsEffect
@@ -57,10 +57,6 @@ class NoCamerasFound(CameraError):
 
 class NoCameraResolutionsFound(CameraError):
     ''' Raised internally if no usable camera resolutions were found. '''
-
-class MissingQrDetectionLib(RuntimeError):
-    ''' Raised if we can't find zbar or whatever other platform lib
-    we require to detect QR in image frames. '''
 
 class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
     """
@@ -97,8 +93,6 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
         # Try to get the QR reader for this system
         self.qrreader = get_qr_reader()
-        if not self.qrreader:
-            raise MissingQrDetectionLib(_("The platform QR detection library is not available."))
 
         # Set up the window, add the maximize button
         flags = self.windowFlags()

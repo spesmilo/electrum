@@ -30,7 +30,9 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
-        m.addAction(_("Read QR code"), self.on_qr_input_btn)
+        m.addSeparator()
+        m.addAction(_("Read QR code from camera"), self.on_qr_from_camera_input_btn)
+        m.addAction(_("Read QR code from screen"), self.on_qr_from_screenshot_input_btn)
         m.exec_(e.globalPos())
 
 
@@ -46,6 +48,8 @@ class ScanShowQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
-        m.addAction(_("Read QR code"), self.on_qr_input_btn)
+        m.addSeparator()
+        m.addAction(_("Read QR code from camera"), self.on_qr_from_camera_input_btn)
+        m.addAction(_("Read QR code from screen"), self.on_qr_from_screenshot_input_btn)
         m.addAction(_("Show as QR code"), self.on_qr_show_btn)
         m.exec_(e.globalPos())

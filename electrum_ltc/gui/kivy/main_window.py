@@ -783,6 +783,33 @@ class ElectrumWindow(App, Logger):
             self._channels_dialog = LightningChannelsDialog(self)
         self._channels_dialog.open()
 
+    def delete_ln_gossip_dialog(self):
+        def delete_gossip(b: bool):
+            if not b:
+                return
+            if self.network:
+                self.network.run_from_another_thread(
+                    self.network.stop_gossip(full_shutdown=True))
+
+            os.unlink(gossip_db_file)
+            self.show_error(_("Local gossip database deleted."))
+            self.network.start_gossip()
+
+        if self.network is None or self.network.channel_db is None:
+            return  # TODO show msg to user, or the button should be disabled instead
+        gossip_db_file = self.network.channel_db.get_file_path(self.electrum_config)
+        try:
+            size_mb = os.path.getsize(gossip_db_file) / (1024**2)
+        except OSError:
+            self.logger.exception("Cannot get file size.")
+            return
+        d = Question(
+            _('Do you want to delete the local gossip database?') + '\n' +
+            '(' + _('file size') + f': {size_mb:.2f} MiB)\n' +
+            _('It will be automatically re-downloaded after, unless you disable the gossip.'),
+            delete_gossip)
+        d.open()
+
     def on_channel(self, evt, wallet, chan):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())

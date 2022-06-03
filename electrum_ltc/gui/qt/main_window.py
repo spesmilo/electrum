@@ -1240,7 +1240,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
-            e.addCopyButton(self.app)
+            e.addCopyButton()
             e.setReadOnly(True)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
@@ -1520,7 +1520,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        self.payto_e.addPasteButton(self.app)
+        self.payto_e.addPasteButton()
         msg = (_("Recipient of the funds.") + "\n\n"
                + _("You may enter a Litecoin address, a label from your list of contacts "
                    "(a list of completions will be proposed), "
@@ -2445,7 +2445,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         grid.addWidget(QLabel(invoice.message), 2, 1)
         grid.addWidget(QLabel(_("Hash") + ':'), 3, 0)
         payhash_e = ButtonsLineEdit(lnaddr.paymenthash.hex())
-        payhash_e.addCopyButton(self.app)
+        payhash_e.addCopyButton()
         payhash_e.setReadOnly(True)
         vbox.addWidget(payhash_e)
         grid.addWidget(payhash_e, 3, 1)
@@ -2454,7 +2454,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         vbox.addLayout(grid)
         invoice_e = ShowQRTextEdit(config=self.config)
-        invoice_e.addCopyButton(self.app)
+        invoice_e.addCopyButton()
         invoice_e.setText(invoice.lightning_invoice)
         vbox.addWidget(invoice_e)
         vbox.addLayout(Buttons(CloseButton(d),))
@@ -2753,7 +2753,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ButtonsLineEdit(nodeid_text)
             nodeid_e.add_qr_show_button(config=self.config, title=_("Node ID"))
-            nodeid_e.addCopyButton(self.app)
+            nodeid_e.addCopyButton()
             nodeid_e.setReadOnly(True)
             nodeid_e.setFont(QFont(MONOSPACE_FONT))
             grid.addWidget(nodeid_e, 8, 0, 1, 4)
@@ -2800,7 +2800,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
                 mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=self.config)
                 mpk_text.setMaximumHeight(150)
-                mpk_text.addCopyButton(self.app)
+                mpk_text.addCopyButton()
                 run_hook('show_xpub_button', mpk_text, ks)
 
                 der_path_hbox = QHBoxLayout()
@@ -2895,7 +2895,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox.addWidget(QLabel(_("Script type") + ': ' + xtype))
         vbox.addWidget(QLabel(_("Private key") + ':'))
         keys_e = ShowQRTextEdit(text=pk, config=self.config)
-        keys_e.addCopyButton(self.app)
+        keys_e.addCopyButton()
         vbox.addWidget(keys_e)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
