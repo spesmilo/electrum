@@ -99,7 +99,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     def invoice_to_model(self, invoice: Invoice):
         item = self.get_invoice_as_dict(invoice)
-        item['key'] = invoice.get_id()
+        #item['key'] = invoice.get_id()
         item['is_lightning'] = invoice.is_lightning()
         if invoice.is_lightning() and 'address' not in item:
             item['address'] = ''
@@ -132,6 +132,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel):
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'invoice'
+        item['key'] = invoice.get_id()
 
         return item
 
@@ -150,9 +151,10 @@ class QERequestListModel(QEAbstractInvoiceListModel):
 
     _logger = get_logger(__name__)
 
-    def invoice_to_model(self, req: Invoice):
-        item = super().invoice_to_model(req)
+    def invoice_to_model(self, invoice: Invoice):
+        item = super().invoice_to_model(invoice)
         item['type'] = 'request'
+        item['key'] = invoice.get_id() if invoice.is_lightning() else invoice.get_address()
 
         return item
 
@@ -162,8 +164,8 @@ class QERequestListModel(QEAbstractInvoiceListModel):
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)
 
-    def get_invoice_as_dict(self, req: Invoice):
-        return self.wallet.export_request(req)
+    def get_invoice_as_dict(self, invoice: Invoice):
+        return self.wallet.export_request(invoice)
 
     @pyqtSlot(str, int)
     def updateRequest(self, key, status):
