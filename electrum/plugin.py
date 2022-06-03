@@ -632,9 +632,11 @@ class DeviceMgr(ThreadJob):
             if not allow_user_interaction:
                 raise CannotAutoSelectDevice()
             msg = _('Please insert your {}').format(plugin.device)
+            msg += " ("
             if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
-                msg += ' ({})'.format(keystore.label)
-            msg += '. {}\n\n{}'.format(
+                msg += f"label: {keystore.label}, "
+            msg += f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r}"
+            msg += ').\n\n{}\n\n{}'.format(
                 _('Verify the cable is connected and that '
                   'no other application is using it.'),
                 _('Try to connect again?')

@@ -2817,19 +2817,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 mpk_text.setMaximumHeight(150)
                 mpk_text.addCopyButton()
                 run_hook('show_xpub_button', mpk_text, ks)
+                ks_vbox.addWidget(WWLabel(_("Master Public Key")))
+                ks_vbox.addWidget(mpk_text)
 
                 der_path_hbox = QHBoxLayout()
                 der_path_hbox.setContentsMargins(0, 0, 0, 0)
-
                 der_path_hbox.addWidget(WWLabel(_("Derivation path") + ':'))
                 der_path_text = WWLabel(ks.get_derivation_prefix() or _("unknown"))
                 der_path_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 der_path_hbox.addWidget(der_path_text)
                 der_path_hbox.addStretch()
-
-                ks_vbox.addWidget(WWLabel(_("Master Public Key")))
-                ks_vbox.addWidget(mpk_text)
                 ks_vbox.addLayout(der_path_hbox)
+
+                bip32fp_hbox = QHBoxLayout()
+                bip32fp_hbox.setContentsMargins(0, 0, 0, 0)
+                bip32fp_hbox.addWidget(QLabel("BIP32 root fingerprint:"))
+                bip32fp_text = WWLabel(ks.get_root_fingerprint() or _("unknown"))
+                bip32fp_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                bip32fp_hbox.addWidget(bip32fp_text)
+                bip32fp_hbox.addStretch()
+                ks_vbox.addLayout(bip32fp_hbox)
 
                 ks_stack.addWidget(ks_w)
 
