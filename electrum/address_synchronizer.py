@@ -57,14 +57,6 @@ class HistoryItem(NamedTuple):
     balance: int
 
 
-class TxWalletDelta(NamedTuple):
-    is_relevant: bool  # "related to wallet?"
-    is_any_input_ismine: bool
-    is_all_input_ismine: bool
-    delta: int
-    fee: Optional[int]
-
-
 class AddressSynchronizer(Logger):
     """ address database """
 
@@ -110,6 +102,9 @@ class AddressSynchronizer(Logger):
         self.remove_local_transactions_we_dont_have()
 
     def is_mine(self, address: Optional[str]) -> bool:
+        """Returns whether an address is in our set
+        Note: This class has a larget set of addresses than the wallet
+        """
         if not address: return False
         return self.db.is_addr_in_history(address)
 
@@ -719,44 +714,6 @@ class AddressSynchronizer(Logger):
             delta += v
         return delta
 
-    def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
-        """effect of tx on wallet"""
-        is_relevant = False  # "related to wallet?"
-        num_input_ismine = 0
-        v_in = v_in_mine = v_out = v_out_mine = 0
-        with self.lock, self.transaction_lock:
-            for txin in tx.inputs():
-                addr = self.get_txin_address(txin)
-                value = self.get_txin_value(txin, address=addr)
-                if self.is_mine(addr):
-                    num_input_ismine += 1
-                    is_relevant = True
-                    assert value is not None
-                    v_in_mine += value
-                if value is None:
-                    v_in = None
-                elif v_in is not None:
-                    v_in += value
-            for txout in tx.outputs():
-                v_out += txout.value
-                if self.is_mine(txout.address):
-                    v_out_mine += txout.value
-                    is_relevant = True
-        delta = v_out_mine - v_in_mine
-        if v_in is not None:
-            fee = v_in - v_out
-        else:
-            fee = None
-        if fee is None and isinstance(tx, PartialTransaction):
-            fee = tx.get_fee()
-        return TxWalletDelta(
-            is_relevant=is_relevant,
-            is_any_input_ismine=num_input_ismine > 0,
-            is_all_input_ismine=num_input_ismine == len(tx.inputs()),
-            delta=delta,
-            fee=fee,
-        )
-
     def get_tx_fee(self, txid: str) -> Optional[int]:
         """ Returns tx_fee or None. Use server fee only if tx is unconfirmed and not mine"""
         # check if stored fee is available
@@ -782,7 +739,22 @@ class AddressSynchronizer(Logger):
         tx = self.db.get_transaction(txid)
         if not tx:
             return None
-        fee = self.get_wallet_delta(tx).fee
+        # compute fee if possible
+        v_in = v_out = 0
+        with self.lock, self.transaction_lock:
+            for txin in tx.inputs():
+                addr = self.get_txin_address(txin)
+                value = self.get_txin_value(txin, address=addr)
+                if value is None:
+                    v_in = None
+                elif v_in is not None:
+                    v_in += value
+            for txout in tx.outputs():
+                v_out += txout.value
+        if v_in is not None:
+            fee = v_in - v_out
+        else:
+            fee = None
         # save result
         self.db.add_tx_fee_we_calculated(txid, fee)
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))

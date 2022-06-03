@@ -243,6 +243,12 @@ class InternalAddressCorruption(Exception):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
+class TxWalletDelta(NamedTuple):
+    is_relevant: bool  # "related to wallet?"
+    is_any_input_ismine: bool
+    is_all_input_ismine: bool
+    delta: int
+    fee: Optional[int]
 
 class TxWalletDetails(NamedTuple):
     txid: Optional[str]
@@ -655,8 +661,48 @@ class Abstract_Wallet(ABC):
     def is_swap_tx(self, tx: Transaction) -> bool:
         return bool(self.lnworker.swap_manager.get_swap_by_tx(tx)) if self.lnworker else False
 
+    def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
+        """Return the effect a transaction has on the wallet.
+        This method must use self.is_mine, not self.adb.is_mine()
+        """
+        is_relevant = False  # "related to wallet?"
+        num_input_ismine = 0
+        v_in = v_in_mine = v_out = v_out_mine = 0
+        with self.lock, self.transaction_lock:
+            for txin in tx.inputs():
+                addr = self.adb.get_txin_address(txin)
+                value = self.adb.get_txin_value(txin, address=addr)
+                if self.is_mine(addr):
+                    num_input_ismine += 1
+                    is_relevant = True
+                    assert value is not None
+                    v_in_mine += value
+                if value is None:
+                    v_in = None
+                elif v_in is not None:
+                    v_in += value
+            for txout in tx.outputs():
+                v_out += txout.value
+                if self.is_mine(txout.address):
+                    v_out_mine += txout.value
+                    is_relevant = True
+        delta = v_out_mine - v_in_mine
+        if v_in is not None:
+            fee = v_in - v_out
+        else:
+            fee = None
+        if fee is None and isinstance(tx, PartialTransaction):
+            fee = tx.get_fee()
+        return TxWalletDelta(
+            is_relevant=is_relevant,
+            is_any_input_ismine=num_input_ismine > 0,
+            is_all_input_ismine=num_input_ismine == len(tx.inputs()),
+            delta=delta,
+            fee=fee,
+        )
+
     def get_tx_info(self, tx: Transaction) -> TxWalletDetails:
-        tx_wallet_delta = self.adb.get_wallet_delta(tx)
+        tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
         is_swap = self.is_swap_tx(tx)
