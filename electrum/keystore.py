@@ -797,7 +797,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.xpub = d.get('xpub')
-        self.label = d.get('label')
+        self.label = d.get('label')  # type: Optional[str]
         self.soft_device_id = d.get('soft_device_id')  # type: Optional[str]
         self.handler = None  # type: Optional[HardwareHandlerBase]
         run_hook('init_keystore', self)

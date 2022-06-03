@@ -671,12 +671,12 @@ class DeviceMgr(ThreadJob):
         if not allow_user_interaction:
             raise CannotAutoSelectDevice()
         # ask user to select device manually
-        msg = ""
-        if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
-            msg += _(
-                """Could not automatically pair with device """
-                """for keystore labelled "{}".\n""").format(keystore.label)
+        msg = (
+                _("Could not automatically pair with device for given keystore.") + "\n"
+                + f"(keystore label: {keystore.label!r}, "
+                + f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r})\n\n")
         msg += _("Please select which {} device to use:").format(plugin.device)
+        msg += "\n(" + _("Or click cancel to skip this keystore instead.") + ")"
         descriptions = ["{label} ({maybe_model}{init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),

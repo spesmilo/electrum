@@ -2153,6 +2153,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def query_choice(self, msg, choices):
         # Needed by QtHandler for hardware wallets
         dialog = WindowModalDialog(self.top_level_window(), title='Question')
+        dialog.setMinimumWidth(400)
         clayout = ChoicesLayout(msg, choices)
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
