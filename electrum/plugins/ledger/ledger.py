@@ -254,9 +254,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
         obj['cfg'] = self.cfg
         return obj
 
-    def get_client_dongle_object(self) -> 'btchip':
-        client_electrum = self.get_client()
-        return client_electrum.dongleObject
+    def get_client_dongle_object(self, *, client: Optional['Ledger_Client'] = None) -> 'btchip':
+        if client is None:
+            client = self.get_client()
+        return client.dongleObject
 
     def give_error(self, message):
         _logger.info(message)
@@ -286,8 +287,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
-        client_ledger = self.get_client_dongle_object()
         client_electrum = self.get_client()
+        client_ledger = self.get_client_dongle_object(client=client_electrum)
         address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
@@ -350,9 +351,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
         p2shTransaction = False
         segwitTransaction = False
         pin = ""
-        client_ledger = self.get_client_dongle_object() # prompt for the PIN before displaying the dialog if necessary
+        # prompt for the PIN before displaying the dialog if necessary
         client_electrum = self.get_client()
         assert client_electrum
+        client_ledger = self.get_client_dongle_object(client=client_electrum)
 
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
