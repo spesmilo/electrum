@@ -2166,9 +2166,12 @@ class LNWallet(LNWorker):
             else:
                 delta_msat = 0
             return chan.available_to_spend(REMOTE) + delta_msat
+        # bucket channels that we have with the same node
+        can_recv_dict = defaultdict(int)
         with self.lock:
-            recv_channels = self.get_channels_for_receiving()
-            recv_chan_msats = [recv_capacity(chan) for chan in recv_channels]
+            for c in self.get_channels_for_receiving():
+                can_recv_dict[c.node_id] += recv_capacity(c)
+        recv_chan_msats = list(can_recv_dict.values())
         if not recv_chan_msats:
             return Decimal(0)
         can_receive_msat = max(
