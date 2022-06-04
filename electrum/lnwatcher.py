@@ -12,7 +12,7 @@ from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
 from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
-from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
+from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint
 from .transaction import match_script_against_template
 from .lnutil import WITNESS_TEMPLATE_RECEIVED_HTLC, WITNESS_TEMPLATE_OFFERED_HTLC
@@ -308,7 +308,7 @@ class LNWatcher(Logger):
             return TxMinedDepth.SHALLOW
         elif height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
             return TxMinedDepth.MEMPOOL
-        elif height == TX_HEIGHT_LOCAL:
+        elif height in (TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE):
             return TxMinedDepth.FREE
         elif height > 0 and conf == 0:
             # unverified but claimed to be mined
@@ -432,6 +432,7 @@ class LNWalletWatcher(LNWatcher):
                                   keep_watching=keep_watching)
         await self.lnworker.on_channel_update(chan)
 
+    @log_exceptions
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
@@ -443,19 +444,20 @@ class LNWalletWatcher(LNWatcher):
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name + ' ' + chan.get_id_for_log()
-            spender_txid = spenders.get(prevout)
+            spender_txid = self.maybe_add_redeem_tx(spenders, prevout, sweep_info, name)
             if spender_txid is not None:
                 spender_tx = self.adb.get_transaction(spender_txid)
                 if not spender_tx:
                     keep_watching = True
                     continue
+                await self.maybe_broadcast(prevout, sweep_info, name, spender_txid)
                 e_htlc_tx = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
                 if e_htlc_tx:
-                    spender2 = spenders.get(spender_txid+':0')
+                    spender2 = self.maybe_add_redeem_tx(spenders, spender_txid+':0', e_htlc_tx, name)
                     if spender2:
+                        await self.maybe_broadcast(prevout, sweep_info, name, spender2)
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
-                        await self.try_redeem(spender_txid+':0', e_htlc_tx, chan_id_for_log, name)
                         keep_watching = True
                 else:
                     keep_watching |= not self.is_deeply_mined(spender_txid)
@@ -464,12 +466,37 @@ class LNWalletWatcher(LNWatcher):
                     spender_txin = spender_tx.inputs()[txin_idx]
                     chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
-                await self.try_redeem(prevout, sweep_info, chan_id_for_log, name)
                 keep_watching = True
         return keep_watching
 
-    @log_exceptions
-    async def try_redeem(self, prevout: str, sweep_info: 'SweepInfo', chan_id_for_log: str, name: str) -> None:
+    def maybe_add_redeem_tx(self, spenders, prevout: str, sweep_info: 'SweepInfo', name: str):
+        txid = spenders.get(prevout)
+        if txid:
+            return txid
+        prev_txid, prev_index = prevout.split(':')
+        tx = sweep_info.gen_tx()
+        if tx is None:
+            self.logger.info(f'{name} could not claim output: {prevout}, dust')
+            return
+        txid = tx.txid()
+        # it's OK to add local transaction, the fee will be recomputed
+        try:
+            tx_was_added = self.adb.add_transaction(tx)
+        except Exception as e:
+            self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+            tx_was_added = False
+        if tx_was_added:
+            self.lnworker.wallet.set_label(txid, name)
+            self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
+            util.trigger_callback('wallet_updated', self.lnworker.wallet)
+            return txid
+
+    async def maybe_broadcast(self, prevout, sweep_info: 'SweepInfo', name: str, txid: str) -> None:
+        if self.get_tx_mined_depth(txid) != TxMinedDepth.FREE:
+            return
+        tx = self.adb.get_transaction(txid)
+        if tx is None:
+            return
         prev_txid, prev_index = prevout.split(':')
         broadcast = True
         local_height = self.network.get_local_height()
@@ -477,32 +504,15 @@ class LNWalletWatcher(LNWatcher):
             wanted_height = sweep_info.cltv_expiry
             if wanted_height - local_height > 0:
                 broadcast = False
-                reason = 'waiting for {}: CLTV ({} > {}), prevout {}'.format(name, local_height, sweep_info.cltv_expiry, prevout)
+                reason = 'waiting for {}: CLTV ({} > {})'.format(name, local_height, sweep_info.cltv_expiry)
         if sweep_info.csv_delay:
             prev_height = self.adb.get_tx_height(prev_txid)
             wanted_height = sweep_info.csv_delay + prev_height.height - 1
             if prev_height.height <= 0 or wanted_height - local_height > 0:
                 broadcast = False
-                reason = 'waiting for {}: CSV ({} >= {}), prevout: {}'.format(name, prev_height.conf, sweep_info.csv_delay, prevout)
-        tx = sweep_info.gen_tx()
-        if tx is None:
-            self.logger.info(f'{name} could not claim output: {prevout}, dust')
-            return
-        txid = tx.txid()
-        self.lnworker.wallet.set_label(txid, name)
+                reason = 'waiting for {}: CSV ({} >= {})'.format(name, prev_height.conf, sweep_info.csv_delay)
         if broadcast:
             await self.network.try_broadcasting(tx, name)
         else:
-            if txid in self.adb.future_tx:
-                return
-            self.logger.debug(f'(chan {chan_id_for_log}) trying to redeem {name}: {prevout}')
-            self.logger.info(reason)
-            # it's OK to add local transaction, the fee will be recomputed
-            try:
-                tx_was_added = self.adb.add_future_tx(tx, wanted_height)
-            except Exception as e:
-                self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
-                tx_was_added = False
-            if tx_was_added:
-                self.logger.info(f'added future tx: {name}. prevout: {prevout}')
-                util.trigger_callback('wallet_updated', self.lnworker.wallet)
+            self.adb.set_future_tx(tx.txid(), wanted_height)
+            util.trigger_callback('wallet_updated', self.lnworker.wallet)

@@ -639,12 +639,9 @@ class AddressSynchronizer(Logger):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def add_future_tx(self, tx: Transaction, wanted_height: int) -> bool:
+    def set_future_tx(self, txid:str, wanted_height: int):
         with self.lock:
-            tx_was_added = self.add_transaction(tx)
-            if tx_was_added:
-                self.future_tx[tx.txid()] = wanted_height
-            return tx_was_added
+            self.future_tx[txid] = wanted_height
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         if tx_hash is None:  # ugly backwards compat...
