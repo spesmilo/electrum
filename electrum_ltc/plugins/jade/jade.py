@@ -237,9 +237,6 @@ class Jade_KeyStore(Hardware_KeyStore):
 
     plugin: 'JadePlugin'
 
-    def get_client(self):
-        return self.plugin.get_client(self)
-
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
