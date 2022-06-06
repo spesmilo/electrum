@@ -281,6 +281,15 @@ class SeedLayout(QVBoxLayout):
         else:
             t = seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
+            if t and not b:  # electrum seed, but does not conform to dialog rules
+                msg = ' '.join([
+                    '<b>' + _('Warning') + ':</b>  ',
+                    _("Looks like you have entered a valid seed of type '{}' but this dialog does not support such seeds.").format(t),
+                    _("If unsure, try restoring as '{}'.").format(_("Standard wallet")),
+                ])
+                self.seed_warning.setText(msg)
+            else:
+                self.seed_warning.setText("")
 
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)

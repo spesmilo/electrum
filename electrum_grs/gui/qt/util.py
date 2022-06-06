@@ -105,19 +105,36 @@ class WWLabel(QLabel):
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
 
-class HelpLabel(QLabel):
-
-    def __init__(self, text, help_text):
-        QLabel.__init__(self, text)
+class HelpMixin:
+    def __init__(self, help_text: str, *, help_title: str = None):
+        assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"
         self.help_text = help_text
+        self._help_title = help_title or _('Help')
+        if isinstance(self, QLabel):
+            self.setTextInteractionFlags(
+                (self.textInteractionFlags() | Qt.TextSelectableByMouse)
+                & ~Qt.TextSelectableByKeyboard)
+
+    def show_help(self):
+        custom_message_box(
+            icon=QMessageBox.Information,
+            parent=self,
+            title=self._help_title,
+            text=self.help_text,
+            rich_text=True,
+        )
+
+
+class HelpLabel(HelpMixin, QLabel):
+
+    def __init__(self, text: str, help_text: str):
+        QLabel.__init__(self, text)
+        HelpMixin.__init__(self, help_text)
         self.app = QCoreApplication.instance()
-        self.font = QFont()
+        self.font = self.font()
 
     def mouseReleaseEvent(self, x):
-        custom_message_box(icon=QMessageBox.Information,
-                           parent=self,
-                           title=_('Help'),
-                           text=self.help_text)
+        self.show_help()
 
     def enterEvent(self, event):
         self.font.setUnderline(True)
@@ -132,37 +149,23 @@ class HelpLabel(QLabel):
         return QLabel.leaveEvent(self, event)
 
 
-class HelpButton(QToolButton):
-    def __init__(self, text):
+class HelpButton(HelpMixin, QToolButton):
+    def __init__(self, text: str):
         QToolButton.__init__(self)
+        HelpMixin.__init__(self, text)
         self.setText('?')
-        self.help_text = text
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(round(2.2 * char_width_in_lineedit()))
-        self.clicked.connect(self.onclick)
-
-    def onclick(self):
-        custom_message_box(icon=QMessageBox.Information,
-                           parent=self,
-                           title=_('Help'),
-                           text=self.help_text,
-                           rich_text=True)
+        self.clicked.connect(self.show_help)
 
 
-class InfoButton(QPushButton):
-    def __init__(self, text):
+class InfoButton(HelpMixin, QPushButton):
+    def __init__(self, text: str):
         QPushButton.__init__(self, 'Info')
-        self.help_text = text
+        HelpMixin.__init__(self, text, help_title=_('Info'))
         self.setFocusPolicy(Qt.NoFocus)
         self.setFixedWidth(6 * char_width_in_lineedit())
-        self.clicked.connect(self.onclick)
-
-    def onclick(self):
-        custom_message_box(icon=QMessageBox.Information,
-                           parent=self,
-                           title=_('Info'),
-                           text=self.help_text,
-                           rich_text=True)
+        self.clicked.connect(self.show_help)
 
 
 class Buttons(QHBoxLayout):

@@ -561,9 +561,6 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         super().__init__(d)
         self.ux_busy = False
 
-    def get_client(self) -> Optional['BitBox02Client']:
-        return self.plugin.get_client(self)
-
     def give_error(self, message: Exception):
         self.logger.info(message)
         if not self.ux_busy:

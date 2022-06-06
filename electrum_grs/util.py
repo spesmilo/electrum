@@ -1581,6 +1581,10 @@ class CallbackManager:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
                 asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+            elif get_running_loop() == self.asyncio_loop:
+                # run callback immediately, so that it is guaranteed
+                # to have been executed when this method returns
+                callback(event, *args)
             else:
                 self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
 

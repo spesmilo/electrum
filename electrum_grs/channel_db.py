@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .lnchannel import Channel
     from .lnrouter import RouteEdge
+    from .simple_config import SimpleConfig
 
 
 FLAG_DISABLE   = 1 << 1
@@ -304,7 +305,7 @@ class ChannelDB(SqlDB):
     NUM_MAX_RECENT_PEERS = 20
 
     def __init__(self, network: 'Network'):
-        path = os.path.join(get_headers_dir(network.config), 'gossip_db')
+        path = self.get_file_path(network.config)
         super().__init__(network.asyncio_loop, path, commit_interval=100)
         self.lock = threading.RLock()
         self.num_nodes = 0
@@ -327,6 +328,10 @@ class ChannelDB(SqlDB):
 
         self.data_loaded = asyncio.Event()
         self.network = network # only for callback
+
+    @classmethod
+    def get_file_path(cls, config: 'SimpleConfig') -> str:
+        return os.path.join(get_headers_dir(config), 'gossip_db')
 
     def update_counts(self):
         self.num_nodes = len(self._nodes)
