@@ -12,6 +12,9 @@
  * fix AppImage failing to run on certain systems (#7784)
  * fix "Automated BIP39 recovery" not scanning change paths (#7804)
  * bypass network proxy for localhost electrum server (#3126)
+ * security fix: remove support of "file://" URIs from BIP70 payment
+   requests, which could be used to trigger "open()" on arbitrary files
+   (see https://github.com/spesmilo/electrum/security/advisories/GHSA-4fh4-hx35-r355)
 
 
 # Release 4.2.1 - (March 26, 2022)
