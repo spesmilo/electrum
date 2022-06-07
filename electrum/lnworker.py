@@ -332,6 +332,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     async def stop(self):
         if self.listen_server:
             self.listen_server.close()
+            await self.listen_server.wait_closed()
         util.unregister_callback(self.on_proxy_changed)
         await self.taskgroup.cancel_remaining()
 
@@ -757,6 +758,7 @@ class LNWallet(LNWorker):
         self.stopping_soon = True
         if self.listen_server:  # stop accepting new peers
             self.listen_server.close()
+            await self.listen_server.wait_closed()
         async with ignore_after(self.TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS):
             await self.wait_for_received_pending_htlcs_to_get_removed()
         await LNWorker.stop(self)
