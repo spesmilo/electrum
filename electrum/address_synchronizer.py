@@ -65,8 +65,9 @@ class AddressSynchronizer(Logger):
     synchronizer: Optional['Synchronizer']
     verifier: Optional['SPV']
 
-    def __init__(self, db: 'WalletDB'):
+    def __init__(self, db: 'WalletDB', config):
         self.db = db
+        self.config = config
         self.network = None
         Logger.__init__(self)
         # verifier (SPV) and synchronizer are started in start_network
@@ -917,3 +918,22 @@ class AddressSynchronizer(Logger):
     def is_empty(self, address: str) -> bool:
         coins = self.get_addr_utxo(address)
         return not bool(coins)
+
+    @with_local_height_cached
+    def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
+        """Returns whether address has any history that is deeply confirmed.
+        Used for reorg-safe(ish) gap limit roll-forward.
+        """
+        max_conf = -1
+        h = self.db.get_addr_history(address)
+        needs_spv_check = not self.config.get("skipmerklecheck", False)
+        for tx_hash, tx_height in h:
+            if needs_spv_check:
+                tx_age = self.get_tx_height(tx_hash).conf
+            else:
+                if tx_height <= 0:
+                    tx_age = 0
+                else:
+                    tx_age = self.get_local_height() - tx_height + 1
+            max_conf = max(max_conf, tx_age)
+        return max_conf >= req_conf

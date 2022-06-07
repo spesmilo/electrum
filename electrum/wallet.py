@@ -294,7 +294,7 @@ class Abstract_Wallet(ABC):
         self.keystore = None  # type: Optional[KeyStore]  # will be set by load_keystore
 
         self.network = None
-        self.adb = AddressSynchronizer(db)
+        self.adb = AddressSynchronizer(db, config)
         for addr in self.get_addresses():
             self.adb.add_address(addr)
         self.lock = self.adb.lock
@@ -511,7 +511,7 @@ class Abstract_Wallet(ABC):
             if not hasattr(self, '_not_old_change_addresses'):
                 self._not_old_change_addresses = self.get_change_addresses()
             self._not_old_change_addresses = [addr for addr in self._not_old_change_addresses
-                                              if not self.address_is_old(addr)]
+                                              if not self.adb.address_is_old(addr)]
             unused_addrs = [addr for addr in self._not_old_change_addresses
                             if not self.adb.is_used(addr) and not self.is_address_reserved(addr)]
             return unused_addrs
@@ -1665,24 +1665,6 @@ class Abstract_Wallet(ABC):
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
-
-    def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
-        """Returns whether address has any history that is deeply confirmed.
-        Used for reorg-safe(ish) gap limit roll-forward.
-        """
-        max_conf = -1
-        h = self.db.get_addr_history(address)
-        needs_spv_check = not self.config.get("skipmerklecheck", False)
-        for tx_hash, tx_height in h:
-            if needs_spv_check:
-                tx_age = self.adb.get_tx_height(tx_hash).conf
-            else:
-                if tx_height <= 0:
-                    tx_age = 0
-                else:
-                    tx_age = self.adb.get_local_height() - tx_height + 1
-            max_conf = max(max_conf, tx_age)
-        return max_conf >= req_conf
 
     def bump_fee(
             self,
@@ -3106,7 +3088,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for addr in addresses[0:-k]:
-            if self.address_is_old(addr):
+            if self.adb.address_is_old(addr):
                 n = 0
             else:
                 n += 1
@@ -3174,14 +3156,13 @@ class Deterministic_Wallet(Abstract_Wallet):
                 last_few_addresses = self.get_change_addresses(slice_start=-limit)
             else:
                 last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
-            if any(map(self.address_is_old, last_few_addresses)):
+            if any(map(self.adb.address_is_old, last_few_addresses)):
                 count += 1
                 self.create_new_address(for_change)
             else:
                 break
         return count
 
-    #@AddressSynchronizer.with_local_height_cached FIXME
     def synchronize(self):
         count = 0
         with self.lock:
