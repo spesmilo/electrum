@@ -31,7 +31,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -1075,10 +1075,14 @@ class Peer(Logger):
         channels_with_peer.extend(self.temp_id_to_id.values())
         if channel_id not in channels_with_peer:
             raise ValueError(f"channel {channel_id.hex()} does not belong to this peer")
-        if channel_id in self.channels:
+        chan = self.channels.get(channel_id)
+        if not chan:
+            self.logger.warning(f"tried to force-close channel {channel_id.hex()} but it is not in self.channels yet")
+        if ChanCloseOption.LOCAL_FCLOSE in chan.get_close_options():
             self.lnworker.schedule_force_closing(channel_id)
         else:
-            self.logger.warning(f"tried to force-close channel {channel_id.hex()} but it is not in self.channels yet")
+            self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
+                             f"but close option is not allowed. {chan.get_state()=!r}")
 
     def on_channel_reestablish(self, chan, msg):
         their_next_local_ctn = msg["next_commitment_number"]
@@ -1171,6 +1175,7 @@ class Peer(Logger):
                 f"remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
+            chan.set_state(ChannelState.WE_ARE_TOXIC)
             self.lnworker.save_channel(chan)
             chan.peer_state = PeerState.BAD
             # raise after we send channel_reestablish, so the remote can realize they are ahead
@@ -1187,6 +1192,7 @@ class Peer(Logger):
         await self.initialized
         chan_id = chan.channel_id
         if chan.should_request_force_close:
+            chan.set_state(ChannelState.REQUESTED_FCLOSE)
             await self.trigger_force_close(chan_id)
             chan.should_request_force_close = False
             return
