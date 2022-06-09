@@ -1,5 +1,5 @@
 include LICENCE RELEASE-NOTES AUTHORS
-include README.rst
+include README.md
 include electrum.desktop
 include *.py
 include run_electrum
