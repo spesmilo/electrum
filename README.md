@@ -82,9 +82,12 @@ so make sure that is on your :code:`PATH` variable.
 
 ### Development version (git clone)
 
+_(For OS-specific instructions, see [here for Windows](contrib/build-wine/README_windows.md),
+and [for macOS](contrib/osx/README_macos.md))_
+
 Check out the code from GitHub:
 ```
-$ git clone git://github.com/spesmilo/electrum.git
+$ git clone https://github.com/spesmilo/electrum.git
 $ cd electrum
 $ git submodule update --init
 ```
