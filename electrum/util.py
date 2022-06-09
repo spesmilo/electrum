@@ -434,7 +434,7 @@ def profiler(func):
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _profiler_logger.debug(f"{name} {t:,.4f}")
+        _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
