@@ -559,6 +559,7 @@ class AddressSynchronizer(Logger):
                     pass
                 else:
                     self._history_local[addr] = cur_hist
+                    self._mark_address_history_changed(addr)
 
     def _mark_address_history_changed(self, addr: str) -> None:
         def set_and_clear():
