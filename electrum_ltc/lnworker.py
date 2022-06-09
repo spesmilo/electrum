@@ -956,7 +956,8 @@ class LNWallet(LNWorker):
             util.trigger_callback('channel', self.wallet, chan)
             return
 
-        if chan.get_state() == ChannelState.OPEN and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height()):
+        if (chan.get_state() in (ChannelState.OPEN, ChannelState.SHUTDOWN)
+                and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height())):
             self.logger.info(f"force-closing due to expiring htlcs")
             await self.schedule_force_closing(chan.channel_id)
 

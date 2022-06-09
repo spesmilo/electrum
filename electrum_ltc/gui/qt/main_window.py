@@ -1376,12 +1376,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.request_list.delete_item(key)
         self.clear_receive_tab()
 
-    def delete_lightning_payreq(self, payreq_key):
-        self.wallet.lnworker.delete_invoice(payreq_key)
-        self.request_list.update()
-        self.invoice_list.update()
-        self.clear_receive_tab()
-
     def sign_payment_request(self, addr):
         alias = self.config.get('alias')
         if alias and self.alias_info:
@@ -1797,7 +1791,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def run_swap_dialog(self, is_reverse=None, recv_amount_sat=None, channels=None):
         if not self.network:
-            self.window.show_error(_("You are offline."))
+            self.show_error(_("You are offline."))
             return
         def get_pairs_thread():
             self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())

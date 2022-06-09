@@ -1051,6 +1051,8 @@ class Peer(Logger):
 
     async def trigger_force_close(self, channel_id: bytes):
         await self.initialized
+        # First, we intentionally send a "channel_reestablish" msg with an old state.
+        # Many nodes (but not all) automatically force-close when seeing this.
         latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
         self.send_message(
             "channel_reestablish",
@@ -1059,6 +1061,13 @@ class Peer(Logger):
             next_revocation_number=0,
             your_last_per_commitment_secret=0,
             my_current_per_commitment_point=latest_point)
+        # Newish nodes that have lightning/bolts/pull/950 force-close upon receiving an "error" msg,
+        # so send that too. E.g. old "channel_reestablish" is not enough for eclair 0.7+,
+        # but "error" is. see https://github.com/ACINQ/eclair/pull/2036
+        # The receiving node:
+        #   - upon receiving `error`:
+        #     - MUST fail the channel referred to by `channel_id`, if that channel is with the sending node.
+        self.send_message("error", channel_id=channel_id, data=b"", len=0)
 
     def schedule_force_closing(self, channel_id: bytes):
         """ wrapper of lnworker's method, that raises if channel is not with this peer """
