@@ -261,7 +261,7 @@ class TxDialog(Factory.Popup):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
-        parent_fee = self.wallet.get_tx_fee(parent_txid)
+        parent_fee = self.wallet.adb.get_tx_fee(parent_txid)
         if parent_fee is None:
             self.app.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return
@@ -356,7 +356,7 @@ class TxDialog(Factory.Popup):
 
         def on_prompt(b):
             if b:
-                self.wallet.remove_transaction(txid)
+                self.wallet.adb.remove_transaction(txid)
                 self.wallet.save_db()
                 self.app._trigger_update_wallet()  # FIXME private...
                 self.dismiss()

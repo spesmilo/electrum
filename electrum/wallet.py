@@ -991,16 +991,6 @@ class Abstract_Wallet(ABC):
             self.set_label(tx_hash, "; ".join(labels))
         return bool(labels)
 
-    # fixme: this needs a callback
-    #def add_transaction(self, tx, *, allow_unrelated=False):
-    #    is_known = bool(self.db.get_transaction(tx.txid()))
-    #    tx_was_added = self.adb.add_transaction(tx, allow_unrelated=allow_unrelated)
-    #    if tx_was_added and not is_known:
-    #        self._maybe_set_tx_label_based_on_invoices(tx)
-    #        if self.lnworker:
-    #            self.lnworker.maybe_add_backup_from_tx(tx)
-    #    return tx_was_added
-
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
         transactions_tmp = OrderedDictWithIndex()
