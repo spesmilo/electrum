@@ -196,9 +196,6 @@ class AbstractChannel(Logger, ABC):
     def is_open(self):
         return self.get_state() == ChannelState.OPEN
 
-    def is_closing(self):
-        return ChannelState.SHUTDOWN <= self.get_state() <= ChannelState.FORCE_CLOSING
-
     def is_closed(self):
         # the closing txid has been saved
         return self.get_state() >= ChannelState.CLOSING
@@ -785,7 +782,7 @@ class Channel(AbstractChannel):
 
     def can_send_ctx_updates(self) -> bool:
         """Whether we can send update_fee, update_*_htlc changes to the remote."""
-        if not (self.is_open() or self.is_closing()):
+        if self.get_state() not in (ChannelState.OPEN, ChannelState.SHUTDOWN):
             return False
         if self.peer_state != PeerState.GOOD:
             return False
@@ -794,7 +791,7 @@ class Channel(AbstractChannel):
         return True
 
     def can_send_update_add_htlc(self) -> bool:
-        return self.can_send_ctx_updates() and not self.is_closing()
+        return self.can_send_ctx_updates() and self.is_open()
 
     def is_frozen_for_sending(self) -> bool:
         if self.lnworker and self.lnworker.channel_db is None and not self.lnworker.is_trampoline_peer(self.node_id):
