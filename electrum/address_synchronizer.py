@@ -672,12 +672,6 @@ class AddressSynchronizer(Logger):
         with self.lock:
             status_changed = self._up_to_date != up_to_date
             self._up_to_date = up_to_date
-        # reset sync state progress indicator
-        if up_to_date:
-            if self.synchronizer:
-                self.synchronizer.reset_request_counters()
-            if self.verifier:
-                self.verifier.reset_request_counters()
         # fire triggers
         util.trigger_callback('adb_set_up_to_date', self)
         if status_changed:
@@ -685,6 +679,12 @@ class AddressSynchronizer(Logger):
 
     def is_up_to_date(self):
         return self._up_to_date
+
+    def reset_netrequest_counters(self) -> None:
+        if self.synchronizer:
+            self.synchronizer.reset_request_counters()
+        if self.verifier:
+            self.verifier.reset_request_counters()
 
     def get_history_sync_state_details(self) -> Tuple[int, int]:
         nsent, nans = 0, 0
