@@ -431,6 +431,10 @@ class Abstract_Wallet(ABC):
         tx = self.db.get_transaction(tx_hash)
         if not tx:
             raise Exception(tx_hash)
+        is_mine = any([self.is_mine(out.address) for out in tx.outputs()])
+        is_mine |= any([self.is_mine(self.adb.get_txin_address(txin)) for txin in tx.inputs()])
+        if not is_mine:
+            return
         self._maybe_set_tx_label_based_on_invoices(tx)
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
