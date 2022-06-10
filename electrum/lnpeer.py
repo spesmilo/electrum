@@ -1049,7 +1049,8 @@ class Peer(Logger):
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
-    async def trigger_force_close(self, channel_id: bytes):
+    async def request_force_close(self, channel_id: bytes):
+        """Try to trigger the remote peer to force-close."""
         await self.initialized
         # First, we intentionally send a "channel_reestablish" msg with an old state.
         # Many nodes (but not all) automatically force-close when seeing this.
@@ -1193,7 +1194,7 @@ class Peer(Logger):
         chan_id = chan.channel_id
         if chan.should_request_force_close:
             chan.set_state(ChannelState.REQUESTED_FCLOSE)
-            await self.trigger_force_close(chan_id)
+            await self.request_force_close(chan_id)
             chan.should_request_force_close = False
             return
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
