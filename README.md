@@ -76,8 +76,8 @@ $ python3 -m pip install --user .
 
 This will download and install the Python dependencies used by
 Electrum instead of using the 'packages' directory.
-It will also place an executable named :code:`electrum` in :code:`~/.local/bin`,
-so make sure that is on your :code:`PATH` variable.
+It will also place an executable named `electrum` in `~/.local/bin`,
+so make sure that is on your `PATH` variable.
 
 
 ### Development version (git clone)
