@@ -13,7 +13,7 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEven
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState
+from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState, ChanCloseOption
 from electrum.wallet import Abstract_Wallet
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnworker import LNWallet
@@ -243,8 +243,9 @@ class ChannelsList(MyTreeView):
         if chan:
             funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-            if chan.get_state() == ChannelState.FUNDED:
-                menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
+            if close_opts := chan.get_close_options():
+                if ChanCloseOption.REQUEST_REMOTE_FCLOSE in close_opts:
+                    menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
             if chan.can_be_deleted():
                 menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
             menu.exec_(self.viewport().mapToGlobal(position))
@@ -278,11 +279,12 @@ class ChannelsList(MyTreeView):
                 fm.addAction(_("Freeze for receiving"), lambda: chan.set_frozen_for_receiving(True))
             else:
                 fm.addAction(_("Unfreeze for receiving"), lambda: chan.set_frozen_for_receiving(False))
-        if not chan.is_closed():
+        if close_opts := chan.get_close_options():
             cm = menu.addMenu(_("Close"))
-            if chan.peer_state == PeerState.GOOD:
+            if ChanCloseOption.COOP_CLOSE in close_opts:
                 cm.addAction(_("Cooperative close"), lambda: self.close_channel(channel_id))
-            cm.addAction(_("Force-close"), lambda: self.force_close(channel_id))
+            if ChanCloseOption.LOCAL_FCLOSE in close_opts:
+                cm.addAction(_("Force-close"), lambda: self.force_close(channel_id))
         menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
         if chan.can_be_deleted():
             menu.addSeparator()

@@ -2440,7 +2440,7 @@ class LNWallet(LNWorker):
             peer.close_and_cleanup()
         elif connect_str:
             peer = await self.add_peer(connect_str)
-            await peer.trigger_force_close(channel_id)
+            await peer.request_force_close(channel_id)
         elif channel_id in self.channel_backups:
             await self._request_force_close_from_backup(channel_id)
         else:
@@ -2516,7 +2516,7 @@ class LNWallet(LNWorker):
             try:
                 async with OldTaskGroup(wait=any) as group:
                     await group.spawn(peer._message_loop())
-                    await group.spawn(peer.trigger_force_close(channel_id))
+                    await group.spawn(peer.request_force_close(channel_id))
                 return
             except Exception as e:
                 self.logger.info(f'failed to connect {host} {e}')
