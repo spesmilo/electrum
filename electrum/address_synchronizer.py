@@ -240,7 +240,7 @@ class AddressSynchronizer(Logger):
     def get_transaction(self, txid: str) -> Transaction:
         return self.db.get_transaction(txid)
 
-    def add_transaction(self, tx: Transaction, *, allow_unrelated=False) -> bool:
+    def add_transaction(self, tx: Transaction, *, allow_unrelated=False, notify_GUI=True) -> bool:
         """
         Returns whether the tx was successfully added to the wallet history.
         Note that a transaction may need to be added several times, if our
@@ -335,7 +335,7 @@ class AddressSynchronizer(Logger):
             # save
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
-            util.trigger_callback('adb_added_tx', self, tx_hash)
+            util.trigger_callback('adb_added_tx', self, tx_hash, notify_GUI)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
