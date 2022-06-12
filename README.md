@@ -1,23 +1,20 @@
-# Electrum - Lightweight Bitcoin client
+# Electrum-GRS - Lightweight Groestlcoin client
 
 ```
 Licence: MIT Licence
-Author: Thomas Voegtlin
+Author: Groestlcoin Developers
 Language: Python (>= 3.8)
-Homepage: https://electrum.org/
+Homepage: https://groestlcoin.org/
 ```
 
-[![Build Status](https://api.cirrus-ci.com/github/spesmilo/electrum.svg?branch=master)](https://cirrus-ci.com/github/spesmilo/electrum)
-[![Test coverage statistics](https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master)](https://coveralls.io/github/spesmilo/electrum?branch=master)
-[![Help translate Electrum online](https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg)](https://crowdin.com/project/electrum)
-
+[![Build Status](https://api.cirrus-ci.com/github/Groestlcoin/electrum-grs.svg?branch=master)](https://cirrus-ci.com/github/Groestlcoin/electrum-grs)
 
 ## Getting started
 
-_(If you've come here looking to simply run Electrum,
-[you may download it here](https://electrum.org/#download).)_
+_(If you've come here looking to simply run Electrum-GRS,
+[you may download it here](https://www.groestlcoin.org/groestlcoin-electrum-wallet/).)_
 
-Electrum itself is pure Python, and so are most of the required dependencies,
+Electrum-GRS itself is pure Python, and so are most of the required dependencies,
 but not everything. The following sections describe how to run from source, but here
 is a TL;DR:
 
@@ -61,22 +58,22 @@ If you would like hardware wallet support,
 ### Running from tar.gz
 
 If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory without installing it on your
+Electrum-GRS from its root directory without installing it on your
 system; all the pure python dependencies are included in the 'packages'
 directory. To run Electrum from its root directory, just do:
 ```
-$ ./run_electrum
+$ ./run_electrum_grs
 ```
 
-You can also install Electrum on your system, by running this command:
+You can also install Electrum-GRS on your system, by running this command:
 ```
 $ sudo apt-get install python3-setuptools python3-pip
 $ python3 -m pip install --user .
 ```
 
 This will download and install the Python dependencies used by
-Electrum instead of using the 'packages' directory.
-It will also place an executable named `electrum` in `~/.local/bin`,
+Electrum-GRS instead of using the 'packages' directory.
+It will also place an executable named `electrum-grs` in `~/.local/bin`,
 so make sure that is on your `PATH` variable.
 
 
@@ -87,8 +84,8 @@ and [for macOS](contrib/osx/README_macos.md))_
 
 Check out the code from GitHub:
 ```
-$ git clone https://github.com/spesmilo/electrum.git
-$ cd electrum
+$ git clone https://github.com/Groestlcoin/electrum-grs.git
+$ cd electrum-grs
 $ git submodule update --init
 ```
 
@@ -103,21 +100,21 @@ $ sudo apt-get install python-requests gettext
 $ ./contrib/pull_locale
 ```
 
-Finally, to start Electrum:
+Finally, to start Electrum-GRS:
 ```
-$ ./run_electrum
+$ ./run_electrum_grs
 ```
 
 ### Run tests
 
 Run unit tests with `pytest`:
 ```
-$ pytest electrum/tests -v
+$ pytest electrum_grs/tests -v
 ```
 
 To run a single file, specify it directly like this:
 ```
-$ pytest electrum/tests/test_bitcoin.py -v
+$ pytest electrum_grs/tests/test_bitcoin.py -v
 ```
 
 ## Creating Binaries
@@ -137,7 +134,7 @@ Implementing new features, or improving/refactoring the codebase, is of course
 also welcome, but to avoid wasted effort, especially for larger changes,
 we encourage discussing these on the issue tracker or IRC first.
 
-Besides [GitHub](https://github.com/spesmilo/electrum),
-most communication about Electrum development happens on IRC, in the
-`#electrum` channel on Libera Chat. The easiest way to participate on IRC is
-with the web client, [web.libera.chat](https://web.libera.chat/#electrum).
+Besides [GitHub](https://github.com/Groestlcoin/electrum-grs),
+most communication about Electrum-GRS development happens on IRC, in the
+`#groestlcoin` channel on Libera Chat. The easiest way to participate on IRC is
+with the web client, [web.libera.chat](https://web.libera.chat/#groestlcoin).
