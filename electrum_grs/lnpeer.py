@@ -31,7 +31,7 @@ from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_pay
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailure,
                       ProcessedOnionPacket, UnsupportedOnionPacketVersion, InvalidOnionMac, InvalidOnionPubkey,
                       OnionFailureCodeMetaFlag)
-from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState
+from .lnchannel import Channel, RevokeAndAck, RemoteCtnTooFarInFuture, ChannelState, PeerState, ChanCloseOption
 from . import lnutil
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
@@ -1049,8 +1049,11 @@ class Peer(Logger):
         chan.set_state(ChannelState.OPENING)
         self.lnworker.add_new_channel(chan)
 
-    async def trigger_force_close(self, channel_id: bytes):
+    async def request_force_close(self, channel_id: bytes):
+        """Try to trigger the remote peer to force-close."""
         await self.initialized
+        # First, we intentionally send a "channel_reestablish" msg with an old state.
+        # Many nodes (but not all) automatically force-close when seeing this.
         latest_point = secret_to_pubkey(42) # we need a valid point (BOLT2)
         self.send_message(
             "channel_reestablish",
@@ -1059,6 +1062,13 @@ class Peer(Logger):
             next_revocation_number=0,
             your_last_per_commitment_secret=0,
             my_current_per_commitment_point=latest_point)
+        # Newish nodes that have lightning/bolts/pull/950 force-close upon receiving an "error" msg,
+        # so send that too. E.g. old "channel_reestablish" is not enough for eclair 0.7+,
+        # but "error" is. see https://github.com/ACINQ/eclair/pull/2036
+        # The receiving node:
+        #   - upon receiving `error`:
+        #     - MUST fail the channel referred to by `channel_id`, if that channel is with the sending node.
+        self.send_message("error", channel_id=channel_id, data=b"", len=0)
 
     def schedule_force_closing(self, channel_id: bytes):
         """ wrapper of lnworker's method, that raises if channel is not with this peer """
@@ -1066,10 +1076,14 @@ class Peer(Logger):
         channels_with_peer.extend(self.temp_id_to_id.values())
         if channel_id not in channels_with_peer:
             raise ValueError(f"channel {channel_id.hex()} does not belong to this peer")
-        if channel_id in self.channels:
+        chan = self.channels.get(channel_id)
+        if not chan:
+            self.logger.warning(f"tried to force-close channel {channel_id.hex()} but it is not in self.channels yet")
+        if ChanCloseOption.LOCAL_FCLOSE in chan.get_close_options():
             self.lnworker.schedule_force_closing(channel_id)
         else:
-            self.logger.warning(f"tried to force-close channel {channel_id.hex()} but it is not in self.channels yet")
+            self.logger.info(f"tried to force-close channel {chan.get_id_for_log()} "
+                             f"but close option is not allowed. {chan.get_state()=!r}")
 
     def on_channel_reestablish(self, chan, msg):
         their_next_local_ctn = msg["next_commitment_number"]
@@ -1162,6 +1176,7 @@ class Peer(Logger):
                 f"remote is ahead of us! They should force-close. Remote PCP: {bh2u(their_local_pcp)}")
             # data_loss_protect_remote_pcp is used in lnsweep
             chan.set_data_loss_protect_remote_pcp(their_next_local_ctn - 1, their_local_pcp)
+            chan.set_state(ChannelState.WE_ARE_TOXIC)
             self.lnworker.save_channel(chan)
             chan.peer_state = PeerState.BAD
             # raise after we send channel_reestablish, so the remote can realize they are ahead
@@ -1178,7 +1193,8 @@ class Peer(Logger):
         await self.initialized
         chan_id = chan.channel_id
         if chan.should_request_force_close:
-            await self.trigger_force_close(chan_id)
+            chan.set_state(ChannelState.REQUESTED_FCLOSE)
+            await self.request_force_close(chan_id)
             chan.should_request_force_close = False
             return
         assert ChannelState.PREOPENING < chan.get_state() < ChannelState.FORCE_CLOSING
@@ -2166,7 +2182,7 @@ class Peer(Logger):
             sig=bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # save local transaction and set state
         try:
-            self.lnworker.wallet.add_transaction(closing_tx)
+            self.lnworker.wallet.adb.add_transaction(closing_tx)
         except UnrelatedTransactionException:
             pass  # this can happen if (~all the balance goes to REMOTE)
         chan.set_state(ChannelState.CLOSING)

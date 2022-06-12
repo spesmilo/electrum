@@ -1,5 +1,5 @@
-include README LICENCE RELEASE-NOTES AUTHORS
-include README.rst
+include LICENCE RELEASE-NOTES AUTHORS
+include README.md
 include electrum-grs.desktop
 include *.py
 include run_electrum_grs

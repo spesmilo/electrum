@@ -24,7 +24,8 @@ from . import ElectrumTestCase
 
 class FakeSynchronizer(object):
 
-    def __init__(self):
+    def __init__(self, db):
+        self.db = db
         self.store = []
 
     def add(self, address):
@@ -100,17 +101,19 @@ class FakeFxThread:
     ccy_amount_str = FxThread.ccy_amount_str
     history_rate = FxThread.history_rate
 
+class FakeADB:
+    def get_tx_height(self, txid):
+        # because we use a current timestamp, and history is empty,
+        # FxThread.history_rate will use spot prices
+        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
+
 class FakeWallet:
     def __init__(self, fiat_value):
         super().__init__()
         self.fiat_value = fiat_value
         self.db = WalletDB("{}", manual_upgrades=True)
+        self.adb = FakeADB()
         self.db.transactions = self.db.verified_tx = {'abc':'Tx'}
-
-    def get_tx_height(self, txid):
-        # because we use a current timestamp, and history is empty,
-        # FxThread.history_rate will use spot prices
-        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
 
     default_fiat_value = Abstract_Wallet.default_fiat_value
     price_at_timestamp = Abstract_Wallet.price_at_timestamp

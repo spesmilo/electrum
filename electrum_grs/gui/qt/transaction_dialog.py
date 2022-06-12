@@ -449,7 +449,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             item = lnworker_history[txid]
             ln_amount = item['amount_msat'] / 1000
             if amount is None:
-                tx_mined_status = self.wallet.lnworker.lnwatcher.get_tx_height(txid)
+                tx_mined_status = self.wallet.lnworker.lnwatcher.adb.get_tx_height(txid)
         else:
             ln_amount = None
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
@@ -618,11 +618,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 prevout_hash = txin.prevout.txid.hex()
                 prevout_n = txin.prevout.out_idx
                 cursor.insertText(prevout_hash + ":%-4d " % prevout_n, ext)
-                addr = self.wallet.get_txin_address(txin)
+                addr = self.wallet.adb.get_txin_address(txin)
                 if addr is None:
                     addr = ''
                 cursor.insertText(addr, text_format(addr))
-                txin_value = self.wallet.get_txin_value(txin)
+                txin_value = self.wallet.adb.get_txin_value(txin)
                 if txin_value is not None:
                     cursor.insertText(format_amount(txin_value), ext)
             cursor.insertBlock()

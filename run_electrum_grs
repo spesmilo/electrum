@@ -454,6 +454,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
             sys_exit(1)
     else:
         # command line
+        configure_logging(config, log_to_file=False)  # don't spam logfiles for each client-side RPC, but support "-v"
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
         if not config.get('offline'):

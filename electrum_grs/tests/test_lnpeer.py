@@ -97,16 +97,18 @@ class MockBlockchain:
         return False
 
 
+class MockADB:
+    def add_transaction(self, tx):
+        pass
+
 class MockWallet:
     receive_requests = {}
+    adb = MockADB()
 
     def set_label(self, x, y):
         pass
 
     def save_db(self):
-        pass
-
-    def add_transaction(self, tx):
         pass
 
     def is_lightning_backup(self):
