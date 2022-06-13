@@ -856,10 +856,8 @@ class LNWallet(LNWorker):
             item = chan.get_funding_height()
             if item is None:
                 continue
-            if not self.lnwatcher:
-                continue  # lnwatcher not available with --offline (its data is not persisted)
             funding_txid, funding_height, funding_timestamp = item
-            tx_height = self.lnwatcher.adb.get_tx_height(funding_txid)
+            tx_height = self.wallet.adb.get_tx_height(funding_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -879,7 +877,7 @@ class LNWallet(LNWorker):
             if item is None:
                 continue
             closing_txid, closing_height, closing_timestamp = item
-            tx_height = self.lnwatcher.adb.get_tx_height(closing_txid)
+            tx_height = self.wallet.adb.get_tx_height(closing_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -910,10 +908,9 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            if self.lnwatcher:
-                tx_height = self.lnwatcher.adb.get_tx_height(swap.funding_txid)
-                if swap.is_reverse and tx_height.height <= 0:
-                    label += ' (%s)' % _('waiting for funding tx confirmation')
+            tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
+            if swap.is_reverse and tx_height.height <= 0:
+                label += ' (%s)' % _('funding transaction not confirmed')
             if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                 label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
