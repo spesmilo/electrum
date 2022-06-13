@@ -422,7 +422,7 @@ class AddressSynchronizer(Logger):
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
-            self.add_transaction(tx, allow_unrelated=True)
+            self.add_transaction(tx, allow_unrelated=True, notify_GUI=False)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
