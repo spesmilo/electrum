@@ -161,6 +161,7 @@ Pane {
                     rootItem.clear()
                 }
             }
+
         }
     }
 
@@ -245,6 +246,11 @@ Pane {
     }
 
     Component {
+        id: lightningPaymentProgressDialog
+        LightningPaymentProgressDialog {}
+    }
+
+    Component {
         id: invoiceDialog
         InvoiceDialog {
             onDoPay: {
@@ -255,6 +261,17 @@ Pane {
                             'message': invoice.message
                     })
                     dialog.open()
+                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+                    console.log('About to pay lightning invoice')
+                    if (invoice.key == '') {
+                        console.log('No invoice key, aborting')
+                        return
+                    }
+                    var dialog = lightningPaymentProgressDialog.createObject(rootItem, {
+                        invoice_key: invoice.key
+                    })
+                    dialog.open()
+                    Daemon.currentWallet.pay_lightning_invoice(invoice.key)
                 }
             }
         }
@@ -263,8 +280,7 @@ Pane {
     Connections {
         target: Daemon.currentWallet
         function onInvoiceStatusChanged(key, status) {
-            // TODO: status from?
-            //Daemon.currentWallet.invoiceModel.updateInvoice(key, status)
+            Daemon.currentWallet.invoiceModel.updateInvoice(key, status)
         }
     }
 

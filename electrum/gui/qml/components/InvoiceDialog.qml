@@ -126,7 +126,7 @@ Dialog {
                 text: qsTr('Save')
                 icon.source: '../../icons/save.png'
                 visible: invoice_key == ''
-                enabled: invoice.invoiceType == Invoice.OnchainInvoice
+                enabled: invoice.canSave
                 onClicked: {
                     invoice.save_invoice()
                     dialog.close()
@@ -138,9 +138,12 @@ Dialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
                 onClicked: {
-                    invoice.save_invoice()
+                    if (invoice_key == '')
+                        invoice.save_invoice()
                     dialog.close()
                     if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                        doPay() // only signal here
+                    } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                         doPay() // only signal here
                     }
                 }

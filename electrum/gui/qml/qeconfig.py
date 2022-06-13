@@ -3,7 +3,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from decimal import Decimal
 
 from electrum.logging import get_logger
-from electrum.util import DECIMAL_POINT_DEFAULT
+from electrum.util import DECIMAL_POINT_DEFAULT, format_satoshis
 
 from .qetypes import QEAmount
 
@@ -91,6 +91,23 @@ class QEConfig(QObject):
             return self.config.format_amount_and_units(satoshis)
         else:
             return self.config.format_amount(satoshis)
+
+    @pyqtSlot(QEAmount, result=str)
+    @pyqtSlot(QEAmount, bool, result=str)
+    def formatMilliSats(self, amount, with_unit=False):
+        if isinstance(amount, QEAmount):
+            msats = amount.msatsInt
+        else:
+            return '---'
+
+        s = format_satoshis(msats/1000,
+                            decimal_point=self.decimal_point(),
+                            precision=3)
+        return s
+        #if with_unit:
+            #return self.config.format_amount_and_units(msats)
+        #else:
+            #return self.config.format_amount(satoshis)
 
     # TODO delegate all this to config.py/util.py
     def decimal_point(self):

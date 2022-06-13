@@ -46,6 +46,7 @@ class QEInvoice(QObject):
     _effectiveInvoice = None
     _canSave = False
     _canPay = False
+    _key = ''
 
     invoiceChanged = pyqtSignal()
     invoiceSaved = pyqtSignal()
@@ -128,6 +129,17 @@ class QEInvoice(QObject):
         status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
         return self._effectiveInvoice.get_status_str(status)
 
+    keyChanged = pyqtSignal()
+    @pyqtProperty(str, notify=keyChanged)
+    def key(self):
+        return self._key
+
+    @key.setter
+    def key(self, key):
+        if self._key != key:
+            self._key = key
+            self.keyChanged.emit()
+
     # single address only, TODO: n outputs
     @pyqtProperty(str, notify=invoiceChanged)
     def address(self):
@@ -170,6 +182,7 @@ class QEInvoice(QObject):
         self._logger.debug(repr(invoice))
         if invoice:
             self.set_effective_invoice(invoice)
+            self.key = key
 
     def set_effective_invoice(self, invoice: Invoice):
         self._effectiveInvoice = invoice
@@ -264,9 +277,12 @@ class QEInvoice(QObject):
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
                     self.setValidOnchainInvoice(self._bip21['address'])
-            elif not self._wallet.wallet.lnworker.channels:
-                self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
+            else:
                 self.setValidLightningInvoice(lninvoice)
+                if not self._wallet.wallet.lnworker.channels:
+                    self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
+                else:
+                    self.validationSuccess.emit()
         else:
             self._logger.debug('flow without LN but having bip21 uri')
             if 'amount' not in self._bip21: #TODO can we have amount-less invoices?
@@ -286,6 +302,7 @@ class QEInvoice(QObject):
         if not self._effectiveInvoice:
             return
         # TODO detect duplicate?
+        self.key = self._wallet.wallet.get_key_for_outgoing_invoice(self._effectiveInvoice)
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
         self.invoiceSaved.emit()
 

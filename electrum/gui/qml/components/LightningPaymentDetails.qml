@@ -12,32 +12,13 @@ Pane {
     width: parent.width
     height: parent.height
 
-    property string title: qsTr("Transaction details")
+    property string title: qsTr("Lightning payment details")
 
-    property string txid
+    property string key
 
-    property alias label: txdetails.label
+    property alias label: lnpaymentdetails.label
 
     signal detailsChanged
-
-    property QtObject menu: Menu {
-        id: menu
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Bump fee')
-                enabled: txdetails.canBump
-                //onTriggered:
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Cancel double-spend')
-                enabled: txdetails.canCancel
-            }
-        }
-    }
 
     Flickable {
         anchors.fill: parent
@@ -56,18 +37,7 @@ Pane {
             }
 
             Label {
-                text: txdetails.status
-            }
-
-            Label {
-                text: qsTr('Mempool depth')
-                color: Material.accentColor
-                visible: !txdetails.isMined
-            }
-
-            Label {
-                text: txdetails.mempoolDepth
-                visible: !txdetails.isMined
+                text: lnpaymentdetails.status
             }
 
             Label {
@@ -76,11 +46,11 @@ Pane {
             }
 
             Label {
-                text: txdetails.date
+                text: lnpaymentdetails.date
             }
 
             Label {
-                text: txdetails.amount.satsInt > 0
+                text: lnpaymentdetails.amount.msatsInt > 0
                         ? qsTr('Amount received')
                         : qsTr('Amount sent')
                 color: Material.accentColor
@@ -88,7 +58,7 @@ Pane {
 
             RowLayout {
                 Label {
-                    text: Config.formatSats(txdetails.amount)
+                    text: Config.formatMilliSats(lnpaymentdetails.amount)
                 }
                 Label {
                     text: Config.baseUnit
@@ -97,15 +67,15 @@ Pane {
             }
 
             Label {
-                visible: txdetails.amount.satsInt < 0
+                visible: lnpaymentdetails.amount.msatsInt < 0
                 text: qsTr('Transaction fee')
                 color: Material.accentColor
             }
 
             RowLayout {
-                visible: txdetails.amount.satsInt < 0
+                visible: lnpaymentdetails.amount.msatsInt < 0
                 Label {
-                    text: Config.formatSats(txdetails.fee)
+                    text: Config.formatMilliSats(lnpaymentdetails.fee)
                 }
                 Label {
                     text: Config.baseUnit
@@ -133,7 +103,7 @@ Pane {
                     width: parent.width
                     Label {
                         visible: !labelContent.editmode
-                        text: txdetails.label
+                        text: lnpaymentdetails.label
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                         font.pixelSize: constants.fontSizeLarge
@@ -143,7 +113,7 @@ Pane {
                         icon.source: '../../icons/pen.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            labelEdit.text = txdetails.label
+                            labelEdit.text = lnpaymentdetails.label
                             labelContent.editmode = true
                             labelEdit.focus = true
                         }
@@ -151,7 +121,7 @@ Pane {
                     TextField {
                         id: labelEdit
                         visible: labelContent.editmode
-                        text: txdetails.label
+                        text: lnpaymentdetails.label
                         font.pixelSize: constants.fontSizeLarge
                         Layout.fillWidth: true
                     }
@@ -161,7 +131,7 @@ Pane {
                         icon.color: 'transparent'
                         onClicked: {
                             labelContent.editmode = false
-                            txdetails.set_label(labelEdit.text)
+                            lnpaymentdetails.set_label(labelEdit.text)
                         }
                     }
                     ToolButton {
@@ -174,7 +144,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('Transaction ID')
+                text: qsTr('Payment hash')
                 Layout.columnSpan: 2
                 color: Material.accentColor
             }
@@ -188,7 +158,7 @@ Pane {
                 RowLayout {
                     width: parent.width
                     Label {
-                        text: root.txid
+                        text: lnpaymentdetails.payment_hash
                         font.pixelSize: constants.fontSizeLarge
                         font.family: FixedFont
                         Layout.fillWidth: true
@@ -198,7 +168,7 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Transaction ID'), 'text': root.txid })
+                            var dialog = share.createObject(root, { 'title': qsTr('Payment hash'), 'text': lnpaymentdetails.payment_hash })
                             dialog.open()
                         }
                     }
@@ -206,48 +176,80 @@ Pane {
             }
 
             Label {
-                text: qsTr('Outputs')
+                text: qsTr('Preimage')
                 Layout.columnSpan: 2
                 color: Material.accentColor
             }
 
-            Repeater {
-                model: txdetails.outputs
-                delegate: TextHighlightPane {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
-                    RowLayout {
-                        width: parent.width
-                        Label {
-                            text: modelData.address
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
-                        }
-                        Label {
-                            text: Config.formatSats(modelData.value)
-                            font.pixelSize: constants.fontSizeLarge
-                        }
-                        Label {
-                            text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
+            TextHighlightPane {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+
+                RowLayout {
+                    width: parent.width
+                    Label {
+                        text: lnpaymentdetails.preimage
+                        font.pixelSize: constants.fontSizeLarge
+                        font.family: FixedFont
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                    }
+                    ToolButton {
+                        icon.source: '../../icons/share.png'
+                        icon.color: 'transparent'
+                        onClicked: {
+                            var dialog = share.createObject(root, { 'title': qsTr('Preimage'), 'text': lnpaymentdetails.preimage })
+                            dialog.open()
                         }
                     }
                 }
             }
 
+            Label {
+                text: qsTr('Lightning invoice')
+                Layout.columnSpan: 2
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+
+                RowLayout {
+                    width: parent.width
+                    Label {
+                        Layout.fillWidth: true
+                        text: lnpaymentdetails.invoice
+                        font.pixelSize: constants.fontSizeLarge
+                        font.family: FixedFont
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
+                    }
+                    ToolButton {
+                        icon.source: '../../icons/share.png'
+                        icon.color: enabled ? 'transparent' : constants.mutedForeground
+                        enabled: lnpaymentdetails.invoice != ''
+                        onClicked: {
+                            var dialog = share.createObject(root, { 'title': qsTr('Lightning Invoice'), 'text': lnpaymentdetails.invoice })
+                            dialog.open()
+                        }
+                    }
+                }
+            }
+
+
         }
     }
 
-    TxDetails {
-        id: txdetails
+    LnPaymentDetails {
+        id: lnpaymentdetails
         wallet: Daemon.currentWallet
-        txid: root.txid
+        key: root.key
         onLabelChanged: root.detailsChanged()
     }
 

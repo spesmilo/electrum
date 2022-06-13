@@ -1,6 +1,8 @@
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union
 import queue
 import time
+import asyncio
+import threading
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
 
@@ -47,9 +49,11 @@ class QEWallet(QObject):
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal()
     requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
-    invoiceStatusChanged = pyqtSignal([str], arguments=['key'])
+    invoiceStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     invoiceCreateSuccess = pyqtSignal()
     invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    paymentSucceeded = pyqtSignal([str], arguments=['key'])
+    paymentFailed = pyqtSignal([str,str], arguments=['key','reason'])
 
     _network_signal = pyqtSignal(str, object)
 
@@ -95,6 +99,10 @@ class QEWallet(QObject):
     def on_network_qt(self, event, args=None):
         # note: we get events from all wallets! args are heterogenous so we can't
         # shortcut here
+        if event != 'status':
+            wallet = args[0]
+            if wallet == self.wallet:
+                self._logger.debug('event %s' % event)
         if event == 'status':
             self.isUptodateChanged.emit()
         elif event == 'request_status':
@@ -105,8 +113,11 @@ class QEWallet(QObject):
         elif event == 'invoice_status':
             wallet, key = args
             if wallet == self.wallet:
-                self._logger.debug('invoice status %d for key %s' % (c, key))
-                self.invoiceStatusChanged.emit(key)
+                self._logger.debug('invoice status update for key %s' % key)
+                # FIXME event doesn't pass the new status, so we need to retrieve
+                invoice = self.wallet.get_invoice(key)
+                status = self.wallet.get_invoice_status(invoice)
+                self.invoiceStatusChanged.emit(key, status)
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
@@ -129,6 +140,15 @@ class QEWallet(QObject):
             wallet, = args
             if wallet == self.wallet:
                 self.balanceChanged.emit()
+        elif event == 'payment_succeeded':
+            wallet, key = args
+            if wallet == self.wallet:
+                self.paymentSucceeded.emit(key)
+                self._historyModel.init_model() # TODO: be less dramatic
+        elif event == 'payment_failed':
+            wallet, key, reason = args
+            if wallet == self.wallet:
+                self.paymentFailed.emit(key, reason)
         else:
             self._logger.debug('unhandled event: %s %s' % (event, str(args)))
 
@@ -345,6 +365,24 @@ class QEWallet(QObject):
             return
 
         return
+
+    @pyqtSlot(str)
+    def pay_lightning_invoice(self, invoice_key):
+        self._logger.debug('about to pay LN')
+        invoice = self.wallet.get_invoice(invoice_key)
+        assert(invoice)
+        assert(invoice.lightning_invoice)
+        amount_msat = invoice.get_amount_msat()
+        def pay_thread():
+            try:
+                coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.wallet.network.asyncio_loop)
+                fut.result()
+            except Exception as e:
+                self.userNotify(repr(e))
+                #self.app.show_error(repr(e))
+        #self.save_invoice(invoice)
+        threading.Thread(target=pay_thread).start()
 
     def create_bitcoin_request(self, amount: int, message: str, expiration: int, ignore_gap: bool) -> Optional[str]:
         addr = self.wallet.get_unused_address()

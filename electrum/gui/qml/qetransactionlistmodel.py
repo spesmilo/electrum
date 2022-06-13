@@ -18,8 +18,8 @@ class QETransactionListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES=('txid','fee_sat','height','confirmations','timestamp','monotonic_timestamp',
-                 'incoming','bc_value','bc_balance','date','label','txpos_in_block','fee',
-                 'inputs','outputs','section')
+                 'incoming','value','balance','date','label','txpos_in_block','fee',
+                 'inputs','outputs','section','type','lightning','payment_hash','key')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -46,12 +46,23 @@ class QETransactionListModel(QAbstractListModel):
         self.endResetModel()
 
     def tx_to_model(self, tx):
+        #self._logger.debug(str(tx))
         item = tx
-        for output in item['outputs']:
-            output['value'] = output['value'].value
 
-        item['bc_value'] = QEAmount(amount_sat=item['bc_value'].value)
-        item['bc_balance'] = QEAmount(amount_sat=item['bc_balance'].value)
+        item['key'] = item['txid'] if 'txid' in item else item['payment_hash']
+
+        if not 'lightning' in item:
+            item['lightning'] = False
+
+        if item['lightning']:
+            item['value'] = QEAmount(amount_sat=item['value'].value, amount_msat=item['amount_msat'])
+            item['balance'] = QEAmount(amount_sat=item['balance'].value, amount_msat=item['amount_msat'])
+            if item['type'] == 'payment':
+                item['incoming'] = True if item['direction'] == 'received' else False
+            item['confirmations'] = 0
+        else:
+            item['value'] = QEAmount(amount_sat=item['value'].value)
+            item['balance'] = QEAmount(amount_sat=item['balance'].value)
 
         # newly arriving txs have no (block) timestamp
         # TODO?
@@ -90,9 +101,9 @@ class QETransactionListModel(QAbstractListModel):
 
     # initial model data
     def init_model(self):
-        history = self.wallet.get_detailed_history(show_addresses = True)
+        history = self.wallet.get_full_history()
         txs = []
-        for tx in history['transactions']:
+        for key, tx in history.items():
             txs.append(self.tx_to_model(tx))
 
         self.clear()
@@ -104,7 +115,7 @@ class QETransactionListModel(QAbstractListModel):
     def update_tx(self, txid, info):
         i = 0
         for tx in self.tx_history:
-            if tx['txid'] == txid:
+            if 'txid' in tx and tx['txid'] == txid:
                 tx['height'] = info.height
                 tx['confirmations'] = info.conf
                 tx['timestamp'] = info.timestamp
@@ -116,10 +127,10 @@ class QETransactionListModel(QAbstractListModel):
             i = i + 1
 
     @pyqtSlot(str, str)
-    def update_tx_label(self, txid, label):
+    def update_tx_label(self, key, label):
         i = 0
         for tx in self.tx_history:
-            if tx['txid'] == txid:
+            if tx['key'] == key:
                 tx['label'] = label
                 index = self.index(i,0)
                 self.dataChanged.emit(index, index, [self._ROLE_RMAP['label']])
@@ -131,7 +142,7 @@ class QETransactionListModel(QAbstractListModel):
         self._logger.debug('updating height to %d' % height)
         i = 0
         for tx in self.tx_history:
-            if tx['height'] > 0:
+            if 'height' in tx and tx['height'] > 0:
                 tx['confirmations'] = height - tx['height'] + 1
                 index = self.index(i,0)
                 roles = [self._ROLE_RMAP['confirmations']]

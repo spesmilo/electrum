@@ -51,7 +51,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         invoices = []
         for invoice in self.get_invoice_list():
             item = self.invoice_to_model(invoice)
-            self._logger.debug(str(item))
+            #self._logger.debug(str(item))
             invoices.append(item)
 
         self.clear()

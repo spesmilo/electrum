@@ -1,7 +1,5 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-#from decimal import Decimal
-
 from electrum.logging import get_logger
 from electrum.util import format_time
 

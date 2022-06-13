@@ -67,11 +67,19 @@ Pane {
                         Layout.preferredHeight: txinfo.height
 
                         onClicked: {
-                            var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': model.txid})
-                            page.txDetailsChanged.connect(function() {
-                                // update listmodel when details change
-                                visualModel.model.update_tx_label(model.txid, page.label)
-                            })
+                            if (model.lightning) {
+                                var page = app.stack.push(Qt.resolvedUrl('LightningPaymentDetails.qml'), {'key': model.key})
+                                page.detailsChanged.connect(function() {
+                                    // update listmodel when details change
+                                    visualModel.model.update_tx_label(model.key, page.label)
+                                })
+                            } else {
+                                var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), {'txid': model.key})
+                                page.detailsChanged.connect(function() {
+                                    // update listmodel when details change
+                                    visualModel.model.update_tx_label(model.key, page.label)
+                                })
+                            }
                         }
 
                         GridLayout {
@@ -82,6 +90,7 @@ Pane {
                             width: delegate.width - 2*constants.paddingSmall
 
                             Item { Layout.columnSpan: 3; Layout.preferredWidth: 1; Layout.preferredHeight: 1}
+
                             Image {
                                 readonly property variant tx_icons : [
                                     "../../../gui/icons/unconfirmed.png",
@@ -97,7 +106,7 @@ Pane {
                                 Layout.preferredHeight: constants.iconSizeLarge
                                 Layout.alignment: Qt.AlignVCenter
                                 Layout.rowSpan: 2
-                                source: tx_icons[Math.min(6,model.confirmations)]
+                                source: model.lightning ? "../../../gui/icons/lightning.png" : tx_icons[Math.min(6,model.confirmations)]
                             }
 
                             Label {
@@ -118,7 +127,7 @@ Pane {
                                 color: model.incoming ? constants.colorCredit : constants.colorDebit
 
                                 function updateText() {
-                                    text = Config.formatSats(model.bc_value)
+                                    text = Config.formatSats(model.value)
                                 }
                                 Component.onCompleted: updateText()
                             }
@@ -137,9 +146,9 @@ Pane {
                                     if (!Daemon.fx.enabled) {
                                         text = ''
                                     } else if (Daemon.fx.historicRates) {
-                                        text = Daemon.fx.fiatValueHistoric(model.bc_value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
+                                        text = Daemon.fx.fiatValueHistoric(model.value, model.timestamp) + ' ' + Daemon.fx.fiatCurrency
                                     } else {
-                                        text = Daemon.fx.fiatValue(model.bc_value, false) + ' ' + Daemon.fx.fiatCurrency
+                                        text = Daemon.fx.fiatValue(model.value, false) + ' ' + Daemon.fx.fiatCurrency
                                     }
                                 }
                                 Component.onCompleted: updateText()
