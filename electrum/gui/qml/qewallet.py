@@ -244,6 +244,10 @@ class QEWallet(QObject):
         return bool(self.wallet.lnworker)
 
     @pyqtProperty(bool, notify=dataChanged)
+    def canHaveLightning(self):
+        return self.wallet.can_have_lightning()
+
+    @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
         return self.wallet.has_seed()
 
@@ -318,6 +322,10 @@ class QEWallet(QObject):
         self._lightningcanreceive = QEAmount(amount_sat=self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
+    @pyqtSlot()
+    def enableLightning(self):
+        self.wallet.init_lightning(password=None) # TODO pass password if needed
+        self.isLightningChanged.emit()
 
     @pyqtSlot('QString', int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):

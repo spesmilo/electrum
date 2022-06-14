@@ -48,7 +48,26 @@ Pane {
             Label { text: Daemon.currentWallet.isLightning }
 
             Label { text: 'has Seed'; color: Material.accentColor }
-            Label { text: Daemon.currentWallet.hasSeed; Layout.columnSpan: 3 }
+            Label { text: Daemon.currentWallet.hasSeed }
+
+            RowLayout {
+                visible: !Daemon.currentWallet.isLightning && Daemon.currentWallet.canHaveLightning
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignHCenter
+
+                Button {
+                    enabled: Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
+                    text: qsTr('Enable Lightning')
+                    onClicked: Daemon.currentWallet.enableLightning()
+                }
+            }
+
+            Item {
+                visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.canHaveLightning
+                Layout.columnSpan: 2
+                Layout.preferredHeight: 1
+                Layout.preferredWidth: 1
+            }
 
             Label { Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor }
 
