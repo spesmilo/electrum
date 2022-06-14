@@ -91,6 +91,19 @@ Dialog {
         }
 
         Label {
+            visible: invoice.invoiceType == Invoice.OnchainInvoice
+            text: qsTr('Address')
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.OnchainInvoice
+            Layout.fillWidth: true
+            text: invoice.address
+            font.family: FixedFont
+            wrapMode: Text.Wrap
+        }
+
+        Label {
             text: qsTr('Status')
         }
 
