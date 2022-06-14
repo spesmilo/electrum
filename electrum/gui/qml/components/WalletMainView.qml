@@ -94,26 +94,6 @@ Item {
         anchors.fill: parent
         visible: Daemon.currentWallet != null
 
-        TabBar {
-            id: tabbar
-            Layout.fillWidth: true
-            currentIndex: swipeview.currentIndex
-            TabButton {
-                text: qsTr('Receive')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            TabButton {
-                text: qsTr('History')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            TabButton {
-                enabled: !Daemon.currentWallet.isWatchOnly
-                text: qsTr('Send')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            Component.onCompleted: tabbar.setCurrentIndex(1)
-        }
-
         SwipeView {
             id: swipeview
 
@@ -152,6 +132,26 @@ Item {
                 }
             }
 
+        }
+
+        TabBar {
+            id: tabbar
+            Layout.fillWidth: true
+            currentIndex: swipeview.currentIndex
+            TabButton {
+                text: qsTr('Receive')
+                font.pixelSize: constants.fontSizeLarge
+            }
+            TabButton {
+                text: qsTr('History')
+                font.pixelSize: constants.fontSizeLarge
+            }
+            TabButton {
+                enabled: !Daemon.currentWallet.isWatchOnly
+                text: qsTr('Send')
+                font.pixelSize: constants.fontSizeLarge
+            }
+            Component.onCompleted: tabbar.setCurrentIndex(1)
         }
 
     }
