@@ -4,6 +4,7 @@ from PyQt5.QtQuick import QQuickImageProvider
 
 import asyncio
 import qrcode
+import math
 
 from PIL import Image, ImageQt
 
@@ -127,6 +128,11 @@ class QEQRImageProvider(QQuickImageProvider):
         self._logger.debug('QR requested for %s' % qstr)
         qr = qrcode.QRCode(version=1, box_size=6, border=2)
         qr.add_data(qstr)
+
+        # calculate best box_size, aim for 400 px
+        modules = 17 + 4 * qr.best_fit()
+        qr.box_size = math.floor(400/(modules+2))
+
         qr.make(fit=True)
 
         pimg = qr.make_image(fill_color='black', back_color='white')
