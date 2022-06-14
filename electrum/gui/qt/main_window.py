@@ -1820,7 +1820,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if req is None:
             return
         if status == PR_PAID:
-            self.notify(_('Payment received') + '\n' + key)
+            msg = _('Payment received:')
+            amount = req.get_amount_sat()
+            if amount:
+                msg += ' ' + self.format_amount_and_units(amount)
+            msg += '\n' + req.get_message()
+            self.notify(msg)
             self.request_list.delete_item(key)
             self.receive_tabs.setVisible(False)
             self.need_update.set()
