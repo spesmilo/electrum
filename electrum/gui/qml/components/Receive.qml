@@ -200,8 +200,7 @@ Pane {
 
     function createRequest(ignoreGaplimit = false) {
         var qamt = Config.unitsToSats(amount.text)
-        console.log('about to create req for ' + qamt.satsInt + ' sats')
-        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive) {
+        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
             console.log('Creating OnChain request')
             Daemon.currentWallet.create_request(qamt, message.text, expires.currentValue, false, ignoreGaplimit)
         } else {

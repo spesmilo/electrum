@@ -118,20 +118,22 @@ class QEQRParser(QObject):
         return result
 
 class QEQRImageProvider(QQuickImageProvider):
-    def __init__(self, parent=None):
+    def __init__(self, max_size, parent=None):
         super().__init__(QQuickImageProvider.Image)
+        self._max_size = max_size
 
     _logger = get_logger(__name__)
 
     @profiler
     def requestImage(self, qstr, size):
         self._logger.debug('QR requested for %s' % qstr)
-        qr = qrcode.QRCode(version=1, box_size=6, border=2)
+        qr = qrcode.QRCode(version=1, border=2)
         qr.add_data(qstr)
 
-        # calculate best box_size, aim for 400 px
+        # calculate best box_size
+        pixelsize = min(self._max_size, 400)
         modules = 17 + 4 * qr.best_fit()
-        qr.box_size = math.floor(400/(modules+2))
+        qr.box_size = math.floor(pixelsize/(modules+2*2))
 
         qr.make(fit=True)
 

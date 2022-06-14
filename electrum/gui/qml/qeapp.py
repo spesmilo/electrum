@@ -153,7 +153,9 @@ class ElectrumQmlApplication(QGuiApplication):
         self.engine = QQmlApplicationEngine(parent=self)
         self.engine.addImportPath('./qml')
 
-        self.qr_ip = QEQRImageProvider()
+        screensize = self.primaryScreen().size()
+
+        self.qr_ip = QEQRImageProvider((7/8)*min(screensize.width(), screensize.height()))
         self.engine.addImageProvider('qrgen', self.qr_ip)
 
         # add a monospace font as we can't rely on device having one
