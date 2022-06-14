@@ -216,6 +216,15 @@ Pane {
             }
 
             Label {
+                text: qsTr('Transactions')
+                color: Material.accentColor
+            }
+
+            Label {
+                text: addressdetails.numTx
+            }
+
+            Label {
                 text: qsTr('Derivation path')
                 color: Material.accentColor
             }

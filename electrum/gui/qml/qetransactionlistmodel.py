@@ -9,9 +9,11 @@ from electrum.util import Satoshis, TxMinedInfo
 from .qetypes import QEAmount
 
 class QETransactionListModel(QAbstractListModel):
-    def __init__(self, wallet, parent=None):
+    def __init__(self, wallet, parent=None, *, onchain_domain=None, include_lightning=True):
         super().__init__(parent)
         self.wallet = wallet
+        self.onchain_domain = onchain_domain
+        self.include_lightning = include_lightning
         self.init_model()
 
     _logger = get_logger(__name__)
@@ -101,7 +103,8 @@ class QETransactionListModel(QAbstractListModel):
 
     # initial model data
     def init_model(self):
-        history = self.wallet.get_full_history()
+        history = self.wallet.get_full_history(onchain_domain=self.onchain_domain,
+                                               include_lightning=self.include_lightning)
         txs = []
         for key, tx in history.items():
             txs.append(self.tx_to_model(tx))

@@ -7,6 +7,7 @@ from electrum.util import DECIMAL_POINT_DEFAULT
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .qetransactionlistmodel import QETransactionListModel
 
 class QEAddressDetails(QObject):
     def __init__(self, parent=None):
@@ -25,8 +26,9 @@ class QEAddressDetails(QObject):
     _pubkeys = None
     _privkey = None
     _derivationPath = None
+    _numtx = 0
 
-    _txlistmodel = None
+    _historyModel = None
 
     detailsChanged = pyqtSignal()
 
@@ -70,6 +72,10 @@ class QEAddressDetails(QObject):
     def derivationPath(self):
         return self._derivationPath
 
+    @pyqtProperty(int, notify=detailsChanged)
+    def numTx(self):
+        return self._numtx
+
 
     frozenChanged = pyqtSignal()
     @pyqtProperty(bool, notify=frozenChanged)
@@ -95,6 +101,14 @@ class QEAddressDetails(QObject):
             self._label = label
             self.labelChanged.emit()
 
+    historyModelChanged = pyqtSignal()
+    @pyqtProperty(QETransactionListModel, notify=historyModelChanged)
+    def historyModel(self):
+        if self._historyModel is None:
+            self._historyModel = QETransactionListModel(self._wallet.wallet,
+                                                        onchain_domain=[self._address], include_lightning=False)
+        return self._historyModel
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
@@ -110,4 +124,6 @@ class QEAddressDetails(QObject):
         self._pubkeys = self._wallet.wallet.get_public_keys(self._address)
         self._derivationPath = self._wallet.wallet.get_address_path_str(self._address)
         self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
+        self._numtx = self._wallet.wallet.get_address_history_len(self._address)
+        assert(self._numtx == self.historyModel.rowCount(0))
         self.detailsChanged.emit()
