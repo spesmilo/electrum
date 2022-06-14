@@ -1920,6 +1920,8 @@ class LNWallet(LNWorker):
             return
         self.set_payment_status(payment_hash, status)
         req = self.wallet.get_request_by_rhash(payment_hash.hex())
+        if req is None:
+            return
         key = self.wallet.get_key_for_receive_request(req)
         util.trigger_callback('request_status', self.wallet, key, status)
 
