@@ -2349,7 +2349,7 @@ class Abstract_Wallet(ABC, Logger):
         return self.receive_requests.get(key) if key else None
 
     def get_formatted_request(self, key):
-        x = self.get_request.get(key)
+        x = self.get_request(key)
         if x:
             return self.export_request(x)
 
