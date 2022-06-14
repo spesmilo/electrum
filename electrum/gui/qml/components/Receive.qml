@@ -199,8 +199,15 @@ Pane {
     }
 
     function createRequest(ignoreGaplimit = false) {
-        var a = Config.unitsToSats(amount.text)
-        Daemon.currentWallet.create_request(a, message.text, expires.currentValue, false, ignoreGaplimit)
+        var qamt = Config.unitsToSats(amount.text)
+        console.log('about to create req for ' + qamt.satsInt + ' sats')
+        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive) {
+            console.log('Creating OnChain request')
+            Daemon.currentWallet.create_request(qamt, message.text, expires.currentValue, false, ignoreGaplimit)
+        } else {
+            console.log('Creating Lightning request')
+            Daemon.currentWallet.create_request(qamt, message.text, expires.currentValue, true)
+        }
     }
 
     Connections {

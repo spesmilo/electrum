@@ -19,7 +19,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
-                 'status', 'status_str', 'address', 'expiration', 'type', 'onchain_fallback')
+                 'status', 'status_str', 'address', 'expiration', 'type', 'onchain_fallback',
+                 'lightning_invoice')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))

@@ -209,6 +209,8 @@ Dialog {
         if (!modelItem.is_lightning) {
             _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
             qr.source = 'image://qrgen/' + _bip21uri
+        } else {
+            qr.source = 'image://qrgen/' + modelItem.lightning_invoice
         }
     }
 

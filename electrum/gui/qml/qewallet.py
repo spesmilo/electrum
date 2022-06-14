@@ -415,8 +415,8 @@ class QEWallet(QObject):
             ## TODO: check this flow. Only if alias is defined in config. OpenAlias?
             #pass
             ##self.sign_payment_request(addr)
-        self._requestModel.add_invoice(self.wallet.get_request(req_key))
-        return addr
+
+        return req_key, addr
 
     @pyqtSlot(QEAmount, 'QString', int)
     @pyqtSlot(QEAmount, 'QString', int, bool)
@@ -428,9 +428,11 @@ class QEWallet(QObject):
                     self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
                     return
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-                key = self.wallet.lnworker.add_request(amount.satsInt, message, expiration)
+                # TODO fallback address robustness
+                addr = self.wallet.get_unused_address()
+                key = self.wallet.create_request(amount.satsInt, message, expiration, addr, True)
             else:
-                key = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap)
+                key, addr = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap)
                 if not key:
                     return
                 self.addressModel.init_model()
@@ -439,6 +441,7 @@ class QEWallet(QObject):
             return
 
         assert key is not None
+        self._requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit()
 
     @pyqtSlot('QString')
