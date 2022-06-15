@@ -1,6 +1,6 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
+import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
@@ -12,6 +12,100 @@ Pane {
 
     property string title: qsTr('Wallets')
 
+    function createWallet() {
+        var dialog = app.newWalletWizard.createObject(rootItem)
+        dialog.open()
+        dialog.walletCreated.connect(function() {
+            Daemon.availableWallets.reload()
+            // and load the new wallet
+            Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
+        })
+    }
+
+    function enableLightning() {
+        var dialog = app.messageDialog.createObject(rootItem,
+                {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
+        dialog.yesClicked.connect(function() {
+            Daemon.currentWallet.enableLightning()
+        })
+        dialog.open()
+    }
+
+    function deleteWallet() {
+        var dialog = app.messageDialog.createObject(rootItem,
+                {'text': qsTr('Really delete this wallet?'), 'yesno': true})
+        dialog.yesClicked.connect(function() {
+            Daemon.currentWallet.deleteWallet()
+        })
+        dialog.open()
+    }
+
+    property QtObject menu: Menu {
+        id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Create Wallet');
+                onTriggered: rootItem.createWallet()
+                icon.source: '../../icons/wallet.png'
+            }
+        }
+        Component {
+            id: changePasswordComp
+            MenuItem {
+                icon.color: 'transparent'
+                enabled: false
+                action: Action {
+                    text: qsTr('Change Password');
+                    onTriggered: rootItem.changePassword()
+                    icon.source: '../../icons/lock.png'
+                }
+            }
+        }
+        Component {
+            id: deleteWalletComp
+            MenuItem {
+                icon.color: 'transparent'
+                enabled: false
+                action: Action {
+                    text: qsTr('Delete Wallet');
+                    onTriggered: rootItem.deleteWallet()
+                    icon.source: '../../icons/delete.png'
+                }
+            }
+        }
+
+        Component {
+            id: enableLightningComp
+            MenuItem {
+                icon.color: 'transparent'
+                action: Action {
+                    text: qsTr('Enable Lightning');
+                    onTriggered: rootItem.enableLightning()
+                    enabled: Daemon.currentWallet != null && Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
+                    icon.source: '../../icons/lightning.png'
+                }
+            }
+        }
+
+        Component {
+            id: sepComp
+            MenuSeparator {}
+        }
+
+        // add items dynamically, if using visible: false property the menu item isn't removed but empty
+        Component.onCompleted: {
+            if (Daemon.currentWallet != null) {
+                menu.insertItem(0, sepComp.createObject(menu))
+                if (Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning) {
+                    menu.insertItem(0, enableLightningComp.createObject(menu))
+                }
+                menu.insertItem(0, deleteWalletComp.createObject(menu))
+                menu.insertItem(0, changePasswordComp.createObject(menu))
+            }
+        }
+    }
+
     ColumnLayout {
         id: layout
         width: parent.width
@@ -19,12 +113,13 @@ Pane {
 
         GridLayout {
             id: detailsLayout
+            visible: Daemon.currentWallet != null
             Layout.preferredWidth: parent.width
 
             columns: 4
 
             Label { text: 'Wallet'; Layout.columnSpan: 2; color: Material.accentColor }
-            Label { text: Daemon.currentWallet.name; Layout.columnSpan: 2 }
+            Label { text: Daemon.currentWallet.name; font.bold: true /*pixelSize: constants.fontSizeLarge*/; Layout.columnSpan: 2 }
 
             Label { text: 'derivation prefix (BIP32)'; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
             Label { text: Daemon.currentWallet.derivationPrefix; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
@@ -48,26 +143,7 @@ Pane {
             Label { text: Daemon.currentWallet.isLightning }
 
             Label { text: 'has Seed'; color: Material.accentColor }
-            Label { text: Daemon.currentWallet.hasSeed }
-
-            RowLayout {
-                visible: !Daemon.currentWallet.isLightning && Daemon.currentWallet.canHaveLightning
-                Layout.columnSpan: 2
-                Layout.alignment: Qt.AlignHCenter
-
-                Button {
-                    enabled: Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
-                    text: qsTr('Enable Lightning')
-                    onClicked: Daemon.currentWallet.enableLightning()
-                }
-            }
-
-            Item {
-                visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.canHaveLightning
-                Layout.columnSpan: 2
-                Layout.preferredHeight: 1
-                Layout.preferredWidth: 1
-            }
+            Label { text: Daemon.currentWallet.hasSeed; Layout.columnSpan: 3 }
 
             Label { Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor }
 
@@ -83,6 +159,7 @@ Pane {
                         text: Daemon.currentWallet.masterPubkey
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
+                        font.family: FixedFont
                         font.pixelSize: constants.fontSizeMedium
                     }
                     ToolButton {
@@ -100,10 +177,25 @@ Pane {
             }
         }
 
-        Item { width: 1; height: 1 }
+        ColumnLayout {
+            visible: Daemon.currentWallet == null
+
+            Layout.alignment: Qt.AlignHCenter
+            Layout.bottomMargin: constants.paddingXXLarge
+            Layout.topMargin: constants.paddingXXLarge
+            spacing: 2*constants.paddingXLarge
+
+            Label {
+                text: qsTr('No wallet loaded')
+                font.pixelSize: constants.fontSizeXXLarge
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+        }
 
         Frame {
             id: detailsFrame
+            Layout.topMargin: constants.paddingXLarge
             Layout.preferredWidth: parent.width
             Layout.fillHeight: true
             verticalPadding: 0
@@ -180,15 +272,7 @@ Pane {
         Button {
             Layout.alignment: Qt.AlignHCenter
             text: 'Create Wallet'
-            onClicked:  {
-                var dialog = app.newWalletWizard.createObject(rootItem)
-                dialog.open()
-                dialog.walletCreated.connect(function() {
-                    Daemon.availableWallets.reload()
-                    // and load the new wallet
-                    Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
-                })
-            }
+            onClicked: rootItem.createWallet()
         }
     }
 
