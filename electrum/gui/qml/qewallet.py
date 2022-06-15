@@ -286,7 +286,9 @@ class QEWallet(QObject):
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
-        self._frozenbalance = QEAmount(amount_sat=self.wallet.get_frozen_balance())
+        c, u, x = self.wallet.get_frozen_balance()
+        self._logger.info('frozen balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
+        self._frozenbalance = QEAmount(amount_sat=c+x)
         return self._frozenbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)

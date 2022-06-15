@@ -93,6 +93,7 @@ class QEAddressDetails(QObject):
             self._wallet.wallet.set_frozen_state_of_addresses([self._address], freeze=freeze)
             self._frozen = freeze
             self.frozenChanged.emit()
+            self._wallet.balanceChanged.emit()
 
     @pyqtSlot(str)
     def set_label(self, label: str):
