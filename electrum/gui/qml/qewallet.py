@@ -306,22 +306,25 @@ class QEWallet(QObject):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalance(self):
         if not self.isLightning:
-            return QEAmount()
-        self._lightningbalance = QEAmount(amount_sat=int(self.wallet.lnworker.get_balance()))
+            self._lightningbalance = QEAmount()
+        else:
+            self._lightningbalance = QEAmount(amount_sat=int(self.wallet.lnworker.get_balance()))
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
         if not self.isLightning:
-            return QEAmount()
-        self._lightningcansend = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_send()))
+            self._lightningcansend = QEAmount()
+        else:
+            self._lightningcansend = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_send()))
         return self._lightningcansend
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanReceive(self):
         if not self.isLightning:
-            return QEAmount()
-        self._lightningcanreceive = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_receive()))
+            self._lightningcanreceive = QEAmount()
+        else:
+            self._lightningcanreceive = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_receive()))
         return self._lightningcanreceive
 
     @pyqtSlot()

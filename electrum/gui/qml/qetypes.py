@@ -17,16 +17,16 @@ class QEAmount(QObject):
 
     def __init__(self, *, amount_sat: int = 0, amount_msat: int = 0, is_max: bool = False, from_invoice = None, parent=None):
         super().__init__(parent)
-        self._amount_sat = amount_sat
-        self._amount_msat = amount_msat
+        self._amount_sat = int(amount_sat) if amount_sat is not None else None
+        self._amount_msat = int(amount_msat) if amount_msat is not None else None
         self._is_max = is_max
         if from_invoice:
             inv_amt = from_invoice.get_amount_msat()
             if inv_amt == '!':
                 self._is_max = True
             elif inv_amt is not None:
-                self._amount_msat = inv_amt
-                self._amount_sat = from_invoice.get_amount_sat()
+                self._amount_msat = int(inv_amt)
+                self._amount_sat = int(from_invoice.get_amount_sat())
 
     valueChanged = pyqtSignal()
 
