@@ -221,4 +221,18 @@ ApplicationWindow
             notificationPopup.show(message)
         }
     }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onAuthRequired() {
+            var dialog = app.messageDialog.createObject(app, {'text': 'Auth placeholder', 'yesno': true})
+            dialog.yesClicked.connect(function() {
+                Daemon.currentWallet.authProceed()
+            })
+            dialog.noClicked.connect(function() {
+                Daemon.currentWallet.authCancel()
+            })
+            dialog.open()
+        }
+    }
 }

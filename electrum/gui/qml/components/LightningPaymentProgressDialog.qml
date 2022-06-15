@@ -123,5 +123,8 @@ Dialog {
             s.state = 'failed'
             errorText.text = reason
         }
+        function onPaymentAuthRejected() {
+            dialog.close()
+        }
     }
 }

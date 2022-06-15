@@ -21,8 +21,9 @@ from .qetransactionlistmodel import QETransactionListModel
 from .qeaddresslistmodel import QEAddressListModel
 from .qechannellistmodel import QEChannelListModel
 from .qetypes import QEAmount
+from .auth import AuthMixin, auth_protect
 
-class QEWallet(QObject):
+class QEWallet(AuthMixin, QObject):
     __instances = []
 
     # this factory method should be used to instantiate QEWallet
@@ -90,7 +91,7 @@ class QEWallet(QObject):
         return self.wallet.is_up_to_date()
 
     def on_network(self, event, *args):
-        if event == 'new_transaction':
+        if event in ['new_transaction', 'payment_succeeded']:
             # Handle in GUI thread (_network_signal -> on_network_qt)
             self._network_signal.emit(event, args)
         else:
@@ -356,6 +357,7 @@ class QEWallet(QObject):
         tx.set_rbf(use_rbf)
         self.sign_and_broadcast(tx)
 
+    @auth_protect
     def sign_and_broadcast(self, tx):
         def cb(result):
             self._logger.info('signing was succesful? %s' % str(result))
@@ -379,13 +381,20 @@ class QEWallet(QObject):
 
         return
 
+    paymentAuthRejected = pyqtSignal()
+    def ln_auth_rejected(self):
+        self.paymentAuthRejected.emit()
+
     @pyqtSlot(str)
+    @auth_protect(reject='ln_auth_rejected')
     def pay_lightning_invoice(self, invoice_key):
         self._logger.debug('about to pay LN')
         invoice = self.wallet.get_invoice(invoice_key)
         assert(invoice)
         assert(invoice.lightning_invoice)
+
         amount_msat = invoice.get_amount_msat()
+
         def pay_thread():
             try:
                 coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
@@ -393,8 +402,7 @@ class QEWallet(QObject):
                 fut.result()
             except Exception as e:
                 self.userNotify(repr(e))
-                #self.app.show_error(repr(e))
-        #self.save_invoice(invoice)
+
         threading.Thread(target=pay_thread).start()
 
     def create_bitcoin_request(self, amount: int, message: str, expiration: int, ignore_gap: bool) -> Optional[str]:
