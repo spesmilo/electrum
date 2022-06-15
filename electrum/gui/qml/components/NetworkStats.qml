@@ -49,10 +49,12 @@ Pane {
             Layout.preferredWidth: constants.iconSizeSmall
             Layout.preferredHeight: constants.iconSizeSmall
             source: Network.status == 'connecting' || Network.status == 'disconnected'
-                ? '../../icons/status_disconnected.png' :
-                    Daemon.currentWallet.isUptodate
-                    ? '../../icons/status_connected.png'
-                    : '../../icons/status_lagging.png'
+                ? '../../icons/status_disconnected.png'
+                : Network.status == 'connected'
+                    ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
+                        ? '../../icons/status_lagging.png'
+                        : '../../icons/status_connected.png'
+                    : '../../icons/status_connected.png'
         }
         Label {
             text: Network.status

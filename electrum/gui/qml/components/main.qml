@@ -53,16 +53,6 @@ ApplicationWindow
                 visible: Network.isTestNet
                 width: column.width
                 height: column.height
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        var dialog = app.messageDialog.createObject(app, {'text':
-                            'Electrum is currently on ' + Network.networkName + ''
-                        })
-                        dialog.open()
-                    }
-
-                }
 
                 ColumnLayout {
                     id: column
@@ -96,9 +86,11 @@ ApplicationWindow
                 Layout.preferredHeight: constants.iconSizeSmall
                 source: Network.status == 'connecting' || Network.status == 'disconnected'
                     ? '../../icons/status_disconnected.png'
-                    : Daemon.currentWallet.isUptodate
-                        ? '../../icons/status_connected.png'
-                        : '../../icons/status_lagging.png'
+                    : Network.status == 'connected'
+                        ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
+                            ? '../../icons/status_lagging.png'
+                            : '../../icons/status_connected.png'
+                        : '../../icons/status_connected.png'
             }
 
             Rectangle {

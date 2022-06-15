@@ -60,11 +60,11 @@ class QENetwork(QObject):
         self._logger.debug('fee histogram updated')
         self.feeHistogramUpdated.emit()
 
-    @pyqtProperty(int,notify=heightChanged)
+    @pyqtProperty(int, notify=heightChanged)
     def height(self):
         return self._height
 
-    @pyqtProperty('QString',notify=defaultServerChanged)
+    @pyqtProperty('QString', notify=defaultServerChanged)
     def server(self):
         return str(self.network.get_parameters().server)
 
@@ -79,7 +79,7 @@ class QENetwork(QObject):
         net_params = net_params._replace(server=server)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
-    @pyqtProperty('QString',notify=statusChanged)
+    @pyqtProperty('QString', notify=statusChanged)
     def status(self):
         return self._status
 
@@ -105,7 +105,7 @@ class QENetwork(QObject):
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
 
-    @pyqtProperty('QVariant',notify=feeHistogramUpdated)
+    @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):
         return self.network.get_status_value('fee_histogram')
 

@@ -108,14 +108,13 @@ Pane {
 
                 Label {
                     text: qsTr('Lightning Routing')
-                    enabled: Daemon.currentWallet.isLightning
                 }
 
                 ComboBox {
                     id: lnRoutingType
                     valueRole: 'key'
                     textRole: 'label'
-                    enabled: Daemon.currentWallet.isLightning && false
+                    enabled: Daemon.currentWallet != null && Daemon.currentWallet.isLightning && false
                     model: ListModel {
                         ListElement { key: 'gossip'; label: qsTr('Gossip') }
                         ListElement { key: 'trampoline'; label: qsTr('Trampoline') }
