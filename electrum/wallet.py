@@ -968,7 +968,7 @@ class Abstract_Wallet(ABC, Logger):
 
     def clear_requests(self):
         self.receive_requests.clear()
-        self._requests_rhash_to_key.clear()
+        self._requests_addr_to_rhash.clear()
         self.save_db()
 
     def get_invoices(self):
@@ -1020,10 +1020,10 @@ class Abstract_Wallet(ABC, Logger):
         return invoices
 
     def _init_requests_rhash_index(self):
-        self._requests_rhash_to_key = {}
+        self._requests_addr_to_rhash = {}
         for key, req in self.receive_requests.items():
-            if req.is_lightning():
-                self._requests_rhash_to_key[req.rhash] = key
+            if req.is_lightning() and (addr:=req.get_address()):
+                self._requests_addr_to_rhash[addr] = req.rhash
 
     def _prepare_onchain_invoice_paid_detection(self):
         # scriptpubkey -> list(invoice_keys)
@@ -1335,7 +1335,7 @@ class Abstract_Wallet(ABC, Logger):
         return ''
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
-        req = self.get_request_by_rhash(rhash)
+        req = self.get_request(rhash)
         return req.message if req else ''
 
     def get_label_for_rhash(self, rhash: str) -> str:
@@ -2219,9 +2219,7 @@ class Abstract_Wallet(ABC, Logger):
 
     def get_unused_addresses(self) -> Sequence[str]:
         domain = self.get_receiving_addresses()
-        # TODO we should index receive_requests by id
-        # add lightning requests. (use as key)
-        in_use_by_request = set(self.receive_requests.keys())
+        in_use_by_request = set(req.get_address() for req in self.get_unpaid_requests())
         return [addr for addr in domain if not self.adb.is_used(addr)
                 and addr not in in_use_by_request]
 
@@ -2342,11 +2340,12 @@ class Abstract_Wallet(ABC, Logger):
         return self.check_expired_status(r, status)
 
     def get_request(self, key):
-        return self.receive_requests.get(key) or self.get_request_by_rhash(key)
+        return self.receive_requests.get(key) or self.get_request_by_address(key)
 
-    def get_request_by_rhash(self, rhash):
-        key = self._requests_rhash_to_key.get(rhash)
-        return self.receive_requests.get(key) if key else None
+    def get_request_by_address(self, addr):
+        rhash = self._requests_addr_to_rhash.get(addr)
+        if rhash:
+            return self.receive_requests.get(rhash)
 
     def get_formatted_request(self, key):
         x = self.get_request(key)
@@ -2484,16 +2483,15 @@ class Abstract_Wallet(ABC, Logger):
                     raise Exception(_('Address not in wallet.'))
             key = addr
         else:
-            addr = req.get_address()
-            key = req.rhash if addr is None else addr
+            key = req.rhash
         return key
 
     def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):
         key = self.get_key_for_receive_request(req, sanity_checks=True)
         message = req.message
         self.receive_requests[key] = req
-        if req.is_lightning():
-            self._requests_rhash_to_key[req.rhash] = key
+        if req.is_lightning() and (addr:=req.get_address()):
+            self._requests_addr_to_rhash[addr] = req.rhash
         if write_to_disk:
             self.save_db()
         return key
@@ -2503,8 +2501,8 @@ class Abstract_Wallet(ABC, Logger):
         req = self.receive_requests.pop(key, None)
         if req is None:
             return
-        if req.is_lightning():
-            self._requests_rhash_to_key.pop(req.rhash)
+        if req.is_lightning() and (addr:=req.get_address()):
+            self._requests_addr_to_rhash.pop(addr)
         if req.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(req.rhash)
         self.save_db()

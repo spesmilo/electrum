@@ -1919,10 +1919,10 @@ class LNWallet(LNWorker):
         if self.get_payment_status(payment_hash) == status:
             return
         self.set_payment_status(payment_hash, status)
-        req = self.wallet.get_request_by_rhash(payment_hash.hex())
+        key = payment_hash.hex()
+        req = self.wallet.get_request(key)
         if req is None:
             return
-        key = self.wallet.get_key_for_receive_request(req)
         util.trigger_callback('request_status', self.wallet, key, status)
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:

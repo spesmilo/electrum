@@ -105,7 +105,7 @@ class MockWallet:
     receive_requests = {}
     adb = MockADB()
 
-    def get_request_by_rhash(self, rhash):
+    def get_request(self, key):
         pass
 
     def get_key_for_receive_request(self, x):
