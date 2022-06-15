@@ -1274,25 +1274,32 @@ class LNWallet(LNWorker):
                 raise PaymentFailure(failure_msg.code_name())
             # trampoline
             if not self.channel_db:
+                def maybe_raise_trampoline_fee(htlc_log):
+                    global trampoline_fee_level
+                if htlc_log.trampoline_fee_level == trampoline_fee_level:
+                    trampoline_fee_level += 1
+                    self.logger.info(f'raising trampoline fee level {trampoline_fee_level}')
+                else:
+                    self.logger.info(f'NOT raising trampoline fee level, already at {trampoline_fee_level}')
                 # FIXME The trampoline nodes in the path are chosen randomly.
                 #       Some of the errors might depend on how we have chosen them.
                 #       Having more attempts is currently useful in part because of the randomness,
                 #       instead we should give feedback to create_routes_for_payment.
-                if code in (OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
-                            OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
+                if code in (
+                        OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
+                        OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
                     # TODO: parse the node policy here (not returned by eclair yet)
                     # TODO: erring node is always the first trampoline even if second
                     #  trampoline demands more fees, we can't influence this
-                    if htlc_log.trampoline_fee_level == trampoline_fee_level:
-                        trampoline_fee_level += 1
-                        self.logger.info(f'raising trampoline fee level {trampoline_fee_level}')
-                    else:
-                        self.logger.info(f'NOT raising trampoline fee level, already at {trampoline_fee_level}')
+                    maybe_raise_trampoline_fee(htlc_log)
                     continue
                 elif use_two_trampolines:
                     use_two_trampolines = False
-                elif code in (OnionFailureCode.UNKNOWN_NEXT_PEER,
-                              OnionFailureCode.TEMPORARY_NODE_FAILURE):
+                elif code in (
+                        OnionFailureCode.UNKNOWN_NEXT_PEER,
+                        OnionFailureCode.TEMPORARY_NODE_FAILURE,
+                        OnionFailureCode.TEMPORARY_CHANNEL_FAILURE):
+                    maybe_raise_trampoline_fee(htlc_log)
                     continue
                 else:
                     raise PaymentFailure(failure_msg.code_name())
