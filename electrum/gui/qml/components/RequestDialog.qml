@@ -142,6 +142,7 @@ Dialog {
                 text: Config.formatSats(modelItem.amount)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeLarge
+                font.bold: true
             }
             Label {
                 visible: modelItem.amount.satsInt != 0

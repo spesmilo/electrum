@@ -89,6 +89,7 @@ Pane {
             RowLayout {
                 Label {
                     text: Config.formatSats(txdetails.amount)
+                    font.family: FixedFont
                 }
                 Label {
                     text: Config.baseUnit
@@ -106,6 +107,7 @@ Pane {
                 visible: txdetails.amount.satsInt < 0
                 Label {
                     text: Config.formatSats(txdetails.fee)
+                    font.family: FixedFont
                 }
                 Label {
                     text: Config.baseUnit
@@ -230,7 +232,8 @@ Pane {
                         }
                         Label {
                             text: Config.formatSats(modelData.value)
-                            font.pixelSize: constants.fontSizeLarge
+                            font.pixelSize: constants.fontSizeMedium
+                            font.family: FixedFont
                         }
                         Label {
                             text: Config.baseUnit

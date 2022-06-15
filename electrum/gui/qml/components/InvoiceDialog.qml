@@ -44,24 +44,25 @@ Dialog {
             text: qsTr('Type')
         }
 
-        Label {
-            text: invoice.invoiceType == Invoice.OnchainInvoice
-                    ? qsTr('On-chain invoice')
-                    : invoice.invoiceType == Invoice.LightningInvoice
-                        ? qsTr('Lightning invoice')
-                        : ''
+        RowLayout {
             Layout.fillWidth: true
-        }
+            Image {
+                //Layout.rowSpan: 2
+                Layout.preferredWidth: constants.iconSizeSmall
+                Layout.preferredHeight: constants.iconSizeSmall
+                source: invoice.invoiceType == Invoice.LightningInvoice
+                    ? "../../icons/lightning.png"
+                    : "../../icons/bitcoin.png"
+            }
 
-        Label {
-            text: qsTr('Description')
-        }
-
-        Label {
-            text: invoice.message
-            Layout.fillWidth: true
-            wrapMode: Text.Wrap
-            elide: Text.ElideRight
+            Label {
+                text: invoice.invoiceType == Invoice.OnchainInvoice
+                        ? qsTr('On chain')
+                        : invoice.invoiceType == Invoice.LightningInvoice
+                            ? qsTr('Lightning')
+                            : ''
+                Layout.fillWidth: true
+            }
         }
 
         Label {
@@ -71,6 +72,8 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Label {
+                font.pixelSize: constants.fontSizeLarge
+                font.family: FixedFont
                 font.bold: true
                 text: Config.formatSats(invoice.amount, false)
             }
@@ -88,6 +91,17 @@ Dialog {
                         : ''
                 font.pixelSize: constants.fontSizeMedium
             }
+        }
+
+        Label {
+            text: qsTr('Description')
+        }
+
+        Label {
+            text: invoice.message
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            elide: Text.ElideRight
         }
 
         Label {
