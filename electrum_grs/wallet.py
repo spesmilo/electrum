@@ -316,6 +316,7 @@ class Abstract_Wallet(ABC, Logger):
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
+        self._init_requests_rhash_index()
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
         # save wallet type the first time
@@ -453,7 +454,7 @@ class Abstract_Wallet(ABC, Logger):
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
-    def on_adb_added_tx(self, event, adb, tx_hash):
+    def on_adb_added_tx(self, event, adb, tx_hash, notify_GUI):
         if self.adb != adb:
             return
         tx = self.db.get_transaction(tx_hash)
@@ -467,7 +468,8 @@ class Abstract_Wallet(ABC, Logger):
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_request_statuses_touched_by_tx(tx_hash)
-        util.trigger_callback('new_transaction', self, tx)
+        if notify_GUI:
+            util.trigger_callback('new_transaction', self, tx)
 
     def on_adb_added_verified_tx(self, event, adb, tx_hash):
         if adb != self.adb:
@@ -966,6 +968,7 @@ class Abstract_Wallet(ABC, Logger):
 
     def clear_requests(self):
         self.receive_requests.clear()
+        self._requests_rhash_to_key.clear()
         self.save_db()
 
     def get_invoices(self):
@@ -1015,6 +1018,12 @@ class Abstract_Wallet(ABC, Logger):
         for inv in invoices:
             assert isinstance(inv, Invoice), f"unexpected type {type(inv)}"
         return invoices
+
+    def _init_requests_rhash_index(self):
+        self._requests_rhash_to_key = {}
+        for key, req in self.receive_requests.items():
+            if req.is_lightning():
+                self._requests_rhash_to_key[req.rhash] = key
 
     def _prepare_onchain_invoice_paid_detection(self):
         # scriptpubkey -> list(invoice_keys)
@@ -1324,6 +1333,13 @@ class Abstract_Wallet(ABC, Logger):
                     labels.append(label)
             return ', '.join(labels)
         return ''
+
+    def _get_default_label_for_rhash(self, rhash: str) -> str:
+        req = self.get_request_by_rhash(rhash)
+        return req.message if req else ''
+
+    def get_label_for_rhash(self, rhash: str) -> str:
+        return self._labels.get(rhash) or self._get_default_label_for_rhash(rhash)
 
     def get_all_labels(self) -> Dict[str, str]:
         with self.lock:
@@ -2326,10 +2342,14 @@ class Abstract_Wallet(ABC, Logger):
         return self.check_expired_status(r, status)
 
     def get_request(self, key):
-        return self.receive_requests.get(key)
+        return self.receive_requests.get(key) or self.get_request_by_rhash(key)
+
+    def get_request_by_rhash(self, rhash):
+        key = self._requests_rhash_to_key.get(rhash)
+        return self.receive_requests.get(key) if key else None
 
     def get_formatted_request(self, key):
-        x = self.receive_requests.get(key)
+        x = self.get_request(key)
         if x:
             return self.export_request(x)
 
@@ -2472,32 +2492,31 @@ class Abstract_Wallet(ABC, Logger):
         key = self.get_key_for_receive_request(req, sanity_checks=True)
         message = req.message
         self.receive_requests[key] = req
-        self.set_label(key, message)  # should be a default label
+        if req.is_lightning():
+            self._requests_rhash_to_key[req.rhash] = key
         if write_to_disk:
             self.save_db()
         return key
 
     def delete_request(self, key):
         """ lightning or on-chain """
-        if key in self.receive_requests:
-            self.remove_payment_request(key)
-        elif self.lnworker:
-            self.lnworker.delete_payment(key)
+        req = self.receive_requests.pop(key, None)
+        if req is None:
+            return
+        if req.is_lightning():
+            self._requests_rhash_to_key.pop(req.rhash)
+        if req.is_lightning() and self.lnworker:
+            self.lnworker.delete_payment_info(req.rhash)
+        self.save_db()
 
     def delete_invoice(self, key):
         """ lightning or on-chain """
-        if key in self.invoices:
-            self.invoices.pop(key)
-        elif self.lnworker:
-            self.lnworker.delete_payment(key)
-
-    def remove_payment_request(self, addr) -> bool:
-        found = False
-        if addr in self.receive_requests:
-            found = True
-            self.receive_requests.pop(addr)
-            self.save_db()
-        return found
+        inv = self.invoices.pop(key, None)
+        if inv is None:
+            return
+        if inv.is_lightning() and self.lnworker:
+            self.lnworker.delete_payment_info(inv.rhash)
+        self.save_db()
 
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """
@@ -2913,7 +2932,7 @@ class Imported_Wallet(Simple_Wallet):
             for tx_hash in transactions_to_remove:
                 self.adb._remove_transaction(tx_hash)
         self.set_label(address, None)
-        self.remove_payment_request(address)
+        self.delete_request(address)
         self.set_frozen_state_of_addresses([address], False)
         pubkey = self.get_public_key(address)
         self.db.remove_imported_address(address)

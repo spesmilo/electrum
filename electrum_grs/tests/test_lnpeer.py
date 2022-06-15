@@ -105,6 +105,12 @@ class MockWallet:
     receive_requests = {}
     adb = MockADB()
 
+    def get_request_by_rhash(self, rhash):
+        pass
+
+    def get_key_for_receive_request(self, x):
+        pass
+
     def set_label(self, x, y):
         pass
 
@@ -134,7 +140,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.lnwatcher = None
         self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
-        self.payments = {}
+        self.payment_info = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
         self.features = LnFeatures(0)

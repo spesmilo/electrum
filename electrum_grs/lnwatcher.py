@@ -444,75 +444,101 @@ class LNWalletWatcher(LNWatcher):
         # create and broadcast transaction
         for prevout, sweep_info in sweep_info_dict.items():
             name = sweep_info.name + ' ' + chan.get_id_for_log()
-            spender_txid = self.maybe_add_redeem_tx(spenders, prevout, sweep_info, name)
-            if spender_txid is not None:
-                spender_tx = self.adb.get_transaction(spender_txid)
-                if not spender_tx:
-                    keep_watching = True
-                    continue
-                await self.maybe_broadcast(prevout, sweep_info, name, spender_txid)
+            spender_txid = spenders.get(prevout)
+            spender_tx = self.adb.get_transaction(spender_txid) if spender_txid else None
+            if spender_tx:
+                # the spender might be the remote, revoked or not
                 e_htlc_tx = chan.maybe_sweep_revoked_htlc(closing_tx, spender_tx)
                 if e_htlc_tx:
-                    spender2 = self.maybe_add_redeem_tx(spenders, spender_txid+':0', e_htlc_tx, name)
+                    spender2 = spenders.get(spender_txid+':0')
                     if spender2:
-                        await self.maybe_broadcast(prevout, sweep_info, name, spender2)
                         keep_watching |= not self.is_deeply_mined(spender2)
                     else:
                         keep_watching = True
+                    await self.maybe_redeem(spenders, spender_txid+':0', e_htlc_tx, name)
                 else:
-                    keep_watching |= not self.is_deeply_mined(spender_txid)
+                    keep_watching |= not self.is_deeply_mined(spender_tx.txid())
                     txin_idx = spender_tx.get_input_idx_that_spent_prevout(TxOutpoint.from_str(prevout))
                     assert txin_idx is not None
                     spender_txin = spender_tx.inputs()[txin_idx]
                     chan.extract_preimage_from_htlc_txin(spender_txin)
             else:
                 keep_watching = True
+            # broadcast or maybe update our own tx
+            await self.maybe_redeem(spenders, prevout, sweep_info, name)
+
         return keep_watching
 
-    def maybe_add_redeem_tx(self, spenders, prevout: str, sweep_info: 'SweepInfo', name: str):
+    def get_redeem_tx(self, spenders, prevout: str, sweep_info: 'SweepInfo', name: str):
+        # check if redeem tx needs to be updated
+        # if it is in the mempool, we need to check fee rise
         txid = spenders.get(prevout)
-        if txid:
-            return txid
-        prev_txid, prev_index = prevout.split(':')
-        tx = sweep_info.gen_tx()
-        if tx is None:
+        old_tx = self.adb.get_transaction(txid)
+        assert old_tx is not None or txid is None
+        tx_depth = self.get_tx_mined_depth(txid) if txid else None
+        if txid and tx_depth not in [TxMinedDepth.FREE, TxMinedDepth.MEMPOOL]:
+            assert old_tx is not None
+            return old_tx, None
+        new_tx = sweep_info.gen_tx()
+        if new_tx is None:
             self.logger.info(f'{name} could not claim output: {prevout}, dust')
-            return
-        txid = tx.txid()
-        # it's OK to add local transaction, the fee will be recomputed
-        try:
-            tx_was_added = self.adb.add_transaction(tx)
-        except Exception as e:
-            self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
-            tx_was_added = False
-        if tx_was_added:
-            self.lnworker.wallet.set_label(txid, name)
-            self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
-            util.trigger_callback('wallet_updated', self.lnworker.wallet)
-            return txid
+            assert old_tx is not None
+            return old_tx, None
+        if txid is None:
+            return None, new_tx
+        elif tx_depth == TxMinedDepth.MEMPOOL:
+            delta = new_tx.get_fee() - self.adb.get_tx_fee(txid)
+            if delta > 1:
+                self.logger.info(f'increasing fee of mempool tx {name}: {prevout}')
+                return old_tx, new_tx
+            else:
+                assert old_tx is not None
+                return old_tx, None
+        elif tx_depth == TxMinedDepth.FREE:
+            # return new tx, even if it is equal to old_tx,
+            # because we need to test if it can be broadcast
+            return old_tx, new_tx
+        else:
+            assert old_tx is not None
+            return old_tx, None
 
-    async def maybe_broadcast(self, prevout, sweep_info: 'SweepInfo', name: str, txid: str) -> None:
-        if self.get_tx_mined_depth(txid) != TxMinedDepth.FREE:
-            return
-        tx = self.adb.get_transaction(txid)
-        if tx is None:
+    async def maybe_redeem(self, spenders, prevout, sweep_info: 'SweepInfo', name: str) -> None:
+        old_tx, new_tx = self.get_redeem_tx(spenders, prevout, sweep_info, name)
+        if new_tx is None:
             return
         prev_txid, prev_index = prevout.split(':')
-        broadcast = True
+        can_broadcast = True
         local_height = self.network.get_local_height()
         if sweep_info.cltv_expiry:
             wanted_height = sweep_info.cltv_expiry
             if wanted_height - local_height > 0:
-                broadcast = False
+                can_broadcast = False
                 reason = 'waiting for {}: CLTV ({} > {})'.format(name, local_height, sweep_info.cltv_expiry)
         if sweep_info.csv_delay:
             prev_height = self.adb.get_tx_height(prev_txid)
             wanted_height = sweep_info.csv_delay + prev_height.height - 1
             if prev_height.height <= 0 or wanted_height - local_height > 0:
-                broadcast = False
+                can_broadcast = False
                 reason = 'waiting for {}: CSV ({} >= {})'.format(name, prev_height.conf, sweep_info.csv_delay)
-        if broadcast:
-            await self.network.try_broadcasting(tx, name)
+        if can_broadcast:
+            self.logger.info(f'we can broadcast: {name}')
+            tx_was_added = await self.network.try_broadcasting(new_tx, name)
         else:
-            self.adb.set_future_tx(tx.txid(), wanted_height)
+            self.logger.info(f'cannot broadcast: {name} {reason}')
+            # we may have a tx with a different fee, in which case it will be replaced
+            if old_tx != new_tx:
+                try:
+                    tx_was_added = self.adb.add_transaction(new_tx, notify=(old_tx is None))
+                except Exception as e:
+                    self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
+                    tx_was_added = False
+                if tx_was_added:
+                    self.adb.set_future_tx(new_tx.txid(), wanted_height)
+                    self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
+            else:
+                tx_was_added = False
+        if tx_was_added:
+            self.lnworker.wallet.set_label(new_tx.txid(), name)
+            if old_tx:
+                self.lnworker.wallet.set_label(old_tx.txid(), None)
             util.trigger_callback('wallet_updated', self.lnworker.wallet)

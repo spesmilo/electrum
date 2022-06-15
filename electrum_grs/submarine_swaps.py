@@ -231,6 +231,7 @@ class SwapManager(Logger):
             self.sign_tx(tx, swap)
             self.logger.info(f'adding claim tx {tx.txid()}')
             self.wallet.adb.add_transaction(tx)
+            swap.spending_txid = tx.txid()
 
     def get_claim_fee(self):
         return self.wallet.config.estimate_fee(136, allow_fallback_to_static_rates=True)

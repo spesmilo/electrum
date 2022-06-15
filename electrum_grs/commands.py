@@ -980,9 +980,9 @@ class Commands:
         wallet.sign_payment_request(address, alias, alias_addr, password)
 
     @command('w')
-    async def rmrequest(self, address, wallet: Abstract_Wallet = None):
+    async def delete_request(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address)
+        return wallet.delete_request(address)
 
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):

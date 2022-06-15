@@ -67,7 +67,7 @@ from electrum_grs.util import (format_time,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
 from electrum_grs.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum_grs.invoices import PR_PAID, PR_UNPAID, PR_FAILED, pr_expiration_values, Invoice
+from electrum_grs.invoices import PR_PAID, PR_UNPAID, PR_FAILED, PR_EXPIRED, pr_expiration_values, Invoice
 from electrum_grs.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
 from electrum_grs.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1317,12 +1317,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         addr = req.get_address() or ''
         amount_sat = req.get_amount_sat() or 0
         address_help = '' if addr else _('Amount too small to be received onchain')
+        URI_help = ''
         lnaddr = req.lightning_invoice
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
         lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
         can_receive_lightning = self.wallet.lnworker and amount_sat <= self.wallet.lnworker.num_sats_can_receive()
-        if lnaddr is None:
+        has_expired = self.wallet.get_request_status(key) == PR_EXPIRED
+        if has_expired:
+            URI_help = ln_help = address_help = _('This request has expired')
+            URI = lnaddr = address = ''
+            can_rebalance = False
+            can_swap = False
+        elif lnaddr is None:
             ln_help = _('This request does not have a Lightning invoice.')
             lnaddr = ''
             can_rebalance = False
@@ -1362,6 +1369,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_help_text.setText(address_help)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
+        self.receive_URI_help.setText(URI_help)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
         self.receive_lightning_help_text.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr_qr)
@@ -1820,7 +1828,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if req is None:
             return
         if status == PR_PAID:
-            self.notify(_('Payment received') + '\n' + key)
+            msg = _('Payment received:')
+            amount = req.get_amount_sat()
+            if amount:
+                msg += ' ' + self.format_amount_and_units(amount)
+            msg += '\n' + req.get_message()
+            self.notify(msg)
             self.request_list.delete_item(key)
             self.receive_tabs.setVisible(False)
             self.need_update.set()

@@ -586,7 +586,7 @@ class LNWallet(LNWorker):
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
-        self.payments = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
+        self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.sweep_address = wallet.get_new_sweep_address_for_channel()
@@ -787,7 +787,7 @@ class LNWallet(LNWorker):
             info = self.get_payment_info(payment_hash)
             amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             if info is not None:
-                label = self.wallet.get_label(key)
+                label = self.wallet.get_label_for_rhash(key)
                 direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
             else:
                 direction = 'forwarding'
@@ -825,10 +825,8 @@ class LNWallet(LNWorker):
             item = chan.get_funding_height()
             if item is None:
                 continue
-            if not self.lnwatcher:
-                continue  # lnwatcher not available with --offline (its data is not persisted)
             funding_txid, funding_height, funding_timestamp = item
-            tx_height = self.lnwatcher.adb.get_tx_height(funding_txid)
+            tx_height = self.wallet.adb.get_tx_height(funding_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
@@ -848,7 +846,7 @@ class LNWallet(LNWorker):
             if item is None:
                 continue
             closing_txid, closing_height, closing_timestamp = item
-            tx_height = self.lnwatcher.adb.get_tx_height(closing_txid)
+            tx_height = self.wallet.adb.get_tx_height(closing_txid)
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
@@ -879,10 +877,9 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            if self.lnwatcher:
-                tx_height = self.lnwatcher.adb.get_tx_height(swap.funding_txid)
-                if swap.is_reverse and tx_height.height <= 0:
-                    label += ' (%s)' % _('waiting for funding tx confirmation')
+            tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
+            if swap.is_reverse and tx_height.height <= 0:
+                label += ' (%s)' % _('waiting for funding tx confirmation')
             if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                 label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
@@ -1823,15 +1820,15 @@ class LNWallet(LNWorker):
         """returns None if payment_hash is a payment we are forwarding"""
         key = payment_hash.hex()
         with self.lock:
-            if key in self.payments:
-                amount_msat, direction, status = self.payments[key]
+            if key in self.payment_info:
+                amount_msat, direction, status = self.payment_info[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
         with self.lock:
-            self.payments[key] = info.amount_msat, info.direction, info.status
+            self.payment_info[key] = info.amount_msat, info.direction, info.status
         if write_to_disk:
             self.wallet.save_db()
 
@@ -1888,11 +1885,14 @@ class LNWallet(LNWorker):
         util.trigger_callback('invoice_status', self.wallet, key)
 
     def set_request_status(self, payment_hash: bytes, status: int) -> None:
-        if self.get_payment_status(payment_hash) != status:
-            self.set_payment_status(payment_hash, status)
-            for key, req in self.wallet.receive_requests.items():
-                if req.is_lightning() and req.rhash == payment_hash.hex():
-                    util.trigger_callback('request_status', self.wallet, key, status)
+        if self.get_payment_status(payment_hash) == status:
+            return
+        self.set_payment_status(payment_hash, status)
+        req = self.wallet.get_request_by_rhash(payment_hash.hex())
+        if req is None:
+            return
+        key = self.wallet.get_key_for_receive_request(req)
+        util.trigger_callback('request_status', self.wallet, key, status)
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)
@@ -2032,13 +2032,14 @@ class LNWallet(LNWorker):
                 trampoline_hints.append(('t', (node_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta)))
         return routing_hints, trampoline_hints
 
-    def delete_payment(self, payment_hash_hex: str):
-        try:
-            with self.lock:
-                del self.payments[payment_hash_hex]
-        except KeyError:
-            return
-        self.wallet.save_db()
+    def delete_payment_info(self, payment_hash_hex: str):
+        # This method is called when an invoice or request is deleted by the user.
+        # The GUI only lets the user delete invoices or requests that have not been paid.
+        # Once an invoice/request has been paid, it is part of the history,
+        # and get_lightning_history assumes that payment_info is there.
+        assert self.get_payment_status(bytes.fromhex(payment_hash_hex)) != PR_PAID
+        with self.lock:
+            self.payment_info.pop(payment_hash_hex, None)
 
     def get_balance(self, frozen=False):
         with self.lock:
