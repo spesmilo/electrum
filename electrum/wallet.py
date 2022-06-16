@@ -83,6 +83,7 @@ from .logging import get_logger, Logger
 from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException
+from .util import EventListener, event_listener
 
 if TYPE_CHECKING:
     from .network import Network
@@ -267,7 +268,7 @@ class TxWalletDetails(NamedTuple):
     is_lightning_funding_tx: bool
 
 
-class Abstract_Wallet(ABC, Logger):
+class Abstract_Wallet(ABC, Logger, EventListener):
     """
     Wallet classes are created to handle various address generation methods.
     Completion states (watching-only, single account, no seed, etc) are handled inside classes.
@@ -282,6 +283,7 @@ class Abstract_Wallet(ABC, Logger):
     lnworker: Optional['LNWallet']
 
     def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
+
         if not db.is_ready_to_be_used_by_wallet():
             raise Exception("storage not ready to be used by Abstract_Wallet")
 
@@ -332,10 +334,7 @@ class Abstract_Wallet(ABC, Logger):
         self.lnworker = None
         self.load_keystore()
         self.test_addresses_sanity()
-        # callbacks
-        util.register_callback(self.on_adb_added_tx, ['adb_added_tx'])
-        util.register_callback(self.on_adb_added_verified_tx, ['adb_added_verified_tx'])
-        util.register_callback(self.on_adb_removed_verified_tx, ['adb_removed_verified_tx'])
+        self.register_callbacks()
 
     @ignore_exceptions  # don't kill outer taskgroup
     async def main_loop(self):
@@ -422,9 +421,7 @@ class Abstract_Wallet(ABC, Logger):
 
     async def stop(self):
         """Stop all networking and save DB to disk."""
-        util.unregister_callback(self.on_adb_added_tx)
-        util.unregister_callback(self.on_adb_added_verified_tx)
-        util.unregister_callback(self.on_adb_removed_verified_tx)
+        self.unregister_callbacks()
         try:
             async with ignore_after(5):
                 if self.network:
@@ -454,7 +451,8 @@ class Abstract_Wallet(ABC, Logger):
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
-    def on_adb_added_tx(self, event, adb, tx_hash, notify_GUI):
+    @event_listener
+    def on_event_adb_added_tx(self, adb, tx_hash, notify_GUI):
         if self.adb != adb:
             return
         tx = self.db.get_transaction(tx_hash)
@@ -471,14 +469,16 @@ class Abstract_Wallet(ABC, Logger):
         if notify_GUI:
             util.trigger_callback('new_transaction', self, tx)
 
-    def on_adb_added_verified_tx(self, event, adb, tx_hash):
+    @event_listener
+    def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
         self._update_request_statuses_touched_by_tx(tx_hash)
         tx_mined_status = self.adb.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
-    def on_adb_removed_verified_tx(self, event, adb, tx_hash):
+    @event_listener
+    def on_event_adb_removed_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
         self._update_request_statuses_touched_by_tx(tx_hash)

@@ -5,7 +5,7 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout
 
-from electrum import util
+from electrum.util import EventListener
 from electrum.i18n import _
 from electrum.util import bh2u, format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
@@ -15,6 +15,7 @@ from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
 
 from .util import Buttons, CloseButton, ButtonsLineEdit, MessageBoxMixin, WWLabel
+from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -35,7 +36,8 @@ class LinkedLabel(QtWidgets.QLabel):
         self.linkActivated.connect(on_clicked)
 
 
-class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
+class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
+
     def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
         it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format_msat(i.amount_msat))])
@@ -83,35 +85,28 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    htlc_fulfilled = QtCore.pyqtSignal(str, bytes, Channel, int)
-    htlc_failed = QtCore.pyqtSignal(str, bytes, Channel, int)
-    htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
-    state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
-
-    @QtCore.pyqtSlot(str, Abstract_Wallet, AbstractChannel)
-    def do_state_changed(self, wallet, chan):
-        if wallet != self.wallet:
-            return
+    @qt_event_listener
+    def on_event_channel(self, wallet, chan):
         if chan == self.chan:
             self.update()
 
-    @QtCore.pyqtSlot(str, Channel, UpdateAddHtlc, Direction)
-    def on_htlc_added(self, evtname, chan, htlc, direction):
+    @qt_event_listener
+    def on_event_htlc_added(self, chan, htlc, direction):
         if chan != self.chan:
             return
         mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
-    @QtCore.pyqtSlot(str, bytes, Channel, int)
-    def on_htlc_fulfilled(self, evtname, payment_hash, chan, htlc_id):
+    @qt_event_listener
+    def on_event_htlc_fulfilled(self, payment_hash, chan, htlc_id):
         if chan.channel_id != self.chan.channel_id:
             return
         self.move('inflight', 'settled', payment_hash)
         self.update()
 
-    @QtCore.pyqtSlot(str, bytes, Channel, int)
-    def on_htlc_failed(self, evtname, payment_hash, chan, htlc_id):
+    @qt_event_listener
+    def on_event_htlc_failed(self, payment_hash, chan, htlc_id):
         if chan.channel_id != self.chan.channel_id:
             return
         self.move('inflight', 'failed', payment_hash)
@@ -143,17 +138,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
         self.format_sat = lambda sat: window.format_amount_and_units(sat)
 
-        # connect signals with slots
-        self.htlc_fulfilled.connect(self.on_htlc_fulfilled)
-        self.htlc_failed.connect(self.on_htlc_failed)
-        self.state_changed.connect(self.do_state_changed)
-        self.htlc_added.connect(self.on_htlc_added)
-
         # register callbacks for updating
-        util.register_callback(self.htlc_fulfilled.emit, ['htlc_fulfilled'])
-        util.register_callback(self.htlc_failed.emit, ['htlc_failed'])
-        util.register_callback(self.htlc_added.emit, ['htlc_added'])
-        util.register_callback(self.state_changed.emit, ['channel'])
+        self.register_callbacks()
 
         # set attributes of QDialog
         self.setWindowTitle(_('Channel Details'))

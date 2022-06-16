@@ -102,9 +102,6 @@ class QElectrumApplication(QApplication):
     alias_received_signal = pyqtSignal()
 
 
-class QNetworkUpdatedSignalObject(QObject):
-    network_updated_signal = pyqtSignal(str, object)
-
 
 class ElectrumGui(BaseElectrumGui, Logger):
 
@@ -142,7 +139,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.network_dialog = None
         self.lightning_dialog = None
         self.watchtower_dialog = None
-        self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
         self.dark_icon = self.config.get("dark_icon", False)
@@ -251,7 +247,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
             self.network_dialog.close()
             self.network_dialog.clean_up()
             self.network_dialog = None
-        self.network_updated_signal_obj = None
         if self.lightning_dialog:
             self.lightning_dialog.close()
             self.lightning_dialog = None
@@ -298,14 +293,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
 
     def show_network_dialog(self):
         if self.network_dialog:
-            self.network_dialog.on_update()
+            self.network_dialog.on_event_network_updated()
             self.network_dialog.show()
             self.network_dialog.raise_()
             return
         self.network_dialog = NetworkDialog(
             network=self.daemon.network,
-            config=self.config,
-            network_updated_signal_obj=self.network_updated_signal_obj)
+            config=self.config)
         self.network_dialog.show()
 
     def _create_window_for_wallet(self, wallet):
