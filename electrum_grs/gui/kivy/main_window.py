@@ -267,6 +267,8 @@ class ElectrumWindow(App, Logger):
         self._trigger_update_history()
 
     def on_request_status(self, event, wallet, key, status):
+        if wallet != self.wallet:
+            return
         req = self.wallet.receive_requests.get(key)
         if req is None:
             return
@@ -282,6 +284,8 @@ class ElectrumWindow(App, Logger):
             self._trigger_update_history()
 
     def on_invoice_status(self, event, wallet, key):
+        if wallet != self.wallet:
+            return
         req = self.wallet.get_invoice(key)
         if req is None:
             return
@@ -296,11 +300,15 @@ class ElectrumWindow(App, Logger):
             self.invoice_popup.update_status()
 
     def on_payment_succeeded(self, event, wallet, key):
+        if wallet != self.wallet:
+            return
         description = self.wallet.get_label(key)
         self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
     def on_payment_failed(self, event, wallet, key, reason):
+        if wallet != self.wallet:
+            return
         self.show_info(_('Payment failed') + '\n\n' + reason)
 
     def _get_bu(self):
