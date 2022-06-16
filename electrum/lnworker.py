@@ -8,6 +8,7 @@ from decimal import Decimal
 import random
 import time
 import operator
+from enum import IntFlag
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
                     NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict)
 import threading
@@ -148,6 +149,13 @@ FALLBACK_NODE_LIST_MAINNET = [
 
 
 from .trampoline import trampolines_by_id, hardcoded_trampoline_nodes, is_hardcoded_trampoline
+
+
+class PaymentDirection(IntFlag):
+    SENT = 0
+    RECEIVED = 1
+    SELF_PAYMENT = 2
+    FORWARDING = 3
 
 
 class PaymentInfo(NamedTuple):
@@ -795,19 +803,27 @@ class LNWallet(LNWorker):
         return out
 
     def get_payment_value(
-            self, info: Optional['PaymentInfo'], plist: List[HTLCWithStatus],
-    ) -> Tuple[int, int, int]:
+            self, info: Optional['PaymentInfo'],
+            plist: List[HTLCWithStatus]) -> Tuple[int, int, int, int]:
+        """ fee_msat is included in amount_msat"""
         assert plist
-        amount_msat = 0
-        fee_msat = None
-        for htlc_with_status in plist:
-            htlc = htlc_with_status.htlc
-            _direction = htlc_with_status.direction
-            amount_msat += int(_direction) * htlc.amount_msat
-            if _direction == SENT and info and info.amount_msat:
-                fee_msat = (fee_msat or 0) - info.amount_msat - amount_msat
+        amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
+        if all(x.direction == SENT for x in plist):
+            direction = PaymentDirection.SENT
+            fee_msat = - info.amount_msat - amount_msat
+        elif all(x.direction == RECEIVED for x in plist):
+            direction = PaymentDirection.RECEIVED
+            fee_msat = None
+        elif amount_msat < 0:
+            direction = PaymentDirection.SELF_PAYMENT
+            fee_msat = - amount_msat
+        else:
+            direction = PaymentDirection.FORWARDING
+            fee_msat = - amount_msat
+        # we must have info for all the payments we requested or initiated
+        assert (info is None) if direction == PaymentDirection.FORWARDING else (info is not None)
         timestamp = min([htlc_with_status.htlc.timestamp for htlc_with_status in plist])
-        return amount_msat, fee_msat, timestamp
+        return direction, amount_msat, fee_msat, timestamp
 
     def get_lightning_history(self):
         out = {}
@@ -816,12 +832,11 @@ class LNWallet(LNWorker):
                 continue
             key = payment_hash.hex()
             info = self.get_payment_info(payment_hash)
-            amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
+            direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             if info is not None:
                 label = self.wallet.get_label_for_rhash(key)
-                direction = ('sent' if info.direction == SENT else 'received') if len(plist)==1 else 'self-payment'
             else:
-                direction = 'forwarding'
+                assert direction == PaymentDirection.FORWARDING
                 label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
             item = {
@@ -903,7 +918,7 @@ class LNWallet(LNWorker):
             if payment_hash in settled_payments:
                 plist = settled_payments[payment_hash]
                 info = self.get_payment_info(payment_hash)
-                amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
+                direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
             else:
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
