@@ -163,7 +163,7 @@ class AddressList(MyTreeView):
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
-        addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
+        self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
@@ -198,8 +198,6 @@ class AddressList(MyTreeView):
             address_path_str = self.wallet.get_address_path_str(address)
             if address_path_str is not None:
                 address_item[self.Columns.TYPE].setToolTip(address_path_str)
-            if address in addresses_beyond_gap_limit:
-                address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
             # add item
             count = self.std_model.rowCount()
             self.std_model.insertRow(count, address_item)
@@ -238,6 +236,8 @@ class AddressList(MyTreeView):
         address_item[self.Columns.NUM_TXS].setText("%d"%num)
         c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
         address_item[self.Columns.ADDRESS].setBackground(c)
+        if address in self.addresses_beyond_gap_limit:
+            address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
 
     def create_menu(self, position):
         from electrum.wallet import Multisig_Wallet
