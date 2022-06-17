@@ -122,11 +122,10 @@ class ElectrumGui(BaseElectrumGui):
         width = [20, 40, 14, 14]
         delta = (self.maxx - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-
-        b = 0
+        domain = self.wallet.get_addresses()
         self.history = []
         self.txid = []
-        for hist_item in self.wallet.get_history():
+        for hist_item in self.wallet.adb.get_history(domain):
             if hist_item.tx_mined_status.conf:
                 timestamp = hist_item.tx_mined_status.timestamp
                 try:
