@@ -171,7 +171,7 @@ class ExchangeBase(Logger):
 class Binance(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json1 = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
+        json1 = await self.get_json('api.binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
         if ccy != "BTC":
             json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
             return {ccy: to_decimal(json1['price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
@@ -179,29 +179,26 @@ class Binance(ExchangeBase):
 
 class Bittrex(ExchangeBase):
     async def get_rates(self, ccy):
-        json1 = await self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=btc-grs')
+        json1 = await self.get_json('api.bittrex.com', '/v3/markets/GRS-BTC/ticker')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: to_decimal(json1['lastTradeRate'])*to_decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: to_decimal(json1['lastTradeRate'])}
+
+class BTXPro(ExchangeBase):
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.btxpro.com', '/v1.1/public/getticker?market=btc-grs')
         if ccy != "BTC":
             json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
             return {ccy: to_decimal(json1['result']['Last'])*to_decimal(json2['bitcoin'][ccy.lower()])}
         return {ccy: to_decimal(json1['result']['Last'])}
 
-class Huobi(ExchangeBase):
+class Coinbase(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
-        if ccy != "BTC":
-            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
-            return {ccy: to_decimal(json1['tick']['data'][0]['price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
-        return {ccy: to_decimal(json1['tick']['data'][0]['price'])}
-
-class Upbit(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
-        if ccy != "BTC":
-            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
-            return {ccy: to_decimal(json1[0]['trade_price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
-        return {ccy: to_decimal(json1[0]['trade_price'])}
+        json = await self.get_json('api.coinbase.com',
+                             '/v2/exchange-rates?currency=GRS')
+        return {ccy: to_decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
 
 class CoinCap(ExchangeBase):
 
@@ -219,6 +216,14 @@ class CoinCap(ExchangeBase):
                                       '/v2/assets/groestlcoin/history?interval=d1&limit=2000')
         return dict([(datetime.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'), str(h['priceUsd']))
                      for h in history['data']])
+
+class CoinEx(ExchangeBase):
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.coinex.com', '/v1/market/ticker?market=grsbtc')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: to_decimal(json1['data']['ticker']['last'])*to_decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: to_decimal(json1['data']['ticker']['last'])}
 
 class CoinGecko(ExchangeBase):
 
@@ -246,12 +251,40 @@ class CryptoCompare(ExchangeBase):
         return dict((k, to_decimal(v)) for k, v in result.items())
 
     def history_ccys(self):
-        return ['AED', 'AUD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'INR', 'JPY', 'KRW', 'PKR', 'RUB', 'SEK', 'USD', 'BTC']
+        return ['USD','AED','ARS','AUD','BDT','BHD','BMD','BRL','CAD','CHF','CLP','CNY','CZK','DKK','EUR','GBP','HKD','HUF','IDR','ILS','INR','JPY','KRW','KWD','LKR','MMK','MXN','MYR','NGN','NOK','NZD','PHP','PKR','PLN','RUB','SAR','SEK','SGD','THB','TRY','TWD','UAH','VEF','VND','ZAR']
+
 
     async def request_history(self, ccy):
         result = await self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
+
+class Digifinex(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('openapi.digifinex.com', '/v3/ticker?symbol=grs_btc')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: to_decimal(json1['ticker'][0]['last'])*to_decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: to_decimal(json1['ticker'][0]['last'])}
+
+class Huobi(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: to_decimal(json1['tick']['data'][0]['price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: to_decimal(json1['tick']['data'][0]['price'])}
+
+class Upbit(ExchangeBase):
+
+    async def get_rates(self, ccy):
+        json1 = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+        if ccy != "BTC":
+            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
+            return {ccy: to_decimal(json1[0]['trade_price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
+        return {ccy: to_decimal(json1[0]['trade_price'])}
 
 def dictinvert(d):
     inv = {}
