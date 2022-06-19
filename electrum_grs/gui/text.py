@@ -122,26 +122,32 @@ class ElectrumGui(BaseElectrumGui):
         width = [20, 40, 14, 14]
         delta = (self.maxx - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-
-        b = 0
+        domain = self.wallet.get_addresses()
         self.history = []
         self.txid = []
-        for hist_item in self.wallet.get_history():
-            if hist_item.tx_mined_status.conf:
-                timestamp = hist_item.tx_mined_status.timestamp
-                try:
-                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                except Exception:
-                    time_str = "------"
+        for item in self.wallet.get_full_history().values():
+            amount_sat = item['value'].value
+            balance_sat = item['balance'].value
+            if item.get('lightning'):
+                timestamp = item['timestamp']
+                label = self.wallet.get_label_for_rhash(item['payment_hash'])
+                self.txid.insert(0, item['payment_hash'])
+            else:
+                conf = item['confirmations']
+                timestamp = item['timestamp'] if conf > 0 else 0
+                label = self.wallet.get_label_for_txid(item['txid'])
+                self.txid.insert(0, item['txid'])
+            if timestamp:
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label_for_txid(hist_item.txid)
-            self.txid.insert(0, hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
-            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.delta, whitespaces=True),
-                                              format_satoshis(hist_item.balance, whitespaces=True)))
+            self.history.append(format_str % (
+                time_str, label,
+                format_satoshis(amount_sat, whitespaces=True),
+                format_satoshis(balance_sat, whitespaces=True)))
 
 
     def print_balance(self):

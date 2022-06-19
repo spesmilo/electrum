@@ -97,8 +97,8 @@ class ElectrumGui(BaseElectrumGui):
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%" \
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
-
-        for hist_item in reversed(self.wallet.get_history()):
+        domain = self.wallet.get_addresses()
+        for hist_item in reversed(self.wallet.adb.get_history(domain)):
             if hist_item.tx_mined_status.conf:
                 timestamp = hist_item.tx_mined_status.timestamp
                 try:
