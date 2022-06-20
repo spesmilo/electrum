@@ -87,7 +87,7 @@ class QELnPaymentDetails(QObject):
             self._logger.error('wallet undefined')
             return
 
-        if self._key not in self._wallet.wallet.lnworker.payments:
+        if self._key not in self._wallet.wallet.lnworker.payment_info:
             self._logger.error('payment_hash not found')
             return
 
