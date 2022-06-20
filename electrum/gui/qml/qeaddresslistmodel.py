@@ -47,7 +47,7 @@ class QEAddressListModel(QAbstractListModel):
     def addr_to_model(self, address):
         item = {}
         item['address'] = address
-        item['numtx'] = self.wallet.get_address_history_len(address)
+        item['numtx'] = self.wallet.adb.get_address_history_len(address)
         item['label'] = self.wallet.get_label(address)
         c, u, x = self.wallet.get_addr_balance(address)
         item['balance'] = QEAmount(amount_sat=c + u + x)
