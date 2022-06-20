@@ -13,6 +13,7 @@ from electrum.wallet_db import WalletDB
 from .qewallet import QEWallet
 from .qewalletdb import QEWalletDB
 from .qefx import QEFX
+from .auth import AuthMixin, auth_protect
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
@@ -84,7 +85,7 @@ class QEAvailableWalletListModel(QEWalletListModel):
             wallet = self.daemon.get_wallet(path)
             self.add_wallet(wallet_path = path, wallet = wallet)
 
-class QEDaemon(QObject):
+class QEDaemon(AuthMixin, QObject):
     def __init__(self, daemon, parent=None):
         super().__init__(parent)
         self.daemon = daemon
@@ -145,6 +146,13 @@ class QEDaemon(QObject):
             self._logger.error(str(e))
             self.walletOpenError.emit(str(e))
 
+    @pyqtSlot(QEWallet)
+    @auth_protect
+    def delete_wallet(self, wallet):
+        path = wallet.wallet.storage.path
+        self._logger.debug('Ok to delete wallet with path %s' % path)
+        # TODO checks, e.g. existing LN channels, unpaid requests, etc
+        self.daemon.stop_wallet(path)
 
     @pyqtProperty('QString')
     def path(self):

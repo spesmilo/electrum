@@ -35,9 +35,13 @@ Pane {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Really delete this wallet?'), 'yesno': true})
         dialog.yesClicked.connect(function() {
-            Daemon.currentWallet.deleteWallet()
+            Daemon.delete_wallet(Daemon.currentWallet)
         })
         dialog.open()
+    }
+
+    function changePassword() {
+        // TODO: show set password dialog
     }
 
     property QtObject menu: Menu {
@@ -66,7 +70,7 @@ Pane {
             id: deleteWalletComp
             MenuItem {
                 icon.color: 'transparent'
-                enabled: false
+                enabled: Daemon.currentWallet // != null
                 action: Action {
                     text: qsTr('Delete Wallet');
                     onTriggered: rootItem.deleteWallet()
@@ -231,9 +235,13 @@ Pane {
                     clip: true
                     model: Daemon.availableWallets
 
-                    delegate: AbstractButton {
+                    delegate: ItemDelegate {
                         width: ListView.view.width
                         height: row.height
+
+                        onClicked: {
+                            Daemon.load_wallet(model.path)
+                        }
 
                         RowLayout {
                             id: row
@@ -247,19 +255,35 @@ Pane {
                                 fillMode: Image.PreserveAspectFit
                                 Layout.preferredWidth: constants.iconSizeLarge
                                 Layout.preferredHeight: constants.iconSizeLarge
+                                Layout.topMargin: constants.paddingSmall
+                                Layout.bottomMargin: constants.paddingSmall
                             }
 
                             Label {
                                 font.pixelSize: constants.fontSizeLarge
                                 text: model.name
+                                color: model.active ? Material.foreground : Qt.darker(Material.foreground, 1.20)
                                 Layout.fillWidth: true
                             }
 
-                            Button {
-                                text: 'Open'
-                                onClicked: {
-                                    Daemon.load_wallet(model.path)
-                                }
+                            Tag {
+                                visible: Daemon.currentWallet && model.name == Daemon.currentWallet.name
+                                text: qsTr('Current')
+                                border.color: Material.foreground
+                                font.bold: true
+                                labelcolor: Material.foreground
+                            }
+                            Tag {
+                                visible: model.active
+                                text: qsTr('Active')
+                                border.color: 'green'
+                                labelcolor: 'green'
+                            }
+                            Tag {
+                                visible: !model.active
+                                text: qsTr('Not loaded')
+                                border.color: 'grey'
+                                labelcolor: 'grey'
                             }
                         }
                     }
@@ -279,6 +303,7 @@ Pane {
     Connections {
         target: Daemon
         function onWalletLoaded() {
+            Daemon.availableWallets.reload()
             app.stack.pop()
         }
     }

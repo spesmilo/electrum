@@ -2,7 +2,8 @@ import QtQuick 2.6
 import QtQuick.Controls.Material 2.0
 
 Item {
-    readonly property int paddingTiny: 4
+    readonly property int paddingTiny: 4 //deprecated
+    readonly property int paddingXXSmall: 4
     readonly property int paddingXSmall: 6
     readonly property int paddingSmall: 8
     readonly property int paddingMedium: 12

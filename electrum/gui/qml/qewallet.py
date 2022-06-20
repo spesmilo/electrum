@@ -235,7 +235,7 @@ class QEWallet(AuthMixin, QObject):
         return self._channelModel
 
     nameChanged = pyqtSignal()
-    @pyqtProperty('QString', notify=nameChanged)
+    @pyqtProperty(str, notify=nameChanged)
     def name(self):
         return self.wallet.basename()
 
@@ -252,7 +252,7 @@ class QEWallet(AuthMixin, QObject):
     def hasSeed(self):
         return self.wallet.has_seed()
 
-    @pyqtProperty('QString', notify=dataChanged)
+    @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
         return self.wallet.get_txin_type(self.wallet.dummy_address())
 
@@ -272,7 +272,7 @@ class QEWallet(AuthMixin, QObject):
     def isHardware(self):
         return self.wallet.storage.is_encrypted_with_hw_device()
 
-    @pyqtProperty('QString', notify=dataChanged)
+    @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
         keystores = self.wallet.get_keystores()
         if len(keystores) > 1:
@@ -288,7 +288,6 @@ class QEWallet(AuthMixin, QObject):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
-        self._logger.info('frozen balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
         self._frozenbalance = QEAmount(amount_sat=c+x)
         return self._frozenbalance
 
@@ -300,7 +299,6 @@ class QEWallet(AuthMixin, QObject):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def confirmedBalance(self):
         c, u, x = self.wallet.get_balance()
-        self._logger.info('balance: ' + str(c) + ' ' + str(u) + ' ' + str(x) + ' ')
         self._confirmedbalance = QEAmount(amount_sat=c+x)
         return self._confirmedbalance
 
@@ -484,3 +482,10 @@ class QEWallet(AuthMixin, QObject):
     @pyqtSlot('QString', result='QVariant')
     def get_invoice(self, key: str):
         return self._invoiceModel.get_model_invoice(key)
+
+    @pyqtSlot(str)
+    @auth_protect
+    def set_password(self, password):
+        storage = self.wallet.storage
+        self._logger.debug('Ok to set password for wallet with path %s' % storage.path)
+        # TODO

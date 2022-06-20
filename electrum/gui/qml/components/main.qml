@@ -235,4 +235,18 @@ ApplicationWindow
             dialog.open()
         }
     }
+
+    Connections {
+        target: Daemon
+        function onAuthRequired() {
+            var dialog = app.messageDialog.createObject(app, {'text': 'Auth placeholder', 'yesno': true})
+            dialog.yesClicked.connect(function() {
+                Daemon.authProceed()
+            })
+            dialog.noClicked.connect(function() {
+                Daemon.authCancel()
+            })
+            dialog.open()
+        }
+    }
 }
