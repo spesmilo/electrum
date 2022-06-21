@@ -136,6 +136,7 @@ Item {
 
         TabBar {
             id: tabbar
+            position: TabBar.Footer
             Layout.fillWidth: true
             currentIndex: swipeview.currentIndex
             TabButton {
