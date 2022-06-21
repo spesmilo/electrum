@@ -171,6 +171,14 @@ ApplicationWindow
         }
     }
 
+    property alias passwordDialog: _passwordDialog
+    Component {
+        id: _passwordDialog
+        PasswordDialog {
+            onClosed: destroy()
+        }
+    }
+
     NotificationPopup {
         id: notificationPopup
     }
@@ -225,14 +233,23 @@ ApplicationWindow
     Connections {
         target: Daemon.currentWallet
         function onAuthRequired() {
-            var dialog = app.messageDialog.createObject(app, {'text': 'Auth placeholder', 'yesno': true})
-            dialog.yesClicked.connect(function() {
+            if (Daemon.currentWallet.verify_password('')) {
+                // wallet has no password
                 Daemon.currentWallet.authProceed()
-            })
-            dialog.noClicked.connect(function() {
-                Daemon.currentWallet.authCancel()
-            })
-            dialog.open()
+            } else {
+                var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
+                dialog.accepted.connect(function() {
+                    if (Daemon.currentWallet.verify_password(dialog.password)) {
+                        Daemon.currentWallet.authProceed()
+                    } else {
+                        Daemon.currentWallet.authCancel()
+                    }
+                })
+                dialog.rejected.connect(function() {
+                    Daemon.currentWallet.authCancel()
+                })
+                dialog.open()
+            }
         }
     }
 

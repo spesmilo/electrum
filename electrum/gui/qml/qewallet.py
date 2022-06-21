@@ -7,9 +7,10 @@ import threading
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
 
 from electrum.i18n import _
-from electrum.util import register_callback, Satoshis, format_time, parse_max_spend
+from electrum.util import register_callback, Satoshis, format_time, parse_max_spend, InvalidPassword
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
+from electrum.storage import StorageEncryptionVersion
 from electrum import bitcoin
 from electrum.transaction import PartialTxOutput
 from electrum.invoices import   (Invoice, InvoiceError,
@@ -331,7 +332,7 @@ class QEWallet(AuthMixin, QObject):
         self.wallet.init_lightning(password=None) # TODO pass password if needed
         self.isLightningChanged.emit()
 
-    @pyqtSlot('QString', int, int, bool)
+    @pyqtSlot(str, int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):
         self._logger.info('send_onchain: %s %d' % (address,amount))
         coins = self.wallet.get_spendable_coins(None)
@@ -437,9 +438,9 @@ class QEWallet(AuthMixin, QObject):
 
         return req_key, addr
 
-    @pyqtSlot(QEAmount, 'QString', int)
-    @pyqtSlot(QEAmount, 'QString', int, bool)
-    @pyqtSlot(QEAmount, 'QString', int, bool, bool)
+    @pyqtSlot(QEAmount, str, int)
+    @pyqtSlot(QEAmount, str, int, bool)
+    @pyqtSlot(QEAmount, str, int, bool, bool)
     def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         try:
             if is_lightning:
@@ -463,29 +464,52 @@ class QEWallet(AuthMixin, QObject):
         self._requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit()
 
-    @pyqtSlot('QString')
+    @pyqtSlot(str)
     def delete_request(self, key: str):
         self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
         self._requestModel.delete_invoice(key)
 
-    @pyqtSlot('QString', result='QVariant')
+    @pyqtSlot(str, result='QVariant')
     def get_request(self, key: str):
         return self._requestModel.get_model_invoice(key)
 
-    @pyqtSlot('QString')
+    @pyqtSlot(str)
     def delete_invoice(self, key: str):
         self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
         self._invoiceModel.delete_invoice(key)
 
-    @pyqtSlot('QString', result='QVariant')
+    @pyqtSlot(str, result='QVariant')
     def get_invoice(self, key: str):
         return self._invoiceModel.get_model_invoice(key)
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, result=bool)
+    def verify_password(self, password):
+        try:
+            self.wallet.storage.check_password(password)
+            return True
+        except InvalidPassword as e:
+            return False
+
+    requestNewPassword = pyqtSignal()
+    @pyqtSlot()
     @auth_protect
+    def start_change_password(self):
+        self.requestNewPassword.emit()
+
+    @pyqtSlot(str)
     def set_password(self, password):
         storage = self.wallet.storage
+
+        # HW wallet not supported yet
+        if storage.is_encrypted_with_hw_device():
+            return
+
         self._logger.debug('Ok to set password for wallet with path %s' % storage.path)
-        # TODO
+        if password:
+            enc_version = StorageEncryptionVersion.USER_PASSWORD
+        else:
+            enc_version = StorageEncryptionVersion.PLAINTEXT
+        storage.set_password(password, enc_version=enc_version)
+        self.wallet.save_db()

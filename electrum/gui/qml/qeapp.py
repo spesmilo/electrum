@@ -52,6 +52,8 @@ class QEAppController(QObject):
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
+        if not qewallet:
+            return
         # attach to the wallet user notification events
         # connect only once
         try:

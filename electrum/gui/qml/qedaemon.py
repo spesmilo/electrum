@@ -152,7 +152,12 @@ class QEDaemon(AuthMixin, QObject):
         path = wallet.wallet.storage.path
         self._logger.debug('Ok to delete wallet with path %s' % path)
         # TODO checks, e.g. existing LN channels, unpaid requests, etc
+        self._logger.debug('Not deleting yet, just unloading for now')
+        # TODO actually delete
+        # TODO walletLoaded signal is confusing
         self.daemon.stop_wallet(path)
+        self._current_wallet = None
+        self.walletLoaded.emit()
 
     @pyqtProperty('QString')
     def path(self):
