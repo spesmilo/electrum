@@ -63,20 +63,35 @@ class WalletStorage(Logger):
         self.logger.info(f"wallet path {self.path}")
         self.pubkey = None
         self.decrypted = ''
+        self.is_read = False
+        self.raw = ''
         try:
             test_read_write_permissions(self.path)
         except IOError as e:
             raise StorageReadWriteError(e) from e
+        self._read_magic()
+
+    def read(self):
+        if not self.is_read:
+            self._read_all()
+        return self.decrypted if self.is_encrypted() else self.raw
+
+    def _read_magic(self):
+        if self.file_exists():
+            with open(self.path, "r", encoding='utf-8') as f:
+                self.magic = f.read(12)
+            self._encryption_version = self._init_encryption_version()
+        else:
+            self.magic = ''
+            self._encryption_version = StorageEncryptionVersion.PLAINTEXT
+
+    def _read_all(self):
         if self.file_exists():
             with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
-            self._encryption_version = self._init_encryption_version()
         else:
             self.raw = ''
-            self._encryption_version = StorageEncryptionVersion.PLAINTEXT
-
-    def read(self):
-        return self.decrypted if self.is_encrypted() else self.raw
+        self.is_read = True
 
     def write(self, data: str) -> None:
         s = self.encrypt_before_writing(data)
@@ -109,19 +124,21 @@ class WalletStorage(Logger):
             if encryption is disabled completely (self.is_encrypted() == False),
             or if encryption is enabled but the contents have already been decrypted.
         """
+        if not self.is_read:
+            self._read_all()
         return not self.is_encrypted() or bool(self.pubkey)
 
     def is_encrypted(self):
         """Return if storage encryption is currently enabled."""
-        return self.get_encryption_version() != StorageEncryptionVersion.PLAINTEXT
+        return self._get_encryption_version() != StorageEncryptionVersion.PLAINTEXT
 
     def is_encrypted_with_user_pw(self):
-        return self.get_encryption_version() == StorageEncryptionVersion.USER_PASSWORD
+        return self._get_encryption_version() == StorageEncryptionVersion.USER_PASSWORD
 
     def is_encrypted_with_hw_device(self):
-        return self.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
+        return self._get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
 
-    def get_encryption_version(self):
+    def _get_encryption_version(self):
         """Return the version of encryption used for this storage.
 
         0: plaintext / no encryption
@@ -134,7 +151,7 @@ class WalletStorage(Logger):
 
     def _init_encryption_version(self):
         try:
-            magic = base64.b64decode(self.raw)[0:4]
+            magic = base64.b64decode(self.magic)[0:4]
             if magic == b'BIE1':
                 return StorageEncryptionVersion.USER_PASSWORD
             elif magic == b'BIE2':
