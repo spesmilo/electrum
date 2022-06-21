@@ -1633,7 +1633,6 @@ register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
 
 
-
 class EventListener:
 
     def _list_callbacks(self):
@@ -1650,8 +1649,8 @@ class EventListener:
 
     def register_callbacks(self):
         for name, method in self._list_callbacks():
-             _logger.info(f'registering callback {method}')
-             register_callback(method, [name])
+            _logger.info(f'registering callback {method}')
+            register_callback(method, [name])
 
     def unregister_callbacks(self):
         for name, method in self._list_callbacks():

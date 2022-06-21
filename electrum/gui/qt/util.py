@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 from electrum.logging import Logger
 from electrum.qrreader import MissingQrDetectionLib
@@ -1503,8 +1504,6 @@ class VTabWidget(QtWidgets.QTabWidget):
         return super().resizeEvent(e)
 
 
-from electrum.util import EventListener, event_listener
-
 class QtEventListener(EventListener):
 
     qt_callback_signal = QtCore.pyqtSignal(tuple)
@@ -1523,8 +1522,7 @@ class QtEventListener(EventListener):
 
 # decorator for members of the QtEventListener class
 def qt_event_listener(func):
-    assert func.__name__.startswith('on_event_')
-    func._is_event_listener = True
+    func = event_listener(func)
     @wraps(func)
     def decorator(self, *args):
         self.qt_callback_signal.emit( (func,) + args)
