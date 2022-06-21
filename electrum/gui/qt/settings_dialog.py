@@ -580,3 +580,11 @@ class SettingsDialog(QDialog, QtEventListener):
         self.config.set_key('alias', alias, True)
         if alias:
             self.wallet.contacts.fetch_openalias(self.config)
+
+    def closeEvent(self, event):
+        self.unregister_callbacks()
+        try:
+            self.app.alias_received_signal.disconnect(self.set_alias_color)
+        except TypeError:
+            pass  # 'method' object is not connected
+        event.accept()

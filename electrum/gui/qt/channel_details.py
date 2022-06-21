@@ -224,3 +224,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         vbox.addLayout(Buttons(CloseButton(self)))
         # initialize sent/received fields
         self.update()
+
+    def closeEvent(self, event):
+        self.unregister_callbacks()
+        event.accept()
