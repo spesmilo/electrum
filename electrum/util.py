@@ -1631,21 +1631,19 @@ callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
+_event_listeners = defaultdict(set)
 
 
 class EventListener:
 
     def _list_callbacks(self):
-        for method_name in dir(self):
-            # Fixme: getattr executes the code of methods decorated by @property.
-            # This if why we shield with startswith
-            if not method_name.startswith('on_event_'):
-                continue
-            method = getattr(self, method_name)
-            if not getattr(method, '_is_event_listener', False):
-                continue
-            assert callable(method)
-            yield method_name[len('on_event_'):], method
+        for c in self.__class__.__mro__:
+            classname = c.__name__
+            for method_name in _event_listeners[classname]:
+                method = getattr(self, method_name)
+                assert callable(method)
+                assert method_name.startswith('on_event_')
+                yield method_name[len('on_event_'):], method
 
     def register_callbacks(self):
         for name, method in self._list_callbacks():
@@ -1659,8 +1657,9 @@ class EventListener:
 
 
 def event_listener(func):
-    assert func.__name__.startswith('on_event_')
-    func._is_event_listener = True
+    classname, method_name = func.__qualname__.split('.')
+    assert method_name.startswith('on_event_')
+    _event_listeners[classname].add(method_name)
     return func
 
 
