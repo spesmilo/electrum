@@ -14,7 +14,7 @@ class QEChannelListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES=('cid','state','initiator','capacity','can_send','can_receive',
-                 'l_csv_delat','r_csv_delay','send_frozen','receive_frozen',
+                 'l_csv_delay','r_csv_delay','send_frozen','receive_frozen',
                  'type','node_id','node_alias','short_cid','funding_tx')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
@@ -81,7 +81,7 @@ class QEChannelListModel(QAbstractListModel):
     def channel_to_model(self, lnc):
         lnworker = self.wallet.lnworker
         item = {}
-        item['channel_id'] = lnc.channel_id
+        item['cid'] = lnc.channel_id.hex()
         item['node_alias'] = lnworker.get_node_alias(lnc.node_id) or lnc.node_id.hex()
         item['short_cid'] = lnc.short_id_for_GUI()
         item['state'] = lnc.get_state_for_GUI()
@@ -114,7 +114,7 @@ class QEChannelListModel(QAbstractListModel):
     def on_channel_updated(self, channel):
         i = 0
         for c in self.channels:
-            if c['channel_id'] == channel.channel_id:
+            if c['cid'] == channel.channel_id:
                 self.do_update(i,channel)
                 break
             i = i + 1

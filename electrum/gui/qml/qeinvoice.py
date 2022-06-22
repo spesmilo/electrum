@@ -57,9 +57,8 @@ class QEInvoice(QObject):
 
     invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    def __init__(self, config, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.config = config
         self.clear()
 
     @pyqtProperty(int, notify=invoiceChanged)

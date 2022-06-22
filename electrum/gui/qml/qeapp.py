@@ -25,6 +25,7 @@ from .qeaddressdetails import QEAddressDetails
 from .qetxdetails import QETxDetails
 from .qechannelopener import QEChannelOpener
 from .qelnpaymentdetails import QELnPaymentDetails
+from .qechanneldetails import QEChannelDetails
 
 notification = None
 
@@ -149,6 +150,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QETxDetails, 'org.electrum', 1, 0, 'TxDetails')
         qmlRegisterType(QEChannelOpener, 'org.electrum', 1, 0, 'ChannelOpener')
         qmlRegisterType(QELnPaymentDetails, 'org.electrum', 1, 0, 'LnPaymentDetails')
+        qmlRegisterType(QEChannelDetails, 'org.electrum', 1, 0, 'ChannelDetails')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
 

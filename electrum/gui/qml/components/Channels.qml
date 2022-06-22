@@ -108,7 +108,9 @@ Pane {
                     model: Daemon.currentWallet.channelModel
 
                     delegate: ChannelDelegate {
-                        //highlighted: ListView.isCurrentItem
+                        onClicked: {
+                            app.stack.push(Qt.resolvedUrl('ChannelDetails.qml'), { 'channelid': model.cid })
+                        }
                     }
 
                     ScrollIndicator.vertical: ScrollIndicator { }
