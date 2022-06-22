@@ -395,6 +395,7 @@ class PayServer(Logger, EventListener):
         self.logger.info(f"now running and listening. addr={self.addr}")
 
     async def create_request(self, request):
+        raise NotImplementedError()  # FIXME code here is broken
         params = await request.post()
         wallet = self.wallet
         if 'amount_sat' not in params or not params['amount_sat'].isdigit():
