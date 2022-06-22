@@ -44,6 +44,7 @@ from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .invoices import PR_PAID, PR_EXPIRED
 from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
+from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB
@@ -356,7 +357,7 @@ class WatchTowerServer(AuthenticatedServer):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
 
-class PayServer(Logger):
+class PayServer(Logger, EventListener):
 
     def __init__(self, daemon: 'Daemon', netaddress):
         Logger.__init__(self)
@@ -364,14 +365,15 @@ class PayServer(Logger):
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
-        util.register_callback(self.on_payment, ['request_status'])
+        self.register_callbacks()
 
     @property
     def wallet(self):
         # FIXME specify wallet somehow?
         return list(self.daemon.get_wallets().values())[0]
 
-    async def on_payment(self, evt, wallet, key, status):
+    @event_listener
+    async def on_event_request_status(self, wallet, key, status):
         if status == PR_PAID:
             self.pending[key].set()
 

@@ -12,6 +12,7 @@ import electrum
 from electrum.gui import BaseElectrumGui
 from electrum import util
 from electrum.util import format_satoshis
+from electrum.util import EventListener, event_listener
 from electrum.bitcoin import is_address, COIN
 from electrum.transaction import PartialTxOutput
 from electrum.wallet import Wallet, Abstract_Wallet
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 _ = lambda x:x  # i18n
 
 
-class ElectrumGui(BaseElectrumGui):
+class ElectrumGui(BaseElectrumGui, EventListener):
 
     def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
@@ -74,11 +75,19 @@ class ElectrumGui(BaseElectrumGui):
         self.history = None
         self.txid = []
 
-        util.register_callback(self.update, ['wallet_updated', 'network_updated'])
+        self.register_callbacks()
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
 
+
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        self.update()
+
+    @event_listener
+    def on_event_network_updated(self):
+        self.update()
 
     def set_cursor(self, x):
         try:
@@ -101,7 +110,7 @@ class ElectrumGui(BaseElectrumGui):
         self.set_cursor(0)
         return s
 
-    def update(self, event, *args):
+    def update(self):
         self.update_history()
         if self.tab == 0:
             self.print_history()

@@ -8,7 +8,7 @@ import traceback
 import os
 import webbrowser
 from decimal import Decimal
-from functools import partial, lru_cache
+from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
                     Sequence, Iterable)
 
@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
+from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN, PR_FAILED, PR_ROUTING, PR_UNCONFIRMED
 from electrum.logging import Logger
 from electrum.qrreader import MissingQrDetectionLib
@@ -1501,6 +1502,31 @@ class VTabWidget(QtWidgets.QTabWidget):
         w = self.tabBar().width() + size.height()
         self.setFixedWidth(w)
         return super().resizeEvent(e)
+
+
+class QtEventListener(EventListener):
+
+    qt_callback_signal = QtCore.pyqtSignal(tuple)
+
+    def register_callbacks(self):
+        self.qt_callback_signal.connect(self.on_qt_callback_signal)
+        EventListener.register_callbacks(self)
+
+    def unregister_callbacks(self):
+        self.qt_callback_signal.disconnect()
+        EventListener.unregister_callbacks(self)
+
+    def on_qt_callback_signal(self, args):
+        func = args[0]
+        return func(self, *args[1:])
+
+# decorator for members of the QtEventListener class
+def qt_event_listener(func):
+    func = event_listener(func)
+    @wraps(func)
+    def decorator(self, *args):
+        self.qt_callback_signal.emit( (func,) + args)
+    return decorator
 
 
 if __name__ == "__main__":

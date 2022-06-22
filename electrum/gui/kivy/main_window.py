@@ -19,6 +19,7 @@ from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
                            maybe_extract_bolt11_invoice, parse_max_spend)
+from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum import blockchain
 from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
@@ -99,7 +100,7 @@ if TYPE_CHECKING:
     from electrum.paymentrequest import PaymentRequest
 
 
-class ElectrumWindow(App, Logger):
+class ElectrumWindow(App, Logger, EventListener):
 
     electrum_config = ObjectProperty(None)
     language = StringProperty('en')
@@ -252,21 +253,25 @@ class ElectrumWindow(App, Logger):
         if self.history_screen:
             self.history_screen.update()
 
-    def on_quotes(self, d):
+    @event_listener
+    def on_event_on_quotes(self):
         self.logger.info("on_quotes")
         self._trigger_update_status()
         self._trigger_update_history()
 
-    def on_history(self, d):
+    @event_listener
+    def on_event_on_history(self):
         self.logger.info("on_history")
         if self.wallet:
             self.wallet.clear_coin_price_cache()
         self._trigger_update_history()
 
-    def on_fee_histogram(self, *args):
+    @event_listener
+    def on_event_fee_histogram(self, *args):
         self._trigger_update_history()
 
-    def on_request_status(self, event, wallet, key, status):
+    @event_listener
+    def on_event_request_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
         req = self.wallet.receive_requests.get(key)
@@ -283,7 +288,8 @@ class ElectrumWindow(App, Logger):
             self.show_info(_('Payment Received') + '\n' + key)
             self._trigger_update_history()
 
-    def on_invoice_status(self, event, wallet, key):
+    @event_listener
+    def on_event_invoice_status(self, wallet, key):
         if wallet != self.wallet:
             return
         req = self.wallet.get_invoice(key)
@@ -299,14 +305,16 @@ class ElectrumWindow(App, Logger):
         if self.invoice_popup and self.invoice_popup.key == key:
             self.invoice_popup.update_status()
 
-    def on_payment_succeeded(self, event, wallet, key):
+    @event_listener
+    def on_event_payment_succeeded(self, wallet, key):
         if wallet != self.wallet:
             return
         description = self.wallet.get_label(key)
         self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 
-    def on_payment_failed(self, event, wallet, key, reason):
+    @event_listener
+    def on_event_payment_failed(self, wallet, key, reason):
         if wallet != self.wallet:
             return
         self.show_info(_('Payment failed') + '\n\n' + reason)
@@ -647,25 +655,7 @@ class ElectrumWindow(App, Logger):
             mactivity = PythonActivity.mActivity
             self.on_new_intent(mactivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
-        # connect callbacks
-        if self.network:
-            interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
-                         'status', 'new_transaction', 'verified']
-            util.register_callback(self.on_network_event, interests)
-            util.register_callback(self.on_fee, ['fee'])
-            util.register_callback(self.on_fee_histogram, ['fee_histogram'])
-            util.register_callback(self.on_quotes, ['on_quotes'])
-            util.register_callback(self.on_history, ['on_history'])
-            util.register_callback(self.on_channels, ['channels_updated'])
-            util.register_callback(self.on_channel, ['channel'])
-            util.register_callback(self.on_invoice_status, ['invoice_status'])
-            util.register_callback(self.on_request_status, ['request_status'])
-            util.register_callback(self.on_payment_failed, ['payment_failed'])
-            util.register_callback(self.on_payment_succeeded, ['payment_succeeded'])
-            util.register_callback(self.on_channel_db, ['channel_db'])
-            util.register_callback(self.set_num_peers, ['gossip_peers'])
-            util.register_callback(self.set_unknown_channels, ['unknown_channels'])
-        
+        self.register_callbacks()
         if self.network and self.electrum_config.get('auto_connect') is None:
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
@@ -677,14 +667,17 @@ class ElectrumWindow(App, Logger):
             if uri:
                 self.set_URI(uri)
 
-    def on_channel_db(self, event, num_nodes, num_channels, num_policies):
+    @event_listener
+    def on_event_channel_db(self, num_nodes, num_channels, num_policies):
         self.lightning_gossip_num_nodes = num_nodes
         self.lightning_gossip_num_channels = num_channels
 
-    def set_num_peers(self, event, num_peers):
+    @event_listener
+    def on_event_gossip_peers(self, num_peers):
         self.lightning_gossip_num_peers = num_peers
 
-    def set_unknown_channels(self, event, unknown):
+    @event_listener
+    def on_event_unknown_channels(self, unknown):
         self.lightning_gossip_num_queries = unknown
 
     def get_wallet_path(self):
@@ -818,11 +811,13 @@ class ElectrumWindow(App, Logger):
             delete_gossip)
         d.open()
 
-    def on_channel(self, evt, wallet, chan):
+    @event_listener
+    def on_event_channel(self, wallet, chan):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
-    def on_channels(self, evt, wallet):
+    @event_listener
+    def on_event_channels(self, wallet):
         if self._channels_dialog:
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
@@ -904,23 +899,32 @@ class ElectrumWindow(App, Logger):
         self.proxy_config = net_params.proxy or {}
         self.update_proxy_str(self.proxy_config)
 
-    def on_network_event(self, event, *args):
-        self.logger.info('network event: '+ event)
-        if event == 'network_updated':
-            self._trigger_update_interfaces()
-            self._trigger_update_status()
-        elif event == 'wallet_updated':
-            self._trigger_update_wallet()
-            self._trigger_update_status()
-        elif event == 'blockchain_updated':
-            # to update number of confirmations in history
-            self._trigger_update_wallet()
-        elif event == 'status':
-            self._trigger_update_status()
-        elif event == 'new_transaction':
-            self._trigger_update_wallet()
-        elif event == 'verified':
-            self._trigger_update_wallet()
+    @event_listener
+    def on_event_network_updated(self):
+        self._trigger_update_interfaces()
+        self._trigger_update_status()
+
+    @event_listener
+    def on_event_wallet_updated(self, *args):
+        self._trigger_update_wallet()
+        self._trigger_update_status()
+
+    @event_listener
+    def on_event_blockchain_updated(self, *args):
+        # to update number of confirmations in history
+        self._trigger_update_wallet()
+
+    @event_listener
+    def on_event_status(self, *args):
+        self._trigger_update_status()
+
+    @event_listener
+    def on_event_new_transaction(self, *args):
+        self._trigger_update_wallet()
+
+    @event_listener
+    def on_event_verified(self, *args):
+        self._trigger_update_wallet()
 
     @profiler
     def load_wallet(self, wallet: 'Abstract_Wallet'):
@@ -1265,7 +1269,8 @@ class ElectrumWindow(App, Logger):
         target, tooltip, dyn = self.electrum_config.get_fee_target()
         self.fee_status = target
 
-    def on_fee(self, event, *arg):
+    @event_listener
+    def on_event_fee(self, *arg):
         self.set_fee_status()
 
     def protected(self, msg, f, args):
