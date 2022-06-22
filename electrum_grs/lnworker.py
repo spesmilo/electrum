@@ -31,6 +31,7 @@ from . import keystore
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
 from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
+from .util import EventListener, event_listener
 from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
@@ -161,7 +162,7 @@ LNGOSSIP_FEATURES = BASE_FEATURES\
     | LnFeatures.GOSSIP_QUERIES_REQ\
 
 
-class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
+class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     INITIAL_TRAMPOLINE_FEE_LEVEL = 1 # only used for trampoline payments. set to 0 in tests.
 
@@ -185,7 +186,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         self.config = None  # type: Optional[SimpleConfig]
         self.stopping_soon = False  # whether we are being shut down
 
-        util.register_callback(self.on_proxy_changed, ['proxy_set'])
+        self.register_callbacks()
 
     @property
     def channel_db(self):
@@ -309,7 +310,7 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
     async def stop(self):
         if self.listen_server:
             self.listen_server.close()
-        util.unregister_callback(self.on_proxy_changed)
+        self.unregister_callbacks()
         await self.taskgroup.cancel_remaining()
 
     def _add_peers_from_config(self):
@@ -446,7 +447,8 @@ class LNWorker(Logger, NetworkRetryManager[LNPeerAddr]):
         choice = random.choice(addr_list)
         return choice
 
-    def on_proxy_changed(self, event, *args):
+    @event_listener
+    def on_event_proxy_set(self, *args):
         for peer in self.peers.values():
             peer.close_and_cleanup()
         self._clear_addr_retry_times()
@@ -1775,7 +1777,7 @@ class LNWallet(LNWorker):
             amount_msat: Optional[int],
             message: str,
             expiry: int,
-            fallback_address: str,
+            fallback_address: Optional[str],
             write_to_disk: bool = True,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[LnAddr, str]:
@@ -1815,10 +1817,16 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return lnaddr, invoice
 
-    def add_request(self, amount_sat: Optional[int], message:str, expiry: int, fallback_address:str) -> str:
+    def add_request(
+            self,
+            *,
+            amount_sat: Optional[int],
+            message: str,
+            expiry: int,
+            fallback_address: Optional[str],
+    ) -> str:
         # passed expiry is relative, it is absolute in the lightning invoice
         amount_msat = amount_sat * 1000 if amount_sat else None
-        timestamp = int(time.time())
         lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message=message,

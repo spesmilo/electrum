@@ -37,6 +37,7 @@ from .verifier import SPV
 from .blockchain import hash_header, Blockchain
 from .i18n import _
 from .logging import Logger
+from .util import EventListener, event_listener
 
 if TYPE_CHECKING:
     from .network import Network
@@ -57,7 +58,7 @@ class HistoryItem(NamedTuple):
     balance: int
 
 
-class AddressSynchronizer(Logger):
+class AddressSynchronizer(Logger, EventListener):
     """ address database """
 
     network: Optional['Network']
@@ -181,9 +182,10 @@ class AddressSynchronizer(Logger):
             self.synchronizer = Synchronizer(self)
             self.verifier = SPV(self.network, self)
             self.asyncio_loop = network.asyncio_loop
-            util.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
+            self.register_callbacks()
 
-    def on_blockchain_updated(self, event, *args):
+    @event_listener
+    def on_event_blockchain_updated(self, *args):
         self._get_balance_cache = {}  # invalidate cache
 
     async def stop(self):
@@ -197,7 +199,7 @@ class AddressSynchronizer(Logger):
             finally:  # even if we get cancelled
                 self.synchronizer = None
                 self.verifier = None
-                util.unregister_callback(self.on_blockchain_updated)
+                self.unregister_callbacks()
                 self.db.put('stored_height', self.get_local_height())
 
     def add_address(self, address):

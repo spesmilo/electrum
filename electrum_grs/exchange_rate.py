@@ -17,7 +17,7 @@ from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path)
+                   make_aiohttp_session, resource_path, EventListener, event_listener)
 from .network import Network
 from .simple_config import SimpleConfig
 from .logging import Logger
@@ -348,13 +348,13 @@ def get_exchanges_by_ccy(history=True):
     return dictinvert(d)
 
 
-class FxThread(ThreadJob):
+class FxThread(ThreadJob, EventListener):
 
     def __init__(self, config: SimpleConfig, network: Optional[Network]):
         ThreadJob.__init__(self)
         self.config = config
         self.network = network
-        util.register_callback(self.set_proxy, ['proxy_set'])
+        self.register_callbacks()
         self.ccy = self.get_currency()
         self.history_used_spot = False
         self.ccy_combo = None
@@ -365,7 +365,8 @@ class FxThread(ThreadJob):
         self.set_exchange(self.config_exchange())
         make_dir(self.cache_dir)
 
-    def set_proxy(self, trigger_name, *args):
+    @event_listener
+    def on_event_proxy_set(self, *args):
         self._trigger.set()
 
     @staticmethod

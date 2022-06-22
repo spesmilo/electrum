@@ -135,8 +135,9 @@ class SweepStore(SqlDB):
         return [(r[0], r[1]) for r in c.fetchall()]
 
 
+from .util import EventListener, event_listener
 
-class LNWatcher(Logger):
+class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
@@ -147,23 +148,12 @@ class LNWatcher(Logger):
         self.config = network.config
         self.callbacks = {} # address -> lambda: coroutine
         self.network = network
-
-        util.register_callback(self.on_fee, ['fee'])
-        util.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
-        util.register_callback(self.on_network_updated, ['network_updated'])
-        util.register_callback(self.on_adb_added_verified_tx, ['adb_added_verified_tx'])
-        util.register_callback(self.on_adb_set_up_to_date, ['adb_set_up_to_date'])
-
+        self.register_callbacks()
         # status gets populated when we run
         self.channel_status = {}
 
-
     async def stop(self):
-        util.unregister_callback(self.on_fee)
-        util.unregister_callback(self.on_blockchain_updated)
-        util.unregister_callback(self.on_network_updated)
-        util.unregister_callback(self.on_adb_added_verified_tx)
-        util.unregister_callback(self.on_adb_set_up_to_date)
+        self.unregister_callbacks()
 
     def get_channel_status(self, outpoint):
         return self.channel_status.get(outpoint, 'unknown')
@@ -185,21 +175,26 @@ class LNWatcher(Logger):
         self.adb.add_address(address)
         self.callbacks[address] = callback
 
-    async def on_fee(self, event, *args):
+    @event_listener
+    async def on_event_fee(self, *args):
         await self.trigger_callbacks()
 
-    async def on_network_updated(self, event, *args):
+    @event_listener
+    async def on_event_network_updated(self, *args):
         await self.trigger_callbacks()
 
-    async def on_blockchain_updated(self, event, *args):
+    @event_listener
+    async def on_event_blockchain_updated(self, *args):
         await self.trigger_callbacks()
 
-    async def on_adb_added_verified_tx(self, event, adb, tx_hash):
+    @event_listener
+    async def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
         await self.trigger_callbacks()
 
-    async def on_adb_set_up_to_date(self, event, adb):
+    @event_listener
+    async def on_event_adb_set_up_to_date(self, adb):
         if adb != self.adb:
             return
         await self.trigger_callbacks()

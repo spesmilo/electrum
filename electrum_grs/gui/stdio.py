@@ -9,7 +9,7 @@ from electrum_grs import util
 from electrum_grs import WalletStorage, Wallet
 from electrum_grs.wallet import Abstract_Wallet
 from electrum_grs.wallet_db import WalletDB
-from electrum_grs.util import format_satoshis
+from electrum_grs.util import format_satoshis, EventListener, event_listener
 from electrum_grs.bitcoin import is_address, COIN
 from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
@@ -20,13 +20,13 @@ _ = lambda x:x  # i18n
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
 
 
-class ElectrumGui(BaseElectrumGui):
+class ElectrumGui(BaseElectrumGui, EventListener):
 
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
         storage = WalletStorage(config.get_wallet_path())
-        if not storage.file_exists:
+        if not storage.file_exists():
             print("Wallet not found. try 'electrum-grs create'")
             exit()
         if storage.is_encrypted():
@@ -47,7 +47,7 @@ class ElectrumGui(BaseElectrumGui):
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
-        util.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
+        self.register_callbacks()
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
@@ -59,11 +59,17 @@ class ElectrumGui(BaseElectrumGui):
                          _("[q] - quit")]
         self.num_commands = len(self.commands)
 
-    def on_network(self, event, *args):
-        if event in ['wallet_updated', 'network_updated']:
-            self.updated()
-        elif event == 'banner':
-            self.print_banner()
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        self.updated()
+
+    @event_listener
+    def on_event_network_updated(self):
+        self.updated()
+
+    @event_listener
+    def on_event_banner(self):
+        self.print_banner()
 
     def main_command(self):
         self.print_balance()
