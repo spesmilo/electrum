@@ -1808,7 +1808,7 @@ class LNWallet(LNWorker):
             amount_msat: Optional[int],
             message: str,
             expiry: int,
-            fallback_address: str,
+            fallback_address: Optional[str],
             write_to_disk: bool = True,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[LnAddr, str]:
@@ -1848,10 +1848,16 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return lnaddr, invoice
 
-    def add_request(self, amount_sat: Optional[int], message:str, expiry: int, fallback_address:str) -> str:
+    def add_request(
+            self,
+            *,
+            amount_sat: Optional[int],
+            message: str,
+            expiry: int,
+            fallback_address: Optional[str],
+    ) -> str:
         # passed expiry is relative, it is absolute in the lightning invoice
         amount_msat = amount_sat * 1000 if amount_sat else None
-        timestamp = int(time.time())
         lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message=message,

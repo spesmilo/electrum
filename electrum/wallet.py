@@ -2438,7 +2438,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
-        lightning_invoice = self.lnworker.add_request(amount_sat, message, exp_delay, fallback_address) if lightning else None
+        if lightning:
+            lightning_invoice = self.lnworker.add_request(
+                amount_sat=amount_sat,
+                message=message,
+                expiry=exp_delay,
+                fallback_address=fallback_address,
+            )
+        else:
+            lightning_invoice = None
         outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
         req = Invoice(
