@@ -178,11 +178,11 @@ class SwapManager(Logger):
     async def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
         assert self.lnwatcher
-        if not self.lnwatcher.is_up_to_date():
+        if not self.lnwatcher.adb.is_up_to_date():
             return
         current_height = self.network.get_local_height()
         delta = current_height - swap.locktime
-        txos = self.lnwatcher.get_addr_outputs(swap.lockup_address)
+        txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
         for txin in txos.values():
             if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
                 self.logger.info('amount too low, we should not reveal the preimage')
@@ -200,7 +200,7 @@ class SwapManager(Logger):
                         swap.is_redeemed = True
                 elif spent_height == TX_HEIGHT_LOCAL:
                     if txin.block_height > 0 or self.wallet.config.get('allow_instant_swaps', False):
-                        tx = self.lnwatcher.get_transaction(txin.spent_txid)
+                        tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                         self.logger.info(f'broadcasting tx {txin.spent_txid}')
                         await self.network.broadcast_transaction(tx)
                 # already in mempool
@@ -230,8 +230,8 @@ class SwapManager(Logger):
             )
             self.sign_tx(tx, swap)
             self.logger.info(f'adding claim tx {tx.txid()}')
-            self.wallet.add_transaction(tx)
-            self.lnwatcher.add_transaction(tx)
+            self.wallet.adb.add_transaction(tx)
+            swap.spending_txid = tx.txid()
 
     def get_claim_fee(self):
         return self.wallet.config.estimate_fee(136, allow_fallback_to_static_rates=True)

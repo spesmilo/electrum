@@ -8,7 +8,7 @@ from kivy.uix.popup import Popup
 from electrum_ltc.util import bh2u
 from electrum_ltc.logging import Logger
 from electrum_ltc.lnutil import LOCAL, REMOTE, format_short_channel_id
-from electrum_ltc.lnchannel import AbstractChannel, Channel, ChannelState
+from electrum_ltc.lnchannel import AbstractChannel, Channel, ChannelState, ChanCloseOption
 from electrum_ltc.gui.kivy.i18n import _
 from electrum_ltc.transaction import PartialTxOutput, Transaction
 from electrum_ltc.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
@@ -495,8 +495,8 @@ class ChannelDetailsPopup(Popup, Logger):
         action_dropdown = self.ids.action_dropdown  # type: ActionDropdown
         options = [
             ActionButtonOption(text=_('Backup'), func=lambda btn: self.export_backup()),
-            ActionButtonOption(text=_('Close channel'), func=lambda btn: self.close(), enabled=not self.is_closed),
-            ActionButtonOption(text=_('Force-close'), func=lambda btn: self.force_close(), enabled=not self.is_closed),
+            ActionButtonOption(text=_('Close channel'), func=lambda btn: self.close(), enabled=ChanCloseOption.COOP_CLOSE in self.chan.get_close_options()),
+            ActionButtonOption(text=_('Force-close'), func=lambda btn: self.force_close(), enabled=ChanCloseOption.LOCAL_FCLOSE in self.chan.get_close_options()),
             ActionButtonOption(text=_('Delete'), func=lambda btn: self.remove_channel(), enabled=self.can_be_deleted),
         ]
         if not self.chan.is_closed():
@@ -557,7 +557,8 @@ class ChannelDetailsPopup(Popup, Logger):
         self.app.qr_dialog(_("Channel Backup " + self.chan.short_id_for_GUI()), text, help_text=help_text)
 
     def force_close(self):
-        if self.chan.is_closed():
+        if ChanCloseOption.LOCAL_FCLOSE not in self.chan.get_close_options():
+            # note: likely channel is already closed, or could be unsafe to do local force-close (e.g. we are toxic)
             self.app.show_error(_('Channel already closed'))
             return
         to_self_delay = self.chan.config[REMOTE].to_self_delay

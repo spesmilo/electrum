@@ -348,7 +348,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
-            self.local_watchtower.start_network(self)
+            self.local_watchtower.adb.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def has_internet_connection(self) -> bool:
@@ -904,13 +904,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
-    async def try_broadcasting(self, tx, name):
+    async def try_broadcasting(self, tx, name) -> bool:
         try:
             await self.broadcast_transaction(tx)
         except Exception as e:
             self.logger.info(f'error: could not broadcast {name} {tx.txid()}, {str(e)}')
+            return False
         else:
             self.logger.info(f'success: broadcasting {name} {tx.txid()}')
+            return True
 
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:

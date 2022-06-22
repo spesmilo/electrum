@@ -168,7 +168,7 @@ class RequestDialog(Factory.Popup):
             address = req.get_address()
             if not address:
                 warning = _('Warning') + ': ' + _('This request cannot be paid on-chain')
-            elif self.app.wallet.is_used(address):
+            elif self.app.wallet.adb.is_used(address):
                 warning = _('Warning') + ': ' + _('This address is being reused')
         self.warning = warning
 

@@ -22,7 +22,7 @@ from electrum_ltc.ecc import ECPrivkey
 from electrum_ltc import simple_config, lnutil
 from electrum_ltc.lnaddr import lnencode, LnAddr, lndecode
 from electrum_ltc.bitcoin import COIN, sha256
-from electrum_ltc.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup
+from electrum_ltc.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup, EventListener
 from electrum_ltc.lnpeer import Peer
 from electrum_ltc.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_ltc.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -97,16 +97,24 @@ class MockBlockchain:
         return False
 
 
+class MockADB:
+    def add_transaction(self, tx):
+        pass
+
 class MockWallet:
     receive_requests = {}
+    adb = MockADB()
+
+    def get_request(self, key):
+        pass
+
+    def get_key_for_receive_request(self, x):
+        pass
 
     def set_label(self, x, y):
         pass
 
     def save_db(self):
-        pass
-
-    def add_transaction(self, tx):
         pass
 
     def is_lightning_backup(self):
@@ -116,7 +124,7 @@ class MockWallet:
         return True
 
 
-class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
+class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
     PAYMENT_TIMEOUT = 120
     TIMEOUT_SHUTDOWN_FAIL_PENDING_HTLCS = 0
@@ -132,7 +140,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
         self.lnwatcher = None
         self.listen_server = None
         self._channels = {chan.channel_id: chan for chan in chans}
-        self.payments = {}
+        self.payment_info = {}
         self.logs = defaultdict(list)
         self.wallet = MockWallet()
         self.features = LnFeatures(0)
@@ -247,7 +255,7 @@ class MockLNWallet(Logger, NetworkRetryManager[LNPeerAddr]):
     handle_error_code_from_failed_htlc = LNWallet.handle_error_code_from_failed_htlc
     is_trampoline_peer = LNWallet.is_trampoline_peer
     wait_for_received_pending_htlcs_to_get_removed = LNWallet.wait_for_received_pending_htlcs_to_get_removed
-    on_proxy_changed = LNWallet.on_proxy_changed
+    #on_event_proxy_set = LNWallet.on_event_proxy_set
     _decode_channel_update_msg = LNWallet._decode_channel_update_msg
     _handle_chanupd_from_failed_htlc = LNWallet._handle_chanupd_from_failed_htlc
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved

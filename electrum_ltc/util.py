@@ -1569,10 +1569,10 @@ class CallbackManager:
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
         self.asyncio_loop = None
 
-    def register_callback(self, callback, events):
+    def register_callback(self, func, events):
         with self.callback_lock:
             for event in events:
-                self.callbacks[event].append(callback)
+                self.callbacks[event].append(func)
 
     def unregister_callback(self, callback):
         with self.callback_lock:
@@ -1593,19 +1593,50 @@ class CallbackManager:
         for callback in callbacks:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+                asyncio.run_coroutine_threadsafe(callback(*args), self.asyncio_loop)
             elif get_running_loop() == self.asyncio_loop:
                 # run callback immediately, so that it is guaranteed
                 # to have been executed when this method returns
-                callback(event, *args)
+                callback(*args)
             else:
-                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
+                self.asyncio_loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
+
+
+class EventListener:
+
+    def _list_callbacks(self):
+        for method_name in dir(self):
+            # Fixme: getattr executes the code of methods decorated by @property.
+            # This if why we shield with startswith
+            if not method_name.startswith('on_event_'):
+                continue
+            method = getattr(self, method_name)
+            if not getattr(method, '_is_event_listener', False):
+                continue
+            assert callable(method)
+            yield method_name[len('on_event_'):], method
+
+    def register_callbacks(self):
+        for name, method in self._list_callbacks():
+            _logger.info(f'registering callback {method}')
+            register_callback(method, [name])
+
+    def unregister_callbacks(self):
+        for name, method in self._list_callbacks():
+            _logger.info(f'unregistering callback {method}')
+            unregister_callback(method)
+
+
+def event_listener(func):
+    assert func.__name__.startswith('on_event_')
+    func._is_event_listener = True
+    return func
 
 
 _NetAddrType = TypeVar("_NetAddrType")

@@ -67,7 +67,7 @@ from electrum_ltc.util import (format_time,
                                AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                                InvoiceError, parse_max_spend)
 from electrum_ltc.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING, Invoice
-from electrum_ltc.invoices import PR_PAID, PR_UNPAID, PR_FAILED, pr_expiration_values, Invoice
+from electrum_ltc.invoices import PR_PAID, PR_UNPAID, PR_FAILED, PR_EXPIRED, pr_expiration_values, Invoice
 from electrum_ltc.transaction import (Transaction, PartialTxInput,
                                       PartialTransaction, PartialTxOutput)
 from electrum_ltc.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -193,12 +193,12 @@ def protected(func):
         return func(self, *args, **kwargs)
     return request_password
 
+from .util import QtEventListener, qt_event_listener, event_listener
 
-class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
+class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
-    network_signal = pyqtSignal(str, object)
     #ln_payment_attempt_signal = pyqtSignal(str)
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
@@ -208,7 +208,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
-
         self.gui_object = gui_object
         self.config = config = gui_object.config  # type: SimpleConfig
         self.gui_thread = gui_object.gui_thread
@@ -314,21 +313,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.history_list.setFocus(True)
 
         # network callbacks
-        if self.network:
-            self.network_signal.connect(self.on_network_qt)
-            interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
-                         'new_transaction', 'status',
-                         'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels_updated',
-                         'payment_failed', 'payment_succeeded',
-                         'invoice_status', 'request_status', 'ln_gossip_sync_progress',
-                         'cert_mismatch', 'gossip_db_loaded']
-            # To avoid leaking references to "self" that prevent the
-            # window from being GC-ed when closed, callbacks should be
-            # methods of this class only, and specifically not be
-            # partials, lambdas or methods of subobjects.  Hence...
-            util.register_callback(self.on_network, interests)
-            # set initial message
+        self.register_callbacks()
+        # banner may already be there
+        if self.network and self.network.banner:
             self.console.showMessage(self.network.banner)
 
         # update fee slider in case we missed the callback
@@ -463,74 +450,75 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 pass  # see #4418
             self.show_error(repr(e))
 
-    def on_network(self, event, *args):
-        # Handle in GUI thread
-        self.network_signal.emit(event, args)
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        if wallet == self.wallet:
+            self.need_update.set()
 
-    def on_network_qt(self, event, args=None):
-        # Handle a network message in the GUI thread
-        # note: all windows get events from all wallets!
-        if event == 'wallet_updated':
-            wallet = args[0]
-            if wallet == self.wallet:
-                self.need_update.set()
-        elif event == 'network_updated':
-            self.gui_object.network_updated_signal_obj.network_updated_signal \
-                .emit(event, args)
-            self.network_signal.emit('status', None)
-        elif event == 'blockchain_updated':
-            # to update number of confirmations in history
-            self.refresh_tabs()
-        elif event == 'new_transaction':
-            wallet, tx = args
-            if wallet == self.wallet:
-                self.tx_notification_queue.put(tx)
-        elif event == 'on_quotes':
-            self.on_fx_quotes()
-        elif event == 'on_history':
-            self.on_fx_history()
-        elif event == 'gossip_db_loaded':
-            self.channels_list.gossip_db_loaded.emit(*args)
-        elif event == 'channels_updated':
-            wallet = args[0]
-            if wallet == self.wallet:
-                self.channels_list.update_rows.emit(*args)
-        elif event == 'channel':
-            wallet = args[0]
-            if wallet == self.wallet:
-                self.channels_list.update_single_row.emit(*args)
-                self.update_status()
-        elif event == 'request_status':
-            self.on_request_status(*args)
-        elif event == 'invoice_status':
-            self.on_invoice_status(*args)
-        elif event == 'payment_succeeded':
-            # sent by lnworker, redundant with invoice_status
-            wallet = args[0]
-            if wallet == self.wallet:
-                self.on_payment_succeeded(*args)
-        elif event == 'payment_failed':
-            wallet = args[0]
-            if wallet == self.wallet:
-                self.on_payment_failed(*args)
-        elif event == 'status':
+    @event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self.tx_notification_queue.put(tx)
+
+    @qt_event_listener
+    def on_event_status(self):
+        self.update_status()
+
+    @qt_event_listener
+    def on_event_network_updated(self, *args):
+        self.update_status()
+
+    @qt_event_listener
+    def on_event_blockchain_updated(self, *args):
+        # update the number of confirmations in history
+        self.refresh_tabs()
+
+    @qt_event_listener
+    def on_event_on_quotes(self, *args):
+        self.on_fx_quotes()
+
+    @qt_event_listener
+    def on_event_on_history(self, *args):
+        self.on_fx_history()
+
+    @qt_event_listener
+    def on_event_gossip_db_loaded(self, *args):
+        self.channels_list.gossip_db_loaded.emit(*args)
+
+    @qt_event_listener
+    def on_event_channels_updated(self, *args):
+        wallet = args[0]
+        if wallet == self.wallet:
+            self.channels_list.update_rows.emit(*args)
+
+    @qt_event_listener
+    def on_event_channel(self, *args):
+        wallet = args[0]
+        if wallet == self.wallet:
+            self.channels_list.update_single_row.emit(*args)
             self.update_status()
-        elif event == 'banner':
-            self.console.showMessage(args[0])
-        elif event == 'verified':
-            wallet, tx_hash, tx_mined_status = args
-            if wallet == self.wallet:
-                self.history_model.update_tx_mined_status(tx_hash, tx_mined_status)
-        elif event == 'fee':
-            pass
-        elif event == 'fee_histogram':
-            self.history_model.on_fee_histogram()
-        elif event == 'ln_gossip_sync_progress':
-            self.update_lightning_icon()
-        elif event == 'cert_mismatch':
-            self.show_cert_mismatch_error()
-        else:
-            self.logger.info(f"unexpected network event: {event} {args}")
+
+    @qt_event_listener
+    def on_event_banner(self, *args):
+        self.console.showMessage(args[0])
+
+    @qt_event_listener
+    def on_event_verified(self, *args):
+        wallet, tx_hash, tx_mined_status = args
+        if wallet == self.wallet:
+            self.history_model.update_tx_mined_status(tx_hash, tx_mined_status)
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, *args):
+        self.history_model.on_fee_histogram()
+
+    @qt_event_listener
+    def on_event_ln_gossip_sync_progress(self, *args):
+        self.update_lightning_icon()
+
+    @qt_event_listener
+    def on_event_cert_mismatch(self, *args):
+        self.show_cert_mismatch_error()
 
     def close_wallet(self):
         if self.wallet:
@@ -1001,7 +989,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
             if not self.wallet.is_up_to_date() or server_height == 0:
-                num_sent, num_answered = self.wallet.get_history_sync_state_details()
+                num_sent, num_answered = self.wallet.adb.get_history_sync_state_details()
                 network_text = ("{} ({}/{})"
                                 .format(_("Synchronizing..."), num_answered, num_sent))
                 icon = read_QIcon("status_waiting.png")
@@ -1303,12 +1291,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         addr = req.get_address() or ''
         amount_sat = req.get_amount_sat() or 0
         address_help = '' if addr else _('Amount too small to be received onchain')
+        URI_help = ''
         lnaddr = req.lightning_invoice
         bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
         URI = req.get_bip21_URI(lightning=bip21_lightning)
         lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
         can_receive_lightning = self.wallet.lnworker and amount_sat <= self.wallet.lnworker.num_sats_can_receive()
-        if lnaddr is None:
+        has_expired = self.wallet.get_request_status(key) == PR_EXPIRED
+        if has_expired:
+            URI_help = ln_help = address_help = _('This request has expired')
+            URI = lnaddr = address = ''
+            can_rebalance = False
+            can_swap = False
+        elif lnaddr is None:
             ln_help = _('This request does not have a Lightning invoice.')
             lnaddr = ''
             can_rebalance = False
@@ -1348,6 +1343,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_address_help_text.setText(address_help)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
+        self.receive_URI_help.setText(URI_help)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
         self.receive_lightning_help_text.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr_qr)
@@ -1496,7 +1492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_address_styling(self):
         addr = str(self.receive_address_e.text())
-        if is_address(addr) and self.wallet.is_used(addr):
+        if is_address(addr) and self.wallet.adb.is_used(addr):
             self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             self.receive_address_e.setToolTip(_("This address has already been used. "
                                                 "For better privacy, do not reuse it for new payments."))
@@ -1799,21 +1795,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
         return d.run()
 
-    def on_request_status(self, wallet, key, status):
+    @qt_event_listener
+    def on_event_request_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
         req = self.wallet.receive_requests.get(key)
         if req is None:
             return
         if status == PR_PAID:
-            self.notify(_('Payment received') + '\n' + key)
+            msg = _('Payment received:')
+            amount = req.get_amount_sat()
+            if amount:
+                msg += ' ' + self.format_amount_and_units(amount)
+            msg += '\n' + req.get_message()
+            self.notify(msg)
             self.request_list.delete_item(key)
             self.receive_tabs.setVisible(False)
             self.need_update.set()
         else:
             self.request_list.refresh_item(key)
 
-    def on_invoice_status(self, wallet, key):
+    @qt_event_listener
+    def on_event_invoice_status(self, wallet, key):
         if wallet != self.wallet:
             return
         invoice = self.wallet.get_invoice(key)
@@ -1825,12 +1828,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.invoice_list.refresh_item(key)
 
-    def on_payment_succeeded(self, wallet, key):
+    @qt_event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        # sent by lnworker, redundant with invoice_status
+        if wallet != self.wallet:
+            return
         description = self.wallet.get_label(key)
         self.notify(_('Payment sent') + '\n\n' + description)
         self.need_update.set()
 
-    def on_payment_failed(self, wallet, key, reason):
+    @qt_event_listener
+    def on_event_payment_failed(self, wallet, key, reason):
+        if wallet != self.wallet:
+            return
         invoice = self.wallet.get_invoice(key)
         if invoice and invoice.is_lightning() and invoice.get_address():
             if self.question(_('Payment failed') + '\n\n' + reason + '\n\n'+ 'Fallback to onchain payment?'):
@@ -3470,7 +3480,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.thread = None
         for fut in self._coroutines_scheduled.keys():
             fut.cancel()
-        util.unregister_callback(self.on_network)
+        self.unregister_callbacks()
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()
@@ -3563,7 +3573,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
         parent_txid = parent_tx.txid()
         assert parent_txid
-        parent_fee = self.wallet.get_tx_fee(parent_txid)
+        parent_fee = self.wallet.adb.get_tx_fee(parent_txid)
         if parent_fee is None:
             self.show_error(_("Can't CPFP: unknown fee for parent transaction."))
             return
@@ -3685,7 +3695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def save_transaction_into_wallet(self, tx: Transaction):
         win = self.top_level_window()
         try:
-            if not self.wallet.add_transaction(tx):
+            if not self.wallet.adb.add_transaction(tx):
                 win.show_error(_("Transaction could not be saved.") + "\n" +
                                _("It conflicts with current history."))
                 return False

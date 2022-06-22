@@ -17,12 +17,12 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
+import enum
 import os
 from collections import namedtuple, defaultdict
 import binascii
 import json
-from enum import IntEnum
+from enum import IntEnum, Enum
 from typing import (Optional, Dict, List, Tuple, NamedTuple, Set, Callable,
                     Iterable, Sequence, TYPE_CHECKING, Iterator, Union, Mapping)
 import time
@@ -82,11 +82,14 @@ class ChannelState(IntEnum):
     OPEN            = 3  # both parties have sent funding_locked
     SHUTDOWN        = 4  # shutdown has been sent.
     CLOSING         = 5  # closing negotiation done. we have a fully signed tx.
-    FORCE_CLOSING   = 6  # we force-closed, and closing tx is unconfirmed. Note that if the
+    FORCE_CLOSING   = 6  # *we* force-closed, and closing tx is unconfirmed. Note that if the
                          # remote force-closes then we remain OPEN until it gets mined -
                          # the server could be lying to us with a fake tx.
-    CLOSED          = 7  # closing tx has been mined
-    REDEEMED        = 8  # we can stop watching
+    REQUESTED_FCLOSE = 7   # Chan is open, but we have tried to request the *remote* to force-close
+    WE_ARE_TOXIC     = 8   # Chan is open, but we have lost state and the remote proved this.
+                           # The remote must force-close, it is *not* safe for us to do so.
+    CLOSED           = 9   # closing tx has been mined
+    REDEEMED         = 10  # we can stop watching
 
 
 class PeerState(IntEnum):
@@ -113,12 +116,28 @@ state_transitions = [
     (cs.OPEN,     cs.FORCE_CLOSING),
     (cs.SHUTDOWN, cs.FORCE_CLOSING),
     (cs.CLOSING,  cs.FORCE_CLOSING),
+    (cs.REQUESTED_FCLOSE, cs.FORCE_CLOSING),
+    # we can request a force-close almost any time
+    (cs.OPENING,  cs.REQUESTED_FCLOSE),
+    (cs.FUNDED,   cs.REQUESTED_FCLOSE),
+    (cs.OPEN,     cs.REQUESTED_FCLOSE),
+    (cs.SHUTDOWN, cs.REQUESTED_FCLOSE),
+    (cs.CLOSING,  cs.REQUESTED_FCLOSE),
+    (cs.REQUESTED_FCLOSE,  cs.REQUESTED_FCLOSE),
     # we can get force closed almost any time
     (cs.OPENING,  cs.CLOSED),
     (cs.FUNDED,   cs.CLOSED),
     (cs.OPEN,     cs.CLOSED),
     (cs.SHUTDOWN, cs.CLOSED),
     (cs.CLOSING,  cs.CLOSED),
+    (cs.REQUESTED_FCLOSE, cs.CLOSED),
+    (cs.WE_ARE_TOXIC,          cs.CLOSED),
+    # during channel_reestablish, we might realise we have lost state
+    (cs.OPENING,  cs.WE_ARE_TOXIC),
+    (cs.FUNDED,   cs.WE_ARE_TOXIC),
+    (cs.OPEN,     cs.WE_ARE_TOXIC),
+    (cs.SHUTDOWN, cs.WE_ARE_TOXIC),
+    (cs.REQUESTED_FCLOSE, cs.WE_ARE_TOXIC),
     #
     (cs.FORCE_CLOSING, cs.FORCE_CLOSING),  # allow multiple attempts
     (cs.FORCE_CLOSING, cs.CLOSED),
@@ -128,6 +147,12 @@ state_transitions = [
     (cs.PREOPENING, cs.REDEEMED),  # channel never funded
 ]
 del cs  # delete as name is ambiguous without context
+
+
+class ChanCloseOption(Enum):
+    COOP_CLOSE = enum.auto()
+    LOCAL_FCLOSE = enum.auto()
+    REQUEST_REMOTE_FCLOSE = enum.auto()
 
 
 class RevokeAndAck(NamedTuple):
@@ -196,15 +221,16 @@ class AbstractChannel(Logger, ABC):
     def is_open(self):
         return self.get_state() == ChannelState.OPEN
 
-    def is_closing(self):
-        return ChannelState.SHUTDOWN <= self.get_state() <= ChannelState.FORCE_CLOSING
-
     def is_closed(self):
         # the closing txid has been saved
         return self.get_state() >= ChannelState.CLOSING
 
     def is_redeemed(self):
         return self.get_state() == ChannelState.REDEEMED
+
+    @abstractmethod
+    def get_close_options(self) -> Sequence[ChanCloseOption]:
+        pass
 
     def save_funding_height(self, *, txid: str, height: int, timestamp: Optional[int]) -> None:
         self.storage['funding_height'] = txid, height, timestamp
@@ -281,7 +307,7 @@ class AbstractChannel(Logger, ABC):
                     if spender_txid is None:
                         continue
                     if spender_txid != self.funding_outpoint.txid:
-                        tx_mined_height = self.lnworker.wallet.get_tx_height(spender_txid)
+                        tx_mined_height = self.lnworker.wallet.adb.get_tx_height(spender_txid)
                         if tx_mined_height.conf > lnutil.REDEEM_AFTER_DOUBLE_SPENT_DELAY:
                             self.logger.info(f'channel is double spent {inputs}')
                             self.set_state(ChannelState.REDEEMED)
@@ -486,7 +512,8 @@ class ChannelBackup(AbstractChannel):
     def get_capacity(self):
         lnwatcher = self.lnworker.lnwatcher
         if lnwatcher:
-            return lnwatcher.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+            # fixme: we should probably not call that method here
+            return lnwatcher.adb.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
         return None
 
     def is_backup(self):
@@ -546,6 +573,12 @@ class ChannelBackup(AbstractChannel):
         if isinstance(cb, OnchainChannelBackupStorage):
             return self.lnworker.node_keypair.pubkey
         raise NotImplementedError(f"unexpected cb type: {type(cb)}")
+
+    def get_close_options(self) -> Sequence[ChanCloseOption]:
+        ret = []
+        if self.get_state() == ChannelState.FUNDED:
+            ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
+        return ret
 
 
 class Channel(AbstractChannel):
@@ -784,7 +817,7 @@ class Channel(AbstractChannel):
 
     def can_send_ctx_updates(self) -> bool:
         """Whether we can send update_fee, update_*_htlc changes to the remote."""
-        if not (self.is_open() or self.is_closing()):
+        if self.get_state() not in (ChannelState.OPEN, ChannelState.SHUTDOWN):
             return False
         if self.peer_state != PeerState.GOOD:
             return False
@@ -793,7 +826,7 @@ class Channel(AbstractChannel):
         return True
 
     def can_send_update_add_htlc(self) -> bool:
-        return self.can_send_ctx_updates() and not self.is_closing()
+        return self.can_send_ctx_updates() and self.is_open()
 
     def is_frozen_for_sending(self) -> bool:
         if self.lnworker and self.lnworker.channel_db is None and not self.lnworker.is_trampoline_peer(self.node_id):
@@ -888,7 +921,9 @@ class Channel(AbstractChannel):
         return True
 
     def should_try_to_reestablish_peer(self) -> bool:
-        return ChannelState.PREOPENING < self._state < ChannelState.CLOSING and self.peer_state == PeerState.DISCONNECTED
+        if self.peer_state != PeerState.DISCONNECTED:
+            return False
+        return ChannelState.PREOPENING < self._state < ChannelState.CLOSING
 
     def get_funding_address(self):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
@@ -1499,6 +1534,16 @@ class Channel(AbstractChannel):
         assert tx.is_complete()
         return tx
 
+    def get_close_options(self) -> Sequence[ChanCloseOption]:
+        ret = []
+        if not self.is_closed() and self.peer_state == PeerState.GOOD:
+            ret.append(ChanCloseOption.COOP_CLOSE)
+            ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
+        if not self.is_closed() or self.get_state() == ChannelState.REQUESTED_FCLOSE:
+            ret.append(ChanCloseOption.LOCAL_FCLOSE)
+        assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"
+        return ret
+
     def maybe_sweep_revoked_htlc(self, ctx: Transaction, htlc_tx: Transaction) -> Optional[SweepInfo]:
         # look at the output address, check if it matches
         return create_sweeptx_for_their_revoked_htlc(self, ctx, htlc_tx, self.sweep_address)
@@ -1549,7 +1594,7 @@ class Channel(AbstractChannel):
             return False
         assert conf > 0
         # check funding_tx amount and script
-        funding_tx = self.lnworker.lnwatcher.db.get_transaction(funding_txid)
+        funding_tx = self.lnworker.lnwatcher.adb.get_transaction(funding_txid)
         if not funding_tx:
             self.logger.info(f"no funding_tx {funding_txid}")
             return False

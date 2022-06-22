@@ -826,9 +826,9 @@ class Commands:
                 continue
             if change and not wallet.is_change(addr):
                 continue
-            if unused and wallet.is_used(addr):
+            if unused and wallet.adb.is_used(addr):
                 continue
-            if funded and wallet.is_empty(addr):
+            if funded and wallet.adb.is_empty(addr):
                 continue
             item = addr
             if labels or balance:
@@ -965,7 +965,7 @@ class Commands:
     async def addtransaction(self, tx, wallet: Abstract_Wallet = None):
         """ Add a transaction to the wallet history """
         tx = Transaction(tx)
-        if not wallet.add_transaction(tx):
+        if not wallet.adb.add_transaction(tx):
             return False
         wallet.save_db()
         return tx.txid()
@@ -980,9 +980,9 @@ class Commands:
         wallet.sign_payment_request(address, alias, alias_addr, password)
 
     @command('w')
-    async def rmrequest(self, address, wallet: Abstract_Wallet = None):
+    async def delete_request(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
-        return wallet.remove_payment_request(address)
+        return wallet.delete_request(address)
 
     @command('w')
     async def clear_requests(self, wallet: Abstract_Wallet = None):
@@ -1040,11 +1040,11 @@ class Commands:
         """
         if not is_hash256_str(txid):
             raise Exception(f"{repr(txid)} is not a txid")
-        height = wallet.get_tx_height(txid).height
+        height = wallet.adb.get_tx_height(txid).height
         if height != TX_HEIGHT_LOCAL:
             raise Exception(f'Only local transactions can be removed. '
                             f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
-        wallet.remove_transaction(txid)
+        wallet.adb.remove_transaction(txid)
         wallet.save_db()
 
     @command('wn')
@@ -1057,7 +1057,7 @@ class Commands:
         if not wallet.db.get_transaction(txid):
             raise Exception("Transaction not in wallet.")
         return {
-            "confirmations": wallet.get_tx_height(txid).conf,
+            "confirmations": wallet.adb.get_tx_height(txid).conf,
         }
 
     @command('')

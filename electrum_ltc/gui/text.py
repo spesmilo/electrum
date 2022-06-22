@@ -12,6 +12,7 @@ import electrum_ltc as electrum
 from electrum_ltc.gui import BaseElectrumGui
 from electrum_ltc import util
 from electrum_ltc.util import format_satoshis
+from electrum_ltc.util import EventListener, event_listener
 from electrum_ltc.bitcoin import is_address, COIN
 from electrum_ltc.transaction import PartialTxOutput
 from electrum_ltc.wallet import Wallet, Abstract_Wallet
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 _ = lambda x:x  # i18n
 
 
-class ElectrumGui(BaseElectrumGui):
+class ElectrumGui(BaseElectrumGui, EventListener):
 
     def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
@@ -74,11 +75,19 @@ class ElectrumGui(BaseElectrumGui):
         self.history = None
         self.txid = []
 
-        util.register_callback(self.update, ['wallet_updated', 'network_updated'])
+        self.register_callbacks()
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
 
+
+    @event_listener
+    def on_event_wallet_updated(self, wallet):
+        self.update()
+
+    @event_listener
+    def on_event_network_updated(self):
+        self.update()
 
     def set_cursor(self, x):
         try:
@@ -101,7 +110,7 @@ class ElectrumGui(BaseElectrumGui):
         self.set_cursor(0)
         return s
 
-    def update(self, event, *args):
+    def update(self):
         self.update_history()
         if self.tab == 0:
             self.print_history()
@@ -122,26 +131,32 @@ class ElectrumGui(BaseElectrumGui):
         width = [20, 40, 14, 14]
         delta = (self.maxx - sum(width) - 4)/3
         format_str = "%"+"%d"%width[0]+"s"+"%"+"%d"%(width[1]+delta)+"s"+"%"+"%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
-
-        b = 0
+        domain = self.wallet.get_addresses()
         self.history = []
         self.txid = []
-        for hist_item in self.wallet.get_history():
-            if hist_item.tx_mined_status.conf:
-                timestamp = hist_item.tx_mined_status.timestamp
-                try:
-                    time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
-                except Exception:
-                    time_str = "------"
+        for item in self.wallet.get_full_history().values():
+            amount_sat = item['value'].value
+            balance_sat = item['balance'].value
+            if item.get('lightning'):
+                timestamp = item['timestamp']
+                label = self.wallet.get_label_for_rhash(item['payment_hash'])
+                self.txid.insert(0, item['payment_hash'])
+            else:
+                conf = item['confirmations']
+                timestamp = item['timestamp'] if conf > 0 else 0
+                label = self.wallet.get_label_for_txid(item['txid'])
+                self.txid.insert(0, item['txid'])
+            if timestamp:
+                time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
             else:
                 time_str = 'unconfirmed'
 
-            label = self.wallet.get_label_for_txid(hist_item.txid)
-            self.txid.insert(0, hist_item.txid)
             if len(label) > 40:
                 label = label[0:37] + '...'
-            self.history.append(format_str % (time_str, label, format_satoshis(hist_item.delta, whitespaces=True),
-                                              format_satoshis(hist_item.balance, whitespaces=True)))
+            self.history.append(format_str % (
+                time_str, label,
+                format_satoshis(amount_sat, whitespaces=True),
+                format_satoshis(balance_sat, whitespaces=True)))
 
 
     def print_balance(self):
