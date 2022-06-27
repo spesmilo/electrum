@@ -163,9 +163,9 @@ Dialog {
             Button {
                 text: qsTr('Pay now')
                 icon.source: '../../icons/confirmed.png'
-                enabled: invoice.invoiceType != Invoice.Invalid // TODO && has funds
+                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
-                    if (invoice_key == '')
+                    if (invoice_key == '') // save invoice if not retrieved from key
                         invoice.save_invoice()
                     dialog.close()
                     if (invoice.invoiceType == Invoice.OnchainInvoice) {

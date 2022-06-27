@@ -316,7 +316,7 @@ Pane {
         }
     }
 
-    Invoice {
+    InvoiceParser {
         id: invoice
         wallet: Daemon.currentWallet
         onValidationError: {
