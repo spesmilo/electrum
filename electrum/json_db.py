@@ -179,6 +179,8 @@ class JsonDB(Logger):
     @locked
     def get(self, key, default=None):
         v = self.data.get(key)
+        # deepcopy lists. object must not be StoredDict.
+        v = copy.deepcopy(v)
         if v is None:
             v = default
         return v

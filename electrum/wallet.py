@@ -495,7 +495,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker:
                 self.lnworker.start_network(network)
                 # only start gossiping when we already have channels
-                if self.db.get('channels'):
+                if self.db.get_dict('channels'):
                     self.network.start_gossip()
 
     @abstractmethod
