@@ -107,7 +107,11 @@ Dialog {
                     icon.color: 'transparent'
                     text: 'Copy'
                     onClicked: {
-                        AppController.textToClipboard(_bip21uri)
+                        if (modelItem.is_lightning)
+                            AppController.textToClipboard(modelItem.lightning_invoice)
+                        else
+                            AppController.textToClipboard(_bip21uri)
+
                     }
                 }
                 Button {
@@ -115,7 +119,10 @@ Dialog {
                     text: 'Share'
                     onClicked: {
                         enabled = false
-                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                        if (modelItem.is_lightning)
+                            AppController.doShare(modelItem.lightning_invoice, qsTr('Payment Request'))
+                        else
+                            AppController.doShare(_bip21uri, qsTr('Payment Request'))
                         enabled = true
                     }
                 }
