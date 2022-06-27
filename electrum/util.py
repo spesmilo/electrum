@@ -1631,15 +1631,15 @@ callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
-_event_listeners = defaultdict(set)
+_event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
 class EventListener:
 
     def _list_callbacks(self):
         for c in self.__class__.__mro__:
-            classname = c.__name__
-            for method_name in _event_listeners[classname]:
+            classpath = f"{c.__module__}.{c.__name__}"
+            for method_name in _event_listeners[classpath]:
                 method = getattr(self, method_name)
                 assert callable(method)
                 assert method_name.startswith('on_event_')
@@ -1659,7 +1659,8 @@ class EventListener:
 def event_listener(func):
     classname, method_name = func.__qualname__.split('.')
     assert method_name.startswith('on_event_')
-    _event_listeners[classname].add(method_name)
+    classpath = f"{func.__module__}.{classname}"
+    _event_listeners[classpath].add(method_name)
     return func
 
 
