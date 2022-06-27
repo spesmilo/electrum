@@ -17,6 +17,9 @@ Dialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
+    signal txcancelled
+    signal txaccepted
+
     title: qsTr('Confirm Transaction')
 
     // copy these to finalizer
@@ -206,7 +209,10 @@ Dialog {
 
             Button {
                 text: qsTr('Cancel')
-                onClicked: dialog.close()
+                onClicked: {
+                    txcancelled()
+                    dialog.close()
+                }
             }
 
             Button {
@@ -214,6 +220,7 @@ Dialog {
                 text: qsTr('Pay')
                 enabled: finalizer.valid
                 onClicked: {
+                    txaccepted()
                     finalizer.send_onchain()
                     dialog.close()
                 }

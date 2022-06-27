@@ -305,33 +305,154 @@ class QEInvoice(QObject):
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
         self.invoiceSaved.emit()
 
-    @pyqtSlot(str, QEAmount, str)
-    def create_invoice(self, address: str, amount: QEAmount, message: str):
-        # create invoice from user entered fields
-        # (any other type of invoice is created from parsing recipient)
-        self._logger.debug('creating invoice to %s, amount=%s, message=%s' % (address, repr(amount), message))
 
-        self.clear()
+class QEUserEnteredPayment(QObject):
+    _logger = get_logger(__name__)
+    _wallet = None
+    _recipient = None
+    _message = None
+    _amount = QEAmount()
+    _key = None
+    _canSave = False
+    _canPay = False
 
-        if not address:
-            self.invoiceCreateError.emit('fatal', _('Recipient not specified.') + ' ' + _('Please scan a Bitcoin address or a payment request'))
+    validationError = pyqtSignal([str,str], arguments=['code','message'])
+    invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
+    invoiceSaved = pyqtSignal()
+
+    walletChanged = pyqtSignal()
+    @pyqtProperty(QEWallet, notify=walletChanged)
+    def wallet(self):
+        return self._wallet
+
+    @wallet.setter
+    def wallet(self, wallet: QEWallet):
+        if self._wallet != wallet:
+            self._wallet = wallet
+            self.walletChanged.emit()
+
+    recipientChanged = pyqtSignal()
+    @pyqtProperty(str, notify=recipientChanged)
+    def recipient(self):
+        return self._recipient
+
+    @recipient.setter
+    def recipient(self, recipient: str):
+        if self._recipient != recipient:
+            self._recipient = recipient
+            self.validate()
+            self.recipientChanged.emit()
+
+    messageChanged = pyqtSignal()
+    @pyqtProperty(str, notify=messageChanged)
+    def message(self):
+        return self._message
+
+    @message.setter
+    def message(self, message):
+        if self._message != message:
+            self._message = message
+            self.messageChanged.emit()
+
+    amountChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=amountChanged)
+    def amount(self):
+        return self._amount
+
+    @amount.setter
+    def amount(self, amount):
+        if self._amount != amount:
+            self._amount = amount
+            self.validate()
+            self.amountChanged.emit()
+
+    canSaveChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canSaveChanged)
+    def canSave(self):
+        return self._canSave
+
+    @canSave.setter
+    def canSave(self, canSave):
+        if self._canSave != canSave:
+            self._canSave = canSave
+            self.canSaveChanged.emit()
+
+    canPayChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canPayChanged)
+    def canPay(self):
+        return self._canPay
+
+    @canPay.setter
+    def canPay(self, canPay):
+        if self._canPay != canPay:
+            self._canPay = canPay
+            self.canPayChanged.emit()
+
+    keyChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=keyChanged)
+    def key(self):
+        return self._key
+
+    @key.setter
+    def key(self, key):
+        if self._key != key:
+            self._key = key
+            self.keyChanged.emit()
+
+    def validate(self):
+        self.canPay = False
+        self.canSave = False
+        self._logger.debug('validate')
+
+        if not self._recipient:
+            self.validationError.emit('recipient', _('Recipient not specified.'))
             return
 
-        if not bitcoin.is_address(address):
-            self.invoiceCreateError.emit('fatal', _('Invalid Bitcoin address'))
+        if not bitcoin.is_address(self._recipient):
+            self.validationError.emit('recipient', _('Invalid Bitcoin address'))
             return
 
-        if amount.isEmpty:
-            self.invoiceCreateError.emit('fatal', _('Invalid amount'))
+        if self._amount.isEmpty:
+            self.validationError.emit('amount', _('Invalid amount'))
             return
 
-        inv_amt = '!' if amount.isMax else (amount.satsInt * 1000) # FIXME msat precision from UI?
+        if self._amount.isMax:
+            self.canPay = True
+        else:
+            self.canSave = True
+            if self.get_max_spendable() >= self._amount.satsInt:
+                self.canPay = True
+
+    def get_max_spendable(self):
+        c, u, x = self._wallet.wallet.get_balance()
+        #TODO determine real max
+        return c
+
+    @pyqtSlot()
+    def save_invoice(self):
+        assert self.canSave
+        assert not self._amount.isMax
+
+        self._logger.debug('saving invoice to %s, amount=%s, message=%s' % (self._recipient, repr(self._amount), self._message))
+
+        inv_amt = self._amount.satsInt
 
         try:
-            outputs = [PartialTxOutput.from_address_and_value(address, inv_amt)]
-            invoice = self._wallet.wallet.create_invoice(outputs=outputs, message=message, pr=None, URI=None)
+            outputs = [PartialTxOutput.from_address_and_value(self._recipient, inv_amt)]
+            self._logger.debug(repr(outputs))
+            invoice = self._wallet.wallet.create_invoice(outputs=outputs, message=self._message, pr=None, URI=None)
         except InvoiceError as e:
             self.invoiceCreateError.emit('fatal', _('Error creating payment') + ':\n' + str(e))
             return
 
-        self.set_effective_invoice(invoice)
+        self.key = self._wallet.wallet.get_key_for_outgoing_invoice(invoice)
+        self._wallet.wallet.save_invoice(invoice)
+        self.invoiceSaved.emit()
+
+    @pyqtSlot()
+    def clear(self):
+        self._recipient = None
+        self._amount = QEAmount()
+        self._message = None
+        self.canSave = False
+        self.canPay = False

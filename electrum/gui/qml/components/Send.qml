@@ -15,6 +15,7 @@ Pane {
         recipient.text = ''
         amount.text = ''
         message.text = ''
+        is_max.checked = false
     }
 
     GridLayout {
@@ -44,8 +45,9 @@ Pane {
                 wrapMode: Text.Wrap
                 placeholderText: qsTr('Paste address or invoice')
                 onTextChanged: {
-                    if (activeFocus)
-                        invoice.recipient = text
+                    //if (activeFocus)
+                    //userEnteredPayment.recipient = text
+                    userEnteredPayment.recipient = recipient.text
                 }
             }
 
@@ -79,7 +81,7 @@ Pane {
             fiatfield: amountFiat
             Layout.preferredWidth: parent.width /3
             onTextChanged: {
-                invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+                userEnteredPayment.amount = is_max.checked ? MAX : Config.unitsToSats(amount.text)
             }
         }
 
@@ -94,7 +96,7 @@ Pane {
                 id: is_max
                 text: qsTr('Max')
                 onCheckedChanged: {
-                    invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+                    userEnteredPayment.amount = is_max.checked ? MAX : Config.unitsToSats(amount.text)
                 }
             }
         }
@@ -125,7 +127,7 @@ Pane {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             onTextChanged: {
-                invoice.create_invoice(recipient.text, is_max.checked ? MAX : Config.unitsToSats(amount.text), message.text)
+                userEnteredPayment.message = message.text
             }
         }
 
@@ -136,29 +138,30 @@ Pane {
 
             Button {
                 text: qsTr('Save')
-                enabled: invoice.canSave
+                enabled: userEnteredPayment.canSave
                 icon.source: '../../icons/save.png'
                 onClicked: {
-                    invoice.save_invoice()
-                    invoice.clear()
+                    userEnteredPayment.save_invoice()
+                    userEnteredPayment.clear()
                     rootItem.clear()
                 }
             }
 
             Button {
                 text: qsTr('Pay now')
-                enabled: invoice.canPay
+                enabled: userEnteredPayment.canPay
                 icon.source: '../../icons/confirmed.png'
                 onClicked: {
-                    invoice.save_invoice()
                     var dialog = confirmPaymentDialog.createObject(app, {
                         'address': recipient.text,
-                        'satoshis': Config.unitsToSats(amount.text),
+                        'satoshis': is_max.checked ? MAX : Config.unitsToSats(amount.text),
                         'message': message.text
                     })
+                    dialog.txaccepted.connect(function() {
+                        userEnteredPayment.clear()
+                        rootItem.clear()
+                    })
                     dialog.open()
-                    invoice.clear()
-                    rootItem.clear()
                 }
             }
 
@@ -293,6 +296,26 @@ Pane {
         FocusScope { id: parkFocus }
     }
 
+
+    UserEnteredPayment {
+        id: userEnteredPayment
+        wallet: Daemon.currentWallet
+
+        //onValidationError: {
+            //if (recipient.activeFocus) {
+                //// no popups when editing
+                //return
+            //}
+            //var dialog = app.messageDialog.createObject(app, {'text': message })
+            //dialog.open()
+////             rootItem.clear()
+        //}
+
+        onInvoiceSaved: {
+            Daemon.currentWallet.invoiceModel.init_model()
+        }
+    }
+
     Invoice {
         id: invoice
         wallet: Daemon.currentWallet
@@ -314,11 +337,12 @@ Pane {
             }
         }
         onValidationSuccess: {
-            // address only -> fill form fields
+            // address only -> fill form fields and clear this instance
             // else -> show invoice confirmation dialog
-            if (invoiceType == Invoice.OnchainOnlyAddress)
+            if (invoiceType == Invoice.OnchainOnlyAddress) {
                 recipient.text = invoice.recipient
-            else {
+                invoice.clear()
+            } else {
                 var dialog = invoiceDialog.createObject(rootItem, {'invoice': invoice})
                 dialog.open()
             }
@@ -326,8 +350,8 @@ Pane {
         onInvoiceCreateError: console.log(code + ' ' + message)
 
         onInvoiceSaved: {
-            console.log('invoice got saved')
             Daemon.currentWallet.invoiceModel.init_model()
         }
     }
+
 }
