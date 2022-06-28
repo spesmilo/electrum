@@ -117,7 +117,7 @@ class QEChannelListModel(QAbstractListModel):
     def on_channel_updated(self, channel):
         i = 0
         for c in self.channels:
-            if c['cid'] == channel.channel_id:
+            if c['cid'] == channel.channel_id.hex():
                 self.do_update(i,channel)
                 break
             i = i + 1

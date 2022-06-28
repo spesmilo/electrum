@@ -31,17 +31,11 @@ Pane {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Close channel');
-                enabled: false
-                onTriggered: {}
-                //icon.source: '../../icons/wallet.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Force-close');
-                enabled: false
-                onTriggered: {}
+                enabled: channeldetails.canClose
+                onTriggered: {
+                    var dialog = closechannel.createObject(root, { 'channelid': channelid })
+                    dialog.open()
+                }
                 //icon.source: '../../icons/wallet.png'
             }
         }
@@ -244,5 +238,10 @@ Pane {
     Component {
         id: share
         GenericShareDialog {}
+    }
+
+    Component {
+        id: closechannel
+        CloseChannelDialog {}
     }
 }

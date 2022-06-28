@@ -1,8 +1,13 @@
+import asyncio
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
+from electrum.i18n import _
+from electrum.gui import messages
 from electrum.logging import get_logger
 from electrum.util import register_callback, unregister_callback
 from electrum.lnutil import LOCAL, REMOTE
+from electrum.lnchannel import ChanCloseOption
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -15,6 +20,8 @@ class QEChannelDetails(QObject):
     _channel = None
 
     channelChanged = pyqtSignal()
+    channelCloseSuccess = pyqtSignal()
+    channelCloseFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -57,7 +64,7 @@ class QEChannelDetails(QObject):
     def load(self):
         lnchannels = self._wallet.wallet.lnworker.channels
         for channel in lnchannels.values():
-            self._logger.debug('%s == %s ?' % (self._channelid, channel.channel_id))
+            #self._logger.debug('%s == %s ?' % (self._channelid, channel.channel_id))
             if self._channelid == channel.channel_id.hex():
                 self._channel = channel
                 self.channelChanged.emit()
@@ -115,22 +122,54 @@ class QEChannelDetails(QObject):
     def isOpen(self):
         return self._channel.is_open()
 
+    @pyqtProperty(bool, notify=channelChanged)
+    def canClose(self):
+        return self.canCoopClose or self.canForceClose
+
+    @pyqtProperty(bool, notify=channelChanged)
+    def canCoopClose(self):
+        return ChanCloseOption.COOP_CLOSE in self._channel.get_close_options()
+
+    @pyqtProperty(bool, notify=channelChanged)
+    def canForceClose(self):
+        return ChanCloseOption.LOCAL_FCLOSE in self._channel.get_close_options()
+
+    @pyqtProperty(str, notify=channelChanged)
+    def message_force_close(self, notify=channelChanged):
+        return _(messages.MSG_REQUEST_FORCE_CLOSE)
+
     @pyqtSlot()
     def freezeForSending(self):
         lnworker = self._channel.lnworker
         if lnworker.channel_db or lnworker.is_trampoline_peer(self._channel.node_id):
-            #self.is_frozen_for_sending = not self.is_frozen_for_sending
             self._channel.set_frozen_for_sending(not self.frozenForSending)
             self.channelChanged.emit()
         else:
-            self._logger.debug('TODO: messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP')
+            self._logger.debug(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
 
     @pyqtSlot()
     def freezeForReceiving(self):
         lnworker = self._channel.lnworker
         if lnworker.channel_db or lnworker.is_trampoline_peer(self._channel.node_id):
-            #self.is_frozen_for_sending = not self.is_frozen_for_sending
             self._channel.set_frozen_for_receiving(not self.frozenForReceiving)
             self.channelChanged.emit()
         else:
-            self._logger.debug('TODO: messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP')
+            self._logger.debug(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
+
+    # this method assumes the qobject is not destroyed before the close either fails or succeeds
+    @pyqtSlot(str)
+    def close_channel(self, closetype):
+        async def do_close(closetype, channel_id):
+            try:
+                if closetype == 'force':
+                    await self._wallet.wallet.lnworker.request_force_close(channel_id)
+                else:
+                    await self._wallet.wallet.lnworker.close_channel(channel_id)
+                self.channelCloseSuccess.emit()
+            except Exception as e:
+                self._logger.exception("Could not close channel: " + repr(e))
+                self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
+
+        loop = self._wallet.wallet.network.asyncio_loop
+        coro = do_close(closetype, self._channel.channel_id)
+        asyncio.run_coroutine_threadsafe(coro, loop)
