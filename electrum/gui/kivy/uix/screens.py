@@ -20,8 +20,9 @@ from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
                            InvoiceError, format_time, parse_max_spend, BITCOIN_BIP21_URI_SCHEME)
 from electrum.lnaddr import lndecode, LnInvoiceException
-from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, lightning_address_to_url, LNURLError, LNURL6Data
+from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 from electrum.logging import Logger
+from electrum.network import Network
 
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
@@ -178,7 +179,6 @@ class SendScreen(CScreen, Logger):
         * lightning-URI (containing bolt11 or lnurl)
         * bolt11 invoice
         * lnurl
-        * lightning address
         Bitcoin identifiers:
         * bitcoin-URI
         * bitcoin address
@@ -191,10 +191,7 @@ class SendScreen(CScreen, Logger):
         text = text.strip()
         if not text:
             return
-        invoice_or_lnurl = maybe_extract_lightning_payment_identifier(text)
-        if lightning_address_to_url(text):
-            self.set_lnurl6(text)
-        elif invoice_or_lnurl:
+        if invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
             if invoice_or_lnurl.startswith('lnurl'):
                 self.set_lnurl6(invoice_or_lnurl)
             else:
@@ -234,11 +231,10 @@ class SendScreen(CScreen, Logger):
         self.is_lightning = True
 
     def set_lnurl6(self, lnurl: str):
-        url = lightning_address_to_url(lnurl)
-        if not url:
-            url = decode_lnurl(lnurl)
+        url = decode_lnurl(lnurl)
         domain = urlparse(url).netloc
-        lnurl_data = request_lnurl(url, self.app.network.send_http_on_proxy)
+        # FIXME network request blocking GUI thread:
+        lnurl_data = Network.run_from_another_thread(request_lnurl(url))
         if not lnurl_data:
             return
         self.lnurl_data = lnurl_data
@@ -380,11 +376,11 @@ class SendScreen(CScreen, Logger):
             self.app.show_error(f'Amount must be between {self.lnurl_data.min_sendable_sat} and {self.lnurl_data.max_sendable_sat} sat.')
             return
         try:
-            invoice_data = callback_lnurl(
+            # FIXME network request blocking GUI thread:
+            invoice_data = Network.run_from_another_thread(callback_lnurl(
                 self.lnurl_data.callback_url,
                 params={'amount': amount * 1000},
-                request_over_proxy=self.app.network.send_http_on_proxy,
-            )
+            ))
         except LNURLError as e:
             self.app.show_error(f"LNURL request encountered error: {e}")
             self.do_clear()

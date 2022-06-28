@@ -35,7 +35,7 @@ from electrum.util import bfh, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
-from electrum.lnurl import LNURLError, lightning_address_to_url, request_lnurl, LNURL6Data
+from electrum.lnurl import LNURLError
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -89,7 +89,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.textChanged.connect(self._on_text_changed)
         self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: List[PayToLineError]
-        self.is_pr = False
+        self.disable_checks = False
         self.is_alias = False
         self.update_size()
         self.payto_scriptpubkey = None  # type: Optional[bytes]
@@ -107,7 +107,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setText(text)
 
     def do_clear(self):
-        self.is_pr = False
+        self.disable_checks = False
         self.is_alias = False
         self.setText('')
         self.setFrozen(False)
@@ -193,7 +193,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         if full_check:
             self.previous_payto = str(self.toPlainText()).strip()
         self.errors = []
-        if self.is_pr:
+        if self.disable_checks:
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
@@ -229,13 +229,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
                 return
-            if full_check:  # network requests
-                # try lightning address lnurl-16 (note: names can collide with openalias, so order matters)
-                lnurl_data = self._resolve_lightning_address_lnurl16(data)
-                if lnurl_data:
-                    url = lightning_address_to_url(data)
-                    self.win.set_lnurl6_url(url, lnurl_data=lnurl_data)
-                    return
+            if full_check:  # network requests  # FIXME blocking GUI thread
                 # try openalias
                 oa_data = self._resolve_openalias(data)
                 if oa_data:
@@ -339,6 +333,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def _set_openalias(self, *, key: str, data: dict) -> bool:
         self.is_alias = True
+        self.setFrozen(True)
         key = key.strip()  # strip whitespaces
         address = data.get('address')
         name = data.get('name')
@@ -349,7 +344,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.win.contacts[key] = ('openalias', name)
         self.win.contact_list.update()
 
-        self.setFrozen(True)
         if data.get('type') == 'openalias':
             self.validated = data.get('validated')
             if self.validated:
@@ -359,14 +353,3 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         else:
             self.validated = None
         return True
-
-    def _resolve_lightning_address_lnurl16(self, text: str) -> Optional[LNURL6Data]:
-        url = lightning_address_to_url(text)
-        if not url:
-            return None
-        try:
-            lnurl_data = request_lnurl(url, self.win.network.send_http_on_proxy)
-            return lnurl_data
-        except LNURLError as e:
-            self.logger.info(f"failed to resolve {text} as lnurl16 lightning address. got exc: {e!r}")
-            return None

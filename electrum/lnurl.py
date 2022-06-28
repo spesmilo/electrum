@@ -4,7 +4,7 @@
 
 import asyncio
 import json
-from typing import Callable, Optional, NamedTuple, Any
+from typing import Callable, Optional, NamedTuple, Any, TYPE_CHECKING
 import re
 
 import aiohttp.client_exceptions
@@ -12,6 +12,10 @@ from aiohttp import ClientResponse
 
 from electrum.segwit_addr import bech32_decode, Encoding, convertbits
 from electrum.lnaddr import LnDecodeException
+from electrum.network import Network
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 
 class LNURLError(Exception):
@@ -44,10 +48,10 @@ class LNURL6Data(NamedTuple):
     #tag: str = "payRequest"
 
 
-def _request_lnurl(url: str, request_over_proxy: Callable) -> dict:
+async def _request_lnurl(url: str) -> dict:
     """Requests payment data from a lnurl."""
     try:
-        response = request_over_proxy("get", url, timeout=10)
+        response = await Network.async_send_http_on_proxy("get", url, timeout=10)
     except asyncio.TimeoutError as e:
         raise LNURLError("Server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
@@ -62,8 +66,8 @@ def _request_lnurl(url: str, request_over_proxy: Callable) -> dict:
     return response
 
 
-def request_lnurl(url: str, request_over_proxy: Callable) -> Optional[LNURL6Data]:
-    lnurl_dict = _request_lnurl(url, request_over_proxy)
+async def request_lnurl(url: str) -> Optional[LNURL6Data]:
+    lnurl_dict = await _request_lnurl(url)
     tag = lnurl_dict.get('tag')
     if tag != 'payRequest':  # only LNURL6 is handled atm
         return None
@@ -81,10 +85,10 @@ def request_lnurl(url: str, request_over_proxy: Callable) -> Optional[LNURL6Data
     return data
 
 
-def callback_lnurl(url: str, params: dict, request_over_proxy: Callable) -> dict:
+async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""
     try:
-        response = request_over_proxy("get", url, params=params)
+        response = await Network.async_send_http_on_proxy("get", url, params=params)
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
     # TODO: handling of specific errors
