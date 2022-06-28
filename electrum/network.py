@@ -1291,9 +1291,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             await asyncio.sleep(0.1)
 
     @classmethod
-    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
-                                  body: bytes = None, json: dict = None, headers=None,
-                                  on_finish=None, timeout=None):
+    async def async_send_http_on_proxy(
+            cls, method: str, url: str, *,
+            params: str = None,
+            body: bytes = None,
+            json: dict = None,
+            headers=None,
+            on_finish=None,
+            timeout=None,
+    ):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1326,7 +1332,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             loop = network.asyncio_loop
         else:
             loop = util.get_asyncio_loop()
-        coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
+        coro = asyncio.run_coroutine_threadsafe(cls.async_send_http_on_proxy(method, url, **kwargs), loop)
         # note: _send_http_on_proxy has its own timeout, so no timeout here:
         return coro.result()
 
