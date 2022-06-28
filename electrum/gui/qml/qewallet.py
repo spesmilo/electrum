@@ -7,15 +7,16 @@ import threading
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
 
 from electrum.i18n import _
-from electrum.util import register_callback, Satoshis, format_time, parse_max_spend, InvalidPassword
+from electrum.util import (register_callback, unregister_callback,
+                           Satoshis, format_time, parse_max_spend, InvalidPassword)
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import StorageEncryptionVersion
 from electrum import bitcoin
 from electrum.transaction import PartialTxOutput
-from electrum.invoices import   (Invoice, InvoiceError,
-                                 PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID,
-                                 PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED)
+from electrum.invoices import (Invoice, InvoiceError,
+                               PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID,
+                               PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED)
 
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
@@ -86,6 +87,7 @@ class QEWallet(AuthMixin, QObject):
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
         register_callback(self.on_network, interests)
+        self.destroyed.connect(lambda: self.on_destroy())
 
     @pyqtProperty(bool, notify=isUptodateChanged)
     def isUptodate(self):
@@ -154,6 +156,8 @@ class QEWallet(AuthMixin, QObject):
         else:
             self._logger.debug('unhandled event: %s %s' % (event, str(args)))
 
+    def on_destroy(self):
+        unregister_callback(self.on_network)
 
     def add_tx_notification(self, tx):
         self._logger.debug('new transaction event')

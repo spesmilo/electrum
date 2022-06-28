@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
-from electrum.util import Satoshis, register_callback
+from electrum.util import Satoshis, register_callback, unregister_callback
 from electrum.lnutil import LOCAL, REMOTE
 
 from .qetypes import QEAmount
@@ -36,6 +36,7 @@ class QEChannelListModel(QAbstractListModel):
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
         register_callback(self.on_network, interests)
+        self.destroyed.connect(lambda: self.on_destroy())
 
     def on_network(self, event, *args):
         if event == 'channel':
@@ -56,6 +57,8 @@ class QEChannelListModel(QAbstractListModel):
         else:
             self._logger.debug('unhandled event %s: %s' % (event, repr(args)))
 
+    def on_destroy(self):
+        unregister_callback(self.on_network)
 
     def rowCount(self, index):
         return len(self.channels)
