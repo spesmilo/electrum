@@ -9,8 +9,9 @@ from electrum.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, Invoi
                            maybe_extract_bolt11_invoice)
 from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
-                               PR_FAILED,PR_ROUTING,PR_UNCONFIRMED)
+                               PR_FAILED,PR_ROUTING,PR_UNCONFIRMED,LN_EXPIRY_NEVER)
 from electrum.transaction import PartialTxOutput
+from electrum.lnaddr import lndecode
 from electrum import bitcoin
 
 from .qewallet import QEWallet
@@ -91,6 +92,17 @@ class QEInvoice(QObject):
             self._key = key
             self.keyChanged.emit()
 
+    userinfoChanged = pyqtSignal()
+    @pyqtProperty(str, notify=userinfoChanged)
+    def userinfo(self):
+        return self._userinfo
+
+    @userinfo.setter
+    def userinfo(self, userinfo):
+        if self._userinfo != userinfo:
+            self._userinfo = userinfo
+            self.userinfoChanged.emit()
+
     def get_max_spendable_onchain(self):
         c, u, x = self._wallet.wallet.get_balance()
         #TODO determine real max
@@ -105,6 +117,7 @@ class QEInvoiceParser(QEInvoice):
     _recipient = ''
     _effectiveInvoice = None
     _amount = QEAmount()
+    _userinfo = ''
 
     invoiceChanged = pyqtSignal()
     invoiceSaved = pyqtSignal()
@@ -180,6 +193,19 @@ class QEInvoiceParser(QEInvoice):
     def address(self):
         return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
+    @pyqtProperty('QVariantMap', notify=invoiceChanged)
+    def lnprops(self):
+        if not self.invoiceType == QEInvoice.Type.LightningInvoice:
+            return {}
+        lnaddr = self._effectiveInvoice._lnaddr
+        self._logger.debug(str(lnaddr))
+        self._logger.debug(str(lnaddr.get_routing_info('t')))
+        return {
+            'pubkey': lnaddr.pubkey.serialize().hex(),
+            't': lnaddr.get_routing_info('t')[0][0].hex(),
+            'r': lnaddr.get_routing_info('r')[0][0][0].hex()
+        }
+
     @pyqtSlot()
     def clear(self):
         self.recipient = ''
@@ -187,12 +213,14 @@ class QEInvoiceParser(QEInvoice):
         self._bip21 = None
         self.canSave = False
         self.canPay = False
+        self.userinfo = ''
         self.invoiceChanged.emit()
 
     # don't parse the recipient string, but init qeinvoice from an invoice key
     # this should not emit validation signals
     @pyqtSlot(str)
     def initFromKey(self, key):
+        self.clear()
         invoice = self._wallet.wallet.get_invoice(key)
         self._logger.debug(repr(invoice))
         if invoice:
@@ -209,15 +237,26 @@ class QEInvoiceParser(QEInvoice):
 
         self.canSave = True
 
-        if self.invoiceType == QEInvoice.Type.LightningInvoice:
-            if self.get_max_spendable_lightning() >= self.amount.satsInt:
-                self.canPay = True
-        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
-            if self.get_max_spendable_onchain() >= self.amount.satsInt:
-                self.canPay = True
+        self.determine_can_pay()
 
         self.invoiceChanged.emit()
         self.statusChanged.emit()
+
+    def determine_can_pay(self):
+        if self.invoiceType == QEInvoice.Type.LightningInvoice:
+            if self.status == PR_UNPAID:
+                if self.get_max_spendable_lightning() >= self.amount.satsInt:
+                    self.canPay = True
+                else:
+                    self.userinfo = _('Can\'t pay, insufficient balance')
+            else:
+                self.userinfo = _('Can\'t pay, invoice is expired')
+        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
+            if self.get_max_spendable_onchain() >= self.amount.satsInt:
+                self.canPay = True
+            else:
+                self.userinfo = _('Can\'t pay, insufficient balance')
+
 
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send()
@@ -225,7 +264,7 @@ class QEInvoiceParser(QEInvoice):
     def setValidAddressOnly(self):
         self._logger.debug('setValidAddressOnly')
         self.setInvoiceType(QEInvoice.Type.OnchainOnlyAddress)
-        self._effectiveInvoice = None ###TODO
+        self._effectiveInvoice = None
         self.invoiceChanged.emit()
 
     def setValidOnchainInvoice(self, invoice: Invoice):

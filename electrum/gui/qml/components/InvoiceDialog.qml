@@ -47,7 +47,6 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Image {
-                //Layout.rowSpan: 2
                 Layout.preferredWidth: constants.iconSizeSmall
                 Layout.preferredHeight: constants.iconSizeSmall
                 source: invoice.invoiceType == Invoice.LightningInvoice
@@ -118,6 +117,45 @@ Dialog {
         }
 
         Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            text: qsTr('Remote Pubkey')
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            Layout.fillWidth: true
+            text: invoice.lnprops.pubkey
+            font.family: FixedFont
+            wrapMode: Text.Wrap
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            text: qsTr('Route via (t)')
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            Layout.fillWidth: true
+            text: invoice.lnprops.t
+            font.family: FixedFont
+            wrapMode: Text.Wrap
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            text: qsTr('Route via (r)')
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            Layout.fillWidth: true
+            text: invoice.lnprops.r
+            font.family: FixedFont
+            wrapMode: Text.Wrap
+        }
+
+        Label {
             text: qsTr('Status')
         }
 
@@ -133,6 +171,13 @@ Dialog {
         }
 
         Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
+
+        InfoTextArea {
+            Layout.columnSpan: 2
+            Layout.alignment: Qt.AlignHCenter
+            visible: invoice.userinfo
+            text: invoice.userinfo
+        }
 
         RowLayout {
             Layout.columnSpan: 2
@@ -178,7 +223,6 @@ Dialog {
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
-
     }
 
     Component.onCompleted: {
