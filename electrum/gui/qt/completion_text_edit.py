@@ -82,7 +82,7 @@ class CompletionTextEdit(ButtonsTextEdit):
 
         QPlainTextEdit.keyPressEvent(self, e)
 
-        ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
+        ctrlOrShift = bool(e.modifiers() & (Qt.ControlModifier | Qt.ShiftModifier))
         if self.completer is None or (ctrlOrShift and not e.text()):
             return
 
