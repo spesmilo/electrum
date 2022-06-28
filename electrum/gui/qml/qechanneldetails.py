@@ -18,13 +18,17 @@ class QEChannelDetails(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        register_callback(self.on_network, ['channel']) # TODO unregister too
+        register_callback(self.on_network, ['channel'])
+        self.destroyed.connect(lambda: self.on_destroy())
 
     def on_network(self, event, *args):
         if event == 'channel':
             wallet, channel = args
             if wallet == self._wallet.wallet and self._channelid == channel.channel_id.hex():
                 self.channelChanged.emit()
+
+    def on_destroy(self):
+        unregister_callback(self.on_network)
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
