@@ -31,6 +31,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
 from electrum.i18n import _
+from electrum.lnworker import PaymentDirection
 
 from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
 from .qrtextedit import ShowQRTextEdit
@@ -46,7 +47,7 @@ class LightningTxDialog(WindowModalDialog):
         WindowModalDialog.__init__(self, parent, _("Lightning Payment"))
         self.parent = parent
         self.config = parent.config
-        self.is_sent = bool(tx_item['direction'] == 'sent')
+        self.is_sent = tx_item['direction'] == PaymentDirection.SENT
         self.label = tx_item['label']
         self.timestamp = tx_item['timestamp']
         self.amount = Decimal(tx_item['amount_msat']) / 1000
@@ -67,8 +68,9 @@ class LightningTxDialog(WindowModalDialog):
         amount_str = self.parent.format_amount_and_units(self.amount, timestamp=self.timestamp)
         vbox.addWidget(QLabel(_("Amount") + f": {amount_str}"))
         if self.is_sent:
-            fee = Decimal(tx_item['fee_msat']) / 1000
-            fee_str = self.parent.format_amount_and_units(fee, timestamp=self.timestamp)
+            fee_msat = tx_item['fee_msat']
+            fee_sat = Decimal(fee_msat) / 1000 if fee_msat is not None else None
+            fee_str = self.parent.format_amount_and_units(fee_sat, timestamp=self.timestamp)
             vbox.addWidget(QLabel(_("Fee") + f": {fee_str}"))
         time_str = datetime.datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
