@@ -79,6 +79,7 @@ Pane {
         BtcField {
             id: amount
             fiatfield: amountFiat
+            enabled: !is_max.checked
             Layout.preferredWidth: parent.width /3
             onTextChanged: {
                 userEnteredPayment.amount = is_max.checked ? MAX : Config.unitsToSats(amount.text)
@@ -107,6 +108,7 @@ Pane {
             id: amountFiat
             btcfield: amount
             visible: Daemon.fx.enabled
+            enabled: !is_max.checked
             Layout.preferredWidth: parent.width /3
         }
 
@@ -243,7 +245,6 @@ Pane {
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
-                onAmountChanged: console.log(amount.satsInt)
             }
         }
     }

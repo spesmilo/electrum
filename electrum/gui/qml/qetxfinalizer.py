@@ -21,6 +21,7 @@ class QETxFinalizer(QObject):
 
     _address = ''
     _amount = QEAmount()
+    _effectiveAmount = QEAmount()
     _fee = QEAmount()
     _feeRate = ''
     _wallet = None
@@ -74,6 +75,11 @@ class QETxFinalizer(QObject):
             self._logger.debug(str(amount))
             self._amount = amount
             self.amountChanged.emit()
+
+    effectiveAmountChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=effectiveAmountChanged)
+    def effectiveAmount(self):
+        return self._effectiveAmount
 
     feeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=feeChanged)
@@ -208,28 +214,34 @@ class QETxFinalizer(QObject):
         self.update()
 
     @profiler
-    def make_tx(self):
-        if self.f_make_tx:
-            tx = self.f_make_tx()
-            return tx
+    def make_tx(self, amount):
+        self._logger.debug('make_tx amount = %s' % str(amount))
 
-        # default impl
-        coins = self._wallet.wallet.get_spendable_coins(None)
-        outputs = [PartialTxOutput.from_address_and_value(self.address, self._amount.satsInt)]
-        tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None,rbf=self._rbf)
+        if self.f_make_tx:
+            tx = self.f_make_tx(amount)
+        else:
+            # default impl
+            coins = self._wallet.wallet.get_spendable_coins(None)
+            outputs = [PartialTxOutput.from_address_and_value(self.address, amount)]
+            tx = self._wallet.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None,rbf=self._rbf)
+
         self._logger.debug('fee: %d, inputs: %d, outputs: %d' % (tx.get_fee(), len(tx.inputs()), len(tx.outputs())))
-        self._logger.debug(repr(tx.outputs()))
+
         outputs = []
         for o in tx.outputs():
-            outputs.append(o.to_json())
+            outputs.append({
+                'address': o.get_ui_address_str(),
+                'value_sats': o.value
+            })
         self.outputs = outputs
+
         return tx
 
     @pyqtSlot()
     def update(self):
         try:
             # make unsigned transaction
-            tx = self.make_tx()
+            tx = self.make_tx(amount = '!' if self._amount.isMax else self._amount.satsInt)
         except NotEnoughFunds:
             self.warning = _("Not enough funds")
             self._valid = False
@@ -245,6 +257,9 @@ class QETxFinalizer(QObject):
         self._tx = tx
 
         amount = self._amount.satsInt if not self._amount.isMax else tx.output_value()
+
+        self._effectiveAmount = QEAmount(amount_sat=amount)
+        self.effectiveAmountChanged.emit()
 
         tx_size = tx.estimated_size()
         fee = tx.get_fee()

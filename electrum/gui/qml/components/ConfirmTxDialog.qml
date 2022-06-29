@@ -35,6 +35,13 @@ Dialog {
         color: "#aa000000"
     }
 
+    function updateAmountText() {
+        btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
+        fiatValue.text = Daemon.fx.enabled
+            ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+            : ''
+    }
+
     GridLayout {
         id: layout
         width: parent.width
@@ -56,8 +63,8 @@ Dialog {
         RowLayout {
             Layout.fillWidth: true
             Label {
+                id: btcValue
                 font.bold: true
-                text: Config.formatSats(satoshis, false)
             }
 
             Label {
@@ -68,10 +75,15 @@ Dialog {
             Label {
                 id: fiatValue
                 Layout.fillWidth: true
-                text: Daemon.fx.enabled
-                        ? '(' + Daemon.fx.fiatValue(satoshis, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-                        : ''
                 font.pixelSize: constants.fontSizeMedium
+            }
+
+            Component.onCompleted: updateAmountText()
+            Connections {
+                target: finalizer
+                function onEffectiveAmountChanged() {
+                    updateAmountText()
+                }
             }
         }
 

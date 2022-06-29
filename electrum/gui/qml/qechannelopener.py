@@ -127,17 +127,20 @@ class QEChannelOpener(QObject):
             return
 
         amount = '!' if self._amount.isMax else self._amount.satsInt
+        self._logger.debug('amount = %s' % str(amount))
+
         coins = self._wallet.wallet.get_spendable_coins(None, nonlocal_only=True)
 
-        mktx = lambda: lnworker.mktx_for_open_channel(
+        mktx = lambda amt: lnworker.mktx_for_open_channel(
             coins=coins,
-            funding_sat=amount,
+            funding_sat=amt,
             node_id=self._peer.pubkey,
             fee_est=None)
 
         acpt = lambda tx: self.do_open_channel(tx, str(self._peer), None)
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
+        self._finalizer.amount = self._amount
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
 
