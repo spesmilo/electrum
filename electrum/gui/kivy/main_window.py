@@ -414,6 +414,7 @@ class ElectrumWindow(App, Logger, EventListener):
         self.password = None
         self._use_single_password = False
         self.resume_dialog = None
+        self.gui_thread = threading.current_thread()
 
         App.__init__(self)#, **kwargs)
         Logger.__init__(self)
@@ -1100,6 +1101,17 @@ class ElectrumWindow(App, Logger, EventListener):
             return
         self.qr_dialog(label.name, label.data, show_text_with_qr)
 
+    def scheduled_in_gui_thread(func):
+        """Decorator to ensure that func runs in the GUI thread.
+        Note: the return value is swallowed!
+        """
+        def wrapper(self: 'ElectrumWindow', *args, **kwargs):
+            if threading.current_thread() == self.gui_thread:
+                func(self, *args, **kwargs)
+            else:
+                Clock.schedule_once(lambda dt: func(self, *args, **kwargs))
+        return wrapper
+
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
                    exit=False, icon=f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/error', duration=0,
                    modal=False):
@@ -1117,6 +1129,7 @@ class ElectrumWindow(App, Logger, EventListener):
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
+    @scheduled_in_gui_thread
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
                          arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble
