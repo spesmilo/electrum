@@ -129,3 +129,15 @@ class QEChannelListModel(QAbstractListModel):
 
         mi = self.createIndex(modelindex, 0)
         self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
+
+    @pyqtSlot(str)
+    def new_channel(self, cid):
+        lnchannels = self.wallet.lnworker.channels
+        for channel in lnchannels.values():
+            self._logger.debug(repr(channel))
+            if cid == channel.channel_id.hex():
+                item = self.channel_to_model(channel)
+                self._logger.debug(item)
+                self.beginInsertRows(QModelIndex(), 0, 0)
+                self.channels.insert(0,item)
+                self.endInsertRows()

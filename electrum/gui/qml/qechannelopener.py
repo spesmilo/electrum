@@ -25,7 +25,7 @@ class QEChannelOpener(QObject):
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
-    channelOpenSuccess = pyqtSignal([bool], arguments=['has_backup'])
+    channelOpenSuccess = pyqtSignal([str,bool], arguments=['cid','has_backup'])
 
     dataChanged = pyqtSignal() # generic notify signal
 
@@ -160,7 +160,7 @@ class QEChannelOpener(QObject):
             self.channelOpenError.emit(_('Problem opening channel: ') + '\n' + repr(e))
             return
 
-        self.channelOpenSuccess.emit(chan.has_onchain_backup())
+        self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
 
         # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():
