@@ -821,7 +821,8 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
     c_input._trusted_value_sats = funding_sat
     return c_input
 
-class HTLCOwner(IntFlag):
+
+class HTLCOwner(IntEnum):
     LOCAL = 1
     REMOTE = -LOCAL
 
@@ -832,7 +833,7 @@ class HTLCOwner(IntFlag):
         return HTLCOwner(super().__neg__())
 
 
-class Direction(IntFlag):
+class Direction(IntEnum):
     SENT = -1     # in the context of HTLCs: "offered" HTLCs
     RECEIVED = 1  # in the context of HTLCs: "received" HTLCs
 

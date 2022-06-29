@@ -8,7 +8,7 @@ from decimal import Decimal
 import random
 import time
 import operator
-from enum import IntFlag
+from enum import IntEnum
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
                     NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict)
 import threading
@@ -152,7 +152,7 @@ FALLBACK_NODE_LIST_MAINNET = [
 from .trampoline import trampolines_by_id, hardcoded_trampoline_nodes, is_hardcoded_trampoline
 
 
-class PaymentDirection(IntFlag):
+class PaymentDirection(IntEnum):
     SENT = 0
     RECEIVED = 1
     SELF_PAYMENT = 2
