@@ -781,7 +781,7 @@ class LNWallet(LNWorker):
         amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
         if all(x.direction == SENT for x in plist):
             direction = PaymentDirection.SENT
-            fee_msat = - info.amount_msat - amount_msat
+            fee_msat = (- info.amount_msat - amount_msat) if info else None
         elif all(x.direction == RECEIVED for x in plist):
             direction = PaymentDirection.RECEIVED
             fee_msat = None
@@ -791,8 +791,6 @@ class LNWallet(LNWorker):
         else:
             direction = PaymentDirection.FORWARDING
             fee_msat = - amount_msat
-        # we must have info for all the payments we requested or initiated
-        assert (info is None) if direction == PaymentDirection.FORWARDING else (info is not None)
         timestamp = min([htlc_with_status.htlc.timestamp for htlc_with_status in plist])
         return direction, amount_msat, fee_msat, timestamp
 

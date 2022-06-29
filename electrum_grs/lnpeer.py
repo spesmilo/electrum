@@ -384,7 +384,7 @@ class Peer(Logger):
         for chan in self.channels.values():
             if chan.short_channel_id == payload['short_channel_id']:
                 chan.set_remote_update(payload)
-                self.logger.info("saved remote_update")
+                self.logger.info(f"saved remote channel_update gossip msg for chan {chan.get_id_for_log()}")
                 break
         else:
             # Save (some bounded number of) orphan channel updates for later
