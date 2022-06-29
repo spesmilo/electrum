@@ -806,7 +806,7 @@ class LNWallet(LNWorker):
 
     def get_payment_value(
             self, info: Optional['PaymentInfo'],
-            plist: List[HTLCWithStatus]) -> Tuple[int, int, int, int]:
+            plist: List[HTLCWithStatus]) -> Tuple[PaymentDirection, int, Optional[int], int]:
         """ fee_msat is included in amount_msat"""
         assert plist
         amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
@@ -833,10 +833,8 @@ class LNWallet(LNWorker):
             key = payment_hash.hex()
             info = self.get_payment_info(payment_hash)
             direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
-            if info is not None:
-                label = self.wallet.get_label_for_rhash(key)
-            else:
-                assert direction == PaymentDirection.FORWARDING
+            label = self.wallet.get_label_for_rhash(key)
+            if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
             item = {
