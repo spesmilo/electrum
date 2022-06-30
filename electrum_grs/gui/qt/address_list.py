@@ -215,6 +215,7 @@ class AddressList(MyTreeView):
         self.proxy.setDynamicSortFilter(True)
 
     def refresh_row(self, key, row):
+        assert row is not None
         address = key
         label = self.wallet.get_label(address)
         num = self.wallet.adb.get_address_history_len(address)

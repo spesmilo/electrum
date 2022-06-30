@@ -75,6 +75,7 @@ class InvoiceList(MyTreeView):
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
     def refresh_row(self, key, row):
+        assert row is not None
         invoice = self.parent.wallet.invoices.get(key)
         if invoice is None:
             return

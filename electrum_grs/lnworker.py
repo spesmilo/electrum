@@ -8,7 +8,7 @@ from decimal import Decimal
 import random
 import time
 import operator
-from enum import IntFlag
+from enum import IntEnum
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
                     NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict)
 import threading
@@ -121,7 +121,7 @@ FALLBACK_NODE_LIST_MAINNET = [
 from .trampoline import trampolines_by_id, hardcoded_trampoline_nodes, is_hardcoded_trampoline
 
 
-class PaymentDirection(IntFlag):
+class PaymentDirection(IntEnum):
     SENT = 0
     RECEIVED = 1
     SELF_PAYMENT = 2
@@ -775,7 +775,7 @@ class LNWallet(LNWorker):
 
     def get_payment_value(
             self, info: Optional['PaymentInfo'],
-            plist: List[HTLCWithStatus]) -> Tuple[int, int, int, int]:
+            plist: List[HTLCWithStatus]) -> Tuple[PaymentDirection, int, Optional[int], int]:
         """ fee_msat is included in amount_msat"""
         assert plist
         amount_msat = sum(int(x.direction) * x.htlc.amount_msat for x in plist)
@@ -802,10 +802,8 @@ class LNWallet(LNWorker):
             key = payment_hash.hex()
             info = self.get_payment_info(payment_hash)
             direction, amount_msat, fee_msat, timestamp = self.get_payment_value(info, plist)
-            if info is not None:
-                label = self.wallet.get_label_for_rhash(key)
-            else:
-                assert direction == PaymentDirection.FORWARDING
+            label = self.wallet.get_label_for_rhash(key)
+            if not label and direction == PaymentDirection.FORWARDING:
                 label = _('Forwarding')
             preimage = self.get_preimage(payment_hash).hex()
             item = {
@@ -848,7 +846,7 @@ class LNWallet(LNWorker):
                 'label': self.wallet.get_label_for_txid(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
-                'direction': 'received',
+                'direction': PaymentDirection.RECEIVED,
                 'timestamp': tx_height.timestamp,
                 'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
@@ -868,7 +866,7 @@ class LNWallet(LNWorker):
                 'label': self.wallet.get_label_for_txid(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
-                'direction': 'sent',
+                'direction': PaymentDirection.SENT,
                 'timestamp': tx_height.timestamp,
                 'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
