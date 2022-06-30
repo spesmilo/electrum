@@ -31,11 +31,11 @@ from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 from PyQt5.QtGui import QFontMetrics, QFont
 
 from electrum import bitcoin
-from electrum.util import bfh, maybe_extract_bolt11_invoice, BITCOIN_BIP21_URI_SCHEME, parse_max_spend
+from electrum.util import bfh, parse_max_spend
 from electrum.transaction import PartialTxOutput
 from electrum.bitcoin import opcodes, construct_script
 from electrum.logging import Logger
-from electrum.lnaddr import LnDecodeException
+from electrum.lnurl import LNURLError
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -63,9 +63,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, win: 'ElectrumWindow'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config)
+        ScanQRTextEdit.__init__(self, config=win.config, setText=self._on_input_btn)
         Logger.__init__(self)
         self.win = win
+        self.app = win.app
         self.amount_edit = win.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
         document = self.document()
@@ -84,10 +85,11 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.heightMax = (self.fontSpacing * 10) + self.verticalMargins
 
         self.c = None
-        self.textChanged.connect(self.check_text)
+        self.addPasteButton(setText=self._on_input_btn)
+        self.textChanged.connect(self._on_text_changed)
         self.outputs = []  # type: List[PartialTxOutput]
         self.errors = []  # type: List[PayToLineError]
-        self.is_pr = False
+        self.disable_checks = False
         self.is_alias = False
         self.update_size()
         self.payto_scriptpubkey = None  # type: Optional[bytes]
@@ -98,6 +100,18 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         self.setReadOnly(b)
         self.setStyleSheet(frozen_style if b else normal_style)
         self.overlay_widget.setHidden(b)
+
+    def setTextNoCheck(self, text: str):
+        """Sets the text, while also ensuring the new value will not be resolved/checked."""
+        self.previous_payto = text
+        self.setText(text)
+
+    def do_clear(self):
+        self.disable_checks = False
+        self.is_alias = False
+        self.setText('')
+        self.setFrozen(False)
+        self.setEnabled(True)
 
     def setGreen(self):
         self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
@@ -157,9 +171,29 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         assert bitcoin.is_address(address)
         return address
 
-    def check_text(self):
+    def _on_input_btn(self, text: str):
+        self.setText(text)
+        self._check_text(full_check=True)
+
+    def _on_text_changed(self):
+        if self.app.clipboard().text() == self.toPlainText():
+            # user likely pasted from clipboard
+            self._check_text(full_check=True)
+        else:
+            self._check_text(full_check=False)
+
+    def on_timer_check_text(self):
+        if self.hasFocus():
+            return
+        self._check_text(full_check=True)
+
+    def _check_text(self, *, full_check: bool):
+        if self.previous_payto == str(self.toPlainText()).strip():
+            return
+        if full_check:
+            self.previous_payto = str(self.toPlainText()).strip()
         self.errors = []
-        if self.is_pr:
+        if self.disable_checks:
             return
         # filter out empty lines
         lines = [i for i in self.lines() if i]
@@ -170,14 +204,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
         if len(lines) == 1:
             data = lines[0]
-            # try bip21 URI
-            if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-                self.win.pay_to_URI(data)
-                return
-            # try LN invoice
-            bolt11_invoice = maybe_extract_bolt11_invoice(data)
-            if bolt11_invoice is not None:
-                self.win.set_ln_invoice(bolt11_invoice)
+            try:
+                self.win.handle_payment_identifier(data, can_use_network=full_check)
+            except LNURLError as e:
+                self.logger.exception("")
+                self.win.show_error(e)
+            except ValueError:
+                pass
+            else:
                 return
             # try "address, amount" on-chain format
             try:
@@ -195,6 +229,12 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 self.win.set_onchain(True)
                 self.win.lock_amount(False)
                 return
+            if full_check:  # network requests  # FIXME blocking GUI thread
+                # try openalias
+                oa_data = self._resolve_openalias(data)
+                if oa_data:
+                    self._set_openalias(key=data, data=oa_data)
+                    return
         else:
             # there are multiple lines
             self._parse_as_multiline(lines, raise_errors=False)
@@ -256,7 +296,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         return len(self.lines()) > 1
 
     def paytomany(self):
-        self.setText("\n\n\n")
+        self.setTextNoCheck("\n\n\n")
         self.update_size()
 
     def update_size(self):
@@ -276,44 +316,34 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         # The scrollbar visibility can have changed so we update the overlay position here
         self._updateOverlayPos()
 
-    def resolve(self):
-        self.is_alias = False
-        if self.hasFocus():
-            return
-        if self.is_multiline():  # only supports single line entries atm
-            return
-        if self.is_pr:
-            return
-        key = str(self.toPlainText())
+    def _resolve_openalias(self, text: str) -> Optional[dict]:
+        key = text
         key = key.strip()  # strip whitespaces
-        if key == self.previous_payto:
-            return
-        self.previous_payto = key
-        if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
-            return
+        if not (('.' in key) and ('<' not in key) and (' ' not in key)):
+            return None
         parts = key.split(sep=',')  # assuming single line
         if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
-            return
+            return None
         try:
             data = self.win.contacts.resolve(key)
         except Exception as e:
             self.logger.info(f'error resolving address/alias: {repr(e)}')
-            return
-        if not data:
-            return
-        self.is_alias = True
+            return None
+        return data or None
 
+    def _set_openalias(self, *, key: str, data: dict) -> bool:
+        self.is_alias = True
+        self.setFrozen(True)
+        key = key.strip()  # strip whitespaces
         address = data.get('address')
         name = data.get('name')
         new_url = key + ' <' + address + '>'
-        self.setText(new_url)
-        self.previous_payto = new_url
+        self.setTextNoCheck(new_url)
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
         self.win.contact_list.update()
 
-        self.setFrozen(True)
         if data.get('type') == 'openalias':
             self.validated = data.get('validated')
             if self.validated:
@@ -322,3 +352,4 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
                 self.setExpired()
         else:
             self.validated = None
+        return True

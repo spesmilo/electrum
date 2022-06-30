@@ -81,6 +81,8 @@ class CompletionTextEdit(ButtonsTextEdit):
             return
 
         QPlainTextEdit.keyPressEvent(self, e)
+        if self.isReadOnly():  # if field became read-only *after* keyPress, exit now
+            return
 
         ctrlOrShift = bool(e.modifiers() & (Qt.ControlModifier | Qt.ShiftModifier))
         if self.completer is None or (ctrlOrShift and not e.text()):

@@ -75,10 +75,14 @@ class EnterButton(QPushButton):
         QPushButton.__init__(self, text)
         self.func = func
         self.clicked.connect(func)
+        self._orig_text = text
 
     def keyPressEvent(self, e):
         if e.key() in [Qt.Key_Return, Qt.Key_Enter]:
             self.func()
+
+    def restore_original_text(self):
+        self.setText(self._orig_text)
 
 
 class ThreadedButton(QPushButton):

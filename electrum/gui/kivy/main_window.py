@@ -18,7 +18,7 @@ from electrum.plugin import run_hook
 from electrum import util
 from electrum.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                            format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                           maybe_extract_bolt11_invoice, parse_max_spend)
+                           parse_max_spend)
 from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum import blockchain
@@ -234,10 +234,6 @@ class ElectrumWindow(App, Logger, EventListener):
     @switch_to_send_screen
     def set_URI(self, uri):
         self.send_screen.set_URI(uri)
-
-    @switch_to_send_screen
-    def set_ln_invoice(self, invoice):
-        self.send_screen.set_ln_invoice(invoice)
 
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
@@ -481,22 +477,15 @@ class ElectrumWindow(App, Logger, EventListener):
             self.send_screen.do_clear()
 
     def on_qr(self, data: str):
-        from electrum.bitcoin import is_address
+        self.on_data_input(data)
+
+    def on_data_input(self, data: str) -> None:
+        """on_qr / on_paste shared logic"""
         data = data.strip()
-        if is_address(data):
-            self.set_URI(data)
-            return
-        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-            self.set_URI(data)
-            return
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
-        if bolt11_invoice is not None:
-            self.set_ln_invoice(bolt11_invoice)
-            return
-        # try to decode transaction
+        # try to decode as transaction
         from electrum.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
@@ -505,8 +494,8 @@ class ElectrumWindow(App, Logger, EventListener):
         if tx:
             self.tx_dialog(tx)
             return
-        # show error
-        self.show_error("Unable to decode QR data")
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)

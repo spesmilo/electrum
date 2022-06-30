@@ -38,6 +38,7 @@ import queue
 import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set
 import concurrent.futures
+from urllib.parse import urlparse
 
 from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal, QPoint
@@ -57,12 +58,12 @@ from electrum import (keystore, ecc, constants, util, bitcoin, commands,
 from electrum.bitcoin import COIN, is_address
 from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
-from electrum.util import (format_time,
+from electrum.util import (format_time, get_asyncio_loop,
                            UserCancelled, profiler,
                            bh2u, bfh, InvalidPassword,
                            UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI, maybe_extract_bolt11_invoice, NotEnoughFunds,
+                           InvalidBitcoinURI, maybe_extract_lightning_payment_identifier, NotEnoughFunds,
                            NoDynamicFeeEstimates,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME,
                            InvoiceError, parse_max_spend)
@@ -81,6 +82,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.logging import Logger
 from electrum.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatError
 from electrum.lnaddr import lndecode, LnInvoiceException
+from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdit, SizedFreezableLineEdit
@@ -199,12 +201,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
+    lnurl6_round1_signal = pyqtSignal(object, object)
+    lnurl6_round2_signal = pyqtSignal(object)
+    clear_send_tab_signal = pyqtSignal()
     #ln_payment_attempt_signal = pyqtSignal(str)
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     show_error_signal = pyqtSignal(str)
 
     payment_request: Optional[paymentrequest.PaymentRequest]
+    _lnurl_data: Optional[LNURL6Data] = None
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
@@ -309,6 +315,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
+        self.lnurl6_round1_signal.connect(self.on_lnurl6_round1)
+        self.lnurl6_round2_signal.connect(self.on_lnurl6_round2)
+        self.clear_send_tab_signal.connect(self.do_clear)
+
         self.show_error_signal.connect(self.show_error)
         self.history_list.setFocus(True)
 
@@ -820,7 +830,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d = self.network.get_donation_address()
         if d:
             host = self.network.get_parameters().server.host
-            self.pay_to_URI('bitcoin:%s?message=donation for %s'%(d, host))
+            self.handle_payment_identifier('bitcoin:%s?message=donation for %s' % (d, host))
         else:
             self.show_error(_('No donation address for this server'))
 
@@ -912,8 +922,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             # this updates "synchronizing" progress
             self.update_status()
         # resolve aliases
-        # FIXME this is a blocking network call that has a timeout of 5 sec
-        self.payto_e.resolve()
+        # FIXME this might do blocking network calls that has a timeout of several seconds
+        self.payto_e.on_timer_check_text()
         self.notify_transactions()
 
     def format_amount(self, amount_sat, is_diff=False, whitespaces=False) -> str:
@@ -1524,7 +1534,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .paytoedit import PayToEdit
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
-        self.payto_e.addPasteButton()
         msg = (_("Recipient of the funds.") + "\n\n"
                + _("You may enter a Bitcoin address, a label from your list of contacts "
                    "(a list of completions will be proposed), "
@@ -1573,7 +1582,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(self.max_button, 3, 3)
 
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
-        self.send_button = EnterButton(_("Pay") + "...", self.do_pay)
+        self.send_button = EnterButton(_("Pay") + "...", self.do_pay_or_get_invoice)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
 
         buttons = QHBoxLayout()
@@ -1910,7 +1919,43 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.invoice_list.update()
         self.pending_invoice = None
 
-    def do_pay(self):
+    def _lnurl_get_invoice(self) -> None:
+        assert self._lnurl_data
+        amount = self.amount_e.get_amount()
+        if not (self._lnurl_data.min_sendable_sat <= amount <= self._lnurl_data.max_sendable_sat):
+            self.show_error(f'Amount must be between {self._lnurl_data.min_sendable_sat} and {self._lnurl_data.max_sendable_sat} sat.')
+            return
+
+        async def f():
+            try:
+                invoice_data = await callback_lnurl(
+                    self._lnurl_data.callback_url,
+                    params={'amount': self.amount_e.get_amount() * 1000},
+                )
+            except LNURLError as e:
+                self.show_error_signal.emit(f"LNURL request encountered error: {e}")
+                self.clear_send_tab_signal.emit()
+                return
+            invoice = invoice_data.get('pr')
+            self.lnurl6_round2_signal.emit(invoice)
+
+        asyncio.run_coroutine_threadsafe(f(), get_asyncio_loop())  # TODO should be cancellable
+        self.prepare_for_send_tab_network_lookup()
+
+    def on_lnurl6_round2(self, bolt11_invoice: str):
+        self.set_bolt11(bolt11_invoice)
+        self.payto_e.setFrozen(True)
+        self.amount_e.setEnabled(False)
+        self.fiat_send_e.setEnabled(False)
+        for btn in [self.send_button, self.clear_button, self.save_button]:
+            btn.setEnabled(True)
+        self.send_button.restore_original_text()
+        self._lnurl_data = None
+
+    def do_pay_or_get_invoice(self):
+        if self._lnurl_data:
+            self._lnurl_get_invoice()
+            return
         self.pending_invoice = self.read_invoice()
         if not self.pending_invoice:
             return
@@ -2171,14 +2216,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.amount_e.setFrozen(b)
         self.max_button.setEnabled(not b)
 
-    def prepare_for_payment_request(self):
+    def prepare_for_send_tab_network_lookup(self):
         self.show_send_tab()
-        self.payto_e.is_pr = True
+        self.payto_e.disable_checks = True
         for e in [self.payto_e, self.message_e]:
             e.setFrozen(True)
         self.lock_amount(True)
-        self.payto_e.setText(_("please wait..."))
-        return True
+        for btn in [self.save_button, self.send_button, self.clear_button]:
+            btn.setEnabled(False)
+        self.payto_e.setTextNoCheck(_("please wait..."))
 
     def delete_invoices(self, keys):
         for key in keys:
@@ -2195,14 +2241,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.do_clear()
             self.payment_request = None
             return
-        self.payto_e.is_pr = True
+        self.payto_e.disable_checks = True
         if not pr.has_expired():
             self.payto_e.setGreen()
         else:
             self.payto_e.setExpired()
-        self.payto_e.setText(pr.get_requestor())
+        self.payto_e.setTextNoCheck(pr.get_requestor())
         self.amount_e.setAmount(pr.get_amount())
         self.message_e.setText(pr.get_memo())
+        self.set_onchain(True)
+        self.max_button.setEnabled(False)
+        for btn in [self.send_button, self.clear_button]:
+            btn.setEnabled(True)
         # signal to set fee
         self.amount_e.textEdited.emit("")
 
@@ -2215,14 +2265,46 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.do_clear()
 
     def on_pr(self, request: 'paymentrequest.PaymentRequest'):
-        self.set_onchain(True)
         self.payment_request = request
         if self.payment_request.verify(self.contacts):
             self.payment_request_ok_signal.emit()
         else:
             self.payment_request_error_signal.emit()
 
-    def set_ln_invoice(self, invoice: str):
+    def set_lnurl6(self, lnurl: str, *, can_use_network: bool = True):
+        try:
+            url = decode_lnurl(lnurl)
+        except LnInvoiceException as e:
+            self.show_error(_("Error parsing Lightning invoice") + f":\n{e}")
+            return
+        if not can_use_network:
+            return
+
+        async def f():
+            try:
+                lnurl_data = await request_lnurl(url)
+            except LNURLError as e:
+                self.show_error_signal.emit(f"LNURL request encountered error: {e}")
+                self.clear_send_tab_signal.emit()
+                return
+            self.lnurl6_round1_signal.emit(lnurl_data, url)
+
+        asyncio.run_coroutine_threadsafe(f(), get_asyncio_loop())  # TODO should be cancellable
+        self.prepare_for_send_tab_network_lookup()
+
+    def on_lnurl6_round1(self, lnurl_data: LNURL6Data, url: str):
+        self._lnurl_data = lnurl_data
+        domain = urlparse(url).netloc
+        self.payto_e.setTextNoCheck(f"invoice from lnurl")
+        self.message_e.setText(f"lnurl: {domain}: {lnurl_data.metadata_plaintext}")
+        self.amount_e.setAmount(lnurl_data.min_sendable_sat)
+        self.amount_e.setFrozen(False)
+        self.send_button.setText(_('Get Invoice'))
+        for btn in [self.send_button, self.clear_button]:
+            btn.setEnabled(True)
+        self.set_onchain(False)
+
+    def set_bolt11(self, invoice: str):
         """Parse ln invoice, and prepare the send tab for it."""
         try:
             lnaddr = lndecode(invoice)
@@ -2238,9 +2320,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
              description = ''
         self.payto_e.setFrozen(True)
-        self.payto_e.setText(pubkey)
+        self.payto_e.setTextNoCheck(pubkey)
         self.payto_e.lightning_invoice = invoice
-        self.message_e.setText(description)
+        if not self.message_e.text():
+            self.message_e.setText(description)
         if lnaddr.get_amount_sat() is not None:
             self.amount_e.setAmount(lnaddr.get_amount_sat())
         self.set_onchain(False)
@@ -2249,9 +2332,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self._is_onchain = b
         self.max_button.setEnabled(b)
 
-    def set_bip21(self, text: str):
+    def set_bip21(self, text: str, *, can_use_network: bool = True):
+        on_bip70_pr = self.on_pr if can_use_network else None
         try:
-            out = util.parse_URI(text, self.on_pr)
+            out = util.parse_URI(text, on_bip70_pr)
         except InvalidBitcoinURI as e:
             self.show_error(_("Error parsing URI") + f":\n{e}")
             return
@@ -2259,8 +2343,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         r = out.get('r')
         sig = out.get('sig')
         name = out.get('name')
-        if r or (name and sig):
-            self.prepare_for_payment_request()
+        if (r or (name and sig)) and can_use_network:
+            self.prepare_for_send_tab_network_lookup()
             return
         address = out.get('address')
         amount = out.get('amount')
@@ -2268,7 +2352,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         message = out.get('message')
         lightning = out.get('lightning')
         if lightning:
-            self.set_ln_invoice(lightning)
+            self.handle_payment_identifier(lightning, can_use_network=can_use_network)
             return
         # use label as description (not BIP21 compliant)
         if label and not message:
@@ -2280,28 +2364,45 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if amount:
             self.amount_e.setAmount(amount)
 
-    def pay_to_URI(self, text: str):
+    def handle_payment_identifier(self, text: str, *, can_use_network: bool = True):
+        """Takes
+        Lightning identifiers:
+        * lightning-URI (containing bolt11 or lnurl)
+        * bolt11 invoice
+        * lnurl
+        Bitcoin identifiers:
+        * bitcoin-URI
+        and sets the sending screen.
+        """
+        text = text.strip()
         if not text:
             return
-        # first interpret as lightning invoice
-        bolt11_invoice = maybe_extract_bolt11_invoice(text)
-        if bolt11_invoice:
-            self.set_ln_invoice(bolt11_invoice)
+        if invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
+            if invoice_or_lnurl.startswith('lnurl'):
+                self.set_lnurl6(invoice_or_lnurl, can_use_network=can_use_network)
+            else:
+                self.set_bolt11(invoice_or_lnurl)
+        elif text.lower().startswith(util.BITCOIN_BIP21_URI_SCHEME + ':'):
+            self.set_bip21(text, can_use_network=can_use_network)
         else:
-            self.set_bip21(text)
+            raise ValueError("Could not handle payment identifier.")
         # update fiat amount
         self.amount_e.textEdited.emit("")
         self.show_send_tab()
 
     def do_clear(self):
+        self._lnurl_data = None
+        self.send_button.restore_original_text()
         self.max_button.setChecked(False)
         self.payment_request = None
         self.payto_URI = None
-        self.payto_e.is_pr = False
+        self.payto_e.do_clear()
         self.set_onchain(False)
-        for e in [self.payto_e, self.message_e, self.amount_e]:
+        for e in [self.message_e, self.amount_e]:
             e.setText('')
             e.setFrozen(False)
+        for e in [self.send_button, self.save_button, self.clear_button, self.amount_e, self.fiat_send_e]:
+            e.setEnabled(True)
         self.update_status()
         run_hook('do_clear', self)
 
@@ -3121,7 +3222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 return
             # if the user scanned a bitcoin URI
             if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-                self.pay_to_URI(data)
+                self.handle_payment_identifier(data)
                 return
             if data.lower().startswith('channel_backup:'):
                 self.import_channel_backup(data)
