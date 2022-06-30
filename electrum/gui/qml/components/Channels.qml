@@ -25,6 +25,15 @@ Pane {
                 icon.source: '../../icons/status_waiting.png'
             }
         }
+        MenuSeparator {}
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Open Channel');
+                onTriggered: app.stack.push(Qt.resolvedUrl('OpenChannel.qml'))
+                icon.source: '../../icons/lightning.png'
+            }
+        }
     }
 
     ColumnLayout {
@@ -39,7 +48,7 @@ Pane {
 
             Label {
                 Layout.columnSpan: 2
-                text: qsTr('You have %1 open channels').arg(listview.count)
+                text: qsTr('You have %1 open channels').arg(Daemon.currentWallet.channelModel.numOpenChannels)
                 color: Material.accentColor
             }
 

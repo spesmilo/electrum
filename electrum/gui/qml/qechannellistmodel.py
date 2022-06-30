@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from electrum.logging import get_logger
 from electrum.util import Satoshis, register_callback, unregister_callback
 from electrum.lnutil import LOCAL, REMOTE
+from electrum.lnchannel import ChannelState
 
 from .qetypes import QEAmount
 
@@ -88,11 +89,17 @@ class QEChannelListModel(QAbstractListModel):
         item['node_alias'] = lnworker.get_node_alias(lnc.node_id) or lnc.node_id.hex()
         item['short_cid'] = lnc.short_id_for_GUI()
         item['state'] = lnc.get_state_for_GUI()
+        item['state_code'] = lnc.get_state()
         item['capacity'] = QEAmount(amount_sat=lnc.get_capacity())
         item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
         item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
         self._logger.debug(repr(item))
         return item
+
+    numOpenChannelsChanged = pyqtSignal()
+    @pyqtProperty(int, notify=numOpenChannelsChanged)
+    def numOpenChannels(self):
+        return sum([1 if x['state_code'] == ChannelState.OPEN else 0 for x in self.channels])
 
     @pyqtSlot()
     def init_model(self):
@@ -129,6 +136,7 @@ class QEChannelListModel(QAbstractListModel):
 
         mi = self.createIndex(modelindex, 0)
         self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
+        self.numOpenChannelsChanged.emit()
 
     @pyqtSlot(str)
     def new_channel(self, cid):
@@ -141,3 +149,4 @@ class QEChannelListModel(QAbstractListModel):
                 self.beginInsertRows(QModelIndex(), 0, 0)
                 self.channels.insert(0,item)
                 self.endInsertRows()
+                self.numOpenChannelsChanged.emit()
