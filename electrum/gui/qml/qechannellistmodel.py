@@ -149,4 +149,15 @@ class QEChannelListModel(QAbstractListModel):
                 self.beginInsertRows(QModelIndex(), 0, 0)
                 self.channels.insert(0,item)
                 self.endInsertRows()
-                self.numOpenChannelsChanged.emit()
+
+    @pyqtSlot(str)
+    def remove_channel(self, cid):
+        i = 0
+        for channel in self.channels:
+            if cid == channel['cid']:
+                self._logger.debug(cid)
+                self.beginRemoveRows(QModelIndex(), i, i)
+                self.channels.remove(channel)
+                self.endRemoveRows()
+                return
+            i = i + 1

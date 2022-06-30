@@ -134,6 +134,10 @@ class QEChannelDetails(QObject):
     def canForceClose(self):
         return ChanCloseOption.LOCAL_FCLOSE in self._channel.get_close_options()
 
+    @pyqtProperty(bool, notify=channelChanged)
+    def canDelete(self):
+        return self._channel.can_be_deleted()
+
     @pyqtProperty(str, notify=channelChanged)
     def message_force_close(self, notify=channelChanged):
         return _(messages.MSG_REQUEST_FORCE_CLOSE)
@@ -173,3 +177,7 @@ class QEChannelDetails(QObject):
         loop = self._wallet.wallet.network.asyncio_loop
         coro = do_close(closetype, self._channel.channel_id)
         asyncio.run_coroutine_threadsafe(coro, loop)
+
+    @pyqtSlot()
+    def deleteChannel(self):
+        self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)

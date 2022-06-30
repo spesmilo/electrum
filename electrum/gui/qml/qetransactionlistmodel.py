@@ -102,6 +102,7 @@ class QETransactionListModel(QAbstractListModel):
         return date.strftime(dfmt[section])
 
     # initial model data
+    @pyqtSlot()
     def init_model(self):
         history = self.wallet.get_full_history(onchain_domain=self.onchain_domain,
                                                include_lightning=self.include_lightning)

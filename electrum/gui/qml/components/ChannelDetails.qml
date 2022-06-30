@@ -24,7 +24,7 @@ Pane {
                 text: qsTr('Backup');
                 enabled: false
                 onTriggered: {}
-                //icon.source: '../../icons/wallet.png'
+                icon.source: '../../icons/file.png'
             }
         }
         MenuItem {
@@ -36,7 +36,30 @@ Pane {
                     var dialog = closechannel.createObject(root, { 'channelid': channelid })
                     dialog.open()
                 }
-                //icon.source: '../../icons/wallet.png'
+                icon.source: '../../icons/closebutton.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Delete channel');
+                enabled: channeldetails.canDelete
+                onTriggered: {
+                    var dialog = app.messageDialog.createObject(root,
+                            {
+                                'text': qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
+                                'yesno': true
+                            }
+                    )
+                    dialog.yesClicked.connect(function() {
+                        channeldetails.deleteChannel()
+                        app.stack.pop()
+                        Daemon.currentWallet.historyModel.init_model() // needed here?
+                        Daemon.currentWallet.channelModel.remove_channel(channelid)
+                    })
+                    dialog.open()
+                }
+                icon.source: '../../icons/delete.png'
             }
         }
         MenuItem {
