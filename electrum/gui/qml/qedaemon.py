@@ -85,6 +85,12 @@ class QEAvailableWalletListModel(QEWalletListModel):
             wallet = self.daemon.get_wallet(path)
             self.add_wallet(wallet_path = path, wallet = wallet)
 
+    def wallet_name_exists(self, name):
+        for wallet_name, wallet_path, wallet in self.wallets:
+            if name == wallet_name:
+                return True
+        return False
+
 class QEDaemon(AuthMixin, QObject):
     def __init__(self, daemon, parent=None):
         super().__init__(parent)
@@ -181,3 +187,11 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtProperty(QEFX, notify=fxChanged)
     def fx(self):
         return self.qefx
+
+    @pyqtSlot(result=str)
+    def suggestWalletName(self):
+        i = 1
+        while self.availableWallets.wallet_name_exists(f'wallet_{i}'):
+            i = i + 1
+        return f'wallet_{i}'
+
