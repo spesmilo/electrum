@@ -1,6 +1,6 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
+import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
@@ -8,7 +8,24 @@ import org.electrum 1.0
 import "controls"
 
 Pane {
+    id: root
     property string title: qsTr("Lightning Channels")
+
+    property QtObject menu: Menu {
+        id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Swap');
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                onTriggered: {
+                    var dialog = swapDialog.createObject(root)
+                    dialog.open()
+                }
+                icon.source: '../../icons/status_waiting.png'
+            }
+        }
+    }
 
     ColumnLayout {
         id: layout
@@ -129,4 +146,8 @@ Pane {
 
     }
 
+    Component {
+        id: swapDialog
+        Swap {}
+    }
 }

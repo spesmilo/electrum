@@ -251,6 +251,13 @@ ApplicationWindow
                 dialog.open()
             }
         }
+        // TODO: add to notification queue instead of barging through
+        function onPaymentSucceeded(key) {
+            notificationPopup.show(qsTr('Payment Succeeded'))
+        }
+        function onPaymentFailed(key, reason) {
+            notificationPopup.show(qsTr('Payment Failed') + ': ' + reason)
+        }
     }
 
     Connections {
