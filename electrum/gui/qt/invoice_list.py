@@ -71,15 +71,14 @@ class InvoiceList(MyTreeView):
         window = send_tab.window
         super().__init__(window, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION)
+        self.wallet = window.wallet
+        self.send_tab = send_tab
         self.std_model = QStandardItemModel(self)
         self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-
-        self.send_tab = send_tab
-        self.wallet = window.wallet
 
     def refresh_row(self, key, row):
         assert row is not None
