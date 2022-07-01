@@ -114,6 +114,7 @@ class UTXOList(MyTreeView):
             self.parent.set_coincontrol_msg(None)
 
     def refresh_row(self, key, row):
+        assert row is not None
         utxo = self._utxo_dict[key]
         utxo_item = [self.std_model.item(row, col) for col in self.Columns]
         address = utxo.address

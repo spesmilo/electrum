@@ -1037,7 +1037,7 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
-def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     # Litecoin: legacy addresses may start with 'LN'
     if len(data) < 40:
@@ -1049,6 +1049,14 @@ def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
     if data.startswith('ln'):
         return data
     return None
+
+
+def is_uri(data: str) -> bool:
+    data = data.lower()
+    if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
+            data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
+        return True
+    return False
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -1606,21 +1614,19 @@ callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
+_event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
 
 
 class EventListener:
 
     def _list_callbacks(self):
-        for method_name in dir(self):
-            # Fixme: getattr executes the code of methods decorated by @property.
-            # This if why we shield with startswith
-            if not method_name.startswith('on_event_'):
-                continue
-            method = getattr(self, method_name)
-            if not getattr(method, '_is_event_listener', False):
-                continue
-            assert callable(method)
-            yield method_name[len('on_event_'):], method
+        for c in self.__class__.__mro__:
+            classpath = f"{c.__module__}.{c.__name__}"
+            for method_name in _event_listeners[classpath]:
+                method = getattr(self, method_name)
+                assert callable(method)
+                assert method_name.startswith('on_event_')
+                yield method_name[len('on_event_'):], method
 
     def register_callbacks(self):
         for name, method in self._list_callbacks():
@@ -1634,8 +1640,10 @@ class EventListener:
 
 
 def event_listener(func):
-    assert func.__name__.startswith('on_event_')
-    func._is_event_listener = True
+    classname, method_name = func.__qualname__.split('.')
+    assert method_name.startswith('on_event_')
+    classpath = f"{func.__module__}.{classname}"
+    _event_listeners[classpath].add(method_name)
     return func
 
 

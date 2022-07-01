@@ -290,7 +290,7 @@ class SwapManager(Logger):
             "invoice": invoice,
             "refundPublicKey": pubkey.hex()
         }
-        response = await self.network._send_http_on_proxy(
+        response = await self.network.async_send_http_on_proxy(
             'post',
             self.api_url + '/createswap',
             json=request_data,
@@ -386,7 +386,7 @@ class SwapManager(Logger):
             "preimageHash": preimage_hash.hex(),
             "claimPublicKey": pubkey.hex()
         }
-        response = await self.network._send_http_on_proxy(
+        response = await self.network.async_send_http_on_proxy(
             'post',
             self.api_url + '/createswap',
             json=request_data,
@@ -470,8 +470,8 @@ class SwapManager(Logger):
         self._swaps_by_lockup_address[swap.lockup_address] = swap
 
     async def get_pairs(self) -> None:
-        assert self.network
-        response = await self.network._send_http_on_proxy(
+        from .network import Network
+        response = await Network.async_send_http_on_proxy(
             'get',
             self.api_url + '/getpairs',
             timeout=30)

@@ -105,6 +105,7 @@ class RequestList(MyTreeView):
         self.selectionModel().clearCurrentIndex()
 
     def refresh_row(self, key, row):
+        assert row is not None
         model = self.std_model
         request = self.wallet.get_request(key)
         if request is None:

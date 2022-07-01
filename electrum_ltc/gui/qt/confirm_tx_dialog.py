@@ -238,7 +238,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self._update_amount_label()
 
         if self.not_enough_funds:
-            text = self.main_window.get_text_not_enough_funds_mentioning_frozen()
+            text = self.main_window.send_tab.get_text_not_enough_funds_mentioning_frozen()
             self.toggle_send_button(False, message=text)
             return
 

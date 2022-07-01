@@ -18,7 +18,7 @@ from electrum_ltc.plugin import run_hook
 from electrum_ltc import util
 from electrum_ltc.util import (profiler, InvalidPassword, send_exception_to_crash_reporter,
                                format_satoshis, format_satoshis_plain, format_fee_satoshis,
-                               maybe_extract_bolt11_invoice, parse_max_spend)
+                               parse_max_spend)
 from electrum_ltc.util import EventListener, event_listener
 from electrum_ltc.invoices import PR_PAID, PR_FAILED, Invoice
 from electrum_ltc import blockchain
@@ -235,10 +235,6 @@ class ElectrumWindow(App, Logger, EventListener):
     def set_URI(self, uri):
         self.send_screen.set_URI(uri)
 
-    @switch_to_send_screen
-    def set_ln_invoice(self, invoice):
-        self.send_screen.set_ln_invoice(invoice)
-
     def on_new_intent(self, intent):
         data = str(intent.getDataString())
         scheme = str(intent.getScheme()).lower()
@@ -414,6 +410,7 @@ class ElectrumWindow(App, Logger, EventListener):
         self.password = None
         self._use_single_password = False
         self.resume_dialog = None
+        self.gui_thread = threading.current_thread()
 
         App.__init__(self)#, **kwargs)
         Logger.__init__(self)
@@ -480,22 +477,15 @@ class ElectrumWindow(App, Logger, EventListener):
             self.send_screen.do_clear()
 
     def on_qr(self, data: str):
-        from electrum_ltc.bitcoin import is_address
+        self.on_data_input(data)
+
+    def on_data_input(self, data: str) -> None:
+        """on_qr / on_paste shared logic"""
         data = data.strip()
-        if is_address(data):
-            self.set_URI(data)
-            return
-        if data.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
-            self.set_URI(data)
-            return
         if data.lower().startswith('channel_backup:'):
             self.import_channel_backup(data)
             return
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
-        if bolt11_invoice is not None:
-            self.set_ln_invoice(bolt11_invoice)
-            return
-        # try to decode transaction
+        # try to decode as transaction
         from electrum_ltc.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
@@ -504,8 +494,8 @@ class ElectrumWindow(App, Logger, EventListener):
         if tx:
             self.tx_dialog(tx)
             return
-        # show error
-        self.show_error("Unable to decode QR data")
+        # try to decode as URI/address
+        self.set_URI(data)
 
     def update_tab(self, name):
         s = getattr(self, name + '_screen', None)
@@ -1100,6 +1090,17 @@ class ElectrumWindow(App, Logger, EventListener):
             return
         self.qr_dialog(label.name, label.data, show_text_with_qr)
 
+    def scheduled_in_gui_thread(func):
+        """Decorator to ensure that func runs in the GUI thread.
+        Note: the return value is swallowed!
+        """
+        def wrapper(self: 'ElectrumWindow', *args, **kwargs):
+            if threading.current_thread() == self.gui_thread:
+                func(self, *args, **kwargs)
+            else:
+                Clock.schedule_once(lambda dt: func(self, *args, **kwargs))
+        return wrapper
+
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
                    exit=False, icon=f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/error', duration=0,
                    modal=False):
@@ -1117,6 +1118,7 @@ class ElectrumWindow(App, Logger, EventListener):
             duration=duration, modal=modal, exit=exit, pos=pos,
             arrow_pos=arrow_pos)
 
+    @scheduled_in_gui_thread
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
                          arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble

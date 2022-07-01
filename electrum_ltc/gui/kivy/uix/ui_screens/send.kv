@@ -69,6 +69,7 @@
     message: ''
     is_bip70: False
     is_lightning: False
+    is_lnurl: False
     is_locked: self.is_lightning or self.is_bip70
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
@@ -109,7 +110,7 @@
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    disabled: root.is_bip70 or (root.is_lightning and s.amount)
+                    disabled: root.is_bip70 or (root.is_lightning and s.amount and not root.is_lnurl)
                     on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, not root.is_lightning))
             CardSeparator:
                 color: blue_bottom.foreground_color
@@ -135,6 +136,7 @@
                 size_hint: 0.5, 1
                 on_release: s.do_save()
                 icon: f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/save'
+                disabled: root.is_lnurl
             IconButton:
                 size_hint: 0.5, 1
                 on_release: s.do_clear()
@@ -149,7 +151,7 @@
                 size_hint: 1, 1
                 on_release: Clock.schedule_once(lambda dt: app.scan_qr(on_complete=app.on_qr))
             Button:
-                text: _('Pay')
+                text: _('Pay') if not root.is_lnurl else _('Get Invoice')
                 size_hint: 1, 1
                 on_release: s.do_pay()
         Widget:

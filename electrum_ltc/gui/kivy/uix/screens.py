@@ -2,6 +2,7 @@ import asyncio
 from decimal import Decimal
 import threading
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
+from urllib.parse import urlparse
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -16,10 +17,12 @@ from electrum_ltc.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                    pr_expiration_values, Invoice)
 from electrum_ltc import bitcoin, constants
 from electrum_ltc.transaction import tx_from_any, PartialTxOutput
-from electrum_ltc.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_bolt11_invoice,
-                               InvoiceError, format_time, parse_max_spend)
+from electrum_ltc.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
+                               InvoiceError, format_time, parse_max_spend, BITCOIN_BIP21_URI_SCHEME)
 from electrum_ltc.lnaddr import lndecode, LnInvoiceException
+from electrum_ltc.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 from electrum_ltc.logging import Logger
+from electrum_ltc.network import Network
 
 from .dialogs.confirm_tx_dialog import ConfirmTxDialog
 
@@ -162,22 +165,42 @@ class SendScreen(CScreen, Logger):
     kvname = 'send'
     payment_request = None  # type: Optional[PaymentRequest]
     parsed_URI = None
+    lnurl_data = None  # type: Optional[LNURL6Data]
 
     def __init__(self, **kwargs):
         CScreen.__init__(self, **kwargs)
         Logger.__init__(self)
         self.is_max = False
+        # note: most the fields get declared in send.kv, this way they are kivy Properties
 
     def set_URI(self, text: str):
+        """Takes
+        Lightning identifiers:
+        * lightning-URI (containing bolt11 or lnurl)
+        * bolt11 invoice
+        * lnurl
+        Bitcoin identifiers:
+        * bitcoin-URI
+        * bitcoin address
+        and sets the sending screen.
+
+        TODO maybe rename method...
+        """
         if not self.app.wallet:
             return
-        # interpret as lighting URI
-        bolt11_invoice = maybe_extract_bolt11_invoice(text)
-        if bolt11_invoice:
-            self.set_ln_invoice(bolt11_invoice)
-        # interpret as BIP21 URI
-        else:
+        text = text.strip()
+        if not text:
+            return
+        if invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
+            if invoice_or_lnurl.startswith('lnurl'):
+                self.set_lnurl6(invoice_or_lnurl)
+            else:
+                self.set_bolt11(invoice_or_lnurl)
+        elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':') or bitcoin.is_address(text):
             self.set_bip21(text)
+        else:
+            self.app.show_error(f"Failed to parse text: {text[:10]}...")
+            return
 
     def set_bip21(self, text: str):
         try:
@@ -194,7 +217,7 @@ class SendScreen(CScreen, Logger):
         self.payment_request = None
         self.is_lightning = False
 
-    def set_ln_invoice(self, invoice: str):
+    def set_bolt11(self, invoice: str):
         try:
             invoice = str(invoice).lower()
             lnaddr = lndecode(invoice)
@@ -206,6 +229,20 @@ class SendScreen(CScreen, Logger):
         self.amount = self.app.format_amount_and_units(lnaddr.amount * bitcoin.COIN) if lnaddr.amount else ''
         self.payment_request = None
         self.is_lightning = True
+
+    def set_lnurl6(self, lnurl: str):
+        url = decode_lnurl(lnurl)
+        domain = urlparse(url).netloc
+        # FIXME network request blocking GUI thread:
+        lnurl_data = Network.run_from_another_thread(request_lnurl(url))
+        if not lnurl_data:
+            return
+        self.lnurl_data = lnurl_data
+        self.address = "invoice from lnurl"
+        self.message = f"lnurl: {domain}: {lnurl_data.metadata_plaintext}"
+        self.amount = self.app.format_amount_and_units(lnurl_data.min_sendable_sat)
+        self.is_lightning = True
+        self.is_lnurl = True  # `bool(self.lnurl_data)` should be equivalent, this is only here as it is a kivy Property
 
     def update(self):
         if self.app.wallet is None:
@@ -263,6 +300,8 @@ class SendScreen(CScreen, Logger):
         self.is_bip70 = False
         self.parsed_URI = None
         self.is_max = False
+        self.lnurl_data = None
+        self.is_lnurl = False
 
     def set_request(self, pr: 'PaymentRequest'):
         self.address = pr.get_requestor()
@@ -277,21 +316,7 @@ class SendScreen(CScreen, Logger):
         if not data:
             self.app.show_info(_("Clipboard is empty"))
             return
-        # try to decode as transaction
-        try:
-            tx = tx_from_any(data)
-            tx.deserialize()
-        except:
-            tx = None
-        if tx:
-            self.app.tx_dialog(tx)
-            return
-        # try to decode as URI/address
-        bolt11_invoice = maybe_extract_bolt11_invoice(data)
-        if bolt11_invoice is not None:
-            self.set_ln_invoice(bolt11_invoice)
-        else:
-            self.set_URI(data)
+        self.app.on_data_input(data)
 
     def read_invoice(self):
         address = str(self.address)
@@ -340,7 +365,35 @@ class SendScreen(CScreen, Logger):
         self.do_clear()
         self.update()
 
+    def _lnurl_get_invoice(self) -> None:
+        assert self.lnurl_data
+        try:
+            amount = self.app.get_amount(self.amount)
+        except:
+            self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
+            return
+        if not (self.lnurl_data.min_sendable_sat <= amount <= self.lnurl_data.max_sendable_sat):
+            self.app.show_error(f'Amount must be between {self.lnurl_data.min_sendable_sat} and {self.lnurl_data.max_sendable_sat} sat.')
+            return
+        try:
+            # FIXME network request blocking GUI thread:
+            invoice_data = Network.run_from_another_thread(callback_lnurl(
+                self.lnurl_data.callback_url,
+                params={'amount': amount * 1000},
+            ))
+        except LNURLError as e:
+            self.app.show_error(f"LNURL request encountered error: {e}")
+            self.do_clear()
+            return
+        invoice = invoice_data.get('pr')
+        self.set_bolt11(invoice)
+        self.lnurl_data = None
+        self.is_lnurl = False
+
     def do_pay(self):
+        if self.lnurl_data:
+            self._lnurl_get_invoice()
+            return
         invoice = self.read_invoice()
         if not invoice:
             return
