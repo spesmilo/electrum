@@ -194,4 +194,4 @@ class RequestList(MyTreeView):
         for key in keys:
             self.wallet.delete_request(key)
             self.delete_item(key)
-        self.receive_tab.clear_receive_tab()
+        self.receive_tab.do_clear()

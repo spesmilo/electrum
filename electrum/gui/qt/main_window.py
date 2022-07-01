@@ -488,7 +488,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.update_lock_icon()
         self.update_buttons_on_seed()
         self.update_console()
-        self.receive_tab.clear_receive_tab()
+        self.receive_tab.do_clear()
         self.receive_tab.request_list.update()
         self.channels_list.update()
         self.tabs.show()
@@ -1369,7 +1369,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(str(e))
         else:
             self.need_update.set()  # history, addresses, coins
-            self.receive_tab.clear_receive_tab()
+            self.receive_tab.do_clear()
 
     def payto_contacts(self, labels):
         self.send_tab.payto_contacts(labels)

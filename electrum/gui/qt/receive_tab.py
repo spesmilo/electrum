@@ -91,7 +91,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         grid.addWidget(self.expires_label, 2, 1)
 
         self.clear_invoice_button = QPushButton(_('Clear'))
-        self.clear_invoice_button.clicked.connect(self.clear_receive_tab)
+        self.clear_invoice_button.clicked.connect(self.do_clear)
         self.create_invoice_button = QPushButton(_('Create Request'))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice())
         self.receive_buttons = buttons = QHBoxLayout()
@@ -366,7 +366,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
                 addr = self.wallet.create_new_address(False)
         return addr
 
-    def clear_receive_tab(self):
+    def do_clear(self):
         self.receive_address_e.setText('')
         self.receive_URI_e.setText('')
         self.receive_lightning_e.setText('')
