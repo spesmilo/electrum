@@ -261,7 +261,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.app.update_fiat_signal.connect(self.update_fiat)
 
         self.show_error_signal.connect(self.show_error)
-        self.history_list.setFocus(True)
+        self.history_list.setFocus()
 
         # network callbacks
         self.register_callbacks()
@@ -641,7 +641,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             def loader(k):
                 return lambda: self.gui_object.new_window(k)
             self.recently_visited_menu.addAction(b, loader(k)).setShortcut(QKeySequence("Ctrl+%d"%(i+1)))
-        self.recently_visited_menu.setEnabled(len(recent))
+        self.recently_visited_menu.setEnabled(bool(len(recent)))
 
     def get_wallet_folder(self):
         return os.path.dirname(os.path.abspath(self.wallet.storage.path))
