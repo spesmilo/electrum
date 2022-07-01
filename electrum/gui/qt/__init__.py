@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING, List, Sequence
 
 from electrum import GuiImportError
 
@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 
 
 class OpenFileEventFilter(QObject):
-    def __init__(self, windows):
+    def __init__(self, windows: Sequence[ElectrumWindow]):
         self.windows = windows
         super(OpenFileEventFilter, self).__init__()
 

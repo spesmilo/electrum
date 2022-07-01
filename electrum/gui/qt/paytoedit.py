@@ -29,6 +29,7 @@ from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
+from PyQt5.QtWidgets import QApplication
 
 from electrum import bitcoin
 from electrum.util import bfh, parse_max_spend
@@ -44,6 +45,7 @@ from .util import MONOSPACE_FONT
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
+    from .send_tab import SendTab
 
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
@@ -61,13 +63,14 @@ class PayToLineError(NamedTuple):
 
 class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
-    def __init__(self, win: 'ElectrumWindow'):
+    def __init__(self, send_tab: 'SendTab'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=win.config, setText=self._on_input_btn)
+        ScanQRTextEdit.__init__(self, config=send_tab.config, setText=self._on_input_btn)
         Logger.__init__(self)
-        self.win = win
-        self.app = win.app
-        self.amount_edit = win.amount_e
+        self.send_tab = send_tab
+        self.win = send_tab.window
+        self.app = QApplication.instance()
+        self.amount_edit = self.send_tab.amount_e
         self.setFont(QFont(MONOSPACE_FONT))
         document = self.document()
         document.contentsChanged.connect(self.update_size)
@@ -205,10 +208,10 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
         if len(lines) == 1:
             data = lines[0]
             try:
-                self.win.handle_payment_identifier(data, can_use_network=full_check)
+                self.send_tab.handle_payment_identifier(data, can_use_network=full_check)
             except LNURLError as e:
                 self.logger.exception("")
-                self.win.show_error(e)
+                self.send_tab.show_error(e)
             except ValueError:
                 pass
             else:
@@ -226,8 +229,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             except Exception as e:
                 self.errors.append(PayToLineError(line_content=data, exc=e))
             else:
-                self.win.set_onchain(True)
-                self.win.lock_amount(False)
+                self.send_tab.set_onchain(True)
+                self.send_tab.lock_amount(False)
                 return
             if full_check:  # network requests  # FIXME blocking GUI thread
                 # try openalias
@@ -259,17 +262,17 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             else:
                 total += output.value
         if outputs:
-            self.win.set_onchain(True)
+            self.send_tab.set_onchain(True)
 
-        self.win.max_button.setChecked(is_max)
+        self.send_tab.max_button.setChecked(is_max)
         self.outputs = outputs
         self.payto_scriptpubkey = None
 
-        if self.win.max_button.isChecked():
-            self.win.spend_max()
+        if self.send_tab.max_button.isChecked():
+            self.send_tab.spend_max()
         else:
             self.amount_edit.setAmount(total if outputs else None)
-        self.win.lock_amount(self.win.max_button.isChecked() or bool(outputs))
+        self.send_tab.lock_amount(self.send_tab.max_button.isChecked() or bool(outputs))
 
     def get_errors(self) -> Sequence[PayToLineError]:
         return self.errors
