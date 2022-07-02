@@ -1297,7 +1297,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @classmethod
     async def async_send_http_on_proxy(
             cls, method: str, url: str, *,
-            params: str = None,
+            params: dict = None,
             body: bytes = None,
             json: dict = None,
             headers=None,

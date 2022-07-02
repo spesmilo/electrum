@@ -29,6 +29,7 @@ python -m pip install --no-build-isolation --no-dependencies --no-warn-script-lo
 export AIOHTTP_NO_EXTENSIONS=1
 export YARL_NO_EXTENSIONS=1
 export MULTIDICT_NO_EXTENSIONS=1
+export FROZENLIST_NO_EXTENSIONS=1
 
 # if we end up having to compile something, at least give reproducibility a fighting chance
 export LC_ALL=C

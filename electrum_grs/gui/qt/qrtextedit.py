@@ -1,3 +1,5 @@
+from typing import Callable
+
 from electrum_grs.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs.simple_config import SimpleConfig
@@ -21,11 +23,16 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
 class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
 
-    def __init__(self, text="", allow_multi: bool = False, *, config: SimpleConfig):
+    def __init__(
+            self, text="", allow_multi: bool = False,
+            *,
+            config: SimpleConfig,
+            setText: Callable[[str], None] = None,
+    ):
         ButtonsTextEdit.__init__(self, text)
         self.setReadOnly(False)
-        self.add_file_input_button(config=config, show_error=self.show_error)
-        self.add_qr_input_button(config=config, show_error=self.show_error, allow_multi=allow_multi)
+        self.add_file_input_button(config=config, show_error=self.show_error, setText=setText)
+        self.add_qr_input_button(config=config, show_error=self.show_error, allow_multi=allow_multi, setText=setText)
         run_hook('scan_text_edit', self)
 
     def contextMenuEvent(self, e):

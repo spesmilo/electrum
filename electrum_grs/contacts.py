@@ -21,6 +21,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
+from typing import Optional, Tuple
+
 import dns
 import threading
 from dns.exception import DNSException
@@ -106,7 +108,7 @@ class Contacts(dict, Logger):
             t.daemon = True
             t.start()
 
-    def resolve_openalias(self, url):
+    def resolve_openalias(self, url: str) -> Optional[Tuple[str, str, bool]]:
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
         try:

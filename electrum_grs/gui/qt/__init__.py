@@ -28,7 +28,7 @@ import signal
 import sys
 import traceback
 import threading
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING, List, Sequence
 
 from electrum_grs import GuiImportError
 
@@ -80,14 +80,14 @@ if TYPE_CHECKING:
 
 
 class OpenFileEventFilter(QObject):
-    def __init__(self, windows):
+    def __init__(self, windows: Sequence[ElectrumWindow]):
         self.windows = windows
         super(OpenFileEventFilter, self).__init__()
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.FileOpen:
             if len(self.windows) >= 1:
-                self.windows[0].pay_to_URI(event.url().toString())
+                self.windows[0].handle_payment_identifier(event.url().toString())
                 return True
         return False
 
@@ -383,7 +383,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 self.start_new_window(path, uri=None, force_wizard=True)
             return
         if uri:
-            window.pay_to_URI(uri)
+            window.handle_payment_identifier(uri)
         window.bring_to_top()
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
 
