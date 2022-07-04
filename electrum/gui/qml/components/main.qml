@@ -205,11 +205,23 @@ ApplicationWindow
             stack.pop()
         } else {
             // destroy most GUI components so that we don't dump so many null reference warnings on exit
-            app.header.visible = false
-            mainStackView.clear()
+            if (closeMsgTimer.running) {
+                app.header.visible = false
+                mainStackView.clear()
+            } else {
+                notificationPopup.show('Press Back again to exit')
+                closeMsgTimer.start()
+                close.accepted = false
+            }
         }
     }
 
+    Timer {
+        id: closeMsgTimer
+        interval: 5000
+        repeat: false
+    }
+    
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
