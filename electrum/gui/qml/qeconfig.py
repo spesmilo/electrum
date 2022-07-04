@@ -70,6 +70,16 @@ class QEConfig(QObject):
         self.config.amt_add_thousands_sep = checked
         self.thousandsSeparatorChanged.emit()
 
+    spendUnconfirmedChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=spendUnconfirmedChanged)
+    def spendUnconfirmed(self):
+        return not self.config.get('confirmed_only', False)
+
+    @spendUnconfirmed.setter
+    def spendUnconfirmed(self, checked):
+        self.config.set_key('confirmed_only', not checked, True)
+        self.spendUnconfirmedChanged.emit()
+
     useGossipChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useGossipChanged)
     def useGossip(self):

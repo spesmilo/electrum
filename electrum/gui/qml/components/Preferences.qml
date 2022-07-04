@@ -41,7 +41,7 @@ Pane {
                     }
                 }
 
-                CheckBox {
+                Switch {
                     id: thousands
                     Layout.columnSpan: 2
                     text: qsTr('Add thousands separators to bitcoin amounts')
@@ -51,14 +51,14 @@ Pane {
                     }
                 }
 
-                CheckBox {
+                Switch {
                     id: checkSoftware
                     Layout.columnSpan: 2
                     text: qsTr('Automatically check for software updates')
                     enabled: false
                 }
 
-                CheckBox {
+                Switch {
                     id: fiatEnable
                     text: qsTr('Fiat Currency')
                     onCheckedChanged: {
@@ -77,12 +77,12 @@ Pane {
                     }
                 }
 
-                CheckBox {
+                Switch {
                     id: historicRates
                     text: qsTr('Historic rates')
                     enabled: Daemon.fx.enabled
                     Layout.columnSpan: 2
-                    onCheckStateChanged: {
+                    onCheckedChanged: {
                         if (activeFocus)
                             Daemon.fx.historicRates = checked
                     }
@@ -103,6 +103,16 @@ Pane {
                     onCurrentValueChanged: {
                         if (activeFocus)
                             Daemon.fx.rateSource = currentValue
+                    }
+                }
+
+                Switch {
+                    id: spendUnconfirmed
+                    text: qsTr('Spend unconfirmed')
+                    Layout.columnSpan: 2
+                    onCheckedChanged: {
+                        if (activeFocus)
+                            Config.spendUnconfirmed = checked
                     }
                 }
 
@@ -133,6 +143,7 @@ Pane {
         historicRates.checked = Daemon.fx.historicRates
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
         fiatEnable.checked = Daemon.fx.enabled
+        spendUnconfirmed.checked = Config.spendUnconfirmed
         lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
     }
 }
