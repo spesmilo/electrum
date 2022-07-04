@@ -179,6 +179,7 @@ Dialog {
             text: qsTr('Replace-by-Fee')
             Layout.columnSpan: 2
             checked: finalizer.rbf
+            visible: finalizer.canRbf
         }
 
         Rectangle {

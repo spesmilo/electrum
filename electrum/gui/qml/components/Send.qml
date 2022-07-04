@@ -245,6 +245,7 @@ Pane {
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
+                canRbf: True
             }
         }
     }

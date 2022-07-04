@@ -140,11 +140,13 @@ class QEChannelOpener(QObject):
         acpt = lambda tx: self.do_open_channel(tx, str(self._peer), None)
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
+        self._finalizer.canRbf = False
         self._finalizer.amount = self._amount
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
 
     def do_open_channel(self, funding_tx, conn_str, password):
+        self._logger.debug('opening channel')
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         lnworker = self._wallet.wallet.lnworker
@@ -160,6 +162,7 @@ class QEChannelOpener(QObject):
             self.channelOpenError.emit(_('Problem opening channel: ') + '\n' + repr(e))
             return
 
+        self._logger.debug('opening channel succeeded')
         self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
 
         # TODO: it would be nice to show this before broadcasting

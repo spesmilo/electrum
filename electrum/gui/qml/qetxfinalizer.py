@@ -32,6 +32,7 @@ class QETxFinalizer(QObject):
     _warning = ''
     _target = ''
     _rbf = False
+    _canRbf = False
     _outputs = []
     config = None
 
@@ -125,6 +126,19 @@ class QETxFinalizer(QObject):
             self._rbf = rbf
             self.update()
             self.rbfChanged.emit()
+
+    canRbfChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canRbfChanged)
+    def canRbf(self):
+        return self._canRbf
+
+    @canRbf.setter
+    def canRbf(self, canRbf):
+        if self._canRbf != canRbf:
+            self._canRbf = canRbf
+            self.canRbfChanged.emit()
+            if not canRbf and self.rbf:
+                self.rbf = False
 
     outputsChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=outputsChanged)
