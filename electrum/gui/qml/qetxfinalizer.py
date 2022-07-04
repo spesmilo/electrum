@@ -245,7 +245,8 @@ class QETxFinalizer(QObject):
         for o in tx.outputs():
             outputs.append({
                 'address': o.get_ui_address_str(),
-                'value_sats': o.value
+                'value_sats': o.value,
+                'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str())
             })
         self.outputs = outputs
 

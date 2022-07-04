@@ -196,17 +196,35 @@ Dialog {
 
         Repeater {
             model: finalizer.outputs
-            delegate: RowLayout {
+            delegate: TextHighlightPane {
                 Layout.columnSpan: 2
-                Label {
-                    text: modelData.address
-                }
-                Label {
-                    text: modelData.value_sats
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+                RowLayout {
+                    width: parent.width
+                    Label {
+                        text: modelData.address
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        font.pixelSize: constants.fontSizeLarge
+                        font.family: FixedFont
+                        color: modelData.is_mine ? constants.colorMine : Material.foreground
+                    }
+                    Label {
+                        text: Config.formatSats(modelData.value_sats)
+                        font.pixelSize: constants.fontSizeMedium
+                        font.family: FixedFont
+                    }
+                    Label {
+                        text: Config.baseUnit
+                        font.pixelSize: constants.fontSizeMedium
+                        color: Material.accentColor
+                    }
                 }
             }
         }
-
+        
         Rectangle {
             height: 1
             Layout.fillWidth: true
