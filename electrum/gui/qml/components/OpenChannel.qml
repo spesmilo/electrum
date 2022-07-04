@@ -179,7 +179,7 @@ Pane {
                 message = message + ' (but no backup. TODO: show QR)'
             var dialog = app.messageDialog.createObject(root, { 'text': message })
             dialog.open()
-            channelopener.wallet.channelModel.new_channel(cid)
+//             channelopener.wallet.channelModel.new_channel(cid)
             app.stack.pop()
         }
     }

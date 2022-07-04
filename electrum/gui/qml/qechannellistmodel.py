@@ -140,6 +140,7 @@ class QEChannelListModel(QAbstractListModel):
 
     @pyqtSlot(str)
     def new_channel(self, cid):
+        self._logger.debug('new channel with cid ' % cid)
         lnchannels = self.wallet.lnworker.channels
         for channel in lnchannels.values():
             self._logger.debug(repr(channel))
@@ -152,6 +153,7 @@ class QEChannelListModel(QAbstractListModel):
 
     @pyqtSlot(str)
     def remove_channel(self, cid):
+        self._logger.debug('remove channel with cid ' % cid)
         i = 0
         for channel in self.channels:
             if cid == channel['cid']:
