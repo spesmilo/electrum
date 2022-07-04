@@ -129,11 +129,11 @@ class QEWallet(AuthMixin, QObject):
             wallet, tx = args
             if wallet == self.wallet:
                 self.add_tx_notification(tx)
-                self._historyModel.init_model() # TODO: be less dramatic
+                self.historyModel.init_model() # TODO: be less dramatic
         elif event == 'verified':
             wallet, txid, info = args
             if wallet == self.wallet:
-                self._historyModel.update_tx(txid, info)
+                self.historyModel.update_tx(txid, info)
         elif event == 'wallet_updated':
             wallet, = args
             if wallet == self.wallet:
@@ -151,7 +151,7 @@ class QEWallet(AuthMixin, QObject):
             wallet, key = args
             if wallet == self.wallet:
                 self.paymentSucceeded.emit(key)
-                self._historyModel.init_model() # TODO: be less dramatic
+                self.historyModel.init_model() # TODO: be less dramatic
         elif event == 'payment_failed':
             wallet, key, reason = args
             if wallet == self.wallet:
