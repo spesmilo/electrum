@@ -65,17 +65,17 @@ Pane {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
+                enabled: channeldetails.isOpen
                 text: channeldetails.frozenForSending ? qsTr('Unfreeze (for sending)') : qsTr('Freeze (for sending)')
                 onTriggered: channeldetails.freezeForSending()
-                //icon.source: '../../icons/wallet.png'
             }
         }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
+                enabled: channeldetails.isOpen
                 text: channeldetails.frozenForReceiving ? qsTr('Unfreeze (for receiving)') : qsTr('Freeze (for receiving)')
                 onTriggered: channeldetails.freezeForReceiving()
-                //icon.source: '../../icons/wallet.png'
             }
         }
     }
