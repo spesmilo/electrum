@@ -40,7 +40,7 @@ class QEChannelListModel(QAbstractListModel):
         self.destroyed.connect(lambda: self.on_destroy())
 
     def on_network(self, event, *args):
-        if event == 'channel':
+        if event in ['channel','channels_updated']:
             # Handle in GUI thread (_network_signal -> on_network_qt)
             self._network_signal.emit(event, args)
         else:
@@ -131,7 +131,7 @@ class QEChannelListModel(QAbstractListModel):
 
     def do_update(self, modelindex, channel):
         modelitem = self.channels[modelindex]
-        self._logger.debug(repr(modelitem))
+        #self._logger.debug(repr(modelitem))
         modelitem.update(self.channel_to_model(channel))
 
         mi = self.createIndex(modelindex, 0)
@@ -140,7 +140,7 @@ class QEChannelListModel(QAbstractListModel):
 
     @pyqtSlot(str)
     def new_channel(self, cid):
-        self._logger.debug('new channel with cid ' % cid)
+        self._logger.debug('new channel with cid %s' % cid)
         lnchannels = self.wallet.lnworker.channels
         for channel in lnchannels.values():
             self._logger.debug(repr(channel))
@@ -153,7 +153,7 @@ class QEChannelListModel(QAbstractListModel):
 
     @pyqtSlot(str)
     def remove_channel(self, cid):
-        self._logger.debug('remove channel with cid ' % cid)
+        self._logger.debug('remove channel with cid %s' % cid)
         i = 0
         for channel in self.channels:
             if cid == channel['cid']:
