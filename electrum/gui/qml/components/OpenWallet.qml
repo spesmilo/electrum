@@ -8,7 +8,7 @@ import "controls"
 
 Pane {
     id: openwalletdialog
-
+    
     property string title: qsTr("Open Wallet")
 
     property string name
@@ -39,7 +39,7 @@ Pane {
             Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
             text: qsTr("Invalid Password")
-            visible: wallet_db.invalidPassword && _unlockClicked
+            visible: !wallet_db.validPassword && _unlockClicked
             width: parent.width * 2/3
             error: true
         }
@@ -53,16 +53,24 @@ Pane {
             id: password
             visible: wallet_db.needsPassword
             echoMode: TextInput.Password
+            inputMethodHints: Qt.ImhSensitiveData
+            onTextChanged: {
+                unlockButton.enabled = true
+                _unlockClicked = false
+            }
+            onAccepted: {
+                unlock()
+            }
         }
 
         Button {
+            id: unlockButton
             Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
             visible: wallet_db.needsPassword
             text: qsTr("Unlock")
             onClicked: {
-                _unlockClicked = true
-                wallet_db.password = password.text
+                unlock()
             }
         }
 
@@ -87,8 +95,22 @@ Pane {
             text: qsTr('Split wallet')
             onClicked: wallet_db.doSplit()
         }
+        
+        BusyIndicator {
+            id: busy
+            running: false
+            Layout.columnSpan: 2
+            Layout.alignment: Qt.AlignHCenter
+        }
     }
 
+    function unlock() {
+        unlockButton.enabled = false
+        _unlockClicked = true
+        wallet_db.password = password.text
+        openwalletdialog.forceActiveFocus()
+    }
+    
     WalletDB {
         id: wallet_db
         path: openwalletdialog.path
@@ -99,10 +121,17 @@ Pane {
         }
         onReadyChanged: {
             if (ready) {
+                busy.running = true
                 Daemon.load_wallet(openwalletdialog.path, password.text)
                 app.stack.pop(null)
             }
         }
+        onInvalidPassword: {
+            password.forceActiveFocus()
+        }
     }
-
+    
+    Component.onCompleted: {
+        password.forceActiveFocus()
+    }
 }

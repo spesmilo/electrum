@@ -25,20 +25,21 @@ class QEWalletDB(QObject):
     needsPasswordChanged = pyqtSignal()
     needsHWDeviceChanged = pyqtSignal()
     passwordChanged = pyqtSignal()
-    invalidPasswordChanged = pyqtSignal()
+    validPasswordChanged = pyqtSignal()
     requiresSplitChanged = pyqtSignal()
     splitFinished = pyqtSignal()
     readyChanged = pyqtSignal()
     createError = pyqtSignal([str], arguments=["error"])
     createSuccess = pyqtSignal()
-
+    invalidPassword = pyqtSignal()
+    
     def reset(self):
         self._path = None
         self._needsPassword = False
         self._needsHWDevice = False
         self._password = ''
         self._requiresSplit = False
-        self._invalidPassword = False
+        self._validPassword = True
 
         self._storage = None
         self._db = None
@@ -110,15 +111,15 @@ class QEWalletDB(QObject):
     def requiresSplit(self):
         return self._requiresSplit
 
-    @pyqtProperty(bool, notify=invalidPasswordChanged)
-    def invalidPassword(self):
-        return self._invalidPassword
+    @pyqtProperty(bool, notify=validPasswordChanged)
+    def validPassword(self):
+        return self._validPassword
 
-    @invalidPassword.setter
-    def invalidPassword(self, invalidPassword):
-        if self._invalidPassword != invalidPassword:
-            self._invalidPassword = invalidPassword
-            self.invalidPasswordChanged.emit()
+    @validPassword.setter
+    def validPassword(self, validPassword):
+        if self._validPassword != validPassword:
+            self._validPassword = validPassword
+            self.validPasswordChanged.emit()
 
     @pyqtProperty(bool, notify=readyChanged)
     def ready(self):
@@ -148,9 +149,10 @@ class QEWalletDB(QObject):
 
             try:
                 self._storage.decrypt('' if not self._password else self._password)
-                self.invalidPassword = False
+                self.validPassword = True
             except InvalidPassword as e:
-                self.invalidPassword = True
+                self.validPassword = False
+                self.invalidPassword.emit()
 
         if not self._storage.is_past_initial_decryption():
             self._storage = None

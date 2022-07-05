@@ -97,7 +97,7 @@ class QEDaemon(AuthMixin, QObject):
         self.daemon = daemon
         self.qefx = QEFX(daemon.fx, daemon.config)
         self._walletdb = QEWalletDB()
-        self._walletdb.invalidPasswordChanged.connect(self.passwordValidityCheck)
+        self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
 
     _logger = get_logger(__name__)
     _loaded_wallets = QEWalletListModel()
@@ -115,7 +115,7 @@ class QEDaemon(AuthMixin, QObject):
 
     @pyqtSlot()
     def passwordValidityCheck(self):
-        if self._walletdb._invalidPassword:
+        if not self._walletdb._validPassword:
             self.walletRequiresPassword.emit()
 
     @pyqtSlot()
