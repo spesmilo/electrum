@@ -39,6 +39,7 @@ from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
+    from .receive_tab import ReceiveTab
 
 
 ROLE_REQUEST_TYPE = Qt.UserRole
@@ -63,10 +64,12 @@ class RequestList(MyTreeView):
     }
     filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
-    def __init__(self, parent: 'ElectrumWindow'):
-        super().__init__(parent, self.create_menu,
+    def __init__(self, receive_tab: 'ReceiveTab'):
+        window = receive_tab.window
+        super().__init__(window, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION)
-        self.wallet = self.parent.wallet
+        self.wallet = window.wallet
+        self.receive_tab = receive_tab
         self.std_model = QStandardItemModel(self)
         self.proxy = MySortModel(self, sort_role=ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
@@ -88,7 +91,7 @@ class RequestList(MyTreeView):
 
     def item_changed(self, idx: Optional[QModelIndex]):
         if idx is None:
-            self.parent.update_current_request()
+            self.receive_tab.update_current_request()
             return
         if not idx.isValid():
             return
@@ -98,7 +101,7 @@ class RequestList(MyTreeView):
         req = self.wallet.get_request(key)
         if req is None:
             self.update()
-        self.parent.update_current_request()
+        self.receive_tab.update_current_request()
 
     def clearSelection(self):
         super().clearSelection()
@@ -111,7 +114,7 @@ class RequestList(MyTreeView):
         if request is None:
             return
         status_item = model.item(row, self.Columns.STATUS)
-        status = self.parent.wallet.get_request_status(key)
+        status = self.wallet.get_request_status(key)
         status_str = request.get_status_str(status)
         status_item.setText(status_str)
         status_item.setIcon(read_QIcon(pr_icons.get(status)))
@@ -124,7 +127,7 @@ class RequestList(MyTreeView):
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_unpaid_requests():
             key = self.wallet.get_key_for_receive_request(req)
-            status = self.parent.wallet.get_request_status(key)
+            status = self.wallet.get_request_status(key)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()
             amount = req.get_amount_sat()
@@ -150,7 +153,7 @@ class RequestList(MyTreeView):
     def hide_if_empty(self):
         b = self.std_model.rowCount() > 0
         self.setVisible(b)
-        self.parent.receive_requests_label.setVisible(b)
+        self.receive_tab.receive_requests_label.setVisible(b)
         if not b:
             # list got hidden, so selected item should also be cleared:
             self.item_changed(None)
@@ -160,7 +163,7 @@ class RequestList(MyTreeView):
         if len(items)>1:
             keys = [item.data(ROLE_KEY)  for item in items]
             menu = QMenu(self)
-            menu.addAction(_("Delete requests"), lambda: self.parent.delete_requests(keys))
+            menu.addAction(_("Delete requests"), lambda: self.delete_requests(keys))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         idx = self.indexAt(position)
@@ -183,6 +186,12 @@ class RequestList(MyTreeView):
         self.add_copy_menu(menu, idx)
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_requests([key]))
+        menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
         run_hook('receive_list_menu', self.parent, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def delete_requests(self, keys):
+        for key in keys:
+            self.wallet.delete_request(key)
+            self.delete_item(key)
+        self.receive_tab.do_clear()

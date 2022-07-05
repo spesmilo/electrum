@@ -42,6 +42,11 @@ pushd "$CONTRIB_ANDROID"
 
 info "apk building phase starts."
 
+if [ ! $CI ]; then
+    # override log level specified in buildozer.spec to "debug":
+    export BUILDOZER_LOG_LEVEL=2
+fi
+
 if [[ "$3" == "release" ]] ; then
     # do release build, and sign the APKs.
     TARGET="release"

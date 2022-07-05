@@ -280,7 +280,7 @@ class QtPluginBase(object):
                                                               keystore: 'Hardware_KeyStore',
                                                               main_window: ElectrumWindow):
         plugin = keystore.plugin
-        receive_address_e = main_window.receive_address_e
+        receive_address_e = main_window.receive_tab.receive_address_e
 
         def show_address():
             addr = str(receive_address_e.text())

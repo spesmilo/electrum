@@ -115,6 +115,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
+        self.window.connect_fields(self.amount_e, self.fiat_send_e)
+
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(100)
         self.max_button.setCheckable(True)
