@@ -6,8 +6,9 @@ from electrum.logging import get_logger
 from electrum.util import DECIMAL_POINT_DEFAULT, format_satoshis
 
 from .qetypes import QEAmount
+from .auth import AuthMixin, auth_protect
 
-class QEConfig(QObject):
+class QEConfig(AuthMixin, QObject):
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
@@ -79,6 +80,22 @@ class QEConfig(QObject):
     def spendUnconfirmed(self, checked):
         self.config.set_key('confirmed_only', not checked, True)
         self.spendUnconfirmedChanged.emit()
+
+    pinCodeChanged = pyqtSignal()
+    @pyqtProperty(str, notify=pinCodeChanged)
+    def pinCode(self):
+        return self.config.get('pin_code', '')
+
+    @pinCode.setter
+    def pinCode(self, pin_code):
+        if pin_code == '':
+            self.pinCodeRemoveAuth()
+        self.config.set_key('pin_code', pin_code, True)
+        self.pinCodeChanged.emit()
+
+    @auth_protect(method='wallet')
+    def pinCodeRemoveAuth(self):
+        pass # no-op
 
     useGossipChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useGossipChanged)

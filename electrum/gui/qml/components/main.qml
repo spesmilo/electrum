@@ -179,6 +179,14 @@ ApplicationWindow
         }
     }
 
+    property alias pinDialog: _pinDialog
+    Component {
+        id: _pinDialog
+        Pin {
+            onClosed: destroy()
+        }
+    }
+
     NotificationPopup {
         id: notificationPopup
     }
@@ -221,7 +229,7 @@ ApplicationWindow
         interval: 5000
         repeat: false
     }
-    
+
     Connections {
         target: Daemon
         function onWalletRequiresPassword() {
@@ -232,6 +240,9 @@ ApplicationWindow
             console.log('wallet open error')
             var dialog = app.messageDialog.createObject(app, {'text': error})
             dialog.open()
+        }
+        function onAuthRequired(method) {
+            handleAuthRequired(Daemon, method)
         }
     }
 
@@ -244,24 +255,8 @@ ApplicationWindow
 
     Connections {
         target: Daemon.currentWallet
-        function onAuthRequired() {
-            if (Daemon.currentWallet.verify_password('')) {
-                // wallet has no password
-                Daemon.currentWallet.authProceed()
-            } else {
-                var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
-                dialog.accepted.connect(function() {
-                    if (Daemon.currentWallet.verify_password(dialog.password)) {
-                        Daemon.currentWallet.authProceed()
-                    } else {
-                        Daemon.currentWallet.authCancel()
-                    }
-                })
-                dialog.rejected.connect(function() {
-                    Daemon.currentWallet.authCancel()
-                })
-                dialog.open()
-            }
+        function onAuthRequired(method) {
+            handleAuthRequired(Daemon.currentWallet, method)
         }
         // TODO: add to notification queue instead of barging through
         function onPaymentSucceeded(key) {
@@ -273,16 +268,48 @@ ApplicationWindow
     }
 
     Connections {
-        target: Daemon
-        function onAuthRequired() {
-            var dialog = app.messageDialog.createObject(app, {'text': 'Auth placeholder', 'yesno': true})
-            dialog.yesClicked.connect(function() {
-                Daemon.authProceed()
-            })
-            dialog.noClicked.connect(function() {
-                Daemon.authCancel()
-            })
-            dialog.open()
+        target: Config
+        function onAuthRequired(method) {
+            handleAuthRequired(Config, method)
         }
     }
+
+    function handleAuthRequired(qtobject, method) {
+        console.log('AUTHENTICATING USING METHOD ' + method)
+        if (method == 'wallet') {
+            if (Daemon.currentWallet.verify_password('')) {
+                // wallet has no password
+                qtobject.authProceed()
+            } else {
+                var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
+                dialog.accepted.connect(function() {
+                    if (Daemon.currentWallet.verify_password(dialog.password)) {
+                        qtobject.authProceed()
+                    } else {
+                        qtobject.authCancel()
+                    }
+                })
+                dialog.rejected.connect(function() {
+                    qtobject.authCancel()
+                })
+                dialog.open()
+            }
+        } else if (method == 'pin') {
+            if (Config.pinCode == '') {
+                // no PIN configured
+                qtobject.authProceed()
+            } else {
+                var dialog = app.pinDialog.createObject(app, {mode: 'check', pincode: Config.pinCode})
+                dialog.accepted.connect(function() {
+                    qtobject.authProceed()
+                    dialog.close()
+                })
+                dialog.rejected.connect(function() {
+                    qtobject.authCancel()
+                })
+                dialog.open()
+            }
+        }
+    }
+
 }

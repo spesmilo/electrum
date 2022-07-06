@@ -6,6 +6,8 @@ import QtQuick.Controls.Material 2.0
 import org.electrum 1.0
 
 Pane {
+    id: preferences
+
     property string title: qsTr("Preferences")
 
     ColumnLayout {
@@ -117,6 +119,49 @@ Pane {
                 }
 
                 Label {
+                    text: qsTr('PIN')
+                }
+
+                RowLayout {
+                    Label {
+                        text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
+                        color: Material.accentColor
+                        Layout.rightMargin: constants.paddingMedium
+                    }
+                    Button {
+                        text: qsTr('Enable')
+                        visible: Config.pinCode == ''
+                        onClicked: {
+                            var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
+                            dialog.accepted.connect(function() {
+                                Config.pinCode = dialog.pincode
+                                dialog.close()
+                            })
+                            dialog.open()
+                        }
+                    }
+                    Button {
+                        text: qsTr('Change')
+                        visible: Config.pinCode != ''
+                        onClicked: {
+                            var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
+                            dialog.accepted.connect(function() {
+                                Config.pinCode = dialog.pincode
+                                dialog.close()
+                            })
+                            dialog.open()
+                        }
+                    }
+                    Button {
+                        text: qsTr('Remove')
+                        visible: Config.pinCode != ''
+                        onClicked: {
+                            Config.pinCode = ''
+                        }
+                    }
+                }
+
+                Label {
                     text: qsTr('Lightning Routing')
                 }
 
@@ -134,6 +179,11 @@ Pane {
 
         }
 
+    }
+
+    Component {
+        id: pinSetup
+        Pin {}
     }
 
     Component.onCompleted: {

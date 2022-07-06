@@ -4,9 +4,9 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot
 
 from electrum.logging import get_logger
 
-def auth_protect(func=None, reject=None):
+def auth_protect(func=None, reject=None, method='pin'):
     if func is None:
-        return partial(auth_protect, reject=reject)
+        return partial(auth_protect, reject=reject, method=method)
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -15,14 +15,14 @@ def auth_protect(func=None, reject=None):
             self._logger.debug('object already has a pending authed function call')
             raise Exception('object already has a pending authed function call')
         setattr(self, '__auth_fcall', (func,args,kwargs,reject))
-        getattr(self, 'authRequired').emit()
+        getattr(self, 'authRequired').emit(method)
 
     return wrapper
 
 class AuthMixin:
     _auth_logger = get_logger(__name__)
 
-    authRequired = pyqtSignal()
+    authRequired = pyqtSignal([str],arguments=['method'])
 
     @pyqtSlot()
     def authProceed(self):
