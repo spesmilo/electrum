@@ -244,12 +244,12 @@ class QEInvoiceParser(QEInvoice):
 
     def determine_can_pay(self):
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
-            if self.status == PR_UNPAID:
+            if self.status in [PR_UNPAID, PR_FAILED]:
                 if self.get_max_spendable_lightning() >= self.amount.satsInt:
                     self.canPay = True
                 else:
                     self.userinfo = _('Can\'t pay, insufficient balance')
-            else:
+            else: # TODO: proper text for other possible states
                 self.userinfo = _('Can\'t pay, invoice is expired')
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
             if self.get_max_spendable_onchain() >= self.amount.satsInt:
