@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.util import register_callback, get_new_wallet_name, WalletFileException
 from electrum.logging import get_logger
-from electrum.wallet import Wallet, Abstract_Wallet
+from electrum.wallet import Wallet, Abstract_Wallet, update_password_for_directory
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet_db import WalletDB
 
@@ -104,7 +104,8 @@ class QEDaemon(AuthMixin, QObject):
     _available_wallets = None
     _current_wallet = None
     _path = None
-
+    _use_single_password = False
+    _password = None
 
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
@@ -144,6 +145,12 @@ class QEDaemon(AuthMixin, QObject):
                 self._loaded_wallets.add_wallet(wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
                 self.walletLoaded.emit()
+
+                if self.daemon.config.get('single_password'):
+                    self._use_single_password = update_password_for_directory(self.daemon.config, password, password)
+                    self._password = password
+                self._logger.info(f'use single password: {self._use_single_password}')
+
                 self.daemon.config.save_last_wallet(wallet)
             else:
                 self._logger.info('could not open wallet')
@@ -195,3 +202,17 @@ class QEDaemon(AuthMixin, QObject):
             i = i + 1
         return f'wallet_{i}'
 
+    requestNewPassword = pyqtSignal()
+    @pyqtSlot()
+    @auth_protect
+    def start_change_password(self):
+        if self._use_single_password:
+            self.requestNewPassword.emit()
+        else:
+            self.currentWallet.requestNewPassword.emit()
+
+    @pyqtSlot(str)
+    def set_password(self, password):
+        assert self._use_single_password
+        self._logger.debug('about to set password to %s for ALL wallets' % password)
+        update_password_for_directory(self.daemon.config, self._password, password)

@@ -42,7 +42,7 @@ Pane {
 
     function changePassword() {
         // trigger dialog via wallet (auth then signal)
-        Daemon.currentWallet.start_change_password()
+        Daemon.start_change_password()
     }
 
     property QtObject menu: Menu {
@@ -306,6 +306,19 @@ Pane {
         function onWalletLoaded() {
             Daemon.availableWallets.reload()
             app.stack.pop()
+        }
+        function onRequestNewPassword() { // new unified password (all wallets)
+            var dialog = app.passwordDialog.createObject(app,
+                    {
+                        'confirmPassword': true,
+                        'title': qsTr('Enter new password'),
+                        'infotext': qsTr('If you forget your password, you\'ll need to\
+                        restore from seed. Please make sure you have your seed stored safely')
+                    } )
+            dialog.accepted.connect(function() {
+                Daemon.set_password(dialog.password)
+            })
+            dialog.open()
         }
     }
 

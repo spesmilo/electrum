@@ -57,6 +57,7 @@ class QEWallet(AuthMixin, QObject):
     invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
     paymentSucceeded = pyqtSignal([str], arguments=['key'])
     paymentFailed = pyqtSignal([str,str], arguments=['key','reason'])
+    requestNewPassword = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -498,12 +499,6 @@ class QEWallet(AuthMixin, QObject):
             return True
         except InvalidPassword as e:
             return False
-
-    requestNewPassword = pyqtSignal()
-    @pyqtSlot()
-    @auth_protect
-    def start_change_password(self):
-        self.requestNewPassword.emit()
 
     @pyqtSlot(str)
     def set_password(self, password):
