@@ -42,6 +42,11 @@ pushd "$CONTRIB_ANDROID"
 
 info "apk building phase starts."
 
+# Uncomment and change below to set a custom android package id,
+# e.g. to allow simultaneous mainnet and testnet installs of the apk.
+#   export APP_PACKAGE_NAME=Electrum
+#   export APP_PACKAGE_DOMAIN=org.electrum
+
 if [ ! $CI ]; then
     # override log level specified in buildozer.spec to "debug":
     export BUILDOZER_LOG_LEVEL=2

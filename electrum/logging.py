@@ -310,17 +310,15 @@ class Logger:
 
 
 def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = None) -> None:
+    from .util import is_android_debug_apk
+
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
     _configure_stderr_logging(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     if log_to_file is None:
         log_to_file = config.get('log_to_file', False)
-        is_android = 'ANDROID_DATA' in os.environ
-        if is_android:
-            from jnius import autoclass
-            build_config = autoclass("org.electrum.electrum.BuildConfig")
-            log_to_file |= bool(build_config.DEBUG)
+        log_to_file |= is_android_debug_apk()
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         _configure_file_logging(log_directory)

@@ -324,10 +324,8 @@ def main():
     if is_android:
         import importlib.util
         android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
-        from jnius import autoclass
-        build_config = autoclass("org.electrum.electrum.BuildConfig")
         config_options = {
-            'verbosity': '*' if build_config.DEBUG else '',
+            'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
             'gui': android_gui,
             'single_password':True,
