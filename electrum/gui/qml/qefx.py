@@ -6,28 +6,34 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import get_logger
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
-from electrum.util import register_callback
 from electrum.bitcoin import COIN
 
 from .qetypes import QEAmount
+from .util import QtEventListener, qt_event_listener
 
-class QEFX(QObject):
+class QEFX(QObject, QtEventListener):
     def __init__(self, fxthread: FxThread, config: SimpleConfig, parent=None):
         super().__init__(parent)
         self.fx = fxthread
         self.config = config
-        register_callback(self.on_quotes, ['on_quotes'])
-        register_callback(self.on_history, ['on_history'])
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
 
     _logger = get_logger(__name__)
 
     quotesUpdated = pyqtSignal()
-    def on_quotes(self, event, *args):
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_on_quotes(self, *args):
         self._logger.debug('new quotes')
         self.quotesUpdated.emit()
 
     historyUpdated = pyqtSignal()
-    def on_history(self, event, *args):
+    @qt_event_listener
+    def on_event_on_history(self, *args):
         self._logger.debug('new history')
         self.historyUpdated.emit()
 

@@ -4,13 +4,14 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
-from electrum.util import Satoshis, register_callback, unregister_callback
+from electrum.util import Satoshis
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.lnchannel import ChannelState
 
 from .qetypes import QEAmount
+from .util import QtEventListener, qt_event_listener
 
-class QEChannelListModel(QAbstractListModel):
+class QEChannelListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
@@ -28,38 +29,26 @@ class QEChannelListModel(QAbstractListModel):
         self.wallet = wallet
         self.init_model()
 
-        self._network_signal.connect(self.on_network_qt)
-        interests = ['channel', 'channels_updated', 'gossip_peers',
-                     'ln_gossip_sync_progress', 'unknown_channels',
-                     'channel_db', 'gossip_db_loaded']
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
         # partials, lambdas or methods of subobjects.  Hence...
-        register_callback(self.on_network, interests)
+        self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-    def on_network(self, event, *args):
-        if event in ['channel','channels_updated']:
-            # Handle in GUI thread (_network_signal -> on_network_qt)
-            self._network_signal.emit(event, args)
-        else:
-            self.on_network_qt(event, args)
+    @qt_event_listener
+    def on_event_channel(self, wallet, channel):
+        if wallet == self.wallet:
+            self.on_channel_updated(channel)
 
-    def on_network_qt(self, event, args=None):
-        if event == 'channel':
-            wallet, channel = args
-            if wallet == self.wallet:
-                self.on_channel_updated(channel)
-        elif event == 'channels_updated':
-            wallet, = args
-            if wallet == self.wallet:
-                self.init_model() # TODO: remove/add less crude than full re-init
-        else:
-            self._logger.debug('unhandled event %s: %s' % (event, repr(args)))
+    #    elif event == 'channels_updated':
+    @qt_event_listener
+    def on_event_channels_updated(self, wallet):
+        if wallet == self.wallet:
+            self.init_model() # TODO: remove/add less crude than full re-init
 
     def on_destroy(self):
-        unregister_callback(self.on_network)
+        self.unregister_callbacks()
 
     def rowCount(self, index):
         return len(self.channels)

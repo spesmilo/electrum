@@ -5,14 +5,14 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 from electrum.i18n import _
 from electrum.gui import messages
 from electrum.logging import get_logger
-from electrum.util import register_callback, unregister_callback
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.lnchannel import ChanCloseOption
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .util import QtEventListener, qt_event_listener
 
-class QEChannelDetails(QObject):
+class QEChannelDetails(QObject, QtEventListener):
 
     _logger = get_logger(__name__)
     _wallet = None
@@ -25,17 +25,16 @@ class QEChannelDetails(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        register_callback(self.on_network, ['channel'])
+        self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-    def on_network(self, event, *args):
-        if event == 'channel':
-            wallet, channel = args
-            if wallet == self._wallet.wallet and self._channelid == channel.channel_id.hex():
-                self.channelChanged.emit()
+    @qt_event_listener
+    def on_event_channel(self, wallet, channel):
+        if wallet == self._wallet.wallet and self._channelid == channel.channel_id.hex():
+            self.channelChanged.emit()
 
     def on_destroy(self):
-        unregister_callback(self.on_network)
+        self.unregister_callbacks()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)

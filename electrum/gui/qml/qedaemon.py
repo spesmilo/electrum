@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.util import register_callback, get_new_wallet_name, WalletFileException
 from electrum.logging import get_logger
-from electrum.wallet import Wallet, Abstract_Wallet, update_password_for_directory
+from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
 from electrum.wallet_db import WalletDB
 
@@ -147,7 +147,7 @@ class QEDaemon(AuthMixin, QObject):
                 self.walletLoaded.emit()
 
                 if self.daemon.config.get('single_password'):
-                    self._use_single_password = update_password_for_directory(self.daemon.config, password, password)
+                    self._use_single_password = self.daemon.update_password_for_directory(old_password=password, new_password=password)
                     self._password = password
                 self._logger.info(f'use single password: {self._use_single_password}')
 

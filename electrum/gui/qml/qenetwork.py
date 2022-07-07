@@ -1,20 +1,16 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum.util import register_callback
 from electrum.logging import get_logger
 from electrum import constants
 from electrum.interface import ServerAddr
 
-class QENetwork(QObject):
+from .util import QtEventListener, qt_event_listener
+
+class QENetwork(QObject, QtEventListener):
     def __init__(self, network, parent=None):
         super().__init__(parent)
         self.network = network
-        register_callback(self.on_network_updated, ['network_updated'])
-        register_callback(self.on_blockchain_updated, ['blockchain_updated'])
-        register_callback(self.on_default_server_changed, ['default_server_changed'])
-        register_callback(self.on_proxy_set, ['proxy_set'])
-        register_callback(self.on_status, ['status'])
-        register_callback(self.on_fee_histogram, ['fee_histogram'])
+        self.register_callbacks()
 
     _logger = get_logger(__name__)
 
@@ -33,30 +29,36 @@ class QENetwork(QObject):
     _height = 0
     _status = ""
 
-    def on_network_updated(self, event, *args):
+    @qt_event_listener
+    def on_event_network_updated(self, *args):
         self.networkUpdated.emit()
 
-    def on_blockchain_updated(self, event, *args):
+    @qt_event_listener
+    def on_event_blockchain_updated(self, *args):
         if self._height != self.network.get_local_height():
             self._height = self.network.get_local_height()
             self._logger.debug('new height: %d' % self._height)
             self.heightChanged.emit(self._height)
         self.blockchainUpdated.emit()
 
-    def on_default_server_changed(self, event, *args):
+    @qt_event_listener
+    def on_event_default_server_changed(self, *args):
         self.defaultServerChanged.emit()
 
-    def on_proxy_set(self, event, *args):
+    @qt_event_listener
+    def on_event_proxy_set(self, *args):
         self._logger.debug('proxy set')
         self.proxySet.emit()
 
-    def on_status(self, event, *args):
+    @qt_event_listener
+    def on_event_status(self, *args):
         self._logger.debug('status updated: %s' % self.network.connection_status)
         if self._status != self.network.connection_status:
             self._status = self.network.connection_status
             self.statusChanged.emit()
 
-    def on_fee_histogram(self, event, *args):
+    @qt_event_listener
+    def on_event_fee_histogram(self, *args):
         self._logger.debug('fee histogram updated')
         self.feeHistogramUpdated.emit()
 

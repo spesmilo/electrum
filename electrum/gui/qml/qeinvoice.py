@@ -6,7 +6,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, InvoiceError,
-                           maybe_extract_bolt11_invoice)
+                           maybe_extract_lightning_payment_identifier)
 from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
                                PR_FAILED,PR_ROUTING,PR_UNCONFIRMED,LN_EXPIRY_NEVER)
@@ -335,7 +335,7 @@ class QEInvoiceParser(QEInvoice):
 
         lninvoice = None
         try:
-            maybe_lightning_invoice = maybe_extract_bolt11_invoice(maybe_lightning_invoice)
+            maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
             lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
         except InvoiceError as e:
             pass
