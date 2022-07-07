@@ -249,13 +249,27 @@ class QEInvoiceParser(QEInvoice):
                     self.canPay = True
                 else:
                     self.userinfo = _('Can\'t pay, insufficient balance')
-            else: # TODO: proper text for other possible states
-                self.userinfo = _('Can\'t pay, invoice is expired')
-        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
-            if self.get_max_spendable_onchain() >= self.amount.satsInt:
-                self.canPay = True
             else:
-                self.userinfo = _('Can\'t pay, insufficient balance')
+                self.userinfo = {
+                        PR_EXPIRED: _('Can\'t pay, invoice is expired'),
+                        PR_PAID: _('Can\'t pay, invoice is already paid'),
+                        PR_INFLIGHT: _('Can\'t pay, invoice is already being paid'),
+                        PR_ROUTING: _('Can\'t pay, invoice is already being paid'),
+                        PR_UNKNOWN: _('Can\'t pay, invoice has unknown status'),
+                    }[self.status]
+        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
+            if self.status in [PR_UNPAID, PR_FAILED]:
+                if self.get_max_spendable_onchain() >= self.amount.satsInt:
+                    self.canPay = True
+                else:
+                    self.userinfo = _('Can\'t pay, insufficient balance')
+            else:
+                self.userinfo = {
+                        PR_EXPIRED: _('Can\'t pay, invoice is expired'),
+                        PR_PAID: _('Can\'t pay, invoice is already paid'),
+                        PR_UNCONFIRMED: _('Can\'t pay, invoice is already paid'),
+                        PR_UNKNOWN: _('Can\'t pay, invoice has unknown status'),
+                    }[self.status]
 
 
     def get_max_spendable_lightning(self):
