@@ -1193,6 +1193,9 @@ class Channel(AbstractChannel):
             ctn = self.get_next_ctn(ctx_owner)
         return htlcsum(self.hm.htlcs_by_direction(ctx_owner, direction, ctn).values())
 
+    def has_unsettled_htlcs(self) -> bool:
+        return len(self.hm.htlcs(LOCAL)) + len(self.hm.htlcs(REMOTE)) > 0
+
     def available_to_spend(self, subject: HTLCOwner, *, strict: bool = True) -> int:
         """The usable balance of 'subject' in msat, after taking reserve and fees into
         consideration. Note that fees (and hence the result) fluctuate even without user interaction.
@@ -1535,10 +1538,17 @@ class Channel(AbstractChannel):
         return tx
 
     def get_close_options(self) -> Sequence[ChanCloseOption]:
+        # This method is used both in the GUI, and in lnpeer.schedule_force_closing
+        # in the latter case, the result does not depend on peer_state
         ret = []
         if not self.is_closed() and self.peer_state == PeerState.GOOD:
-            ret.append(ChanCloseOption.COOP_CLOSE)
-            ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
+            # If there are unsettled HTLCs, althought is possible to cooperatively close,
+            # we choose not to expose that option in the GUI, because it is very likely
+            # that HTLCs will take a long time to settle (submarine swap, or stuck payment),
+            # and the close dialog would be taking a very long time to finish
+            if not self.has_unsettled_htlcs():
+                ret.append(ChanCloseOption.COOP_CLOSE)
+                ret.append(ChanCloseOption.REQUEST_REMOTE_FCLOSE)
         if not self.is_closed() or self.get_state() == ChannelState.REQUESTED_FCLOSE:
             ret.append(ChanCloseOption.LOCAL_FCLOSE)
         assert not (self.get_state() == ChannelState.WE_ARE_TOXIC and ChanCloseOption.LOCAL_FCLOSE in ret), "local force-close unsafe if we are toxic"

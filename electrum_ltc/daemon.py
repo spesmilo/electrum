@@ -478,6 +478,7 @@ class Daemon(Logger):
         self.gui_object = None
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
+        self._wallet_lock = threading.RLock()
         daemon_jobs = []
         # Setup commands server
         self.commands_server = None
@@ -526,12 +527,35 @@ class Daemon(Logger):
             #       not see the exception (especially if the GUI did not start yet).
             self._stopping_soon_or_errored.set()
 
+    def with_wallet_lock(func):
+        def func_wrapper(self: 'Daemon', *args, **kwargs):
+            with self._wallet_lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
+
+    @with_wallet_lock
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         # wizard will be launched if we return
         if path in self._wallets:
             wallet = self._wallets[path]
             return wallet
+        wallet = self._load_wallet(path, password, manual_upgrades=manual_upgrades, config=self.config)
+        if wallet is None:
+            return
+        wallet.start_network(self.network)
+        self._wallets[path] = wallet
+        return wallet
+
+    @staticmethod
+    def _load_wallet(
+            path,
+            password,
+            *,
+            manual_upgrades: bool = True,
+            config: SimpleConfig,
+    ) -> Optional[Abstract_Wallet]:
+        path = standardize_path(path)
         storage = WalletStorage(path)
         if not storage.file_exists():
             return
@@ -547,11 +571,10 @@ class Daemon(Logger):
             return
         if db.get_action():
             return
-        wallet = Wallet(db, storage, config=self.config)
-        wallet.start_network(self.network)
-        self._wallets[path] = wallet
+        wallet = Wallet(db, storage, config=config)
         return wallet
 
+    @with_wallet_lock
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
         path = wallet.storage.path
         path = standardize_path(path)
@@ -561,6 +584,7 @@ class Daemon(Logger):
         path = standardize_path(path)
         return self._wallets.get(path)
 
+    @with_wallet_lock
     def get_wallets(self) -> Dict[str, Abstract_Wallet]:
         return dict(self._wallets)  # copy
 
@@ -577,6 +601,7 @@ class Daemon(Logger):
         fut = asyncio.run_coroutine_threadsafe(self._stop_wallet(path), self.asyncio_loop)
         return fut.result()
 
+    @with_wallet_lock
     async def _stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
         path = standardize_path(path)
@@ -642,3 +667,66 @@ class Daemon(Logger):
         finally:
             # app will exit now
             asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+
+    @with_wallet_lock
+    def _check_password_for_directory(self, *, old_password, new_password=None, wallet_dir: str) -> Tuple[bool, bool]:
+        """Checks password against all wallets (in dir), returns whether they can be unified and whether they are already.
+        If new_password is not None, update all wallet passwords to new_password.
+        """
+        assert os.path.exists(wallet_dir), f"path {wallet_dir!r} does not exist"
+        failed = []
+        is_unified = True
+        for filename in os.listdir(wallet_dir):
+            path = os.path.join(wallet_dir, filename)
+            path = standardize_path(path)
+            if not os.path.isfile(path):
+                continue
+            wallet = self.get_wallet(path)
+            if wallet is None:
+                try:
+                    wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
+                except util.InvalidPassword:
+                    pass
+                except Exception:
+                    self.logger.exception(f'failed to load wallet at {path!r}:')
+                    pass
+            if wallet is None:
+                failed.append(path)
+                continue
+            if not wallet.storage.is_encrypted():
+                is_unified = False
+            try:
+                wallet.check_password(old_password)
+            except Exception:
+                failed.append(path)
+                continue
+            if new_password:
+                self.logger.info(f'updating password for wallet: {path!r}')
+                wallet.update_password(old_password, new_password, encrypt_storage=True)
+        can_be_unified = failed == []
+        is_unified = can_be_unified and is_unified
+        return can_be_unified, is_unified
+
+    @with_wallet_lock
+    def update_password_for_directory(
+            self,
+            *,
+            old_password,
+            new_password,
+            wallet_dir: Optional[str] = None,
+    ) -> bool:
+        """returns whether password is unified"""
+        if new_password is None:
+            # we opened a non-encrypted wallet
+            return False
+        if wallet_dir is None:
+            wallet_dir = os.path.dirname(self.config.get_wallet_path())
+        can_be_unified, is_unified = self._check_password_for_directory(
+            old_password=old_password, new_password=None, wallet_dir=wallet_dir)
+        if not can_be_unified:
+            return False
+        if is_unified and old_password == new_password:
+            return True
+        self._check_password_for_directory(
+            old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
+        return True

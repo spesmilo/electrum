@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Optional, Union, Callable, Sequence
 from electrum_ltc.storage import WalletStorage, StorageReadWriteError
 from electrum_ltc.wallet_db import WalletDB
 from electrum_ltc.wallet import Wallet, InternalAddressCorruption, Abstract_Wallet
-from electrum_ltc.wallet import update_password_for_directory
 
 from electrum_ltc.plugin import run_hook
 from electrum_ltc import util
@@ -679,7 +678,8 @@ class ElectrumWindow(App, Logger, EventListener):
     def on_wizard_success(self, storage, db, password):
         self.password = password
         if self.electrum_config.get('single_password'):
-            self._use_single_password = update_password_for_directory(self.electrum_config, password, password)
+            self._use_single_password = self.daemon.update_password_for_directory(
+                old_password=password, new_password=password)
         self.logger.info(f'use single password: {self._use_single_password}')
         wallet = Wallet(db, storage, config=self.electrum_config)
         wallet.start_network(self.daemon.network)
@@ -1346,10 +1346,7 @@ class ElectrumWindow(App, Logger, EventListener):
             # called if old_password works on self.wallet
             self.password = new_password
             if self._use_single_password:
-                path = self.wallet.storage.path
-                self.stop_wallet()
-                update_password_for_directory(self.electrum_config, old_password, new_password)
-                self.load_wallet_by_name(path)
+                self.daemon.update_password_for_directory(old_password=old_password, new_password=new_password)
                 msg = _("Password updated successfully")
             else:
                 self.wallet.update_password(old_password, new_password)
