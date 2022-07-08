@@ -36,6 +36,10 @@ if TYPE_CHECKING:
 
 from .qeapp import ElectrumQmlApplication
 
+class UncaughtException(Exception):
+    pass
+
+
 class ElectrumGui(Logger):
 
     @profiler
@@ -71,12 +75,27 @@ class ElectrumGui(Logger):
         self.timer.setInterval(500)  # msec
         self.timer.timeout.connect(lambda: None) # periodically enter python scope
 
+        sys.excepthook = self.excepthook
+        threading.excepthook = self.texcepthook
+
         # Initialize any QML plugins
         run_hook('init_qml', self)
         self.app.engine.load('electrum/gui/qml/components/main.qml')
 
     def close(self):
         self.app.quit()
+
+    def excepthook(self, exc_type, exc_value, exc_tb):
+        tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        self.logger.exception(tb)
+        self.app._valid = False
+        self.close()
+
+    def texcepthook(self, arg):
+        tb = "".join(traceback.format_exception(arg.exc_type, arg.exc_value, arg.exc_tb))
+        self.logger.exception(tb)
+        self.app._valid = False
+        self.close()
 
     def main(self):
         if not self.app._valid:
