@@ -322,8 +322,8 @@ def main():
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
-        import importlib
-        android_gui = 'kivy' if importlib.find_loader('kivy') else 'qml'
+        import importlib.util
+        android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
         from jnius import autoclass
         build_config = autoclass("org.electrum.electrum.BuildConfig")
         config_options = {
