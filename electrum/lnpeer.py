@@ -2016,7 +2016,7 @@ class Peer(Logger):
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload, *, is_local: bool):
         # wait until no HTLCs remain in either commitment transaction
-        while len(chan.hm.htlcs(LOCAL)) + len(chan.hm.htlcs(REMOTE)) > 0:
+        while chan.has_unsettled_htlcs():
             self.logger.info(f'(chan: {chan.short_channel_id}) waiting for htlcs to settle...')
             await asyncio.sleep(1)
         # if no HTLCs remain, we must not send updates
