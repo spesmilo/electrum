@@ -202,8 +202,8 @@ class QEInvoiceParser(QEInvoice):
         self._logger.debug(str(lnaddr.get_routing_info('t')))
         return {
             'pubkey': lnaddr.pubkey.serialize().hex(),
-            't': lnaddr.get_routing_info('t')[0][0].hex(),
-            'r': lnaddr.get_routing_info('r')[0][0][0].hex()
+            't': '', #lnaddr.get_routing_info('t')[0][0].hex(),
+            'r': '' #lnaddr.get_routing_info('r')[0][0][0].hex()
         }
 
     @pyqtSlot()
