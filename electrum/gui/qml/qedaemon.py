@@ -79,7 +79,7 @@ class QEAvailableWalletListModel(QEWalletListModel):
         wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
         with os.scandir(wallet_folder) as it:
             for i in it:
-                if i.is_file():
+                if i.is_file() and not i.name.startswith('.'):
                     available.append(i.path)
         for path in sorted(available):
             wallet = self.daemon.get_wallet(path)
