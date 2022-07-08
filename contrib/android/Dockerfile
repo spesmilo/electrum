@@ -169,8 +169,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch accumulator/qt5-wip
-    && git checkout "64490fc4a7b1f727f1f07c86e1bdc6b291ffc6da^{commit}" \
+    # commit: from branch sombernight/qt5-wip
+    && git checkout "c6e39ae1fb4eb8d547eb70b26b89beda7e6ff4b6^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars

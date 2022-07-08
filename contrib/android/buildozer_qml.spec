@@ -13,18 +13,23 @@ package.domain = org.electrum
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,vs,fs,json,csv,so
+source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib,
+source.exclude_dirs = bin, build, dist, contrib, env,
     electrum/tests,
+    electrum/www,
     electrum/gui/qt,
     electrum/gui/kivy,
     packages/qdarkstyle,
-    packages/qtpy
+    packages/qtpy,
+    packages/bin,
+    packages/share,
+    packages/pkg_resources,
+    packages/setuptools
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
@@ -51,7 +56,9 @@ requirements =
     libsecp256k1,
     cryptography,
     pyqt5sip,
-    pyqt5
+    pyqt5,
+    pillow,
+    libzbar
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
