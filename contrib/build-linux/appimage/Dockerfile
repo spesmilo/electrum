@@ -16,9 +16,9 @@ RUN apt-get update -q && \
         libtool=2.4.6-2 \
         autopoint=0.19.8.1-6ubuntu0.3 \
         xz-utils=5.2.2-1.3 \
-        libssl-dev=1.1.1-1ubuntu2.1~18.04.19 \
-        libssl1.1=1.1.1-1ubuntu2.1~18.04.19 \
-        openssl=1.1.1-1ubuntu2.1~18.04.19 \
+        libssl-dev=1.1.1-1ubuntu2.1~18.04.20 \
+        libssl1.1=1.1.1-1ubuntu2.1~18.04.20 \
+        openssl=1.1.1-1ubuntu2.1~18.04.20 \
         zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
         libffi-dev=3.2.1-8 \
         libncurses5-dev=6.1-1ubuntu1.18.04 \
