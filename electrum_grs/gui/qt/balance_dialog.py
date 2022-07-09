@@ -171,7 +171,7 @@ class BalanceDialog(WindowModalDialog):
             (_('Frozen'), COLOR_FROZEN, frozen),
             (_('Unmatured'), COLOR_UNMATURED, unmatured),
             (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
-            (_('Confirmed'), COLOR_CONFIRMED, confirmed),
+            (_('On-chain'), COLOR_CONFIRMED, confirmed),
             (_('Lightning'), COLOR_LIGHTNING, lightning),
             (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
         ])
@@ -200,7 +200,7 @@ class BalanceDialog(WindowModalDialog):
             grid.addWidget(QLabel(unmatured_fiat_str), 3, 3, alignment=Qt.AlignRight)
         if confirmed:
             grid.addWidget(LegendWidget(COLOR_CONFIRMED), 1, 0)
-            grid.addWidget(QLabel(_("Confirmed") + ':'), 1, 1)
+            grid.addWidget(QLabel(_("On-chain") + ':'), 1, 1)
             grid.addWidget(QLabel(confirmed_str), 1, 2, alignment=Qt.AlignRight)
             grid.addWidget(QLabel(confirmed_fiat_str), 1, 3, alignment=Qt.AlignRight)
         if lightning:

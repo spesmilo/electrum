@@ -191,6 +191,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.request_list.update()  # after parented and put into a layout, can update without flickering
 
     def toggle_receive_qr(self, e):
+        if e.button() != Qt.LeftButton:
+            return
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()

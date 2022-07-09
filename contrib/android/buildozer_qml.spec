@@ -13,18 +13,23 @@ package.domain = org.groestlcoin
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,vs,fs,json,csv,so
+source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib,
+source.exclude_dirs = bin, build, dist, contrib, env,
     electrum_grs/tests,
+    electrum_grs/www,
     electrum_grs/gui/qt,
     electrum_grs/gui/kivy,
     packages/qdarkstyle,
-    packages/qtpy
+    packages/qtpy,
+    packages/bin,
+    packages/share,
+    packages/pkg_resources,
+    packages/setuptools
 
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*,
@@ -52,6 +57,8 @@ requirements =
     cryptography,
     pyqt5sip,
     pyqt5,
+    pillow,
+    libzbar,
     groestlcoin_hash==1.0.1
 
 # (str) Presplash of the application

@@ -322,14 +322,17 @@ def main():
 
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
-        from jnius import autoclass
-        build_config = autoclass("org.groestlcoin.electrumgrs.BuildConfig")
+        import importlib.util
+        android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
         config_options = {
-            'verbosity': '*' if build_config.DEBUG else '',
+            'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
-            'gui': 'kivy',
+            'gui': android_gui,
             'single_password':True,
         }
+        if util.get_android_package_name() == "org.groestlcoin.testnet.electrumgrs":
+            # ~hack for easier testnet builds. pkgname subject to change.
+            config_options['testnet'] = True
     else:
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()

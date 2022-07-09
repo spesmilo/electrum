@@ -146,6 +146,8 @@ class WalletStorage(Logger):
 
     @staticmethod
     def get_eckey_from_password(password):
+        if password is None:
+            password = ""
         secret = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), b'', iterations=1024)
         ec_key = ecc.ECPrivkey.from_arbitrary_size_secret(secret)
         return ec_key
@@ -160,6 +162,7 @@ class WalletStorage(Logger):
             raise WalletFileException('no encryption magic for version: %s' % v)
 
     def decrypt(self, password) -> None:
+        """Raises an InvalidPassword exception on invalid password"""
         if self.is_past_initial_decryption():
             return
         ec_key = self.get_eckey_from_password(password)

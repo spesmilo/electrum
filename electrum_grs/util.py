@@ -444,7 +444,8 @@ def android_ext_dir():
     return primary_external_storage_path()
 
 def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.groestlcoin.electrumgrs')
+    pkgname = get_android_package_name()
+    d = os.path.join(android_ext_dir(), pkgname)
     if not os.path.exists(d):
         os.mkdir(d)
     return d
@@ -509,6 +510,26 @@ def get_new_wallet_name(wallet_folder: str) -> str:
         else:
             break
     return filename
+
+
+def is_android_debug_apk() -> bool:
+    is_android = 'ANDROID_DATA' in os.environ
+    if not is_android:
+        return False
+    from jnius import autoclass
+    pkgname = get_android_package_name()
+    build_config = autoclass(f"{pkgname}.BuildConfig")
+    return bool(build_config.DEBUG)
+
+
+def get_android_package_name() -> str:
+    is_android = 'ANDROID_DATA' in os.environ
+    assert is_android
+    from jnius import autoclass
+    from android.config import ACTIVITY_CLASS_NAME
+    activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
+    pkgname = str(activity.getPackageName())
+    return pkgname
 
 
 def assert_bytes(*args):

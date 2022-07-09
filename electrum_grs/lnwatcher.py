@@ -273,6 +273,11 @@ class LNWatcher(Logger, EventListener):
                 return result
             o = spender_tx.inputs()[0]
             witness = o.witness_elements()
+            if not witness:
+                # This can happen if spender_tx is a local unsigned tx in the wallet history, e.g.:
+                # channel is coop-closed, outpoint is for our coop-close output, and spender_tx is an
+                # arbitrary wallet-spend.
+                return result
             redeem_script = witness[-1]
             if match_script_against_template(redeem_script, WITNESS_TEMPLATE_OFFERED_HTLC):
                 #self.logger.info(f"input script matches offered htlc {redeem_script.hex()}")

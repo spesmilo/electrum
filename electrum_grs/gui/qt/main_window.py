@@ -964,9 +964,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                     (_('Frozen'), COLOR_FROZEN, frozen),
                     (_('Unmatured'), COLOR_UNMATURED, unmatured),
                     (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
-                    (_('Confirmed'), COLOR_CONFIRMED, confirmed),
+                    (_('On-chain'), COLOR_CONFIRMED, confirmed),
                     (_('Lightning'), COLOR_LIGHTNING, lightning),
-                    (_('Lightning (frozen)'), COLOR_FROZEN_LIGHTNING, f_lightning),
+                    (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
                 ])
                 balance = confirmed + unconfirmed + unmatured + frozen + lightning + f_lightning
                 balance_text =  _("Balance") + ": %s "%(self.format_amount_and_units(balance))
