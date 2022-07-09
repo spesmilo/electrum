@@ -954,7 +954,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def save_invoice(self, invoice: Invoice) -> None:
         key = self.get_key_for_outgoing_invoice(invoice)
         if not invoice.is_lightning():
-            if self.is_onchain_invoice_paid(invoice, 0):
+            if self.is_onchain_invoice_paid(invoice)[0]:
                 _logger.info("saving invoice... but it is already paid!")
             with self.transaction_lock:
                 for txout in invoice.get_outputs():
@@ -1034,38 +1034,45 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
-    def _is_onchain_invoice_paid(self, invoice: Invoice, conf: int) -> Tuple[bool, Sequence[str]]:
-        """Returns whether on-chain invoice is satisfied, and list of relevant TXIDs."""
-        if invoice.is_lightning() and not invoice.get_address():
-            return False, []
+    def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
+        """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
+        and list of relevant TXIDs.
+        """
         outputs = invoice.get_outputs()
+        if not outputs:  # e.g. lightning-only
+            return False, None, []
         invoice_amounts = defaultdict(int)  # type: Dict[bytes, int]  # scriptpubkey -> value_sats
         for txo in outputs:  # type: PartialTxOutput
             invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
-        relevant_txs = []
+        relevant_txs = set()
+        is_paid = True
+        conf_needed = None  # type: Optional[int]
         with self.lock, self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
                 scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey.hex())
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
-                total_received = 0
+                confs_and_values = []
                 for prevout, v in prevouts_and_values:
+                    relevant_txs.add(prevout.txid.hex())
                     tx_height = self.adb.get_tx_height(prevout.txid.hex())
-                    if tx_height.height > 0 and tx_height.height <= invoice.height:
+                    if 0 < tx_height.height <= invoice.height:  # exclude txs older than invoice
                         continue
-                    if tx_height.conf < conf:
-                        continue
-                    total_received += v
-                    relevant_txs.append(prevout.txid.hex())
+                    confs_and_values.append((tx_height.conf or 0, v))
                 # check that there is at least one TXO, and that they pay enough.
                 # note: "at least one TXO" check is needed for zero amount invoice (e.g. OP_RETURN)
-                if len(prevouts_and_values) == 0:
-                    return False, []
-                if total_received < invoice_amt:
-                    return False, []
-        return True, relevant_txs
+                vsum = 0
+                for conf, v in reversed(sorted(confs_and_values)):
+                    vsum += v
+                    if vsum >= invoice_amt:
+                        conf_needed = min(conf_needed, conf) if conf_needed is not None else conf
+                        break
+                else:
+                    is_paid = False
+        return is_paid, conf_needed, list(relevant_txs)
 
-    def is_onchain_invoice_paid(self, invoice: Invoice, conf: int) -> bool:
-        return self._is_onchain_invoice_paid(invoice, conf)[0]
+    def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
+        is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
+        return is_paid, conf_needed
 
     def _maybe_set_tx_label_based_on_invoices(self, tx: Transaction) -> bool:
         # note: this is not done in 'get_default_label' as that would require deserializing each tx
@@ -2263,27 +2270,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_onchain_request_status(self, r: Invoice) -> Tuple[bool, Optional[int]]:
-        address = r.get_address()
-        amount = int(r.get_amount_sat() or 0)
-        received, sent = self.adb.get_addr_io(address)
-        l = []
-        for txo, x in received.items():
-            h, v, is_cb = x
-            txid, n = txo.split(':')
-            tx_height = self.adb.get_tx_height(txid)
-            height = tx_height.height
-            if height > 0 and height <= r.height:
-                continue
-            conf = tx_height.conf
-            l.append((conf, v))
-        vsum = 0
-        for conf, v in reversed(sorted(l)):
-            vsum += v
-            if vsum >= amount:
-                return True, conf
-        return False, None
-
     def get_request_URI(self, req: Invoice) -> str:
         # todo: should be a method of invoice?
         addr = req.get_address()
@@ -2309,20 +2295,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return status
 
     def get_invoice_status(self, invoice: Invoice):
+        """Returns status of (outgoing) invoice."""
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
             if status != PR_UNPAID:
                 return self.check_expired_status(invoice, status)
-        if self.is_onchain_invoice_paid(invoice, 1):
-            status = PR_PAID
-        elif self.is_onchain_invoice_paid(invoice, 0):
+        paid, conf = self.is_onchain_invoice_paid(invoice)
+        if not paid:
+            status = PR_UNPAID
+        elif conf == 0:
             status = PR_UNCONFIRMED
         else:
-            status = PR_UNPAID
+            assert conf >= 1, conf
+            status = PR_PAID
         return self.check_expired_status(invoice, status)
 
     def get_request_status(self, key):
+        """Returns status of (incoming) receive request."""
         r = self.get_request(key)
         if r is None:
             return PR_UNKNOWN
@@ -2330,12 +2320,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = self.lnworker.get_payment_status(bfh(r.rhash))
             if status != PR_UNPAID:
                 return self.check_expired_status(r, status)
-        paid, conf = self.get_onchain_request_status(r)
+        paid, conf = self.is_onchain_invoice_paid(r)
         if not paid:
             status = PR_UNPAID
         elif conf == 0:
             status = PR_UNCONFIRMED
         else:
+            assert conf >= 1, conf
             status = PR_PAID
         return self.check_expired_status(r, status)
 
@@ -2373,7 +2364,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         else:
-            paid, conf = self.get_onchain_request_status(x)
+            paid, conf = self.is_onchain_invoice_paid(x)
             d['amount_sat'] = int(x.get_amount_sat())
             d['address'] = x.get_address()
             d['URI'] = self.get_request_URI(x)
