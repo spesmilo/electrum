@@ -215,4 +215,4 @@ class QEDaemon(AuthMixin, QObject):
     def set_password(self, password):
         assert self._use_single_password
         self._logger.debug('about to set password to %s for ALL wallets' % password)
-        update_password_for_directory(self.daemon.config, self._password, password)
+        self.daemon.update_password_for_directory(old_password=self._password, new_password=password)

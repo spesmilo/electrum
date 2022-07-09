@@ -17,6 +17,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.invoices import (Invoice, InvoiceError,
                                PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID,
                                PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED)
+from electrum.network import TxBroadcastError, BestEffortRequestFailed
 
 from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
