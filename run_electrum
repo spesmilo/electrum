@@ -330,6 +330,9 @@ def main():
             'gui': android_gui,
             'single_password':True,
         }
+        if util.get_android_package_name() == "org.electrum.testnet.electrum":
+            # ~hack for easier testnet builds. pkgname subject to change.
+            config_options['testnet'] = True
     else:
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
