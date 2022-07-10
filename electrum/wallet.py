@@ -2474,7 +2474,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """Return the key to use for this invoice in self.receive_requests."""
         # FIXME: this should be a method of Invoice
         if not req.is_lightning():
-            addr = req.get_address()
+            addr = req.get_address() or ""
             if sanity_checks:
                 if not bitcoin.is_address(addr):
                     raise Exception(_('Invalid Bitcoin address.'))

@@ -117,7 +117,7 @@ class Invoice(StoredObject):
                 status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
         return status_str
 
-    def get_address(self) -> str:
+    def get_address(self) -> Optional[str]:
         """returns the first address, to be displayed in GUI"""
         if self.is_lightning():
             return self._lnaddr.get_fallback_address() or None
