@@ -2402,7 +2402,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
-            amount_sat = int(x.get_amount_sat())
+            amount_sat = x.get_amount_sat()
             assert isinstance(amount_sat, (int, str, type(None)))
             d['amount_sat'] = amount_sat
             d['outputs'] = [y.to_legacy_tuple() for y in x.get_outputs()]
