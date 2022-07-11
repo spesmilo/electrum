@@ -2424,12 +2424,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
 
-    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str, lightning: bool):
+    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str):
         # for receiving
         amount_sat = amount_sat or 0
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
+        lightning = self.has_lightning()
         if lightning:
             lightning_invoice = self.lnworker.add_request(
                 amount_sat=amount_sat,
