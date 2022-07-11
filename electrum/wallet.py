@@ -40,7 +40,7 @@ from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union, NamedTuple, Sequence, Dict, Any, Set, Iterable
 from abc import ABC, abstractmethod
 import itertools
 import threading
@@ -830,19 +830,31 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_addr_balance(self, address):
         return self.adb.get_balance([address])
 
-    def get_utxos(self, **kwargs):
-        domain = self.get_addresses()
+    def get_utxos(
+            self,
+            domain: Optional[Iterable[str]] = None,
+            **kwargs,
+    ):
+        if domain is None:
+            domain = self.get_addresses()
         return self.adb.get_utxos(domain=domain, **kwargs)
 
-    def get_spendable_coins(self, domain, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
+    def get_spendable_coins(
+            self,
+            domain: Optional[Iterable[str]] = None,
+            *,
+            nonlocal_only: bool = False,
+    ) -> Sequence[PartialTxInput]:
         confirmed_only = self.config.get('confirmed_only', False)
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
         utxos = self.get_utxos(
-                               excluded_addresses=frozen_addresses,
-                               mature_only=True,
-                               confirmed_funding_only=confirmed_only,
-                               nonlocal_only=nonlocal_only)
+            domain=domain,
+            excluded_addresses=frozen_addresses,
+            mature_only=True,
+            confirmed_funding_only=confirmed_only,
+            nonlocal_only=nonlocal_only,
+        )
         utxos = [utxo for utxo in utxos if not self.is_frozen_coin(utxo)]
         return utxos
 
