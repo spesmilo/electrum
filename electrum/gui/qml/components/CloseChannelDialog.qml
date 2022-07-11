@@ -72,9 +72,15 @@ Dialog {
             }
             RadioButton {
                 ButtonGroup.group: closetypegroup
-                property string closetype: 'force'
+                property string closetype: 'remote_force'
                 enabled: !closing && channeldetails.canForceClose
                 text: qsTr('Request Force-close')
+            }
+            RadioButton {
+                ButtonGroup.group: closetypegroup
+                property string closetype: 'local_force'
+                enabled: !closing && channeldetails.canForceClose
+                text: qsTr('Local Force-close')
             }
         }
 

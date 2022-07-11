@@ -120,22 +120,12 @@ class ChannelsList(MyTreeView):
 
     def close_channel(self, channel_id):
         self.is_force_close = False
-        msg = _('Close channel?')
-        force_cb = QCheckBox('Request force close from remote peer')
-        tooltip = _(messages.MSG_REQUEST_FORCE_CLOSE)
-        tooltip = messages.to_rtf(tooltip)
-        def on_checked(b):
-            self.is_force_close = bool(b)
-        force_cb.stateChanged.connect(on_checked)
-        force_cb.setToolTip(tooltip)
-        if not self.parent.question(msg, checkbox=force_cb):
+        msg = _('Cooperative close?')
+        msg += '\n' + _(messages.MSG_COOPERATIVE_CLOSE)
+        if not self.parent.question(msg):
             return
-        if self.is_force_close:
-            coro = self.lnworker.request_force_close(channel_id)
-            on_success = self.on_request_sent
-        else:
-            coro = self.lnworker.close_channel(channel_id)
-            on_success = self.on_channel_closed
+        coro = self.lnworker.close_channel(channel_id)
+        on_success = self.on_channel_closed
         def task():
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
@@ -184,6 +174,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         msg = _('Request force-close from remote peer?')
+        msg += '\n' + _(messages.MSG_REQUEST_FORCE_CLOSE)
         if not self.parent.question(msg):
             return
         def task():

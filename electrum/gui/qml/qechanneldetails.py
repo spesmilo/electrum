@@ -164,8 +164,10 @@ class QEChannelDetails(QObject, QtEventListener):
     def close_channel(self, closetype):
         async def do_close(closetype, channel_id):
             try:
-                if closetype == 'force':
+                if closetype == 'remote_force':
                     await self._wallet.wallet.lnworker.request_force_close(channel_id)
+                elif closetype == 'local_force':
+                    await self._wallet.wallet.lnworker.force_close_channel(channel_id)
                 else:
                     await self._wallet.wallet.lnworker.close_channel(channel_id)
                 self.channelCloseSuccess.emit()
