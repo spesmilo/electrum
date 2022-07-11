@@ -10,7 +10,7 @@ import webbrowser
 from decimal import Decimal
 from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable)
+                    Sequence, Iterable, Tuple)
 
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
                          QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent)
@@ -845,6 +845,14 @@ class MySortModel(QSortFilterProxyModel):
             return v1 < v2
 
 
+def get_iconname_qrcode() -> str:
+    return "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
+
+
+def get_iconname_camera() -> str:
+    return "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
+
+
 class OverlayControlMixin:
     STYLE_SHEET_COMMON = '''
     QPushButton { border-width: 1px; padding: 0px; margin: 0px; }
@@ -916,13 +924,11 @@ class OverlayControlMixin:
             *,
             setText: Callable[[str], None] = None,
     ):
-        if setText is None:
-            setText = self.setText
-        def on_paste():
-            app = QApplication.instance()
-            setText(app.clipboard().text())
-
-        self.addButton("copy.png", on_paste, _("Paste from clipboard"))
+        input_paste_from_clipboard = partial(
+            self.input_paste_from_clipboard,
+            setText=setText,
+        )
+        self.addButton("copy.png", input_paste_from_clipboard, _("Paste from clipboard"))
 
     def add_qr_show_button(self, *, config: 'SimpleConfig', title: Optional[str] = None):
         if title is None:
@@ -943,12 +949,11 @@ class OverlayControlMixin:
                 config=config,
             ).exec_()
 
-        icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        self.addButton(icon, qr_show, _("Show as QR code"))
+        self.addButton(get_iconname_qrcode(), qr_show, _("Show as QR code"))
         # side-effect: we export this method:
         self.on_qr_show_btn = qr_show
 
-    def add_qr_input_button(
+    def add_qr_input_combined_button(
             self,
             *,
             config: 'SimpleConfig',
@@ -956,58 +961,49 @@ class OverlayControlMixin:
             show_error: Callable[[str], None],
             setText: Callable[[str], None] = None,
     ):
-        if setText is None:
-            setText = self.setText
-        def qr_from_camera_input() -> None:
-            def cb(success: bool, error: str, data):
-                if not success:
-                    if error:
-                        show_error(error)
-                    return
-                if not data:
-                    data = ''
-                if allow_multi:
-                    new_text = self.text() + data + '\n'
-                else:
-                    new_text = data
-                setText(new_text)
-
-            from .qrreader import scan_qrcode
-            scan_qrcode(parent=self, config=config, callback=cb)
-
-        def qr_from_screenshot_input() -> None:
-            from .qrreader import scan_qr_from_image
-            scanned_qr = None
-            for screen in QApplication.instance().screens():
-                try:
-                    scan_result = scan_qr_from_image(screen.grabWindow(0).toImage())
-                except MissingQrDetectionLib as e:
-                    show_error(_("Unable to scan image.") + "\n" + repr(e))
-                    return
-                if len(scan_result) > 0:
-                    if (scanned_qr is not None) or len(scan_result) > 1:
-                        show_error(_("More than one QR code was found on the screen."))
-                        return
-                    scanned_qr = scan_result
-            if scanned_qr is None:
-                show_error(_("No QR code was found on the screen."))
-                return
-            data = scanned_qr[0].data
-            if allow_multi:
-                new_text = self.text() + data + '\n'
-            else:
-                new_text = data
-            setText(new_text)
-
-        icon = "camera_white.png" if ColorScheme.dark_scheme else "camera_dark.png"
-        btn = self.addButton(icon, lambda: None, _("Read QR code"))
-        menu = QMenu()
-        menu.addAction(_("Read QR code from camera"), qr_from_camera_input)
-        menu.addAction(_("Read QR code from screen"), qr_from_screenshot_input)
-        btn.setMenu(menu)
+        input_qr_from_camera = partial(
+            self.input_qr_from_camera,
+            config=config,
+            allow_multi=allow_multi,
+            show_error=show_error,
+            setText=setText,
+        )
+        input_qr_from_screenshot = partial(
+            self.input_qr_from_screenshot,
+            allow_multi=allow_multi,
+            show_error=show_error,
+            setText=setText,
+        )
+        self.add_menu_button(
+            icon=get_iconname_camera(),
+            tooltip=_("Read QR code"),
+            options=[
+                (get_iconname_camera(),    _("Read QR code from camera"), input_qr_from_camera),
+                ("picture_in_picture.png", _("Read QR code from screen"), input_qr_from_screenshot),
+            ],
+        )
         # side-effect: we export these methods:
-        self.on_qr_from_camera_input_btn = qr_from_camera_input
-        self.on_qr_from_screenshot_input_btn = qr_from_screenshot_input
+        self.on_qr_from_camera_input_btn = input_qr_from_camera
+        self.on_qr_from_screenshot_input_btn = input_qr_from_screenshot
+
+    def add_qr_input_from_camera_button(
+            self,
+            *,
+            config: 'SimpleConfig',
+            allow_multi: bool = False,
+            show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
+    ):
+        input_qr_from_camera = partial(
+            self.input_qr_from_camera,
+            config=config,
+            allow_multi=allow_multi,
+            show_error=show_error,
+            setText=setText,
+        )
+        self.addButton(get_iconname_camera(), input_qr_from_camera, _("Read QR code from camera"))
+        # side-effect: we export these methods:
+        self.on_qr_from_camera_input_btn = input_qr_from_camera
 
     def add_file_input_button(
             self,
@@ -1016,30 +1012,130 @@ class OverlayControlMixin:
             show_error: Callable[[str], None],
             setText: Callable[[str], None] = None,
     ) -> None:
+        input_file = partial(
+            self.input_file,
+            config=config,
+            show_error=show_error,
+            setText=setText,
+        )
+        self.addButton("file.png", input_file, _("Read file"))
+
+    def add_menu_button(
+            self,
+            *,
+            options: Sequence[Tuple[Optional[str], str, Callable[[], None]]],  # list of (icon, text, cb)
+            icon: Optional[str] = None,
+            tooltip: Optional[str] = None,
+    ):
+        if icon is None:
+            icon = "menu_vertical_white.png" if ColorScheme.dark_scheme else "menu_vertical.png"
+        if tooltip is None:
+            tooltip = _("Other options")
+        btn = self.addButton(icon, lambda: None, tooltip)
+        menu = QMenu()
+        for opt_icon, opt_text, opt_cb in options:
+            if opt_icon is None:
+                menu.addAction(opt_text, opt_cb)
+            else:
+                menu.addAction(read_QIcon(opt_icon), opt_text, opt_cb)
+        btn.setMenu(menu)
+
+    def input_qr_from_camera(
+            self,
+            *,
+            config: 'SimpleConfig',
+            allow_multi: bool = False,
+            show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
+    ) -> None:
         if setText is None:
             setText = self.setText
-        def file_input():
-            fileName = getOpenFileName(
-                parent=self,
-                title='select file',
-                config=config,
-            )
-            if not fileName:
+        def cb(success: bool, error: str, data):
+            if not success:
+                if error:
+                    show_error(error)
                 return
-            try:
-                try:
-                    with open(fileName, "r") as f:
-                        data = f.read()
-                except UnicodeError as e:
-                    with open(fileName, "rb") as f:
-                        data = f.read()
-                    data = data.hex()
-            except BaseException as e:
-                show_error(_('Error opening file') + ':\n' + repr(e))
+            if not data:
+                data = ''
+            if allow_multi:
+                new_text = self.text() + data + '\n'
             else:
-                setText(data)
+                new_text = data
+            setText(new_text)
 
-        self.addButton("file.png", file_input, _("Read file"))
+        from .qrreader import scan_qrcode
+        scan_qrcode(parent=self, config=config, callback=cb)
+
+    def input_qr_from_screenshot(
+            self,
+            *,
+            allow_multi: bool = False,
+            show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
+    ) -> None:
+        if setText is None:
+            setText = self.setText
+        from .qrreader import scan_qr_from_image
+        scanned_qr = None
+        for screen in QApplication.instance().screens():
+            try:
+                scan_result = scan_qr_from_image(screen.grabWindow(0).toImage())
+            except MissingQrDetectionLib as e:
+                show_error(_("Unable to scan image.") + "\n" + repr(e))
+                return
+            if len(scan_result) > 0:
+                if (scanned_qr is not None) or len(scan_result) > 1:
+                    show_error(_("More than one QR code was found on the screen."))
+                    return
+                scanned_qr = scan_result
+        if scanned_qr is None:
+            show_error(_("No QR code was found on the screen."))
+            return
+        data = scanned_qr[0].data
+        if allow_multi:
+            new_text = self.text() + data + '\n'
+        else:
+            new_text = data
+        setText(new_text)
+
+    def input_file(
+            self,
+            *,
+            config: 'SimpleConfig',
+            show_error: Callable[[str], None],
+            setText: Callable[[str], None] = None,
+    ) -> None:
+        if setText is None:
+            setText = self.setText
+        fileName = getOpenFileName(
+            parent=self,
+            title='select file',
+            config=config,
+        )
+        if not fileName:
+            return
+        try:
+            try:
+                with open(fileName, "r") as f:
+                    data = f.read()
+            except UnicodeError as e:
+                with open(fileName, "rb") as f:
+                    data = f.read()
+                data = data.hex()
+        except BaseException as e:
+            show_error(_('Error opening file') + ':\n' + repr(e))
+        else:
+            setText(data)
+
+    def input_paste_from_clipboard(
+            self,
+            *,
+            setText: Callable[[str], None] = None,
+    ) -> None:
+        if setText is None:
+            setText = self.setText
+        app = QApplication.instance()
+        setText(app.clipboard().text())
 
 
 class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
