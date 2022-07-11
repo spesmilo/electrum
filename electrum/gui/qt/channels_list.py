@@ -183,6 +183,9 @@ class ChannelsList(MyTreeView):
                                      show_copy_text_btn=True)
 
     def request_force_close(self, channel_id):
+        msg = _('Request force-close from remote peer?')
+        if not self.parent.question(msg):
+            return
         def task():
             coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
@@ -239,19 +242,9 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        chan = self.lnworker.channel_backups.get(channel_id)
-        if chan:
-            funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
-            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-            if close_opts := chan.get_close_options():
-                if ChanCloseOption.REQUEST_REMOTE_FCLOSE in close_opts:
-                    menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            if chan.can_be_deleted():
-                menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
-            menu.exec_(self.viewport().mapToGlobal(position))
-            return
-        chan = self.lnworker.channels[channel_id]
-        menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
+        chan = self.lnworker.channel_backups.get(channel_id) or self.lnworker.channels[channel_id]
+        if not chan.is_backup():
+            menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
         funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
         if funding_tx:
             menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
@@ -263,13 +256,12 @@ class ChannelsList(MyTreeView):
                 if closing_tx:
                     menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
         menu.addSeparator()
-
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
             chan.node_id.hex(), title=_("Node ID")))
         cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(
             channel_id.hex(), title=_("Long Channel ID")))
-        if not chan.is_closed():
+        if not chan.is_backup() and not chan.is_closed():
             fm = menu.addMenu(_("Freeze"))
             if not chan.is_frozen_for_sending():
                 fm.addAction(_("Freeze for sending"), lambda: self.freeze_channel_for_sending(chan, True))
@@ -285,10 +277,16 @@ class ChannelsList(MyTreeView):
                 cm.addAction(_("Cooperative close"), lambda: self.close_channel(channel_id))
             if ChanCloseOption.LOCAL_FCLOSE in close_opts:
                 cm.addAction(_("Force-close"), lambda: self.force_close(channel_id))
-        menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
+            if ChanCloseOption.REQUEST_REMOTE_FCLOSE in close_opts:
+                cm.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
+        if not chan.is_backup():
+            menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
         if chan.can_be_deleted():
             menu.addSeparator()
-            menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
+            if chan.is_backup():
+                menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
+            else:
+                menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
