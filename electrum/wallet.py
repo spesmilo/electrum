@@ -2348,6 +2348,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         status = self.get_request_status(key)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
+        address = x.get_address()
         d = {
             'is_lightning': is_lightning,
             'amount_BTC': format_satoshis(x.get_amount_sat()),
@@ -2363,10 +2364,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
-        else:
+        if address:
             paid, conf = self.is_onchain_invoice_paid(x)
             d['amount_sat'] = int(x.get_amount_sat())
-            d['address'] = x.get_address()
+            d['address'] = address
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
                 d['confirmations'] = conf
