@@ -241,7 +241,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 node_alias = node_info.alias
         else:
             for k, v in hardcoded_trampoline_nodes().items():
-                if v.pubkey == node_id:
+                if v.pubkey.startswith(node_id):
                     node_alias = k
                     break
         return node_alias
