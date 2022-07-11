@@ -469,7 +469,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                     return
                 addr = self.wallet.create_new_address(False)
 
-        req_key = self.wallet.create_request(amount, message, expiration, addr, False)
+        req_key = self.wallet.create_request(amount, message, expiration, addr)
         #try:
             #self.wallet.add_payment_request(req)
         #except Exception as e:
@@ -486,6 +486,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
+        # TODO: unify this method and create_bitcoin_request
         try:
             if is_lightning:
                 if not self.wallet.lnworker.channels:
@@ -494,7 +495,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
                 # TODO fallback address robustness
                 addr = self.wallet.get_unused_address()
-                key = self.wallet.create_request(amount.satsInt, message, expiration, addr, True)
+                key = self.wallet.create_request(amount.satsInt, message, expiration, addr)
             else:
                 key, addr = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap)
                 if not key:

@@ -12,9 +12,10 @@ Note that static backups only allow you to request a force-close with the remote
 If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum.
 """
 
-MSG_REQUEST_FORCE_CLOSE = """
-You may choose to initiate a cooperative close, or request the remote peer to force close the channel.
+MSG_COOPERATIVE_CLOSE = """
+Your node will negotiate the transaction fee with the remote node. This method of closing the channel usually results in the lowest fees."""
 
+MSG_REQUEST_FORCE_CLOSE = """
 If you request a force-close, your node will pretend that it has lost its data and ask the remote node to broadcast their latest state. Doing so from time to time helps make sure that nodes are honest, because your node can punish them if they broadcast a revoked state."""
 
 MSG_CREATED_NON_RECOVERABLE_CHANNEL = """
