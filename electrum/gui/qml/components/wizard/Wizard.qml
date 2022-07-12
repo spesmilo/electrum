@@ -5,6 +5,7 @@ import QtQuick.Controls 2.1
 Dialog {
     id: wizard
     modal: true
+    focus: true
 
     width: parent.width
     height: parent.height
