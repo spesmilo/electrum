@@ -325,9 +325,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             self.window.address_list.update()
 
         # generate even if we cannot receive
-        lightning = self.wallet.has_lightning()
         try:
-            key = self.wallet.create_request(amount_sat, message, expiry, address, lightning=lightning)
+            key = self.wallet.create_request(amount_sat, message, expiry, address)
         except InvoiceError as e:
             self.show_error(_('Error creating payment request') + ':\n' + str(e))
             return

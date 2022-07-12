@@ -108,6 +108,7 @@ Pane {
         unlockButton.enabled = false
         _unlockClicked = true
         wallet_db.password = password.text
+        wallet_db.verify()
         openwalletdialog.forceActiveFocus()
     }
     
@@ -132,6 +133,7 @@ Pane {
     }
     
     Component.onCompleted: {
+        wallet_db.verify()
         password.forceActiveFocus()
     }
 }

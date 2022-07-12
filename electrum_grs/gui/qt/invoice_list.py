@@ -82,7 +82,7 @@ class InvoiceList(MyTreeView):
 
     def refresh_row(self, key, row):
         assert row is not None
-        invoice = self.wallet.invoices.get(key)
+        invoice = self.wallet.get_invoice(key)
         if invoice is None:
             return
         model = self.std_model
@@ -141,7 +141,7 @@ class InvoiceList(MyTreeView):
         items = self.selected_in_column(0)
         if len(items)>1:
             keys = [item.data(ROLE_REQUEST_ID) for item in items]
-            invoices = [wallet.invoices.get(key) for key in keys]
+            invoices = [wallet.get_invoice(key) for key in keys]
             can_batch_pay = all([not i.is_lightning() and wallet.get_invoice_status(i) == PR_UNPAID for i in invoices])
             menu = QMenu(self)
             if can_batch_pay:

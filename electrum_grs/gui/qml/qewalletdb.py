@@ -59,10 +59,6 @@ class QEWalletDB(QObject):
         self.reset()
         self._path = wallet_path
 
-        self.load_storage()
-        if self._storage:
-            self.load_db()
-
         self.pathChanged.emit(self._ready)
 
     @pyqtProperty(bool, notify=needsPasswordChanged)
@@ -101,12 +97,6 @@ class QEWalletDB(QObject):
         self._password = wallet_password
         self.passwordChanged.emit()
 
-        self.load_storage()
-
-        if self._storage:
-            self.needsPassword = False
-            self.load_db()
-
     @pyqtProperty(bool, notify=requiresSplitChanged)
     def requiresSplit(self):
         return self._requiresSplit
@@ -125,6 +115,11 @@ class QEWalletDB(QObject):
     def ready(self):
         return self._ready
 
+    @pyqtSlot()
+    def verify(self):
+        self.load_storage()
+        if self._storage:
+            self.load_db()
 
     @pyqtSlot()
     def doSplit(self):
@@ -177,11 +172,15 @@ class QEWalletDB(QObject):
         self._ready = True
         self.readyChanged.emit()
 
-    @pyqtSlot('QJSValue')
-    def create_storage(self, js_data):
+    @pyqtSlot('QJSValue',bool,str)
+    def create_storage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
         data = js_data.toVariant()
         self._logger.debug(str(data))
+
+        if single_password_enabled and single_password:
+            data['encrypt'] = True
+            data['password'] = single_password
 
         try:
             path = os.path.join(os.path.dirname(self.daemon.config.get_wallet_path()), data['wallet_name'])
@@ -198,8 +197,12 @@ class QEWalletDB(QObject):
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
+            else:
+                raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
 
             if data['encrypt']:
+                if k.may_have_password():
+                    k.update_password(None, data['password'])
                 storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
 
             db = WalletDB('', manual_upgrades=False)
@@ -209,7 +212,7 @@ class QEWalletDB(QObject):
             db.put('seed_type', data['seed_type'])
             db.put('keystore', k.dump())
             if k.can_have_deterministic_lightning_xprv():
-                db.put('lightning_xprv', k.get_lightning_xprv(None))
+                db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
 
             db.load_plugins()
             db.write(storage)

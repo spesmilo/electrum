@@ -957,7 +957,7 @@ class Commands:
                 return False
         amount = satoshis(amount)
         expiration = int(expiration) if expiration else None
-        key = wallet.create_request(amount, memo, expiration, addr, True)
+        key = wallet.create_request(amount, memo, expiration, addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
 

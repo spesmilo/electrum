@@ -1,8 +1,10 @@
+from typing import Optional
+
 import qrcode
 
 from PyQt5.QtGui import QColor, QPen
 import PyQt5.QtGui as QtGui
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget,
     QFileDialog,
@@ -20,6 +22,7 @@ class QRCodeWidget(QWidget):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
+        self._framesize = None  # type: Optional[int]
         self.setData(data)
 
 
@@ -64,6 +67,7 @@ class QRCodeWidget(QWidget):
         qp.begin(self)
         r = qp.viewport()
         framesize = min(r.width(), r.height())
+        self._framesize = framesize
         boxsize = int(framesize/(k + 2))
         if boxsize < 2:
             qp.drawText(0, 20, 'Cannot draw QR code:')
@@ -87,6 +91,15 @@ class QRCodeWidget(QWidget):
                                 boxsize - 1, boxsize - 1)
         qp.end()
 
+    def grab(self) -> QtGui.QPixmap:
+        """Overrides QWidget.grab to only include the QR code itself,
+        excluding horizontal/vertical stretch.
+        """
+        fsize = self._framesize
+        if fsize is None:
+            fsize = -1
+        rect = QRect(0, 0, fsize, fsize)
+        return QWidget.grab(self, rect)
 
 
 class QRDialog(WindowModalDialog):
@@ -109,14 +122,10 @@ class QRDialog(WindowModalDialog):
 
         qrw = QRCodeWidget(data)
         qrw.setMinimumSize(250, 250)
-        qr_hbox = QHBoxLayout()
-        qr_hbox.addWidget(qrw)
-        qr_hbox.addStretch(1)
-        vbox.addLayout(qr_hbox)
+        vbox.addWidget(qrw, 1)
 
         help_text = data if show_text else help_text
         if help_text:
-            qr_hbox.setContentsMargins(0, 0, 0, 44)
             text_label = WWLabel()
             text_label.setText(help_text)
             vbox.addWidget(text_label)
@@ -165,3 +174,8 @@ class QRDialog(WindowModalDialog):
 
         vbox.addLayout(hbox)
         self.setLayout(vbox)
+
+        # note: the word-wrap on the text_label is causing layout sizing issues.
+        #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
+        #       workaround:
+        self.setMinimumSize(self.sizeHint())

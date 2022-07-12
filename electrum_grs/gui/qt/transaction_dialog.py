@@ -53,7 +53,8 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem)
+                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
+                   get_iconname_qrcode)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -273,8 +274,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         action.triggered.connect(lambda: self.copy_to_clipboard(tx=gettx()))
         menu.addAction(action)
 
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
+        action = QAction(read_QIcon(get_iconname_qrcode()), _("Show as QR code"), self)
         action.triggered.connect(lambda: self.show_qr(tx=gettx()))
         menu.addAction(action)
 

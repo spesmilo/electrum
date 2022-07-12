@@ -210,7 +210,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 node_alias = node_info.alias
         else:
             for k, v in hardcoded_trampoline_nodes().items():
-                if v.pubkey == node_id:
+                if v.pubkey.startswith(node_id):
                     node_alias = k
                     break
         return node_alias
@@ -2495,29 +2495,46 @@ class LNWallet(LNWorker):
             node_id = cb.node_id
             privkey = cb.privkey
             addresses = [(cb.host, cb.port, 0)]
-            # TODO also try network addresses from gossip db (as it might have changed)
         else:
             assert isinstance(cb, OnchainChannelBackupStorage)
-            if not self.channel_db:
-                raise Exception('Enable gossip first')
-            node_id = self.network.channel_db.get_node_by_prefix(cb.node_id_prefix)
             privkey = self.node_keypair.privkey
-            addresses = self.network.channel_db.get_node_addresses(node_id)
-            if not addresses:
-                raise Exception('Peer not found in gossip database')
-        for host, port, timestamp in addresses:
-            peer_addr = LNPeerAddr(host, port, node_id)
-            transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
-            peer = Peer(self, node_id, transport, is_channel_backup=True)
-            try:
-                async with OldTaskGroup(wait=any) as group:
-                    await group.spawn(peer._message_loop())
-                    await group.spawn(peer.request_force_close(channel_id))
-                return
-            except Exception as e:
-                self.logger.info(f'failed to connect {host} {e}')
-                continue
-        else:
+            for pubkey, peer_addr in trampolines_by_id().items():
+                if pubkey.startswith(cb.node_id_prefix):
+                    node_id = pubkey
+                    addresses = [(peer_addr.host, peer_addr.port, 0)]
+                    break
+            else:
+                # we will try with gossip (see below)
+                addresses = []
+
+        async def _request_fclose(addresses):
+            for host, port, timestamp in addresses:
+                peer_addr = LNPeerAddr(host, port, node_id)
+                transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
+                peer = Peer(self, node_id, transport, is_channel_backup=True)
+                try:
+                    async with OldTaskGroup(wait=any) as group:
+                        await group.spawn(peer._message_loop())
+                        await group.spawn(peer.request_force_close(channel_id))
+                    return True
+                except Exception as e:
+                    self.logger.info(f'failed to connect {host} {e}')
+                    continue
+            else:
+                return False
+        # try first without gossip db
+        success = await _request_fclose(addresses)
+        if success:
+            return
+        # try with gossip db
+        if not self.channel_db:
+            raise Exception(_('Please enable gossip'))
+        node_id = self.network.channel_db.get_node_by_prefix(cb.node_id_prefix)
+        addresses_from_gossip = self.network.channel_db.get_node_addresses(node_id)
+        if not addresses_from_gossip:
+            raise Exception('Peer not found in gossip database')
+        success = await _request_fclose(addresses_from_gossip)
+        if not success:
             raise Exception('failed to connect')
 
     def maybe_add_backup_from_tx(self, tx):

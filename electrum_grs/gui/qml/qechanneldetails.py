@@ -10,7 +10,7 @@ from electrum_grs.lnchannel import ChanCloseOption
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
+from .util import QtEventListener, qt_event_listener, event_listener
 
 class QEChannelDetails(QObject, QtEventListener):
 
@@ -28,7 +28,7 @@ class QEChannelDetails(QObject, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-    @qt_event_listener
+    @event_listener
     def on_event_channel(self, wallet, channel):
         if wallet == self._wallet.wallet and self._channelid == channel.channel_id.hex():
             self.channelChanged.emit()
@@ -164,8 +164,10 @@ class QEChannelDetails(QObject, QtEventListener):
     def close_channel(self, closetype):
         async def do_close(closetype, channel_id):
             try:
-                if closetype == 'force':
+                if closetype == 'remote_force':
                     await self._wallet.wallet.lnworker.request_force_close(channel_id)
+                elif closetype == 'local_force':
+                    await self._wallet.wallet.lnworker.force_close_channel(channel_id)
                 else:
                     await self._wallet.wallet.lnworker.close_channel(channel_id)
                 self.channelCloseSuccess.emit()

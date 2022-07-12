@@ -3,7 +3,7 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
 WizardComponent {
-    valid: password1.text === password2.text
+    valid: password1.text === password2.text && password1.text.length > 4
 
     onAccept: {
         wizard_data['password'] = password1.text

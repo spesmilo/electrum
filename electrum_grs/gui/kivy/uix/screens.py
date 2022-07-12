@@ -515,7 +515,7 @@ class ReceiveScreen(CScreen):
                     return
             self.address = addr
         try:
-            key = self.app.wallet.create_request(amount_sat, message, expiry, self.address, lightning=self.app.wallet.has_lightning())
+            key = self.app.wallet.create_request(amount_sat, message, expiry, self.address)
         except InvoiceError as e:
             self.app.show_error(_('Error creating payment request') + ':\n' + str(e))
             return

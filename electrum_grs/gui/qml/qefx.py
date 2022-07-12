@@ -9,7 +9,7 @@ from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.bitcoin import COIN
 
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener
+from .util import QtEventListener, qt_event_listener, event_listener
 
 class QEFX(QObject, QtEventListener):
     def __init__(self, fxthread: FxThread, config: SimpleConfig, parent=None):
@@ -26,13 +26,13 @@ class QEFX(QObject, QtEventListener):
     def on_destroy(self):
         self.unregister_callbacks()
 
-    @qt_event_listener
+    @event_listener
     def on_event_on_quotes(self, *args):
         self._logger.debug('new quotes')
         self.quotesUpdated.emit()
 
     historyUpdated = pyqtSignal()
-    @qt_event_listener
+    @event_listener
     def on_event_on_history(self, *args):
         self._logger.debug('new history')
         self.historyUpdated.emit()
