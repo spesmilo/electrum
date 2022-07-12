@@ -2263,7 +2263,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         choice = domain[0]
         for addr in domain:
             if not self.adb.is_used(addr):
-                if addr not in self.receive_requests.keys():
+                if self.get_request(addr) is None:
                     return addr
                 else:
                     choice = addr
@@ -2432,7 +2432,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         for txo in tx.outputs():
             addr = txo.address
-            if addr in self.receive_requests:
+            if self.get_request(addr):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
 
