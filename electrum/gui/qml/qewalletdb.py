@@ -172,11 +172,15 @@ class QEWalletDB(QObject):
         self._ready = True
         self.readyChanged.emit()
 
-    @pyqtSlot('QJSValue')
-    def create_storage(self, js_data):
+    @pyqtSlot('QJSValue',bool,str)
+    def create_storage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
         data = js_data.toVariant()
         self._logger.debug(str(data))
+
+        if single_password_enabled and single_password:
+            data['encrypt'] = True
+            data['password'] = single_password
 
         try:
             path = os.path.join(os.path.dirname(self.daemon.config.get_wallet_path()), data['wallet_name'])
