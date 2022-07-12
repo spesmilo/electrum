@@ -232,7 +232,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str)
     def set_password(self, password):
         assert self._use_single_password
-        self._logger.debug('about to set password to %s for ALL wallets' % password)
+        self._logger.debug('about to set password for ALL wallets')
         self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
         self._password = password
 

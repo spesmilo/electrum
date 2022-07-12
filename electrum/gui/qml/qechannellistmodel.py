@@ -82,7 +82,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         item['capacity'] = QEAmount(amount_sat=lnc.get_capacity())
         item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
         item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
-        self._logger.debug(repr(item))
         return item
 
     numOpenChannelsChanged = pyqtSignal()
@@ -101,7 +100,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
         lnchannels = self.wallet.lnworker.channels
         for channel in lnchannels.values():
-            self._logger.debug(repr(channel))
             item = self.channel_to_model(channel)
             channels.append(item)
 
@@ -120,7 +118,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
     def do_update(self, modelindex, channel):
         modelitem = self.channels[modelindex]
-        #self._logger.debug(repr(modelitem))
         modelitem.update(self.channel_to_model(channel))
 
         mi = self.createIndex(modelindex, 0)
