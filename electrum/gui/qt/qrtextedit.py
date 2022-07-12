@@ -19,7 +19,7 @@ class ShowQRTextEdit(ButtonsTextEdit):
 
     def contextMenuEvent(self, e):
         m = self.createStandardContextMenu()
-        m.addAction(_("Show as QR code"), self.on_qr_show_btn)
+        m.addAction(read_QIcon(get_iconname_qrcode()), _("Show as QR code"), self.on_qr_show_btn)
         m.exec_(e.globalPos())
 
 
