@@ -167,22 +167,11 @@ def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
         raise InvalidPassword()
 
 
-def EncodeAES_base64(secret: bytes, msg: bytes) -> bytes:
-    """Returns base64 encoded ciphertext."""
-    e = EncodeAES_bytes(secret, msg)
-    return base64.b64encode(e)
-
-
 def EncodeAES_bytes(secret: bytes, msg: bytes) -> bytes:
     assert_bytes(msg)
     iv = bytes(os.urandom(16))
     ct = aes_encrypt_with_iv(secret, iv, msg)
     return iv + ct
-
-
-def DecodeAES_base64(secret: bytes, ciphertext_b64: Union[bytes, str]) -> bytes:
-    ciphertext = bytes(base64.b64decode(ciphertext_b64))
-    return DecodeAES_bytes(secret, ciphertext)
 
 
 def DecodeAES_bytes(secret: bytes, ciphertext: bytes) -> bytes:

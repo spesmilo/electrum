@@ -16,7 +16,7 @@ import sys
 import time
 import copy
 
-from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum import ecc
@@ -706,9 +706,10 @@ class DigitalBitboxPlugin(HW_PluginBase):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
         key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
+        ciphertext = EncodeAES_bytes(key_s, json.dumps(payload).encode('ascii'))
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config[CHANNEL_ID_KEY],
-            EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+            base64.b64encode(ciphertext).decode('ascii'),
         )
         try:
             text = Network.send_http_on_proxy('post', url, body=args.encode('ascii'), headers={'content-type': 'application/x-www-form-urlencoded'})
