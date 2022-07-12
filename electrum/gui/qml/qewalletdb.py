@@ -59,10 +59,6 @@ class QEWalletDB(QObject):
         self.reset()
         self._path = wallet_path
 
-        self.load_storage()
-        if self._storage:
-            self.load_db()
-
         self.pathChanged.emit(self._ready)
 
     @pyqtProperty(bool, notify=needsPasswordChanged)
@@ -101,12 +97,6 @@ class QEWalletDB(QObject):
         self._password = wallet_password
         self.passwordChanged.emit()
 
-        self.load_storage()
-
-        if self._storage:
-            self.needsPassword = False
-            self.load_db()
-
     @pyqtProperty(bool, notify=requiresSplitChanged)
     def requiresSplit(self):
         return self._requiresSplit
@@ -125,6 +115,11 @@ class QEWalletDB(QObject):
     def ready(self):
         return self._ready
 
+    @pyqtSlot()
+    def verify(self):
+        self.load_storage()
+        if self._storage:
+            self.load_db()
 
     @pyqtSlot()
     def doSplit(self):
@@ -226,5 +221,3 @@ class QEWalletDB(QObject):
         except Exception as e:
             self._logger.error(str(e))
             self.createError.emit(str(e))
-
-

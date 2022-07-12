@@ -545,10 +545,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if storage.is_encrypted_with_hw_device():
             return
 
-        self._logger.debug('Ok to set password for wallet with path %s' % storage.path)
-        if password:
-            enc_version = StorageEncryptionVersion.USER_PASSWORD
-        else:
-            enc_version = StorageEncryptionVersion.PLAINTEXT
-        storage.set_password(password, enc_version=enc_version)
-        self.wallet.save_db()
+        self._logger.debug(f'Ok to set password from {self.password} to {password} for wallet with path {storage.path}')
+
+        try:
+            self.wallet.update_password(self.password, password, encrypt_storage=True)
+            self.password = password
+        except InvalidPassword as e:
+            self._logger.exception(repr(e))

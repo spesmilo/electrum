@@ -4,7 +4,7 @@ from decimal import Decimal
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
-from electrum.util import register_callback, get_new_wallet_name, WalletFileException
+from electrum.util import register_callback, get_new_wallet_name, WalletFileException, standardize_path
 from electrum.logging import get_logger
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage, StorageReadWriteError
@@ -130,12 +130,17 @@ class QEDaemon(AuthMixin, QObject):
         if self._path is None:
             return
 
+        self._path = standardize_path(self._path)
         self._logger.debug('load wallet ' + str(self._path))
 
-        if path not in self.daemon._wallets:
+        if not password:
+            password = self._password
+
+        if self._path not in self.daemon._wallets:
             # pre-checks, let walletdb trigger any necessary user interactions
             self._walletdb.path = self._path
             self._walletdb.password = password
+            self._walletdb.verify()
             if not self._walletdb.ready:
                 return
 
@@ -144,6 +149,7 @@ class QEDaemon(AuthMixin, QObject):
             if wallet != None:
                 self._loaded_wallets.add_wallet(wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
+                self._current_wallet.password = password
                 self.walletLoaded.emit()
 
                 if self.daemon.config.get('single_password'):
@@ -218,3 +224,5 @@ class QEDaemon(AuthMixin, QObject):
         assert self._use_single_password
         self._logger.debug('about to set password to %s for ALL wallets' % password)
         self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
+        self._password = password
+

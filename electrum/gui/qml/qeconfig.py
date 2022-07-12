@@ -90,12 +90,14 @@ class QEConfig(AuthMixin, QObject):
     def pinCode(self, pin_code):
         if pin_code == '':
             self.pinCodeRemoveAuth()
-        self.config.set_key('pin_code', pin_code, True)
-        self.pinCodeChanged.emit()
+        else:
+            self.config.set_key('pin_code', pin_code, True)
+            self.pinCodeChanged.emit()
 
     @auth_protect(method='wallet')
     def pinCodeRemoveAuth(self):
-        pass # no-op
+        self.config.set_key('pin_code', '', True)
+        self.pinCodeChanged.emit()
 
     useGossipChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useGossipChanged)
