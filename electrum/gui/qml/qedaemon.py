@@ -149,7 +149,9 @@ class QEDaemon(AuthMixin, QObject):
                 if self.daemon.config.get('single_password'):
                     self._use_single_password = self.daemon.update_password_for_directory(old_password=password, new_password=password)
                     self._password = password
-                self._logger.info(f'use single password: {self._use_single_password}')
+                    self._logger.info(f'use single password: {self._use_single_password}')
+                else:
+                    self._logger.info('use single password disabled by config')
 
                 self.daemon.config.save_last_wallet(wallet)
             else:

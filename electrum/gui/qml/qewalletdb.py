@@ -198,8 +198,12 @@ class QEWalletDB(QObject):
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
+            else:
+                raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
 
             if data['encrypt']:
+                if k.may_have_password():
+                    k.update_password(None, data['password'])
                 storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
 
             db = WalletDB('', manual_upgrades=False)
@@ -209,7 +213,7 @@ class QEWalletDB(QObject):
             db.put('seed_type', data['seed_type'])
             db.put('keystore', k.dump())
             if k.can_have_deterministic_lightning_xprv():
-                db.put('lightning_xprv', k.get_lightning_xprv(None))
+                db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
 
             db.load_plugins()
             db.write(storage)
