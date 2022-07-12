@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import base64
+import binascii
 import os
 import sys
 import hashlib
@@ -106,6 +107,10 @@ def version_info() -> Mapping[str, Optional[str]]:
 
 
 class InvalidPadding(Exception):
+    pass
+
+
+class CiphertextFormatError(Exception):
     pass
 
 
@@ -256,7 +261,10 @@ def pw_decode_bytes(data: str, password: Union[bytes, str], *, version:int) -> b
     """base64 ciphertext -> plaintext bytes"""
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
-    data_bytes = bytes(base64.b64decode(data))
+    try:
+        data_bytes = bytes(base64.b64decode(data, validate=True))
+    except binascii.Error as e:
+        raise CiphertextFormatError("ciphertext not valid base64") from e
     return _pw_decode_raw(data_bytes, password, version=version)
 
 
@@ -273,7 +281,10 @@ def pw_encode_with_version_and_mac(data: bytes, password: Union[bytes, str]) -> 
 
 def pw_decode_with_version_and_mac(data: str, password: Union[bytes, str]) -> bytes:
     """base64 ciphertext -> plaintext bytes"""
-    data_bytes = bytes(base64.b64decode(data))
+    try:
+        data_bytes = bytes(base64.b64decode(data, validate=True))
+    except binascii.Error as e:
+        raise CiphertextFormatError("ciphertext not valid base64") from e
     version = int(data_bytes[0])
     encrypted = data_bytes[1:-4]
     mac = data_bytes[-4:]
