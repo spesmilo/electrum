@@ -157,10 +157,18 @@ Pane {
         }
     }
 
+    property var channelOpenProgressDialogInstance
+    Component {
+        id: channelOpenProgressDialog
+        ChannelOpenProgressDialog { }
+    }
 
     ChannelOpener {
         id: channelopener
         wallet: Daemon.currentWallet
+        onAuthRequired: {
+            app.handleAuthRequired(channelopener, method)
+        }
         onValidationError: {
             if (code == 'invalid_nodeid') {
                 var dialog = app.messageDialog.createObject(root, { 'text': message })
@@ -180,18 +188,23 @@ Pane {
             })
             dialog.open()
         }
+        onChannelOpening: {
+            console.log('Channel is opening')
+            channelOpenProgressDialogInstance = channelOpenProgressDialog.createObject(app, {peer: peer})
+            channelOpenProgressDialogInstance.open()
+        }
         onChannelOpenError: {
-            var dialog = app.messageDialog.createObject(root, { 'text': message })
-            dialog.open()
+            channelOpenProgressDialogInstance.state = 'failed'
+            channelOpenProgressDialogInstance.error = message
         }
         onChannelOpenSuccess: {
             var message = 'success!'
             if (!has_backup)
                 message = message + ' (but no backup. TODO: show QR)'
-            var dialog = app.messageDialog.createObject(root, { 'text': message })
-            dialog.open()
+            channelOpenProgressDialogInstance.state = 'success'
+            channelOpenProgressDialogInstance.error = message
             channelopener.wallet.channelModel.new_channel(cid)
-            app.stack.pop()
+//             app.stack.pop()
         }
     }
 

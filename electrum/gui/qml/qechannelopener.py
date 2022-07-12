@@ -1,3 +1,5 @@
+import threading
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
@@ -9,8 +11,9 @@ from electrum.gui import messages
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .qetxfinalizer import QETxFinalizer
+from .auth import AuthMixin, auth_protect
 
-class QEChannelOpener(QObject):
+class QEChannelOpener(QObject, AuthMixin):
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -24,6 +27,7 @@ class QEChannelOpener(QObject):
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
+    channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
     channelOpenSuccess = pyqtSignal([str,bool], arguments=['cid','has_backup'])
 
@@ -156,25 +160,32 @@ class QEChannelOpener(QObject):
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
 
+    @auth_protect
     def do_open_channel(self, funding_tx, conn_str, password):
         self._logger.debug('opening channel')
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         lnworker = self._wallet.wallet.lnworker
-        try:
-            chan, funding_tx = lnworker.open_channel(
-                connect_str=conn_str,
-                funding_tx=funding_tx,
-                funding_sat=funding_sat,
-                push_amt_sat=0,
-                password=password)
-        except Exception as e:
-            self._logger.exception("Problem opening channel")
-            self.channelOpenError.emit(_('Problem opening channel: ') + '\n' + repr(e))
-            return
 
-        self._logger.debug('opening channel succeeded')
-        self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+        def open_thread():
+            try:
+                chan, _funding_tx = lnworker.open_channel(
+                    connect_str=conn_str,
+                    funding_tx=funding_tx,
+                    funding_sat=funding_sat,
+                    push_amt_sat=0,
+                    password=password)
+            except Exception as e:
+                self._logger.exception("Problem opening channel: %s", repr(e))
+                self.channelOpenError.emit(repr(e))
+                return
+
+            self._logger.debug('opening channel succeeded')
+            self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+
+        self._logger.debug('starting open thread')
+        self.channelOpening.emit(conn_str)
+        threading.Thread(target=open_thread).start()
 
         # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():
