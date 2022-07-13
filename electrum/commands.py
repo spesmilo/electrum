@@ -1232,6 +1232,24 @@ class Commands:
         """ return the local watchtower's ctn of channel. used in regtests """
         return await self.network.local_watchtower.sweepstore.get_ctn(channel_point, None)
 
+    @command('wnl')
+    async def rebalance_channels(self, from_scid, dest_scid, amount, wallet: Abstract_Wallet = None):
+        """
+        Rebalance channels.
+        If trampoline is used, channels must be with diferent trampolines.
+        """
+        from .lnutil import ShortChannelID
+        from_scid = ShortChannelID.from_str(from_scid)
+        dest_scid = ShortChannelID.from_str(dest_scid)
+        from_channel = wallet.lnworker.get_channel_by_scid(from_scid)
+        dest_channel = wallet.lnworker.get_channel_by_scid(dest_scid)
+        amount_sat = satoshis(amount)
+        success, log = await wallet.lnworker.rebalance_channels(from_channel, dest_channel, amount_sat * 1000)
+        return {
+            'success': success,
+            'log': [x.formatted_tuple() for x in log]
+        }
+
     @command('wnpl')
     async def normal_swap(self, onchain_amount, lightning_amount, password=None, wallet: Abstract_Wallet = None):
         """
