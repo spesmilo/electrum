@@ -1,3 +1,45 @@
+# Release 4.3.0 - (not released yet)
+
+  This version introduces a set of UX modifications, that aim at
+  simplifying the use of Lightning. The goal is to abstract payments
+  from the payment layer, and to suggest solutions when a payment is
+  prevented by channel liquidity issues.
+
+  - Invoice unification: on-chain and lightning invoices have been
+    merged into a single invoice type. A invoice typically contains
+    both a lightning invoice and an onchain fallback address. The GUI
+    has a single 'create request' button.
+
+  - The receive tab of the GUI can display, for each payment request,
+    a lightning invoice, a BIP21 URI, or an onchain address. If the
+    request is paid off-chain, the associated on-chain address will
+    be recycled in subsequent requests.
+
+  - The receive tab displays whether a payment can be received using
+    Lightning, given the current channel liquidity. If a payment
+    cannot be received, but may be received after a channel rebalance
+    or a submarine swap, the GUI will propose such an operation.
+
+  - For outgoing payments, if channels do not have enough liquidity to
+    pay a lightning invoice, the GUI will suggest available
+    alternatives: rebalance existing channels, open a new channel,
+    perform a submarine swap, or pay to the provided onchain fallback
+    address.
+
+  - A single balance is shown in the GUI. A piechart reflects how that
+    balance is distributed (on-chain, lightning, unconfirmed, frozen,
+    etc).
+
+  - The semantics of the wallet balance has been modified: only
+    incoming transactions are considered in the 'unconfirmed' part of
+    the balance. Indeed, if an outgoing transaction does not get
+    confirmed, that is not going to decrease the wallet balance. Thus,
+    change outputs of outgoing transactions are not subtracted from
+    the confirmed balance. (Before this change, the arithmetic values
+    of both incoming and outgoing transactions were added to the
+    unconfirmed balance, and could potentially cancel eachother.)
+
+
 # Release 4.2.2 - (May 27, 2022)
  * Lightning:
    - watching onchain outputs: significant perf. improvements (#7781)

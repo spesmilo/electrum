@@ -22,6 +22,6 @@ WizardComponent {
     }
 
     Component.onCompleted: {
-        wallet_name.selectAll()
+        wallet_name.forceActiveFocus()
     }
 }

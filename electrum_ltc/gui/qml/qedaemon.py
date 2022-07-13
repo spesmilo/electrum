@@ -4,7 +4,7 @@ from decimal import Decimal
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
-from electrum_ltc.util import register_callback, get_new_wallet_name, WalletFileException
+from electrum_ltc.util import register_callback, get_new_wallet_name, WalletFileException, standardize_path
 from electrum_ltc.logging import get_logger
 from electrum_ltc.wallet import Wallet, Abstract_Wallet
 from electrum_ltc.storage import WalletStorage, StorageReadWriteError
@@ -130,12 +130,17 @@ class QEDaemon(AuthMixin, QObject):
         if self._path is None:
             return
 
+        self._path = standardize_path(self._path)
         self._logger.debug('load wallet ' + str(self._path))
 
-        if path not in self.daemon._wallets:
+        if not password:
+            password = self._password
+
+        if self._path not in self.daemon._wallets:
             # pre-checks, let walletdb trigger any necessary user interactions
             self._walletdb.path = self._path
             self._walletdb.password = password
+            self._walletdb.verify()
             if not self._walletdb.ready:
                 return
 
@@ -144,12 +149,16 @@ class QEDaemon(AuthMixin, QObject):
             if wallet != None:
                 self._loaded_wallets.add_wallet(wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
+                self._current_wallet.password = password
                 self.walletLoaded.emit()
 
                 if self.daemon.config.get('single_password'):
                     self._use_single_password = self.daemon.update_password_for_directory(old_password=password, new_password=password)
                     self._password = password
-                self._logger.info(f'use single password: {self._use_single_password}')
+                    self.singlePasswordChanged.emit()
+                    self._logger.info(f'use single password: {self._use_single_password}')
+                else:
+                    self._logger.info('use single password disabled by config')
 
                 self.daemon.config.save_last_wallet(wallet)
             else:
@@ -195,6 +204,15 @@ class QEDaemon(AuthMixin, QObject):
     def fx(self):
         return self.qefx
 
+    singlePasswordChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=singlePasswordChanged)
+    def singlePasswordEnabled(self):
+        return self._use_single_password
+
+    @pyqtProperty(str, notify=singlePasswordChanged)
+    def singlePassword(self):
+        return self._password
+
     @pyqtSlot(result=str)
     def suggestWalletName(self):
         i = 1
@@ -214,5 +232,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str)
     def set_password(self, password):
         assert self._use_single_password
-        self._logger.debug('about to set password to %s for ALL wallets' % password)
+        self._logger.debug('about to set password for ALL wallets')
         self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
+        self._password = password
+

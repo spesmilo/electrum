@@ -282,13 +282,16 @@ class AbstractChannel(Logger, ABC):
         if funding_height.height == TX_HEIGHT_LOCAL:
             self.update_unfunded_state()
         elif closing_height.height == TX_HEIGHT_LOCAL:
-            self.update_funded_state(funding_txid=funding_txid, funding_height=funding_height)
+            self.update_funded_state(
+                funding_txid=funding_txid,
+                funding_height=funding_height)
         else:
-            self.update_closed_state(funding_txid=funding_txid,
-                                     funding_height=funding_height,
-                                     closing_txid=closing_txid,
-                                     closing_height=closing_height,
-                                     keep_watching=keep_watching)
+            self.update_closed_state(
+                funding_txid=funding_txid,
+                funding_height=funding_height,
+                closing_txid=closing_txid,
+                closing_height=closing_height,
+                keep_watching=keep_watching)
 
     def update_unfunded_state(self):
         self.delete_funding_height()
@@ -314,7 +317,7 @@ class AbstractChannel(Logger, ABC):
                             break
             else:
                 now = int(time.time())
-                if now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT:
+                if self.lnworker and (now - self.storage.get('init_timestamp', 0) > CHANNEL_OPENING_TIMEOUT):
                     self.lnworker.remove_channel(self.channel_id)
 
     def update_funded_state(self, *, funding_txid: str, funding_height: TxMinedInfo) -> None:

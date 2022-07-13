@@ -97,7 +97,9 @@ class QEAppController(QObject):
                     + '/../icons/electrum-ltc.png')
             notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
         except ImportError:
-            self.logger.error('Notification: needs plyer; `sudo python3 -m pip install plyer`')
+            self.logger.warning('Notification: needs plyer; `sudo python3 -m pip install plyer`')
+        except Exception as e:
+            self.logger.error(repr(e))
 
     @pyqtSlot(str, str)
     def doShare(self, data, title):

@@ -425,11 +425,12 @@ class LNWalletWatcher(LNWatcher):
         chan = self.lnworker.channel_by_txo(funding_outpoint)
         if not chan:
             return
-        chan.update_onchain_state(funding_txid=funding_txid,
-                                  funding_height=funding_height,
-                                  closing_txid=closing_txid,
-                                  closing_height=closing_height,
-                                  keep_watching=keep_watching)
+        chan.update_onchain_state(
+            funding_txid=funding_txid,
+            funding_height=funding_height,
+            closing_txid=closing_txid,
+            closing_height=closing_height,
+            keep_watching=keep_watching)
         await self.lnworker.on_channel_update(chan)
 
     @log_exceptions

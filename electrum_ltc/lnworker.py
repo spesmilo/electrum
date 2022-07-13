@@ -678,6 +678,11 @@ class LNWallet(LNWorker):
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
 
+    def get_channel_by_scid(self, scid: bytes) -> Optional[Channel]:
+        for chan in self._channels.values():
+            if chan.short_channel_id == scid:
+                return chan
+
     def diagnostic_name(self):
         return self.wallet.diagnostic_name()
 
@@ -2284,6 +2289,10 @@ class LNWallet(LNWorker):
             return (chan, swap_recv_amount)
 
     async def rebalance_channels(self, chan1, chan2, amount_msat):
+        if chan1 == chan2:
+            raise Exception('Rebalance requires two different channels')
+        if not self.channel_db and chan1.node_id == chan2.node_id:
+            raise Exception('Rebalance requires channels from different trampolines')
         lnaddr, invoice = self.create_invoice(
             amount_msat=amount_msat,
             message='rebalance',
@@ -2291,7 +2300,7 @@ class LNWallet(LNWorker):
             fallback_address=None,
             channels = [chan2]
         )
-        await self.pay_invoice(
+        return await self.pay_invoice(
             invoice, channels=[chan1])
 
     def num_sats_can_receive_no_mpp(self) -> Decimal:

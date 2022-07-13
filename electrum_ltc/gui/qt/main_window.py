@@ -1120,7 +1120,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def on_event_request_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
-        req = self.wallet.receive_requests.get(key)
+        req = self.wallet.get_request(key)
         if req is None:
             return
         if status == PR_PAID:

@@ -44,6 +44,8 @@ Wizard {
         case 'haveseed':
             page = _loadNextComponent(components.haveseed, wizard_data)
             page.next.connect(function() {haveseedDone()})
+            if (wizard_data['seed_type'] != 'bip39' && Daemon.singlePassword)
+                page.last = true
             break
 //        case 'masterkey'
 //        case 'hardware'
@@ -53,13 +55,15 @@ Wizard {
     function createseedDone(d) {
         console.log('create seed done')
         var page = _loadNextComponent(components.confirmseed, wizard_data)
-        page.next.connect(function() {confirmseedDone()})
+        if (Daemon.singlePassword)
+            page.last = true
+        else
+            page.next.connect(function() {confirmseedDone()})
     }
 
     function confirmseedDone(d) {
         console.log('confirm seed done')
         var page = _loadNextComponent(components.walletpassword, wizard_data)
-        page.next.connect(function() {walletpasswordDone()})
         page.last = true
     }
 
@@ -67,10 +71,12 @@ Wizard {
         console.log('have seed done')
         if (wizard_data['seed_type'] == 'bip39') {
             var page = _loadNextComponent(components.bip39refine, wizard_data)
-            page.next.connect(function() {bip39refineDone()})
+            if (Daemon.singlePassword)
+                page.last = true
+            else
+                page.next.connect(function() {bip39refineDone()})
         } else {
             var page = _loadNextComponent(components.walletpassword, wizard_data)
-            page.next.connect(function() {walletpasswordDone()})
             page.last = true
         }
     }
@@ -78,13 +84,7 @@ Wizard {
     function bip39refineDone(d) {
         console.log('bip39 refine done')
         var page = _loadNextComponent(components.walletpassword, wizard_data)
-        page.next.connect(function() {walletpasswordDone()})
         page.last = true
-    }
-
-    function walletpasswordDone(d) {
-        console.log('walletpassword done')
-        var page = _loadNextComponent(components.walletpassword, wizard_data)
     }
 
     WizardComponents {
@@ -99,7 +99,7 @@ Wizard {
 
     onAccepted: {
         console.log('Finished new wallet wizard')
-        walletdb.create_storage(wizard_data)
+        walletdb.create_storage(wizard_data, Daemon.singlePasswordEnabled, Daemon.singlePassword)
     }
 
     WalletDB {
