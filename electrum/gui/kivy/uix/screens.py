@@ -16,6 +16,7 @@ from electrum.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
                                pr_expiration_values, Invoice)
 from electrum import bitcoin, constants
+from electrum import lnutil
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
                            InvoiceError, format_time, parse_max_spend, BITCOIN_BIP21_URI_SCHEME)
@@ -223,6 +224,9 @@ class SendScreen(CScreen, Logger):
             lnaddr = lndecode(invoice)
         except LnInvoiceException as e:
             self.app.show_info(_("Invoice is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
+            return
+        except lnutil.IncompatibleOrInsaneFeatures as e:
+            self.app.show_info(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
             return
         self.address = invoice
         self.message = lnaddr.get_description()
