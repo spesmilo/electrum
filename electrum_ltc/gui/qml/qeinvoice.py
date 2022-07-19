@@ -13,6 +13,8 @@ from electrum_ltc.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_IN
 from electrum_ltc.transaction import PartialTxOutput
 from electrum_ltc.lnaddr import lndecode
 from electrum_ltc import bitcoin
+from electrum_ltc import lnutil
+from electrum_ltc.lnaddr import LnInvoiceException
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -334,11 +336,21 @@ class QEInvoiceParser(QEInvoice):
             self._logger.debug(repr(e))
 
         lninvoice = None
-        try:
-            maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
-            lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
-        except InvoiceError as e:
-            pass
+        maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
+        if maybe_lightning_invoice is not None:
+            try:
+                lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
+            except InvoiceError as e:
+                e2 = e.__cause__
+                if isinstance(e2, LnInvoiceException):
+                    self.validationError.emit('unknown', _("Error parsing Lightning invoice") + f":\n{e2}")
+                    self.clear()
+                    return
+                if isinstance(e2, lnutil.IncompatibleOrInsaneFeatures):
+                    self.validationError.emit('unknown', _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e2!r}")
+                    self.clear()
+                    return
+                self._logger.exception(repr(e))
 
         if not lninvoice and not self._bip21:
             self.validationError.emit('unknown',_('Unknown invoice'))

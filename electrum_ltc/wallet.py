@@ -943,6 +943,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 amount_msat = '!'
                 break
             else:
+                assert isinstance(x.value, int), f"{x.value!r}"
                 amount_msat += x.value * 1000
         timestamp = None
         exp = None
@@ -2439,6 +2440,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str):
         # for receiving
         amount_sat = amount_sat or 0
+        assert isinstance(amount_sat, int), f"{amount_sat!r}"
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None

@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QCompleter, QWidget, QToolTip)
 
 from electrum_ltc import util, paymentrequest
+from electrum_ltc import lnutil
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.i18n import _
 from electrum_ltc.util import (get_asyncio_loop, bh2u,
@@ -401,6 +402,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             lnaddr = lndecode(invoice)
         except LnInvoiceException as e:
             self.show_error(_("Error parsing Lightning invoice") + f":\n{e}")
+            return
+        except lnutil.IncompatibleOrInsaneFeatures as e:
+            self.show_error(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
             return
 
         pubkey = bh2u(lnaddr.pubkey.serialize())

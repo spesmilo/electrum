@@ -712,7 +712,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             key = tx_item['payment_hash']
             log = self.wallet.lnworker.logs.get(key)
             if log:
-                menu.addAction(_("View log"), lambda: self.parent.invoice_list.show_log(key, log))
+                menu.addAction(_("View log"), lambda: self.parent.send_tab.invoice_list.show_log(key, log))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
