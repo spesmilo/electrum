@@ -89,7 +89,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
                    getOpenFileName, getSaveFileName, BlockingWaitingDialog)
-from .util import ButtonsLineEdit
+from .util import ButtonsLineEdit, ShowQRLineEdit
 from .util import QtEventListener, qt_event_listener, event_listener
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
@@ -1449,11 +1449,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d = WindowModalDialog(self, _("Lightning Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
-        pubkey_e = ButtonsLineEdit(lnaddr.pubkey.serialize().hex())
-        pubkey_e.setFont(QFont(MONOSPACE_FONT))
-        pubkey_e.add_qr_show_button(config=self.config, title=_("Public Key"))
-        pubkey_e.addCopyButton()
-        pubkey_e.setReadOnly(True)
+        pubkey_e = ShowQRLineEdit(lnaddr.pubkey.serialize().hex(), self.config, title=_("Public Key"))
         pubkey_e.setMinimumWidth(700)
         grid.addWidget(QLabel(_("Public Key") + ':'), 0, 0)
         grid.addWidget(pubkey_e, 0, 1)
@@ -1469,11 +1465,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         grid.addWidget(QLabel(_('Features') + ':'), 5, 0)
         grid.addWidget(QLabel('\n'.join(lnaddr.get_features().get_names())), 5, 1)
-        payhash_e = ButtonsLineEdit(lnaddr.paymenthash.hex())
-        payhash_e.setFont(QFont(MONOSPACE_FONT))
-        payhash_e.add_qr_show_button(config=self.config, title=_("Payment Hash"))
-        payhash_e.addCopyButton()
-        payhash_e.setReadOnly(True)
+        payhash_e = ShowQRLineEdit(lnaddr.paymenthash.hex(), self.config, title=_("Payment Hash"))
         grid.addWidget(QLabel(_("Payment Hash") + ':'), 6, 0)
         grid.addWidget(payhash_e, 6, 1)
         invoice_e = ShowQRTextEdit(config=self.config)
@@ -1777,11 +1769,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 grid.addWidget(HelpButton(msg), 5, 3)
             grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
-            nodeid_e = ButtonsLineEdit(nodeid_text)
-            nodeid_e.add_qr_show_button(config=self.config, title=_("Node ID"))
-            nodeid_e.addCopyButton()
-            nodeid_e.setReadOnly(True)
-            nodeid_e.setFont(QFont(MONOSPACE_FONT))
+            nodeid_e = ShowQRLineEdit(nodeid_text, self.config, title=_("Node ID"))
             grid.addWidget(nodeid_e, 8, 0, 1, 4)
         else:
             if self.wallet.can_have_lightning():

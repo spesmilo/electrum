@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
 from electrum.i18n import _
 
-from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
+from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
@@ -65,10 +65,7 @@ class AddressDialog(WindowModalDialog):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Address") + ":"))
-        self.addr_e = ButtonsLineEdit(self.address)
-        self.addr_e.addCopyButton()
-        self.addr_e.add_qr_show_button(config=self.config, title=_("Address"))
-        self.addr_e.setReadOnly(True)
+        self.addr_e = ShowQRLineEdit(self.address, self.config, title=_("Address"))
         vbox.addWidget(self.addr_e)
 
         try:
@@ -78,9 +75,7 @@ class AddressDialog(WindowModalDialog):
         if pubkeys:
             vbox.addWidget(QLabel(_("Public keys") + ':'))
             for pubkey in pubkeys:
-                pubkey_e = ButtonsLineEdit(pubkey)
-                pubkey_e.addCopyButton()
-                pubkey_e.setReadOnly(True)
+                pubkey_e = ShowQRLineEdit(pubkey, self.config, title=_("Public Key"))
                 vbox.addWidget(pubkey_e)
 
         redeem_script = self.wallet.get_redeem_script(address)

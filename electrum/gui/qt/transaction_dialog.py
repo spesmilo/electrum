@@ -49,7 +49,7 @@ from electrum.transaction import SerializationError, Transaction, PartialTransac
 from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
-                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
+                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
@@ -121,9 +121,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
-        self.tx_hash_e = ButtonsLineEdit()
-        self.tx_hash_e.add_qr_show_button(config=self.config, title='Transaction ID')
-        self.tx_hash_e.setReadOnly(True)
+        self.tx_hash_e = ShowQRLineEdit('', self.config, title='Transaction ID')
         vbox.addWidget(self.tx_hash_e)
 
         self.add_tx_stats(vbox)
