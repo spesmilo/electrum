@@ -1143,6 +1143,14 @@ class ButtonsLineEdit(OverlayControlMixin, QLineEdit):
         QLineEdit.__init__(self, text)
         OverlayControlMixin.__init__(self, middle=True)
 
+class ShowQRLineEdit(ButtonsLineEdit):
+    """ read-only line with qr and copy buttons """
+    def __init__(self, text: str, config, title=None):
+        ButtonsLineEdit.__init__(self, text)
+        self.setReadOnly(True)
+        self.setFont(QFont(MONOSPACE_FONT))
+        self.add_qr_show_button(config=config, title=title)
+        self.addCopyButton()
 
 class ButtonsTextEdit(OverlayControlMixin, QPlainTextEdit):
     def __init__(self, text=None):
