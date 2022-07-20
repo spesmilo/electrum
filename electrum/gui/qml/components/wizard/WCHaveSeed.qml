@@ -63,7 +63,7 @@ WizardComponent {
             }
             ComboBox {
                 id: seed_type
-                model: ['Electrum', 'BIP39', 'SLIP39']
+                model: ['Electrum', 'BIP39'/*, 'SLIP39'*/]
                 onActivated: {
                     setSeedTypeHelpText()
                     checkValid()
