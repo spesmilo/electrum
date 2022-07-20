@@ -3,12 +3,17 @@ import QtQuick.Controls 2.0
 import QtQuick.Layouts 1.0
 import QtQuick.Controls.Material 2.0
 
+import org.electrum 1.0
+
 ItemDelegate {
     id: root
     height: item.height
     width: ListView.view.width
 
     font.pixelSize: constants.fontSizeSmall // set default font size for child controls
+
+    property bool _closed: model.state_code == ChannelDetails.Closed
+                            || model.state_code == ChannelDetails.Redeemed
 
     GridLayout {
         id: item
@@ -36,6 +41,8 @@ ItemDelegate {
             Layout.rowSpan: 3
             Layout.preferredWidth: constants.iconSizeLarge
             Layout.preferredHeight: constants.iconSizeLarge
+            opacity: _closed ? 0.5 : 1.0
+
         }
 
         RowLayout {
@@ -46,10 +53,12 @@ ItemDelegate {
                 elide: Text.ElideRight
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
+                color: _closed ? constants.mutedForeground : Material.foreground
             }
 
             Label {
                 text: model.state
+                color: _closed ? constants.mutedForeground : Material.foreground
             }
         }
 
@@ -64,16 +73,18 @@ ItemDelegate {
             Label {
                 text: Config.formatSats(model.capacity)
                 font.family: FixedFont
+                color: _closed ? constants.mutedForeground : Material.foreground
             }
 
             Label {
                 text: Config.baseUnit
-                color: Material.accentColor
+                color: _closed ? constants.mutedForeground : Material.accentColor
             }
         }
 
         Item {
             id: chviz
+            visible: !_closed
             Layout.fillWidth: true
             height: 10
             onWidthChanged: {
@@ -109,6 +120,12 @@ ItemDelegate {
                 color: 'gray'
             }
         }
+        Item {
+            visible: _closed
+            Layout.fillWidth: true
+            height: 1
+        }
+
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
