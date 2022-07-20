@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 from electrum.i18n import _
 from electrum.lnworker import PaymentDirection
 
-from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
+from .util import WindowModalDialog, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
 from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
@@ -76,19 +76,11 @@ class LightningTxDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
 
         vbox.addWidget(QLabel(_("Payment hash") + ":"))
-        self.hash_e = ButtonsLineEdit(self.payment_hash)
-        self.hash_e.addCopyButton()
-        self.hash_e.add_qr_show_button(config=self.config, title=_("Payment hash"))
-        self.hash_e.setReadOnly(True)
-        self.hash_e.setFont(QFont(MONOSPACE_FONT))
+        self.hash_e = ShowQRLineEdit(self.payment_hash, self.config, title=_("Payment hash"))
         vbox.addWidget(self.hash_e)
 
         vbox.addWidget(QLabel(_("Preimage") + ":"))
-        self.preimage_e = ButtonsLineEdit(self.preimage)
-        self.preimage_e.addCopyButton()
-        self.preimage_e.add_qr_show_button(config=self.config, title=_("Preimage"))
-        self.preimage_e.setReadOnly(True)
-        self.preimage_e.setFont(QFont(MONOSPACE_FONT))
+        self.preimage_e = ShowQRLineEdit(self.preimage, self.config, title=_("Preimage"))
         vbox.addWidget(self.preimage_e)
 
         vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
