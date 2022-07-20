@@ -181,25 +181,8 @@ Dialog {
             })
             dialog.open()
         }
-        onAuthRequired: { // TODO: don't replicate this code
-            if (swaphelper.wallet.verify_password('')) {
-                // wallet has no password
-                console.log('wallet has no password, proceeding')
-                swaphelper.authProceed()
-            } else {
-                var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
-                dialog.accepted.connect(function() {
-                    if (swaphelper.wallet.verify_password(dialog.password)) {
-                        swaphelper.wallet.authProceed()
-                    } else {
-                        swaphelper.wallet.authCancel()
-                    }
-                })
-                dialog.rejected.connect(function() {
-                    swaphelper.wallet.authCancel()
-                })
-                dialog.open()
-            }
+        onAuthRequired: {
+            app.handleAuthRequired(swaphelper, method)
         }
     }
 }
