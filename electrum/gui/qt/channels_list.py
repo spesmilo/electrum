@@ -303,13 +303,13 @@ class ChannelsList(MyTreeView):
     def do_update_rows(self, wallet):
         if wallet != self.parent.wallet:
             return
-        channels = list(wallet.lnworker.channels.values()) if wallet.lnworker else []
-        backups = list(wallet.lnworker.channel_backups.values()) if wallet.lnworker else []
-        if wallet.lnworker:
-            self.update_can_send(wallet.lnworker)
         self.model().clear()
         self.update_headers(self.headers)
-        for chan in channels + backups:
+        if not wallet.lnworker:
+            return
+        self.update_can_send(wallet.lnworker)
+        channels = wallet.lnworker.get_channel_objects()
+        for chan in channels.values():
             field_map = self.format_fields(chan)
             items = [QtGui.QStandardItem(field_map[col]) for col in sorted(field_map)]
             self.set_editability(items)

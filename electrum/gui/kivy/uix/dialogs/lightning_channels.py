@@ -657,9 +657,8 @@ class LightningChannelsDialog(Factory.Popup):
         if not self.app.wallet:
             return
         lnworker = self.app.wallet.lnworker
-        channels = list(lnworker.channels.values()) if lnworker else []
-        backups = list(lnworker.channel_backups.values()) if lnworker else []
-        for i in channels + backups:
+        channels = lnworker.get_channel_objects().values() if lnworker else []
+        for i in channels:
             item = Factory.LightningChannelItem()
             item.screen = self
             item.active = not i.is_closed()

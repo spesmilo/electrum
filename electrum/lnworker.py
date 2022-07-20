@@ -690,6 +690,11 @@ class LNWallet(LNWorker):
         with self.lock:
             return self._channel_backups.copy()
 
+    def get_channel_objects(self) -> Mapping[bytes, AbstractChannel]:
+        r = self.channel_backups
+        r.update(self.channels)
+        return r
+
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
 
