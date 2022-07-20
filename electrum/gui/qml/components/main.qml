@@ -39,6 +39,13 @@ ApplicationWindow
                 onClicked: stack.pop()
             }
 
+            Image {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: constants.iconSizeLarge
+                Layout.preferredHeight: constants.iconSizeLarge
+                source: "../../icons/electrum.png"
+            }
+
             Label {
                 text: stack.currentItem.title
                 elide: Label.ElideRight
