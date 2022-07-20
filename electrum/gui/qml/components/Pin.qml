@@ -21,12 +21,15 @@ Dialog {
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {
-        color: "#aa000000"
+        color: canCancel ? "#aa000000" : "#ff000000"
     }
 
     focus: true
 
-    standardButtons: Dialog.Cancel
+    standardButtons: canCancel ? Dialog.Cancel : 0
+    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
+
+    property bool canCancel: true
 
     property string mode // [check, enter, change]
     property string pincode // old one passed in when change, new one passed out
