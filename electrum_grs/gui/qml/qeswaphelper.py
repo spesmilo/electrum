@@ -262,7 +262,7 @@ class QESwapHelper(AuthMixin, QObject):
             # fee breakdown
             self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
             self.serverfee = QEAmount(amount_sat=swap_manager.normal_fee)
-            self.miningfee = QEAmount(amount_sat=self._tx.get_fee())
+            self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
 
         if pay_amount and receive_amount:
             self.valid = True

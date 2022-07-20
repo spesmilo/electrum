@@ -39,6 +39,13 @@ ApplicationWindow
                 onClicked: stack.pop()
             }
 
+            Image {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: constants.iconSizeLarge
+                Layout.preferredHeight: constants.iconSizeLarge
+                source: "../../icons/electrum.png"
+            }
+
             Label {
                 text: stack.currentItem.title
                 elide: Label.ElideRight
@@ -275,7 +282,7 @@ ApplicationWindow
     }
 
     function handleAuthRequired(qtobject, method) {
-        console.log('AUTHENTICATING USING METHOD ' + method)
+        console.log('auth using method ' + method)
         if (method == 'wallet') {
             if (Daemon.currentWallet.verify_password('')) {
                 // wallet has no password
@@ -308,6 +315,34 @@ ApplicationWindow
                     qtobject.authCancel()
                 })
                 dialog.open()
+            }
+        } else {
+            console.log('unknown auth method ' + method)
+            qtobject.authCancel()
+        }
+    }
+
+    property var _lastActive: 0 // record time of last activity
+    property int _maxInactive: 30 // seconds
+    property bool _lockDialogShown: false
+
+    onActiveChanged: {
+        console.log('active='+active)
+        if (!active) {
+            // deactivated
+            _lastActive = Date.now()
+        } else {
+            // activated
+            if (_lastActive != 0 && Date.now() - _lastActive > _maxInactive * 1000) {
+                if (_lockDialogShown || Config.pinCode == '')
+                    return
+                var dialog = app.pinDialog.createObject(app, {mode: 'check', canCancel: false, pincode: Config.pinCode})
+                dialog.accepted.connect(function() {
+                    dialog.close()
+                    _lockDialogShown = false
+                })
+                dialog.open()
+                _lockDialogShown = true
             }
         }
     }

@@ -168,7 +168,7 @@ Pane {
                     }
                     ToolButton {
                         visible: labelContent.editmode
-                        icon.source: '../../icons/delete.png'
+                        icon.source: '../../icons/closebutton.png'
                         icon.color: 'transparent'
                         onClicked: labelContent.editmode = false
                     }

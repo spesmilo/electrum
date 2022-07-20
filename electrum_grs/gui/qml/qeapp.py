@@ -141,7 +141,6 @@ class ElectrumQmlApplication(QGuiApplication):
 
         ElectrumQmlApplication._daemon = daemon
 
-        qmlRegisterType(QEWalletListModel, 'org.electrum', 1, 0, 'WalletListModel')
         qmlRegisterType(QEWallet, 'org.electrum', 1, 0, 'Wallet')
         qmlRegisterType(QEWalletDB, 'org.electrum', 1, 0, 'WalletDB')
         qmlRegisterType(QEBitcoin, 'org.electrum', 1, 0, 'Bitcoin')
