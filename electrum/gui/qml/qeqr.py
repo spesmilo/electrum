@@ -1,12 +1,13 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QRect, QPoint
-from PyQt5.QtGui import QImage,QColor
-from PyQt5.QtQuick import QQuickImageProvider
-
 import asyncio
 import qrcode
 import math
+import urllib
 
 from PIL import Image, ImageQt
+
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect, QPoint
+from PyQt5.QtGui import QImage,QColor
+from PyQt5.QtQuick import QQuickImageProvider
 
 from electrum.logging import get_logger
 from electrum.qrreader import get_qr_reader
@@ -126,17 +127,53 @@ class QEQRImageProvider(QQuickImageProvider):
 
     @profiler
     def requestImage(self, qstr, size):
+        # Qt does a urldecode before passing the string here
+        # but BIP21 (and likely other uri based specs) requires urlencoding,
+        # so we re-encode percent-quoted if a 'scheme' is found in the string
+        uri = urllib.parse.urlparse(qstr)
+        if uri.scheme:
+            # urlencode request parameters
+            query = urllib.parse.parse_qs(uri.query)
+            query = urllib.parse.urlencode(query, doseq=True, quote_via=urllib.parse.quote)
+            uri = uri._replace(query=query)
+            qstr = urllib.parse.urlunparse(uri)
+
         self._logger.debug('QR requested for %s' % qstr)
         qr = qrcode.QRCode(version=1, border=2)
         qr.add_data(qstr)
 
         # calculate best box_size
         pixelsize = min(self._max_size, 400)
-        modules = 17 + 4 * qr.best_fit()
-        qr.box_size = math.floor(pixelsize/(modules+2*2))
+        modules = 17 + 4 * qr.best_fit() + qr.border * 2
+        qr.box_size = math.floor(pixelsize/modules)
 
         qr.make(fit=True)
 
         pimg = qr.make_image(fill_color='black', back_color='white')
         self.qimg = ImageQt.ImageQt(pimg)
         return self.qimg, self.qimg.size()
+
+# helper for placing icon exactly where it should go on the QR code
+# pyqt5 is unwilling to accept slots on QEQRImageProvider, so we need to define
+# a separate class (sigh)
+class QEQRImageProviderHelper(QObject):
+    def __init__(self, max_size, parent=None):
+        super().__init__(parent)
+        self._max_size = max_size
+
+    @pyqtSlot(str, result='QVariantMap')
+    def getDimensions(self, qstr):
+        qr = qrcode.QRCode(version=1, border=2)
+        qr.add_data(qstr)
+
+        # calculate best box_size
+        pixelsize = min(self._max_size, 400)
+        modules = 17 + 4 * qr.best_fit() + qr.border * 2
+        qr.box_size = math.floor(pixelsize/modules)
+
+        # calculate icon width in modules
+        icon_modules = int(modules / 5)
+        icon_modules += (icon_modules+1)%2 # force odd
+
+        return { 'modules': modules, 'box_size': qr.box_size, 'icon_modules': icon_modules }
+

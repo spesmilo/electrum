@@ -5,6 +5,8 @@ import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
+import "controls"
+
 Dialog {
     id: dialog
     title: qsTr('Payment Request')
@@ -12,6 +14,7 @@ Dialog {
     property var modelItem
 
     property string _bip21uri
+    property string _bolt11
 
     parent: Overlay.overlay
     modal: true
@@ -44,55 +47,96 @@ Dialog {
         clip:true
         interactive: height < contentHeight
 
-        GridLayout {
+        ColumnLayout {
             id: rootLayout
             width: parent.width
-            rowSpacing: constants.paddingMedium
-            columns: 5
+            spacing: constants.paddingMedium
+
+            states: [
+                State {
+                    name: 'bolt11'
+                    PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
+                    PropertyChanges { target: bolt11label; font.bold: true }
+                },
+                State {
+                    name: 'bip21uri'
+                    PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
+                    PropertyChanges { target: bip21label; font.bold: true }
+                }
+            ]
 
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 5
                 color: Material.accentColor
             }
 
-            Image {
-                id: qr
-                Layout.columnSpan: 5
+            Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
 
-                Rectangle {
-                    property int size: 57 // should be qr pixel multiple
-                    color: 'white'
-                    x: (parent.width - size) / 2
-                    y: (parent.height - size) / 2
-                    width: size
-                    height: size
+                Layout.preferredWidth: qrloader.width
+                Layout.preferredHeight: qrloader.height
 
-                    Image {
-
-                        source: '../../icons/electrum.png'
-                        x: 1
-                        y: 1
-                        width: parent.width - 2
-                        height: parent.height - 2
-                        scale: 0.9
+                Loader {
+                    id: qrloader
+                    Component {
+                        id: qri_bip21uri
+                        QRImage {
+                            qrdata: _bip21uri
+                        }
                     }
+                    Component {
+                        id: qri_bolt11
+                        QRImage {
+                            qrdata: _bolt11
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        if (rootLayout.state == 'bolt11') {
+                            if (_bip21uri != '')
+                                rootLayout.state = 'bip21uri'
+                        } else if (rootLayout.state == 'bip21uri') {
+                            if (_bolt11 != '')
+                                rootLayout.state = 'bolt11'
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: constants.paddingLarge
+                Label {
+                    id: bolt11label
+                    text: qsTr('BOLT11')
+                    color: _bolt11 ? Material.foreground : constants.mutedForeground
+                }
+                Rectangle {
+                    Layout.preferredWidth: constants.paddingXXSmall
+                    Layout.preferredHeight: constants.paddingXXSmall
+                    radius: constants.paddingXXSmall / 2
+                    color: Material.accentColor
+                }
+                Label {
+                    id: bip21label
+                    text: qsTr('BIP21 URI')
+                    color: _bip21uri ? Material.foreground : constants.mutedForeground
                 }
             }
 
             Rectangle {
                 height: 1
                 Layout.fillWidth: true
-                Layout.columnSpan: 5
                 color: Material.accentColor
             }
 
             RowLayout {
-                Layout.columnSpan: 5
                 Layout.alignment: Qt.AlignHCenter
                 Button {
                     icon.source: '../../icons/delete.png'
@@ -127,80 +171,84 @@ Dialog {
                     }
                 }
             }
-            Label {
-                visible: modelItem.message != ''
-                text: qsTr('Description')
-            }
-            Label {
-                visible: modelItem.message != ''
-                Layout.columnSpan: 4
-                Layout.fillWidth: true
-                wrapMode: Text.Wrap
-                text: modelItem.message
-                font.pixelSize: constants.fontSizeLarge
-            }
 
-            Label {
-                visible: modelItem.amount.satsInt != 0
-                text: qsTr('Amount')
-            }
-            Label {
-                visible: modelItem.amount.satsInt != 0
-                text: Config.formatSats(modelItem.amount)
-                font.family: FixedFont
-                font.pixelSize: constants.fontSizeLarge
-                font.bold: true
-            }
-            Label {
-                visible: modelItem.amount.satsInt != 0
-                text: Config.baseUnit
-                color: Material.accentColor
-                font.pixelSize: constants.fontSizeLarge
-            }
+            GridLayout {
+                columns: 2
 
-            Label {
-                id: fiatValue
-                visible: modelItem.amount.satsInt != 0
-                Layout.fillWidth: true
-                Layout.columnSpan: 2
-                text: Daemon.fx.enabled
-                        ? '(' + Daemon.fx.fiatValue(modelItem.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-                        : ''
-                font.pixelSize: constants.fontSizeMedium
-                wrapMode: Text.Wrap
-            }
+                Label {
+                    visible: modelItem.message != ''
+                    text: qsTr('Description')
+                }
+                Label {
+                    visible: modelItem.message != ''
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: modelItem.message
+                    font.pixelSize: constants.fontSizeLarge
+                }
 
-            Label {
-                text: qsTr('Address')
-                visible: !modelItem.is_lightning
-            }
-            Label {
-                Layout.fillWidth: true
-                Layout.columnSpan: 3
-                visible: !modelItem.is_lightning
-                font.family: FixedFont
-                font.pixelSize: constants.fontSizeLarge
-                wrapMode: Text.WrapAnywhere
-                text: modelItem.address
-            }
-            ToolButton {
-                icon.source: '../../icons/copy_bw.png'
-                visible: !modelItem.is_lightning
-                onClicked: {
-                    AppController.textToClipboard(modelItem.address)
+                Label {
+                    visible: modelItem.amount.satsInt != 0
+                    text: qsTr('Amount')
+                }
+                RowLayout {
+                    Label {
+                        visible: modelItem.amount.satsInt != 0
+                        text: Config.formatSats(modelItem.amount)
+                        font.family: FixedFont
+                        font.pixelSize: constants.fontSizeLarge
+                        font.bold: true
+                    }
+                    Label {
+                        visible: modelItem.amount.satsInt != 0
+                        text: Config.baseUnit
+                        color: Material.accentColor
+                        font.pixelSize: constants.fontSizeLarge
+                    }
+
+                    Label {
+                        id: fiatValue
+                        visible: modelItem.amount.satsInt != 0
+                        Layout.fillWidth: true
+                        text: Daemon.fx.enabled
+                                ? '(' + Daemon.fx.fiatValue(modelItem.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+                                : ''
+                        font.pixelSize: constants.fontSizeMedium
+                        wrapMode: Text.Wrap
+                    }
+                }
+
+                Label {
+                    text: qsTr('Address')
+                    visible: !modelItem.is_lightning
+                }
+
+                RowLayout {
+                    visible: !modelItem.is_lightning
+                    Label {
+                        Layout.fillWidth: true
+                        font.family: FixedFont
+                        font.pixelSize: constants.fontSizeLarge
+                        wrapMode: Text.WrapAnywhere
+                        text: modelItem.address
+                    }
+                    ToolButton {
+                        icon.source: '../../icons/copy_bw.png'
+                        onClicked: {
+                            AppController.textToClipboard(modelItem.address)
+                        }
+                    }
+                }
+
+                Label {
+                    text: qsTr('Status')
+                }
+                Label {
+                    Layout.fillWidth: true
+                    font.pixelSize: constants.fontSizeLarge
+                    text: modelItem.status_str
                 }
             }
-
-            Label {
-                text: qsTr('Status')
-            }
-            Label {
-                Layout.columnSpan: 4
-                Layout.fillWidth: true
-                font.pixelSize: constants.fontSizeLarge
-                text: modelItem.status_str
-            }
-
         }
     }
 
@@ -216,9 +264,14 @@ Dialog {
     Component.onCompleted: {
         if (!modelItem.is_lightning) {
             _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
-            qr.source = 'image://qrgen/' + _bip21uri
+            rootLayout.state = 'bip21uri'
         } else {
-            qr.source = 'image://qrgen/' + modelItem.lightning_invoice
+            _bolt11 = modelItem.lightning_invoice
+            rootLayout.state = 'bolt11'
+            if (modelItem.address != '') {
+                _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
+                console.log('BIP21:' + _bip21uri)
+            }
         }
     }
 
