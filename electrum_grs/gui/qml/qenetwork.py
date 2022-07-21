@@ -4,7 +4,7 @@ from electrum_grs.logging import get_logger
 from electrum_grs import constants
 from electrum_grs.interface import ServerAddr
 
-from .util import QtEventListener, qt_event_listener
+from .util import QtEventListener, event_listener
 
 class QENetwork(QObject, QtEventListener):
     def __init__(self, network, parent=None):
@@ -28,12 +28,13 @@ class QENetwork(QObject, QtEventListener):
 
     _height = 0
     _status = ""
+    _fee_histogram = []
 
-    @qt_event_listener
+    @event_listener
     def on_event_network_updated(self, *args):
         self.networkUpdated.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_blockchain_updated(self, *args):
         if self._height != self.network.get_local_height():
             self._height = self.network.get_local_height()
@@ -41,25 +42,26 @@ class QENetwork(QObject, QtEventListener):
             self.heightChanged.emit(self._height)
         self.blockchainUpdated.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_default_server_changed(self, *args):
         self.defaultServerChanged.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_proxy_set(self, *args):
         self._logger.debug('proxy set')
         self.proxySet.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_status(self, *args):
         self._logger.debug('status updated: %s' % self.network.connection_status)
         if self._status != self.network.connection_status:
             self._status = self.network.connection_status
             self.statusChanged.emit()
 
-    @qt_event_listener
-    def on_event_fee_histogram(self, *args):
+    @event_listener
+    def on_event_fee_histogram(self, histogram):
         self._logger.debug('fee histogram updated')
+        self._fee_histogram = histogram if histogram else []
         self.feeHistogramUpdated.emit()
 
     @pyqtProperty(int, notify=heightChanged)
@@ -109,5 +111,5 @@ class QENetwork(QObject, QtEventListener):
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):
-        return self.network.get_status_value('fee_histogram')
+        return self._fee_histogram
 

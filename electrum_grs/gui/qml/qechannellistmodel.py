@@ -98,8 +98,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
         channels = []
 
-        lnchannels = self.wallet.lnworker.channels
+        lnchannels = self.wallet.lnworker.get_channel_objects()
         for channel in lnchannels.values():
+            if channel.is_backup():
+                # not implemented
+                continue
             item = self.channel_to_model(channel)
             channels.append(item)
 

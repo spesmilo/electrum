@@ -351,6 +351,9 @@ class AbstractChannel(Logger, ABC):
 
         if self.get_state() == ChannelState.CLOSED and not keep_watching:
             self.set_state(ChannelState.REDEEMED)
+            if self.lnworker and self.is_backup():
+                # auto-remove redeemed backups
+                self.lnworker.remove_channel_backup(self.channel_id)
 
     @property
     def sweep_address(self) -> str:

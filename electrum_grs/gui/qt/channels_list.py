@@ -233,19 +233,8 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        chan = self.lnworker.channel_backups.get(channel_id) or self.lnworker.channels[channel_id]
-        if not chan.is_backup():
-            menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
-        funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
-        if funding_tx:
-            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-        if chan.is_closed():
-            item = chan.get_closing_height()
-            if item:
-                txid, height, timestamp = item
-                closing_tx = self.parent.wallet.db.get_transaction(txid)
-                if closing_tx:
-                    menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
+        chan = self.lnworker.channels.get(channel_id) or self.lnworker.channel_backups[channel_id]
+        menu.addAction(_("Details..."), lambda: self.parent.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
@@ -303,13 +292,13 @@ class ChannelsList(MyTreeView):
     def do_update_rows(self, wallet):
         if wallet != self.parent.wallet:
             return
-        channels = list(wallet.lnworker.channels.values()) if wallet.lnworker else []
-        backups = list(wallet.lnworker.channel_backups.values()) if wallet.lnworker else []
-        if wallet.lnworker:
-            self.update_can_send(wallet.lnworker)
         self.model().clear()
         self.update_headers(self.headers)
-        for chan in channels + backups:
+        if not wallet.lnworker:
+            return
+        self.update_can_send(wallet.lnworker)
+        channels = wallet.lnworker.get_channel_objects()
+        for chan in channels.values():
             field_map = self.format_fields(chan)
             items = [QtGui.QStandardItem(field_map[col]) for col in sorted(field_map)]
             self.set_editability(items)
