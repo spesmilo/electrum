@@ -1452,6 +1452,14 @@ class ElectrumWindow(App, Logger, EventListener):
         self.protected(_("Decrypt your private key?"), show_private_key, (addr, pk_label))
 
     def import_channel_backup(self, encrypted):
+        if not self.wallet.has_lightning():
+            msg = _('Cannot import channel backup.')
+            if self.wallet.can_have_lightning():
+                msg += ' ' + _('Lightning is not enabled.')
+            else:
+                msg += ' ' + _('Lightning is not available for this wallet.')
+            self.show_error(msg)
+            return
         d = Question(_('Import Channel Backup?'), lambda b: self._import_channel_backup(b, encrypted))
         d.open()
 
