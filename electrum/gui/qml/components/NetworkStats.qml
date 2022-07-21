@@ -3,6 +3,8 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 import QtQuick.Controls.Material 2.0
 
+import "controls"
+
 Pane {
     property string title: qsTr('Network')
 
@@ -45,17 +47,9 @@ Pane {
             color: Material.primaryHighlightedTextColor;
             font.bold: true
         }
-        Image {
-            Layout.preferredWidth: constants.iconSizeSmall
-            Layout.preferredHeight: constants.iconSizeSmall
-            source: Network.status == 'connecting' || Network.status == 'disconnected'
-                ? '../../icons/status_disconnected.png'
-                : Network.status == 'connected'
-                    ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
-                        ? '../../icons/status_lagging.png'
-                        : '../../icons/status_connected.png'
-                    : '../../icons/status_connected.png'
-        }
+
+        NetworkStatusIndicator {}
+
         Label {
             text: Network.status
         }

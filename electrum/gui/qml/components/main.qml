@@ -88,17 +88,7 @@ ApplicationWindow
                 scale: 1.5
             }
 
-            Image {
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                source: Network.status == 'connecting' || Network.status == 'disconnected'
-                    ? '../../icons/status_disconnected.png'
-                    : Network.status == 'connected'
-                        ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
-                            ? '../../icons/status_lagging.png'
-                            : '../../icons/status_connected.png'
-                        : '../../icons/status_connected.png'
-            }
+            NetworkStatusIndicator { }
 
             Rectangle {
                 color: 'transparent'
