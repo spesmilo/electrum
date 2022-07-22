@@ -46,7 +46,7 @@ Pane {
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
                 onClicked: {
-                    if (channelopener.validate_nodeid(AppController.clipboardToText()) {
+                    if (channelopener.validate_nodeid(AppController.clipboardToText())) {
                         channelopener.nodeid = AppController.clipboardToText()
                         node.text = channelopener.nodeid
                     }
