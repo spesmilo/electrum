@@ -162,7 +162,7 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
         net_params = self.network.get_parameters()
-        return net_params
+        return net_params.proxy if net_params.proxy else {}
 
     @proxy.setter
     def proxy(self, proxy_settings):
