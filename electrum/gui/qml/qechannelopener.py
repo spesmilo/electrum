@@ -90,7 +90,7 @@ class QEChannelOpener(QObject):
                 nodeid_valid = True
             else:
                 try:
-                    self._peer = nodeid_to_lnpeer(self._nodeid)
+                    self._peer = self.nodeid_to_lnpeer(self._nodeid)
                     nodeid_valid = True
                 except:
                     pass
@@ -112,8 +112,9 @@ class QEChannelOpener(QObject):
     @pyqtSlot(str, result=bool)
     def validate_nodeid(self, nodeid):
         try:
-            nodeid_to_lnpeer(nodeid)
-        except:
+            self.nodeid_to_lnpeer(nodeid)
+        except Exception as e:
+            self._logger.debug(repr(e))
             return False
         return True
 
