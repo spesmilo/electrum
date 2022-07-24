@@ -84,19 +84,16 @@ class QEChannelOpener(QObject):
     def validate(self):
         nodeid_valid = False
         if self._nodeid:
+            self._logger.debug(f'checking if {self._nodeid} is valid')
             if not self._wallet.wallet.config.get('use_gossip', False):
                 self._peer = hardcoded_trampoline_nodes()[self._nodeid]
                 nodeid_valid = True
             else:
                 try:
-                    node_pubkey, host_port = extract_nodeid(self._nodeid)
-                    host, port = host_port.split(':',1)
-                    self._peer = LNPeerAddr(host, int(port), node_pubkey)
+                    self._peer = self.nodeid_to_lnpeer(self._nodeid)
                     nodeid_valid = True
-                except ConnStringFormatError as e:
-                    self.validationError.emit('invalid_nodeid', repr(e))
-                except ValueError as e:
-                    self.validationError.emit('invalid_nodeid', repr(e))
+                except:
+                    pass
 
         if not nodeid_valid:
             self._valid = False
@@ -111,6 +108,20 @@ class QEChannelOpener(QObject):
 
         self._valid = True
         self.validChanged.emit()
+
+    @pyqtSlot(str, result=bool)
+    def validate_nodeid(self, nodeid):
+        try:
+            self.nodeid_to_lnpeer(nodeid)
+        except Exception as e:
+            self._logger.debug(repr(e))
+            return False
+        return True
+
+    def nodeid_to_lnpeer(self, nodeid):
+        node_pubkey, host_port = extract_nodeid(nodeid)
+        host, port = host_port.split(':',1)
+        return LNPeerAddr(host, int(port), node_pubkey)
 
     # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     @pyqtSlot()

@@ -46,8 +46,10 @@ Pane {
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
                 onClicked: {
-                    channelopener.nodeid = AppController.clipboardToText()
-                    node.text = channelopener.nodeid
+                    if (channelopener.validate_nodeid(AppController.clipboardToText())) {
+                        channelopener.nodeid = AppController.clipboardToText()
+                        node.text = channelopener.nodeid
+                    }
                 }
             }
             ToolButton {
@@ -58,8 +60,10 @@ Pane {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                     page.onFound.connect(function() {
-                        channelopener.nodeid = page.scanData
-                        node.text = channelopener.nodeid
+                        if (channelopener.validate_nodeid(page.scanData)) {
+                            channelopener.nodeid = page.scanData
+                            node.text = channelopener.nodeid
+                        }
                     })
                 }
             }
@@ -67,13 +71,20 @@ Pane {
 
         // trampoline
         ComboBox {
-            id: tnode
             visible: !Config.useGossip
             Layout.columnSpan: 3
             Layout.fillWidth: true
             model: channelopener.trampolineNodeNames
             onCurrentValueChanged: {
-                channelopener.nodeid = tnode.currentValue
+                if (activeFocus)
+                    channelopener.nodeid = currentValue
+            }
+            // preselect a random node
+            Component.onCompleted: {
+                if (!Config.useGossip) {
+                    currentIndex = Math.floor(Math.random() * channelopener.trampolineNodeNames.length)
+                    channelopener.nodeid = currentValue
+                }
             }
         }
 

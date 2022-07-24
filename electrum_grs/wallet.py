@@ -1000,7 +1000,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         data = read_json_file(path)
         for x in data:
             req = Invoice(**x)
-            self.add_payment_request(req)
+            self.add_payment_request(req, write_to_disk=False)
+        self.save_db()
 
     def export_requests(self, path):
         write_json_file(path, list(self._receive_requests.values()))
@@ -2466,7 +2467,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             bip70=None,
             lightning_invoice=lightning_invoice,
         )
-        key = self.add_payment_request(req, write_to_disk=False)
+        key = self.add_payment_request(req)
         return key
 
     def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken

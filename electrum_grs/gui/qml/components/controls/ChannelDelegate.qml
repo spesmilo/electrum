@@ -43,6 +43,16 @@ ItemDelegate {
             Layout.preferredHeight: constants.iconSizeLarge
             opacity: _closed ? 0.5 : 1.0
 
+            Image {
+                visible: model.is_trampoline
+                source: "../../../icons/kangaroo.png"
+                anchors {
+                    right: parent.right
+                    bottom: parent.bottom
+                }
+                width: parent.width * 2/3
+                height: parent.height * 2/3
+            }
         }
 
         RowLayout {

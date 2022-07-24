@@ -17,7 +17,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     # define listmodel rolemap
     _ROLE_NAMES=('cid','state','state_code','initiator','capacity','can_send',
                  'can_receive','l_csv_delay','r_csv_delay','send_frozen','receive_frozen',
-                 'type','node_id','node_alias','short_cid','funding_tx')
+                 'type','node_id','node_alias','short_cid','funding_tx','is_trampoline')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -82,6 +82,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         item['capacity'] = QEAmount(amount_sat=lnc.get_capacity())
         item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
         item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
+        item['is_trampoline'] = lnworker.is_trampoline_peer(lnc.node_id)
         return item
 
     numOpenChannelsChanged = pyqtSignal()

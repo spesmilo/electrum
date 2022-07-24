@@ -247,12 +247,15 @@ Pane {
                 wallet: Daemon.currentWallet
                 canRbf: true
             }
+            onClosed: destroy()
         }
     }
 
     Component {
         id: lightningPaymentProgressDialog
-        LightningPaymentProgressDialog {}
+        LightningPaymentProgressDialog {
+            onClosed: destroy()
+        }
     }
 
     Component {
@@ -279,6 +282,7 @@ Pane {
                     Daemon.currentWallet.pay_lightning_invoice(invoice.key)
                 }
             }
+            onClosed: destroy()
         }
     }
 

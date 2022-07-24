@@ -178,7 +178,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
         self.context = self.engine.rootContext()
         self._qeconfig = QEConfig(config)
-        self._qenetwork = QENetwork(daemon.network)
+        self._qenetwork = QENetwork(daemon.network, self._qeconfig)
         self._qedaemon = QEDaemon(daemon)
         self._appController = QEAppController(self._qedaemon)
         self._maxAmount = QEAmount(is_max=True)
