@@ -3,6 +3,8 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
 
+import "controls"
+
 Dialog {
     id: dialog
 
