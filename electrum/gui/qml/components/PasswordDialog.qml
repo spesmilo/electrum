@@ -29,7 +29,7 @@ ElDialog {
         rowSpacing: 0
 
         Image {
-            source: "../../../icons/lock.png"
+            source: "../../icons/lock.png"
             Layout.preferredWidth: constants.iconSizeXLarge
             Layout.preferredHeight: constants.iconSizeXLarge
             Layout.leftMargin: constants.paddingMedium
@@ -76,9 +76,8 @@ ElDialog {
                 text: qsTr('Password')
             }
 
-            TextField {
+            PasswordField {
                 id: pw_1
-                echoMode: TextInput.Password
             }
 
             Label {
@@ -86,9 +85,8 @@ ElDialog {
                 visible: confirmPassword
             }
 
-            TextField {
+            PasswordField {
                 id: pw_2
-                echoMode: TextInput.Password
                 visible: confirmPassword
             }
         }

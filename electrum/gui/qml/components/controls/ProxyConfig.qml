@@ -75,10 +75,9 @@ Item {
                 enabled: password_tf.enabled
             }
 
-            TextField {
+            PasswordField {
                 id: password_tf
                 enabled: proxytype.enabled && proxytype.currentIndex > 0
-                echoMode: TextInput.Password
             }
         }
     }
