@@ -65,6 +65,14 @@ ElDialog {
         }
     }
 
+    onAccepted: result = Dialog.Accepted
+    onRejected: result = Dialog.Rejected
+    onClosed: {
+        if (!root.result) {
+            root.reject() // make sure we reject the authed fn()
+        }
+    }
+
     header: GridLayout {
         columns: 2
         rowSpacing: 0
