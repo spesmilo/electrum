@@ -186,6 +186,11 @@ ApplicationWindow
         }
     }
 
+    property alias channelOpenProgressDialog: _channelOpenProgressDialog
+    ChannelOpenProgressDialog {
+        id: _channelOpenProgressDialog
+    }
+
     NotificationPopup {
         id: notificationPopup
     }

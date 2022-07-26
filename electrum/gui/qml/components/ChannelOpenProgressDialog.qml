@@ -27,6 +27,12 @@ ElDialog {
     property alias error: errorText.text
     property alias peer: peerText.text
 
+    function reset() {
+        state = ''
+        errorText.text = ''
+        peerText.text = ''
+    }
+
     Item {
         id: s
         state: ''
@@ -52,6 +58,7 @@ ElDialog {
         id: content
         anchors.centerIn: parent
         width: parent.width
+        spacing: constants.paddingLarge
 
         RowLayout {
                 Layout.alignment: Qt.AlignHCenter
@@ -103,6 +110,7 @@ ElDialog {
                 id: infoText
                 visible: false
                 text: qsTr('Channel will be open after 3 confirmations')
+                width: parent.width
             }
         }
     }
