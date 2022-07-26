@@ -7,7 +7,7 @@ import org.electrum 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: passworddialog
 
     title: qsTr("Enter Password")

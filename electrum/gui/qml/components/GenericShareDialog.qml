@@ -5,7 +5,7 @@ import QtQuick.Controls.Material 2.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: dialog
 
     property string text
