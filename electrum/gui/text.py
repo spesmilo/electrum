@@ -103,6 +103,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.num_tabs = len(self.tab_names)
         self.need_update = False
 
+    def stop(self):
+        self.tab = -1
 
     @event_listener
     def on_event_wallet_updated(self, wallet):
@@ -429,6 +431,8 @@ class ElectrumGui(BaseElectrumGui, EventListener):
                 return c
             if self.need_update and redraw:
                 self.update()
+            if self.tab == -1:
+                return 27
 
     def main_command(self):
         c = self.getch(redraw=True)
