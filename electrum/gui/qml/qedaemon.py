@@ -1,19 +1,16 @@
 import os
-from decimal import Decimal
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum.util import register_callback, get_new_wallet_name, WalletFileException, standardize_path
 from electrum.logging import get_logger
-from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.storage import WalletStorage, StorageReadWriteError
-from electrum.wallet_db import WalletDB
+from electrum.util import WalletFileException, standardize_path
+from electrum.wallet import Abstract_Wallet
 
+from .auth import AuthMixin, auth_protect
+from .qefx import QEFX
 from .qewallet import QEWallet
 from .qewalletdb import QEWalletDB
-from .qefx import QEFX
-from .auth import AuthMixin, auth_protect
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)

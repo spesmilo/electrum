@@ -1,10 +1,9 @@
 import os
 import signal
 import sys
-import traceback
 import threading
-import re
-from typing import Optional, TYPE_CHECKING, List
+import traceback
+from typing import TYPE_CHECKING
 
 try:
     import PyQt5
@@ -20,14 +19,10 @@ from PyQt5.QtCore import QLocale, QTimer
 from PyQt5.QtGui import QGuiApplication
 import PyQt5.QtCore as QtCore
 
-from electrum.i18n import _, set_language, languages
+from electrum.i18n import set_language, languages
 from electrum.plugin import run_hook
-from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, profiler,
-                           WalletFileException, BitcoinException, get_new_wallet_name)
-from electrum.wallet import Wallet, Abstract_Wallet
-from electrum.wallet_db import WalletDB
-from electrum.logging import Logger, get_logger
+from electrum.util import (profiler)
+from electrum.logging import Logger
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon

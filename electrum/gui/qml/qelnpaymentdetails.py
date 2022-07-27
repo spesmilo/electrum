@@ -1,10 +1,10 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
-from electrum.util import format_time, bfh, format_time
+from electrum.util import bfh, format_time
 
-from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .qewallet import QEWallet
 
 class QELnPaymentDetails(QObject):
     def __init__(self, parent=None):

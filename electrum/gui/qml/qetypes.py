@@ -2,7 +2,6 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.i18n import _
-from electrum.util import profiler
 
 # container for satoshi amounts that can be passed around more
 # easily between python, QML-property and QML-javascript contexts

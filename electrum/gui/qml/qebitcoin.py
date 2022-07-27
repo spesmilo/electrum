@@ -1,16 +1,15 @@
 import asyncio
-from datetime import datetime
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum.logging import get_logger
-from electrum.keystore import bip39_is_checksum_valid
-from electrum.bip32 import is_bip32_derivation
-from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum import mnemonic
+from electrum.bip32 import is_bip32_derivation
+from electrum.keystore import bip39_is_checksum_valid
+from electrum.logging import get_logger
+from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
-
 from .qetypes import QEAmount
+
 
 class QEBitcoin(QObject):
     def __init__(self, config, parent=None):

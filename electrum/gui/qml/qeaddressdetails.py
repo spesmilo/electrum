@@ -1,13 +1,11 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from decimal import Decimal
-
 from electrum.logging import get_logger
-from electrum.util import DECIMAL_POINT_DEFAULT
 
-from .qewallet import QEWallet
-from .qetypes import QEAmount
 from .qetransactionlistmodel import QETransactionListModel
+from .qetypes import QEAmount
+from .qewallet import QEWallet
+
 
 class QEAddressDetails(QObject):
     def __init__(self, parent=None):
