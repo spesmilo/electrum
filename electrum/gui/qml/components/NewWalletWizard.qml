@@ -47,8 +47,12 @@ Wizard {
             if (wizard_data['seed_type'] != 'bip39' && Daemon.singlePassword)
                 page.last = true
             break
-//        case 'masterkey'
-//        case 'hardware'
+        case 'masterkey':
+            page = _loadNextComponent(components.havemasterkey, wizard_data)
+            page.next.connect(function() {havemasterkeyDone()})
+            if (Daemon.singlePassword)
+                page.last = true
+            break
         }
     }
 
@@ -87,6 +91,12 @@ Wizard {
         page.last = true
     }
 
+    function havemasterkeyDone(d) {
+        console.log('have master key done')
+        var page = _loadNextComponent(components.walletpassword, wizard_data)
+        page.last = true
+    }
+
     Item {
         id: components
         property Component walletname: Component {
@@ -115,6 +125,10 @@ Wizard {
 
         property Component bip39refine: Component {
             WCBIP39Refine {}
+        }
+
+        property Component havemasterkey: Component {
+            WCHaveMasterKey {}
         }
 
         property Component walletpassword: Component {
