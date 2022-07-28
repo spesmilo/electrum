@@ -44,13 +44,13 @@ Wizard {
         case 'haveseed':
             page = _loadNextComponent(components.haveseed, wizard_data)
             page.next.connect(function() {haveseedDone()})
-            if (wizard_data['seed_type'] != 'bip39' && Daemon.singlePassword)
+            if (wizard_data['seed_type'] != 'bip39' && Daemon.singlePasswordEnabled)
                 page.last = true
             break
         case 'masterkey':
             page = _loadNextComponent(components.havemasterkey, wizard_data)
             page.next.connect(function() {havemasterkeyDone()})
-            if (Daemon.singlePassword)
+            if (Daemon.singlePasswordEnabled)
                 page.last = true
             break
         }
@@ -59,7 +59,7 @@ Wizard {
     function createseedDone(d) {
         console.log('create seed done')
         var page = _loadNextComponent(components.confirmseed, wizard_data)
-        if (Daemon.singlePassword)
+        if (Daemon.singlePasswordEnabled)
             page.last = true
         else
             page.next.connect(function() {confirmseedDone()})
@@ -75,7 +75,7 @@ Wizard {
         console.log('have seed done')
         if (wizard_data['seed_type'] == 'bip39') {
             var page = _loadNextComponent(components.bip39refine, wizard_data)
-            if (Daemon.singlePassword)
+            if (Daemon.singlePasswordEnabled)
                 page.last = true
             else
                 page.next.connect(function() {bip39refineDone()})

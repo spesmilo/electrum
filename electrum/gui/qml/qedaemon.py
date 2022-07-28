@@ -3,6 +3,7 @@ import os
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import WalletFileException, standardize_path
 from electrum.wallet import Abstract_Wallet
@@ -55,9 +56,27 @@ class QEWalletListModel(QAbstractListModel):
             wallet_name = os.path.basename(wallet_path)
         else:
             wallet_name = wallet.basename()
+        wallet_path = standardize_path(wallet_path)
         item = (wallet_name, wallet_path, wallet)
         self.wallets.append(item);
         self.endInsertRows();
+
+    def remove_wallet(self, path):
+        i = 0
+        wallets = []
+        remove = -1
+        for wallet_name, wallet_path, wallet in self.wallets:
+            if wallet_path == path:
+                remove = i
+            else:
+                self._logger.debug('HM, %s is not %s', wallet_path, path)
+                wallets.append((wallet_name, wallet_path, wallet))
+            i += 1
+
+        if remove >= 0:
+            self.beginRemoveRows(QModelIndex(), i, i)
+            self.wallets = wallets
+            self.endRemoveRows()
 
 class QEAvailableWalletListModel(QEWalletListModel):
     def __init__(self, daemon, parent=None):
@@ -110,6 +129,7 @@ class QEDaemon(AuthMixin, QObject):
     availableWalletsChanged = pyqtSignal()
     walletOpenError = pyqtSignal([str], arguments=["error"])
     fxChanged = pyqtSignal()
+    walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
 
     @pyqtSlot()
     def passwordValidityCheck(self):
@@ -144,7 +164,7 @@ class QEDaemon(AuthMixin, QObject):
         try:
             wallet = self.daemon.load_wallet(self._path, password)
             if wallet != None:
-                self._loaded_wallets.add_wallet(wallet=wallet)
+                self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
                 self._current_wallet.password = password
                 self.walletLoaded.emit()
@@ -166,17 +186,42 @@ class QEDaemon(AuthMixin, QObject):
             self.walletOpenError.emit(str(e))
 
     @pyqtSlot(QEWallet)
+    @pyqtSlot(QEWallet, bool)
+    @pyqtSlot(QEWallet, bool, bool)
+    def check_then_delete_wallet(self, wallet, confirm_requests=False, confirm_balance=False):
+        if wallet.wallet.lnworker:
+            lnchannels = wallet.wallet.lnworker.get_channel_objects()
+            if any([channel.get_state() != ChannelState.REDEEMED for channel in lnchannels.values()]):
+                self.walletDeleteError.emit('unclosed_channels', _('There are still channels that are not fully closed'))
+                return
+
+        num_requests = len(wallet.wallet.get_unpaid_requests())
+        if num_requests > 0 and not confirm_requests:
+            self.walletDeleteError.emit('unpaid_requests', _('There are still unpaid requests. Really delete?'))
+            return
+
+        c, u, x = wallet.wallet.get_balance()
+        if c+u+x > 0 and not wallet.wallet.is_watching_only() and not confirm_balance:
+            self.walletDeleteError.emit('balance', _('There are still coins present in this wallet. Really delete?'))
+            return
+
+        self.delete_wallet(wallet)
+
+    @pyqtSlot(QEWallet)
     @auth_protect
     def delete_wallet(self, wallet):
-        path = wallet.wallet.storage.path
-        self._logger.debug('Ok to delete wallet with path %s' % path)
-        # TODO checks, e.g. existing LN channels, unpaid requests, etc
-        self._logger.debug('Not deleting yet, just unloading for now')
-        # TODO actually delete
-        # TODO walletLoaded signal is confusing
-        self.daemon.stop_wallet(path)
+        path = standardize_path(wallet.wallet.storage.path)
+        self._logger.debug('deleting wallet with path %s' % path)
         self._current_wallet = None
+        # TODO walletLoaded signal is confusing
         self.walletLoaded.emit()
+
+        if not self.daemon.delete_wallet(path):
+            self.walletDeleteError.emit('error', _('Problem deleting wallet'))
+            return
+
+        self.activeWallets.remove_wallet(path)
+        self.availableWallets.remove_wallet(path)
 
     @pyqtProperty('QString')
     def path(self):
