@@ -82,13 +82,13 @@ ElDialog {
                 Layout.alignment: Qt.AlignHCenter
                 Button {
                     text: qsTr('Copy')
-                    icon.source: '../../../icons/copy_bw.png'
+                    icon.source: '../../icons/copy_bw.png'
                     onClicked: AppController.textToClipboard(dialog.text)
                 }
                 Button {
                     //enabled: false
                     text: qsTr('Share')
-                    icon.source: '../../../icons/share.png'
+                    icon.source: '../../icons/share.png'
                     onClicked: {
                         AppController.doShare(dialog.text, dialog.title)
                     }
