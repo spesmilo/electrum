@@ -3,7 +3,9 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
 
-Dialog {
+import "controls"
+
+ElDialog {
     id: dialog
 
     property string text
@@ -51,29 +53,11 @@ Dialog {
                 color: Material.accentColor
             }
 
-            Image {
+            QRImage {
                 id: qr
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
-
-                Rectangle {
-                    property int size: 57 // should be qr pixel multiple
-                    color: 'white'
-                    x: (parent.width - size) / 2
-                    y: (parent.height - size) / 2
-                    width: size
-                    height: size
-
-                    Image {
-                        source: '../../../icons/electrum-ltc.png'
-                        x: 1
-                        y: 1
-                        width: parent.width - 2
-                        height: parent.height - 2
-                        scale: 0.9
-                    }
-                }
             }
 
             Rectangle {
@@ -114,6 +98,6 @@ Dialog {
     }
 
     Component.onCompleted: {
-        qr.source = 'image://qrgen/' + dialog.text
+        qr.qrdata = dialog.text
     }
 }

@@ -7,8 +7,10 @@ import org.electrum_ltc 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: root
+
+    title: qsTr('PIN')
 
     width: parent.width * 2/3
     height: parent.height * 1/3
@@ -19,12 +21,17 @@ Dialog {
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {
-        color: "#aa000000"
+        color: canCancel ? "#aa000000" : "#ff000000"
     }
 
     focus: true
 
-    standardButtons: Dialog.Cancel
+    standardButtons: canCancel ? Dialog.Cancel : 0
+    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
+
+    property bool canCancel: true
+
+    allowClose: canCancel
 
     property string mode // [check, enter, change]
     property string pincode // old one passed in when change, new one passed out
@@ -55,6 +62,47 @@ Dialog {
                 accepted()
             }
             return
+        }
+    }
+
+    onAccepted: result = Dialog.Accepted
+    onRejected: result = Dialog.Rejected
+    onClosed: {
+        if (!root.result) {
+            root.reject() // make sure we reject the authed fn()
+        }
+    }
+
+    header: GridLayout {
+        columns: 2
+        rowSpacing: 0
+
+        Image {
+            source: "../../icons/lock.png"
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
+            Layout.leftMargin: constants.paddingMedium
+            Layout.topMargin: constants.paddingMedium
+            Layout.bottomMargin: constants.paddingMedium
+        }
+
+        Label {
+            text: title
+            elide: Label.ElideRight
+            Layout.fillWidth: true
+            topPadding: constants.paddingXLarge
+            bottomPadding: constants.paddingXLarge
+            font.bold: true
+            font.pixelSize: constants.fontSizeMedium
+        }
+
+        Rectangle {
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingXXSmall
+            Layout.rightMargin: constants.paddingXXSmall
+            height: 1
+            color: Qt.rgba(0,0,0,0.5)
         }
     }
 

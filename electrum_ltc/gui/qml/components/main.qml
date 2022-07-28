@@ -27,6 +27,8 @@ ApplicationWindow
 
     property alias stack: mainStackView
 
+    property Dialog activeDialog: null
+
     header: ToolBar {
         id: toolbar
 
@@ -37,6 +39,13 @@ ApplicationWindow
                 text: qsTr("‹")
                 enabled: stack.depth > 1
                 onClicked: stack.pop()
+            }
+
+            Image {
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: constants.iconSizeLarge
+                Layout.preferredHeight: constants.iconSizeLarge
+                source: "../../icons/electrum-ltc.png"
             }
 
             Label {
@@ -81,17 +90,7 @@ ApplicationWindow
                 scale: 1.5
             }
 
-            Image {
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                source: Network.status == 'connecting' || Network.status == 'disconnected'
-                    ? '../../icons/status_disconnected.png'
-                    : Network.status == 'connected'
-                        ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
-                            ? '../../icons/status_lagging.png'
-                            : '../../icons/status_connected.png'
-                        : '../../icons/status_connected.png'
-            }
+            NetworkStatusIndicator { }
 
             Rectangle {
                 color: 'transparent'
@@ -187,6 +186,11 @@ ApplicationWindow
         }
     }
 
+    property alias channelOpenProgressDialog: _channelOpenProgressDialog
+    ChannelOpenProgressDialog {
+        id: _channelOpenProgressDialog
+    }
+
     NotificationPopup {
         id: notificationPopup
     }
@@ -208,6 +212,14 @@ ApplicationWindow
     }
 
     onClosing: {
+        if (activeDialog) {
+            console.log('dialog on top')
+            if (activeDialog.allowClose) {
+                activeDialog.close()
+            }
+            close.accepted = false
+            return
+        }
         if (stack.depth > 1) {
             close.accepted = false
             stack.pop()
@@ -275,7 +287,7 @@ ApplicationWindow
     }
 
     function handleAuthRequired(qtobject, method) {
-        console.log('AUTHENTICATING USING METHOD ' + method)
+        console.log('auth using method ' + method)
         if (method == 'wallet') {
             if (Daemon.currentWallet.verify_password('')) {
                 // wallet has no password
@@ -308,6 +320,34 @@ ApplicationWindow
                     qtobject.authCancel()
                 })
                 dialog.open()
+            }
+        } else {
+            console.log('unknown auth method ' + method)
+            qtobject.authCancel()
+        }
+    }
+
+    property var _lastActive: 0 // record time of last activity
+    property int _maxInactive: 30 // seconds
+    property bool _lockDialogShown: false
+
+    onActiveChanged: {
+        console.log('active='+active)
+        if (!active) {
+            // deactivated
+            _lastActive = Date.now()
+        } else {
+            // activated
+            if (_lastActive != 0 && Date.now() - _lastActive > _maxInactive * 1000) {
+                if (_lockDialogShown || Config.pinCode == '')
+                    return
+                var dialog = app.pinDialog.createObject(app, {mode: 'check', canCancel: false, pincode: Config.pinCode})
+                dialog.accepted.connect(function() {
+                    dialog.close()
+                    _lockDialogShown = false
+                })
+                dialog.open()
+                _lockDialogShown = true
             }
         }
     }

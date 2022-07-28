@@ -675,6 +675,11 @@ class LNWallet(LNWorker):
         with self.lock:
             return self._channel_backups.copy()
 
+    def get_channel_objects(self) -> Mapping[bytes, AbstractChannel]:
+        r = self.channel_backups
+        r.update(self.channels)
+        return r
+
     def get_channel_by_id(self, channel_id: bytes) -> Optional[Channel]:
         return self._channels.get(channel_id, None)
 
@@ -2496,13 +2501,16 @@ class LNWallet(LNWorker):
     def remove_channel_backup(self, channel_id):
         chan = self.channel_backups[channel_id]
         assert chan.can_be_deleted()
+        found = False
         onchain_backups = self.db.get_dict("onchain_channel_backups")
         imported_backups = self.db.get_dict("imported_channel_backups")
         if channel_id.hex() in onchain_backups:
             onchain_backups.pop(channel_id.hex())
-        elif channel_id.hex() in imported_backups:
+            found = True
+        if channel_id.hex() in imported_backups:
             imported_backups.pop(channel_id.hex())
-        else:
+            found = True
+        if not found:
             raise Exception('Channel not found')
         with self.lock:
             self._channel_backups.pop(channel_id)

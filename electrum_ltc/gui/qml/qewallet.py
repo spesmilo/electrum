@@ -63,6 +63,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     _network_signal = pyqtSignal(str, object)
 
+    _isUpToDate = False
+    _synchronizing = False
+    _synchronizing_progress = ''
+
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
@@ -91,11 +95,52 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=isUptodateChanged)
     def isUptodate(self):
-        return self.wallet.is_up_to_date()
+        return self._isUpToDate
+
+    synchronizingChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=synchronizingChanged)
+    def synchronizing(self):
+        return self._synchronizing
+
+    @synchronizing.setter
+    def synchronizing(self, synchronizing):
+        if self._synchronizing != synchronizing:
+            self._synchronizing = synchronizing
+            self.synchronizingChanged.emit()
+
+    synchronizingProgressChanged = pyqtSignal()
+    @pyqtProperty(str, notify=synchronizingProgressChanged)
+    def synchronizing_progress(self):
+        return self._synchronizing_progress
+
+    @synchronizing_progress.setter
+    def synchronizing_progress(self, progress):
+        if self._synchronizing_progress != progress:
+            self._synchronizing_progress = progress
+            self.synchronizingProgressChanged.emit()
 
     @event_listener
-    def on_event_status(self, *args, **kwargs):
-        self.isUptodateChanged.emit()
+    def on_event_status(self):
+        self._logger.debug('status')
+        uptodate = self.wallet.is_up_to_date()
+        if self._isUpToDate != uptodate:
+            self._isUpToDate = uptodate
+            self.isUptodateChanged.emit()
+
+        if self.wallet.network.is_connected():
+            server_height = self.wallet.network.get_server_height()
+            server_lag = self.wallet.network.get_local_height() - server_height
+            # Server height can be 0 after switching to a new server
+            # until we get a headers subscription request response.
+            # Display the synchronizing message in that case.
+            if not self._isUpToDate or server_height == 0:
+                num_sent, num_answered = self.wallet.adb.get_history_sync_state_details()
+                self.synchronizing_progress = ("{} ({}/{})"
+                                .format(_("Synchronizing..."), num_answered, num_sent))
+                self.synchronizing = True
+            else:
+                self.synchronizing_progress = ''
+                self.synchronizing = False
 
     @event_listener
     def on_event_request_status(self, wallet, key, status):
@@ -116,8 +161,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self._logger.debug(f'No invoice found for key {key}')
 
     @qt_event_listener
-    def on_event_new_transaction(self, *args):
-        wallet, tx = args
+    def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
             self.add_tx_notification(tx)
             self.historyModel.init_model() # TODO: be less dramatic

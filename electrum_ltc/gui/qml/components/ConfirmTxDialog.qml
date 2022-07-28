@@ -7,7 +7,7 @@ import org.electrum_ltc 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: dialog
 
     required property QtObject finalizer

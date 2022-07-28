@@ -87,9 +87,41 @@ Wizard {
         page.last = true
     }
 
-    WizardComponents {
+    Item {
         id: components
+        property Component walletname: Component {
+            WCWalletName {}
+        }
+
+        property Component wallettype: Component {
+            WCWalletType {}
+        }
+
+        property Component keystore: Component {
+            WCKeystoreType {}
+        }
+
+        property Component createseed: Component {
+            WCCreateSeed {}
+        }
+
+        property Component haveseed: Component {
+            WCHaveSeed {}
+        }
+
+        property Component confirmseed: Component {
+            WCConfirmSeed {}
+        }
+
+        property Component bip39refine: Component {
+            WCBIP39Refine {}
+        }
+
+        property Component walletpassword: Component {
+            WCWalletPassword {}
+        }
     }
+
 
     Component.onCompleted: {
         _setWizardData({})

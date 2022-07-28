@@ -3,11 +3,13 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.0
 import QtQuick.Controls.Material 2.0
 
+import "controls"
+
 Pane {
     property string title: qsTr('Network')
 
     GridLayout {
-        columns: 3
+        columns: 2
 
         Label {
             text: qsTr("Network: ");
@@ -16,7 +18,6 @@ Pane {
         }
         Label {
             text: Network.networkName
-            Layout.columnSpan: 2
         }
 
         Label {
@@ -26,7 +27,6 @@ Pane {
         }
         Label {
             text: Network.server
-            Layout.columnSpan: 2
         }
 
         Label {
@@ -37,7 +37,6 @@ Pane {
         }
         Label {
             text: Network.height
-            Layout.columnSpan: 2
         }
 
         Label {
@@ -45,19 +44,13 @@ Pane {
             color: Material.primaryHighlightedTextColor;
             font.bold: true
         }
-        Image {
-            Layout.preferredWidth: constants.iconSizeSmall
-            Layout.preferredHeight: constants.iconSizeSmall
-            source: Network.status == 'connecting' || Network.status == 'disconnected'
-                ? '../../icons/status_disconnected.png'
-                : Network.status == 'connected'
-                    ? Daemon.currentWallet && !Daemon.currentWallet.isUptodate
-                        ? '../../icons/status_lagging.png'
-                        : '../../icons/status_connected.png'
-                    : '../../icons/status_connected.png'
-        }
-        Label {
-            text: Network.status
+
+        RowLayout {
+            NetworkStatusIndicator {}
+
+            Label {
+                text: Network.status
+            }
         }
 
         Label {
@@ -67,7 +60,28 @@ Pane {
         }
         Label {
             id: feeHistogram
-            Layout.columnSpan: 2
+        }
+
+        Label {
+            text: qsTr("Gossip: ");
+            color: Material.primaryHighlightedTextColor;
+            font.bold: true
+        }
+        ColumnLayout {
+            visible: Config.useGossip
+            Label {
+                text: qsTr('%1 peers').arg(Network.gossipInfo.peers)
+            }
+            Label {
+                text: qsTr('%1 channels to fetch').arg(Network.gossipInfo.unknown_channels)
+            }
+            Label {
+                text: qsTr('%1 nodes, %2 channels').arg(Network.gossipInfo.db_nodes).arg(Network.gossipInfo.db_channels)
+            }
+        }
+        Label {
+            text: qsTr("disabled");
+            visible: !Config.useGossip
         }
     }
 

@@ -157,6 +157,6 @@ Pane {
 
     Component {
         id: swapDialog
-        Swap {}
+        SwapDialog {}
     }
 }

@@ -44,22 +44,27 @@ Pane {
             error: true
         }
 
-        Label {
-            text: qsTr('Password')
-            visible: wallet_db.needsPassword
-        }
-
-        TextField {
-            id: password
-            visible: wallet_db.needsPassword
-            echoMode: TextInput.Password
-            inputMethodHints: Qt.ImhSensitiveData
-            onTextChanged: {
-                unlockButton.enabled = true
-                _unlockClicked = false
+        RowLayout {
+            Layout.columnSpan: 2
+            Layout.alignment: Qt.AlignHCenter
+            Layout.maximumWidth: parent.width * 2/3
+            Label {
+                text: qsTr('Password')
+                visible: wallet_db.needsPassword
+                Layout.fillWidth: true
             }
-            onAccepted: {
-                unlock()
+
+            PasswordField {
+                id: password
+                visible: wallet_db.needsPassword
+                Layout.fillWidth: true
+                onTextChanged: {
+                    unlockButton.enabled = true
+                    _unlockClicked = false
+                }
+                onAccepted: {
+                    unlock()
+                }
             }
         }
 

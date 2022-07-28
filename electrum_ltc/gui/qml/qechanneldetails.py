@@ -6,15 +6,21 @@ from electrum_ltc.i18n import _
 from electrum_ltc.gui import messages
 from electrum_ltc.logging import get_logger
 from electrum_ltc.lnutil import LOCAL, REMOTE
-from electrum_ltc.lnchannel import ChanCloseOption
+from electrum_ltc.lnchannel import ChanCloseOption, ChannelState
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener, event_listener
 
 class QEChannelDetails(QObject, QtEventListener):
-
     _logger = get_logger(__name__)
+
+    class State: # subset, only ones we currently need in UI
+        Closed = ChannelState.CLOSED
+        Redeemed = ChannelState.REDEEMED
+
+    Q_ENUMS(State)
+
     _wallet = None
     _channelid = None
     _channel = None

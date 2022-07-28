@@ -871,7 +871,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 if task.done() and not task.cancelled():
                     return task.result()
                 # otherwise; try again
-            raise BestEffortRequestFailed('no interface to do request on... gave up.')
+            raise BestEffortRequestFailed('cannot establish a connection... gave up.')
         return make_reliable_wrapper
 
     def catch_server_exceptions(func):

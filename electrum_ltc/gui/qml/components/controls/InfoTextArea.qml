@@ -38,7 +38,7 @@ GridLayout {
         }
 
         Image {
-            source: iconStyle == InfoTextArea.IconStyle.Info ? "../../../icons/info.png" : InfoTextArea.IconStyle.Warn ? "../../../icons/warning.png" : InfoTextArea.IconStyle.Error ? "../../../icons/expired.png" : ""
+            source: iconStyle == InfoTextArea.IconStyle.Info ? "../../../icons/info.png" : iconStyle == InfoTextArea.IconStyle.Warn ? "../../../icons/warning.png" : iconStyle == InfoTextArea.IconStyle.Error ? "../../../icons/expired.png" : ""
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.leftMargin: constants.paddingLarge

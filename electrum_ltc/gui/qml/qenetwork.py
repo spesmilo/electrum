@@ -4,13 +4,18 @@ from electrum_ltc.logging import get_logger
 from electrum_ltc import constants
 from electrum_ltc.interface import ServerAddr
 
-from .util import QtEventListener, qt_event_listener
+from .util import QtEventListener, event_listener
 
 class QENetwork(QObject, QtEventListener):
-    def __init__(self, network, parent=None):
+    def __init__(self, network, qeconfig, parent=None):
         super().__init__(parent)
         self.network = network
+        self._qeconfig = qeconfig
+        self._height = network.get_local_height() # init here, update event can take a while
         self.register_callbacks()
+
+        self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
+
 
     _logger = get_logger(__name__)
 
@@ -22,51 +27,104 @@ class QENetwork(QObject, QtEventListener):
     proxyChanged = pyqtSignal()
     statusChanged = pyqtSignal()
     feeHistogramUpdated = pyqtSignal()
+    chaintipsChanged = pyqtSignal()
+    isLaggingChanged = pyqtSignal()
+    gossipUpdated = pyqtSignal()
 
     # shared signal for static properties
     dataChanged = pyqtSignal()
 
     _height = 0
     _status = ""
+    _chaintips = 1
+    _islagging = False
+    _fee_histogram = []
+    _gossipPeers = 0
+    _gossipUnknownChannels = 0
+    _gossipDbNodes = 0
+    _gossipDbChannels = 0
+    _gossipDbPolicies = 0
 
-    @qt_event_listener
+    @event_listener
     def on_event_network_updated(self, *args):
         self.networkUpdated.emit()
 
-    @qt_event_listener
-    def on_event_blockchain_updated(self, *args):
+    @event_listener
+    def on_event_blockchain_updated(self):
         if self._height != self.network.get_local_height():
             self._height = self.network.get_local_height()
             self._logger.debug('new height: %d' % self._height)
             self.heightChanged.emit(self._height)
         self.blockchainUpdated.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_default_server_changed(self, *args):
         self.defaultServerChanged.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_proxy_set(self, *args):
         self._logger.debug('proxy set')
         self.proxySet.emit()
 
-    @qt_event_listener
+    @event_listener
     def on_event_status(self, *args):
         self._logger.debug('status updated: %s' % self.network.connection_status)
         if self._status != self.network.connection_status:
             self._status = self.network.connection_status
             self.statusChanged.emit()
+        chains = len(self.network.get_blockchains())
+        if chains != self._chaintips:
+            self._logger.debug('chain tips # changed: %d', chains)
+            self._chaintips = chains
+            self.chaintipsChanged.emit()
+        server_lag = self.network.get_local_height() - self.network.get_server_height()
+        if self._islagging ^ (server_lag > 1):
+            self._logger.debug('lagging changed: %s', str(server_lag > 1))
+            self._islagging = server_lag > 1
+            self.isLaggingChanged.emit()
 
-    @qt_event_listener
-    def on_event_fee_histogram(self, *args):
+    @event_listener
+    def on_event_fee_histogram(self, histogram):
         self._logger.debug('fee histogram updated')
+        self._fee_histogram = histogram if histogram else []
         self.feeHistogramUpdated.emit()
+
+    @event_listener
+    def on_event_channel_db(self, num_nodes, num_channels, num_policies):
+        self._logger.debug(f'channel_db: {num_nodes} nodes, {num_channels} channels, {num_policies} policies')
+        self._gossipDbNodes = num_nodes
+        self._gossipDbChannels = num_channels
+        self._gossipDbPolicies = num_policies
+        self.gossipUpdated.emit()
+
+    @event_listener
+    def on_event_gossip_peers(self, num_peers):
+        self._logger.debug(f'gossip peers {num_peers}')
+        self._gossipPeers = num_peers
+        self.gossipUpdated.emit()
+
+    @event_listener
+    def on_event_unknown_channels(self, unknown):
+        if unknown == 0 and self._gossipUnknownChannels == 0: # TODO: backend sends a lot of unknown=0 events
+            return
+        self._logger.debug(f'unknown channels {unknown}')
+        self._gossipUnknownChannels = unknown
+        self.gossipUpdated.emit()
+        #self.lightning_gossip_num_queries = unknown
+
+    def on_gossip_setting_changed(self):
+        if not self.network:
+            return
+        if self._qeconfig.useGossip:
+            self.network.start_gossip()
+        else:
+            self.network.run_from_another_thread(self.network.stop_gossip())
 
     @pyqtProperty(int, notify=heightChanged)
     def height(self):
         return self._height
 
-    @pyqtProperty('QString', notify=defaultServerChanged)
+    @pyqtProperty(str, notify=defaultServerChanged)
     def server(self):
         return str(self.network.get_parameters().server)
 
@@ -81,22 +139,30 @@ class QENetwork(QObject, QtEventListener):
         net_params = net_params._replace(server=server)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
-    @pyqtProperty('QString', notify=statusChanged)
+    @pyqtProperty(str, notify=statusChanged)
     def status(self):
         return self._status
+
+    @pyqtProperty(int, notify=chaintipsChanged)
+    def chaintips(self):
+        return self._chaintips
+
+    @pyqtProperty(bool, notify=isLaggingChanged)
+    def isLagging(self):
+        return self._islagging
 
     @pyqtProperty(bool, notify=dataChanged)
     def isTestNet(self):
         return constants.net.TESTNET
 
-    @pyqtProperty('QString', notify=dataChanged)
+    @pyqtProperty(str, notify=dataChanged)
     def networkName(self):
         return constants.net.__name__.replace('Bitcoin','')
 
     @pyqtProperty('QVariantMap', notify=proxyChanged)
     def proxy(self):
         net_params = self.network.get_parameters()
-        return net_params
+        return net_params.proxy if net_params.proxy else {}
 
     @proxy.setter
     def proxy(self, proxy_settings):
@@ -109,5 +175,14 @@ class QENetwork(QObject, QtEventListener):
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):
-        return self.network.get_status_value('fee_histogram')
+        return self._fee_histogram
 
+    @pyqtProperty('QVariantMap', notify=gossipUpdated)
+    def gossipInfo(self):
+        return {
+            'peers': self._gossipPeers,
+            'unknown_channels': self._gossipUnknownChannels,
+            'db_nodes': self._gossipDbNodes,
+            'db_channels': self._gossipDbChannels ,
+            'db_policies': self._gossipDbPolicies
+        }

@@ -5,7 +5,9 @@ import QtQuick.Controls.Material 2.0
 
 import org.electrum_ltc 1.0
 
-Dialog {
+import "controls"
+
+ElDialog {
     id: passworddialog
 
     title: qsTr("Enter Password")
@@ -27,7 +29,7 @@ Dialog {
         rowSpacing: 0
 
         Image {
-            source: "../../../icons/lock.png"
+            source: "../../icons/lock.png"
             Layout.preferredWidth: constants.iconSizeXLarge
             Layout.preferredHeight: constants.iconSizeXLarge
             Layout.leftMargin: constants.paddingMedium
@@ -74,9 +76,8 @@ Dialog {
                 text: qsTr('Password')
             }
 
-            TextField {
+            PasswordField {
                 id: pw_1
-                echoMode: TextInput.Password
             }
 
             Label {
@@ -84,9 +85,8 @@ Dialog {
                 visible: confirmPassword
             }
 
-            TextField {
+            PasswordField {
                 id: pw_2
-                echoMode: TextInput.Password
                 visible: confirmPassword
             }
         }

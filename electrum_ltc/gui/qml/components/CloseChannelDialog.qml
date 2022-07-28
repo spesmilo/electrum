@@ -7,7 +7,7 @@ import org.electrum_ltc 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: dialog
     width: parent.width
     height: parent.height

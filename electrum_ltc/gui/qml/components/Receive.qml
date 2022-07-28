@@ -71,7 +71,7 @@ Pane {
             Layout.fillWidth: false
         }
 
-        ComboBox {
+        ElComboBox {
             id: expires
             Layout.columnSpan: 2
 
@@ -90,13 +90,6 @@ Pane {
                     expiresmodel.append({'text': qsTr('Never'), 'value': 0})
                     expires.currentIndex = 0
                 }
-            }
-
-            // redefine contentItem, as the default crops the widest item
-            contentItem: Label {
-                text: expires.currentText
-                padding: constants.paddingLarge
-                font.pixelSize: constants.fontSizeMedium
             }
         }
 

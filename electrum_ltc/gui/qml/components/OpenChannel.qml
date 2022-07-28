@@ -46,8 +46,10 @@ Pane {
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
                 onClicked: {
-                    channelopener.nodeid = AppController.clipboardToText()
-                    node.text = channelopener.nodeid
+                    if (channelopener.validate_nodeid(AppController.clipboardToText())) {
+                        channelopener.nodeid = AppController.clipboardToText()
+                        node.text = channelopener.nodeid
+                    }
                 }
             }
             ToolButton {
@@ -58,8 +60,10 @@ Pane {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                     page.onFound.connect(function() {
-                        channelopener.nodeid = page.scanData
-                        node.text = channelopener.nodeid
+                        if (channelopener.validate_nodeid(page.scanData)) {
+                            channelopener.nodeid = page.scanData
+                            node.text = channelopener.nodeid
+                        }
                     })
                 }
             }
@@ -67,13 +71,20 @@ Pane {
 
         // trampoline
         ComboBox {
-            id: tnode
             visible: !Config.useGossip
             Layout.columnSpan: 3
             Layout.fillWidth: true
             model: channelopener.trampolineNodeNames
             onCurrentValueChanged: {
-                channelopener.nodeid = tnode.currentValue
+                if (activeFocus)
+                    channelopener.nodeid = currentValue
+            }
+            // preselect a random node
+            Component.onCompleted: {
+                if (!Config.useGossip) {
+                    currentIndex = Math.floor(Math.random() * channelopener.trampolineNodeNames.length)
+                    channelopener.nodeid = currentValue
+                }
             }
         }
 
@@ -146,10 +157,12 @@ Pane {
         }
     }
 
-
     ChannelOpener {
         id: channelopener
         wallet: Daemon.currentWallet
+        onAuthRequired: {
+            app.handleAuthRequired(channelopener, method)
+        }
         onValidationError: {
             if (code == 'invalid_nodeid') {
                 var dialog = app.messageDialog.createObject(root, { 'text': message })
@@ -169,16 +182,22 @@ Pane {
             })
             dialog.open()
         }
+        onChannelOpening: {
+            console.log('Channel is opening')
+            app.channelOpenProgressDialog.reset()
+            app.channelOpenProgressDialog.peer = peer
+            app.channelOpenProgressDialog.open()
+        }
         onChannelOpenError: {
-            var dialog = app.messageDialog.createObject(root, { 'text': message })
-            dialog.open()
+            app.channelOpenProgressDialog.state = 'failed'
+            app.channelOpenProgressDialog.error = message
         }
         onChannelOpenSuccess: {
             var message = 'success!'
             if (!has_backup)
                 message = message + ' (but no backup. TODO: show QR)'
-            var dialog = app.messageDialog.createObject(root, { 'text': message })
-            dialog.open()
+            app.channelOpenProgressDialog.state = 'success'
+            app.channelOpenProgressDialog.error = message
             channelopener.wallet.channelModel.new_channel(cid)
             app.stack.pop()
         }

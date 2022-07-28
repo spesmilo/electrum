@@ -1,3 +1,5 @@
+import threading
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_ltc.i18n import _
@@ -9,8 +11,9 @@ from electrum_ltc.gui import messages
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .qetxfinalizer import QETxFinalizer
+from .auth import AuthMixin, auth_protect
 
-class QEChannelOpener(QObject):
+class QEChannelOpener(QObject, AuthMixin):
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -24,6 +27,7 @@ class QEChannelOpener(QObject):
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
+    channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
     channelOpenSuccess = pyqtSignal([str,bool], arguments=['cid','has_backup'])
 
@@ -84,19 +88,16 @@ class QEChannelOpener(QObject):
     def validate(self):
         nodeid_valid = False
         if self._nodeid:
+            self._logger.debug(f'checking if {self._nodeid} is valid')
             if not self._wallet.wallet.config.get('use_gossip', False):
                 self._peer = hardcoded_trampoline_nodes()[self._nodeid]
                 nodeid_valid = True
             else:
                 try:
-                    node_pubkey, host_port = extract_nodeid(self._nodeid)
-                    host, port = host_port.split(':',1)
-                    self._peer = LNPeerAddr(host, int(port), node_pubkey)
+                    self._peer = self.nodeid_to_lnpeer(self._nodeid)
                     nodeid_valid = True
-                except ConnStringFormatError as e:
-                    self.validationError.emit('invalid_nodeid', repr(e))
-                except ValueError as e:
-                    self.validationError.emit('invalid_nodeid', repr(e))
+                except:
+                    pass
 
         if not nodeid_valid:
             self._valid = False
@@ -111,6 +112,20 @@ class QEChannelOpener(QObject):
 
         self._valid = True
         self.validChanged.emit()
+
+    @pyqtSlot(str, result=bool)
+    def validate_nodeid(self, nodeid):
+        try:
+            self.nodeid_to_lnpeer(nodeid)
+        except Exception as e:
+            self._logger.debug(repr(e))
+            return False
+        return True
+
+    def nodeid_to_lnpeer(self, nodeid):
+        node_pubkey, host_port = extract_nodeid(nodeid)
+        host, port = host_port.split(':',1)
+        return LNPeerAddr(host, int(port), node_pubkey)
 
     # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     @pyqtSlot()
@@ -145,25 +160,32 @@ class QEChannelOpener(QObject):
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
 
+    @auth_protect
     def do_open_channel(self, funding_tx, conn_str, password):
         self._logger.debug('opening channel')
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         lnworker = self._wallet.wallet.lnworker
-        try:
-            chan, funding_tx = lnworker.open_channel(
-                connect_str=conn_str,
-                funding_tx=funding_tx,
-                funding_sat=funding_sat,
-                push_amt_sat=0,
-                password=password)
-        except Exception as e:
-            self._logger.exception("Problem opening channel")
-            self.channelOpenError.emit(_('Problem opening channel: ') + '\n' + repr(e))
-            return
 
-        self._logger.debug('opening channel succeeded')
-        self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+        def open_thread():
+            try:
+                chan, _funding_tx = lnworker.open_channel(
+                    connect_str=conn_str,
+                    funding_tx=funding_tx,
+                    funding_sat=funding_sat,
+                    push_amt_sat=0,
+                    password=password)
+            except Exception as e:
+                self._logger.exception("Problem opening channel: %s", repr(e))
+                self.channelOpenError.emit(repr(e))
+                return
+
+            self._logger.debug('opening channel succeeded')
+            self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+
+        self._logger.debug('starting open thread')
+        self.channelOpening.emit(conn_str)
+        threading.Thread(target=open_thread).start()
 
         # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():
