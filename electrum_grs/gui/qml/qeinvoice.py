@@ -1,23 +1,19 @@
-import asyncio
-from datetime import datetime
-
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
-from electrum_grs.logging import get_logger
-from electrum_grs.i18n import _
-from electrum_grs.util import (parse_URI, create_bip21_uri, InvalidBitcoinURI, InvoiceError,
-                           maybe_extract_lightning_payment_identifier)
-from electrum_grs.invoices import Invoice
-from electrum_grs.invoices import (PR_UNPAID,PR_EXPIRED,PR_UNKNOWN,PR_PAID,PR_INFLIGHT,
-                               PR_FAILED,PR_ROUTING,PR_UNCONFIRMED,LN_EXPIRY_NEVER)
-from electrum_grs.transaction import PartialTxOutput
-from electrum_grs.lnaddr import lndecode
 from electrum_grs import bitcoin
 from electrum_grs import lnutil
+from electrum_grs.i18n import _
+from electrum_grs.invoices import Invoice
+from electrum_grs.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
+                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED)
 from electrum_grs.lnaddr import LnInvoiceException
+from electrum_grs.logging import get_logger
+from electrum_grs.transaction import PartialTxOutput
+from electrum_grs.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
+                           maybe_extract_lightning_payment_identifier)
 
-from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .qewallet import QEWallet
 
 class QEInvoice(QObject):
     class Type:

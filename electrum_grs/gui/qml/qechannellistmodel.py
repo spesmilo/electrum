@@ -1,12 +1,10 @@
-from datetime import datetime, timedelta
-
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot
 
+from electrum_grs.lnchannel import ChannelState
+from electrum_grs.lnutil import LOCAL, REMOTE
 from electrum_grs.logging import get_logger
 from electrum_grs.util import Satoshis
-from electrum_grs.lnutil import LOCAL, REMOTE
-from electrum_grs.lnchannel import ChannelState
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener

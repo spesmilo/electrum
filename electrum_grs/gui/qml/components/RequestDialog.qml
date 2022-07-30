@@ -7,7 +7,7 @@ import org.electrum 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: dialog
     title: qsTr('Payment Request')
 
@@ -151,8 +151,8 @@ Dialog {
                     icon.color: 'transparent'
                     text: 'Copy'
                     onClicked: {
-                        if (modelItem.is_lightning)
-                            AppController.textToClipboard(modelItem.lightning_invoice)
+                        if (modelItem.is_lightning && rootLayout.state == 'bolt11')
+                            AppController.textToClipboard(_bolt11)
                         else
                             AppController.textToClipboard(_bip21uri)
 
@@ -163,8 +163,8 @@ Dialog {
                     text: 'Share'
                     onClicked: {
                         enabled = false
-                        if (modelItem.is_lightning)
-                            AppController.doShare(modelItem.lightning_invoice, qsTr('Payment Request'))
+                        if (modelItem.is_lightning && rootLayout.state == 'bolt11')
+                            AppController.doShare(_bolt11, qsTr('Payment Request'))
                         else
                             AppController.doShare(_bip21uri, qsTr('Payment Request'))
                         enabled = true
@@ -192,15 +192,14 @@ Dialog {
                     text: qsTr('Amount')
                 }
                 RowLayout {
+                    visible: modelItem.amount.satsInt != 0
                     Label {
-                        visible: modelItem.amount.satsInt != 0
                         text: Config.formatSats(modelItem.amount)
                         font.family: FixedFont
                         font.pixelSize: constants.fontSizeLarge
                         font.bold: true
                     }
                     Label {
-                        visible: modelItem.amount.satsInt != 0
                         text: Config.baseUnit
                         color: Material.accentColor
                         font.pixelSize: constants.fontSizeLarge
@@ -208,7 +207,6 @@ Dialog {
 
                     Label {
                         id: fiatValue
-                        visible: modelItem.amount.satsInt != 0
                         Layout.fillWidth: true
                         text: Daemon.fx.enabled
                                 ? '(' + Daemon.fx.fiatValue(modelItem.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'

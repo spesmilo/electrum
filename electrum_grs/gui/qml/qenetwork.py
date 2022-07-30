@@ -74,12 +74,12 @@ class QENetwork(QObject, QtEventListener):
             self.statusChanged.emit()
         chains = len(self.network.get_blockchains())
         if chains != self._chaintips:
-            self._logger.debug('chain tips # changed: ' + chains)
+            self._logger.debug('chain tips # changed: %d', chains)
             self._chaintips = chains
             self.chaintipsChanged.emit()
         server_lag = self.network.get_local_height() - self.network.get_server_height()
         if self._islagging ^ (server_lag > 1):
-            self._logger.debug('lagging changed: ' + (server_lag > 1))
+            self._logger.debug('lagging changed: %s', str(server_lag > 1))
             self._islagging = server_lag > 1
             self.isLaggingChanged.emit()
 

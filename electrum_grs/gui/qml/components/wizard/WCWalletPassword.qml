@@ -2,6 +2,8 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
+import "../controls"
+
 WizardComponent {
     valid: password1.text === password2.text && password1.text.length > 4
 
@@ -13,13 +15,11 @@ WizardComponent {
     GridLayout {
         columns: 1
         Label { text: qsTr('Password protect wallet?') }
-        TextField {
+        PasswordField {
             id: password1
-            echoMode: TextInput.Password
         }
-        TextField {
+        PasswordField {
             id: password2
-            echoMode: TextInput.Password
         }
     }
 }

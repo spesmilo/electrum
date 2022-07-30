@@ -7,7 +7,7 @@ import org.electrum 1.0
 
 import "controls"
 
-Dialog {
+ElDialog {
     id: root
 
     title: qsTr('PIN')
@@ -30,6 +30,8 @@ Dialog {
     closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
 
     property bool canCancel: true
+
+    allowClose: canCancel
 
     property string mode // [check, enter, change]
     property string pincode // old one passed in when change, new one passed out
@@ -60,6 +62,14 @@ Dialog {
                 accepted()
             }
             return
+        }
+    }
+
+    onAccepted: result = Dialog.Accepted
+    onRejected: result = Dialog.Rejected
+    onClosed: {
+        if (!root.result) {
+            root.reject() // make sure we reject the authed fn()
         }
     }
 

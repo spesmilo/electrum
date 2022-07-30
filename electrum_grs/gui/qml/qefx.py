@@ -1,15 +1,15 @@
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum_grs.logging import get_logger
-from electrum_grs.exchange_rate import FxThread
-from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.bitcoin import COIN
+from electrum_grs.exchange_rate import FxThread
+from electrum_grs.logging import get_logger
+from electrum_grs.simple_config import SimpleConfig
 
 from .qetypes import QEAmount
-from .util import QtEventListener, qt_event_listener, event_listener
+from .util import QtEventListener, event_listener
 
 class QEFX(QObject, QtEventListener):
     def __init__(self, fxthread: FxThread, config: SimpleConfig, parent=None):

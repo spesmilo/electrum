@@ -1,30 +1,25 @@
-from typing import Optional, TYPE_CHECKING, Sequence, List, Union
-import queue
-import time
 import asyncio
+import queue
 import threading
+import time
+from typing import Optional
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QUrl, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
-from electrum_grs.i18n import _
-from electrum_grs.util import (Satoshis, format_time, parse_max_spend, InvalidPassword,
-                           event_listener)
-from electrum_grs.logging import get_logger
-from electrum_grs.wallet import Wallet, Abstract_Wallet
-from electrum_grs.storage import StorageEncryptionVersion
 from electrum_grs import bitcoin
-from electrum_grs.transaction import PartialTxOutput
-from electrum_grs.invoices import (Invoice, InvoiceError,
-                               PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID,
-                               PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED)
+from electrum_grs.i18n import _
+from electrum_grs.invoices import (InvoiceError)
+from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
+from electrum_grs.transaction import PartialTxOutput
+from electrum_grs.util import (parse_max_spend, InvalidPassword, event_listener)
 
-from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
-from .qetransactionlistmodel import QETransactionListModel
+from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
 from .qechannellistmodel import QEChannelListModel
+from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
+from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
-from .auth import AuthMixin, auth_protect
 from .util import QtEventListener, qt_event_listener
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
