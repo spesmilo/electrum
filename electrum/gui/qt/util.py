@@ -1576,7 +1576,6 @@ class SquareTabWidget(QtWidgets.QTabWidget):
         # keep square aspect ratio when resized
         size = e.size()
         w = size.height()
-        w += self.tabBar().width() if self.tabBar().isVisible() else 0
         self.setFixedWidth(w)
         return super().resizeEvent(e)
 
@@ -1606,9 +1605,8 @@ class VTabWidget(QWidget):
         _tabs_vbox_outer.addStretch(1)
 
         self.content_w = content_w = SquareTabWidget()
-        content_w.setStyleSheet("QTabBar::tab {height: 0px;}")  # TODO Linux/mac: still insufficient to rm top padding...
-        content_w.tabBar().hide()
-
+        content_w.setStyleSheet("QWidget {height: 0px; padding:0px; } QTabBar::tab {height: 0px; padding:0px; }")
+        content_w.tabBar().setMaximumHeight(0) # without this QDarkStyle displays the underlining
         hbox.addStretch(1)
         hbox.addWidget(_tabs_vbox_outer_w)
         hbox.addWidget(content_w)
@@ -1618,14 +1616,17 @@ class VTabWidget(QWidget):
 
     def addTab(self, widget: QWidget, icon: QIcon, text: str):
         btn = QPushButton(icon, text)
+        btn.setStyleSheet("QPushButton { text-align: left; }")
+        btn.setFocusPolicy(QtCore.Qt.NoFocus)
         btn.setCheckable(True)
         btn.setSizePolicy(QSizePolicy.Preferred, btn.sizePolicy().verticalPolicy())
 
         def on_btn_click():
-            self.content_w.setCurrentIndex(idx)
+            btn.setChecked(True)
             for btn2 in self._tab_btns:
                 if btn2 != btn:
                     btn2.setChecked(False)
+            self.content_w.setCurrentIndex(idx)
         btn.clicked.connect(on_btn_click)
         idx = len(self._tab_btns)
         self._tab_btns.append(btn)
