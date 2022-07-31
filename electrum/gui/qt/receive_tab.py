@@ -168,6 +168,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setVisible(False)
 
         self.receive_requests_label = QLabel(_('Receive queue'))
+        # with QDarkStyle, this label may partially cover the qrcode widget.
+        # setMaximumWidth prevents that
+        self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
 
