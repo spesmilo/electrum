@@ -609,7 +609,7 @@ class LNGossip(LNWorker):
             orphaned_ids = [c['short_channel_id'] for c in orphaned]
             await self.add_new_ids(orphaned_ids)
         if categorized_chan_upds.good:
-            self.logger.debug(f'on_channel_update: {len(categorized_chan_upds.good)}/{len(chan_upds)}')
+            self.logger.debug(f'process_gossip: {len(categorized_chan_upds.good)}/{len(chan_upds)}')
 
 
 class LNWallet(LNWorker):
@@ -985,7 +985,7 @@ class LNWallet(LNWorker):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
-    async def on_channel_update(self, chan: Channel):
+    async def handle_onchain_state(self, chan: Channel):
         if type(chan) is ChannelBackup:
             util.trigger_callback('channel', self.wallet, chan)
             return

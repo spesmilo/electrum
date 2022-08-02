@@ -431,7 +431,7 @@ class LNWalletWatcher(LNWatcher):
             closing_txid=closing_txid,
             closing_height=closing_height,
             keep_watching=keep_watching)
-        await self.lnworker.on_channel_update(chan)
+        await self.lnworker.handle_onchain_state(chan)
 
     @log_exceptions
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
