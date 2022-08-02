@@ -1896,7 +1896,7 @@ class Peer(Logger):
             self.logger.info("FEES HAVE FALLEN")
         elif feerate_per_kw > chan_fee * 2:
             self.logger.info("FEES HAVE RISEN")
-        elif chan.get_oldest_unrevoked_ctn(REMOTE) == 0:
+        elif chan.get_latest_ctn(REMOTE) == 0:
             # workaround eclair issue https://github.com/ACINQ/eclair/issues/1730
             self.logger.info("updating fee to bump remote ctn")
             if feerate_per_kw == chan_fee:

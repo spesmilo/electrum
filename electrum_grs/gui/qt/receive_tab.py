@@ -155,7 +155,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         from .util import VTabWidget
         self.receive_tabs = VTabWidget()
-        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
+        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height())
+
+        #self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
         self.receive_tabs.addTab(self.receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(self.receive_address_widget, read_QIcon("groestlcoin.png"), _('Address'))
         self.receive_tabs.addTab(self.receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
@@ -168,6 +170,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setVisible(False)
 
         self.receive_requests_label = QLabel(_('Receive queue'))
+        # with QDarkStyle, this label may partially cover the qrcode widget.
+        # setMaximumWidth prevents that
+        self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
 
@@ -392,7 +397,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 class ReceiveTabWidget(QWidget):
     min_size = QSize(200, 200)
 
-    def __init__(self, receive_tab: 'ReceiveTab', textedit, qr, help_widget):
+    def __init__(self, receive_tab: 'ReceiveTab', textedit: QWidget, qr: QWidget, help_widget: QWidget):
         self.textedit = textedit
         self.qr = qr
         self.help_widget = help_widget
