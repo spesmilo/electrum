@@ -1571,7 +1571,7 @@ class ImageGraphicsEffect(QObject):
         return result
 
 
-class SquareTabWidget(QtWidgets.QTabWidget):
+class SquareTabWidget(QtWidgets.QStackedWidget):
     def resizeEvent(self, e):
         # keep square aspect ratio when resized
         size = e.size()
@@ -1605,8 +1605,7 @@ class VTabWidget(QWidget):
         _tabs_vbox_outer.addStretch(1)
 
         self.content_w = content_w = SquareTabWidget()
-        content_w.setStyleSheet("QWidget {height: 0px; padding:0px; } QTabBar::tab {height: 0px; padding:0px; }")
-        content_w.tabBar().setMaximumHeight(0) # without this QDarkStyle displays the underlining
+        content_w.setStyleSheet("SquareTabWidget {padding:0px; }")
         hbox.addStretch(1)
         hbox.addWidget(_tabs_vbox_outer_w)
         hbox.addWidget(content_w)
@@ -1632,7 +1631,7 @@ class VTabWidget(QWidget):
         self._tab_btns.append(btn)
 
         self._tabs_vbox.addWidget(btn)
-        self.content_w.addTab(widget, "")
+        self.content_w.addWidget(widget)
 
     def setTabIcon(self, idx: int, icon: QIcon):
         self._tab_btns[idx].setIcon(icon)
