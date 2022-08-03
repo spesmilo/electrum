@@ -169,12 +169,6 @@
         "t": "50001",
         "version": "1.4.2"
     },
-    "ca.poiuty.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50004",
-        "version": "1.4.5"
-    },
     "de.poiuty.com": {
         "pruning": "-",
         "s": "50002",
