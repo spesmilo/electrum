@@ -101,12 +101,17 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         grid.addLayout(buttons, 4, 0, 1, -1)
 
         self.receive_address_e = ButtonsTextEdit()
-        self.receive_address_help = WWLabel('')
+        self.receive_address_help_text = WWLabel('')
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.receive_address_help_text)
+        self.receive_address_help = FramedWidget()
+        self.receive_address_help.setVisible(False)
+        self.receive_address_help.setLayout(vbox)
 
         self.receive_URI_e = ButtonsTextEdit()
         self.receive_URI_help = WWLabel('')
         self.receive_lightning_e = ButtonsTextEdit()
-        self.receive_lightning_help = WWLabel('')
+        self.receive_lightning_help_text = WWLabel('')
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
         def on_receive_rebalance():
@@ -124,6 +129,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         buttons = QHBoxLayout()
         buttons.addWidget(self.receive_rebalance_button)
         buttons.addWidget(self.receive_swap_button)
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.receive_lightning_help_text)
+        vbox.addLayout(buttons)
+        self.receive_lightning_help = FramedWidget()
+        self.receive_lightning_help.setVisible(False)
+        self.receive_lightning_help.setLayout(vbox)
         self.receive_address_qr = QRCodeWidget()
         self.receive_URI_qr = QRCodeWidget()
         self.receive_lightning_qr = QRCodeWidget()
@@ -257,12 +268,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_address_e.setText(addr)
         self.update_receive_address_styling()
         self.receive_address_qr.setData(addr)
-        self.receive_address_help.setText(address_help)
+        self.receive_address_help_text.setText(address_help)
         self.receive_URI_e.setText(URI)
         self.receive_URI_qr.setData(URI)
         self.receive_URI_help.setText(URI_help)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
-        self.receive_lightning_help.setText(ln_help)
+        self.receive_lightning_help_text.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr_qr)
         # macOS hack (similar to #4777)
         self.receive_lightning_e.repaint()
@@ -386,7 +397,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 class ReceiveTabWidget(QWidget):
     min_size = QSize(200, 200)
 
-    def __init__(self, receive_tab: 'ReceiveTab', textedit: QWidget, qr: QWidget, help_widget: QLabel):
+    def __init__(self, receive_tab: 'ReceiveTab', textedit: QWidget, qr: QWidget, help_widget: QWidget):
         self.textedit = textedit
         self.qr = qr
         self.help_widget = help_widget
@@ -398,8 +409,6 @@ class ReceiveTabWidget(QWidget):
             tooltip = _('Click to switch between text and QR code view')
             w.setToolTip(tooltip)
         textedit.setFocusPolicy(Qt.NoFocus)
-        help_widget.setFrameStyle(QFrame.StyledPanel)
-        help_widget.setStyleSheet("QLabel {border:1px solid gray; border-radius:2px; }")
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0, 0, 0, 0)
         hbox.addWidget(textedit)
@@ -417,3 +426,9 @@ class ReceiveTabWidget(QWidget):
             self.textedit.setVisible(False)
             self.qr.setVisible(False)
 
+
+class FramedWidget(QFrame):
+    def __init__(self):
+        QFrame.__init__(self)
+        self.setFrameStyle(QFrame.StyledPanel)
+        self.setStyleSheet("FramedWidget {border:1px solid gray; border-radius:2px; }")
