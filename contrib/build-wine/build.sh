@@ -13,6 +13,9 @@ CONTRIB_WINE="$CONTRIB/build-wine"
 
 . "$CONTRIB"/build_tools_util.sh
 
+info "Clearing $CONTRIB_WINE/dist..."
+rm -rf "$CONTRIB_WINE"/dist/*
+
 
 DOCKER_BUILD_FLAGS=""
 if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
