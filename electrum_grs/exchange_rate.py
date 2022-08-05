@@ -168,15 +168,6 @@ class ExchangeBase(Logger):
         rates = await self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
-class Binance(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
-        if ccy != "BTC":
-            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
-            return {ccy: to_decimal(json1['price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
-        return {ccy: to_decimal(json1['price'])}
-
 class Bittrex(ExchangeBase):
     async def get_rates(self, ccy):
         json1 = await self.get_json('api.bittrex.com', '/v3/markets/GRS-BTC/ticker')
