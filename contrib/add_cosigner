@@ -19,6 +19,10 @@ import os
 import sys
 import importlib
 
+
+# cd to project root
+os.chdir(os.path.dirname(os.path.dirname(__file__)))
+
 # load version.py; needlessly complicated alternative to "imp.load_source":
 version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
 version_module = importlib.util.module_from_spec(version_spec)
