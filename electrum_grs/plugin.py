@@ -774,7 +774,7 @@ class DeviceMgr(ThreadJob):
         # add hidapi
         from importlib.metadata import version
         try:
-            ret["hidapi.version"] = version("hidapi")
+            ret["hidapi.version"] = version("hidapi")  # FIXME does not work in macOS binary
         except ImportError:
             ret["hidapi.version"] = None
         return ret

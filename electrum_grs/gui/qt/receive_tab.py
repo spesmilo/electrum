@@ -7,7 +7,7 @@ from typing import Optional, TYPE_CHECKING
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QHBoxLayout, QPushButton, QWidget, QSizePolicy)
+                             QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum_grs.bitcoin import is_address
 from electrum_grs.i18n import _
@@ -104,7 +104,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_address_help_text = WWLabel('')
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_address_help_text)
-        self.receive_address_help = QWidget()
+        self.receive_address_help = FramedWidget()
         self.receive_address_help.setVisible(False)
         self.receive_address_help.setLayout(vbox)
 
@@ -132,7 +132,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_lightning_help_text)
         vbox.addLayout(buttons)
-        self.receive_lightning_help = QWidget()
+        self.receive_lightning_help = FramedWidget()
         self.receive_lightning_help.setVisible(False)
         self.receive_lightning_help.setLayout(vbox)
         self.receive_address_qr = QRCodeWidget()
@@ -425,3 +425,10 @@ class ReceiveTabWidget(QWidget):
             self.help_widget.setVisible(True)
             self.textedit.setVisible(False)
             self.qr.setVisible(False)
+
+
+class FramedWidget(QFrame):
+    def __init__(self):
+        QFrame.__init__(self)
+        self.setFrameStyle(QFrame.StyledPanel)
+        self.setStyleSheet("FramedWidget {border:1px solid gray; border-radius:2px; }")

@@ -7,6 +7,7 @@ from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
 from electrum_grs.util import WalletFileException, standardize_path
 from electrum_grs.wallet import Abstract_Wallet
+from electrum_grs.lnchannel import ChannelState
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
