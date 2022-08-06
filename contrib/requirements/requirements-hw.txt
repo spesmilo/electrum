@@ -1,4 +1,8 @@
-hidapi
+# Prefer old hidapi as newer versions have issues on macOS
+# (see #7738 and https://github.com/trezor/cython-hidapi/issues/142 ).
+# Note: newer hidapi should also work.
+hidapi<0.11
+
 trezor[hidapi]>=0.13.0,<0.14
 safet>=0.1.5
 keepkey>=6.3.1

@@ -1576,8 +1576,8 @@ class Channel(AbstractChannel):
         # to the present, then unilaterally close channel
         recv_htlc_deadline = lnutil.NBLOCK_DEADLINE_BEFORE_EXPIRY_FOR_RECEIVED_HTLCS
         for sub, dir, ctn in ((LOCAL, RECEIVED, self.get_latest_ctn(LOCAL)),
-                              (REMOTE, SENT, self.get_oldest_unrevoked_ctn(LOCAL)),
-                              (REMOTE, SENT, self.get_latest_ctn(LOCAL)),):
+                              (REMOTE, SENT, self.get_oldest_unrevoked_ctn(REMOTE)),
+                              (REMOTE, SENT, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
                 if not self.hm.was_htlc_preimage_released(htlc_id=htlc_id, htlc_proposer=REMOTE):
                     continue
@@ -1588,8 +1588,8 @@ class Channel(AbstractChannel):
         # will unilaterally close the channel and time out the HTLC
         offered_htlc_deadline = lnutil.NBLOCK_DEADLINE_AFTER_EXPIRY_FOR_OFFERED_HTLCS
         for sub, dir, ctn in ((LOCAL, SENT, self.get_latest_ctn(LOCAL)),
-                              (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(LOCAL)),
-                              (REMOTE, RECEIVED, self.get_latest_ctn(LOCAL)),):
+                              (REMOTE, RECEIVED, self.get_oldest_unrevoked_ctn(REMOTE)),
+                              (REMOTE, RECEIVED, self.get_latest_ctn(REMOTE)),):
             for htlc_id, htlc in self.hm.htlcs_by_direction(subject=sub, direction=dir, ctn=ctn).items():
                 if htlc.cltv_expiry + offered_htlc_deadline > local_height:
                     continue

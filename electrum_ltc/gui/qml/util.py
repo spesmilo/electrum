@@ -1,9 +1,7 @@
 from functools import wraps
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtSignal
 
-from electrum_ltc.logging import get_logger
-from electrum_ltc.i18n import _
 from electrum_ltc.util import EventListener, event_listener
 
 class QtEventListener(EventListener):

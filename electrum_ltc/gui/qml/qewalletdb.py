@@ -2,10 +2,10 @@ import os
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum_ltc.logging import Logger, get_logger
+from electrum_ltc.logging import get_logger
 from electrum_ltc.storage import WalletStorage, StorageEncryptionVersion
 from electrum_ltc.wallet_db import WalletDB
-from electrum_ltc.bip32 import normalize_bip32_derivation
+from electrum_ltc.bip32 import normalize_bip32_derivation, xpub_type
 from electrum_ltc.util import InvalidPassword
 from electrum_ltc import keystore
 
@@ -178,6 +178,8 @@ class QEWalletDB(QObject):
         data = js_data.toVariant()
         self._logger.debug(str(data))
 
+        assert data['wallet_type'] == 'standard' # only standard wallets for now
+
         if single_password_enabled and single_password:
             data['encrypt'] = True
             data['password'] = single_password
@@ -188,17 +190,27 @@ class QEWalletDB(QObject):
                 raise Exception('file already exists at path')
             storage = WalletStorage(path)
 
-            if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
-                self._logger.debug('creating keystore from electrum seed')
-                k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
-            elif data['seed_type'] == 'bip39':
-                self._logger.debug('creating keystore from bip39 seed')
-                root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
-                derivation = normalize_bip32_derivation(data['derivation_path'])
-                script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
-                k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
+            if data['keystore_type'] in ['createseed', 'haveseed']:
+                if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
+                    self._logger.debug('creating keystore from electrum seed')
+                    k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
+                elif data['seed_type'] == 'bip39':
+                    self._logger.debug('creating keystore from bip39 seed')
+                    root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
+                    derivation = normalize_bip32_derivation(data['derivation_path'])
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                    k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
+                else:
+                    raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
+            elif data['keystore_type'] == 'masterkey':
+                k = keystore.from_master_key(data['master_key'])
+                has_xpub = isinstance(k, keystore.Xpub)
+                assert has_xpub
+                t1 = xpub_type(k.xpub)
+                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                    raise Exception('wrong key type %s' % t1)
             else:
-                raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
+                raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
             if data['encrypt']:
                 if k.may_have_password():
@@ -209,7 +221,8 @@ class QEWalletDB(QObject):
             db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
 
             db.put('wallet_type', data['wallet_type'])
-            db.put('seed_type', data['seed_type'])
+            if 'seed_type' in data:
+                db.put('seed_type', data['seed_type'])
             db.put('keystore', k.dump())
             if k.can_have_deterministic_lightning_xprv():
                 db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
@@ -223,5 +236,5 @@ class QEWalletDB(QObject):
 
             self.createSuccess.emit()
         except Exception as e:
-            self._logger.error(str(e))
+            self._logger.error(repr(e))
             self.createError.emit(str(e))

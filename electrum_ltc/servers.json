@@ -1,33 +1,15 @@
 {
-    "2y27fkedpau73lbw.onion": {
+    "46.101.3.154": {
         "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
-    },
-    "agapc7dhcqfjqpjb.onion": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
     },
     "backup.electrum-ltc.org": {
         "pruning": "-",
         "s": "443",
         "t": "50001",
-        "version": "1.4"
-    },
-    "e-1.claudioboxx.com": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.4"
-    },
-    "e-3.claudioboxx.com": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.4"
+        "version": "1.4.2"
     },
     "electrum-ltc.bysh.me": {
         "pruning": "-",
@@ -35,68 +17,28 @@
         "t": "50001",
         "version": "1.4.2"
     },
-    "electrum-ltc.petrkr.net": {
-        "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.4"
-    },
-    "electrum-ltc.villocq.com": {
-        "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.4"
-    },
-    "electrum-ltc.wilv.in": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "electrum.leblancnet.us": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.4"
-    },
     "electrum.ltc.xurious.com": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
         "version": "1.4.2"
     },
-    "gttvzmfh23pxqiw4.onion": {
+    "electrum.privateservers.network": {
         "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
+        "s": "50005",
+        "t": "50004",
+        "version": "1.4.2"
     },
-    "ltc01.knas.systems": {
+    "electrum1.cipig.net": {
         "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.4"
+        "s": "20063",
+        "t": "10063",
+        "version": "1.4.2"
     },
-    "luggscoqbymhvnkp.onion": {
+    "ltc.rentonisk.com": {
         "pruning": "-",
-        "t": "81",
-        "version": "1.4"
-    },
-    "node.ispol.sk": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
-    },
-    "oje4q5v6hlkxbscv.onion": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
-    },
-    "technetium.network": {
-        "pruning": "-",
-        "s": "50003",
-        "version": "1.4"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4.2"
     }
 }

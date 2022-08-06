@@ -2,16 +2,16 @@ import threading
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum_ltc.i18n import _
-from electrum_ltc.logging import get_logger
-from electrum_ltc.lnutil import extract_nodeid, ConnStringFormatError, LNPeerAddr, ln_dummy_address
-from electrum_ltc.lnworker import hardcoded_trampoline_nodes
 from electrum_ltc.gui import messages
+from electrum_ltc.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address
+from electrum_ltc.lnworker import hardcoded_trampoline_nodes
+from electrum_ltc.logging import get_logger
 
-from .qewallet import QEWallet
-from .qetypes import QEAmount
-from .qetxfinalizer import QETxFinalizer
 from .auth import AuthMixin, auth_protect
+from .qetxfinalizer import QETxFinalizer
+from .qetypes import QEAmount
+from .qewallet import QEWallet
+
 
 class QEChannelOpener(QObject, AuthMixin):
     def __init__(self, parent=None):

@@ -7,7 +7,7 @@ from typing import Optional, TYPE_CHECKING
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
-                             QHBoxLayout, QPushButton, QWidget, QSizePolicy)
+                             QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum_ltc.bitcoin import is_address
 from electrum_ltc.i18n import _
@@ -104,7 +104,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_address_help_text = WWLabel('')
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_address_help_text)
-        self.receive_address_help = QWidget()
+        self.receive_address_help = FramedWidget()
         self.receive_address_help.setVisible(False)
         self.receive_address_help.setLayout(vbox)
 
@@ -132,7 +132,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_lightning_help_text)
         vbox.addLayout(buttons)
-        self.receive_lightning_help = QWidget()
+        self.receive_lightning_help = FramedWidget()
         self.receive_lightning_help.setVisible(False)
         self.receive_lightning_help.setLayout(vbox)
         self.receive_address_qr = QRCodeWidget()
@@ -155,7 +155,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         from .util import VTabWidget
         self.receive_tabs = VTabWidget()
-        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
+        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height())
+
+        #self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
         self.receive_tabs.addTab(self.receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(self.receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(self.receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
@@ -168,6 +170,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setVisible(False)
 
         self.receive_requests_label = QLabel(_('Receive queue'))
+        # with QDarkStyle, this label may partially cover the qrcode widget.
+        # setMaximumWidth prevents that
+        self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
 
@@ -392,7 +397,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 class ReceiveTabWidget(QWidget):
     min_size = QSize(200, 200)
 
-    def __init__(self, receive_tab: 'ReceiveTab', textedit, qr, help_widget):
+    def __init__(self, receive_tab: 'ReceiveTab', textedit: QWidget, qr: QWidget, help_widget: QWidget):
         self.textedit = textedit
         self.qr = qr
         self.help_widget = help_widget
@@ -421,3 +426,9 @@ class ReceiveTabWidget(QWidget):
             self.textedit.setVisible(False)
             self.qr.setVisible(False)
 
+
+class FramedWidget(QFrame):
+    def __init__(self):
+        QFrame.__init__(self)
+        self.setFrameStyle(QFrame.StyledPanel)
+        self.setStyleSheet("FramedWidget {border:1px solid gray; border-radius:2px; }")

@@ -1,43 +1,51 @@
-# Release 4.3.0 - (not released yet)
+# Release 4.3.0 - (August 5, 2022)
 
-  This version introduces a set of UX modifications, that aim at
-  simplifying the use of Lightning. The goal is to abstract payments
-  from the payment layer, and to suggest solutions when a payment is
-  prevented by channel liquidity issues.
+ * This version introduces a set of UI modifications that simplify the
+   use of Lightning. The idea is to abstract payments from the payment
+   layer, and to suggest solutions when a lightning payment is hindered
+   by liquidity issues.
+    - Invoice unification: on-chain and lightning invoices have been
+      merged into a unique type of invoice, and the GUI has a single
+      'create request' button. Unified invoices contain both a
+      lightning invoice and an onchain fallback address.
+    - The receive tab of the GUI can display, for each payment
+      request, a lightning invoice, a BIP21 URI, or an onchain
+      address. If the request is paid off-chain, the associated
+      on-chain address will be recycled in subsequent requests.
+    - The receive tab displays whether a payment can be received using
+      Lightning, given the current channel liquidity. If a payment
+      cannot be received, but may be received after a channel
+      rebalance or a submarine swap, the GUI will propose such an
+      operation.
+    - Similarly, if channels do not have enough liquidity to pay a
+      lightning invoice, the GUI will suggest available alternatives:
+      rebalance existing channels, open a new channel, perform a
+      submarine swap, or pay to the provided onchain fallback address.
+    - A single balance is shown in the GUI. A piechart reflects how
+      that balance is distributed (on-chain, lightning, unconfirmed,
+      frozen, etc).
+    - The semantics of the wallet balance has been modified: only
+      incoming transactions are considered in the 'unconfirmed' part
+      of the balance. Indeed, if an outgoing transaction does not get
+      mined, that is not going to decrease the wallet balance. Thus,
+      change outputs of outgoing transactions are not subtracted from
+      the confirmed balance. (Before this change, the arithmetic
+      values of both incoming and outgoing transactions were added to
+      the unconfirmed balance, and could potentially cancel
+      eachother.)
 
-  - Invoice unification: on-chain and lightning invoices have been
-    merged into a single invoice type. A invoice typically contains
-    both a lightning invoice and an onchain fallback address. The GUI
-    has a single 'create request' button.
-
-  - The receive tab of the GUI can display, for each payment request,
-    a lightning invoice, a BIP21 URI, or an onchain address. If the
-    request is paid off-chain, the associated on-chain address will
-    be recycled in subsequent requests.
-
-  - The receive tab displays whether a payment can be received using
-    Lightning, given the current channel liquidity. If a payment
-    cannot be received, but may be received after a channel rebalance
-    or a submarine swap, the GUI will propose such an operation.
-
-  - For outgoing payments, if channels do not have enough liquidity to
-    pay a lightning invoice, the GUI will suggest available
-    alternatives: rebalance existing channels, open a new channel,
-    perform a submarine swap, or pay to the provided onchain fallback
-    address.
-
-  - A single balance is shown in the GUI. A piechart reflects how that
-    balance is distributed (on-chain, lightning, unconfirmed, frozen,
-    etc).
-
-  - The semantics of the wallet balance has been modified: only
-    incoming transactions are considered in the 'unconfirmed' part of
-    the balance. Indeed, if an outgoing transaction does not get
-    confirmed, that is not going to decrease the wallet balance. Thus,
-    change outputs of outgoing transactions are not subtracted from
-    the confirmed balance. (Before this change, the arithmetic values
-    of both incoming and outgoing transactions were added to the
-    unconfirmed balance, and could potentially cancel eachother.)
+ * In addition, the following new features are woth noting:
+    - support for the Blockstream Jade hardware wallet (#7633)
+    - support for LNURL-pay (LUD-06) (#7839)
+    - updated trampoline feature bit in invoices (#7801)
+    - the claim transactions of reverse swaps are not broadcast until
+      the parent transaction is confirmed. This can be overriden by
+      manually broadcasting the locakl transaction.
+    - the fee of submarine swap transactions can be bumped (#7724)
+    - better error handling for trampoline payments, which should
+      improve payment success rate (#7844)
+    - channel backups are removed automatically when the corresponding
+      channel is redeemed (#7513)
 
 
 # Release 4.2.2 - (May 27, 2022)

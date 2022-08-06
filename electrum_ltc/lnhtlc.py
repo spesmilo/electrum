@@ -19,7 +19,7 @@ class HTLCManager:
                 'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 'settles': {},           # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 'fails': {},             # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
-                'fee_updates': {},       # "side who initiated fee update" -> action -> list of FeeUpdates
+                'fee_updates': {},       # "side who initiated fee update" -> index -> list of FeeUpdates
                 'revack_pending': False,
                 'next_htlc_id': 0,
                 'ctn': -1,               # oldest unrevoked ctx of sub

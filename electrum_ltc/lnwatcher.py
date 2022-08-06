@@ -431,7 +431,7 @@ class LNWalletWatcher(LNWatcher):
             closing_txid=closing_txid,
             closing_height=closing_height,
             keep_watching=keep_watching)
-        await self.lnworker.on_channel_update(chan)
+        await self.lnworker.handle_onchain_state(chan)
 
     @log_exceptions
     async def do_breach_remedy(self, funding_outpoint, closing_tx, spenders):
@@ -527,7 +527,7 @@ class LNWalletWatcher(LNWatcher):
         else:
             self.logger.info(f'cannot broadcast: {name} {reason}')
             # we may have a tx with a different fee, in which case it will be replaced
-            if old_tx != new_tx:
+            if old_tx and old_tx.txid() != new_tx.txid():
                 try:
                     tx_was_added = self.adb.add_transaction(new_tx, notify_GUI=(old_tx is None))
                 except Exception as e:
@@ -540,6 +540,6 @@ class LNWalletWatcher(LNWatcher):
                 tx_was_added = False
         if tx_was_added:
             self.lnworker.wallet.set_label(new_tx.txid(), name)
-            if old_tx:
+            if old_tx and old_tx.txid() != new_tx.txid():
                 self.lnworker.wallet.set_label(old_tx.txid(), None)
             util.trigger_callback('wallet_updated', self.lnworker.wallet)

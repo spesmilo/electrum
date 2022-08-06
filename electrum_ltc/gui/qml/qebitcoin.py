@@ -1,16 +1,16 @@
 import asyncio
-from datetime import datetime
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
-from electrum_ltc.logging import get_logger
-from electrum_ltc.keystore import bip39_is_checksum_valid
-from electrum_ltc.bip32 import is_bip32_derivation
-from electrum_ltc.slip39 import decode_mnemonic, Slip39Error
 from electrum_ltc import mnemonic
+from electrum_ltc import keystore
+from electrum_ltc.i18n import _
+from electrum_ltc.bip32 import is_bip32_derivation, xpub_type
+from electrum_ltc.logging import get_logger
+from electrum_ltc.slip39 import decode_mnemonic, Slip39Error
 from electrum_ltc.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
-
 from .qetypes import QEAmount
+
 
 class QEBitcoin(QObject):
     def __init__(self, config, parent=None):
@@ -47,6 +47,12 @@ class QEBitcoin(QObject):
     def validation_message(self):
         return self.validationMessage
 
+    @validation_message.setter
+    def validation_message(self, msg):
+        if self.validationMessage != msg:
+            self.validationMessage = msg
+            self.validationMessageChanged.emit()
+
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str,str)
@@ -69,16 +75,16 @@ class QEBitcoin(QObject):
 
         seed_type = ''
         seed_valid = False
-        validation_message = ''
+        self.validationMessage = ''
 
         if not (bip39 or slip39):
             seed_type = mnemonic.seed_type(seed)
             if seed_type != '':
                 seed_valid = True
         elif bip39:
-            is_checksum, is_wordlist = bip39_is_checksum_valid(seed)
+            is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
             status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
-            validation_message = 'BIP39 (%s)' % status
+            self.validationMessage = 'BIP39 (%s)' % status
 
             if is_checksum:
                 seed_type = 'bip39'
@@ -88,9 +94,9 @@ class QEBitcoin(QObject):
             try:
                 share = decode_mnemonic(seed)
                 seed_type = 'slip39'
-                validation_message = 'SLIP39: share #%d in %dof%d scheme' % (share.group_index, share.group_threshold, share.group_count)
+                self.validationMessage = 'SLIP39: share #%d in %dof%d scheme' % (share.group_index, share.group_threshold, share.group_count)
             except Slip39Error as e:
-                validation_message = 'SLIP39: %s' % str(e)
+                self.validationMessage = 'SLIP39: %s' % str(e)
             seed_valid = False # for now
 
         # cosigning seed
@@ -101,15 +107,31 @@ class QEBitcoin(QObject):
         self.seedType = seed_type
         self.seedTypeChanged.emit()
 
-        if self.validationMessage != validation_message:
-            self.validationMessage = validation_message
-            self.validationMessageChanged.emit()
-
         if self.seedValid != seed_valid:
             self.seedValid = seed_valid
             self.seedValidChanged.emit()
 
         self._logger.debug('seed verified: ' + str(seed_valid))
+
+    @pyqtSlot(str, result=bool)
+    @pyqtSlot(str, str, result=bool)
+    def verify_master_key(self, key, wallet_type='standard'):
+        self.validationMessage = ''
+        if not keystore.is_master_key(key):
+            self.validationMessage = _('Not a master key')
+            return False
+
+        if wallet_type == 'standard':
+            # validation message?
+            k = keystore.from_master_key(key)
+            has_xpub = isinstance(k, keystore.Xpub)
+            assert has_xpub
+            t1 = xpub_type(k.xpub)
+            if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                return False
+            return True
+        return False
 
     @pyqtSlot(str, result=bool)
     def verify_derivation_path(self, path):

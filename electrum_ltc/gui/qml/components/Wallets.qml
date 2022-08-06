@@ -35,7 +35,7 @@ Pane {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Really delete this wallet?'), 'yesno': true})
         dialog.yesClicked.connect(function() {
-            Daemon.delete_wallet(Daemon.currentWallet)
+            Daemon.check_then_delete_wallet(Daemon.currentWallet)
         })
         dialog.open()
     }
@@ -319,6 +319,24 @@ Pane {
                 Daemon.set_password(dialog.password)
             })
             dialog.open()
+        }
+        function onWalletDeleteError(code, message) {
+            if (code == 'unpaid_requests') {
+                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
+                dialog.yesClicked.connect(function() {
+                    Daemon.check_then_delete_wallet(Daemon.currentWallet, true)
+                })
+                dialog.open()
+            } else if (code == 'balance') {
+                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
+                dialog.yesClicked.connect(function() {
+                    Daemon.check_then_delete_wallet(Daemon.currentWallet, true, true)
+                })
+                dialog.open()
+            } else {
+                var dialog = app.messageDialog.createObject(app, {text: message })
+                dialog.open()
+            }
         }
     }
 
