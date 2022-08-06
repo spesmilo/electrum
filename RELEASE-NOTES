@@ -21,7 +21,7 @@
       lightning invoice, the GUI will suggest available alternatives:
       rebalance existing channels, open a new channel, perform a
       submarine swap, or pay to the provided onchain fallback address.
-    - A single balance is shown in the GUI. A piechart reflects how
+    - A single balance is shown in the GUI. A pie chart reflects how
       that balance is distributed (on-chain, lightning, unconfirmed,
       frozen, etc).
     - The semantics of the wallet balance has been modified: only
@@ -32,15 +32,15 @@
       the confirmed balance. (Before this change, the arithmetic
       values of both incoming and outgoing transactions were added to
       the unconfirmed balance, and could potentially cancel
-      eachother.)
+      each other.)
 
- * In addition, the following new features are woth noting:
+ * In addition, the following new features are worth noting:
     - support for the Blockstream Jade hardware wallet (#7633)
     - support for LNURL-pay (LUD-06) (#7839)
     - updated trampoline feature bit in invoices (#7801)
     - the claim transactions of reverse swaps are not broadcast until
-      the parent transaction is confirmed. This can be overriden by
-      manually broadcasting the locakl transaction.
+      the parent transaction is confirmed. This can be overridden by
+      manually broadcasting the local transaction.
     - the fee of submarine swap transactions can be bumped (#7724)
     - better error handling for trampoline payments, which should
       improve payment success rate (#7844)
