@@ -222,7 +222,7 @@ python3 -m pip install --no-build-isolation --no-dependencies \
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=4.2.1
+VERSION=4.3.0
 
 info "Building binary"
 pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
