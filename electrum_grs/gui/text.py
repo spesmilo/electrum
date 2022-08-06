@@ -39,7 +39,7 @@ def parse_bip21(text):
         return
 
 def parse_bolt11(text):
-    from electrum.lnaddr import lndecode
+    from electrum_grs.lnaddr import lndecode
     try:
         return lndecode(text)
     except:

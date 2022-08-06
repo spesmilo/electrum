@@ -156,7 +156,7 @@ class Invoice(StoredObject):
         return int(amount_msat // 1000)
 
     def get_bip21_URI(self, lightning=None):
-        from electrum.util import create_bip21_uri
+        from electrum_grs.util import create_bip21_uri
         addr = self.get_address()
         amount = self.get_amount_sat()
         if amount is not None:
