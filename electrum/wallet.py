@@ -2561,7 +2561,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_delete_address(self):
         return False
 
-    def has_password(self):
+    def has_password(self) -> bool:
         return self.has_keystore_encryption() or self.has_storage_encryption()
 
     def can_have_keystore_encryption(self):
@@ -2578,18 +2578,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             return StorageEncryptionVersion.USER_PASSWORD
 
-    def has_keystore_encryption(self):
+    def has_keystore_encryption(self) -> bool:
         """Returns whether encryption is enabled for the keystore.
 
         If True, e.g. signing a transaction will require a password.
         """
         if self.can_have_keystore_encryption():
-            return self.db.get('use_encryption', False)
+            return bool(self.db.get('use_encryption', False))
         return False
 
-    def has_storage_encryption(self):
+    def has_storage_encryption(self) -> bool:
         """Returns whether encryption is enabled for the wallet file on disk."""
-        return self.storage and self.storage.is_encrypted()
+        return bool(self.storage) and self.storage.is_encrypted()
 
     @classmethod
     def may_have_password(cls):
@@ -3484,15 +3484,18 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path, config: SimpleConfig,
+def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
                              passphrase=None, password=None, encrypt_file=True,
                              gap_limit=None) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
-    storage = WalletStorage(path)
-    if storage.file_exists():
-        raise Exception("Remove the existing wallet first!")
+    if path is None:  # create wallet in-memory
+        storage = None
+    else:
+        storage = WalletStorage(path)
+        if storage.file_exists():
+            raise Exception("Remove the existing wallet first!")
     db = WalletDB('', manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):
@@ -3525,7 +3528,8 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
         wallet = Wallet(db, storage, config=config)
-    assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
+    if storage:
+        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
