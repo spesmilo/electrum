@@ -12,7 +12,7 @@ else
     # So, "private_version" needs to be reproducible, but it would be useful during development if it changed
     # between subsequent builds (otherwise the new code won't be unpacked and used at runtime!).
     # For this reason, for development purposes, we set SOURCE_DATE_EPOCH here to the current time.
-    # see https://github.com/kivy/python-for-android/blob/develop/pythonforandroid/bootstraps/common/build/build.py#L567-L579
+    # see https://github.com/kivy/python-for-android/blob/e8686e2104a553f05959cdaf7dd26867671fc8e6/pythonforandroid/bootstraps/common/build/build.py#L575-L587
     export SOURCE_DATE_EPOCH  := $(shell date +%s)
 endif
 export PYTHONHASHSEED     := $(SOURCE_DATE_EPOCH)

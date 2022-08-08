@@ -112,7 +112,7 @@ class NewChannelDialog(WindowModalDialog):
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             self.max_button.setChecked(False)
             self.amount_e.setFrozen(False)
-            self.main_window.show_error(str(e))
+            self.window.show_error(str(e))
             return
         amount = tx.output_value()
         amount = min(amount, LN_MAX_FUNDING_SAT)

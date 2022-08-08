@@ -102,7 +102,7 @@ class WalletStorage(Logger):
     def file_exists(self) -> bool:
         return self._file_exists
 
-    def is_past_initial_decryption(self):
+    def is_past_initial_decryption(self) -> bool:
         """Return if storage is in a usable state for normal operations.
 
         The value is True exactly
@@ -111,14 +111,14 @@ class WalletStorage(Logger):
         """
         return not self.is_encrypted() or bool(self.pubkey)
 
-    def is_encrypted(self):
+    def is_encrypted(self) -> bool:
         """Return if storage encryption is currently enabled."""
         return self.get_encryption_version() != StorageEncryptionVersion.PLAINTEXT
 
-    def is_encrypted_with_user_pw(self):
+    def is_encrypted_with_user_pw(self) -> bool:
         return self.get_encryption_version() == StorageEncryptionVersion.USER_PASSWORD
 
-    def is_encrypted_with_hw_device(self):
+    def is_encrypted_with_hw_device(self) -> bool:
         return self.get_encryption_version() == StorageEncryptionVersion.XPUB_PASSWORD
 
     def get_encryption_version(self):
