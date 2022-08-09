@@ -310,7 +310,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         fmt = self.format_column_width(x, [-50, '*', 15])
         messages = [ fmt % (
             addr,
-            self.wallet.get_label(addr),
+            self.wallet.get_label_for_address(addr),
             self.config.format_amount(sum(self.wallet.get_addr_balance(addr)), whitespaces=True)
         ) for addr in self.wallet.get_addresses() ]
         self.print_list(2, x, messages, fmt % ("Address", "Description", "Balance"))
@@ -321,7 +321,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         utxos = self.wallet.get_utxos()
         messages = [ fmt % (
             utxo.prevout.to_str(),
-            self.wallet.get_label(utxo.prevout.txid.hex()),
+            self.wallet.get_label_for_txid(utxo.prevout.txid.hex()),
             self.config.format_amount(utxo.value_sats(), whitespaces=True)
         ) for utxo in utxos]
         self.print_list(2, x, sorted(messages), fmt % ("Outpoint", "Description", "Balance"))
