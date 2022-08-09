@@ -1337,9 +1337,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             item['capital_gain'] = Fiat(cg, fx.ccy)
         return item
 
-    def get_label(self, key: str) -> str:
+    def _get_label(self, key: str) -> str:
         # key is typically: address / txid / LN-payment-hash-hex
         return self._labels.get(key) or ''
+
+    def get_label_for_address(self, addr: str) -> str:
+        label = self._labels.get(addr) or ''
+        if not label and (request := self.get_request_by_address(addr)):
+            label = request.get_message()
+        return label
 
     def get_label_for_txid(self, tx_hash: str) -> str:
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
@@ -1349,7 +1355,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not self.db.get_txi_addresses(tx_hash):
             labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
-                label = self._labels.get(addr)
+                label = self.get_label_for_address(addr)
                 if label:
                     labels.append(label)
             return ', '.join(labels)
@@ -1357,7 +1363,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
-        return req.message if req else ''
+        return req.get_message() if req else ''
 
     def get_label_for_rhash(self, rhash: str) -> str:
         return self._labels.get(rhash) or self._get_default_label_for_rhash(rhash)
@@ -2287,7 +2293,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_request_URI(self, req: Invoice) -> str:
         # todo: should be a method of invoice?
         addr = req.get_address()
-        message = self.get_label(addr)
+        message = self.get_label_for_address(addr)
         amount = req.get_amount_sat()
         extra_query_params = {}
         if req.time and req.exp:

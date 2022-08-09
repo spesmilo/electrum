@@ -1169,7 +1169,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         # sent by lnworker, redundant with invoice_status
         if wallet != self.wallet:
             return
-        description = self.wallet.get_label(key)
+        description = self.wallet.get_label_for_rhash(key)
         self.notify(_('Payment sent') + '\n\n' + description)
         self.need_update.set()
 
