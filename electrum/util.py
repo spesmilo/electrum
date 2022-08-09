@@ -1201,6 +1201,17 @@ def make_dir(path, allow_symlink=True):
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
+def is_subpath(long_path: str, short_path: str) -> bool:
+    """Returns whether long_path is a sub-path of short_path."""
+    try:
+        common = os.path.commonpath([long_path, short_path])
+    except ValueError:
+        return False
+    short_path = standardize_path(short_path)
+    common     = standardize_path(common)
+    return short_path == common
+
+
 def log_exceptions(func):
     """Decorator to log AND re-raise exceptions."""
     assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
