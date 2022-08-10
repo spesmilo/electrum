@@ -1,0 +1,2 @@
+deb https://snapshot.debian.org/archive/debian/20220810T094023Z/ buster main non-free contrib
+deb-src https://snapshot.debian.org/archive/debian/20220810T094023Z/ buster main non-free contrib
