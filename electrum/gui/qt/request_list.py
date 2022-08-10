@@ -192,6 +192,7 @@ class RequestList(MyTreeView):
 
     def delete_requests(self, keys):
         for key in keys:
-            self.wallet.delete_request(key)
+            self.wallet.delete_request(key, write_to_disk=False)
             self.delete_item(key)
+        self.wallet.save_db()
         self.receive_tab.do_clear()

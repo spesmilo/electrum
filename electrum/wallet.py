@@ -2517,7 +2517,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
         return key
 
-    def delete_request(self, key):
+    def delete_request(self, key, *, write_to_disk: bool = True):
         """ lightning or on-chain """
         req = self._receive_requests.pop(key, None)
         if req is None:
@@ -2526,16 +2526,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self._requests_addr_to_rhash.pop(addr)
         if req.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(req.rhash)
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
-    def delete_invoice(self, key):
+    def delete_invoice(self, key, *, write_to_disk: bool = True):
         """ lightning or on-chain """
         inv = self._invoices.pop(key, None)
         if inv is None:
             return
         if inv.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(inv.rhash)
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """
