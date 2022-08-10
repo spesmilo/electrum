@@ -1343,7 +1343,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_label_for_address(self, addr: str) -> str:
         label = self._labels.get(addr) or ''
-        if not label and (request := self.get_request_by_address(addr)):
+        if not label and (request := self.get_request(addr)):
             label = request.get_message()
         return label
 
@@ -2350,13 +2350,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(r, status)
 
-    def get_request(self, key):
-        return self._receive_requests.get(key) or self.get_request_by_address(key)
-
-    def get_request_by_address(self, addr):
-        rhash = self._requests_addr_to_rhash.get(addr)
-        if rhash:
-            return self._receive_requests.get(rhash)
+    def get_request(self, key: str) -> Optional[Invoice]:
+        if req := self._receive_requests.get(key):
+            return req
+        # try 'key' as a fallback address for lightning invoices
+        if (rhash := self._requests_addr_to_rhash.get(key)) and (req := self._receive_requests.get(rhash)):
+            return req
 
     def get_formatted_request(self, key):
         x = self.get_request(key)
