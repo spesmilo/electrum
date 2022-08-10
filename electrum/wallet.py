@@ -2518,9 +2518,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def delete_request(self, key, *, write_to_disk: bool = True):
         """ lightning or on-chain """
-        req = self._receive_requests.pop(key, None)
+        req = self.get_request(key)
         if req is None:
             return
+        key = self.get_key_for_receive_request(req)
+        self._receive_requests.pop(key, None)
         if req.is_lightning() and (addr:=req.get_address()):
             self._requests_addr_to_rhash.pop(addr)
         if req.is_lightning() and self.lnworker:
