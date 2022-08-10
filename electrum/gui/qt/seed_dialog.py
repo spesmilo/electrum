@@ -38,7 +38,7 @@ from electrum import slip39
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
                    EnterButton, CloseButton, WindowModalDialog, ColorScheme,
-                   ChoicesLayout)
+                   ChoicesLayout, font_height)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -157,7 +157,7 @@ class SeedLayout(QVBoxLayout):
             self.seed_e.textChanged.connect(self.on_edit)
             self.initialize_completer()
 
-        self.seed_e.setMaximumHeight(75)
+        self.seed_e.setMaximumHeight(max(75, 5 * font_height()))
         hbox = QHBoxLayout()
         if icon:
             logo = QLabel()

@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 from electrum.i18n import _
 from electrum.lnworker import PaymentDirection
 
-from .util import WindowModalDialog, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
+from .util import WindowModalDialog, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, font_height
 from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ class LightningTxDialog(WindowModalDialog):
         vbox.addWidget(self.preimage_e)
         vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
         self.invoice_e = ShowQRTextEdit(self.invoice, config=self.config)
-        self.invoice_e.setMaximumHeight(150)
+        self.invoice_e.setMaximumHeight(max(150, 10 * font_height()))
         self.invoice_e.addCopyButton()
         vbox.addWidget(self.invoice_e)
         vbox.addLayout(Buttons(CloseButton(self)))

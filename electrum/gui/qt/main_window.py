@@ -38,7 +38,7 @@ import asyncio
 from typing import Optional, TYPE_CHECKING, Sequence, List, Union, Dict, Set
 import concurrent.futures
 
-from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont
+from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor, QFont, QFontMetrics
 from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
 from PyQt5.QtWidgets import (QMessageBox, QSystemTrayIcon, QTabWidget,
                              QMenuBar, QFileDialog, QCheckBox, QLabel,
@@ -88,7 +88,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
                    import_meta_gui, export_meta_gui,
                    filename_field, address_field, char_width_in_lineedit, webopen,
                    TRANSACTION_FILE_EXTENSION_FILTER_ANY, MONOSPACE_FONT,
-                   getOpenFileName, getSaveFileName, BlockingWaitingDialog)
+                   getOpenFileName, getSaveFileName, BlockingWaitingDialog, font_height)
 from .util import ButtonsLineEdit, ShowQRLineEdit
 from .util import QtEventListener, qt_event_listener, event_listener
 from .installwizard import WIF_HELP_TEXT
@@ -117,10 +117,11 @@ class StatusBarButton(QToolButton):
         self.setToolTip(tooltip)
         self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.setAutoRaise(True)
-        self.setMaximumWidth(25)
+        size = max(25, round(1.8 * font_height()))
+        self.setMaximumWidth(size)
         self.clicked.connect(self.onPress)
         self.func = func
-        self.setIconSize(QSize(25,25))
+        self.setIconSize(QSize(size, size))
         self.setCursor(QCursor(Qt.PointingHandCursor))
 
     def onPress(self, checked=False):
@@ -1528,12 +1529,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def create_status_bar(self):
         sb = QStatusBar()
-        sb.setFixedHeight(35)
         self.balance_label = BalanceToolButton()
         self.balance_label.setText("Loading wallet...")
         self.balance_label.setAutoRaise(True)
         self.balance_label.clicked.connect(self.show_balance_dialog)
         sb.addWidget(self.balance_label)
+
+        font_height = QFontMetrics(self.balance_label.font()).height()
+        sb_height = max(35, int(2 * font_height))
+        sb.setFixedHeight(sb_height)
 
         # remove border of all items in status bar
         self.setStyleSheet("QStatusBar::item { border: 0px;} ")
@@ -1813,7 +1817,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 ks_w.setLayout(ks_vbox)
 
                 mpk_text = ShowQRTextEdit(ks.get_master_public_key(), config=self.config)
-                mpk_text.setMaximumHeight(150)
+                mpk_text.setMaximumHeight(max(150, 10 * font_height()))
                 mpk_text.addCopyButton()
                 run_hook('show_xpub_button', mpk_text, ks)
                 ks_vbox.addWidget(WWLabel(_("Master Public Key")))

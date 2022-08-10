@@ -1,6 +1,7 @@
 import random
 
 from PyQt5.QtWidgets import (QVBoxLayout, QGridLayout, QPushButton)
+from PyQt5.QtGui import QFontMetrics
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
@@ -12,8 +13,9 @@ class Plugin(BasePlugin):
 
     @hook
     def password_dialog(self, pw, grid, pos):
-        vkb_button = QPushButton(_("+"))
-        vkb_button.setFixedWidth(20)
+        vkb_button = QPushButton("+")
+        font_height = QFontMetrics(vkb_button.font()).height()
+        vkb_button.setFixedWidth(round(1.7 * font_height))
         vkb_button.clicked.connect(lambda: self.toggle_vkb(grid, pw))
         grid.addWidget(vkb_button, pos, 2)
         self.kb_pos = 2
@@ -47,13 +49,16 @@ class Plugin(BasePlugin):
         def add_target(t):
             return lambda: pw.setText(str(pw.text()) + t)
 
+        font_height = QFontMetrics(QPushButton().font()).height()
+        btn_size = max(25, round(1.7 * font_height))
+
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.setSpacing(2)
         for i in range(n):
             l_button = QPushButton(chars[s[i]])
-            l_button.setFixedWidth(25)
-            l_button.setFixedHeight(25)
+            l_button.setFixedWidth(btn_size)
+            l_button.setFixedHeight(btn_size)
             l_button.clicked.connect(add_target(chars[s[i]]))
             grid.addWidget(l_button, i // 6, i % 6)
 

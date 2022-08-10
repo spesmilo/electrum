@@ -26,7 +26,7 @@ from electrum.i18n import _
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
-                   InfoButton, char_width_in_lineedit, PasswordLineEdit)
+                   InfoButton, char_width_in_lineedit, PasswordLineEdit, font_height)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.plugin import run_hook, Plugins
@@ -58,10 +58,10 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
 
 
 class CosignWidget(QWidget):
-    size = 120
 
     def __init__(self, m, n):
         QWidget.__init__(self)
+        self.size = max(120, 9 * font_height())
         self.R = QRect(0, 0, self.size, self.size)
         self.setGeometry(self.R)
         self.setMinimumHeight(self.size)

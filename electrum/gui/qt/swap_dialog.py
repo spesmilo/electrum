@@ -9,7 +9,7 @@ from electrum.lnutil import ln_dummy_address
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
-                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel)
+                   EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 
@@ -43,7 +43,8 @@ class SwapDialog(WindowModalDialog):
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.max_button = EnterButton(_("Max"), self.spend_max)
-        self.max_button.setFixedWidth(100)
+        btn_width = 10 * char_width_in_lineedit()
+        self.max_button.setFixedWidth(btn_width)
         self.max_button.setCheckable(True)
         self.toggle_button = QPushButton(u'\U000021c4')
         self.toggle_button.setEnabled(is_reverse is None)

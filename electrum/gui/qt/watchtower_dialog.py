@@ -67,7 +67,7 @@ class WatchtowerDialog(QDialog):
         assert self.network
         self.lnwatcher = self.network.local_watchtower
         self.setWindowTitle(_('Watchtower'))
-        self.setMinimumSize(600, 20)
+        self.setMinimumSize(600, 200)
         self.size_label = QLabel()
         self.watcher_list = WatcherList(self)
 
