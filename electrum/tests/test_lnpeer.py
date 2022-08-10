@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 import tempfile
 from decimal import Decimal
 import os
@@ -39,6 +40,7 @@ from electrum.lnutil import derive_payment_secret_from_payment_preimage, UpdateA
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 from electrum.interface import GracefulDisconnect
+from electrum.simple_config import SimpleConfig
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
@@ -56,13 +58,11 @@ def noop_lock():
     yield
 
 class MockNetwork:
-    def __init__(self, tx_queue):
+    def __init__(self, tx_queue, *, config: SimpleConfig):
         self.callbacks = defaultdict(list)
         self.lnwatcher = None
         self.interface = None
-        user_config = {}
-        user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
-        self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
+        self.config = config
         self.asyncio_loop = util.get_asyncio_loop()
         self.channel_db = ChannelDB(self)
         self.channel_db.data_loaded.set()
@@ -135,7 +135,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         Logger.__init__(self)
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.node_keypair = local_keypair
-        self.network = MockNetwork(tx_queue)
+        self._user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
+        self.config = SimpleConfig({}, read_user_dir_function=lambda: self._user_dir)
+        self.network = MockNetwork(tx_queue, config=self.config)
         self.taskgroup = OldTaskGroup()
         self.lnwatcher = None
         self.listen_server = None
@@ -389,6 +391,8 @@ class TestPeer(TestCaseForTestnet):
             async with OldTaskGroup() as group:
                 for lnworker in self._lnworkers_created:
                     await group.spawn(lnworker.stop())
+            for lnworker in self._lnworkers_created:
+                shutil.rmtree(lnworker._user_dir)
             self._lnworkers_created.clear()
         run(cleanup_lnworkers())
 
