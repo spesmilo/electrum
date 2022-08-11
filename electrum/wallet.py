@@ -2290,22 +2290,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_request_URI(self, req: Invoice) -> str:
-        # todo: should be a method of invoice?
-        addr = req.get_address()
-        message = self.get_label_for_address(addr)
-        amount = req.get_amount_sat()
-        extra_query_params = {}
-        if req.time and req.exp:
-            extra_query_params['time'] = str(int(req.time))
-            extra_query_params['exp'] = str(int(req.exp))
-        #if req.get('name') and req.get('sig'):
-        #    sig = bfh(req.get('sig'))
-        #    sig = bitcoin.base_encode(sig, base=58)
-        #    extra_query_params['name'] = req['name']
-        #    extra_query_params['sig'] = sig
-        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
-        return str(uri)
+    def get_request_URI(self, req: Invoice) -> Optional[str]:
+        include_lightning = bool(self.config.get('bip21_lightning', False))
+        return req.get_bip21_URI(include_lightning=include_lightning)
 
     def check_expired_status(self, r: Invoice, status):
         #if r.is_lightning() and r.exp == 0:

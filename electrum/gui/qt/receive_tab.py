@@ -221,8 +221,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         address_help = '' if addr else _('Amount too small to be received onchain')
         URI_help = ''
         lnaddr = req.lightning_invoice
-        bip21_lightning = lnaddr if self.config.get('bip21_lightning', False) else None
-        URI = req.get_bip21_URI(lightning=bip21_lightning)
+        URI = self.wallet.get_request_URI(req) or ''
         lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
         can_receive_lightning = self.wallet.lnworker and amount_sat <= self.wallet.lnworker.num_sats_can_receive()
         has_expired = self.wallet.get_request_status(key) == PR_EXPIRED

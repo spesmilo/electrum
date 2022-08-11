@@ -155,7 +155,7 @@ class Invoice(StoredObject):
             return amount_msat
         return int(amount_msat // 1000)
 
-    def get_bip21_URI(self, lightning=None):
+    def get_bip21_URI(self, *, include_lightning: bool = False) -> Optional[str]:
         from electrum.util import create_bip21_uri
         addr = self.get_address()
         amount = self.get_amount_sat()
@@ -164,13 +164,15 @@ class Invoice(StoredObject):
         message = self.message
         extra = {}
         if self.time and self.exp:
-            extra['time'] = str(self.time)
-            extra['exp'] = str(self.exp)
-        # only if we can receive
+            extra['time'] = str(int(self.time))
+            extra['exp'] = str(int(self.exp))
+        lightning = self.lightning_invoice if include_lightning else None
         if lightning:
             extra['lightning'] = lightning
         if not addr and lightning:
             return "bitcoin:?lightning="+lightning
+        if not addr and not lightning:
+            return None
         uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
         return str(uri)
 

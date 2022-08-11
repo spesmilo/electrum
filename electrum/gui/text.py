@@ -853,7 +853,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def show_request(self, key):
         req = self.wallet.get_request(key)
         addr = req.get_address() or ''
-        URI = req.get_bip21_URI()
+        URI = self.wallet.get_request_URI(req) or ''
         lnaddr = req.lightning_invoice or ''
         w = curses.newwin(self.maxy - 2, self.maxx - 2, 1, 1)
         pos = 4
