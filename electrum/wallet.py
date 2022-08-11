@@ -2443,10 +2443,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
 
-    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str):
+    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
+        address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
