@@ -31,6 +31,7 @@ Builder.load_string('''
     status_color: 1,1,1,1
     shaded: False
     show_text: False
+    has_lightning: False
     AnchorLayout:
         anchor_x: 'center'
         BoxLayout:
@@ -72,6 +73,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('Lightning')
                     on_release: root.mode = root.MODE_LIGHTNING
+                    disabled: not root.has_lightning
             TopLabel:
                 text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
@@ -160,6 +162,7 @@ class RequestDialog(Factory.Popup):
         self.status = self.app.wallet.get_request_status(self.key)
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
+        self.has_lightning = req.is_lightning()
         warning = ''
         if self.status == PR_UNPAID and self.mode == self.MODE_LIGHTNING and self.app.wallet.lnworker:
             if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
