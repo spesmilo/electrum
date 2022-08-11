@@ -244,6 +244,27 @@ class InternalAddressCorruption(Exception):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
+
+class ReceiveRequestHelp(NamedTuple):
+    # help texts (warnings/errors):
+    address_help: str
+    URI_help: str
+    ln_help: str
+    # whether the texts correspond to an error (or just a warning):
+    address_is_error: bool
+    URI_is_error: bool
+    ln_is_error: bool
+
+    ln_swap_suggestion: Optional[Any] = None
+    ln_rebalance_suggestion: Optional[Any] = None
+
+    def can_swap(self) -> bool:
+        return bool(self.ln_swap_suggestion)
+
+    def can_rebalance(self) -> bool:
+        return bool(self.ln_rebalance_suggestion)
+
+
 class TxWalletDelta(NamedTuple):
     is_relevant: bool  # "related to wallet?"
     is_any_input_ismine: bool
@@ -2802,6 +2823,71 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return None
         else:
             return allow_send, long_warning, short_warning
+
+    def get_help_texts_for_receive_request(self, req: Invoice) -> ReceiveRequestHelp:
+        key = self.get_key_for_receive_request(req)
+        addr = req.get_address() or ''
+        amount_sat = req.get_amount_sat() or 0
+        address_help = ''
+        URI_help = ''
+        ln_help = ''
+        address_is_error = False
+        URI_is_error = False
+        ln_is_error = False
+        ln_swap_suggestion = None
+        ln_rebalance_suggestion = None
+        lnaddr = req.lightning_invoice or ''
+        URI = self.get_request_URI(req) or ''
+        lightning_online = self.lnworker and self.lnworker.num_peers() > 0
+        can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
+        status = self.get_request_status(key)
+
+        if status == PR_EXPIRED:
+            address_help = URI_help = ln_help = _('This request has expired')
+
+        is_amt_too_small_for_onchain = amount_sat < self.dust_threshold()
+        if not addr:
+            address_is_error = True
+            address_help = _('This request cannot be paid on-chain')
+            if is_amt_too_small_for_onchain:
+                address_help = _('Amount too small to be received onchain')
+        if not URI:
+            URI_is_error = True
+            URI_help = _('This request cannot be paid on-chain')
+            if is_amt_too_small_for_onchain:
+                URI_help = _('Amount too small to be received onchain')
+        if not lnaddr:
+            ln_is_error = True
+            ln_help = _('This request does not have a Lightning invoice.')
+
+        if status == PR_UNPAID:
+            if self.adb.is_used(addr):
+                address_help = URI_help = (_("This address has already been used. "
+                                             "For better privacy, do not reuse it for new payments."))
+            if lnaddr:
+                if not lightning_online:
+                    ln_is_error = True
+                    ln_help = _('You must be online to receive Lightning payments.')
+                elif not can_receive_lightning:
+                    ln_is_error = True
+                    ln_rebalance_suggestion = self.lnworker.suggest_rebalance_to_receive(amount_sat)
+                    ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(amount_sat)
+                    ln_help = _('You do not have the capacity to receive this amount with Lightning.')
+                    if bool(ln_rebalance_suggestion):
+                        ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
+                    elif bool(ln_swap_suggestion):
+                        ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
+        return ReceiveRequestHelp(
+            address_help=address_help,
+            URI_help=URI_help,
+            ln_help=ln_help,
+            address_is_error=address_is_error,
+            URI_is_error=URI_is_error,
+            ln_is_error=ln_is_error,
+            ln_rebalance_suggestion=ln_rebalance_suggestion,
+            ln_swap_suggestion=ln_swap_suggestion,
+        )
+
 
     def synchronize(self) -> int:
         """Returns the number of new addresses we generated."""

@@ -216,49 +216,18 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             self.receive_lightning_e.setText('')
             self.receive_address_e.setText('')
             return
-        addr = req.get_address() or ''
-        amount_sat = req.get_amount_sat() or 0
-        address_help = ''
-        URI_help = ''
-        lnaddr = req.lightning_invoice
-        URI = self.wallet.get_request_URI(req) or ''
-        lightning_online = self.wallet.lnworker and self.wallet.lnworker.num_peers() > 0
-        can_receive_lightning = self.wallet.lnworker and amount_sat <= self.wallet.lnworker.num_sats_can_receive()
-        has_expired = self.wallet.get_request_status(key) == PR_EXPIRED
-        if not addr:
-            address_help = _('Amount too small to be received onchain')
-        if not URI:
-            URI_help = _('Amount too small to be received onchain')
-        if has_expired:
-            URI_help = ln_help = address_help = _('This request has expired')
-            URI = lnaddr = address = ''
-            can_rebalance = False
-            can_swap = False
-        elif lnaddr is None:
-            ln_help = _('This request does not have a Lightning invoice.')
-            lnaddr = ''
-            can_rebalance = False
-            can_swap = False
-        elif not lightning_online:
-            ln_help = _('You must be online to receive Lightning payments.')
-            lnaddr = ''
-            can_rebalance = False
-            can_swap = False
-        elif not can_receive_lightning:
-            self.receive_rebalance_button.suggestion = self.wallet.lnworker.suggest_rebalance_to_receive(amount_sat)
-            self.receive_swap_button.suggestion = self.wallet.lnworker.suggest_swap_to_receive(amount_sat)
-            can_rebalance = bool(self.receive_rebalance_button.suggestion)
-            can_swap = bool(self.receive_swap_button.suggestion)
-            lnaddr = ''
-            ln_help = _('You do not have the capacity to receive that amount with Lightning.')
-            if can_rebalance:
-                ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
-            elif can_swap:
-                ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
-        else:
-            ln_help = ''
-            can_rebalance = False
-            can_swap = False
+        help_texts = self.wallet.get_help_texts_for_receive_request(req)
+        addr = (req.get_address() or '') if not help_texts.address_is_error else ''
+        URI = (self.wallet.get_request_URI(req) or '') if not help_texts.URI_is_error else ''
+        lnaddr = (req.lightning_invoice or '') if not help_texts.ln_is_error else ''
+        address_help = help_texts.address_help
+        URI_help = help_texts.URI_help
+        ln_help = help_texts.ln_help
+        can_rebalance = help_texts.can_rebalance()
+        can_swap = help_texts.can_swap()
+        self.receive_rebalance_button.suggestion = help_texts.ln_rebalance_suggestion
+        self.receive_swap_button.suggestion = help_texts.ln_swap_suggestion
+
         self.receive_rebalance_button.setVisible(can_rebalance)
         self.receive_swap_button.setVisible(can_swap)
         self.receive_rebalance_button.setEnabled(can_rebalance and self.window.num_tasks() == 0)
@@ -269,7 +238,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         # alphanumeric mode; resulting in smaller QR codes
         lnaddr_qr = lnaddr.upper()
         self.receive_address_e.setText(addr)
-        self.update_receive_address_styling()
         self.receive_address_qr.setData(addr)
         self.receive_address_help_text.setText(address_help)
         self.receive_URI_e.setText(URI)
@@ -278,6 +246,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
         self.receive_lightning_help_text.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr_qr)
+        self.update_textedit_warning(text_e=self.receive_address_e, warning_text=address_help)
+        self.update_textedit_warning(text_e=self.receive_URI_e, warning_text=URI_help)
+        self.update_textedit_warning(text_e=self.receive_lightning_e, warning_text=ln_help)
         # macOS hack (similar to #4777)
         self.receive_lightning_e.repaint()
         self.receive_URI_e.repaint()
@@ -387,15 +358,13 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.expires_combo.show()
         self.request_list.clearSelection()
 
-    def update_receive_address_styling(self):
-        addr = str(self.receive_address_e.text())
-        if is_address(addr) and self.wallet.adb.is_used(addr):
-            self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-            self.receive_address_e.setToolTip(_("This address has already been used. "
-                                                "For better privacy, do not reuse it for new payments."))
+    def update_textedit_warning(self, *, text_e: ButtonsTextEdit, warning_text: Optional[str]):
+        if bool(text_e.text()) and warning_text:
+            text_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
+            text_e.setToolTip(warning_text)
         else:
-            self.receive_address_e.setStyleSheet("")
-            self.receive_address_e.setToolTip("")
+            text_e.setStyleSheet("")
+            text_e.setToolTip(text_e._default_tooltip)
 
 
 class ReceiveTabWidget(QWidget):
@@ -411,6 +380,7 @@ class ReceiveTabWidget(QWidget):
         for w in [textedit, qr]:
             w.mousePressEvent = receive_tab.toggle_receive_qr
             tooltip = _('Click to switch between text and QR code view')
+            w._default_tooltip = tooltip
             w.setToolTip(tooltip)
         textedit.setFocusPolicy(Qt.NoFocus)
         if isinstance(help_widget, QLabel):
