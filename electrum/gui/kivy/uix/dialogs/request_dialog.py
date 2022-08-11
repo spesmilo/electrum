@@ -6,6 +6,7 @@ from kivy.core.clipboard import Clipboard
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.properties import NumericProperty, StringProperty
+from kivy.uix.tabbedpanel import TabbedPanel
 
 from electrum.gui.kivy.i18n import _
 from electrum.invoices import pr_tooltips, pr_color
@@ -18,6 +19,10 @@ if TYPE_CHECKING:
 Builder.load_string('''
 #:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
+<TabbedPanelWithHiddenHeader@TabbedPanel>:
+    tab_height: "0dp"
+    tab_width: "1dp"
+
 <RequestDialog@Popup>
     id: popup
     amount_str: ''
@@ -27,6 +32,7 @@ Builder.load_string('''
     key:''
     data:''
     warning: ''
+    error_text: ''
     status_str: ''
     status_color: 1,1,1,1
     shaded: False
@@ -39,13 +45,28 @@ Builder.load_string('''
             size_hint: 1, 1
             padding: '10dp'
             spacing: '10dp'
-            QRCodeWidget:
-                id: qr
-                shaded: False
-                foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
-                on_touch_down:
-                    touch = args[1]
-                    if self.collide_point(*touch.pos): self.shaded = not self.shaded
+            TabbedPanelWithHiddenHeader:
+                id: qrdata_tabs
+                do_default_tab: False
+                TabbedPanelItem:
+                    id: qrdata_tab_qr
+                    border: 0,0,0,0  # to hide visual artifact around hidden tab header
+                    QRCodeWidget:
+                        id: qr
+                        shaded: False
+                        foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
+                        on_touch_down:
+                            touch = args[1]
+                            if self.collide_point(*touch.pos): self.shaded = not self.shaded
+                TabbedPanelItem:
+                    id: qrdata_tab_error
+                    border: 0,0,0,0  # to hide visual artifact around hidden tab header
+                    BoxLayout:
+                        padding: '20dp'
+                        TopLabel:
+                            text: root.error_text
+                            pos_hint: {'center_x': .5, 'center_y': .5}
+                            halign: "center"
             TopLabel:
                 text: root.data[0:70] + ('...' if len(root.data)>70 else '')
             BoxLayout:
@@ -110,6 +131,13 @@ Builder.load_string('''
                     on_release: popup.dismiss()
 ''')
 
+
+class TabbedPanelWithHiddenHeader(TabbedPanel):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._tab_strip.opacity = 0
+
+
 class RequestDialog(Factory.Popup):
 
     MODE_ADDRESS = 0
@@ -140,15 +168,7 @@ class RequestDialog(Factory.Popup):
         self.update_status()
 
     def on_mode(self, instance, x):
-        r = self.app.wallet.get_request(self.key)
-        if self.mode == self.MODE_ADDRESS:
-            self.data = r.get_address() or ''
-        elif self.mode == self.MODE_URI:
-            self.data = self.app.wallet.get_request_URI(r) or ''
-        elif self.mode == self.MODE_LIGHTNING:
-            self.data = r.lightning_invoice or ''
-        else:
-            raise Exception(f"unexpected {self.mode=!r}")
+        self.update_status()
         qr_data = self.data
         if self.mode == self.MODE_LIGHTNING:
             # encode lightning invoices as uppercase so QR encoding can use
@@ -159,25 +179,47 @@ class RequestDialog(Factory.Popup):
             self.ids.qr.opacity = 1
         else:
             self.ids.qr.opacity = 0
-        self.update_status()
+        if not qr_data and self.error_text:
+            Clock.schedule_once(lambda dt: self.ids.qrdata_tabs.switch_to(self.ids.qrdata_tab_error))
+        else:
+            Clock.schedule_once(lambda dt: self.ids.qrdata_tabs.switch_to(self.ids.qrdata_tab_qr))
 
     def update_status(self):
         req = self.app.wallet.get_request(self.key)
+        help_texts = self.app.wallet.get_help_texts_for_receive_request(req)
+        address = req.get_address() or ''
+        URI = self.app.wallet.get_request_URI(req) or ''
+        lnaddr = req.lightning_invoice or ''
         self.status = self.app.wallet.get_request_status(self.key)
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         self.has_lightning = req.is_lightning()
-        warning = ''
-        if self.status == PR_UNPAID and self.mode == self.MODE_LIGHTNING and self.app.wallet.lnworker:
-            if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
-                warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
-        if not self.mode == self.MODE_LIGHTNING:
-            address = req.get_address()
-            if not address:
-                warning = _('Warning') + ': ' + _('This request cannot be paid on-chain')
-            elif self.app.wallet.adb.is_used(address):
-                warning = _('Warning') + ': ' + _('This address is being reused')
-        self.warning = warning
+
+        self.warning = ''
+        self.error_text = ''
+        self.data = ''
+        if self.mode == self.MODE_ADDRESS:
+            if help_texts.address_is_error:
+                self.error_text = help_texts.address_help
+            else:
+                self.data = address
+                self.warning = help_texts.address_help
+        elif self.mode == self.MODE_URI:
+            if help_texts.URI_is_error:
+                self.error_text = help_texts.URI_help
+            else:
+                self.data = URI
+                self.warning = help_texts.URI_help
+        elif self.mode == self.MODE_LIGHTNING:
+            if help_texts.ln_is_error:
+                self.error_text = help_texts.ln_help
+            else:
+                self.data = lnaddr
+                self.warning = help_texts.ln_help
+        else:
+            raise Exception(f"unexpected {self.mode=!r}")
+        if self.warning:
+            self.warning = _('Warning') + ': ' + self.warning
 
     def on_dismiss(self):
         self.app.request_popup = None
