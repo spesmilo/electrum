@@ -15,12 +15,6 @@ if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
 
 
-
-MODE_ADDRESS = 0
-MODE_URI = 1
-MODE_LIGHTNING = 2
-
-
 Builder.load_string('''
 #:import KIVY_GUI_PATH electrum.gui.kivy.KIVY_GUI_PATH
 
@@ -62,14 +56,14 @@ Builder.load_string('''
                     size_hint: 1, None
                     height: '48dp'
                     text: _('Address')
-                    on_release: root.mode = 0
+                    on_release: root.mode = root.MODE_ADDRESS
                 ToggleButton:
                     id: b1
                     group:'g'
                     size_hint: 1, None
                     height: '48dp'
                     text: _('URI')
-                    on_release: root.mode = 1
+                    on_release: root.mode = root.MODE_URI
                     state: 'down'
                 ToggleButton:
                     id: b2
@@ -77,7 +71,7 @@ Builder.load_string('''
                     size_hint: 1, None
                     height: '48dp'
                     text: _('Lightning')
-                    on_release: root.mode = 2
+                    on_release: root.mode = root.MODE_LIGHTNING
             TopLabel:
                 text: _('Description') + ': ' + root.description or _('None')
             TopLabel:
@@ -117,6 +111,10 @@ Builder.load_string('''
 
 class RequestDialog(Factory.Popup):
 
+    MODE_ADDRESS = 0
+    MODE_URI = 1
+    MODE_LIGHTNING = 2
+
     mode = NumericProperty(0)
     data = StringProperty('')
 
@@ -130,21 +128,23 @@ class RequestDialog(Factory.Popup):
         self.amount_sat = r.get_amount_sat()
         self.amount_str = self.app.format_amount_and_units(self.amount_sat)
         self.description = r.message
-        self.mode = 1
+        self.mode = self.MODE_URI
         self.on_mode(0, 0)
         self.ids.b0.pressed = True
         self.update_status()
 
     def on_mode(self, instance, x):
         r = self.app.wallet.get_request(self.key)
-        if self.mode == MODE_ADDRESS:
+        if self.mode == self.MODE_ADDRESS:
             self.data = r.get_address() or ''
-        elif self.mode == MODE_URI:
+        elif self.mode == self.MODE_URI:
             self.data = self.app.wallet.get_request_URI(r) or ''
-        else:
+        elif self.mode == self.MODE_LIGHTNING:
             self.data = r.lightning_invoice or ''
+        else:
+            raise Exception(f"unexpected {self.mode=!r}")
         qr_data = self.data
-        if self.mode == MODE_LIGHTNING:
+        if self.mode == self.MODE_LIGHTNING:
             # encode lightning invoices as uppercase so QR encoding can use
             # alphanumeric mode; resulting in smaller QR codes
             qr_data = qr_data.upper()
@@ -161,10 +161,10 @@ class RequestDialog(Factory.Popup):
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         warning = ''
-        if self.status == PR_UNPAID and self.mode == MODE_LIGHTNING and self.app.wallet.lnworker:
+        if self.status == PR_UNPAID and self.mode == self.MODE_LIGHTNING and self.app.wallet.lnworker:
             if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_receive():
                 warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently receive with your channels')
-        if not self.mode == MODE_LIGHTNING:
+        if not self.mode == self.MODE_LIGHTNING:
             address = req.get_address()
             if not address:
                 warning = _('Warning') + ': ' + _('This request cannot be paid on-chain')
