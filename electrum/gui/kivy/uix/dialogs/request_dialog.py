@@ -65,7 +65,6 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('URI')
                     on_release: root.mode = root.MODE_URI
-                    state: 'down'
                 ToggleButton:
                     id: b2
                     group:'g'
@@ -130,7 +129,12 @@ class RequestDialog(Factory.Popup):
         self.amount_sat = r.get_amount_sat()
         self.amount_str = self.app.format_amount_and_units(self.amount_sat)
         self.description = r.message
-        self.mode = self.MODE_URI
+        if not self.app.wallet.get_request_URI(r) and r.is_lightning():
+            self.mode = self.MODE_LIGHTNING
+            self.ids.b2.state = 'down'  # FIXME magic number b2
+        else:
+            self.mode = self.MODE_URI
+            self.ids.b1.state = 'down'  # FIXME magic number b1
         self.on_mode(0, 0)
         self.ids.b0.pressed = True
         self.update_status()
