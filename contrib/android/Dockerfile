@@ -1,10 +1,18 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM ubuntu:20.04@sha256:86ac87f73641c920fb42cc9612d4fb57b5626b56ea2a19b894d0673fd5b4f2e9
+FROM debian:bullseye@sha256:82bab30ed448b8e2509aabe21f40f0607d905b7fd0dec72802627a20274eba55
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 ENV ANDROID_HOME="/opt/android"
+
+# need ca-certificates before using snapshot packages
+RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
+    ca-certificates
+
+# pin the distro packages.
+COPY apt.sources.list /etc/apt/sources.list
+COPY apt.preferences /etc/apt/preferences.d/snapshot
 
 # configure locale
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
@@ -96,7 +104,6 @@ RUN curl --location --progress-bar \
 
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
-# TODO probably need to pin versions of at least some of these for over-time reproducibility?
 RUN apt -y update -qq \
     && apt -y install -qq --no-install-recommends \
         python3 \

@@ -7,6 +7,7 @@ set -e
 DEBIAN_SNAPSHOT_BASE="https://snapshot.debian.org/archive/debian/"
 DEBIAN_APPIMAGE_DISTRO="buster" # should match build-linux/appimage Dockerfile base
 DEBIAN_WINE_DISTRO="bullseye" # should match build-wine Dockerfile base
+DEBIAN_ANDROID_DISTRO="bullseye" # should match android Dockerfile base
 
 contrib=$(dirname "$0")
 
@@ -39,5 +40,9 @@ echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >$cont
 echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >>$contrib/build-wine/apt.sources.list
 # we need win-iconv-mingw-w64-dev which is only in sid/unstable
 echo "deb ${DEBIAN_SNAPSHOT} unstable main non-free contrib" >>$contrib/build-wine/apt.sources.list
+
+# android
+echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >$contrib/android/apt.sources.list
+echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >>$contrib/android/apt.sources.list
 
 echo "updated APT sources to ${DEBIAN_SNAPSHOT}"
