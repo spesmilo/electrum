@@ -179,7 +179,7 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         if req.get_address():
             menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Bitcoin Address'))
-            URI = self.wallet.get_request_URI(req)
+        if URI := self.wallet.get_request_URI(req):
             menu.addAction(_("Copy URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
         if req.is_lightning():
             menu.addAction(_("Copy Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
