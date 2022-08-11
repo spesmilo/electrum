@@ -486,7 +486,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         is_mine |= any([self.is_mine(self.adb.get_txin_address(txin)) for txin in tx.inputs()])
         if not is_mine:
             return
-        self._maybe_set_tx_label_based_on_invoices(tx)
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_request_statuses_touched_by_tx(tx_hash)
@@ -993,9 +992,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
                 _logger.info("saving invoice... but it is already paid!")
-            with self.transaction_lock:
-                for txout in invoice.get_outputs():
-                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
         self.save_db()
 
@@ -1039,18 +1035,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoices(self, path):
         write_json_file(path, list(self._invoices.values()))
 
-    def _get_relevant_invoice_keys_for_tx(self, tx: Transaction) -> Set[str]:
-        relevant_invoice_keys = set()
-        with self.transaction_lock:
-            for txout in tx.outputs():
-                for invoice_key in self._invoices_from_scriptpubkey_map.get(txout.scriptpubkey, set()):
-                    # note: the invoice might have been deleted since, so check now:
-                    if invoice_key in self._invoices:
-                        relevant_invoice_keys.add(invoice_key)
-        return relevant_invoice_keys
-
-    def get_relevant_invoices_for_tx(self, tx: Transaction) -> Sequence[Invoice]:
-        invoice_keys = self._get_relevant_invoice_keys_for_tx(tx)
+    def get_relevant_invoices_for_tx(self, tx_hash) -> Sequence[Invoice]:
+        invoice_keys = self._invoices_from_txid_map.get(tx_hash, set())
         invoices = [self.get_invoice(key) for key in invoice_keys]
         invoices = [inv for inv in invoices if inv]  # filter out None
         for inv in invoices:
@@ -1064,13 +1050,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self._requests_addr_to_rhash[addr] = req.rhash
 
     def _prepare_onchain_invoice_paid_detection(self):
-        # scriptpubkey -> list(invoice_keys)
-        self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
+        self._invoices_from_txid_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
         for invoice_key, invoice in self._invoices.items():
             if invoice.is_lightning() and not invoice.get_address():
                 continue
-            for txout in invoice.get_outputs():
-                self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+            if invoice.is_lightning() and self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID:
+                continue
+            is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
+            if is_paid:
+                for txid in relevant_txs:
+                    self._invoices_from_txid_map[txid].add(invoice_key)
 
     def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
@@ -1110,18 +1099,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
         is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
+        if is_paid:
+            key = self.get_key_for_outgoing_invoice(invoice)
+            for txid in relevant_txs:
+                self._invoices_from_txid_map[txid].add(key)
         return is_paid, conf_needed
-
-    def _maybe_set_tx_label_based_on_invoices(self, tx: Transaction) -> bool:
-        # note: this is not done in 'get_default_label' as that would require deserializing each tx
-        tx_hash = tx.txid()
-        labels = []
-        for invoice in self.get_relevant_invoices_for_tx(tx):
-            if invoice.message:
-                labels.append(invoice.message)
-        if labels and not self._labels.get(tx_hash, ''):
-            self.set_label(tx_hash, "; ".join(labels))
-        return bool(labels)
 
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
@@ -1385,7 +1367,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 if label:
                     labels.append(label)
             return ', '.join(labels)
-        return ''
+        else:
+            labels = []
+            for invoice in self.get_relevant_invoices_for_tx(tx_hash):
+                if invoice.message:
+                    labels.append(invoice.message)
+            return ', '.join(labels)
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
