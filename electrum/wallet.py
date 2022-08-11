@@ -339,6 +339,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
+        self.load_keystore()
+        self._init_lnworker()
         self._init_requests_rhash_index()
         self._prepare_onchain_invoice_paid_detection()
         self.calc_unused_change_addresses()
@@ -352,10 +354,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
         self._up_to_date = False
 
-        self.lnworker = None
-        self.load_keystore()
         self.test_addresses_sanity()
         self.register_callbacks()
+
+    def _init_lnworker(self):
+        self.lnworker = None
 
     @ignore_exceptions  # don't kill outer taskgroup
     async def main_loop(self):
@@ -3170,6 +3173,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         # generate addresses now. note that without libsecp this might block
         # for a few seconds!
         self.synchronize()
+
+    def _init_lnworker(self):
         # lightning_privkey2 is not deterministic (legacy wallets, bip39)
         ln_xprv = self.db.get('lightning_xprv') or self.db.get('lightning_privkey2')
         # lnworker can only be initialized once receiving addresses are available
