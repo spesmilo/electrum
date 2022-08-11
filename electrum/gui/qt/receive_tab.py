@@ -409,6 +409,9 @@ class ReceiveTabWidget(QWidget):
             tooltip = _('Click to switch between text and QR code view')
             w.setToolTip(tooltip)
         textedit.setFocusPolicy(Qt.NoFocus)
+        if isinstance(help_widget, QLabel):
+            help_widget.setFrameStyle(QFrame.StyledPanel)
+            help_widget.setStyleSheet("QLabel {border:1px solid gray; border-radius:2px; }")
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0, 0, 0, 0)
         hbox.addWidget(textedit)
