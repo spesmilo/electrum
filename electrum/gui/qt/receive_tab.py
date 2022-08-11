@@ -325,6 +325,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         if amount_sat and amount_sat < self.wallet.dust_threshold():
             address = None
             if not self.wallet.has_lightning():
+                self.show_error(_('Amount too small to be received onchain'))
                 return
         else:
             address = self.get_bitcoin_address_for_request(amount_sat)
