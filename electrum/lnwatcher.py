@@ -527,7 +527,7 @@ class LNWalletWatcher(LNWatcher):
         else:
             self.logger.info(f'cannot broadcast: {name} {reason}')
             # we may have a tx with a different fee, in which case it will be replaced
-            if old_tx and old_tx.txid() != new_tx.txid():
+            if not old_tx or (old_tx and old_tx.txid() != new_tx.txid()):
                 try:
                     tx_was_added = self.adb.add_transaction(new_tx, notify_GUI=(old_tx is None))
                 except Exception as e:
