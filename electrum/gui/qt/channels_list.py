@@ -233,7 +233,7 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        chan = self.lnworker.channels.get(channel_id) or self.lnworker.channel_backups[channel_id]
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)

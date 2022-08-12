@@ -738,8 +738,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
         menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
         channel_id = tx_item.get('channel_id')
-        if channel_id:
-            menu.addAction(_("View Channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
+        if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
+            menu.addAction(_("View Channel"), lambda: self.parent.show_channel_details(chan))
         if is_unconfirmed and tx:
             if tx_details.can_bump:
                 menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))

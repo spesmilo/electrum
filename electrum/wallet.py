@@ -1117,6 +1117,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 tx_item['type'] = item['type']
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 tx_item['ln_value'] = Satoshis(ln_value)
+                if channel_id := item.get('channel_id'):
+                    tx_item['channel_id'] = channel_id
             else:
                 if item['type'] == 'swap':
                     # swap items do not have all the fields. We can skip skip them
