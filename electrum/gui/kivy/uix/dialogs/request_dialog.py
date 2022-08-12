@@ -5,7 +5,7 @@ from kivy.lang import Builder
 from kivy.core.clipboard import Clipboard
 from kivy.app import App
 from kivy.clock import Clock
-from kivy.properties import NumericProperty, StringProperty
+from kivy.properties import NumericProperty, StringProperty, BooleanProperty
 from kivy.uix.tabbedpanel import TabbedPanel
 
 from electrum.gui.kivy.i18n import _
@@ -48,27 +48,22 @@ Builder.load_string('''
             TabbedPanelWithHiddenHeader:
                 id: qrdata_tabs
                 do_default_tab: False
+                on_touch_down:
+                    root.show_text = True if root.error_text else not root.show_text
                 TabbedPanelItem:
                     id: qrdata_tab_qr
                     border: 0,0,0,0  # to hide visual artifact around hidden tab header
                     QRCodeWidget:
                         id: qr
-                        shaded: False
-                        foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
-                        on_touch_down:
-                            touch = args[1]
-                            if self.collide_point(*touch.pos): self.shaded = not self.shaded
                 TabbedPanelItem:
-                    id: qrdata_tab_error
+                    id: qrdata_tab_text
                     border: 0,0,0,0  # to hide visual artifact around hidden tab header
                     BoxLayout:
                         padding: '20dp'
                         TopLabel:
-                            text: root.error_text
+                            text: root.error_text if root.error_text else root.data
                             pos_hint: {'center_x': .5, 'center_y': .5}
                             halign: "center"
-            TopLabel:
-                text: root.data[0:70] + ('...' if len(root.data)>70 else '')
             BoxLayout:
                 size_hint: 1, None
                 height: '48dp'
@@ -78,21 +73,21 @@ Builder.load_string('''
                     size_hint: 1, None
                     height: '48dp'
                     text: _('Address')
-                    on_release: root.mode = root.MODE_ADDRESS
+                    on_release: self.state = 'down'; root.mode = root.MODE_ADDRESS
                 ToggleButton:
                     id: b1
                     group:'g'
                     size_hint: 1, None
                     height: '48dp'
                     text: _('URI')
-                    on_release: root.mode = root.MODE_URI
+                    on_release: self.state = 'down'; root.mode = root.MODE_URI
                 ToggleButton:
                     id: b2
                     group:'g'
                     size_hint: 1, None
                     height: '48dp'
                     text: _('Lightning')
-                    on_release: root.mode = root.MODE_LIGHTNING
+                    on_release: self.state = 'down'; root.mode = root.MODE_LIGHTNING
                     disabled: not root.has_lightning
             TopLabel:
                 text: _('Description') + ': ' + root.description or _('None')
@@ -146,6 +141,7 @@ class RequestDialog(Factory.Popup):
 
     mode = NumericProperty(0)
     data = StringProperty('')
+    show_text = BooleanProperty(False)
 
     def __init__(self, title, key):
         self.status = PR_UNKNOWN
@@ -180,9 +176,13 @@ class RequestDialog(Factory.Popup):
         else:
             self.ids.qr.opacity = 0
         if not qr_data and self.error_text:
-            Clock.schedule_once(lambda dt: self.ids.qrdata_tabs.switch_to(self.ids.qrdata_tab_error))
+            self.show_text = True
         else:
-            Clock.schedule_once(lambda dt: self.ids.qrdata_tabs.switch_to(self.ids.qrdata_tab_qr))
+            self.show_text = False
+
+    def on_show_text(self, instance, b):
+        tab = self.ids.qrdata_tab_text if self.show_text else self.ids.qrdata_tab_qr
+        Clock.schedule_once(lambda dt: self.ids.qrdata_tabs.switch_to(tab))
 
     def update_status(self):
         req = self.app.wallet.get_request(self.key)
@@ -195,31 +195,31 @@ class RequestDialog(Factory.Popup):
         self.status_color = pr_color[self.status]
         self.has_lightning = req.is_lightning()
 
-        self.warning = ''
-        self.error_text = ''
+        warning = ''
+        error_text = ''
         self.data = ''
         if self.mode == self.MODE_ADDRESS:
             if help_texts.address_is_error:
-                self.error_text = help_texts.address_help
+                error_text = help_texts.address_help
             else:
                 self.data = address
-                self.warning = help_texts.address_help
+                warning = help_texts.address_help
         elif self.mode == self.MODE_URI:
             if help_texts.URI_is_error:
-                self.error_text = help_texts.URI_help
+                error_text = help_texts.URI_help
             else:
                 self.data = URI
-                self.warning = help_texts.URI_help
+                warning = help_texts.URI_help
         elif self.mode == self.MODE_LIGHTNING:
             if help_texts.ln_is_error:
-                self.error_text = help_texts.ln_help
+                error_text = help_texts.ln_help
             else:
                 self.data = lnaddr
-                self.warning = help_texts.ln_help
+                warning = help_texts.ln_help
         else:
             raise Exception(f"unexpected {self.mode=!r}")
-        if self.warning:
-            self.warning = _('Warning') + ': ' + self.warning
+        self.warning = (_('Warning') + ': ' + warning) if warning else ''
+        self.error_text = error_text
 
     def on_dismiss(self):
         self.app.request_popup = None
