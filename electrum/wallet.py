@@ -2847,7 +2847,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if status == PR_EXPIRED:
             address_help = URI_help = ln_help = _('This request has expired')
 
-        is_amt_too_small_for_onchain = amount_sat < self.dust_threshold()
+        is_amt_too_small_for_onchain = amount_sat and amount_sat < self.dust_threshold()
         if not addr:
             address_is_error = True
             address_help = _('This request cannot be paid on-chain')
