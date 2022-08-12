@@ -179,7 +179,6 @@ class AbstractChannel(Logger, ABC):
     config: Dict[HTLCOwner, Union[LocalConfig, RemoteConfig]]
     _sweep_info: Dict[str, Dict[str, 'SweepInfo']]
     lnworker: Optional['LNWallet']
-    _fallback_sweep_address: str
     channel_id: bytes
     short_channel_id: Optional[ShortChannelID] = None
     funding_outpoint: Outpoint
@@ -355,19 +354,6 @@ class AbstractChannel(Logger, ABC):
                 # auto-remove redeemed backups
                 self.lnworker.remove_channel_backup(self.channel_id)
 
-    @property
-    def sweep_address(self) -> str:
-        # TODO: in case of unilateral close with pending HTLCs, this address will be reused
-        addr = None
-        if self.is_static_remotekey_enabled():
-            our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-            addr = make_commitment_output_to_remote_address(our_payment_pubkey)
-        if addr is None:
-            addr = self._fallback_sweep_address
-        assert addr
-        if self.lnworker:
-            assert self.lnworker.wallet.is_mine(addr)
-        return addr
 
     @abstractmethod
     def is_initiator(self) -> bool:
@@ -456,13 +442,12 @@ class ChannelBackup(AbstractChannel):
       - will need to sweep their ctx to_remote
     """
 
-    def __init__(self, cb: ChannelBackupStorage, *, sweep_address=None, lnworker=None):
+    def __init__(self, cb: ChannelBackupStorage, *, lnworker=None):
         self.name = None
         Logger.__init__(self)
         self.cb = cb
         self.is_imported = isinstance(self.cb, ImportedChannelBackupStorage)
         self._sweep_info = {}
-        self._fallback_sweep_address = sweep_address
         self.storage = {} # dummy storage
         self._state = ChannelState.OPENING
         self.node_id = cb.node_id if self.is_imported else cb.node_id_prefix
@@ -566,10 +551,13 @@ class ChannelBackup(AbstractChannel):
         return False
 
     def is_static_remotekey_enabled(self) -> bool:
-        # Return False so that self.sweep_address will return self._fallback_sweep_address
+        return False
+    
+    @property
+    def sweep_address(self) -> str:
         # Since channel backups do not save the static_remotekey, payment_basepoint in
         # their local config is not static)
-        return False
+        return self.lnworker.wallet.get_new_sweep_address_for_channel()
 
     def get_local_pubkey(self) -> bytes:
         cb = self.cb
@@ -600,13 +588,12 @@ class Channel(AbstractChannel):
     def __repr__(self):
         return "Channel(%s)"%self.get_id_for_log()
 
-    def __init__(self, state: 'StoredDict', *, sweep_address=None, name=None, lnworker=None, initial_feerate=None):
+    def __init__(self, state: 'StoredDict', *, name=None, lnworker=None, initial_feerate=None):
         self.name = name
         self.channel_id = bfh(state["channel_id"])
         self.short_channel_id = ShortChannelID.normalize(state["short_channel_id"])
         Logger.__init__(self)  # should be after short_channel_id is set
         self.lnworker = lnworker
-        self._fallback_sweep_address = sweep_address
         self.storage = state
         self.db_lock = self.storage.db.lock if self.storage.db else threading.RLock()
         self.config = {}
@@ -763,13 +750,22 @@ class Channel(AbstractChannel):
         channel_type = ChannelType(self.storage.get('channel_type'))
         return bool(channel_type & ChannelType.OPTION_STATIC_REMOTEKEY)
 
+    @property
+    def sweep_address(self) -> str:
+        # TODO: in case of unilateral close with pending HTLCs, this address will be reused
+        addr = None
+        assert self.is_static_remotekey_enabled()
+        our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+        addr = make_commitment_output_to_remote_address(our_payment_pubkey)
+        if self.lnworker:
+            assert self.lnworker.wallet.is_mine(addr)
+        return addr
+
     def get_wallet_addresses_channel_might_want_reserved(self) -> Sequence[str]:
-        ret = []
-        if self.is_static_remotekey_enabled():
-            our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
-            to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
-            ret.append(to_remote_address)
-        return ret
+        assert self.is_static_remotekey_enabled()
+        our_payment_pubkey = self.config[LOCAL].payment_basepoint.pubkey
+        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+        return [to_remote_address]
 
     def get_feerate(self, subject: HTLCOwner, *, ctn: int) -> int:
         # returns feerate in sat/kw
@@ -1471,12 +1467,8 @@ class Channel(AbstractChannel):
             feerate=feerate,
             is_local_initiator=self.constraints.is_initiator == (subject == LOCAL),
         )
-
-        if self.is_static_remotekey_enabled():
-            payment_pubkey = other_config.payment_basepoint.pubkey
-        else:
-            payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
-
+        assert self.is_static_remotekey_enabled()
+        payment_pubkey = other_config.payment_basepoint.pubkey
         return make_commitment(
             ctn=ctn,
             local_funding_pubkey=this_config.multisig_key.pubkey,
