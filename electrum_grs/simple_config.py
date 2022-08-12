@@ -14,7 +14,7 @@ from aiorpcx import NetAddress
 from . import util
 from . import constants
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
-from .util import format_satoshis, format_fee_satoshis
+from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
 from .i18n import _
 from .logging import get_logger, Logger
@@ -271,7 +271,7 @@ class SimpleConfig(Logger):
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+            os_chmod(path, stat.S_IREAD | stat.S_IWRITE)
         except FileNotFoundError:
             # datadir probably deleted while running...
             if os.path.exists(self.path):  # or maybe not?

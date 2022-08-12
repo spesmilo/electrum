@@ -22,7 +22,7 @@ from electrum_grs.gui import messages
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
-from .util import read_QIcon
+from .util import read_QIcon, font_height
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -233,7 +233,7 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        chan = self.lnworker.channels.get(channel_id) or self.lnworker.channel_backups[channel_id]
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
         menu.addAction(_("Details..."), lambda: self.parent.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
@@ -442,9 +442,10 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
 
 
 class ChannelFeatureIcons:
-    ICON_SIZE = QSize(16, 16)
 
     def __init__(self, features: Sequence['ChannelFeature']):
+        size = max(16, font_height())
+        self.icon_size = QSize(size, size)
         self.features = features
 
     @classmethod
@@ -466,17 +467,17 @@ class ChannelFeatureIcons:
         painter.save()
         cur_x = rect.x()
         for feat in self.features:
-            icon_rect = QRect(cur_x, rect.y(), self.ICON_SIZE.width(), self.ICON_SIZE.height())
+            icon_rect = QRect(cur_x, rect.y(), self.icon_size.width(), self.icon_size.height())
             feat.rect = icon_rect
             if rect.contains(icon_rect):  # stay inside parent
-                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.ICON_SIZE))
-            cur_x += self.ICON_SIZE.width() + 1
+                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.icon_size))
+            cur_x += self.icon_size.width() + 1
         painter.restore()
 
     def sizeHint(self, default_size: QSize) -> QSize:
         if not self.features:
             return default_size
-        width = len(self.features) * (self.ICON_SIZE.width() + 1)
+        width = len(self.features) * (self.icon_size.width() + 1)
         return QSize(width, default_size.height())
 
     def show_tooltip(self, evt: QHelpEvent) -> bool:

@@ -117,7 +117,7 @@ class QEAddressDetails(QObject):
         self.frozenChanged.emit()
 
         self._scriptType = self._wallet.wallet.get_txin_type(self._address)
-        self._label = self._wallet.wallet.get_label(self._address)
+        self._label = self._wallet.wallet.get_label_for_address(self._address)
         c, u, x = self._wallet.wallet.get_addr_balance(self._address)
         self._balance = QEAmount(amount_sat=c + u + x)
         self._pubkeys = self._wallet.wallet.get_public_keys(self._address)

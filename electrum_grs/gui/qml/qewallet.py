@@ -2,7 +2,7 @@ import asyncio
 import queue
 import threading
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
@@ -21,6 +21,10 @@ from .qeinvoicelistmodel import QEInvoiceListModel, QERequestListModel
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
     __instances = []
@@ -62,7 +66,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     _synchronizing = False
     _synchronizing_progress = ''
 
-    def __init__(self, wallet, parent=None):
+    def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
 

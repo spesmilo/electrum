@@ -1,10 +1,11 @@
 from decimal import Decimal
 
+from electrum_grs import util
 from electrum_grs.util import (format_satoshis, format_fee_satoshis, parse_URI,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits,
                            format_satoshis_plain, is_private_netaddress, is_hex_str,
                            is_integer, is_non_negative_integer, is_int_or_float,
-                           is_non_negative_int_or_float)
+                           is_non_negative_int_or_float, is_subpath)
 
 from . import ElectrumTestCase
 
@@ -70,14 +71,14 @@ class TestUtil(ElectrumTestCase):
     def test_format_satoshis_diff_negative(self):
         self.assertEqual("-0.00001234", format_satoshis(-1234, is_diff=True))
         self.assertEqual("-456789.00001234", format_satoshis(-45678900001234, is_diff=True))
-        
+
     def test_format_satoshis_add_thousands_sep(self):
         self.assertEqual("178 890 000.", format_satoshis(Decimal(178890000), decimal_point=0, add_thousands_sep=True))
         self.assertEqual("458 312.757 48", format_satoshis(Decimal("45831275.748"), decimal_point=2, add_thousands_sep=True, precision=5))
         # is_diff
         self.assertEqual("+4 583 127.574 8", format_satoshis(Decimal("45831275.748"), decimal_point=1, is_diff=True, add_thousands_sep=True, precision=4))
-        self.assertEqual("+456 789 112.004 56", format_satoshis(Decimal("456789112.00456"), decimal_point=0, is_diff=True, add_thousands_sep=True, precision=5)) 
-        self.assertEqual("-0.000 012 34", format_satoshis(-1234, is_diff=True, add_thousands_sep=True)) 
+        self.assertEqual("+456 789 112.004 56", format_satoshis(Decimal("456789112.00456"), decimal_point=0, is_diff=True, add_thousands_sep=True, precision=5))
+        self.assertEqual("-0.000 012 34", format_satoshis(-1234, is_diff=True, add_thousands_sep=True))
         self.assertEqual("-456 789.000 012 34", format_satoshis(-45678900001234, is_diff=True, add_thousands_sep=True))
         # num_zeros
         self.assertEqual("-456 789.123 400", format_satoshis(-45678912340000, num_zeros=6, add_thousands_sep=True))
@@ -292,3 +293,25 @@ class TestUtil(ElectrumTestCase):
         self.assertFalse(is_private_netaddress("[2a00:1450:400e:80d::200e]"))
         self.assertFalse(is_private_netaddress("8.8.8.8"))
         self.assertFalse(is_private_netaddress("example.com"))
+
+    def test_is_subpath(self):
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a/b/c/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c/d/e/"))
+        self.assertTrue(util.is_subpath("/", "/"))
+        self.assertTrue(util.is_subpath("a/b/c", "a"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/b"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/b/c"))
+
+        self.assertFalse(util.is_subpath("/a/b/c/d/e/", "/b"))
+        self.assertFalse(util.is_subpath("/a/b/c/d/e/", "/b/c/"))
+        self.assertFalse(util.is_subpath("/a/b/c", "/a/b/c/d/e/"))
+        self.assertFalse(util.is_subpath("/a/b/c", "a"))
+        self.assertFalse(util.is_subpath("/a/b/c", "c"))
+        self.assertFalse(util.is_subpath("a", "/a/b/c"))
+        self.assertFalse(util.is_subpath("c", "/a/b/c"))

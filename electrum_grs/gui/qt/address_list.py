@@ -217,7 +217,7 @@ class AddressList(MyTreeView):
     def refresh_row(self, key, row):
         assert row is not None
         address = key
-        label = self.wallet.get_label(address)
+        label = self.wallet.get_label_for_address(address)
         num = self.wallet.adb.get_address_history_len(address)
         c, u, x = self.wallet.get_addr_balance(address)
         balance = c + u + x

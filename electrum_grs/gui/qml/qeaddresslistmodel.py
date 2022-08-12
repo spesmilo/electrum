@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
@@ -6,8 +8,12 @@ from electrum_grs.util import Satoshis
 
 from .qetypes import QEAmount
 
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+
+
 class QEAddressListModel(QAbstractListModel):
-    def __init__(self, wallet, parent=None):
+    def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
         self.init_model()
@@ -48,7 +54,7 @@ class QEAddressListModel(QAbstractListModel):
         item = {}
         item['address'] = address
         item['numtx'] = self.wallet.adb.get_address_history_len(address)
-        item['label'] = self.wallet.get_label(address)
+        item['label'] = self.wallet.get_label_for_address(address)
         c, u, x = self.wallet.get_addr_balance(address)
         item['balance'] = QEAmount(amount_sat=c + u + x)
         item['held'] = self.wallet.is_frozen_address(address)

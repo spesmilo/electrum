@@ -1145,6 +1145,7 @@ def read_json_file(path):
         raise FileImportFailed(e)
     return data
 
+
 def write_json_file(path, data):
     try:
         with open(path, 'w+', encoding='utf-8') as f:
@@ -1154,13 +1155,36 @@ def write_json_file(path, data):
         raise FileExportFailed(e)
 
 
+def os_chmod(path, mode):
+    """os.chmod aware of tmpfs"""
+    try:
+        os.chmod(path, mode)
+    except OSError as e:
+        xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR", None)
+        if xdg_runtime_dir and is_subpath(path, xdg_runtime_dir):
+            _logger.info(f"Tried to chmod in tmpfs. Skipping... {e!r}")
+        else:
+            raise
+
+
 def make_dir(path, allow_symlink=True):
     """Make directory if it does not yet exist."""
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        os_chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+
+def is_subpath(long_path: str, short_path: str) -> bool:
+    """Returns whether long_path is a sub-path of short_path."""
+    try:
+        common = os.path.commonpath([long_path, short_path])
+    except ValueError:
+        return False
+    short_path = standardize_path(short_path)
+    common     = standardize_path(common)
+    return short_path == common
 
 
 def log_exceptions(func):

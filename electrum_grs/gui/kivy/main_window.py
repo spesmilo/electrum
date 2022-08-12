@@ -304,7 +304,7 @@ class ElectrumWindow(App, Logger, EventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet != self.wallet:
             return
-        description = self.wallet.get_label(key)
+        description = self.wallet.get_label_for_rhash(key)
         self.show_info(_('Payment succeeded') + '\n\n' + description)
         self._trigger_update_history()
 

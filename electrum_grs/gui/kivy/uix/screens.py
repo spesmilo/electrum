@@ -508,6 +508,7 @@ class ReceiveScreen(CScreen):
         if amount_sat and amount_sat < self.app.wallet.dust_threshold():
             self.address = ''
             if not self.app.wallet.has_lightning():
+                self.app.show_info(_('Amount too small to be received onchain'))
                 return
         else:
             addr = self.address or self.app.wallet.get_unused_address()

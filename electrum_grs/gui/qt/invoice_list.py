@@ -194,5 +194,6 @@ class InvoiceList(MyTreeView):
 
     def delete_invoices(self, keys):
         for key in keys:
-            self.wallet.delete_invoice(key)
+            self.wallet.delete_invoice(key, write_to_disk=False)
             self.delete_item(key)
+        self.wallet.save_db()

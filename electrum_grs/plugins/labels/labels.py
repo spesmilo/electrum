@@ -154,7 +154,7 @@ class LabelsPlugin(BasePlugin):
                 result[key] = value
 
         for key, value in result.items():
-            if force or not wallet.get_label(key):
+            if force or not wallet._get_label(key):
                 wallet._set_label(key, value)
 
         self.logger.info(f"received {len(response)} labels")

@@ -1403,10 +1403,11 @@ def read_QIcon(icon_basename):
     return QIcon(icon_path(icon_basename))
 
 class IconLabel(QWidget):
-    IconSize = QSize(16, 16)
     HorizontalSpacing = 2
     def __init__(self, *, text='', final_stretch=True):
         super(QWidget, self).__init__()
+        size = max(16, font_height())
+        self.icon_size = QSize(size, size)
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
@@ -1421,7 +1422,7 @@ class IconLabel(QWidget):
     def setText(self, text):
         self.label.setText(text)
     def setIcon(self, icon):
-        self.icon.setPixmap(icon.pixmap(self.IconSize))
+        self.icon.setPixmap(icon.pixmap(self.icon_size))
         self.icon.repaint()  # macOS hack for #6269
 
 def get_default_language():
@@ -1433,6 +1434,10 @@ def char_width_in_lineedit() -> int:
     char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()
     # 'averageCharWidth' seems to underestimate on Windows, hence 'max()'
     return max(9, char_width)
+
+
+def font_height() -> int:
+    return QFontMetrics(QLabel().font()).height()
 
 
 def webopen(url: str):

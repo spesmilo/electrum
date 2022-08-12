@@ -262,7 +262,7 @@ class AddressesDialog(Factory.Popup):
         n = 0
         cards = []
         for address in _list:
-            label = wallet.get_label(address)
+            label = wallet.get_label_for_address(address)
             balance = sum(wallet.get_addr_balance(address))
             is_used_and_empty = wallet.adb.is_used(address) and balance == 0
             if self.show_used == 1 and (balance or is_used_and_empty):
