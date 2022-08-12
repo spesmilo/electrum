@@ -51,11 +51,84 @@ Pane {
             columns: 2
 
             Label {
+                Layout.fillWidth: true
+                visible: txdetails.lnAmount.satsInt == 0
+                text: txdetails.amount.satsInt > 0
+                        ? qsTr('Amount received')
+                        : qsTr('Amount sent')
+                color: Material.accentColor
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: txdetails.lnAmount.satsInt != 0
+                text: txdetails.lnAmount.satsInt > 0
+                        ? qsTr('Amount received in channels')
+                        : qsTr('Amount withdrawn from channels')
+                color: Material.accentColor
+                wrapMode: Text.Wrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label {
+                    visible: txdetails.lnAmount.satsInt == 0
+                    text: Config.formatSats(txdetails.amount)
+                    font.family: FixedFont
+                }
+                Label {
+                    visible: txdetails.lnAmount.satsInt != 0
+                    text: Config.formatSats(txdetails.lnAmount)
+                    font.family: FixedFont
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                }
+            }
+
+            Item {
+                visible: Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
+            }
+
+            Label {
+                visible: Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
+                text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
+            }
+
+            Label {
+                visible: Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
+                text: Daemon.fx.fiatValue(txdetails.lnAmount, false) + ' ' + Daemon.fx.fiatCurrency
+            }
+
+
+            Label {
+                Layout.fillWidth: true
+                visible: txdetails.amount.satsInt < 0
+                text: qsTr('Transaction fee')
+                color: Material.accentColor
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: txdetails.amount.satsInt < 0
+                Label {
+                    text: Config.formatSats(txdetails.fee)
+                    font.family: FixedFont
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                }
+            }
+
+            Label {
                 text: qsTr('Status')
                 color: Material.accentColor
             }
 
             Label {
+                Layout.fillWidth: true
                 text: txdetails.status
             }
 
@@ -71,48 +144,36 @@ Pane {
             }
 
             Label {
+                visible: txdetails.isMined
                 text: qsTr('Date')
                 color: Material.accentColor
             }
 
             Label {
+                visible: txdetails.isMined
                 text: txdetails.date
             }
 
             Label {
-                text: txdetails.amount.satsInt > 0
-                        ? qsTr('Amount received')
-                        : qsTr('Amount sent')
+                visible: txdetails.isMined
+                text: qsTr('Height')
                 color: Material.accentColor
-            }
-
-            RowLayout {
-                Label {
-                    text: Config.formatSats(txdetails.amount)
-                    font.family: FixedFont
-                }
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
             }
 
             Label {
-                visible: txdetails.amount.satsInt < 0
-                text: qsTr('Transaction fee')
+                visible: txdetails.isMined
+                text: txdetails.height
+            }
+
+            Label {
+                visible: txdetails.isMined
+                text: qsTr('TX index')
                 color: Material.accentColor
             }
 
-            RowLayout {
-                visible: txdetails.amount.satsInt < 0
-                Label {
-                    text: Config.formatSats(txdetails.fee)
-                    font.family: FixedFont
-                }
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            Label {
+                visible: txdetails.isMined
+                text: txdetails.txpos
             }
 
             Label {
