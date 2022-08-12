@@ -88,7 +88,7 @@ class NewChannelDialog(WindowModalDialog):
 
     def on_suggest(self):
         self.network.start_gossip()
-        nodeid = self.lnworker.suggest_peer().hex() or ''
+        nodeid = (self.lnworker.suggest_peer() or b"").hex()
         if not nodeid:
             self.remote_nodeid.setText("")
             self.remote_nodeid.setPlaceholderText(
