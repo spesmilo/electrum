@@ -31,10 +31,16 @@ class QEAmount(QObject):
 
     @pyqtProperty('qint64', notify=valueChanged)
     def satsInt(self):
+        if self._amount_sat is None: # should normally be defined when accessing this property
+            self._logger.warning('amount_sat is undefined, returning 0')
+            return 0
         return self._amount_sat
 
     @pyqtProperty('qint64', notify=valueChanged)
     def msatsInt(self):
+        if self._amount_msat is None: # should normally be defined when accessing this property
+            self._logger.warning('amount_msat is undefined, returning 0')
+            return 0
         return self._amount_msat
 
     @pyqtProperty(str, notify=valueChanged)
