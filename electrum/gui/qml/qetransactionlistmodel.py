@@ -35,7 +35,13 @@ class QETransactionListModel(QAbstractListModel):
     def data(self, index, role):
         tx = self.tx_history[index.row()]
         role_index = role - Qt.UserRole
-        value = tx[self._ROLE_NAMES[role_index]]
+
+        try:
+            value = tx[self._ROLE_NAMES[role_index]]
+        except KeyError as e:
+            self._logger.error(f'non-existing key "{self._ROLE_NAMES[role_index]}" requested')
+            value = None
+
         if isinstance(value, (bool, list, int, str, QEAmount)) or value is None:
             return value
         if isinstance(value, Satoshis):
