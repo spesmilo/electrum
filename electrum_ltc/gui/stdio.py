@@ -146,7 +146,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.print_list(messages, "%19s  %25s "%("Key", "Value"))
 
     def print_addresses(self):
-        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.get_label(addr)), self.wallet.get_addresses())
+        messages = map(lambda addr: "%30s    %30s       "%(addr, self.wallet.get_label_for_address(addr)), self.wallet.get_addresses())
         self.print_list(messages, "%19s  %25s "%("Address", "Label"))
 
     def print_order(self):

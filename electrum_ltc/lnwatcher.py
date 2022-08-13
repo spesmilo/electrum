@@ -527,17 +527,18 @@ class LNWalletWatcher(LNWatcher):
         else:
             self.logger.info(f'cannot broadcast: {name} {reason}')
             # we may have a tx with a different fee, in which case it will be replaced
-            if old_tx and old_tx.txid() != new_tx.txid():
+            if not old_tx or (old_tx and old_tx.txid() != new_tx.txid()):
                 try:
                     tx_was_added = self.adb.add_transaction(new_tx, notify_GUI=(old_tx is None))
                 except Exception as e:
                     self.logger.info(f'could not add future tx: {name}. prevout: {prevout} {str(e)}')
                     tx_was_added = False
                 if tx_was_added:
-                    self.adb.set_future_tx(new_tx.txid(), wanted_height)
                     self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
             else:
                 tx_was_added = False
+            # set future tx regardless of tx_was_added, because  it is not persisted
+            self.adb.set_future_tx(new_tx.txid(), wanted_height)
         if tx_was_added:
             self.lnworker.wallet.set_label(new_tx.txid(), name)
             if old_tx and old_tx.txid() != new_tx.txid():

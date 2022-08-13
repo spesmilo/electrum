@@ -195,6 +195,19 @@ class TestCreateRestoreWallet(WalletTestCase):
         self.assertEqual(encrypt_file, wallet.storage.is_encrypted())
         self.assertEqual('ltc1q2ccr34wzep58d4239tl3x3734ttle92arvely7', wallet.get_receiving_addresses()[0])
 
+    def test_restore_wallet_from_text_no_storage(self):
+        text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        d = restore_wallet_from_text(
+            text,
+            path=None,
+            gap_limit=1,
+            config=self.config,
+        )
+        wallet = d['wallet']  # type: Standard_Wallet
+        self.assertEqual(None, wallet.storage)
+        self.assertEqual(text, wallet.keystore.get_seed(None))
+        self.assertEqual('ltc1q3g5tmkmlvxryhh843v4dz026avatc0zz8xd49e', wallet.get_receiving_addresses()[0])
+
     def test_restore_wallet_from_text_xpub(self):
         text = 'zpub6nydoME6CFdJtMpzHW5BNoPz6i6XbeT9qfz72wsRqGdgGEYeivso6xjfw8cGcCyHwF7BNW4LDuHF35XrZsovBLWMF4qXSjmhTXYiHbWqGLt'
         d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)

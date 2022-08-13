@@ -15,6 +15,7 @@ export GCC_STRIP_BINARIES="1"
 
 # pinned versions
 PYTHON_VERSION=3.9.11
+PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 
@@ -63,7 +64,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # to result in a different output on macOS compared to Linux. We simply patch
     # sysconfigdata to remove the extension.
     # Some more info: https://bugs.python.org/issue27631
-    sed -i -e 's/\.exe//g' "$APPDIR"/usr/lib/python3.9/_sysconfigdata*
+    sed -i -e 's/\.exe//g' "${APPDIR}/usr/lib/python${PY_VER_MAJOR}"/_sysconfigdata*
 )
 
 
@@ -75,7 +76,7 @@ appdir_python() {
   env \
     PYTHONNOUSERSITE=1 \
     LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
-    "$APPDIR/usr/bin/python3.9" "$@"
+    "$APPDIR/usr/bin/python${PY_VER_MAJOR}" "$@"
 }
 
 python='appdir_python'
@@ -108,16 +109,20 @@ info "preparing electrum-ltc-locale."
 
 
 info "Installing build dependencies."
+# note: re pip installing from PyPI,
+#       we prefer compiling C extensions ourselves, instead of using binary wheels,
+#       hence "--no-binary :all:" flags. However, we specifically allow
+#       - PyQt5, as it's harder to build from source
+#       - cryptography, as it's harder to build from source
+#       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
+#         and I am not quite sure how to break the circular dependence there (I guess we could introduce
+#         "requirements-build-base-base.txt" with just wheel in it...)
 "$python" -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-base.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum and its dependencies."
-# note: we prefer compiling C extensions ourselves, instead of using binary wheels,
-#       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
-#       - cryptography, as building it would need openssl 1.1, not available on ubuntu 16.04
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography --no-warn-script-location \
@@ -155,7 +160,7 @@ info "finalizing AppDir."
     move_lib
 
     # apply global appimage blacklist to exclude stuff
-    # move usr/include out of the way to preserve usr/include/python3.9m.
+    # move usr/include out of the way to preserve usr/include/python${PY_VER_MAJOR}.
     mv usr/include usr/include.tmp
     delete_blacklisted
     mv usr/include.tmp usr/include
@@ -178,7 +183,7 @@ strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
-    printf '%s\0' "$APPDIR/usr/bin/python3.9"
+    printf '%s\0' "$APPDIR/usr/bin/python${PY_VER_MAJOR}"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
@@ -193,7 +198,7 @@ remove_emptydirs
 
 info "removing some unneeded stuff to decrease binary size."
 rm -rf "$APPDIR"/usr/{share,include}
-PYDIR="$APPDIR"/usr/lib/python3.9
+PYDIR="$APPDIR/usr/lib/python${PY_VER_MAJOR}"
 rm -rf "$PYDIR"/{test,ensurepip,lib2to3,idlelib,turtledemo}
 rm -rf "$PYDIR"/{ctypes,sqlite3,tkinter,unittest}/test
 rm -rf "$PYDIR"/distutils/{command,tests}

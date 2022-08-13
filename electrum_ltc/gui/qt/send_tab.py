@@ -26,7 +26,7 @@ from electrum_ltc.lnaddr import lndecode, LnInvoiceException
 from electrum_ltc.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
-from .util import WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton
+from .util import WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit
 from .confirm_tx_dialog import ConfirmTxDialog
 from .transaction_dialog import PreviewTxDialog
 
@@ -119,7 +119,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.window.connect_fields(self.amount_e, self.fiat_send_e)
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
-        self.max_button.setFixedWidth(100)
+        btn_width = 10 * char_width_in_lineedit()
+        self.max_button.setFixedWidth(btn_width)
         self.max_button.setCheckable(True)
         grid.addWidget(self.max_button, 3, 3)
 
@@ -682,11 +683,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     _('Funds will be sent to the invoice fallback address.')
                 ])
                 choices[3] = msg
-            if not choices:
-                raise NotEnoughFunds()
             msg = _('You cannot pay that invoice using Lightning.')
             if self.wallet.lnworker.channels:
                 msg += '\n' + _('Your channels can send {}.').format(self.format_amount(num_sats_can_send) + self.base_unit())
+            if not choices:
+                self.window.show_error(msg)
+                return
             r = self.window.query_choice(msg, choices)
             if r is not None:
                 self.save_pending_invoice()

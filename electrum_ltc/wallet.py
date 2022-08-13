@@ -244,6 +244,27 @@ class InternalAddressCorruption(Exception):
         return _("Wallet file corruption detected. "
                  "Please restore your wallet from seed, and compare the addresses in both files")
 
+
+class ReceiveRequestHelp(NamedTuple):
+    # help texts (warnings/errors):
+    address_help: str
+    URI_help: str
+    ln_help: str
+    # whether the texts correspond to an error (or just a warning):
+    address_is_error: bool
+    URI_is_error: bool
+    ln_is_error: bool
+
+    ln_swap_suggestion: Optional[Any] = None
+    ln_rebalance_suggestion: Optional[Any] = None
+
+    def can_swap(self) -> bool:
+        return bool(self.ln_swap_suggestion)
+
+    def can_rebalance(self) -> bool:
+        return bool(self.ln_rebalance_suggestion)
+
+
 class TxWalletDelta(NamedTuple):
     is_relevant: bool  # "related to wallet?"
     is_any_input_ismine: bool
@@ -1117,6 +1138,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 tx_item['type'] = item['type']
                 ln_value = Decimal(item['amount_msat']) / 1000   # for channel open/close tx
                 tx_item['ln_value'] = Satoshis(ln_value)
+                if channel_id := item.get('channel_id'):
+                    tx_item['channel_id'] = channel_id
             else:
                 if item['type'] == 'swap':
                     # swap items do not have all the fields. We can skip skip them
@@ -1337,9 +1360,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             item['capital_gain'] = Fiat(cg, fx.ccy)
         return item
 
-    def get_label(self, key: str) -> str:
+    def _get_label(self, key: str) -> str:
         # key is typically: address / txid / LN-payment-hash-hex
         return self._labels.get(key) or ''
+
+    def get_label_for_address(self, addr: str) -> str:
+        label = self._labels.get(addr) or ''
+        if not label and (request := self.get_request(addr)):
+            label = request.get_message()
+        return label
 
     def get_label_for_txid(self, tx_hash: str) -> str:
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
@@ -1349,7 +1378,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not self.db.get_txi_addresses(tx_hash):
             labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
-                label = self._labels.get(addr)
+                label = self.get_label_for_address(addr)
                 if label:
                     labels.append(label)
             return ', '.join(labels)
@@ -1357,7 +1386,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def _get_default_label_for_rhash(self, rhash: str) -> str:
         req = self.get_request(rhash)
-        return req.message if req else ''
+        return req.get_message() if req else ''
 
     def get_label_for_rhash(self, rhash: str) -> str:
         return self._labels.get(rhash) or self._get_default_label_for_rhash(rhash)
@@ -2284,22 +2313,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_request_URI(self, req: Invoice) -> str:
-        # todo: should be a method of invoice?
-        addr = req.get_address()
-        message = self.get_label(addr)
-        amount = req.get_amount_sat()
-        extra_query_params = {}
-        if req.time and req.exp:
-            extra_query_params['time'] = str(int(req.time))
-            extra_query_params['exp'] = str(int(req.exp))
-        #if req.get('name') and req.get('sig'):
-        #    sig = bfh(req.get('sig'))
-        #    sig = bitcoin.base_encode(sig, base=58)
-        #    extra_query_params['name'] = req['name']
-        #    extra_query_params['sig'] = sig
-        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
-        return str(uri)
+    def get_request_URI(self, req: Invoice) -> Optional[str]:
+        include_lightning = bool(self.config.get('bip21_lightning', False))
+        return req.get_bip21_URI(include_lightning=include_lightning)
 
     def check_expired_status(self, r: Invoice, status):
         #if r.is_lightning() and r.exp == 0:
@@ -2344,13 +2360,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(r, status)
 
-    def get_request(self, key):
-        return self._receive_requests.get(key) or self.get_request_by_address(key)
-
-    def get_request_by_address(self, addr):
-        rhash = self._requests_addr_to_rhash.get(addr)
-        if rhash:
-            return self._receive_requests.get(rhash)
+    def get_request(self, key: str) -> Optional[Invoice]:
+        if req := self._receive_requests.get(key):
+            return req
+        # try 'key' as a fallback address for lightning invoices
+        if (rhash := self._requests_addr_to_rhash.get(key)) and (req := self._receive_requests.get(rhash)):
+            return req
 
     def get_formatted_request(self, key):
         x = self.get_request(key)
@@ -2438,10 +2453,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 status = self.get_request_status(addr)
                 util.trigger_callback('request_status', self, addr, status)
 
-    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: str):
+    def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
+        address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
@@ -2511,25 +2527,29 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
         return key
 
-    def delete_request(self, key):
+    def delete_request(self, key, *, write_to_disk: bool = True):
         """ lightning or on-chain """
-        req = self._receive_requests.pop(key, None)
+        req = self.get_request(key)
         if req is None:
             return
+        key = self.get_key_for_receive_request(req)
+        self._receive_requests.pop(key, None)
         if req.is_lightning() and (addr:=req.get_address()):
             self._requests_addr_to_rhash.pop(addr)
         if req.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(req.rhash)
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
-    def delete_invoice(self, key):
+    def delete_invoice(self, key, *, write_to_disk: bool = True):
         """ lightning or on-chain """
         inv = self._invoices.pop(key, None)
         if inv is None:
             return
         if inv.is_lightning() and self.lnworker:
             self.lnworker.delete_payment_info(inv.rhash)
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
     def get_sorted_requests(self) -> List[Invoice]:
         """ sorted by timestamp """
@@ -2561,7 +2581,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def can_delete_address(self):
         return False
 
-    def has_password(self):
+    def has_password(self) -> bool:
         return self.has_keystore_encryption() or self.has_storage_encryption()
 
     def can_have_keystore_encryption(self):
@@ -2578,18 +2598,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             return StorageEncryptionVersion.USER_PASSWORD
 
-    def has_keystore_encryption(self):
+    def has_keystore_encryption(self) -> bool:
         """Returns whether encryption is enabled for the keystore.
 
         If True, e.g. signing a transaction will require a password.
         """
         if self.can_have_keystore_encryption():
-            return self.db.get('use_encryption', False)
+            return bool(self.db.get('use_encryption', False))
         return False
 
-    def has_storage_encryption(self):
+    def has_storage_encryption(self) -> bool:
         """Returns whether encryption is enabled for the wallet file on disk."""
-        return self.storage and self.storage.is_encrypted()
+        return bool(self.storage) and self.storage.is_encrypted()
 
     @classmethod
     def may_have_password(cls):
@@ -2805,6 +2825,71 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return None
         else:
             return allow_send, long_warning, short_warning
+
+    def get_help_texts_for_receive_request(self, req: Invoice) -> ReceiveRequestHelp:
+        key = self.get_key_for_receive_request(req)
+        addr = req.get_address() or ''
+        amount_sat = req.get_amount_sat() or 0
+        address_help = ''
+        URI_help = ''
+        ln_help = ''
+        address_is_error = False
+        URI_is_error = False
+        ln_is_error = False
+        ln_swap_suggestion = None
+        ln_rebalance_suggestion = None
+        lnaddr = req.lightning_invoice or ''
+        URI = self.get_request_URI(req) or ''
+        lightning_online = self.lnworker and self.lnworker.num_peers() > 0
+        can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
+        status = self.get_request_status(key)
+
+        if status == PR_EXPIRED:
+            address_help = URI_help = ln_help = _('This request has expired')
+
+        is_amt_too_small_for_onchain = amount_sat and amount_sat < self.dust_threshold()
+        if not addr:
+            address_is_error = True
+            address_help = _('This request cannot be paid on-chain')
+            if is_amt_too_small_for_onchain:
+                address_help = _('Amount too small to be received onchain')
+        if not URI:
+            URI_is_error = True
+            URI_help = _('This request cannot be paid on-chain')
+            if is_amt_too_small_for_onchain:
+                URI_help = _('Amount too small to be received onchain')
+        if not lnaddr:
+            ln_is_error = True
+            ln_help = _('This request does not have a Lightning invoice.')
+
+        if status == PR_UNPAID:
+            if self.adb.is_used(addr):
+                address_help = URI_help = (_("This address has already been used. "
+                                             "For better privacy, do not reuse it for new payments."))
+            if lnaddr:
+                if not lightning_online:
+                    ln_is_error = True
+                    ln_help = _('You must be online to receive Lightning payments.')
+                elif not can_receive_lightning:
+                    ln_is_error = True
+                    ln_rebalance_suggestion = self.lnworker.suggest_rebalance_to_receive(amount_sat)
+                    ln_swap_suggestion = self.lnworker.suggest_swap_to_receive(amount_sat)
+                    ln_help = _('You do not have the capacity to receive this amount with Lightning.')
+                    if bool(ln_rebalance_suggestion):
+                        ln_help += '\n\n' + _('You may have that capacity if you rebalance your channels.')
+                    elif bool(ln_swap_suggestion):
+                        ln_help += '\n\n' + _('You may have that capacity if you swap some of your funds.')
+        return ReceiveRequestHelp(
+            address_help=address_help,
+            URI_help=URI_help,
+            ln_help=ln_help,
+            address_is_error=address_is_error,
+            URI_is_error=URI_is_error,
+            ln_is_error=ln_is_error,
+            ln_rebalance_suggestion=ln_rebalance_suggestion,
+            ln_swap_suggestion=ln_swap_suggestion,
+        )
+
 
     def synchronize(self) -> int:
         """Returns the number of new addresses we generated."""
@@ -3484,15 +3569,18 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path, config: SimpleConfig,
+def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
                              passphrase=None, password=None, encrypt_file=True,
                              gap_limit=None) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
-    storage = WalletStorage(path)
-    if storage.file_exists():
-        raise Exception("Remove the existing wallet first!")
+    if path is None:  # create wallet in-memory
+        storage = None
+    else:
+        storage = WalletStorage(path)
+        if storage.file_exists():
+            raise Exception("Remove the existing wallet first!")
     db = WalletDB('', manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):
@@ -3525,7 +3613,8 @@ def restore_wallet_from_text(text, *, path, config: SimpleConfig,
         if gap_limit is not None:
             db.put('gap_limit', gap_limit)
         wallet = Wallet(db, storage, config=config)
-    assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
+    if storage:
+        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
     wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
     wallet.synchronize()
     msg = ("This wallet was restored offline. It may contain more addresses than displayed. "

@@ -13,8 +13,9 @@ ElDialog {
 
     property var modelItem
 
-    property string _bip21uri
     property string _bolt11
+    property string _bip21uri
+    property string _address
 
     parent: Overlay.overlay
     modal: true
@@ -62,6 +63,11 @@ ElDialog {
                     name: 'bip21uri'
                     PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
                     PropertyChanges { target: bip21label; font.bold: true }
+                },
+                State {
+                    name: 'address'
+                    PropertyChanges { target: qrloader; sourceComponent: qri_address }
+                    PropertyChanges { target: addresslabel; font.bold: true }
                 }
             ]
 
@@ -82,15 +88,21 @@ ElDialog {
                 Loader {
                     id: qrloader
                     Component {
+                        id: qri_bolt11
+                        QRImage {
+                            qrdata: _bolt11
+                        }
+                    }
+                    Component {
                         id: qri_bip21uri
                         QRImage {
                             qrdata: _bip21uri
                         }
                     }
                     Component {
-                        id: qri_bolt11
+                        id: qri_address
                         QRImage {
-                            qrdata: _bolt11
+                            qrdata: _address
                         }
                     }
                 }
@@ -101,9 +113,18 @@ ElDialog {
                         if (rootLayout.state == 'bolt11') {
                             if (_bip21uri != '')
                                 rootLayout.state = 'bip21uri'
+                            else if (_address != '')
+                                rootLayout.state = 'address'
                         } else if (rootLayout.state == 'bip21uri') {
+                            if (_address != '')
+                                rootLayout.state = 'address'
+                            else if (_bolt11 != '')
+                                rootLayout.state = 'bolt11'
+                        } else if (rootLayout.state == 'address') {
                             if (_bolt11 != '')
                                 rootLayout.state = 'bolt11'
+                            else if (_bip21uri != '')
+                                rootLayout.state = 'bip21uri'
                         }
                     }
                 }
@@ -125,8 +146,19 @@ ElDialog {
                 }
                 Label {
                     id: bip21label
-                    text: qsTr('BIP21 URI')
+                    text: qsTr('BIP21')
                     color: _bip21uri ? Material.foreground : constants.mutedForeground
+                }
+                Rectangle {
+                    Layout.preferredWidth: constants.paddingXXSmall
+                    Layout.preferredHeight: constants.paddingXXSmall
+                    radius: constants.paddingXXSmall / 2
+                    color: Material.accentColor
+                }
+                Label {
+                    id: addresslabel
+                    text: qsTr('ADDRESS')
+                    color: _address ? Material.foreground : constants.mutedForeground
                 }
             }
 
@@ -153,9 +185,10 @@ ElDialog {
                     onClicked: {
                         if (modelItem.is_lightning && rootLayout.state == 'bolt11')
                             AppController.textToClipboard(_bolt11)
-                        else
+                        else if (rootLayout.state == 'bip21uri')
                             AppController.textToClipboard(_bip21uri)
-
+                        else
+                            AppController.textToClipboard(_address)
                     }
                 }
                 Button {
@@ -165,8 +198,11 @@ ElDialog {
                         enabled = false
                         if (modelItem.is_lightning && rootLayout.state == 'bolt11')
                             AppController.doShare(_bolt11, qsTr('Payment Request'))
-                        else
+                        else if (rootLayout.state == 'bip21uri')
                             AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                        else
+                            AppController.doShare(_address, qsTr('Onchain address'))
+
                         enabled = true
                     }
                 }
@@ -217,25 +253,17 @@ ElDialog {
                 }
 
                 Label {
+                    visible: modelItem.address
                     text: qsTr('Address')
-                    visible: !modelItem.is_lightning
                 }
 
-                RowLayout {
-                    visible: !modelItem.is_lightning
-                    Label {
-                        Layout.fillWidth: true
-                        font.family: FixedFont
-                        font.pixelSize: constants.fontSizeLarge
-                        wrapMode: Text.WrapAnywhere
-                        text: modelItem.address
-                    }
-                    ToolButton {
-                        icon.source: '../../icons/copy_bw.png'
-                        onClicked: {
-                            AppController.textToClipboard(modelItem.address)
-                        }
-                    }
+                Label {
+                    visible: modelItem.address
+                    Layout.fillWidth: true
+                    font.family: FixedFont
+                    font.pixelSize: constants.fontSizeLarge
+                    wrapMode: Text.WrapAnywhere
+                    text: modelItem.address
                 }
 
                 Label {
@@ -262,13 +290,14 @@ ElDialog {
     Component.onCompleted: {
         if (!modelItem.is_lightning) {
             _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
+            _address = modelItem.address
             rootLayout.state = 'bip21uri'
         } else {
             _bolt11 = modelItem.lightning_invoice
             rootLayout.state = 'bolt11'
             if (modelItem.address != '') {
                 _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
-                console.log('BIP21:' + _bip21uri)
+                _address = modelItem.address
             }
         }
     }

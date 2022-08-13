@@ -25,19 +25,16 @@
 
 from typing import TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog, QStyledItemDelegate,
                              QScrollArea, QWidget, QPushButton, QGridLayout, QToolButton)
-
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 
 
 from electrum_ltc.i18n import _
 
-from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme
+from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -100,7 +97,7 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def __init__(self):
         QToolButton.__init__(self)
-        self.size = 18
+        self.size = max(18, font_height())
         self._list = []
         self.R = QRect(6, 3, self.size, self.size)
 
@@ -167,14 +164,17 @@ class BalanceDialog(WindowModalDialog):
         lightning_fiat_str = self.fx.format_amount_and_units(lightning) if self.fx else ''
         f_lightning_fiat_str = self.fx.format_amount_and_units(f_lightning) if self.fx else ''
 
-        piechart = PieChartWidget(120, [
-            (_('Frozen'), COLOR_FROZEN, frozen),
-            (_('Unmatured'), COLOR_UNMATURED, unmatured),
-            (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
-            (_('On-chain'), COLOR_CONFIRMED, confirmed),
-            (_('Lightning'), COLOR_LIGHTNING, lightning),
-            (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
-        ])
+        piechart = PieChartWidget(
+            max(120, 9 * font_height()),
+            [
+                (_('Frozen'), COLOR_FROZEN, frozen),
+                (_('Unmatured'), COLOR_UNMATURED, unmatured),
+                (_('Unconfirmed'), COLOR_UNCONFIRMED, unconfirmed),
+                (_('On-chain'), COLOR_CONFIRMED, confirmed),
+                (_('Lightning'), COLOR_LIGHTNING, lightning),
+                (_('Lightning frozen'), COLOR_FROZEN_LIGHTNING, f_lightning),
+            ]
+        )
 
         vbox = QVBoxLayout()
         vbox.addWidget(piechart)
