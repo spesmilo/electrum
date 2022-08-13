@@ -348,7 +348,7 @@ class TxDialog(Factory.Popup):
 
     def remove_local_tx(self):
         txid = self.tx.txid()
-        num_child_txs = len(self.wallet.abb.get_depending_transactions(txid))
+        num_child_txs = len(self.wallet.adb.get_depending_transactions(txid))
         question = _("Are you sure you want to remove this transaction?")
         if num_child_txs > 0:
             question = (
