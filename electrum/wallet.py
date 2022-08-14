@@ -2399,6 +2399,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             'status': status,
             'status_str': status_str,
             'request_id': key,
+            "tx_hashes": []
         }
         if is_lightning:
             d['rhash'] = x.rhash
@@ -2407,7 +2408,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         if address:
-            paid, conf = self.is_onchain_invoice_paid(x)
+            paid, conf, tx_hashes = self._is_onchain_invoice_paid(x)
+            d["tx_hashes"] = tx_hashes
             d['amount_sat'] = int(x.get_amount_sat())
             d['address'] = address
             d['URI'] = self.get_request_URI(x)
