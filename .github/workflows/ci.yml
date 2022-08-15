@@ -107,7 +107,7 @@ jobs:
           python-version: 3.9.11
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 11.3.1
+          xcode-version: 11.7.0
       - name: Compile OSX dmg
         run: ./contrib/osx/make_osx
       - name: Upload Artifact
