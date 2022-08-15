@@ -172,9 +172,6 @@ class RequestDialog(Factory.Popup):
             qr_data = qr_data.upper()
         if qr_data:
             self.ids.qr.set_data(qr_data)
-            self.ids.qr.opacity = 1
-        else:
-            self.ids.qr.opacity = 0
         if not qr_data and self.error_text:
             self.show_text = True
         else:

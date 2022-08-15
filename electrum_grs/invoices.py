@@ -127,7 +127,8 @@ class Invoice(StoredObject):
     def get_outputs(self):
         if self.is_lightning():
             address = self.get_address()
-            outputs = [PartialTxOutput.from_address_and_value(address, int(self.get_amount_sat()))] if address else []
+            amount = self.get_amount_sat()
+            outputs = [PartialTxOutput.from_address_and_value(address, int(amount))] if address and amount else []
         else:
             outputs = self.outputs
         return outputs

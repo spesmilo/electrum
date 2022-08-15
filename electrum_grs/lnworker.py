@@ -727,9 +727,11 @@ class LNWallet(LNWorker):
         self.lnrater = LNRater(self, network)
 
         for chan in self.channels.values():
-            self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
+            if not chan.is_redeemed():
+                self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         for cb in self.channel_backups.values():
-            self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+            if not cb.is_redeemed():
+                self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
         for coro in [
                 self.maybe_listen(),
