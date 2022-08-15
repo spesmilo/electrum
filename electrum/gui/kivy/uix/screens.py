@@ -331,25 +331,30 @@ class SendScreen(CScreen, Logger):
             self.app.show_error(_('Please enter an amount'))
             return
         if self.is_max:
-            amount = '!'
+            amount_sat = '!'
         else:
             try:
-                amount = self.app.get_amount(self.amount)
+                amount_sat = self.app.get_amount(self.amount)
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
                 return
         message = self.message
         try:
             if self.is_lightning:
-                return Invoice.from_bech32(address)
-            else:  # on-chain
+                assert type(amount_sat) is int
+                invoice = Invoice.from_bech32(address)
+                if invoice.amount_msat is None:
+                    invoice.amount_msat = int(amount_sat * 1000)
+                return invoice
+            else:
+                # on-chain
                 if self.payment_request:
                     outputs = self.payment_request.get_outputs()
                 else:
                     if not bitcoin.is_address(address):
                         self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
                         return
-                    outputs = [PartialTxOutput.from_address_and_value(address, amount)]
+                    outputs = [PartialTxOutput.from_address_and_value(address, amount_sat)]
                 return self.app.wallet.create_invoice(
                     outputs=outputs,
                     message=message,
