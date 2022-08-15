@@ -18,6 +18,7 @@ class QETxDetails(QObject):
 
     _status = ''
     _amount = QEAmount(amount_sat=0)
+    _lnamount = QEAmount(amount_sat=0)
     _fee = QEAmount(amount_sat=0)
     _inputs = []
     _outputs = []
@@ -85,6 +86,10 @@ class QETxDetails(QObject):
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
         return self._amount
+
+    @pyqtProperty(QEAmount, notify=detailsChanged)
+    def lnAmount(self):
+        return self._lnamount
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def fee(self):
@@ -185,7 +190,7 @@ class QETxDetails(QObject):
         self._status = txinfo.status
         self._fee = QEAmount(amount_sat=txinfo.fee)
 
-        self._is_mined = txinfo.tx_mined_status != None
+        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
@@ -193,6 +198,14 @@ class QETxDetails(QObject):
             if txinfo.mempool_depth_bytes is None:
                 self._logger.error('TX is not mined, yet mempool_depth_bytes is None')
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
+
+        if self._wallet.wallet.lnworker:
+            lnworker_history = self._wallet.wallet.lnworker.get_onchain_history()
+            if self._txid in lnworker_history:
+                item = lnworker_history[self._txid]
+                self._lnamount = QEAmount(amount_sat=item['amount_msat'] / 1000)
+            else:
+                self._lnamount = QEAmount(amount_sat=0)
 
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump
