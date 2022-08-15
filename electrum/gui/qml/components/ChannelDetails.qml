@@ -242,7 +242,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Channel node ID'), 'text': channeldetails.pubkey })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Channel node ID'), text: channeldetails.pubkey }
+                            )
                             dialog.open()
                         }
                     }
@@ -256,11 +258,6 @@ Pane {
         id: channeldetails
         wallet: Daemon.currentWallet
         channelid: root.channelid
-    }
-
-    Component {
-        id: share
-        GenericShareDialog {}
     }
 
     Component {

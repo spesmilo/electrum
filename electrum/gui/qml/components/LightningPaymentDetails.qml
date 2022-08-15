@@ -168,7 +168,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Payment hash'), 'text': lnpaymentdetails.payment_hash })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Payment hash'), text: lnpaymentdetails.payment_hash }
+                            )
                             dialog.open()
                         }
                     }
@@ -200,7 +202,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Preimage'), 'text': lnpaymentdetails.preimage })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Preimage'), text: lnpaymentdetails.preimage }
+                            )
                             dialog.open()
                         }
                     }
@@ -235,7 +239,9 @@ Pane {
                         icon.color: enabled ? 'transparent' : constants.mutedForeground
                         enabled: lnpaymentdetails.invoice != ''
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Lightning Invoice'), 'text': lnpaymentdetails.invoice })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Lightning Invoice'), text: lnpaymentdetails.invoice }
+                            )
                             dialog.open()
                         }
                     }
@@ -251,11 +257,6 @@ Pane {
         wallet: Daemon.currentWallet
         key: root.key
         onLabelChanged: root.detailsChanged()
-    }
-
-    Component {
-        id: share
-        GenericShareDialog {}
     }
 
 }
