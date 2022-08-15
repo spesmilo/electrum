@@ -252,9 +252,6 @@ ElDialog {
                 enabled: finalizer.valid
                 onClicked: {
                     txaccepted()
-                    if (!Daemon.currentWallet.isWatchOnly) {
-                        finalizer.send_onchain()
-                    }
                     dialog.close()
                 }
             }

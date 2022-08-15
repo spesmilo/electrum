@@ -171,6 +171,8 @@ Pane {
                         rootItem.clear()
                         if (Daemon.currentWallet.isWatchOnly) {
                             showUnsignedTx(dialog.finalizer.serializedTx())
+                        } else {
+                            dialog.finalizer.send_onchain()
                         }
                     })
                     dialog.open()
@@ -281,6 +283,8 @@ Pane {
                     dialog.txaccepted.connect(function() {
                         if (Daemon.currentWallet.isWatchOnly) {
                             showUnsignedTx(dialog.finalizer.serializedTx())
+                        } else {
+                            dialog.finalizer.send_onchain()
                         }
                     })
                     dialog.open()
