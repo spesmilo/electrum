@@ -126,7 +126,7 @@ class RequestList(MyTreeView):
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_unpaid_requests():
-            key = self.wallet.get_key_for_receive_request(req)
+            key = req.get_id()
             status = self.wallet.get_invoice_status(req)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()

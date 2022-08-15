@@ -272,7 +272,7 @@ class SendScreen(CScreen, Logger):
         status = self.app.wallet.get_invoice_status(item)
         status_str = item.get_status_str(status)
         is_lightning = item.is_lightning()
-        key = self.app.wallet.get_key_for_outgoing_invoice(item)
+        key = item.get_id()
         if is_lightning:
             address = item.rhash
             if self.app.wallet.lnworker:
@@ -486,7 +486,7 @@ class ReceiveScreen(CScreen):
         self.address = addr
 
     def on_address(self, addr):
-        req = self.app.wallet.get_request(addr)
+        req = self.app.wallet.get_request_by_addr(addr)
         self.status = ''
         if req:
             self.message = req.get('memo', '')
@@ -539,7 +539,7 @@ class ReceiveScreen(CScreen):
             address = req.get_address()
         else:
             address = req.lightning_invoice
-        key = self.app.wallet.get_key_for_receive_request(req)
+        key = req.get_id()
         amount = req.get_amount_sat()
         description = req.message
         status = self.app.wallet.get_invoice_status(req)

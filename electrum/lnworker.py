@@ -1934,13 +1934,12 @@ class LNWallet(LNWorker):
         return info.status if info else PR_UNPAID
 
     def get_invoice_status(self, invoice: Invoice) -> int:
-        key = invoice.rhash
-        log = self.logs[key]
-        if key in self.inflight_payments:
+        invoice_id = invoice.rhash
+        if invoice_id in self.inflight_payments:
             return PR_INFLIGHT
         # status may be PR_FAILED
-        status = self.get_payment_status(bfh(key))
-        if status == PR_UNPAID and log:
+        status = self.get_payment_status(bytes.fromhex(invoice_id))
+        if status == PR_UNPAID and invoice_id in self.logs:
             status = PR_FAILED
         return status
 
@@ -1957,11 +1956,11 @@ class LNWallet(LNWorker):
         if self.get_payment_status(payment_hash) == status:
             return
         self.set_payment_status(payment_hash, status)
-        key = payment_hash.hex()
-        req = self.wallet.get_request(key)
+        request_id = payment_hash.hex()
+        req = self.wallet.get_request(request_id)
         if req is None:
             return
-        util.trigger_callback('request_status', self.wallet, key, status)
+        util.trigger_callback('request_status', self.wallet, request_id, status)
 
     def set_payment_status(self, payment_hash: bytes, status: int) -> None:
         info = self.get_payment_info(payment_hash)

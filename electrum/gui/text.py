@@ -267,7 +267,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         fmt = self.format_column_width(x, [-20, '*', 15, 25])
         headers = fmt % ("Date", "Description", "Amount", "Status")
         for req in self.wallet.get_unpaid_invoices():
-            key = self.wallet.get_key_for_outgoing_invoice(req)
+            key = req.get_id()
             status = self.wallet.get_invoice_status(req)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()
@@ -287,7 +287,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         fmt = self.format_column_width(x, [-20, '*', 15, 25])
         headers = fmt % ("Date", "Description", "Amount", "Status")
         for req in self.wallet.get_unpaid_requests():
-            key = self.wallet.get_key_for_receive_request(req)
+            key = req.get_id()
             status = self.wallet.get_invoice_status(req)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()
