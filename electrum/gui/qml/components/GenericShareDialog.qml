@@ -13,7 +13,7 @@ ElDialog {
     title: ''
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Ok
+    standardButtons: Dialog.Close
 
     width: parent.width
     height: parent.height
@@ -86,7 +86,6 @@ ElDialog {
                     onClicked: AppController.textToClipboard(dialog.text)
                 }
                 Button {
-                    //enabled: false
                     text: qsTr('Share')
                     icon.source: '../../icons/share.png'
                     onClicked: {

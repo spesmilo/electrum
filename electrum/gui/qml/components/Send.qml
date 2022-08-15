@@ -18,6 +18,13 @@ Pane {
         is_max.checked = false
     }
 
+    function showUnsignedTx(tx) {
+        var dialog = app.genericShareDialog.createObject(rootItem,
+            { title: qsTr('Raw Transaction'), text: tx }
+        )
+        dialog.open()
+    }
+
     GridLayout {
         id: form
         width: parent.width
@@ -162,6 +169,9 @@ Pane {
                     dialog.txaccepted.connect(function() {
                         userEnteredPayment.clear()
                         rootItem.clear()
+                        if (Daemon.currentWallet.isWatchOnly) {
+                            showUnsignedTx(dialog.finalizer.serializedTx())
+                        }
                     })
                     dialog.open()
                 }
@@ -267,6 +277,11 @@ Pane {
                             'address': invoice.address,
                             'satoshis': invoice.amount,
                             'message': invoice.message
+                    })
+                    dialog.txaccepted.connect(function() {
+                        if (Daemon.currentWallet.isWatchOnly) {
+                            showUnsignedTx(dialog.finalizer.serializedTx())
+                        }
                     })
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
