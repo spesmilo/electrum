@@ -171,9 +171,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(rootItem, {
-                                'title': qsTr('Master Public Key'),
-                                'text': Daemon.currentWallet.masterPubkey
+                            var dialog = app.genericShareDialog.createObject(rootItem, {
+                                title: qsTr('Master Public Key'),
+                                text: Daemon.currentWallet.masterPubkey
                             })
                             dialog.open()
                         }
@@ -354,13 +354,6 @@ Pane {
                 Daemon.currentWallet.set_password(dialog.password)
             })
             dialog.open()
-        }
-    }
-
-    Component {
-        id: share
-        GenericShareDialog {
-            onClosed: destroy()
         }
     }
 }

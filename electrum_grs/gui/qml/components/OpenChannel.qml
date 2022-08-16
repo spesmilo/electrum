@@ -180,6 +180,9 @@ Pane {
             var dialog = confirmOpenChannelDialog.createObject(root, {
                 'satoshis': channelopener.amount
             })
+            dialog.txaccepted.connect(function() {
+                dialog.finalizer.send_onchain()
+            })
             dialog.open()
         }
         onChannelOpening: {

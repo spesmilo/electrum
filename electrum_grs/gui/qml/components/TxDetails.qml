@@ -261,7 +261,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Transaction ID'), 'text': root.txid })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Transaction ID'), text: root.txid }
+                            )
                             dialog.open()
                         }
                     }
@@ -314,10 +316,4 @@ Pane {
         txid: root.txid
         onLabelChanged: root.detailsChanged()
     }
-
-    Component {
-        id: share
-        GenericShareDialog {}
-    }
-
 }

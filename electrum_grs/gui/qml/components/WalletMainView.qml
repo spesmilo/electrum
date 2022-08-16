@@ -123,7 +123,6 @@ Item {
 
 
             Item {
-                enabled: !Daemon.currentWallet.isWatchOnly
                 Loader {
                     anchors.fill: parent
                     Send {
@@ -148,7 +147,6 @@ Item {
                 font.pixelSize: constants.fontSizeLarge
             }
             TabButton {
-                enabled: !Daemon.currentWallet.isWatchOnly
                 text: qsTr('Send')
                 font.pixelSize: constants.fontSizeLarge
             }

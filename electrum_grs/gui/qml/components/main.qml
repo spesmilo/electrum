@@ -186,6 +186,14 @@ ApplicationWindow
         }
     }
 
+    property alias genericShareDialog: _genericShareDialog
+    Component {
+        id: _genericShareDialog
+        GenericShareDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
