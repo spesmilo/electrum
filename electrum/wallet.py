@@ -489,6 +489,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_request_statuses_touched_by_tx(tx_hash)
+        self._detect_paid_invoices()
         if notify_GUI:
             util.trigger_callback('new_transaction', self, tx)
 
@@ -1050,7 +1051,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self._requests_addr_to_rhash[addr] = req.rhash
 
     def _prepare_onchain_invoice_paid_detection(self):
-        self._invoices_from_txid_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
+        self._invoices_from_txid_map = defaultdict(set)  # type: Dict[str, Set[str]]
+        self._detect_paid_invoices()
+
+    def _detect_paid_invoices(self):
         for invoice_key, invoice in self._invoices.items():
             if invoice.is_lightning() and not invoice.get_address():
                 continue
@@ -1099,10 +1103,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
         is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
-        if is_paid:
-            key = self.get_key_for_outgoing_invoice(invoice)
-            for txid in relevant_txs:
-                self._invoices_from_txid_map[txid].add(key)
         return is_paid, conf_needed
 
     @profiler
