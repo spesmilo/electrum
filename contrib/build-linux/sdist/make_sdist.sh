@@ -33,7 +33,7 @@ git submodule update --init
     rm -rf "$LOCALE"
     cp -r "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE/"
     if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
-      "$CONTRIB/build_locale.sh" "$LOCALE"
+        "$CONTRIB/build_locale.sh" "$LOCALE" "$LOCALE"
     fi
 )
 
