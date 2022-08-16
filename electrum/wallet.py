@@ -488,8 +488,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
-        self._update_request_statuses_touched_by_tx(tx_hash)
-        self._detect_paid_invoices()
+        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
         if notify_GUI:
             util.trigger_callback('new_transaction', self, tx)
 
@@ -497,7 +496,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
-        self._update_request_statuses_touched_by_tx(tx_hash)
+        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
         tx_mined_status = self.adb.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
@@ -505,7 +504,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_removed_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
-        self._update_request_statuses_touched_by_tx(tx_hash)
+        self._update_invoices_and_reqs_touched_by_tx(tx_hash)
 
     def clear_history(self):
         self.adb.clear_history()
@@ -993,6 +992,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
                 _logger.info("saving invoice... but it is already paid!")
+            with self.transaction_lock:
+                for txout in invoice.get_outputs():
+                    self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
         self.save_db()
 
@@ -1052,10 +1054,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def _prepare_onchain_invoice_paid_detection(self):
         self._invoices_from_txid_map = defaultdict(set)  # type: Dict[str, Set[str]]
-        self._detect_paid_invoices()
+        self._invoices_from_scriptpubkey_map = defaultdict(set)  # type: Dict[bytes, Set[str]]
+        self._update_onchain_invoice_paid_detection(self._invoices.keys())
 
-    def _detect_paid_invoices(self):
-        for invoice_key, invoice in self._invoices.items():
+    def _update_onchain_invoice_paid_detection(self, invoice_keys: Iterable[str]) -> None:
+        for invoice_key in invoice_keys:
+            invoice = self._invoices.get(invoice_key)
+            if not invoice:
+                continue
             if invoice.is_lightning() and not invoice.get_address():
                 continue
             if invoice.is_lightning() and self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID:
@@ -1064,6 +1070,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if is_paid:
                 for txid in relevant_txs:
                     self._invoices_from_txid_map[txid].add(invoice_key)
+            for txout in invoice.get_outputs():
+                self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
     def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
@@ -1359,8 +1367,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
 
     def _get_default_label_for_txid(self, tx_hash: str) -> str:
-        # if no inputs are ismine, concat labels of output addresses
+        # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
         if not self.db.get_txi_addresses(tx_hash):
+            # no inputs are ismine -> likely incoming payment -> concat labels of output addresses
             labels = []
             for addr in self.db.get_txo_addresses(tx_hash):
                 label = self.get_label_for_address(addr)
@@ -1368,6 +1377,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     labels.append(label)
             return ', '.join(labels)
         else:
+            # some inputs are ismine -> likely outgoing payment
             labels = []
             for invoice in self.get_relevant_invoices_for_tx(tx_hash):
                 if invoice.message:
@@ -2430,18 +2440,23 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 d['bip70'] = x.bip70
         return d
 
-    def _update_request_statuses_touched_by_tx(self, tx_hash: str) -> None:
+    def _update_invoices_and_reqs_touched_by_tx(self, tx_hash: str) -> None:
         # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
         #       For a given receive request, if tx1 touches it but tx2 does not, then
         #       we were called when tx1 was added, but we will not get called when tx2 replaces tx1.
         tx = self.db.get_transaction(tx_hash)
         if tx is None:
             return
-        for txo in tx.outputs():
-            addr = txo.address
-            if self.get_request(addr):
-                status = self.get_request_status(addr)
-                util.trigger_callback('request_status', self, addr, status)
+        relevant_invoice_keys = set()
+        with self.transaction_lock:
+            for txo in tx.outputs():
+                addr = txo.address
+                if self.get_request(addr):
+                    status = self.get_request_status(addr)
+                    util.trigger_callback('request_status', self, addr, status)
+                for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
+                    relevant_invoice_keys.add(invoice_key)
+        self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
 
     def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
         # for receiving
