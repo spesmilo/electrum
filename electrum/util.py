@@ -1111,6 +1111,10 @@ def is_uri(data: str) -> bool:
     return False
 
 
+class FailedToParsePaymentIdentifier(Exception):
+    pass
+
+
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
 # to be redirected improperly between stdin/stderr on Unix systems
 #TODO: py3

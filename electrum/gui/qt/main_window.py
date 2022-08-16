@@ -58,7 +58,7 @@ from electrum.i18n import _
 from electrum.util import (format_time, get_asyncio_loop,
                            UserCancelled, profiler,
                            bh2u, bfh, InvalidPassword,
-                           UserFacingException,
+                           UserFacingException, FailedToParsePaymentIdentifier,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME, os_chmod)
 from electrum.invoices import PR_PAID, Invoice
@@ -1316,7 +1316,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         return clayout.selected_index()
 
     def handle_payment_identifier(self, *args, **kwargs):
-        self.send_tab.handle_payment_identifier(*args, **kwargs)
+        try:
+            self.send_tab.handle_payment_identifier(*args, **kwargs)
+        except FailedToParsePaymentIdentifier as e:
+            self.show_error(str(e))
 
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)
