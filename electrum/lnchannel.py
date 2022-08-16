@@ -418,10 +418,6 @@ class AbstractChannel(Logger, ABC):
         pass
 
     @abstractmethod
-    def is_static_remotekey_enabled(self) -> bool:
-        pass
-
-    @abstractmethod
     def get_local_pubkey(self) -> bytes:
         """Returns our node ID."""
         pass
@@ -550,9 +546,6 @@ class ChannelBackup(AbstractChannel):
     def is_frozen_for_receiving(self) -> bool:
         return False
 
-    def is_static_remotekey_enabled(self) -> bool:
-        return False
-    
     @property
     def sweep_address(self) -> str:
         # Since channel backups do not save the static_remotekey, payment_basepoint in
