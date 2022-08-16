@@ -297,8 +297,9 @@ Pane {
                             'satoshis': invoice.amount,
                             'message': invoice.message
                     })
+                    var wo = Daemon.currentWallet.isWatchOnly
                     dialog.txaccepted.connect(function() {
-                        if (Daemon.currentWallet.isWatchOnly) {
+                        if (wo) {
                             showUnsignedTx(dialog.finalizer.serializedTx())
                         } else {
                             dialog.finalizer.send_onchain()
