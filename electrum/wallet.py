@@ -488,8 +488,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
-        self._update_request_statuses_touched_by_tx(tx_hash)
         self._detect_paid_invoices()
+        self._update_request_statuses_touched_by_tx(tx_hash)
         if notify_GUI:
             util.trigger_callback('new_transaction', self, tx)
 
@@ -497,6 +497,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
+        self._detect_paid_invoices()
         self._update_request_statuses_touched_by_tx(tx_hash)
         tx_mined_status = self.adb.get_tx_height(tx_hash)
         util.trigger_callback('verified', self, tx_hash, tx_mined_status)
@@ -505,6 +506,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def on_event_adb_removed_verified_tx(self, adb, tx_hash):
         if adb != self.adb:
             return
+        self._detect_paid_invoices()
         self._update_request_statuses_touched_by_tx(tx_hash)
 
     def clear_history(self):
@@ -991,7 +993,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def save_invoice(self, invoice: Invoice) -> None:
         key = self.get_key_for_outgoing_invoice(invoice)
         if not invoice.is_lightning():
-            if self.is_onchain_invoice_paid(invoice)[0]:
+            if self.is_onchain_invoice_paid(invoice, is_outgoing=True)[0]:
                 _logger.info("saving invoice... but it is already paid!")
         self._invoices[key] = invoice
         self.save_db()
@@ -1052,6 +1054,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def _prepare_onchain_invoice_paid_detection(self):
         self._invoices_from_txid_map = defaultdict(set)  # type: Dict[str, Set[str]]
+        self._invoices_to_txid_map = defaultdict(set)  # type: Dict[str, Tuple[bool, Optional[int], Sequence[str]]]
         self._detect_paid_invoices()
 
     def _detect_paid_invoices(self):
@@ -1060,13 +1063,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 continue
             if invoice.is_lightning() and self.lnworker and self.lnworker.get_invoice_status(invoice) == PR_PAID:
                 continue
-            is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
-            if is_paid:
-                for txid in relevant_txs:
-                    self._invoices_from_txid_map[txid].add(invoice_key)
+            is_paid, min_conf = self.is_onchain_invoice_paid(invoice, is_outgoing=True)
+        for request_key, request in self._receive_requests.items():
+            if request.is_lightning() and self.lnworker:
+                if self.lnworker.get_payment_status(bfh(request.rhash)) == PR_PAID:
+                    continue
+            is_paid, conf = self.is_onchain_invoice_paid(request, is_outgoing=False)
 
     def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
-        """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
+        """Returns whether on-chain invoice/request is satisfied, the max_height of relevant txs have,
         and list of relevant TXIDs.
         """
         outputs = invoice.get_outputs()
@@ -1077,33 +1082,45 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             invoice_amounts[txo.scriptpubkey] += 1 if parse_max_spend(txo.value) else txo.value
         relevant_txs = set()
         is_paid = True
-        conf_needed = None  # type: Optional[int]
+        max_height = None  # type: Optional[int]
         with self.lock, self.transaction_lock:
             for invoice_scriptpubkey, invoice_amt in invoice_amounts.items():
                 scripthash = bitcoin.script_to_scripthash(invoice_scriptpubkey.hex())
                 prevouts_and_values = self.db.get_prevouts_by_scripthash(scripthash)
-                confs_and_values = []
+                heights_and_values = []
                 for prevout, v in prevouts_and_values:
                     relevant_txs.add(prevout.txid.hex())
                     tx_height = self.adb.get_tx_height(prevout.txid.hex())
                     if 0 < tx_height.height <= invoice.height:  # exclude txs older than invoice
                         continue
-                    confs_and_values.append((tx_height.conf or 0, v))
+                    heights_and_values.append((tx_height.height or 0, v))
                 # check that there is at least one TXO, and that they pay enough.
                 # note: "at least one TXO" check is needed for zero amount invoice (e.g. OP_RETURN)
                 vsum = 0
-                for conf, v in reversed(sorted(confs_and_values)):
+                for height, v in sorted(heights_and_values):
                     vsum += v
                     if vsum >= invoice_amt:
-                        conf_needed = min(conf_needed, conf) if conf_needed is not None else conf
+                        max_height = max(max_height or 0, height) if height > 0 else 0
                         break
                 else:
                     is_paid = False
-        return is_paid, conf_needed, list(relevant_txs)
+        return is_paid, max_height, list(relevant_txs)
 
-    def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
-        is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
-        return is_paid, conf_needed
+    def is_onchain_invoice_paid(self, invoice: Invoice, is_outgoing) -> Tuple[bool, Optional[int]]:
+        confs_from_height = lambda height: ((self.adb.get_local_height() - height + 1) if height > 0 else 0) if height is not None else None
+        key = self.get_key_for_outgoing_invoice(invoice) if is_outgoing else self.get_key_for_receive_request(invoice)
+        is_paid, max_height, relevant_txs = self._invoices_to_txid_map.get(key, (False, None, []))
+        # first check cache
+        if is_paid and confs_from_height(max_height) > 6:
+            return is_paid, confs_from_height(max_height)
+        # recompute if not deeply mined
+        is_paid, max_height, relevant_txs = self._is_onchain_invoice_paid(invoice)
+        if relevant_txs:
+            # cache result
+            self._invoices_to_txid_map[key] = is_paid, max_height, relevant_txs
+            for txid in relevant_txs:
+                self._invoices_from_txid_map[txid].add(key)
+        return is_paid, confs_from_height(max_height)
 
     @profiler
     def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
@@ -2321,7 +2338,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = self.lnworker.get_invoice_status(invoice)
             if status != PR_UNPAID:
                 return self.check_expired_status(invoice, status)
-        paid, conf = self.is_onchain_invoice_paid(invoice)
+        paid, conf = self.is_onchain_invoice_paid(invoice, is_outgoing=True)
         if not paid:
             status = PR_UNPAID
         elif conf == 0:
@@ -2340,7 +2357,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = self.lnworker.get_payment_status(bfh(r.rhash))
             if status != PR_UNPAID:
                 return self.check_expired_status(r, status)
-        paid, conf = self.is_onchain_invoice_paid(r)
+        paid, conf = self.is_onchain_invoice_paid(r, is_outgoing=False)
         if not paid:
             status = PR_UNPAID
         elif conf == 0:
@@ -2384,7 +2401,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         if address:
-            paid, conf = self.is_onchain_invoice_paid(x)
+            paid, conf = self.is_onchain_invoice_paid(x, is_outgoing=False)
             d['amount_sat'] = int(x.get_amount_sat())
             d['address'] = address
             d['URI'] = self.get_request_URI(x)
