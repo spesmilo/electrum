@@ -183,29 +183,26 @@ class QETxDetails(QObject):
         # can be None if outputs unrelated to wallet seed,
         # e.g. to_local local_force_close commitment CSV-locked p2wsh script
         if txinfo.amount is None:
-            self._amount = QEAmount(amount_sat=0)
+            self._amount.satsInt = 0
         else:
-            self._amount = QEAmount(amount_sat=txinfo.amount)
+            self._amount.satsInt = txinfo.amount
 
         self._status = txinfo.status
-        self._fee = QEAmount(amount_sat=txinfo.fee)
+        self._fee.satsInt = txinfo.fee
 
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
-            # TODO mempool_depth_bytes can be None if not mined?
-            if txinfo.mempool_depth_bytes is None:
-                self._logger.error('TX is not mined, yet mempool_depth_bytes is None')
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
 
         if self._wallet.wallet.lnworker:
             lnworker_history = self._wallet.wallet.lnworker.get_onchain_history()
             if self._txid in lnworker_history:
                 item = lnworker_history[self._txid]
-                self._lnamount = QEAmount(amount_sat=item['amount_msat'] / 1000)
+                self._lnamount.satsInt = int(item['amount_msat'] / 1000)
             else:
-                self._lnamount = QEAmount(amount_sat=0)
+                self._lnamount.satsInt = 0
 
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump
