@@ -63,7 +63,16 @@ Pane {
                 icon.source: '../../icons/paste.png'
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
-                onClicked: invoice.recipient = AppController.clipboardToText()
+                onClicked: {
+                    var text = AppController.clipboardToText()
+                    if (bitcoin.verify_raw_tx(text)) {
+                        app.stack.push(Qt.resolvedUrl('TxDetails.qml'),
+                            { rawtx: text }
+                        )
+                    } else {
+                        invoice.recipient = text
+                    }
+                }
             }
             ToolButton {
                 icon.source: '../../icons/qrcode.png'
@@ -73,7 +82,14 @@ Pane {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                     page.onFound.connect(function() {
-                        invoice.recipient = page.scanData
+                        var text = page.scanData
+                        if (bitcoin.verify_raw_tx(text)) {
+                            app.stack.push(Qt.resolvedUrl('TxDetails.qml'),
+                                { rawtx: text }
+                            )
+                        } else {
+                            invoice.recipient = text
+                        }
                     })
                 }
             }
@@ -379,4 +395,7 @@ Pane {
         }
     }
 
+    Bitcoin {
+        id: bitcoin
+    }
 }

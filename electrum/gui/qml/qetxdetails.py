@@ -2,6 +2,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.util import format_time
+from electrum.transaction import tx_from_any
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -13,8 +14,11 @@ class QETxDetails(QObject):
     _logger = get_logger(__name__)
 
     _wallet = None
-    _txid = None
+    _txid = ''
+    _rawtx = ''
     _label = ''
+
+    _tx = None
 
     _status = ''
     _amount = QEAmount(amount_sat=0)
@@ -30,6 +34,7 @@ class QETxDetails(QObject):
     _can_cpfp = False
     _can_save_as_local = False
     _can_remove = False
+    _is_unrelated = False
 
     _is_mined = False
 
@@ -66,6 +71,22 @@ class QETxDetails(QObject):
             self._txid = txid
             self.txidChanged.emit()
             self.update()
+
+    @pyqtProperty(str, notify=detailsChanged)
+    def rawtx(self):
+        return self._rawtx
+
+    @rawtx.setter
+    def rawtx(self, rawtx: str):
+        if self._rawtx != rawtx:
+            self._logger.debug('rawtx set -> %s' % rawtx)
+            self._rawtx = rawtx
+            try:
+                self._tx = tx_from_any(rawtx, deserialize=True)
+                self._logger.debug('tx type is %s' % str(type(self._tx)))
+                self.txid = self._tx.txid() # triggers update()
+            except Exception as e:
+                self._logger.error(repr(e))
 
     labelChanged = pyqtSignal()
     @pyqtProperty(str, notify=labelChanged)
@@ -159,24 +180,29 @@ class QETxDetails(QObject):
     def canRemove(self):
         return self._can_remove
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def isUnrelated(self):
+        return self._is_unrelated
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
             return
 
-        # abusing get_input_tx to get tx from txid
-        tx = self._wallet.wallet.get_input_tx(self._txid)
+        if not self._rawtx:
+            # abusing get_input_tx to get tx from txid
+            self._tx = self._wallet.wallet.get_input_tx(self._txid)
 
-        #self._logger.debug(repr(tx.to_json()))
+        #self._logger.debug(repr(self._tx.to_json()))
 
-        self._inputs = list(map(lambda x: x.to_json(), tx.inputs()))
+        self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
             'value': QEAmount(amount_sat=x.value),
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str())
-            }, tx.outputs()))
+            }, self._tx.outputs()))
 
-        txinfo = self._wallet.wallet.get_tx_info(tx)
+        txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
         #self._logger.debug(repr(txinfo))
 
@@ -204,6 +230,7 @@ class QETxDetails(QObject):
             else:
                 self._lnamount.satsInt = 0
 
+        self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump
         self._can_dscancel = txinfo.can_dscancel

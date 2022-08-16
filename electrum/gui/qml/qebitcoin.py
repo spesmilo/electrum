@@ -9,8 +9,9 @@ from electrum.bip32 import is_bip32_derivation, xpub_type
 from electrum.logging import get_logger
 from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
-from .qetypes import QEAmount
+from electrum.transaction import tx_from_any
 
+from .qetypes import QEAmount
 
 class QEBitcoin(QObject):
     def __init__(self, config, parent=None):
@@ -152,3 +153,11 @@ class QEBitcoin(QObject):
             extra_params['exp'] = str(expiry)
 
         return create_bip21_uri(address, satoshis.satsInt, message, extra_query_params=extra_params)
+
+    @pyqtSlot(str, result=bool)
+    def verify_raw_tx(self, rawtx):
+        try:
+            tx_from_any(rawtx)
+            return True
+        except:
+            return False

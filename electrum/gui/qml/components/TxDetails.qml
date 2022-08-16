@@ -15,6 +15,7 @@ Pane {
     property string title: qsTr("Transaction details")
 
     property string txid
+    property string rawtx
 
     property alias label: txdetails.label
 
@@ -50,9 +51,24 @@ Pane {
             width: parent.width
             columns: 2
 
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                visible: txdetails.isUnrelated
+                Image {
+                    source: '../../icons/warning.png'
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
+                }
+                Label {
+                    text: qsTr('Transaction is unrelated to this wallet')
+                    color: Material.accentColor
+                }
+            }
+
             Label {
                 Layout.fillWidth: true
-                visible: txdetails.lnAmount.satsInt == 0
+                visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt == 0
                 text: txdetails.amount.satsInt > 0
                         ? qsTr('Amount received')
                         : qsTr('Amount sent')
@@ -61,7 +77,7 @@ Pane {
 
             Label {
                 Layout.fillWidth: true
-                visible: txdetails.lnAmount.satsInt != 0
+                visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
                 text: txdetails.lnAmount.satsInt > 0
                         ? qsTr('Amount received in channels')
                         : qsTr('Amount withdrawn from channels')
@@ -70,6 +86,7 @@ Pane {
             }
 
             RowLayout {
+                visible: !txdetails.isUnrelated
                 Layout.fillWidth: true
                 Label {
                     visible: txdetails.lnAmount.satsInt == 0
@@ -88,30 +105,30 @@ Pane {
             }
 
             Item {
-                visible: Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                visible: !txdetails.isUnrelated && Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
             }
 
             Label {
-                visible: Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
+                visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
                 text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
             }
 
             Label {
-                visible: Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
+                visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
                 text: Daemon.fx.fiatValue(txdetails.lnAmount, false) + ' ' + Daemon.fx.fiatCurrency
             }
 
 
             Label {
                 Layout.fillWidth: true
-                visible: txdetails.amount.satsInt < 0
+                visible: txdetails.fee.satsInt != 0
                 text: qsTr('Transaction fee')
                 color: Material.accentColor
             }
 
             RowLayout {
                 Layout.fillWidth: true
-                visible: txdetails.amount.satsInt < 0
+                visible: txdetails.fee.satsInt != 0
                 Label {
                     text: Config.formatSats(txdetails.fee)
                     font.family: FixedFont
@@ -135,12 +152,12 @@ Pane {
             Label {
                 text: qsTr('Mempool depth')
                 color: Material.accentColor
-                visible: !txdetails.isMined
+                visible: !txdetails.isMined && txdetails.canBroadcast
             }
 
             Label {
                 text: txdetails.mempoolDepth
-                visible: !txdetails.isMined
+                visible: !txdetails.isMined && txdetails.canBroadcast
             }
 
             Label {
@@ -314,6 +331,7 @@ Pane {
         id: txdetails
         wallet: Daemon.currentWallet
         txid: root.txid
+        rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
     }
 }
