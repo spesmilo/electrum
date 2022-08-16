@@ -48,10 +48,7 @@ class QEQRParser(QObject):
         self._parseQR(image)
 
     def logImageStats(self, image):
-        self._logger.info('width: ' + str(image.width()))
-        self._logger.info('height: ' + str(image.height()))
-        self._logger.info('depth: ' + str(image.depth()))
-        self._logger.info('format: ' + str(image.format()))
+        self._logger.info(f'width: {image.width()} height: {image.height()} depth: {image.depth()} format: {image.format()}')
 
     def _parseQR(self, image):
         self.w = image.width()
