@@ -35,6 +35,7 @@ class QETxDetails(QObject):
     _can_save_as_local = False
     _can_remove = False
     _is_unrelated = False
+    _is_complete = False
 
     _is_mined = False
 
@@ -184,6 +185,10 @@ class QETxDetails(QObject):
     def isUnrelated(self):
         return self._is_unrelated
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def isComplete(self):
+        return self._is_complete
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
@@ -230,6 +235,7 @@ class QETxDetails(QObject):
             else:
                 self._lnamount.satsInt = 0
 
+        self._is_complete = self._tx.is_complete()
         self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump
@@ -252,3 +258,28 @@ class QETxDetails(QObject):
         self._confirmations = tx_mined_info.conf
         self._txpos = tx_mined_info.txpos
         self._header_hash = tx_mined_info.header_hash
+
+    @pyqtSlot()
+    def sign(self):
+        try:
+            self._wallet.transactionSigned.disconnect(self.onSigned)
+        except:
+            pass
+        self._wallet.transactionSigned.connect(self.onSigned)
+        self._wallet.sign(self._tx)
+        # side-effect: signing updates self._tx
+        # we rely on this for broadcast
+
+    @pyqtSlot(str)
+    def onSigned(self, txid):
+        if txid != self._txid:
+            return
+
+        self._logger.debug('onSigned')
+        self._wallet.transactionSigned.disconnect(self.onSigned)
+        self.update()
+
+    @pyqtSlot()
+    def broadcast(self):
+        assert self._tx.is_complete()
+        self._wallet.broadcast(self._tx)

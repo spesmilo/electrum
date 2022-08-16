@@ -277,6 +277,7 @@ Pane {
                     ToolButton {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
+                        enabled: root.txid
                         onClicked: {
                             var dialog = app.genericShareDialog.createObject(root,
                                 { title: qsTr('Transaction ID'), text: root.txid }
@@ -324,6 +325,20 @@ Pane {
                 }
             }
 
+            RowLayout {
+                visible: !txdetails.isMined && !txdetails.isUnrelated
+                Layout.columnSpan: 2
+                Button {
+                    text: qsTr('Sign')
+                    enabled: !txdetails.isComplete
+                    onClicked: txdetails.sign()
+                }
+                Button {
+                    text: qsTr('Broadcast')
+                    enabled: txdetails.canBroadcast
+                    onClicked: txdetails.broadcast()
+                }
+            }
         }
     }
 
