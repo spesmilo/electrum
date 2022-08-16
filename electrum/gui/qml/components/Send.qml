@@ -84,10 +84,11 @@ Pane {
                     page.onFound.connect(function() {
                         var text = page.scanData
                         if (bitcoin.verify_raw_tx(text)) {
-                            app.stack.push(Qt.resolvedUrl('TxDetails.qml'),
+                            app.stack.replace(Qt.resolvedUrl('TxDetails.qml'),
                                 { rawtx: text }
                             )
                         } else {
+                            app.stack.pop()
                             invoice.recipient = text
                         }
                     })
