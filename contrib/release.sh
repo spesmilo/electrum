@@ -204,7 +204,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$apk2"       || fail "apk2 not found among sftp downloads"
     test -f "$dmg"        || fail "dmg not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
-    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
     test -f "$CONTRIB/build-wine/dist/$win1" || fail "win1 not found among built files"
     test -f "$CONTRIB/build-wine/dist/$win2" || fail "win2 not found among built files"

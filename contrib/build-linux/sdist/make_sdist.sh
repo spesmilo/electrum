@@ -19,6 +19,7 @@ break_legacy_easy_install
 # (make_packages will later install a pinned version of pip in a venv)
 python3 -m pip install --upgrade pip
 
+rm -rf "$PROJECT_ROOT/packages/"
 if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
   "$CONTRIB"/make_packages || fail "make_packages failed"
 fi
@@ -37,7 +38,8 @@ git submodule update --init
 )
 
 if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
-  rm "$PROJECT_ROOT/electrum/paymentrequest_pb2.py"
+    # FIXME side-effecting repo... though in practice, this script probably runs in fresh_clone
+    rm -f "$PROJECT_ROOT/electrum/paymentrequest_pb2.py"
 fi
 
 (
@@ -52,17 +54,18 @@ fi
     fi
     TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
     if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
-        for fn in "$DISTDIR/_sourceonly/"*; do
-            # Since ELECTRUM_VERSION is not available to us in this script, we have to use a regex.
-            # Expression 1: Electrum-X.Y.Z.tar.gz -> Electrum-sourceonly-X.Y.Z.tar.gz
-            #   Capture group \1 = Electrum
-            #   Capture group \2 = X.Y.Z.tar.gz
-            # Expression 2: dist/_sourceonly/X.tar.gz -> dist/X.tar.gz
-            mv "$fn" $(sed \
-                -e 's/\(.*\)-\([^-]*\)/\1-sourceonly-\2/' \
-                -e 's/\/_sourceonly//' \
-                <<< "$fn")
-        done
+        python3 <<EOF
+import importlib.util
+import os
+
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+VER = version_module.ELECTRUM_VERSION
+os.rename(f"dist/_sourceonly/Electrum-{VER}.tar.gz", f"dist/Electrum-sourceonly-{VER}.tar.gz")
+EOF
         rmdir "$PY_DISTDIR"
     fi
 )
