@@ -18,8 +18,6 @@ PYTHON_VERSION=3.9.11
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-
-VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
@@ -99,6 +97,7 @@ info "preparing electrum-locale."
     "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
 )
 
+VERSION=`$python -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 
 info "Installing build dependencies."
 "$python" -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \

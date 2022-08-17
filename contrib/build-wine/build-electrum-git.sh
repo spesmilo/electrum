@@ -12,7 +12,7 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
+VERSION=4.3.1
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
