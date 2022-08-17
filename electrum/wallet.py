@@ -476,7 +476,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
     @event_listener
-    def on_event_adb_added_tx(self, adb, tx_hash, notify_GUI):
+    def on_event_adb_added_tx(self, adb, tx_hash):
         if self.adb != adb:
             return
         tx = self.db.get_transaction(tx_hash)
@@ -489,8 +489,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_invoices_and_reqs_touched_by_tx(tx_hash)
-        if notify_GUI:
-            util.trigger_callback('new_transaction', self, tx)
+        util.trigger_callback('new_transaction', self, tx)
 
     @event_listener
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
