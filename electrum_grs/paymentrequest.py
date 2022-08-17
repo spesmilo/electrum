@@ -36,8 +36,7 @@ import aiohttp
 try:
     from . import paymentrequest_pb2 as pb2
 except ImportError:
-    # sudo apt-get install protobuf-compiler
-    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum_grs/ --python_out=electrum_grs/ electrum_grs/paymentrequest.proto'")
+    sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
 from .util import bh2u, bfh, make_aiohttp_session

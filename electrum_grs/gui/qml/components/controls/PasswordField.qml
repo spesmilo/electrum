@@ -5,7 +5,7 @@ import QtQuick.Controls 2.1
 RowLayout {
     id: root
     property alias text: password_tf.text
-
+    property alias tf: password_tf
     signal accepted
 
     TextField {

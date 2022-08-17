@@ -19,7 +19,7 @@ PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 
-VERSION=4.3.0
+VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
@@ -93,18 +93,10 @@ info "preparing electrum-locale."
     cd "$PROJECT_ROOT"
     git submodule update --init
 
-    pushd "$CONTRIB"/deterministic-build/electrum-locale
-    if ! which msgfmt > /dev/null 2>&1; then
-        fail "Please install gettext"
-    fi
+    LOCALE="$PROJECT_ROOT/electrum_grs/locale/"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$PROJECT_ROOT/electrum_grs/locale/"
-    for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum_grs/$i/LC_MESSAGES"
-        mkdir -p $dir
-        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-    done
-    popd
+    rm -rf "$LOCALE"
+    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
 )
 
 

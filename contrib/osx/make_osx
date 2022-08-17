@@ -175,14 +175,10 @@ info "generating locale"
         brew install gettext
         brew link --force gettext
     fi
-    cd "$CONTRIB"/deterministic-build/electrum-locale
+    LOCALE="$PROJECT_ROOT/electrum_grs/locale/"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$PROJECT_ROOT/electrum_grs/locale/"
-    for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum_grs/$i/LC_MESSAGES"
-        mkdir -p "$dir"
-        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-    done
+    rm -rf "$LOCALE"
+    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
 ) || fail "failed generating locale"
 
 
@@ -241,7 +237,7 @@ find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -pr
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=4.3.0
+VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 
 info "Building binary"
 pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"

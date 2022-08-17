@@ -64,6 +64,7 @@ Pane {
                             channelopener.nodeid = page.scanData
                             node.text = channelopener.nodeid
                         }
+                        app.stack.pop()
                     })
                 }
             }

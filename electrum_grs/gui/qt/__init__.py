@@ -382,12 +382,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
                     path = os.path.join(wallet_dir, filename)
                 self.start_new_window(path, uri=None, force_wizard=True)
             return
-        if uri:
-            window.handle_payment_identifier(uri)
         window.bring_to_top()
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
-
         window.activateWindow()
+        if uri:
+            window.handle_payment_identifier(uri)
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:

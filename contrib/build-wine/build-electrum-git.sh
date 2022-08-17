@@ -12,24 +12,16 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=4.3.0
+VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
 git submodule update --init
 
-pushd ./contrib/deterministic-build/electrum-locale
-if ! which msgfmt > /dev/null 2>&1; then
-    fail "Please install gettext"
-fi
+LOCALE="$WINEPREFIX/drive_c/electrum-grs/electrum_grs/locale/"
 # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-rm -rf "$WINEPREFIX/drive_c/electrum-grs/electrum_grs/locale/"
-for i in ./locale/*; do
-    dir="$WINEPREFIX/drive_c/electrum-grs/electrum_grs/$i/LC_MESSAGES"
-    mkdir -p $dir
-    msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-done
-popd
+rm -rf "$LOCALE"
+"$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
