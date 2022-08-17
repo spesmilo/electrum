@@ -1,6 +1,4 @@
 # Release 4.3.1 - (August 17, 2022)
- * harden build script for macOS binary: avoid using
-   precompiled wheels from PyPI for most packages (#7918)
  * build: we now also distribute a "source-only"
    Linux-packager-friendly tarball (d0de44a7, #7594), in addition
    to the current "normal" tarball. The "source-only" tarball excludes
