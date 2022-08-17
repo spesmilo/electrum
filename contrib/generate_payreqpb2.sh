@@ -2,7 +2,7 @@
 # Generates the file paymentrequest_pb2.py
 
 CONTRIB="$(dirname "$(readlink -e "$0")")"
-EL="$CONTRIB"/../electrum
+EL="$CONTRIB"/../electrum_grs
 
 if ! which protoc > /dev/null 2>&1; then
     echo "Please install 'protoc'"

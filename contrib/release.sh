@@ -86,7 +86,7 @@ else
 fi
 
 # create source-only tarball
-srctarball="Electrum-sourceonly-$VERSION.tar.gz"
+srctarball="Electrum-grs-sourceonly-$VERSION.tar.gz"
 if test -f "dist/$srctarball"; then
     info "file exists: $srctarball"
 else
