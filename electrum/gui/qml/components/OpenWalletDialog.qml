@@ -1,51 +1,91 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
+import QtQuick.Controls 2.3
+import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
 import "controls"
 
-Pane {
+ElDialog {
     id: openwalletdialog
-    
-    property string title: qsTr("Open Wallet")
+
+    width: parent.width
+    height: parent.height
+
+    title: qsTr("Open Wallet")
 
     property string name
     property string path
 
+    standardButtons: Dialog.Cancel
+
+    modal: true
+    parent: Overlay.overlay
+    Overlay.modal: Rectangle {
+        color: "#aa000000"
+    }
+
+    focus: true
+
     property bool _unlockClicked: false
 
-    GridLayout {
+    header: GridLayout {
         columns: 2
-        width: parent.width
+        rowSpacing: 0
+
+        Image {
+            source: "../../icons/wallet.png"
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
+            Layout.leftMargin: constants.paddingMedium
+            Layout.topMargin: constants.paddingMedium
+            Layout.bottomMargin: constants.paddingMedium
+        }
 
         Label {
+            text: title
+            Layout.fillWidth: true
+            topPadding: constants.paddingXLarge
+            bottomPadding: constants.paddingXLarge
+            font.bold: true
+            font.pixelSize: constants.fontSizeMedium
+        }
+
+        Rectangle {
             Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingXXSmall
+            Layout.rightMargin: constants.paddingXXSmall
+            height: 1
+            color: Qt.rgba(0,0,0,0.5)
+        }
+    }
+
+    ColumnLayout {
+        width: parent.width
+        spacing: constants.paddingLarge
+
+        Label {
             Layout.alignment: Qt.AlignHCenter
             text: name
         }
 
-        MessagePane {
-            Layout.columnSpan: 2
+        Item {
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Wallet requires password to unlock")
-            visible: wallet_db.needsPassword
-            width: parent.width * 2/3
-            warning: true
-        }
-
-        MessagePane {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            text: qsTr("Invalid Password")
-            visible: !wallet_db.validPassword && _unlockClicked
-            width: parent.width * 2/3
-            error: true
+            Layout.preferredWidth: passwordLayout.width
+            Layout.preferredHeight: notice.height
+            InfoTextArea {
+                id: notice
+                text: qsTr("Wallet requires password to unlock")
+                visible: wallet_db.needsPassword
+                iconStyle: InfoTextArea.IconStyle.Warn
+                width: parent.width
+            }
         }
 
         RowLayout {
-            Layout.columnSpan: 2
+            id: passwordLayout
             Layout.alignment: Qt.AlignHCenter
             Layout.maximumWidth: parent.width * 2/3
             Label {
@@ -66,6 +106,14 @@ Pane {
                     unlock()
                 }
             }
+        }
+
+        Label {
+            Layout.columnSpan: 2
+            Layout.alignment: Qt.AlignHCenter
+            text: !wallet_db.validPassword && _unlockClicked ? qsTr("Invalid Password") : ''
+            color: constants.colorError
+            font.pixelSize: constants.fontSizeLarge
         }
 
         Button {
@@ -100,7 +148,7 @@ Pane {
             text: qsTr('Split wallet')
             onClicked: wallet_db.doSplit()
         }
-        
+
         BusyIndicator {
             id: busy
             running: false
@@ -114,31 +162,29 @@ Pane {
         _unlockClicked = true
         wallet_db.password = password.text
         wallet_db.verify()
-        openwalletdialog.forceActiveFocus()
     }
-    
+
     WalletDB {
         id: wallet_db
         path: openwalletdialog.path
         onSplitFinished: {
             // if wallet needed splitting, we close the pane and refresh the wallet list
             Daemon.availableWallets.reload()
-            app.stack.pop()
+            openwalletdialog.close()
         }
         onReadyChanged: {
             if (ready) {
                 busy.running = true
                 Daemon.load_wallet(openwalletdialog.path, password.text)
-                app.stack.pop(null)
+                openwalletdialog.close()
             }
         }
         onInvalidPassword: {
-            password.forceActiveFocus()
+            password.tf.forceActiveFocus()
         }
     }
-    
+
     Component.onCompleted: {
         wallet_db.verify()
-        password.forceActiveFocus()
     }
 }
