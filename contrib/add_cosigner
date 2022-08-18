@@ -39,6 +39,7 @@ version = version_win = version_mac = ELECTRUM_VERSION
 
 files = {
     "tgz": f"Electrum-{version}.tar.gz",
+    "tgz_srconly": f"Electrum-sourceonly-{version}.tar.gz",
     "appimage": f"electrum-{version}-x86_64.AppImage",
     "mac": f"electrum-{version_mac}.dmg",
     "win": f"electrum-{version_win}.exe",
