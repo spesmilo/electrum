@@ -35,30 +35,31 @@ print("version", ELECTRUM_VERSION)
 # GPG names of cosigner
 cosigner = sys.argv[1]
 
-version = version_win = version_mac = version_android = ELECTRUM_VERSION
+version = version_win = version_mac = ELECTRUM_VERSION
 
 files = {
-    'tgz': "Electrum-GRS-%s.tar.gz" % version,
-    'appimage': "electrum-grs-%s-x86_64.AppImage" % version,
-    'mac': "electrum-grs-%s.dmg" % version_mac,
-    'win': "electrum-grs-%s.exe" % version_win,
-    'win_setup': "electrum-grs-%s-setup.exe" % version_win,
-    'win_portable': "electrum-grs-%s-portable.exe" % version_win,
-    'apk_arm64': "ElectrumGRS-%s-arm64-v8a-release.apk" % APK_VERSION,
-    'apk_armeabi': "ElectrumGRS-%s-armeabi-v7a-release.apk" % APK_VERSION,
+    "tgz": f"Electrum-GRS-{version}.tar.gz",
+    "tgz_srconly": f"Electrum-GRS-sourceonly-{version}.tar.gz",
+    "appimage": f"electrum-grs-{version}-x86_64.AppImage",
+    "mac": f"electrum-grs-{version_mac}.dmg",
+    "win": f"electrum-grs-{version_win}.exe",
+    "win_setup": f"electrum-grs-{version_win}-setup.exe",
+    "win_portable": f"electrum-grs-{version_win}-portable.exe",
+    "apk_arm64": f"ElectrumGRS-{APK_VERSION}-arm64-v8a-release.apk",
+    "apk_armeabi": f"ElectrumGRS-{APK_VERSION}-armeabi-v7a-release.apk",
 }
 
 
-for k, n in files.items():
-    path = "dist/%s"%n
-    link = "https://download.groestlcoin.org/%s/%s"%(version,n)
+for shortname, filename in files.items():
+    path = f"dist/{filename}"
+    link = f"https://download.groestlcoin.org/{version}/{filename}"
     if not os.path.exists(path):
-        os.system("wget -q %s -O %s" % (link, path))
+        os.system(f"wget -q {link} -O {path}")
     if not os.path.getsize(path):
         raise Exception(path)
-    sig_name = n + '.'+cosigner+'.asc'
-    sig_url = "https://raw.githubusercontent.com/Groestlcoin/electrum-grs-signatures/master/%s/%s/%s"%(version, n, sig_name)
-    sig_path = "dist/%s"% sig_name
-    os.system("wget -nc %s -O %s"%(sig_url, sig_path))
-    if os.system("gpg --verify %s %s"%(sig_path, path)) != 0:
+    sig_name = f"{filename}.{cosigner}.asc"
+    sig_url = f"https://raw.githubusercontent.com/Groestlcoin/electrum-grs-signatures/master/{version}/{filename}/{sig_name}"
+    sig_path = f"dist/{sig_name}"
+    os.system(f"wget -nc {sig_url} -O {sig_path}")
+    if os.system(f"gpg --verify {sig_path} {path}") != 0:
         raise Exception(sig_name)
