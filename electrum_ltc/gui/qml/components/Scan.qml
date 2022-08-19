@@ -24,7 +24,6 @@ Item {
         onFound: {
             scanPage.scanData = scanData
             scanPage.found()
-            app.stack.pop()
         }
     }
 

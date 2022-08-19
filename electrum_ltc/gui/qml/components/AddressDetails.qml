@@ -83,7 +83,9 @@ Pane {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
                         onClicked: {
-                            var dialog = share.createObject(root, { 'title': qsTr('Address'), 'text': root.address })
+                            var dialog = app.genericShareDialog.createObject(root,
+                                { title: qsTr('Address'), text: root.address }
+                            )
                             dialog.open()
                         }
                     }
@@ -176,7 +178,9 @@ Pane {
                             icon.source: '../../icons/share.png'
                             icon.color: 'transparent'
                             onClicked: {
-                                var dialog = share.createObject(root, { 'title': qsTr('Public key'), 'text': modelData })
+                                var dialog = app.genericShareDialog.createObject(root,
+                                    { title: qsTr('Public key'), text: modelData }
+                                )
                                 dialog.open()
                             }
                         }
@@ -259,10 +263,5 @@ Pane {
         address: root.address
         onFrozenChanged: addressDetailsChanged()
         onLabelChanged: addressDetailsChanged()
-    }
-
-    Component {
-        id: share
-        GenericShareDialog {}
     }
 }

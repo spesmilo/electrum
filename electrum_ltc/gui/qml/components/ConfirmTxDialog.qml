@@ -224,7 +224,7 @@ ElDialog {
                 }
             }
         }
-        
+
         Rectangle {
             height: 1
             Layout.fillWidth: true
@@ -248,11 +248,10 @@ ElDialog {
 
             Button {
                 id: sendButton
-                text: qsTr('Pay')
+                text: Daemon.currentWallet.isWatchOnly ? qsTr('Finalize') : qsTr('Pay')
                 enabled: finalizer.valid
                 onClicked: {
                     txaccepted()
-                    finalizer.send_onchain()
                     dialog.close()
                 }
             }

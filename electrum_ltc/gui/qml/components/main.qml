@@ -186,6 +186,22 @@ ApplicationWindow
         }
     }
 
+    property alias genericShareDialog: _genericShareDialog
+    Component {
+        id: _genericShareDialog
+        GenericShareDialog {
+            onClosed: destroy()
+        }
+    }
+
+    property alias openWalletDialog: _openWalletDialog
+    Component {
+        id: _openWalletDialog
+        OpenWalletDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
@@ -246,7 +262,8 @@ ApplicationWindow
         target: Daemon
         function onWalletRequiresPassword() {
             console.log('wallet requires password')
-            app.stack.push(Qt.resolvedUrl("OpenWallet.qml"), {"path": Daemon.path})
+            var dialog = openWalletDialog.createObject(app, { path: Daemon.path })
+            dialog.open()
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')

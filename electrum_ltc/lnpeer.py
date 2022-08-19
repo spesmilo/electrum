@@ -847,7 +847,6 @@ class Peer(Logger):
             channel_id, outpoint, local_config, remote_config, constraints, our_channel_type)
         chan = Channel(
             storage,
-            sweep_address=self.lnworker.sweep_address,
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
@@ -1026,7 +1025,6 @@ class Peer(Logger):
             channel_id, outpoint, local_config, remote_config, constraints, channel_type)
         chan = Channel(
             chan_dict,
-            sweep_address=self.lnworker.sweep_address,
             lnworker=self.lnworker,
             initial_feerate=feerate
         )
@@ -1154,18 +1152,7 @@ class Peer(Logger):
                     f"channel_reestablish ({chan.get_id_for_log()}): "
                     f"(DLP) local PCS mismatch: {bh2u(our_pcs)} != {bh2u(their_claim_of_our_last_per_commitment_secret)}")
                 return False
-            if chan.is_static_remotekey_enabled():
-                return True
-            try:
-                __, our_remote_pcp = chan.get_secret_and_point(REMOTE, their_next_local_ctn - 1)
-            except RemoteCtnTooFarInFuture:
-                pass
-            else:
-                if our_remote_pcp != their_local_pcp:
-                    self.logger.error(
-                        f"channel_reestablish ({chan.get_id_for_log()}): "
-                        f"(DLP) remote PCP mismatch: {bh2u(our_remote_pcp)} != {bh2u(their_local_pcp)}")
-                    return False
+            assert chan.is_static_remotekey_enabled()
             return True
         if not are_datalossprotect_fields_valid():
             raise RemoteMisbehaving("channel_reestablish: data loss protect fields invalid")
@@ -1215,10 +1202,8 @@ class Peer(Logger):
         # BOLT-02: "A node [...] upon disconnection [...] MUST reverse any uncommitted updates sent by the other side"
         chan.hm.discard_unsigned_remote_updates()
         # send message
-        if chan.is_static_remotekey_enabled():
-            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
-        else:
-            latest_secret, latest_point = chan.get_secret_and_point(LOCAL, latest_local_ctn)
+        assert chan.is_static_remotekey_enabled()
+        latest_secret, latest_point = chan.get_secret_and_point(LOCAL, 0)
         if oldest_unrevoked_remote_ctn == 0:
             last_rev_secret = 0
         else:

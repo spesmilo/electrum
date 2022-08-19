@@ -32,7 +32,7 @@ from PyQt5.QtGui import QFontMetrics, QFont
 from PyQt5.QtWidgets import QApplication
 
 from electrum_ltc import bitcoin
-from electrum_ltc.util import bfh, parse_max_spend
+from electrum_ltc.util import bfh, parse_max_spend, FailedToParsePaymentIdentifier
 from electrum_ltc.transaction import PartialTxOutput
 from electrum_ltc.bitcoin import opcodes, construct_script
 from electrum_ltc.logging import Logger
@@ -212,7 +212,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
             except LNURLError as e:
                 self.logger.exception("")
                 self.send_tab.show_error(e)
-            except ValueError:
+            except FailedToParsePaymentIdentifier:
                 pass
             else:
                 return

@@ -2,6 +2,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_ltc.logging import get_logger
 from electrum_ltc.util import format_time
+from electrum_ltc.transaction import tx_from_any
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -13,11 +14,15 @@ class QETxDetails(QObject):
     _logger = get_logger(__name__)
 
     _wallet = None
-    _txid = None
+    _txid = ''
+    _rawtx = ''
     _label = ''
+
+    _tx = None
 
     _status = ''
     _amount = QEAmount(amount_sat=0)
+    _lnamount = QEAmount(amount_sat=0)
     _fee = QEAmount(amount_sat=0)
     _inputs = []
     _outputs = []
@@ -29,6 +34,8 @@ class QETxDetails(QObject):
     _can_cpfp = False
     _can_save_as_local = False
     _can_remove = False
+    _is_unrelated = False
+    _is_complete = False
 
     _is_mined = False
 
@@ -66,6 +73,22 @@ class QETxDetails(QObject):
             self.txidChanged.emit()
             self.update()
 
+    @pyqtProperty(str, notify=detailsChanged)
+    def rawtx(self):
+        return self._rawtx
+
+    @rawtx.setter
+    def rawtx(self, rawtx: str):
+        if self._rawtx != rawtx:
+            self._logger.debug('rawtx set -> %s' % rawtx)
+            self._rawtx = rawtx
+            try:
+                self._tx = tx_from_any(rawtx, deserialize=True)
+                self._logger.debug('tx type is %s' % str(type(self._tx)))
+                self.txid = self._tx.txid() # triggers update()
+            except Exception as e:
+                self._logger.error(repr(e))
+
     labelChanged = pyqtSignal()
     @pyqtProperty(str, notify=labelChanged)
     def label(self):
@@ -85,6 +108,10 @@ class QETxDetails(QObject):
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
         return self._amount
+
+    @pyqtProperty(QEAmount, notify=detailsChanged)
+    def lnAmount(self):
+        return self._lnamount
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def fee(self):
@@ -154,46 +181,62 @@ class QETxDetails(QObject):
     def canRemove(self):
         return self._can_remove
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def isUnrelated(self):
+        return self._is_unrelated
+
+    @pyqtProperty(bool, notify=detailsChanged)
+    def isComplete(self):
+        return self._is_complete
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
             return
 
-        # abusing get_input_tx to get tx from txid
-        tx = self._wallet.wallet.get_input_tx(self._txid)
+        if not self._rawtx:
+            # abusing get_input_tx to get tx from txid
+            self._tx = self._wallet.wallet.get_input_tx(self._txid)
 
-        #self._logger.debug(repr(tx.to_json()))
+        #self._logger.debug(repr(self._tx.to_json()))
 
-        self._inputs = list(map(lambda x: x.to_json(), tx.inputs()))
+        self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
             'value': QEAmount(amount_sat=x.value),
             'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str())
-            }, tx.outputs()))
+            }, self._tx.outputs()))
 
-        txinfo = self._wallet.wallet.get_tx_info(tx)
+        txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
         #self._logger.debug(repr(txinfo))
 
         # can be None if outputs unrelated to wallet seed,
         # e.g. to_local local_force_close commitment CSV-locked p2wsh script
         if txinfo.amount is None:
-            self._amount = QEAmount(amount_sat=0)
+            self._amount.satsInt = 0
         else:
-            self._amount = QEAmount(amount_sat=txinfo.amount)
+            self._amount.satsInt = txinfo.amount
 
         self._status = txinfo.status
-        self._fee = QEAmount(amount_sat=txinfo.fee)
+        self._fee.satsInt = txinfo.fee
 
-        self._is_mined = txinfo.tx_mined_status != None
+        self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
         else:
-            # TODO mempool_depth_bytes can be None if not mined?
-            if txinfo.mempool_depth_bytes is None:
-                self._logger.error('TX is not mined, yet mempool_depth_bytes is None')
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
 
+        if self._wallet.wallet.lnworker:
+            lnworker_history = self._wallet.wallet.lnworker.get_onchain_history()
+            if self._txid in lnworker_history:
+                item = lnworker_history[self._txid]
+                self._lnamount.satsInt = int(item['amount_msat'] / 1000)
+            else:
+                self._lnamount.satsInt = 0
+
+        self._is_complete = self._tx.is_complete()
+        self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump
         self._can_dscancel = txinfo.can_dscancel
@@ -215,3 +258,28 @@ class QETxDetails(QObject):
         self._confirmations = tx_mined_info.conf
         self._txpos = tx_mined_info.txpos
         self._header_hash = tx_mined_info.header_hash
+
+    @pyqtSlot()
+    def sign(self):
+        try:
+            self._wallet.transactionSigned.disconnect(self.onSigned)
+        except:
+            pass
+        self._wallet.transactionSigned.connect(self.onSigned)
+        self._wallet.sign(self._tx)
+        # side-effect: signing updates self._tx
+        # we rely on this for broadcast
+
+    @pyqtSlot(str)
+    def onSigned(self, txid):
+        if txid != self._txid:
+            return
+
+        self._logger.debug('onSigned')
+        self._wallet.transactionSigned.disconnect(self.onSigned)
+        self.update()
+
+    @pyqtSlot()
+    def broadcast(self):
+        assert self._tx.is_complete()
+        self._wallet.broadcast(self._tx)

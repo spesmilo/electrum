@@ -18,6 +18,13 @@ Pane {
         is_max.checked = false
     }
 
+    function showUnsignedTx(tx) {
+        var dialog = app.genericShareDialog.createObject(rootItem,
+            { title: qsTr('Raw Transaction'), text: tx }
+        )
+        dialog.open()
+    }
+
     GridLayout {
         id: form
         width: parent.width
@@ -56,7 +63,16 @@ Pane {
                 icon.source: '../../icons/paste.png'
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
-                onClicked: invoice.recipient = AppController.clipboardToText()
+                onClicked: {
+                    var text = AppController.clipboardToText()
+                    if (bitcoin.verify_raw_tx(text)) {
+                        app.stack.push(Qt.resolvedUrl('TxDetails.qml'),
+                            { rawtx: text }
+                        )
+                    } else {
+                        invoice.recipient = text
+                    }
+                }
             }
             ToolButton {
                 icon.source: '../../icons/qrcode.png'
@@ -66,7 +82,15 @@ Pane {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                     page.onFound.connect(function() {
-                        invoice.recipient = page.scanData
+                        var text = page.scanData
+                        if (bitcoin.verify_raw_tx(text)) {
+                            app.stack.replace(Qt.resolvedUrl('TxDetails.qml'),
+                                { rawtx: text }
+                            )
+                        } else {
+                            app.stack.pop()
+                            invoice.recipient = text
+                        }
                     })
                 }
             }
@@ -162,6 +186,11 @@ Pane {
                     dialog.txaccepted.connect(function() {
                         userEnteredPayment.clear()
                         rootItem.clear()
+                        if (Daemon.currentWallet.isWatchOnly) {
+                            showUnsignedTx(dialog.finalizer.serializedTx())
+                        } else {
+                            dialog.finalizer.send_onchain()
+                        }
                     })
                     dialog.open()
                 }
@@ -268,6 +297,14 @@ Pane {
                             'satoshis': invoice.amount,
                             'message': invoice.message
                     })
+                    var wo = Daemon.currentWallet.isWatchOnly
+                    dialog.txaccepted.connect(function() {
+                        if (wo) {
+                            showUnsignedTx(dialog.finalizer.serializedTx())
+                        } else {
+                            dialog.finalizer.send_onchain()
+                        }
+                    })
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     console.log('About to pay lightning invoice')
@@ -360,4 +397,7 @@ Pane {
         }
     }
 
+    Bitcoin {
+        id: bitcoin
+    }
 }

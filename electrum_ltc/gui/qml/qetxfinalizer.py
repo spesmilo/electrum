@@ -273,14 +273,14 @@ class QETxFinalizer(QObject):
 
         amount = self._amount.satsInt if not self._amount.isMax else tx.output_value()
 
-        self._effectiveAmount = QEAmount(amount_sat=amount)
+        self._effectiveAmount.satsInt = amount
         self.effectiveAmountChanged.emit()
 
         tx_size = tx.estimated_size()
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte
 
-        self.fee = QEAmount(amount_sat=fee)
+        self.fee.satsInt = fee
         self.feeRate = f'{feerate:.1f}'
 
         #TODO
@@ -309,4 +309,8 @@ class QETxFinalizer(QObject):
             self.f_accept(self._tx)
             return
 
-        self._wallet.sign_and_broadcast(self._tx)
+        self._wallet.sign(self._tx, broadcast=True)
+
+    @pyqtSlot(result=str)
+    def serializedTx(self):
+        return str(self._tx)

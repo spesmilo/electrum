@@ -28,7 +28,7 @@ Item {
     property color colorDebit: "#ffff8080"
     property color mutedForeground: 'gray' //Qt.lighter(Material.background, 2)
     property color colorMine: "yellow"
-
+    property color colorError: '#ffff8080'
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
 

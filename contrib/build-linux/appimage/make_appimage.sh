@@ -93,36 +93,24 @@ info "preparing electrum-ltc-locale."
     cd "$PROJECT_ROOT"
     git submodule update --init
 
-    pushd "$CONTRIB"/deterministic-build/electrum-ltc-locale
-    if ! which msgfmt > /dev/null 2>&1; then
-        fail "Please install gettext"
-    fi
+    LOCALE="$PROJECT_ROOT/electrum_ltc/locale/"
     # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-    rm -rf "$PROJECT_ROOT/electrum_ltc/locale/"
-    for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum_ltc/$i/LC_MESSAGES"
-        mkdir -p $dir
-        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-    done
-    popd
+    rm -rf "$LOCALE"
+    "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-ltc-locale/locale/" "$LOCALE"
 )
 
 
 info "Installing build dependencies."
-# note: re pip installing from PyPI,
-#       we prefer compiling C extensions ourselves, instead of using binary wheels,
-#       hence "--no-binary :all:" flags. However, we specifically allow
-#       - PyQt5, as it's harder to build from source
-#       - cryptography, as it's harder to build from source
-#       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
-#         and I am not quite sure how to break the circular dependence there (I guess we could introduce
-#         "requirements-build-base-base.txt" with just wheel in it...)
 "$python" -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-base.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements-build-appimage.txt"
 
 info "installing electrum and its dependencies."
+# note: we prefer compiling C extensions ourselves, instead of using binary wheels,
+#       hence "--no-binary :all:" flags. However, we specifically allow
+#       - PyQt5, as it's harder to build from source
+#       - cryptography, as building it would need openssl 1.1, not available on ubuntu 16.04
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography --no-warn-script-location \

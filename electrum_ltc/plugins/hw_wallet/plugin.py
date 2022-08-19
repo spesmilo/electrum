@@ -157,7 +157,11 @@ class HW_PluginBase(BasePlugin):
                     or versiontuple(library_version) < self.minimum_library
                     or versiontuple(library_version) >= self.maximum_library):
                 raise LibraryFoundButUnusable(library_version=library_version)
-        except ImportError:
+        except ImportError as e:
+            self.libraries_available_message = (
+                _("Missing libraries for {}.").format(self.name)
+                + f"\n    {e!r}"
+            )
             return False
         except LibraryFoundButUnusable as e:
             library_version = e.library_version

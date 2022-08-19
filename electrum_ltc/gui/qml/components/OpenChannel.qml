@@ -64,6 +64,7 @@ Pane {
                             channelopener.nodeid = page.scanData
                             node.text = channelopener.nodeid
                         }
+                        app.stack.pop()
                     })
                 }
             }
@@ -179,6 +180,9 @@ Pane {
         onFinalizerChanged: {
             var dialog = confirmOpenChannelDialog.createObject(root, {
                 'satoshis': channelopener.amount
+            })
+            dialog.txaccepted.connect(function() {
+                dialog.finalizer.send_onchain()
             })
             dialog.open()
         }

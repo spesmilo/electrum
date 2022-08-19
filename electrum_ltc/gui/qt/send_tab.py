@@ -15,7 +15,7 @@ from electrum_ltc import util, paymentrequest
 from electrum_ltc import lnutil
 from electrum_ltc.plugin import run_hook
 from electrum_ltc.i18n import _
-from electrum_ltc.util import (get_asyncio_loop, bh2u,
+from electrum_ltc.util import (get_asyncio_loop, bh2u, FailedToParsePaymentIdentifier,
                                InvalidBitcoinURI, maybe_extract_lightning_payment_identifier, NotEnoughFunds,
                                NoDynamicFeeEstimates, InvoiceError, parse_max_spend)
 from electrum_ltc.invoices import PR_PAID, Invoice
@@ -477,7 +477,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         elif text.lower().startswith(util.BITCOIN_BIP21_URI_SCHEME + ':'):
             self.set_bip21(text, can_use_network=can_use_network)
         else:
-            raise ValueError("Could not handle payment identifier.")
+            truncated_text = f"{text[:100]}..." if len(text) > 100 else text
+            raise FailedToParsePaymentIdentifier(f"Could not handle payment identifier:\n{truncated_text}")
         # update fiat amount
         self.amount_e.textEdited.emit("")
         self.window.show_send_tab()

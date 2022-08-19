@@ -147,11 +147,8 @@ Item {
     Component.onCompleted: {
         console.log('Scan page initialized')
         QtMultimedia.availableCameras.forEach(function(item) {
-            console.log('cam found')
-            console.log(item.deviceId)
-            console.log(item.displayName)
-            console.log(item.position)
-            console.log(item.orientation)
+            console.log('cam found, id=' + item.deviceId + ' name=' + item.displayName)
+            console.log('pos=' + item.position + ' orientation=' + item.orientation)
             if (QtMultimedia.defaultCamera.deviceId == item.deviceId) {
                 vo.orientation = item.orientation
             }

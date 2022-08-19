@@ -1,3 +1,34 @@
+# Release 4.3.1 - (August 17, 2022)
+ * harden build script for macOS binary: avoid using
+   precompiled wheels from PyPI for most packages (#7918)
+ * build: we now also distribute a "source-only"
+   Linux-packager-friendly tarball (d0de44a7, #7594), in addition
+   to the current "normal" tarball. The "source-only" tarball excludes
+   compiled locale files, generated protobuf files, and does not
+   vendor our runtime python dependencies (the packages/ folder).
+ * fix os.chmod when running in tmpfs on Linux (#7681)
+ * (Qt GUI) some improvements for high-DPI monitors (38881129)
+ * bring kivy request dialog more in-line with Qt (#7929)
+ * rm support of "legacy" (without static_remotekey) LN channels.
+   Opening these channels were never supported in a release version,
+   only during development prior to the first lightning-capable
+   release. Wallets with such channels will have to close them.
+   (1f403d1c, 7b8e257e)
+ * Qt: fix duplication of some OS notifications on onchain txs (#7943)
+ * fix multiple recent regressions:
+    - handle NotEnoughFunds when trying to pay LN invoice (#7920)
+    - handle NotEnoughFunds when trying to open LN channel (#7921)
+    - labels of payment requests were not propagated to
+      history/addresses (#7919)
+    - better default labels of outgoing txs (#7942)
+    - kivy: dust-valued requests could not be created for LN (#7928)
+    - when closing LN channels, future (timelocked) txs were not
+      shown in history (#7930)
+    - kivy: fix deleting "local" tx from history (#7933)
+    - kivy: fix paying amountless LN invoice (#7935)
+    - Qt: better handle unparseable URIs (#7941)
+
+
 # Release 4.3.0 - (August 5, 2022)
 
  * This version introduces a set of UI modifications that simplify the
@@ -902,7 +933,7 @@ issue #3374. Users should upgrade to 3.0.5.
     run "python3 setup.py install" in order to install the new
     dependencies.
 
-  * Segwit support: 
+  * Segwit support:
 
     - Native segwit scripts are supported using a new type of
       seed. The version number for segwit seeds is 0x100. The install

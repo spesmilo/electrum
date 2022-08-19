@@ -47,6 +47,7 @@ docker run -it \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum-ltc \
     --rm \
     --workdir /opt/electrum-ltc/contrib/build-linux/sdist \
+    --env OMIT_UNCLEAN_FILES \
     electrum-sdist-builder-img \
     ./make_sdist.sh
 
