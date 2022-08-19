@@ -11,8 +11,8 @@ RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends 
     ca-certificates
 
 # pin the distro packages.
-COPY apt.sources.list /etc/apt/sources.list
-COPY apt.preferences /etc/apt/preferences.d/snapshot
+COPY contrib/android/apt.sources.list /etc/apt/sources.list
+COPY contrib/android/apt.preferences /etc/apt/preferences.d/snapshot
 
 # configure locale
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
