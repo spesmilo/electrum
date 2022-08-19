@@ -28,7 +28,7 @@ Notes about compatibility with different macOS versions:
 We currently build the release binaries on macOS 10.14.6, and these seem to run on
 10.13 or newer.
 
-Before starting, you should install `brew`.
+Before starting, you should install [`brew`](https://brew.sh/).
 
 
 #### Notes about reproducibility
@@ -45,7 +45,7 @@ Before starting, you should install `brew`.
   - so full Xcode is needed, to have `altool`.
   - however, brew now consider macOS 10.14 too old, and for some reason it
     requires Xcode CLI tools. (`Error: Xcode alone is not sufficient on Mojave.`)
-  
+
   So, we need *both* full Xcode and Xcode CLI tools. Both with version 11.3.1.
   The two Xcodes should be located exactly as follows:
     ```
@@ -86,6 +86,7 @@ $ sudo xcodebuild -runFirstLaunch
 
 Install Xcode CLI tools:
 ```
+$ sudo rm -rf /Library/Developer/CommandLineTools
 $ shasum -a 256 "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
 1c4b477285641cca5313f456b712bf726aca8db77f38793420e1d451588673f9  /Users/vagrant/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg
 $ hdiutil attach "$HOME/Downloads/Command_Line_Tools_for_Xcode_11.3.1.dmg"
@@ -111,7 +112,7 @@ provide these env vars to the `make_osx` script:
 
 ## Verifying reproducibility and comparing against official binary
 
-Every user can verify that the official binary was created from the source code in this 
+Every user can verify that the official binary was created from the source code in this
 repository.
 
 1. Build your own binary as described above.
