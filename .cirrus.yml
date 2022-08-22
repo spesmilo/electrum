@@ -168,6 +168,7 @@ task:
     path: "contrib/build-wine/dist/*"
   env:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
+    CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
   name: Android build
@@ -206,6 +207,8 @@ task:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
     path: "dist/*"
+  env:
+    CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
 
 task:
   name: tarball build
