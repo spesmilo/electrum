@@ -75,6 +75,26 @@ jobs:
         with:
           name: electrum-grs-${{ github.sha }}-tarball
 
+  source-only-tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Builder image
+        run: docker build --no-cache -t electrum-grs-source-only-tarball-builder-img ./contrib/build-linux/sdist/
+      - name: Compile Linux tarball
+        run: docker run --name electrum-grs-source-only-tarball-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist --env OMIT_UNCLEAN_FILES electrum-grs-source-only-tarball-builder-img OMIT_UNCLEAN_FILES=1 ./make_sdist.sh
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: electrum-grs-${{ github.sha }}-source-only-tarball
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: electrum-grs-${{ github.sha }}-source-only-tarball
+
   android:
     runs-on: ubuntu-latest
     steps:
