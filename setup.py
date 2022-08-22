@@ -46,8 +46,8 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         else:
             usr_share = os.path.expanduser('~/.local/share')
     data_files += [
-        (os.path.join(usr_share, 'applications/'), ['electrum.desktop']),
-        (os.path.join(usr_share, icons_dirname), ['electrum/gui/icons/electrum.png']),
+        (os.path.join(usr_share, 'applications/'), ['electrodoge.desktop']),
+        (os.path.join(usr_share, icons_dirname), ['electrum/gui/icons/electrodoge.png']),
     ]
 
 extras_require = {
@@ -65,33 +65,33 @@ extras_require['fast'] = extras_require['crypto']
 
 
 setup(
-    name="Electrum",
+    name="Electrodoge",
     version=version.ELECTRUM_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
     packages=[
-        'electrum',
-        'electrum.qrreader',
-        'electrum.gui',
-        'electrum.gui.qt',
-        'electrum.gui.qt.qrreader',
-        'electrum.gui.qt.qrreader.qtmultimedia',
-        'electrum.plugins',
-    ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
+        'electrodoge',
+        'electrodoge.qrreader',
+        'electrodoge.gui',
+        'electrodoge.gui.qt',
+        'electrodoge.gui.qt.qrreader',
+        'electrodoge.gui.qt.qrreader.qtmultimedia',
+        'electrodoge.plugins',
+    ] + [('electrodoge.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={
-        'electrum': 'electrum'
+        'electrodoge': 'electrum'
     },
     # Note: MANIFEST.in lists what gets included in the tar.gz, and the
     # package_data kwarg lists what gets put in site-packages when pip installing the tar.gz.
     # By specifying include_package_data=True, MANIFEST.in becomes responsible for both.
     include_package_data=True,
-    scripts=['electrum/electrum'],
+    scripts=['electrum/electrodoge'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
+    description="Lightweight Dogecoin Wallet",
     author="Thomas Voegtlin",
     author_email="thomasv@electrum.org",
     license="MIT Licence",
     url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet""",
+    long_description="""Lightweight Dogecoin Wallet""",
 )

@@ -260,8 +260,8 @@ class Commands:
     @command('')
     async def restore(self, text, passphrase=None, password=None, encrypt_file=True, wallet_path=None):
         """Restore a wallet from text. Text can be a seed phrase, a master
-        public key, a master private key, a list of bitcoin addresses
-        or bitcoin private keys.
+        public key, a master private key, a list of dogecoin addresses
+        or dogecoin private keys.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
         # TODO create a separate command that blocks until wallet is synced
@@ -748,7 +748,7 @@ class Commands:
 
     @command('w')
     async def setlabel(self, key, label, wallet: Abstract_Wallet = None):
-        """Assign a label to an item. Item may be a bitcoin address or a
+        """Assign a label to an item. Item may be a dogecoin address or a
         transaction ID"""
         wallet.set_label(key, label)
 
@@ -1265,8 +1265,8 @@ def eval_bool(x: str) -> bool:
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
-    'destination': 'Bitcoin address, contact or alias',
-    'address': 'Bitcoin address',
+    'destination': 'Dogecoin address, contact or alias',
+    'address': 'Dogecoin address',
     'seed': 'Seed phrase',
     'txid': 'Transaction ID',
     'pos': 'Position',
@@ -1369,10 +1369,10 @@ config_variables = {
     'addrequest': {
         'ssl_privkey': 'Path to your SSL private key, needed to sign the request.',
         'ssl_chain': 'Chain of SSL certificates, needed for signed requests. Put your certificate at the top and the root CA at the end',
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of dogecoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     },
     'listrequests':{
-        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of bitcoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
+        'url_rewrite': 'Parameters passed to str.replace(), in order to create the r= part of dogecoin: URIs. Example: \"(\'file:///var/www/\',\'https://electrum.org/\')\"',
     }
 }
 
@@ -1462,12 +1462,12 @@ def get_parser():
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
     parser_gui = subparsers.add_parser('gui', description="Run Electrum's Graphical User Interface.", help="Run GUI (default)")
-    parser_gui.add_argument("url", nargs='?', default=None, help="bitcoin URI (or bip70 file)")
+    parser_gui.add_argument("url", nargs='?', default=None, help="dogecoin URI (or bip70 file)")
     parser_gui.add_argument("-g", "--gui", dest="gui", help="select graphical user interface", choices=['qt', 'kivy', 'text', 'stdio'])
     parser_gui.add_argument("-m", action="store_true", dest="hide_gui", default=False, help="hide GUI on startup")
     parser_gui.add_argument("-L", "--lang", dest="language", default=None, help="default language used in GUI")
     parser_gui.add_argument("--daemon", action="store_true", dest="daemon", default=False, help="keep daemon running after GUI is closed")
-    parser_gui.add_argument("--nosegwit", action="store_true", dest="nosegwit", default=False, help="Do not create segwit wallets")
+    #Revert commit 6806
     add_wallet_option(parser_gui)
     add_network_options(parser_gui)
     add_global_options(parser_gui)

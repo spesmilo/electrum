@@ -549,11 +549,16 @@ class TrustedCoinPlugin(BasePlugin):
             ('restore_wallet', _('I already have a seed')),
         ]
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
-
+    #Revert commit 6806
     def choose_seed_type(self, wizard):
-        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
-        self.create_seed(wizard, seed_type)
+        choices = [
+            #('create_2fa_segwit_seed', _('Segwit 2FA')),
+            ('create_2fa_seed', _('Legacy 2FA')),
+        ]
+        wizard.choose_seed_type(choices=choices)
 
+    def create_2fa_seed(self, wizard): self.create_seed(wizard, '2fa')
+    #def create_2fa_segwit_seed(self, wizard): self.create_seed(wizard, '2fa_segwit')
     def create_seed(self, wizard, seed_type):
         seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)

@@ -147,7 +147,7 @@ class BaseWizard(Logger):
             ('standard',  _("Standard wallet")),
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('imported',  _("Import Dogecoin addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -226,8 +226,8 @@ class BaseWizard(Logger):
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
-        title = _("Import Bitcoin Addresses")
-        message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
+        title = _("Import Dogecoin Addresses")
+        message = _("Enter a list of Dogecoin addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
@@ -695,10 +695,25 @@ class BaseWizard(Logger):
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
+    #Revert commit 6806
+    def choose_seed_type(self, message=None, choices=None):
+        title = _('Choose Seed type')
+        if message is None:
+            message = ' '.join([
+                _("The type of addresses used by your wallet will depend on your seed."),
+                _("Segwit wallets use bech32 addresses, defined in BIP173."),
+                _("Dogecoin does not currently support Segwit,"),
+                _("and has no plans to do so in the future")
+            ])
+        if choices is None:
+            choices = [
+                #('create_segwit_seed', _('Segwit')),
+                ('create_standard_seed', _('Legacy')),
+            ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
-    def choose_seed_type(self):
-        seed_type = 'standard' if self.config.get('nosegwit') else 'segwit'
-        self.create_seed(seed_type)
+    #def create_segwit_seed(self): self.create_seed('segwit')
+    def create_standard_seed(self): self.create_seed('standard')
 
     def create_seed(self, seed_type):
         from . import mnemonic

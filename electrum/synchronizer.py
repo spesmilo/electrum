@@ -94,7 +94,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
     async def _add_address(self, addr: str):
         # note: this method is async as add_queue.put_nowait is not thread-safe.
-        if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
+        if not is_address(addr): raise ValueError(f"invalid dogecoin address {addr}")
         if addr in self.requested_addrs: return
         self.requested_addrs.add(addr)
         self.add_queue.put_nowait(addr)

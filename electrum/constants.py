@@ -40,9 +40,8 @@ def read_json(filename, default):
     return r
 
 
-GIT_REPO_URL = "https://github.com/spesmilo/electrum"
-GIT_REPO_ISSUES_URL = "https://github.com/spesmilo/electrum/issues"
-BIP39_WALLET_FORMATS = read_json('bip39_wallet_formats.json', [])
+GIT_REPO_URL = "https://github.com/GiverofMemory/electrodoge"
+GIT_REPO_ISSUES_URL = "https://github.com/GiverofMemory/electrodoge/issues"
 
 
 class AbstractNet:
@@ -72,19 +71,19 @@ class BitcoinMainnet(AbstractNet):
 
     NET_NAME = "mainnet"
     TESTNET = False
-    WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
+    WIF_PREFIX = 0x9e
+    ADDRTYPE_P2PKH = 30
+    ADDRTYPE_P2SH = 22
+    SEGWIT_HRP = "doge"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    GENESIS = "1a91e3dace36e2be3bf030a65679fe821aa1d6ef92e7c9902eb318182c355691"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
-        'standard':    0x0488ade4,  # xprv
+        'standard':    0x02fac398,  # xprv
         'p2wpkh-p2sh': 0x049d7878,  # yprv
         'p2wsh-p2sh':  0x0295b005,  # Yprv
         'p2wpkh':      0x04b2430c,  # zprv
@@ -92,7 +91,7 @@ class BitcoinMainnet(AbstractNet):
     }
     XPRV_HEADERS_INV = inv_dict(XPRV_HEADERS)
     XPUB_HEADERS = {
-        'standard':    0x0488b21e,  # xpub
+        'standard':    0x02facafd,  # xpub
         'p2wpkh-p2sh': 0x049d7cb2,  # ypub
         'p2wsh-p2sh':  0x0295b43f,  # Ypub
         'p2wpkh':      0x04b24746,  # zpub

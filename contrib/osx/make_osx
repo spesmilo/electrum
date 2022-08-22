@@ -6,7 +6,7 @@ set -e
 PYTHON_VERSION=3.9.7
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
-GIT_REPO=https://github.com/spesmilo/electrum
+GIT_REPO=https://github.com/GiverofMemory/electrodoge
 
 export GCC_STRIP_BINARIES="1"
 export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
@@ -177,9 +177,9 @@ VERSION=`git describe --tags --dirty --always`
 info "Building binary"
 pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
-info "Adding bitcoin URI types to Info.plist"
+info "Adding dogecoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string><string>lightning</string></array> </dict></array>' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>dogecoin</string> <key>CFBundleURLSchemes</key> <array><string>dogecoin</string><string>lightning</string></array> </dict></array>' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 

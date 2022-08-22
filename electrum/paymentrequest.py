@@ -81,7 +81,7 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
                 async with session.get(url) as response:
                     resp_content = await response.read()
                     response.raise_for_status()
-                    # Guard against `bitcoin:`-URIs with invalid payment request URLs
+                    # Guard against `dogecoin:`-URIs with invalid payment request URLs
                     if "Content-Type" not in response.headers \
                     or response.headers["Content-Type"] != "application/bitcoin-paymentrequest":
                         data = None
