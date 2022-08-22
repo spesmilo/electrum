@@ -13,7 +13,7 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
 from electrum.gui.kivy.i18n import _
-from electrum.invoices import LNInvoice
+from electrum.invoices import Invoice
 
 
 if TYPE_CHECKING:
@@ -121,7 +121,6 @@ class LightningTxDialog(Factory.Popup):
         invoice = (self.app.wallet.get_invoice(self.payment_hash)
                    or self.app.wallet.get_request(self.payment_hash))
         if invoice:
-            assert isinstance(invoice, LNInvoice), f"{self.invoice!r}"
-            self.invoice = invoice.invoice
+            self.invoice = invoice.lightning_invoice or ''
         else:
             self.invoice = ''

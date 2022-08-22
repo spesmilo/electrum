@@ -13,17 +13,16 @@ from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEven
 
 from electrum.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.i18n import _
-from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState
+from electrum.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState, ChanCloseOption
 from electrum.wallet import Abstract_Wallet
-from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id, LN_MAX_FUNDING_SAT
+from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnworker import LNWallet
-from electrum import ecc
 from electrum.gui import messages
 
 from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
-from .util import read_QIcon
+from .util import read_QIcon, font_height
 
 
 ROLE_CHANNEL_ID = Qt.UserRole
@@ -72,6 +71,7 @@ class ChannelsList(MyTreeView):
         self.network = self.parent.network
         self.wallet = self.parent.wallet
         self.setSortingEnabled(True)
+        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
     @property
     # property because lnworker might be initialized at runtime
@@ -88,7 +88,7 @@ class ChannelsList(MyTreeView):
                 bal_other = chan.balance(other)//1000
                 bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
                 if bal_other != bal_minus_htlcs_other:
-                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=True) + ')'
+                    label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other, whitespaces=False) + ')'
             else:
                 assert isinstance(chan, ChannelBackup)
                 label = ''
@@ -120,22 +120,12 @@ class ChannelsList(MyTreeView):
 
     def close_channel(self, channel_id):
         self.is_force_close = False
-        msg = _('Close channel?')
-        force_cb = QCheckBox('Request force close from remote peer')
-        tooltip = _(messages.MSG_REQUEST_FORCE_CLOSE)
-        tooltip = messages.to_rtf(tooltip)
-        def on_checked(b):
-            self.is_force_close = bool(b)
-        force_cb.stateChanged.connect(on_checked)
-        force_cb.setToolTip(tooltip)
-        if not self.parent.question(msg, checkbox=force_cb):
+        msg = _('Cooperative close?')
+        msg += '\n' + _(messages.MSG_COOPERATIVE_CLOSE)
+        if not self.parent.question(msg):
             return
-        if self.is_force_close:
-            coro = self.lnworker.request_force_close(channel_id)
-            on_success = self.on_request_sent
-        else:
-            coro = self.lnworker.close_channel(channel_id)
-            on_success = self.on_channel_closed
+        coro = self.lnworker.close_channel(channel_id)
+        on_success = self.on_channel_closed
         def task():
             return self.network.run_from_another_thread(coro)
         WaitingDialog(self, 'please wait..', task, on_success, self.on_failure)
@@ -183,6 +173,10 @@ class ChannelsList(MyTreeView):
                                      show_copy_text_btn=True)
 
     def request_force_close(self, channel_id):
+        msg = _('Request force-close from remote peer?')
+        msg += '\n' + _(messages.MSG_REQUEST_FORCE_CLOSE)
+        if not self.parent.question(msg):
+            return
         def task():
             coro = self.lnworker.request_force_close(channel_id)
             return self.network.run_from_another_thread(coro)
@@ -195,6 +189,27 @@ class ChannelsList(MyTreeView):
             msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
             self.main_window.show_warning(msg, title=_('Channel is frozen for sending'))
 
+    def get_rebalance_pair(self):
+        selected = self.selected_in_column(self.Columns.NODE_ALIAS)
+        if len(selected) == 2:
+            idx1 = selected[0]
+            idx2 = selected[1]
+            channel_id1 = idx1.sibling(idx1.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+            chan1 = self.lnworker.channels.get(channel_id1)
+            chan2 = self.lnworker.channels.get(channel_id2)
+            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
+                return chan1, chan2
+        return None, None
+
+    def on_rebalance(self):
+        chan1, chan2 = self.get_rebalance_pair()
+        self.parent.rebalance_dialog(chan1, chan2)
+
+    def on_selection_changed(self):
+        chan1, chan2 = self.get_rebalance_pair()
+        self.rebalance_button.setEnabled(chan1 is not None)
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
@@ -203,8 +218,13 @@ class ChannelsList(MyTreeView):
             menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
             menu.exec_(self.viewport().mapToGlobal(position))
             return
-        multi_select = len(selected) > 1
-        if multi_select:
+        if len(selected) == 2:
+            chan1, chan2 = self.get_rebalance_pair()
+            if chan1 and chan2:
+                menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
+                menu.exec_(self.viewport().mapToGlobal(position))
+            return
+        elif len(selected) > 2:
             return
         idx = self.indexAt(position)
         if not idx.isValid():
@@ -213,53 +233,40 @@ class ChannelsList(MyTreeView):
         if not item:
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
-        chan = self.lnworker.channel_backups.get(channel_id)
-        if chan:
-            funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
-            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-            if chan.get_state() == ChannelState.FUNDED:
-                menu.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
-            if chan.can_be_deleted():
-                menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
-            menu.exec_(self.viewport().mapToGlobal(position))
-            return
-        chan = self.lnworker.channels[channel_id]
-        menu.addAction(_("Details..."), lambda: self.parent.show_channel(channel_id))
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
+        menu.addAction(_("Details..."), lambda: self.parent.show_channel_details(chan))
+        menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
             chan.node_id.hex(), title=_("Node ID")))
         cc.addAction(_("Long Channel ID"), lambda: self.place_text_on_clipboard(
             channel_id.hex(), title=_("Long Channel ID")))
-        if not chan.is_closed():
+        if not chan.is_backup() and not chan.is_closed():
+            fm = menu.addMenu(_("Freeze"))
             if not chan.is_frozen_for_sending():
-                menu.addAction(_("Freeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, True))  #
+                fm.addAction(_("Freeze for sending"), lambda: self.freeze_channel_for_sending(chan, True))
             else:
-                menu.addAction(_("Unfreeze (for sending)"), lambda: self.freeze_channel_for_sending(chan, False))
+                fm.addAction(_("Unfreeze for sending"), lambda: self.freeze_channel_for_sending(chan, False))
             if not chan.is_frozen_for_receiving():
-                menu.addAction(_("Freeze (for receiving)"), lambda: chan.set_frozen_for_receiving(True))
+                fm.addAction(_("Freeze for receiving"), lambda: chan.set_frozen_for_receiving(True))
             else:
-                menu.addAction(_("Unfreeze (for receiving)"), lambda: chan.set_frozen_for_receiving(False))
-
-        funding_tx = self.parent.wallet.db.get_transaction(chan.funding_outpoint.txid)
-        if funding_tx:
-            menu.addAction(_("View funding transaction"), lambda: self.parent.show_transaction(funding_tx))
-        if not chan.is_closed():
-            menu.addSeparator()
-            if chan.peer_state == PeerState.GOOD:
-                menu.addAction(_("Close channel"), lambda: self.close_channel(channel_id))
-            menu.addAction(_("Force-close channel"), lambda: self.force_close(channel_id))
-        else:
-            item = chan.get_closing_height()
-            if item:
-                txid, height, timestamp = item
-                closing_tx = self.lnworker.lnwatcher.db.get_transaction(txid)
-                if closing_tx:
-                    menu.addAction(_("View closing transaction"), lambda: self.parent.show_transaction(closing_tx))
-        menu.addSeparator()
-        menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
+                fm.addAction(_("Unfreeze for receiving"), lambda: chan.set_frozen_for_receiving(False))
+        if close_opts := chan.get_close_options():
+            cm = menu.addMenu(_("Close"))
+            if ChanCloseOption.COOP_CLOSE in close_opts:
+                cm.addAction(_("Cooperative close"), lambda: self.close_channel(channel_id))
+            if ChanCloseOption.LOCAL_FCLOSE in close_opts:
+                cm.addAction(_("Force-close"), lambda: self.force_close(channel_id))
+            if ChanCloseOption.REQUEST_REMOTE_FCLOSE in close_opts:
+                cm.addAction(_("Request force-close"), lambda: self.request_force_close(channel_id))
+        if not chan.is_backup():
+            menu.addAction(_("Export backup"), lambda: self.export_channel_backup(channel_id))
         if chan.can_be_deleted():
             menu.addSeparator()
-            menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
+            if chan.is_backup():
+                menu.addAction(_("Delete"), lambda: self.remove_channel_backup(channel_id))
+            else:
+                menu.addAction(_("Delete"), lambda: self.remove_channel(channel_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Abstract_Wallet, AbstractChannel)
@@ -285,13 +292,13 @@ class ChannelsList(MyTreeView):
     def do_update_rows(self, wallet):
         if wallet != self.parent.wallet:
             return
-        channels = list(wallet.lnworker.channels.values()) if wallet.lnworker else []
-        backups = list(wallet.lnworker.channel_backups.values()) if wallet.lnworker else []
-        if wallet.lnworker:
-            self.update_can_send(wallet.lnworker)
         self.model().clear()
         self.update_headers(self.headers)
-        for chan in channels + backups:
+        if not wallet.lnworker:
+            return
+        self.update_can_send(wallet.lnworker)
+        channels = wallet.lnworker.get_channel_objects()
+        for chan in channels.values():
             field_map = self.format_fields(chan)
             items = [QtGui.QStandardItem(field_map[col]) for col in sorted(field_map)]
             self.set_editability(items)
@@ -346,12 +353,16 @@ class ChannelsList(MyTreeView):
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)
         h.addStretch()
-        self.swap_button = EnterButton(_('Swap'), self.swap_dialog)
+        self.rebalance_button = EnterButton(_('Rebalance'), lambda x: self.on_rebalance())
+        self.rebalance_button.setToolTip("Select two active channels to rebalance.")
+        self.rebalance_button.setDisabled(True)
+        self.swap_button = EnterButton(_('Swap'), lambda x: self.parent.run_swap_dialog())
         self.swap_button.setToolTip("Have at least one channel to do swaps.")
         self.swap_button.setDisabled(True)
         self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
         h.addWidget(self.new_channel_button)
+        h.addWidget(self.rebalance_button)
         h.addWidget(self.swap_button)
         return h
 
@@ -383,109 +394,10 @@ class ChannelsList(MyTreeView):
         vbox.addLayout(Buttons(OkButton(d)))
         d.exec_()
 
-    def new_channel_dialog(self):
-        lnworker = self.parent.wallet.lnworker
-        d = WindowModalDialog(self.parent, _('Open Channel'))
-        vbox = QVBoxLayout(d)
-        if self.parent.network.channel_db:
-            vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))
-            remote_nodeid = QLineEdit()
-            remote_nodeid.setMinimumWidth(700)
-            suggest_button = QPushButton(d, text=_('Suggest Peer'))
-            def on_suggest():
-                self.parent.wallet.network.start_gossip()
-                nodeid = bh2u(lnworker.suggest_peer() or b'')
-                if not nodeid:
-                    remote_nodeid.setText("")
-                    remote_nodeid.setPlaceholderText(
-                        "Please wait until the graph is synchronized to 30%, and then try again.")
-                else:
-                    remote_nodeid.setText(nodeid)
-                remote_nodeid.repaint()  # macOS hack for #6269
-            suggest_button.clicked.connect(on_suggest)
-        else:
-            from electrum.lnworker import hardcoded_trampoline_nodes
-            vbox.addWidget(QLabel(_('Choose a trampoline node to open a channel with')))
-            trampolines = hardcoded_trampoline_nodes()
-            trampoline_names = list(trampolines.keys())
-            trampoline_combo = QComboBox()
-            trampoline_combo.addItems(trampoline_names)
-            trampoline_combo.setCurrentIndex(1)
-
-        amount_e = BTCAmountEdit(self.parent.get_decimal_point)
-        # max button
-        def spend_max():
-            amount_e.setFrozen(max_button.isChecked())
-            if not max_button.isChecked():
-                return
-            dummy_nodeid = ecc.GENERATOR.get_public_key_bytes(compressed=True)
-            make_tx = self.parent.mktx_for_open_channel(funding_sat='!', node_id=dummy_nodeid)
-            try:
-                tx = make_tx(None)
-            except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
-                max_button.setChecked(False)
-                amount_e.setFrozen(False)
-                self.main_window.show_error(str(e))
-                return
-            amount = tx.output_value()
-            amount = min(amount, LN_MAX_FUNDING_SAT)
-            amount_e.setAmount(amount)
-        max_button = EnterButton(_("Max"), spend_max)
-        max_button.setFixedWidth(100)
-        max_button.setCheckable(True)
-
-        clear_button = QPushButton(d, text=_('Clear'))
-        def on_clear():
-            amount_e.setText('')
-            amount_e.setFrozen(False)
-            amount_e.repaint()  # macOS hack for #6269
-            if self.parent.network.channel_db:
-                remote_nodeid.setText('')
-                remote_nodeid.repaint()  # macOS hack for #6269
-            max_button.setChecked(False)
-            max_button.repaint()  # macOS hack for #6269
-        clear_button.clicked.connect(on_clear)
-        clear_button.setFixedWidth(100)
-        h = QGridLayout()
-        if self.parent.network.channel_db:
-            h.addWidget(QLabel(_('Remote Node ID')), 0, 0)
-            h.addWidget(remote_nodeid, 0, 1, 1, 4)
-            h.addWidget(suggest_button, 0, 5)
-        else:
-            h.addWidget(QLabel(_('Trampoline')), 0, 0)
-            h.addWidget(trampoline_combo, 0, 1, 1, 4)
-
-        h.addWidget(QLabel('Amount'), 2, 0)
-        h.addWidget(amount_e, 2, 1)
-        h.addWidget(max_button, 2, 2)
-        h.addWidget(clear_button, 2, 3)
-        vbox.addLayout(h)
-        vbox.addStretch()
-        ok_button = OkButton(d)
-        ok_button.setDefault(True)
-        vbox.addLayout(Buttons(CancelButton(d), ok_button))
-        if not d.exec_():
-            return
-        if max_button.isChecked() and amount_e.get_amount() < LN_MAX_FUNDING_SAT:
-            # if 'max' enabled and amount is strictly less than max allowed,
-            # that means we have fewer coins than max allowed, and hence we can
-            # spend all coins
-            funding_sat = '!'
-        else:
-            funding_sat = amount_e.get_amount()
-        if self.parent.network.channel_db:
-            connect_str = str(remote_nodeid.text()).strip()
-        else:
-            name = trampoline_names[trampoline_combo.currentIndex()]
-            connect_str = str(trampolines[name])
-        if not connect_str or not funding_sat:
-            return
-        self.parent.open_channel(connect_str, funding_sat, 0)
-
-    def swap_dialog(self):
-        from .swap_dialog import SwapDialog
-        d = SwapDialog(self.parent)
-        d.run()
+    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
+        from .new_channel_dialog import NewChannelDialog
+        d = NewChannelDialog(self.parent, amount_sat, min_amount_sat)
+        return d.run()
 
 
 class ChannelFeature(ABC):
@@ -530,9 +442,10 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
 
 
 class ChannelFeatureIcons:
-    ICON_SIZE = QSize(16, 16)
 
     def __init__(self, features: Sequence['ChannelFeature']):
+        size = max(16, font_height())
+        self.icon_size = QSize(size, size)
         self.features = features
 
     @classmethod
@@ -554,17 +467,17 @@ class ChannelFeatureIcons:
         painter.save()
         cur_x = rect.x()
         for feat in self.features:
-            icon_rect = QRect(cur_x, rect.y(), self.ICON_SIZE.width(), self.ICON_SIZE.height())
+            icon_rect = QRect(cur_x, rect.y(), self.icon_size.width(), self.icon_size.height())
             feat.rect = icon_rect
             if rect.contains(icon_rect):  # stay inside parent
-                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.ICON_SIZE))
-            cur_x += self.ICON_SIZE.width() + 1
+                painter.drawPixmap(icon_rect, feat.icon().pixmap(self.icon_size))
+            cur_x += self.icon_size.width() + 1
         painter.restore()
 
     def sizeHint(self, default_size: QSize) -> QSize:
         if not self.features:
             return default_size
-        width = len(self.features) * (self.ICON_SIZE.width() + 1)
+        width = len(self.features) * (self.icon_size.width() + 1)
         return QSize(width, default_size.height())
 
     def show_tooltip(self, evt: QHelpEvent) -> bool:

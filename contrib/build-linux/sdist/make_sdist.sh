@@ -6,7 +6,7 @@ PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/../../.."
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_SDIST="$CONTRIB/build-linux/sdist"
 DISTDIR="$PROJECT_ROOT/dist"
-LOCALE="$PROJECT_ROOT/electrum/locale/"
+LOCALE="$PROJECT_ROOT/electrum/locale"
 
 . "$CONTRIB"/build_tools_util.sh
 
@@ -19,27 +19,28 @@ break_legacy_easy_install
 # (make_packages will later install a pinned version of pip in a venv)
 python3 -m pip install --upgrade pip
 
-"$CONTRIB"/make_packages || fail "make_packages failed"
+rm -rf "$PROJECT_ROOT/packages/"
+if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
+  "$CONTRIB"/make_packages || fail "make_packages failed"
+fi
 
 git submodule update --init
 
 (
-    cd "$CONTRIB/deterministic-build/electrum-locale/"
-    if ! which msgfmt > /dev/null 2>&1; then
-        echo "Please install gettext"
-        exit 1
-    fi
-    # We include both source (.po) and compiled (.mo) locale files in the source dist.
-    # Maybe we should exclude the compiled locale files? see https://askubuntu.com/a/144139
-    # (also see MANIFEST.in)
+    # By default, include both source (.po) and compiled (.mo) locale files in the source dist.
+    # Set option OMIT_UNCLEAN_FILES=1 to exclude the compiled locale files
+    # see https://askubuntu.com/a/144139 (also see MANIFEST.in)
     rm -rf "$LOCALE"
-    for i in ./locale/*; do
-        dir="$PROJECT_ROOT/electrum/$i/LC_MESSAGES"
-        mkdir -p "$dir"
-        msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-        cp $i/electrum.po "$PROJECT_ROOT/electrum/$i/electrum.po"
-    done
+    cp -r "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE/"
+    if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
+        "$CONTRIB/build_locale.sh" "$LOCALE" "$LOCALE"
+    fi
 )
+
+if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+    # FIXME side-effecting repo... though in practice, this script probably runs in fresh_clone
+    rm -f "$PROJECT_ROOT/electrum/paymentrequest_pb2.py"
+fi
 
 (
     cd "$PROJECT_ROOT"
@@ -47,7 +48,26 @@ git submodule update --init
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
     # note: .zip sdists would not be reproducible due to https://bugs.python.org/issue40963
-    TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ])
+        then PY_DISTDIR="dist/_sourceonly" # The DISTDIR variable of this script is only used to find where the output is *finally* placed.
+        else PY_DISTDIR="dist"
+    fi
+    TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+        python3 <<EOF
+import importlib.util
+import os
+
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+VER = version_module.ELECTRUM_VERSION
+os.rename(f"dist/_sourceonly/Electrum-{VER}.tar.gz", f"dist/Electrum-sourceonly-{VER}.tar.gz")
+EOF
+        rmdir "$PY_DISTDIR"
+    fi
 )
 
 

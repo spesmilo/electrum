@@ -44,6 +44,9 @@ class TestUnixSockets(TestLightning):
 class TestLightningAB(TestLightning):
     agents = ['alice', 'bob']
 
+    def test_collaborative_close(self):
+        self.run_shell(['collaborative_close'])
+
     def test_backup(self):
         self.run_shell(['backup'])
 

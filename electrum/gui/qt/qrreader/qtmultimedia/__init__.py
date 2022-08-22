@@ -26,7 +26,7 @@
 from typing import Mapping
 
 from .camera_dialog import (QrReaderCameraDialog, CameraError, NoCamerasFound,
-                            NoCameraResolutionsFound, MissingQrDetectionLib)
+                            NoCameraResolutionsFound)
 from .validator import (QrReaderValidatorResult, AbstractQrReaderValidator,
                         QrReaderValidatorCounting, QrReaderValidatorColorizing,
                         QrReaderValidatorStrong, QrReaderValidatorCounted)

@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from .gui.qt.util import TaskThread
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .wallet_db import WalletDB
+    from .plugin import Device
 
 
 class CannotDerivePubkey(Exception): pass
@@ -149,7 +150,14 @@ class KeyStore(Logger, ABC):
         pass
 
     @abstractmethod
-    def sign_message(self, sequence: 'AddressIndexGeneric', message, password) -> bytes:
+    def sign_message(
+            self,
+            sequence: 'AddressIndexGeneric',
+            message: str,
+            password,
+            *,
+            script_type: Optional[str] = None,
+    ) -> bytes:
         pass
 
     @abstractmethod
@@ -197,7 +205,7 @@ class Software_KeyStore(KeyStore):
     def may_have_password(self):
         return not self.is_watching_only()
 
-    def sign_message(self, sequence, message, password) -> bytes:
+    def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
@@ -257,6 +265,10 @@ class Imported_KeyStore(Software_KeyStore):
 
     def can_import(self):
         return True
+<<<<<<< HEAD
+=======
+
+>>>>>>> 4f574afe5af0f169a7d2799e62b6052b472fc8ad
     @also_test_none_password
     def check_password(self, password):
         pubkey = list(self.keypairs.keys())[0]
@@ -814,7 +826,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.xpub = d.get('xpub')
-        self.label = d.get('label')
+        self.label = d.get('label')  # type: Optional[str]
         self.soft_device_id = d.get('soft_device_id')  # type: Optional[str]
         self.handler = None  # type: Optional[HardwareHandlerBase]
         run_hook('init_keystore', self)
@@ -858,14 +870,31 @@ class Hardware_KeyStore(Xpub, KeyStore):
         assert not self.has_seed()
         return False
 
+    def get_client(
+            self,
+            force_pair: bool = True,
+            *,
+            devices: Sequence['Device'] = None,
+            allow_user_interaction: bool = True,
+    ) -> Optional['HardwareClientBase']:
+        return self.plugin.get_client(
+            self,
+            force_pair=force_pair,
+            devices=devices,
+            allow_user_interaction=allow_user_interaction,
+        )
+
     def get_password_for_storage_encryption(self) -> str:
-        client = self.plugin.get_client(self)
+        client = self.get_client()
         return client.get_password_for_storage_encryption()
 
     def has_usable_connection_with_device(self) -> bool:
-        if not hasattr(self, 'plugin'):
-            return False
-        client = self.plugin.get_client(self, force_pair=False)
+        # we try to create a client even if there isn't one already,
+        # but do not prompt the user if auto-select fails:
+        client = self.get_client(
+            force_pair=True,
+            allow_user_interaction=False,
+        )
         if client is None:
             return False
         return client.has_usable_connection_with_device()

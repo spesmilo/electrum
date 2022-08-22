@@ -7,6 +7,7 @@ from enum import Enum, auto
 
 from .util import bfh, bh2u
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
+from .invoices import PR_PAID
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -204,8 +205,8 @@ def create_sweeptxs_for_our_ctx(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
     # to remote address
-    bpk = their_conf.payment_basepoint.pubkey
-    their_payment_pubkey = bpk if chan.is_static_remotekey_enabled() else derive_pubkey(their_conf.payment_basepoint.pubkey, our_pcp)
+    assert chan.is_static_remotekey_enabled()
+    their_payment_pubkey = their_conf.payment_basepoint.pubkey
     to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
     # test ctx
     _logger.debug(f'testing our ctx: {to_local_address} {to_remote_address}')
@@ -244,12 +245,11 @@ def create_sweeptxs_for_our_ctx(
 
     # HTLCs
     def create_txns_for_htlc(
-            *, htlc: 'UpdateAddHtlc', htlc_direction: Direction,
-            ctx_output_idx: int, htlc_relative_idx: int):
-        if htlc_direction == RECEIVED:
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-        else:
-            preimage = None
+            *, htlc: 'UpdateAddHtlc',
+            htlc_direction: Direction,
+            ctx_output_idx: int,
+            htlc_relative_idx: int,
+            preimage: Optional[bytes]):
         htlctx_witness_script, htlc_tx = create_htlctx_that_spends_from_our_ctx(
             chan=chan,
             our_pcp=our_pcp,
@@ -289,11 +289,20 @@ def create_sweeptxs_for_our_ctx(
         subject=LOCAL,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        if direction == RECEIVED:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) == PR_PAID:
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            else:
+                # do not redeem this, it might publish the preimage of an incomplete MPP
+                continue
+        else:
+            preimage = None
         create_txns_for_htlc(
             htlc=htlc,
             htlc_direction=direction,
             ctx_output_idx=ctx_output_idx,
-            htlc_relative_idx=htlc_relative_idx)
+            htlc_relative_idx=htlc_relative_idx,
+            preimage=preimage)
     return txs
 
 
@@ -347,8 +356,8 @@ def create_sweeptxs_for_their_ctx(
         our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
     # to remote address
-    bpk = our_conf.payment_basepoint.pubkey
-    our_payment_pubkey = bpk if chan.is_static_remotekey_enabled() else derive_pubkey(bpk, their_pcp)
+    assert chan.is_static_remotekey_enabled()
+    our_payment_pubkey = our_conf.payment_basepoint.pubkey
     to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
     # test if this is their ctx
     _logger.debug(f'testing their ctx: {to_local_address} {to_remote_address}')
@@ -370,35 +379,12 @@ def create_sweeptxs_for_their_ctx(
     our_htlc_privkey = ecc.ECPrivkey.from_secret_scalar(our_htlc_privkey)
     their_htlc_pubkey = derive_pubkey(their_conf.htlc_basepoint.pubkey, their_pcp)
     # to_local is handled by lnwatcher
-    # to_remote
-    if not chan.is_static_remotekey_enabled():
-        our_payment_bp_privkey = ecc.ECPrivkey(our_conf.payment_basepoint.privkey)
-        our_payment_privkey = derive_privkey(our_payment_bp_privkey.secret_scalar, their_pcp)
-        our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
-        assert our_payment_pubkey == our_payment_privkey.get_public_key_bytes(compressed=True)
-        output_idxs = ctx.get_output_idxs_from_address(to_remote_address)
-        if output_idxs:
-            output_idx = output_idxs.pop()
-            prevout = ctx.txid() + ':%d'%output_idx
-            sweep_tx = lambda: create_sweeptx_their_ctx_to_remote(
-                sweep_address=sweep_address,
-                ctx=ctx,
-                output_idx=output_idx,
-                our_payment_privkey=our_payment_privkey,
-                config=chan.lnworker.config)
-            txs[prevout] = SweepInfo(
-                name='their_ctx_to_remote',
-                csv_delay=0,
-                cltv_expiry=0,
-                gen_tx=sweep_tx)
     # HTLCs
     def create_sweeptx_for_htlc(
-            htlc: 'UpdateAddHtlc', is_received_htlc: bool,
-            ctx_output_idx: int) -> None:
-        if not is_received_htlc and not is_revocation:
-            preimage = chan.lnworker.get_preimage(htlc.payment_hash)
-        else:
-            preimage = None
+            *, htlc: 'UpdateAddHtlc',
+            is_received_htlc: bool,
+            ctx_output_idx: int,
+            preimage: Optional[bytes]) -> None:
         htlc_output_witness_script = make_htlc_output_witness_script(
             is_received_htlc=is_received_htlc,
             remote_revocation_pubkey=our_revocation_pubkey,
@@ -433,18 +419,32 @@ def create_sweeptxs_for_their_ctx(
         subject=REMOTE,
         ctn=ctn)
     for (direction, htlc), (ctx_output_idx, htlc_relative_idx) in htlc_to_ctx_output_idx_map.items():
+        is_received_htlc = direction == RECEIVED
+        if not is_received_htlc and not is_revocation:
+            if chan.lnworker.get_payment_status(htlc.payment_hash) == PR_PAID:
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
+            else:
+                # do not redeem this, it might publish the preimage of an incomplete MPP
+                continue
+        else:
+            preimage = None
         create_sweeptx_for_htlc(
             htlc=htlc,
-            is_received_htlc=direction == RECEIVED,
-            ctx_output_idx=ctx_output_idx)
+            is_received_htlc=is_received_htlc,
+            ctx_output_idx=ctx_output_idx,
+            preimage=preimage)
     return txs
 
 
 def create_htlctx_that_spends_from_our_ctx(
-        chan: 'Channel', our_pcp: bytes,
-        ctx: Transaction, htlc: 'UpdateAddHtlc',
-        local_htlc_privkey: bytes, preimage: Optional[bytes],
-        htlc_direction: Direction, htlc_relative_idx: int,
+        chan: 'Channel',
+        our_pcp: bytes,
+        ctx: Transaction,
+        htlc: 'UpdateAddHtlc',
+        local_htlc_privkey: bytes,
+        preimage: Optional[bytes],
+        htlc_direction: Direction,
+        htlc_relative_idx: int,
         ctx_output_idx: int) -> Tuple[bytes, Transaction]:
     assert (htlc_direction == RECEIVED) == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''

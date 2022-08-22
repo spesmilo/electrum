@@ -1,58 +1,79 @@
-# Note: we deliberately use an old Ubuntu LTS as base image.
+# Note: we deliberately use an old Debian stable as base image.
 # from https://docs.appimage.org/introduction/concepts.html :
 # "[AppImages] should be built on the oldest possible system, allowing them to run on newer system[s]"
-FROM ubuntu:18.04@sha256:9bc830af2bef73276515a29aa896eedfa7bdf4bdbc5c1063b4c457a4bbb8cd79
+
+FROM debian:buster@sha256:fb9654aac57319592f1d51497c62001e7033eddf059355408a0b53f7c71f8d5f
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+# need ca-certificates before using snapshot packages
+RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
+    ca-certificates
+
+# pin the distro packages
+COPY apt.sources.list /etc/apt/sources.list
+COPY apt.preferences /etc/apt/preferences.d/snapshot
+
 RUN apt-get update -q && \
-    apt-get install -qy \
-        git=1:2.17.1-1ubuntu0.9 \
-        wget=1.19.4-1ubuntu2.2 \
-        make=4.1-9.1ubuntu1 \
-        autotools-dev=20180224.1 \
-        autoconf=2.69-11 \
-        libtool=2.4.6-2 \
-        autopoint=0.19.8.1-6ubuntu0.3 \
-        xz-utils=5.2.2-1.3 \
-        libssl-dev=1.1.1-1ubuntu2.1~18.04.13 \
-        libssl1.1=1.1.1-1ubuntu2.1~18.04.13 \
-        openssl=1.1.1-1ubuntu2.1~18.04.13 \
-        zlib1g-dev=1:1.2.11.dfsg-0ubuntu2 \
-        libffi-dev=3.2.1-8 \
-        libncurses5-dev=6.1-1ubuntu1.18.04 \
-        libncurses5=6.1-1ubuntu1.18.04 \
-        libtinfo-dev=6.1-1ubuntu1.18.04 \
-        libtinfo5=6.1-1ubuntu1.18.04 \
-        libsqlite3-dev=3.22.0-1ubuntu0.4 \
-        libusb-1.0-0-dev=2:1.0.21-2 \
-        libudev-dev=237-3ubuntu10.53 \
-        libudev1=237-3ubuntu10.53 \
-        gettext=0.19.8.1-6ubuntu0.3 \
-        libzbar0=0.10+doc-10.1build2  \
-        libdbus-1-3=1.12.2-1ubuntu1.2 \
-        libxkbcommon0=0.8.0-1ubuntu0.1 \
-        libxkbcommon-x11-0=0.8.0-1ubuntu0.1 \
-        libxcb1=1.13-1 \
-        libxcb-xinerama0=1.13-1 \
-        libxcb-randr0=1.13-1 \
-        libxcb-render0=1.13-1 \
-        libxcb-shm0=1.13-1 \
-        libxcb-shape0=1.13-1 \
-        libxcb-sync1=1.13-1 \
-        libxcb-xfixes0=1.13-1 \
-        libxcb-xkb1=1.13-1 \
-        libxcb-icccm4=0.4.1-1ubuntu1 \
-        libxcb-image0=0.4.0-1build1 \
-        libxcb-keysyms1=0.4.0-1 \
-        libxcb-util1=0.4.0-0ubuntu3 \
-        libxcb-render-util0=0.3.9-1 \
-        libx11-xcb1=2:1.6.4-3ubuntu0.4 \
-        libc6-dev=2.27-3ubuntu1.4 \
-        libc6=2.27-3ubuntu1.4 \
-        libc-dev-bin=2.27-3ubuntu1.4 \
+    apt-get install -qy --allow-downgrades \
+        git \
+        wget \
+        make \
+        autotools-dev \
+        autoconf \
+        libtool \
+        autopoint \
+        xz-utils \
+        libssl-dev \
+        libssl1.1 \
+        openssl \
+        zlib1g-dev \
+        libffi-dev \
+        libncurses5-dev \
+        libncurses5 \
+        libtinfo-dev \
+        libtinfo5 \
+        libsqlite3-dev \
+        libusb-1.0-0-dev \
+        libudev-dev \
+        libudev1 \
+        gettext \
+        libzbar0 \
+        libdbus-1-3 \
+        libxkbcommon0 \
+        libxkbcommon-x11-0 \
+        libxcb1 \
+        libxcb-xinerama0 \
+        libxcb-randr0 \
+        libxcb-render0 \
+        libxcb-shm0 \
+        libxcb-shape0 \
+        libxcb-sync1 \
+        libxcb-xfixes0 \
+        libxcb-xkb1 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-util0 \
+        libxcb-render-util0 \
+        libx11-xcb1 \
+        libc6-dev \
+        libc6 \
+        libc-dev-bin \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+# create new user to avoid using root; but with sudo access and no password for convenience.
+ENV USER="user"
+ENV HOME_DIR="/home/${USER}"
+ENV WORK_DIR="${HOME_DIR}/wspace" \
+    PATH="${HOME_DIR}/.local/bin:${PATH}"
+RUN useradd --create-home --shell /bin/bash ${USER}
+RUN usermod -append --groups sudo ${USER}
+RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+WORKDIR ${WORK_DIR}
+RUN chown --recursive ${USER} ${WORK_DIR}
+USER ${USER}

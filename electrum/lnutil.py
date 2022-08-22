@@ -8,7 +8,6 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
-import time
 import attr
 from aiorpcx import NetAddress
 
@@ -25,7 +24,8 @@ from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
 from .bip32 import BIP32Node, BIP32_PRIME
-from .transaction import BCDataStream
+from .transaction import BCDataStream, OPPushDataGeneric
+
 
 if TYPE_CHECKING:
     from .lnchannel import Channel, AbstractChannel
@@ -323,6 +323,7 @@ class HtlcLog(NamedTuple):
     error_bytes: Optional[bytes] = None
     failure_msg: Optional['OnionRoutingFailure'] = None
     sender_idx: Optional[int] = None
+    trampoline_fee_level: Optional[int] = None
 
     def formatted_tuple(self):
         route = self.route
@@ -351,7 +352,6 @@ class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
-class UpfrontShutdownScriptViolation(RemoteMisbehaving): pass
 
 class NotFoundChanAnnouncementForUpdate(Exception): pass
 class InvalidGossipMsg(Exception):
@@ -361,6 +361,16 @@ class PaymentFailure(UserFacingException): pass
 class NoPathFound(PaymentFailure):
     def __str__(self):
         return _('No path found')
+
+
+class LNProtocolError(Exception):
+    """Raised in peer methods to trigger an error message."""
+
+
+class LNProtocolWarning(Exception):
+    """Raised in peer methods to trigger a warning message."""
+
+
 
 # TODO make some of these values configurable?
 REDEEM_AFTER_DOUBLE_SPENT_DELAY = 30
@@ -627,6 +637,68 @@ def make_received_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
     ]))
     return script
 
+WITNESS_TEMPLATE_OFFERED_HTLC = [
+    opcodes.OP_DUP,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ELSE,
+    OPPushDataGeneric(None),
+    opcodes.OP_SWAP,
+    opcodes.OP_SIZE,
+    OPPushDataGeneric(lambda x: x==1),
+    opcodes.OP_EQUAL,
+    opcodes.OP_NOTIF,
+    opcodes.OP_DROP,
+    opcodes.OP_2,
+    opcodes.OP_SWAP,
+    OPPushDataGeneric(None),
+    opcodes.OP_2,
+    opcodes.OP_CHECKMULTISIG,
+    opcodes.OP_ELSE,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUALVERIFY,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ENDIF,
+    opcodes.OP_ENDIF,
+]
+
+WITNESS_TEMPLATE_RECEIVED_HTLC = [
+    opcodes.OP_DUP,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ELSE,
+    OPPushDataGeneric(None),
+    opcodes.OP_SWAP,
+    opcodes.OP_SIZE,
+    OPPushDataGeneric(lambda x: x==1),
+    opcodes.OP_EQUAL,
+    opcodes.OP_IF,
+    opcodes.OP_HASH160,
+    OPPushDataGeneric(None),
+    opcodes.OP_EQUALVERIFY,
+    opcodes.OP_2,
+    opcodes.OP_SWAP,
+    OPPushDataGeneric(None),
+    opcodes.OP_2,
+    opcodes.OP_CHECKMULTISIG,
+    opcodes.OP_ELSE,
+    opcodes.OP_DROP,
+    OPPushDataGeneric(None),
+    opcodes.OP_CHECKLOCKTIMEVERIFY,
+    opcodes.OP_DROP,
+    opcodes.OP_CHECKSIG,
+    opcodes.OP_ENDIF,
+    opcodes.OP_ENDIF,
+]
+
+
 def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pubkey: bytes, remote_htlc_pubkey: bytes,
                                     local_htlc_pubkey: bytes, payment_hash: bytes, cltv_expiry: Optional[int]) -> bytes:
     if is_received_htlc:
@@ -749,7 +821,8 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
     c_input._trusted_value_sats = funding_sat
     return c_input
 
-class HTLCOwner(IntFlag):
+
+class HTLCOwner(IntEnum):
     LOCAL = 1
     REMOTE = -LOCAL
 
@@ -760,7 +833,7 @@ class HTLCOwner(IntFlag):
         return HTLCOwner(super().__neg__())
 
 
-class Direction(IntFlag):
+class Direction(IntEnum):
     SENT = -1     # in the context of HTLCs: "offered" HTLCs
     RECEIVED = 1  # in the context of HTLCs: "received" HTLCs
 
@@ -1017,11 +1090,26 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SUPPORT_LARGE_CHANNEL_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
 
-    OPTION_TRAMPOLINE_ROUTING_REQ = 1 << 24
-    OPTION_TRAMPOLINE_ROUTING_OPT = 1 << 25
+    # This is still a temporary number. Also used by Eclair.
+    OPTION_TRAMPOLINE_ROUTING_REQ = 1 << 148
+    OPTION_TRAMPOLINE_ROUTING_OPT = 1 << 149
 
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
     _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT] = (LNFC.INIT | LNFC.NODE_ANN | LNFC.INVOICE)
+
+    # allow old Electrum wallets to pay us with trampoline
+    OPTION_TRAMPOLINE_ROUTING_REQ_COMPAT_ELECTRUM = 1 << 24
+    OPTION_TRAMPOLINE_ROUTING_OPT_COMPAT_ELECTRUM = 1 << 25
+
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_COMPAT_ELECTRUM] = (LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_COMPAT_ELECTRUM] = (LNFC.INVOICE)
+
+    # allow old Phoenix wallets to pay us with trampoline
+    OPTION_TRAMPOLINE_ROUTING_REQ_COMPAT_ECLAIR = 1 << 50
+    OPTION_TRAMPOLINE_ROUTING_OPT_COMPAT_ECLAIR = 1 << 51
+
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_REQ_COMPAT_ECLAIR] = (LNFC.INVOICE)
+    _ln_feature_contexts[OPTION_TRAMPOLINE_ROUTING_OPT_COMPAT_ECLAIR] = (LNFC.INVOICE)
 
     OPTION_SHUTDOWN_ANYSEGWIT_REQ = 1 << 26
     OPTION_SHUTDOWN_ANYSEGWIT_OPT = 1 << 27
@@ -1029,9 +1117,11 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_SHUTDOWN_ANYSEGWIT_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
-    # temporary
-    OPTION_TRAMPOLINE_ROUTING_REQ_ECLAIR = 1 << 50
-    OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR = 1 << 51
+    OPTION_CHANNEL_TYPE_REQ = 1 << 44
+    OPTION_CHANNEL_TYPE_OPT = 1 << 45
+
+    _ln_feature_contexts[OPTION_CHANNEL_TYPE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_CHANNEL_TYPE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:
@@ -1102,6 +1192,63 @@ class LnFeatures(IntFlag):
         return (flag in our_flags
                 or get_ln_flag_pair_of_bit(flag) in our_flags)
 
+    def get_names(self) -> Sequence[str]:
+        r = []
+        for flag in list_enabled_bits(self):
+            feature_name = LnFeatures(1 << flag).name
+            r.append(feature_name or f"bit_{flag}")
+        return r
+
+
+class ChannelType(IntFlag):
+    OPTION_LEGACY_CHANNEL = 0
+    OPTION_STATIC_REMOTEKEY = 1 << 12
+    OPTION_ANCHOR_OUTPUTS = 1 << 20
+    OPTION_ANCHORS_ZERO_FEE_HTLC_TX = 1 << 22
+
+    def discard_unknown_and_check(self):
+        """Discards unknown flags and checks flag combination."""
+        flags = list_enabled_bits(self)
+        known_channel_types = []
+        for flag in flags:
+            channel_type = ChannelType(1 << flag)
+            if channel_type.name:
+                known_channel_types.append(channel_type)
+        final_channel_type = known_channel_types[0]
+        for channel_type in known_channel_types[1:]:
+            final_channel_type |= channel_type
+
+        final_channel_type.check_combinations()
+        return final_channel_type
+
+    def check_combinations(self):
+        if self == ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        elif self == ChannelType.OPTION_ANCHOR_OUTPUTS | ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        elif self == ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY:
+            pass
+        else:
+            raise ValueError("Channel type is not a valid flag combination.")
+
+    def complies_with_features(self, features: LnFeatures) -> bool:
+        flags = list_enabled_bits(self)
+        complies = True
+        for flag in flags:
+            feature = LnFeatures(1 << flag)
+            complies &= features.supports(feature)
+        return complies
+
+    def to_bytes_minimal(self):
+        # MUST use the smallest bitmap possible to represent the channel type.
+        bit_length =self.value.bit_length()
+        byte_length = bit_length // 8 + int(bool(bit_length % 8))
+        return self.to_bytes(byte_length, byteorder='big')
+
+    @property
+    def name_minimal(self):
+        return self.name.replace('OPTION_', '')
+
 
 del LNFC  # name is ambiguous without context
 
@@ -1118,6 +1265,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.BASIC_MPP_OPT | LnFeatures.BASIC_MPP_REQ
         | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ
         | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
+        | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
 )
 
 

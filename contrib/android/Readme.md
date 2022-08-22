@@ -13,25 +13,20 @@ similar system.
 
 1. Install Docker
 
-    ```
-    $ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    $ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-    $ sudo apt-get update
-    $ sudo apt-get install -y docker-ce
-    ```
+    See `contrib/docker_notes.md`.
 
 2. Build binaries
 
+    The build script takes a few arguments. To see syntax, run it without providing any:
     ```
     $ ./build.sh
     ```
+    For development, consider e.g. `$ ./build.sh kivy arm64-v8a debug`
+
     If you want reproducibility, try instead e.g.:
     ```
-    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh release-unsigned
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh kivy all release-unsigned
     ```
-    
-    Note: `build.sh` takes an optional parameter which can be
-    `release`, `release-unsigned`, or `debug` (default).
 
 3. The generated binary is in `./dist`.
 
@@ -42,7 +37,7 @@ Every user can verify that the official binary was created from the source code 
 repository.
 
 1. Build your own binary as described above.
-   Make sure you don't build in `debug` mode (which is the default!),
+   Make sure you don't build in `debug` mode,
    instead use either of `release` or `release-unsigned`.
    If you build in `release` mode, the apk will be signed, which requires a keystore
    that you need to create manually (see source of `make_apk` for an example).

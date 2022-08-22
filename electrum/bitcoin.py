@@ -485,23 +485,30 @@ class OnchainOutputType(Enum):
     P2SH = enum.auto()
     WITVER0_P2WPKH = enum.auto()
     WITVER0_P2WSH = enum.auto()
+    WITVER1_P2TR = enum.auto()
 
 
-def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
+def address_to_payload(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
     """Return (type, pubkey hash / witness program) for an address."""
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
-        if witver != 0:
-            raise BitcoinException(f"not implemented handling for witver={witver}")
-        if len(witprog) == 20:
-            return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
-        elif len(witprog) == 32:
-            return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+        if witver == 0:
+            if len(witprog) == 20:
+                return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
+            elif len(witprog) == 32:
+                return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+            else:
+                raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
+        elif witver == 1:
+            if len(witprog) == 32:
+                return OnchainOutputType.WITVER1_P2TR, bytes(witprog)
+            else:
+                raise BitcoinException(f"unexpected length for segwit witver=1 witprog: len={len(witprog)}")
         else:
-            raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
+            raise BitcoinException(f"not implemented handling for witver={witver}")
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
         return OnchainOutputType.P2PKH, hash_160_

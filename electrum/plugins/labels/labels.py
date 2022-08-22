@@ -65,12 +65,17 @@ class LabelsPlugin(BasePlugin):
             return
         if not item:
             return
+        if label is None:
+            # note: the server does not know whether a label is empty
+            label = ''
         nonce = self.get_nonce(wallet)
         wallet_id = self.wallets[wallet][2]
-        bundle = {"walletId": wallet_id,
-                  "walletNonce": nonce,
-                  "externalId": self.encode(wallet, item),
-                  "encryptedLabel": self.encode(wallet, label)}
+        bundle = {
+            "walletId": wallet_id,
+            "walletNonce": nonce,
+            "externalId": self.encode(wallet, item),
+            "encryptedLabel": self.encode(wallet, label)
+        }
         asyncio.run_coroutine_threadsafe(self.do_post_safe("/label", bundle), wallet.network.asyncio_loop)
         # Caller will write the wallet
         self.set_nonce(wallet, nonce + 1)
@@ -145,10 +150,11 @@ class LabelsPlugin(BasePlugin):
             except:
                 self.logger.info(f'error: no json {key}')
                 continue
-            result[key] = value
+            if value:
+                result[key] = value
 
         for key, value in result.items():
-            if force or not wallet.get_label(key):
+            if force or not wallet._get_label(key):
                 wallet._set_label(key, value)
 
         self.logger.info(f"received {len(response)} labels")

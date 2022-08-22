@@ -13,7 +13,7 @@ from PyQt5 import QtWidgets
 from electrum import util
 from electrum.i18n import _
 
-from .util import MONOSPACE_FONT
+from .util import MONOSPACE_FONT, font_height
 
 # sys.ps1 and sys.ps2 are only declared if an interpreter is in interactive mode.
 sys.ps1 = '>>> '
@@ -32,7 +32,7 @@ class OverlayLabel(QtWidgets.QLabel):
     '''
     def __init__(self, text, parent):
         super().__init__(text, parent)
-        self.setMinimumHeight(150)
+        self.setMinimumHeight(max(150, 10 * font_height()))
         self.setGeometry(0, 0, self.width(), self.height())
         self.setStyleSheet(self.STYLESHEET)
         self.setMargin(0)
@@ -58,7 +58,7 @@ class Console(QtWidgets.QPlainTextEdit):
         self.setGeometry(50, 75, 600, 400)
         self.setWordWrapMode(QtGui.QTextOption.WrapAnywhere)
         self.setUndoRedoEnabled(False)
-        self.document().setDefaultFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
+        self.setFont(QtGui.QFont(MONOSPACE_FONT, 10, QtGui.QFont.Normal))
         self.newPrompt("")  # make sure there is always a prompt, even before first server.banner
 
         self.updateNamespace({'run':self.run_script})

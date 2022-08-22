@@ -180,6 +180,7 @@ class ExceptionHook(base.ExceptionHandler, Logger):
         Logger.__init__(self)
         self.main_window = main_window
         if not main_window.electrum_config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         # For exceptions in Kivy:
         base.ExceptionManager.add_handler(self)

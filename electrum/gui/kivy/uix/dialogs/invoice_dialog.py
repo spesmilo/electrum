@@ -8,7 +8,7 @@ from kivy.clock import Clock
 
 from electrum.gui.kivy.i18n import _
 from electrum.invoices import pr_tooltips, pr_color
-from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED, PR_TYPE_LN
+from electrum.invoices import PR_UNKNOWN, PR_UNPAID, PR_FAILED
 
 if TYPE_CHECKING:
     from electrum.gui.kivy.main_window import ElectrumWindow
@@ -111,7 +111,7 @@ class InvoiceDialog(Factory.Popup):
         self.status_color = pr_color[self.status]
         self.can_pay = self.status in [PR_UNPAID, PR_FAILED]
         if self.can_pay and self.is_lightning and self.app.wallet.lnworker:
-            if self.amount_sat and self.amount_sat > self.app.wallet.lnworker.num_sats_can_send():
+            if self.amount_sat and not self.app.wallet.lnworker.can_pay_invoice(invoice):
                 self.warning = _('Warning') + ': ' + _('This amount exceeds the maximum you can currently send with your channels')
 
     def on_dismiss(self):

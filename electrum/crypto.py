@@ -29,7 +29,7 @@ import os
 import sys
 import hashlib
 import hmac
-from typing import Union
+from typing import Union, Mapping, Optional
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
@@ -85,14 +85,43 @@ if not (HAS_CRYPTODOME or HAS_CRYPTOGRAPHY):
     sys.exit(f"Error: at least one of ('pycryptodomex', 'cryptography') needs to be installed.")
 
 
+def version_info() -> Mapping[str, Optional[str]]:
+    ret = {}
+    if HAS_PYAES:
+        ret["pyaes.version"] = ".".join(map(str, pyaes.VERSION[:3]))
+    else:
+        ret["pyaes.version"] = None
+    if HAS_CRYPTODOME:
+        ret["cryptodome.version"] = Cryptodome.__version__
+        if hasattr(Cryptodome, "__path__"):
+            ret["cryptodome.path"] = ", ".join(Cryptodome.__path__ or [])
+    else:
+        ret["cryptodome.version"] = None
+    if HAS_CRYPTOGRAPHY:
+        ret["cryptography.version"] = cryptography.__version__
+        if hasattr(cryptography, "__path__"):
+            ret["cryptography.path"] = ", ".join(cryptography.__path__ or [])
+    else:
+        ret["cryptography.version"] = None
+    return ret
+
+
 class InvalidPadding(Exception):
     pass
     
 
+<<<<<<< HEAD
 class CiphertextFormatError(Exception):
     pass
     
     
+=======
+
+class CiphertextFormatError(Exception):
+    pass
+
+
+>>>>>>> 4f574afe5af0f169a7d2799e62b6052b472fc8ad
 def append_PKCS7_padding(data: bytes) -> bytes:
     assert_bytes(data)
     padlen = 16 - (len(data) % 16)
@@ -151,22 +180,11 @@ def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
         raise InvalidPassword()
 
 
-def EncodeAES_base64(secret: bytes, msg: bytes) -> bytes:
-    """Returns base64 encoded ciphertext."""
-    e = EncodeAES_bytes(secret, msg)
-    return base64.b64encode(e)
-
-
 def EncodeAES_bytes(secret: bytes, msg: bytes) -> bytes:
     assert_bytes(msg)
     iv = bytes(os.urandom(16))
     ct = aes_encrypt_with_iv(secret, iv, msg)
     return iv + ct
-
-
-def DecodeAES_base64(secret: bytes, ciphertext_b64: Union[bytes, str]) -> bytes:
-    ciphertext = bytes(base64.b64decode(ciphertext_b64))
-    return DecodeAES_bytes(secret, ciphertext)
 
 
 def DecodeAES_bytes(secret: bytes, ciphertext: bytes) -> bytes:

@@ -24,7 +24,8 @@ from . import ElectrumTestCase
 
 class FakeSynchronizer(object):
 
-    def __init__(self):
+    def __init__(self, db):
+        self.db = db
         self.store = []
 
     def add(self, address):
@@ -100,17 +101,19 @@ class FakeFxThread:
     ccy_amount_str = FxThread.ccy_amount_str
     history_rate = FxThread.history_rate
 
+class FakeADB:
+    def get_tx_height(self, txid):
+        # because we use a current timestamp, and history is empty,
+        # FxThread.history_rate will use spot prices
+        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
+
 class FakeWallet:
     def __init__(self, fiat_value):
         super().__init__()
         self.fiat_value = fiat_value
         self.db = WalletDB("{}", manual_upgrades=True)
+        self.adb = FakeADB()
         self.db.transactions = self.db.verified_tx = {'abc':'Tx'}
-
-    def get_tx_height(self, txid):
-        # because we use a current timestamp, and history is empty,
-        # FxThread.history_rate will use spot prices
-        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
 
     default_fiat_value = Abstract_Wallet.default_fiat_value
     price_at_timestamp = Abstract_Wallet.price_at_timestamp
@@ -192,6 +195,19 @@ class TestCreateRestoreWallet(WalletTestCase):
         self.assertEqual(encrypt_file, wallet.storage.is_encrypted())
         self.assertEqual('bc1q2ccr34wzep58d4239tl3x3734ttle92a8srmuw', wallet.get_receiving_addresses()[0])
 
+    def test_restore_wallet_from_text_no_storage(self):
+        text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        d = restore_wallet_from_text(
+            text,
+            path=None,
+            gap_limit=1,
+            config=self.config,
+        )
+        wallet = d['wallet']  # type: Standard_Wallet
+        self.assertEqual(None, wallet.storage)
+        self.assertEqual(text, wallet.keystore.get_seed(None))
+        self.assertEqual('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', wallet.get_receiving_addresses()[0])
+
     def test_restore_wallet_from_text_xpub(self):
         text = 'zpub6nydoME6CFdJtMpzHW5BNoPz6i6XbeT9qfz72wsRqGdgGEYeivso6xjfw8cGcCyHwF7BNW4LDuHF35XrZsovBLWMF4qXSjmhTXYiHbWqGLt'
         d = restore_wallet_from_text(text, path=self.wallet_path, gap_limit=1, config=self.config)
@@ -241,12 +257,9 @@ class TestWalletPassword(WalletTestCase):
 
     def setUp(self):
         super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
 
     def tearDown(self):
         super().tearDown()
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
 
     def test_update_password_of_imported_wallet(self):
         wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'

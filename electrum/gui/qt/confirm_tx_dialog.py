@@ -33,11 +33,10 @@ from electrum.i18n import _
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.plugin import run_hook
 from electrum.transaction import Transaction, PartialTransaction
-from electrum.simple_config import FEERATE_WARNING_HIGH_FEE, FEE_RATIO_HIGH_WARNING
 from electrum.wallet import InternalAddressCorruption
 
 from .util import (WindowModalDialog, ColorScheme, HelpLabel, Buttons, CancelButton,
-                   BlockingWaitingDialog, PasswordLineEdit)
+                   BlockingWaitingDialog, PasswordLineEdit, WWLabel)
 
 from .fee_slider import FeeSlider, FeeComboBox
 
@@ -166,8 +165,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         grid.addWidget(self.fee_slider, 5, 1)
         grid.addWidget(self.fee_combo, 5, 2)
 
-        self.message_label = QLabel(self.default_message())
-        self.message_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.message_label = WWLabel(self.default_message())
         grid.addWidget(self.message_label, 6, 0, 1, -1)
         self.pw_label = QLabel(_('Password'))
         self.pw_label.setVisible(self.password_required)
@@ -195,6 +193,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
     def run(self):
         cancelled = not self.exec_()
         password = self.pw.text() or None
+        self.deleteLater()  # see #3956
         return cancelled, self.is_send, password, self.tx
 
     def on_send(self):
@@ -239,7 +238,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
         self._update_amount_label()
 
         if self.not_enough_funds:
-            text = self.main_window.get_text_not_enough_funds_mentioning_frozen()
+            text = self.main_window.send_tab.get_text_not_enough_funds_mentioning_frozen()
             self.toggle_send_button(False, message=text)
             return
 

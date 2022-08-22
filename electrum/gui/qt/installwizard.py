@@ -26,7 +26,7 @@ from electrum.i18n import _
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
-                   InfoButton, char_width_in_lineedit, PasswordLineEdit)
+                   InfoButton, char_width_in_lineedit, PasswordLineEdit, font_height)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 from .bip39_recovery_dialog import Bip39RecoveryDialog
 from electrum.plugin import run_hook, Plugins
@@ -58,10 +58,10 @@ MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
 
 
 class CosignWidget(QWidget):
-    size = 120
 
     def __init__(self, m, n):
         QWidget.__init__(self)
+        self.size = max(120, 9 * font_height())
         self.R = QRect(0, 0, self.size, self.size)
         self.setGeometry(self.R)
         self.setMinimumHeight(self.size)
@@ -202,6 +202,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
     def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
+        if os.path.isdir(path):
+            raise Exception("wallet path cannot point to a directory")
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -297,9 +299,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         button.clicked.connect(on_choose)
         button_create_new.clicked.connect(
-            partial(
-                name_e.setText,
-                get_new_wallet_name(wallet_folder)))
+            lambda: name_e.setText(get_new_wallet_name(wallet_folder)))  # FIXME get_new_wallet_name might raise
         name_e.textChanged.connect(on_filename)
         name_e.setText(os.path.basename(path))
 

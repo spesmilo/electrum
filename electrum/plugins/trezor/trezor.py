@@ -71,16 +71,14 @@ class TrezorKeyStore(Hardware_KeyStore):
 
     plugin: 'TrezorPlugin'
 
-    def get_client(self, force_pair=True):
-        return self.plugin.get_client(self, force_pair)
-
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
-        msg_sig = client.sign_message(address_path, message)
+        script_type = self.plugin.get_trezor_input_script_type(script_type)
+        msg_sig = client.sign_message(address_path, message, script_type=script_type)
         return msg_sig.signature
 
     def sign_transaction(self, tx, password):
@@ -221,7 +219,7 @@ class TrezorPlugin(HW_PluginBase):
             import threading
             settings = self.request_trezor_init_settings(wizard, method, device_id)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
             exit_code = wizard.loop.exec_()
             if exit_code != 0:

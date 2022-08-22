@@ -22,6 +22,8 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
+hiddenimports += ['electrum.plugins.jade.jade']
+hiddenimports += ['electrum.plugins.jade.jadepy.jade']
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -62,13 +64,13 @@ a = Analysis([home+'run_electrum',
               home+'electrum/dnssec.py',
               home+'electrum/commands.py',
               home+'electrum/plugins/cosigner_pool/qt.py',
-              home+'electrum/plugins/email_requests/qt.py',
               home+'electrum/plugins/trezor/qt.py',
               home+'electrum/plugins/safe_t/client.py',
               home+'electrum/plugins/safe_t/qt.py',
               home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
               home+'electrum/plugins/coldcard/qt.py',
+              home+'electrum/plugins/jade/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
@@ -101,6 +103,14 @@ for x in a.datas.copy():
         if x[0].lower().startswith(r):
             a.datas.remove(x)
             print('----> Removed x =', x)
+
+# not reproducible (see #7739):
+print("Removing *.dist-info/ from datas:")
+for x in a.datas.copy():
+    if ".dist-info\\" in x[0].lower():
+        a.datas.remove(x)
+        print('----> Removed x =', x)
+
 
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
