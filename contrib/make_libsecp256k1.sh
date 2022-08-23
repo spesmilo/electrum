@@ -28,7 +28,7 @@ pkgname="secp256k1"
 info "Building $pkgname..."
 
 (
-    cd $CONTRIB
+    cd "$CONTRIB"
     if [ ! -d secp256k1 ]; then
         git clone https://github.com/bitcoin-core/secp256k1.git
     fi
