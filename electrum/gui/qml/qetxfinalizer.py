@@ -312,5 +312,9 @@ class QETxFinalizer(QObject):
         self._wallet.sign(self._tx, broadcast=True)
 
     @pyqtSlot(result=str)
-    def serializedTx(self):
-        return str(self._tx)
+    @pyqtSlot(bool, result=str)
+    def serializedTx(self, for_qr=False):
+        if for_qr:
+            return self._tx.to_qr_data()
+        else:
+            return str(self._tx)

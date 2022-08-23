@@ -9,6 +9,8 @@ ElDialog {
     id: dialog
 
     property string text
+    property string text_qr
+    // if text_qr is undefined text will be used
 
     title: ''
     parent: Overlay.overlay
@@ -97,6 +99,6 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        qr.qrdata = dialog.text
+        qr.qrdata = dialog.text_qr ? dialog.text_qr : dialog.text
     }
 }
