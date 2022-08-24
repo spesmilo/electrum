@@ -39,6 +39,8 @@ ElDialog {
     property int _phase: mode == 'enter' ? 1 : 0 // 0 = existing pin, 1 = new pin, 2 = re-enter new pin
     property string _pin
 
+    property bool checkError: false
+
     function submit() {
         if (_phase == 0) {
             if (pin.text == pincode) {
@@ -48,6 +50,9 @@ ElDialog {
                 else
                     _phase = 1
                 return
+            } else {
+                pin.text = ''
+                checkError = true
             }
         }
         if (_phase == 1) {
@@ -126,10 +131,18 @@ ElDialog {
             echoMode: TextInput.Password
             focus: true
             onTextChanged: {
+                checkError = false
                 if (text.length == 6) {
                     submit()
                 }
             }
+        }
+
+        Label {
+            opacity: checkError ? 1 : 0
+            text: qsTr('Wrong PIN')
+            color: constants.colorError
+            Layout.alignment: Qt.AlignHCenter
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
