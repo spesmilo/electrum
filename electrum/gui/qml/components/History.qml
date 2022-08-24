@@ -10,7 +10,8 @@ import "controls"
 
 Pane {
     id: rootItem
-    visible: Daemon.currentWallet !== undefined
+    visible: Daemon.currentWallet
+    padding: 0
     clip: true
 
     ListView {
@@ -60,6 +61,48 @@ Pane {
 
         ScrollIndicator.vertical: ScrollIndicator { }
 
+    }
+
+    MouseArea {
+        id: vdragscroll
+        anchors {
+            top: listview.top
+            right: listview.right
+            bottom: listview.bottom
+        }
+        width: constants.paddingXXLarge
+        drag.target: dragb
+        onPressedChanged: if (pressed) {
+            dragb.y = mouseY - dragb.height/2
+        }
+    }
+
+    Rectangle {
+        id: dragb
+        anchors.right: vdragscroll.left
+        width: postext.width + constants.paddingXXLarge
+        height: postext.height + constants.paddingXXLarge
+        radius: constants.paddingXSmall
+
+        color: constants._alpha(Material.accentColor, 0.33)
+        border.color: Material.accentColor
+        opacity : vdragscroll.drag.active ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 300 } }
+
+        onYChanged: {
+            if (vdragscroll.drag.active) {
+                listview.contentY =
+                    Math.min(listview.contentHeight - listview.height + listview.originY,
+                    Math.max(listview.originY,
+                        (y/vdragscroll.height) * listview.contentHeight))
+            }
+        }
+        Label {
+            id: postext
+            anchors.centerIn: parent
+            text: listview.itemAt(0,listview.contentY + (dragb.y + dragb.height/2)).delegateModel.date
+            font.pixelSize: constants.fontSizeLarge
+        }
     }
 
     Connections {
