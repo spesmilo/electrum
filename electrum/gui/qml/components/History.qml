@@ -84,7 +84,7 @@ Pane {
         height: postext.height + constants.paddingXXLarge
         radius: constants.paddingXSmall
 
-        color: constants._alpha(Material.accentColor, 0.33)
+        color: constants.colorAlpha(Material.accentColor, 0.33)
         border.color: Material.accentColor
         opacity : vdragscroll.drag.active ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 300 } }
@@ -92,8 +92,8 @@ Pane {
         onYChanged: {
             if (vdragscroll.drag.active) {
                 listview.contentY =
-                    Math.min(listview.contentHeight - listview.height + listview.originY,
                     Math.max(listview.originY,
+                    Math.min(listview.contentHeight - listview.height + listview.originY,
                         (y/vdragscroll.height) * listview.contentHeight))
             }
         }

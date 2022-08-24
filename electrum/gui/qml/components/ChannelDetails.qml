@@ -22,7 +22,6 @@ Pane {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Backup');
-                enabled: true
                 onTriggered: {
                     var dialog = app.genericShareDialog.createObject(root,
                         {
