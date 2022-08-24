@@ -12,9 +12,13 @@ import platform
 from typing import Optional, TYPE_CHECKING
 import copy
 import subprocess
+import time
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
+
+
+_time_zero = time.time()
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -36,17 +40,21 @@ file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(na
 
 class LogFormatterForConsole(logging.Formatter):
 
+    def formatTime(self, record, datefmt=None):
+        t = record.created - _time_zero
+        return f"{t:6.2f}"
+
     def format(self, record):
+        record = copy.copy(record)  # avoid mutating arg
         record = _shorten_name_of_logrecord(record)
+        if shortcut := getattr(record, 'custom_shortcut', None):
+            record.name = f"{shortcut}/{record.name}"
         text = super().format(record)
-        shortcut = getattr(record, 'custom_shortcut', None)
-        if shortcut:
-            text = text[:1] + f"/{shortcut}" + text[1:]
         return text
 
 
 # try to make console log lines short... no timestamp, short levelname, no "electrum."
-console_formatter = LogFormatterForConsole(fmt="%(levelname).1s | %(name)s | %(message)s")
+console_formatter = LogFormatterForConsole(fmt="%(asctime)s | %(levelname).1s | %(name)s | %(message)s")
 
 
 def _shorten_name_of_logrecord(record: logging.LogRecord) -> logging.LogRecord:
