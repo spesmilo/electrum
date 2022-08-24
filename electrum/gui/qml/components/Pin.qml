@@ -49,24 +49,22 @@ ElDialog {
                     accepted()
                 else
                     _phase = 1
-                return
             } else {
                 pin.text = ''
                 checkError = true
             }
-        }
-        if (_phase == 1) {
+        } else if (_phase == 1) {
             _pin = pin.text
             pin.text = ''
             _phase = 2
-            return
-        }
-        if (_phase == 2) {
+        } else if (_phase == 2) {
             if (_pin == pin.text) {
                 pincode = pin.text
                 accepted()
+            } else {
+                pin.text = ''
+                checkError = true
             }
-            return
         }
     }
 
@@ -140,7 +138,7 @@ ElDialog {
 
         Label {
             opacity: checkError ? 1 : 0
-            text: qsTr('Wrong PIN')
+            text: _phase == 0 ? qsTr('Wrong PIN') : qsTr('PIN doesn\'t match')
             color: constants.colorError
             Layout.alignment: Qt.AlignHCenter
         }
