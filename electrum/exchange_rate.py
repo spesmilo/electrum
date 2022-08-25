@@ -429,7 +429,7 @@ class Biscoint(ExchangeBase):
 class Walltime(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('s3.amazonaws.com', 
+        json = await self.get_json('s3.amazonaws.com',
                              '/data-production-walltime-info/production/dynamic/walltime-info.json')
         return {'BRL': to_decimal(json['BRL_XBT']['last_inexact'])}
 
@@ -544,13 +544,14 @@ class FxThread(ThreadJob, EventListener):
         while True:
             # approx. every 2.5 minutes, refresh spot price
             try:
-                async with timeout_after(150):
+                async def trigger_wait():
                     await self._trigger.wait()
                     self._trigger.clear()
+                await asyncio.wait_for(trigger_wait(), POLL_PERIOD_SPOT_RATE)
                 # we were manually triggered, so get historical rates
                 if self.is_enabled() and self.show_history():
                     self.exchange.get_historical_rates(self.ccy, self.cache_dir)
-            except TaskTimeout:
+            except asyncio.exceptions.TimeoutError:
                 pass
             if self.is_enabled():
                 await self.exchange.update_safe(self.ccy)
