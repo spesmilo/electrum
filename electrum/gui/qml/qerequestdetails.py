@@ -120,7 +120,7 @@ class QERequestDetails(QObject):
         self._req = self._wallet.wallet.get_request(self._key)
 
         if self._req is None:
-            self._logger.error(f'payment request key {key} unknown in wallet {self._wallet.name}')
+            self._logger.error(f'payment request key {self._key} unknown in wallet {self._wallet.name}')
             return
 
         self._amount = QEAmount(from_invoice=self._req)
