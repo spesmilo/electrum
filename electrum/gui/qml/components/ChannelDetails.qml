@@ -100,7 +100,7 @@ Pane {
             columns: 2
 
             Label {
-                text: qsTr('Channel name')
+                text: qsTr('Node name')
                 color: Material.accentColor
             }
 

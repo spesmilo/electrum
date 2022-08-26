@@ -1,7 +1,10 @@
 import threading
+from concurrent.futures import CancelledError
+from asyncio.exceptions import TimeoutError
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum.i18n import _
 from electrum.gui import messages
 from electrum.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address
 from electrum.lnworker import hardcoded_trampoline_nodes
@@ -168,6 +171,7 @@ class QEChannelOpener(QObject, AuthMixin):
         lnworker = self._wallet.wallet.lnworker
 
         def open_thread():
+            error = None
             try:
                 chan, _funding_tx = lnworker.open_channel(
                     connect_str=conn_str,
@@ -175,13 +179,19 @@ class QEChannelOpener(QObject, AuthMixin):
                     funding_sat=funding_sat,
                     push_amt_sat=0,
                     password=password)
+                self._logger.debug('opening channel succeeded')
+                self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+            except (CancelledError,TimeoutError):
+                error = _('Could not connect to channel peer')
             except Exception as e:
-                self._logger.exception("Problem opening channel: %s", repr(e))
-                self.channelOpenError.emit(repr(e))
-                return
+                error = str(e)
+                if not error:
+                    error = repr(e)
+            finally:
+                if error:
+                    self._logger.exception("Problem opening channel: %s", error)
+                    self.channelOpenError.emit(error)
 
-            self._logger.debug('opening channel succeeded')
-            self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
 
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)

@@ -104,6 +104,7 @@ ElDialog {
                 visible: false
                 iconStyle: InfoTextArea.IconStyle.Error
                 width: parent.width
+                textFormat: TextEdit.PlainText
             }
 
             InfoTextArea {
