@@ -74,7 +74,7 @@ class QETxFinalizer(QObject):
     def amount(self, amount):
         if self._amount != amount:
             self._logger.debug(str(amount))
-            self._amount = amount
+            self._amount.copyFrom(amount)
             self.amountChanged.emit()
 
     effectiveAmountChanged = pyqtSignal()
@@ -90,7 +90,7 @@ class QETxFinalizer(QObject):
     @fee.setter
     def fee(self, fee):
         if self._fee != fee:
-            self._fee = fee
+            self._fee.copyFrom(fee)
             self.feeChanged.emit()
 
     feeRateChanged = pyqtSignal()
