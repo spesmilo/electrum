@@ -906,7 +906,7 @@ class Commands:
         out = wallet.get_sorted_requests()
         if f is not None:
             out = [req for req in out
-                   if f == wallet.get_request_status(wallet.get_key_for_receive_request(req))]
+                   if f == wallet.get_invoice_status(req)]
         return [wallet.export_request(x) for x in out]
 
     @command('w')

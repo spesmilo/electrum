@@ -2324,7 +2324,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return status
 
     def get_invoice_status(self, invoice: Invoice):
-        """Returns status of (outgoing) invoice."""
+        """Returns status of (incoming) request or (outgoing) invoice."""
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
@@ -2340,25 +2340,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(invoice, status)
 
-    def get_request_status(self, key):
-        """Returns status of (incoming) receive request."""
-        r = self.get_request(key)
-        if r is None:
-            return PR_UNKNOWN
-        if r.is_lightning() and self.lnworker:
-            status = self.lnworker.get_payment_status(bfh(r.rhash))
-            if status != PR_UNPAID:
-                return self.check_expired_status(r, status)
-        paid, conf = self.is_onchain_invoice_paid(r)
-        if not paid:
-            status = PR_UNPAID
-        elif conf == 0:
-            status = PR_UNCONFIRMED
-        else:
-            assert conf >= 1, conf
-            status = PR_PAID
-        return self.check_expired_status(r, status)
-
     def get_request(self, key: str) -> Optional[Invoice]:
         if req := self._receive_requests.get(key):
             return req
@@ -2373,7 +2354,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def export_request(self, x: Invoice) -> Dict[str, Any]:
         key = self.get_key_for_receive_request(x)
-        status = self.get_request_status(key)
+        status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
         address = x.get_address()
@@ -2451,7 +2432,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txo in tx.outputs():
                 addr = txo.address
                 if self.get_request(addr):
-                    status = self.get_request_status(addr)
+                    req = self.get_request(addr)
+                    status = self.get_invoice_status(req)
                     util.trigger_callback('request_status', self, addr, status)
                 for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
                     relevant_invoice_keys.add(invoice_key)
@@ -2563,8 +2545,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return out
 
     def get_unpaid_requests(self):
-        out = [self.get_request(x) for x in self._receive_requests.keys() if self.get_request_status(x) != PR_PAID]
-        out = [x for x in out if x is not None]
+        out = [x for x in self._receive_requests.values() if self.get_invoice_status(x) != PR_PAID]
         out.sort(key=lambda x: x.time)
         return out
 
@@ -2846,7 +2827,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         URI = self.get_request_URI(req) or ''
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
         can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
-        status = self.get_request_status(key)
+        status = self.get_invoice_status(req)
 
         if status == PR_EXPIRED:
             address_help = URI_help = ln_help = _('This request has expired')
