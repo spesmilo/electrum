@@ -25,6 +25,7 @@ ElDialog {
 
     property alias state: s.state
     property alias error: errorText.text
+    property alias info: infoText.text
     property alias peer: peerText.text
 
     function reset() {
@@ -110,7 +111,6 @@ ElDialog {
             InfoTextArea {
                 id: infoText
                 visible: false
-                text: qsTr('Channel will be open after 3 confirmations')
                 width: parent.width
             }
         }
