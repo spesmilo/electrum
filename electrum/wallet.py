@@ -2363,7 +2363,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return self.export_request(x)
 
     def export_request(self, x: Invoice) -> Dict[str, Any]:
-        key = self.get_key_for_receive_request(x)
+        key = x.get_id()
         status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
