@@ -13,6 +13,7 @@ from electrum.logging import get_logger
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
+from .qetxdetails import QETxDetails
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
