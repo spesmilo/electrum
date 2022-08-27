@@ -153,7 +153,7 @@ Pane {
                     model: Daemon.currentWallet.requestModel
                     delegate: InvoiceDelegate {
                         onClicked: {
-                            var dialog = requestdialog.createObject(app, {'modelItem': model})
+                            var dialog = requestdialog.createObject(app, {key: model.key})
                             dialog.open()
                         }
                     }
@@ -204,12 +204,10 @@ Pane {
 
     Connections {
         target: Daemon.currentWallet
-        function onRequestCreateSuccess() {
+        function onRequestCreateSuccess(key) {
             message.text = ''
             amount.text = ''
-            var dialog = requestdialog.createObject(app, {
-                'modelItem': delegateModel.items.get(0).model
-            })
+            var dialog = requestdialog.createObject(app, { key: key })
             dialog.open()
         }
         function onRequestCreateError(code, error) {

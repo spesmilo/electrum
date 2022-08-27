@@ -6,8 +6,13 @@ Item {
     property alias auto_server: auto_server_cb.checked
     property alias address: address_tf.text
 
+    height: rootLayout.height
+
     ColumnLayout {
+        id: rootLayout
+
         width: parent.width
+        spacing: constants.paddingLarge
 
         Label {
             text: qsTr('Server settings')
@@ -31,6 +36,7 @@ Item {
             TextField {
                 id: address_tf
                 enabled: !auto_server_cb.checked
+                Layout.fillWidth: true
             }
         }
     }

@@ -15,7 +15,7 @@ Item {
             action: Action {
                 text: qsTr('Addresses');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
-                enabled: Daemon.currentWallet != null
+                enabled: Daemon.currentWallet
                 icon.source: '../../icons/tab_addresses.png'
             }
         }
@@ -39,7 +39,7 @@ Item {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Channels');
-                enabled: Daemon.currentWallet != null && Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
                 onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
                 icon.source: '../../icons/lightning.png'
             }
@@ -73,7 +73,7 @@ Item {
         anchors.centerIn: parent
         width: parent.width
         spacing: 2*constants.paddingXLarge
-        visible: Daemon.currentWallet == null
+        visible: !Daemon.currentWallet
 
         Label {
             text: qsTr('No wallet loaded')
@@ -92,7 +92,7 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        visible: Daemon.currentWallet != null
+        visible: Daemon.currentWallet
 
         SwipeView {
             id: swipeview

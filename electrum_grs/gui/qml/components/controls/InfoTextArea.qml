@@ -14,6 +14,7 @@ GridLayout {
     }
 
     property int iconStyle: InfoTextArea.IconStyle.Info
+    property alias textFormat: infotext.textFormat
 
     columns: 1
     rowSpacing: 0
@@ -31,7 +32,7 @@ GridLayout {
         readOnly: true
         rightPadding: constants.paddingLarge
         leftPadding: 2*constants.iconSizeLarge
-        wrapMode: TextInput.WordWrap
+        wrapMode: TextInput.Wrap
         textFormat: TextEdit.RichText
         background: Rectangle {
             color: Qt.rgba(1,1,1,0.05) // whiten 5%

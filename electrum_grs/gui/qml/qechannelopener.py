@@ -1,14 +1,19 @@
 import threading
+from concurrent.futures import CancelledError
+from asyncio.exceptions import TimeoutError
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum_grs.i18n import _
 from electrum_grs.gui import messages
+from electrum_grs.util import bfh
 from electrum_grs.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address
 from electrum_grs.lnworker import hardcoded_trampoline_nodes
 from electrum_grs.logging import get_logger
 
 from .auth import AuthMixin, auth_protect
 from .qetxfinalizer import QETxFinalizer
+from .qetxdetails import QETxDetails
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
@@ -24,12 +29,13 @@ class QEChannelOpener(QObject, AuthMixin):
     _amount = QEAmount()
     _valid = False
     _opentx = None
+    _txdetails = None
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
     channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
-    channelOpenSuccess = pyqtSignal([str,bool], arguments=['cid','has_backup'])
+    channelOpenSuccess = pyqtSignal([str,bool,int], arguments=['cid','has_onchain_backup','min_depth','tx_complete'])
 
     dataChanged = pyqtSignal() # generic notify signal
 
@@ -78,6 +84,11 @@ class QEChannelOpener(QObject, AuthMixin):
     @pyqtProperty(QETxFinalizer, notify=finalizerChanged)
     def finalizer(self):
         return self._finalizer
+
+    txDetailsChanged = pyqtSignal()
+    @pyqtProperty(QETxDetails, notify=txDetailsChanged)
+    def txDetails(self):
+        return self._txdetails
 
     @pyqtProperty(list, notify=dataChanged)
     def trampolineNodeNames(self):
@@ -168,6 +179,7 @@ class QEChannelOpener(QObject, AuthMixin):
         lnworker = self._wallet.wallet.lnworker
 
         def open_thread():
+            error = None
             try:
                 chan, _funding_tx = lnworker.open_channel(
                     connect_str=conn_str,
@@ -175,13 +187,28 @@ class QEChannelOpener(QObject, AuthMixin):
                     funding_sat=funding_sat,
                     push_amt_sat=0,
                     password=password)
-            except Exception as e:
-                self._logger.exception("Problem opening channel: %s", repr(e))
-                self.channelOpenError.emit(repr(e))
-                return
+                self._logger.debug('opening channel succeeded')
+                self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup(),
+                                             chan.constraints.funding_txn_minimum_depth, funding_tx.is_complete())
 
-            self._logger.debug('opening channel succeeded')
-            self.channelOpenSuccess.emit(chan.channel_id.hex(), chan.has_onchain_backup())
+                # TODO: handle incomplete TX
+                #if not funding_tx.is_complete():
+                    #self._txdetails = QETxDetails(self)
+                    #self._txdetails.rawTx = funding_tx
+                    #self._txdetails.wallet = self._wallet
+                    #self.txDetailsChanged.emit()
+
+            except (CancelledError,TimeoutError):
+                error = _('Could not connect to channel peer')
+            except Exception as e:
+                error = str(e)
+                if not error:
+                    error = repr(e)
+            finally:
+                if error:
+                    self._logger.exception("Problem opening channel: %s", error)
+                    self.channelOpenError.emit(error)
+
 
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)
@@ -202,3 +229,22 @@ class QEChannelOpener(QObject, AuthMixin):
                 #close_button_text=_('OK'),
                 #on_close=lambda: self.maybe_show_funding_tx(chan, funding_tx))
             #popup.open()
+
+
+    #def maybe_show_funding_tx(self, chan, funding_tx):
+        #n = chan.constraints.funding_txn_minimum_depth
+        #message = '\n'.join([
+            #_('Channel established.'),
+            #_('Remote peer ID') + ':' + chan.node_id.hex(),
+            #_('This channel will be usable after {} confirmations').format(n)
+        #])
+        #if not funding_tx.is_complete():
+            #message += '\n\n' + _('Please sign and broadcast the funding transaction')
+        #self.app.show_info(message)
+
+        #if not funding_tx.is_complete():
+            #self.app.tx_dialog(funding_tx)
+
+    @pyqtSlot(str, result=str)
+    def channelBackup(self, cid):
+        return self._wallet.wallet.lnworker.export_channel_backup(bfh(cid))

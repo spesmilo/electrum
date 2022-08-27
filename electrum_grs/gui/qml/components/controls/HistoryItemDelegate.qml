@@ -10,6 +10,9 @@ Item {
     width: ListView.view.width
     height: delegateLayout.height
 
+    // expose delegate model for scroll indicator
+    property var delegateModel: model
+
     ColumnLayout {
         id: delegateLayout
         width: parent.width

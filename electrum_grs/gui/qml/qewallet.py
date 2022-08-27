@@ -51,7 +51,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     isUptodateChanged = pyqtSignal()
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
-    requestCreateSuccess = pyqtSignal()
+    requestCreateSuccess = pyqtSignal([str], arguments=['key'])
     requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
     invoiceStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     invoiceCreateSuccess = pyqtSignal()
@@ -526,7 +526,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         assert key is not None
         self._requestModel.add_invoice(self.wallet.get_request(key))
-        self.requestCreateSuccess.emit()
+        self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
     def delete_request(self, key: str):
