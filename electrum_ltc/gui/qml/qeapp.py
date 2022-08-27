@@ -20,6 +20,7 @@ from .qebitcoin import QEBitcoin
 from .qefx import QEFX
 from .qetxfinalizer import QETxFinalizer
 from .qeinvoice import QEInvoice, QEInvoiceParser, QEUserEnteredPayment
+from .qerequestdetails import QERequestDetails
 from .qetypes import QEAmount
 from .qeaddressdetails import QEAddressDetails
 from .qetxdetails import QETxDetails
@@ -156,6 +157,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QELnPaymentDetails, 'org.electrum_ltc', 1, 0, 'LnPaymentDetails')
         qmlRegisterType(QEChannelDetails, 'org.electrum_ltc', 1, 0, 'ChannelDetails')
         qmlRegisterType(QESwapHelper, 'org.electrum_ltc', 1, 0, 'SwapHelper')
+        qmlRegisterType(QERequestDetails, 'org.electrum_ltc', 1, 0, 'RequestDetails')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum_ltc', 1, 0, 'Amount', 'Amount can only be used as property')
 

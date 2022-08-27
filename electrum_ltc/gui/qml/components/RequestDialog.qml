@@ -11,7 +11,7 @@ ElDialog {
     id: dialog
     title: qsTr('Payment Request')
 
-    property var modelItem
+    property string key
 
     property string _bolt11
     property string _bip21uri
@@ -174,7 +174,7 @@ ElDialog {
                     icon.source: '../../icons/delete.png'
                     text: qsTr('Delete')
                     onClicked: {
-                        Daemon.currentWallet.delete_request(modelItem.key)
+                        Daemon.currentWallet.delete_request(request.key)
                         dialog.close()
                     }
                 }
@@ -183,7 +183,7 @@ ElDialog {
                     icon.color: 'transparent'
                     text: 'Copy'
                     onClicked: {
-                        if (modelItem.is_lightning && rootLayout.state == 'bolt11')
+                        if (request.isLightning && rootLayout.state == 'bolt11')
                             AppController.textToClipboard(_bolt11)
                         else if (rootLayout.state == 'bip21uri')
                             AppController.textToClipboard(_bip21uri)
@@ -196,7 +196,7 @@ ElDialog {
                     text: 'Share'
                     onClicked: {
                         enabled = false
-                        if (modelItem.is_lightning && rootLayout.state == 'bolt11')
+                        if (request.isLightning && rootLayout.state == 'bolt11')
                             AppController.doShare(_bolt11, qsTr('Payment Request'))
                         else if (rootLayout.state == 'bip21uri')
                             AppController.doShare(_bip21uri, qsTr('Payment Request'))
@@ -212,25 +212,25 @@ ElDialog {
                 columns: 2
 
                 Label {
-                    visible: modelItem.message != ''
+                    visible: request.message != ''
                     text: qsTr('Description')
                 }
                 Label {
-                    visible: modelItem.message != ''
+                    visible: request.message != ''
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
-                    text: modelItem.message
+                    text: request.message
                     font.pixelSize: constants.fontSizeLarge
                 }
 
                 Label {
-                    visible: modelItem.amount.satsInt != 0
+                    visible: request.amount.satsInt != 0
                     text: qsTr('Amount')
                 }
                 RowLayout {
-                    visible: modelItem.amount.satsInt != 0
+                    visible: request.amount.satsInt != 0
                     Label {
-                        text: Config.formatSats(modelItem.amount)
+                        text: Config.formatSats(request.amount)
                         font.family: FixedFont
                         font.pixelSize: constants.fontSizeLarge
                         font.bold: true
@@ -245,7 +245,7 @@ ElDialog {
                         id: fiatValue
                         Layout.fillWidth: true
                         text: Daemon.fx.enabled
-                                ? '(' + Daemon.fx.fiatValue(modelItem.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+                                ? '(' + Daemon.fx.fiatValue(request.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
                                 : ''
                         font.pixelSize: constants.fontSizeMedium
                         wrapMode: Text.Wrap
@@ -253,17 +253,17 @@ ElDialog {
                 }
 
                 Label {
-                    visible: modelItem.address
+                    visible: request.address
                     text: qsTr('Address')
                 }
 
                 Label {
-                    visible: modelItem.address
+                    visible: request.address
                     Layout.fillWidth: true
                     font.family: FixedFont
                     font.pixelSize: constants.fontSizeLarge
                     wrapMode: Text.WrapAnywhere
-                    text: modelItem.address
+                    text: request.address
                 }
 
                 Label {
@@ -272,37 +272,30 @@ ElDialog {
                 Label {
                     Layout.fillWidth: true
                     font.pixelSize: constants.fontSizeLarge
-                    text: modelItem.status_str
+                    text: request.status_str
                 }
             }
         }
     }
 
-    Connections {
-        target: Daemon.currentWallet
-        function onRequestStatusChanged(key, status) {
-            if (key != modelItem.key)
-                return
-            modelItem = Daemon.currentWallet.get_request(key)
-        }
-    }
-
     Component.onCompleted: {
-        if (!modelItem.is_lightning) {
-            _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
-            _address = modelItem.address
+        if (!request.isLightning) {
+            _bip21uri = request.bip21
+            _address = request.address
             rootLayout.state = 'bip21uri'
         } else {
-            _bolt11 = modelItem.lightning_invoice
+            _bolt11 = request.bolt11
             rootLayout.state = 'bolt11'
-            if (modelItem.address != '') {
-                _bip21uri = bitcoin.create_bip21_uri(modelItem.address, modelItem.amount, modelItem.message, modelItem.timestamp, modelItem.expiration - modelItem.timestamp)
-                _address = modelItem.address
+            if (request.address != '') {
+                _bip21uri = request.bip21
+                _address = request.address
             }
         }
     }
 
-    Bitcoin {
-        id: bitcoin
+    RequestDetails {
+        id: request
+        wallet: Daemon.currentWallet
+        key: dialog.key
     }
 }

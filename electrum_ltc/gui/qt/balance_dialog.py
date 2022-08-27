@@ -34,7 +34,7 @@ from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
 
 from electrum_ltc.i18n import _
 
-from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height
+from .util import Buttons, CloseButton, WindowModalDialog, ColorScheme, font_height, AmountLabel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -186,33 +186,33 @@ class BalanceDialog(WindowModalDialog):
         if frozen:
             grid.addWidget(LegendWidget(COLOR_FROZEN), 0, 0)
             grid.addWidget(QLabel(_("Frozen") + ':'), 0, 1)
-            grid.addWidget(QLabel(frozen_str), 0, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(frozen_fiat_str), 0, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(frozen_str), 0, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(frozen_fiat_str), 0, 3, alignment=Qt.AlignRight)
         if unconfirmed:
             grid.addWidget(LegendWidget(COLOR_UNCONFIRMED), 2, 0)
             grid.addWidget(QLabel(_("Unconfirmed") + ':'), 2, 1)
-            grid.addWidget(QLabel(unconfirmed_str), 2, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(unconfirmed_fiat_str), 2, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unconfirmed_str), 2, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unconfirmed_fiat_str), 2, 3, alignment=Qt.AlignRight)
         if unmatured:
             grid.addWidget(LegendWidget(COLOR_UNMATURED), 3, 0)
             grid.addWidget(QLabel(_("Unmatured") + ':'), 3, 1)
-            grid.addWidget(QLabel(unmatured_str), 3, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(unmatured_fiat_str), 3, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unmatured_str), 3, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(unmatured_fiat_str), 3, 3, alignment=Qt.AlignRight)
         if confirmed:
             grid.addWidget(LegendWidget(COLOR_CONFIRMED), 1, 0)
             grid.addWidget(QLabel(_("On-chain") + ':'), 1, 1)
-            grid.addWidget(QLabel(confirmed_str), 1, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(confirmed_fiat_str), 1, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(confirmed_str), 1, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(confirmed_fiat_str), 1, 3, alignment=Qt.AlignRight)
         if lightning:
             grid.addWidget(LegendWidget(COLOR_LIGHTNING), 4, 0)
             grid.addWidget(QLabel(_("Lightning") + ':'), 4, 1)
-            grid.addWidget(QLabel(lightning_str), 4, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(lightning_fiat_str), 4, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(lightning_str), 4, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(lightning_fiat_str), 4, 3, alignment=Qt.AlignRight)
         if f_lightning:
             grid.addWidget(LegendWidget(COLOR_FROZEN_LIGHTNING), 5, 0)
             grid.addWidget(QLabel(_("Lightning (frozen)") + ':'), 5, 1)
-            grid.addWidget(QLabel(f_lightning_str), 5, 2, alignment=Qt.AlignRight)
-            grid.addWidget(QLabel(f_lightning_fiat_str), 5, 3, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(f_lightning_str), 5, 2, alignment=Qt.AlignRight)
+            grid.addWidget(AmountLabel(f_lightning_fiat_str), 5, 3, alignment=Qt.AlignRight)
 
         vbox.addLayout(grid)
         vbox.addStretch(1)

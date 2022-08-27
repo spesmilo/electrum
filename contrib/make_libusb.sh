@@ -7,7 +7,7 @@ set -e
 
 . $(dirname "$0")/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
 
-here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+here="$(dirname "$(realpath "$0" 2> /dev/null || grealpath "$0")")"
 CONTRIB="$here"
 PROJECT_ROOT="$CONTRIB/.."
 
@@ -15,7 +15,7 @@ pkgname="libusb"
 info "Building $pkgname..."
 
 (
-    cd $CONTRIB
+    cd "$CONTRIB"
     if [ ! -d libusb ]; then
         git clone https://github.com/libusb/libusb.git
     fi

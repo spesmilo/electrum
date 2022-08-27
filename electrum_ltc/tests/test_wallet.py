@@ -89,7 +89,8 @@ class TestWalletStorage(WalletTestCase):
 class FakeExchange(ExchangeBase):
     def __init__(self, rate):
         super().__init__(lambda self: None, lambda self: None)
-        self.quotes = {'TEST': rate}
+        self._quotes = {'TEST': rate}
+        self._quotes_timestamp = float("inf")  # spot price from the far future never becomes stale :P
 
 class FakeFxThread:
     def __init__(self, exchange):

@@ -54,7 +54,7 @@ class QETransactionListModel(QAbstractListModel):
         self.endResetModel()
 
     def tx_to_model(self, tx):
-        self._logger.debug(str(tx))
+        #self._logger.debug(str(tx))
         item = tx
 
         item['key'] = item['txid'] if 'txid' in item else item['payment_hash']

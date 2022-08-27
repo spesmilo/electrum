@@ -32,4 +32,7 @@ Item {
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
 
+    function colorAlpha(baseColor, alpha) {
+        return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)
+    }
 }

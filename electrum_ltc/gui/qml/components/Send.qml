@@ -18,9 +18,9 @@ Pane {
         is_max.checked = false
     }
 
-    function showUnsignedTx(tx) {
+    function showUnsignedTx(tx, qrtx) {
         var dialog = app.genericShareDialog.createObject(rootItem,
-            { title: qsTr('Raw Transaction'), text: tx }
+            { title: qsTr('Raw Transaction'), text: tx, text_qr: qrtx }
         )
         dialog.open()
     }
@@ -187,7 +187,7 @@ Pane {
                         userEnteredPayment.clear()
                         rootItem.clear()
                         if (Daemon.currentWallet.isWatchOnly) {
-                            showUnsignedTx(dialog.finalizer.serializedTx())
+                            showUnsignedTx(dialog.finalizer.serializedTx(false), dialog.finalizer.serializedTx(true))
                         } else {
                             dialog.finalizer.send_onchain()
                         }
@@ -300,7 +300,7 @@ Pane {
                     var wo = Daemon.currentWallet.isWatchOnly
                     dialog.txaccepted.connect(function() {
                         if (wo) {
-                            showUnsignedTx(dialog.finalizer.serializedTx())
+                            showUnsignedTx(dialog.finalizer.serializedTx(false), dialog.finalizer.serializedTx(true))
                         } else {
                             dialog.finalizer.send_onchain()
                         }

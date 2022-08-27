@@ -122,7 +122,8 @@ class QEAddressDetails(QObject):
         self._balance = QEAmount(amount_sat=c + u + x)
         self._pubkeys = self._wallet.wallet.get_public_keys(self._address)
         self._derivationPath = self._wallet.wallet.get_address_path_str(self._address)
-        self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
+        if self._wallet.derivationPrefix:
+            self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
         assert(self._numtx == self.historyModel.rowCount(0))
         self.detailsChanged.emit()

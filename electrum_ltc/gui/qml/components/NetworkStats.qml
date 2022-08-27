@@ -1,12 +1,57 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.0
+import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
+import QtQml 2.6
 
 import "controls"
 
 Pane {
+    id: root
+
     property string title: qsTr('Network')
+
+    property QtObject menu: Menu {
+        id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Server Settings');
+                onTriggered: menu.openPage(sc_comp);
+                enabled: Daemon.currentWallet
+                icon.source: '../../icons/network.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Proxy Settings');
+                onTriggered: menu.openPage(pc_comp);
+                enabled: Daemon.currentWallet
+                icon.source: '../../icons/status_connected_proxy.png'
+            }
+        }
+
+        function openPage(comp) {
+            var dialog = comp.createObject(root)
+            dialog.open()
+            currentIndex = -1
+        }
+    }
+
+    Component {
+        id: sc_comp
+        ServerConfigDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: pc_comp
+        ProxyConfigDialog {
+            onClosed: destroy()
+        }
+    }
 
     GridLayout {
         columns: 2

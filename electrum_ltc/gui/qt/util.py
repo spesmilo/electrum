@@ -111,6 +111,13 @@ class WWLabel(QLabel):
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
 
+class AmountLabel(QLabel):
+    def __init__(self, *args, **kwargs):
+        QLabel.__init__(self, *args, **kwargs)
+        self.setFont(QFont(MONOSPACE_FONT))
+        self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+
+
 class HelpMixin:
     def __init__(self, help_text: str, *, help_title: str = None):
         assert isinstance(self, QWidget), "HelpMixin must be a QWidget instance!"

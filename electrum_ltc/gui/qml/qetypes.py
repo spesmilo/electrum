@@ -77,6 +77,11 @@ class QEAmount(QObject):
     def isEmpty(self):
         return not(self._is_max or self._amount_sat or self._amount_msat)
 
+    def copyFrom(self, amount):
+        self.satsInt = amount.satsInt
+        self.msatsInt = amount.msatsInt
+        self.isMax = amount.isMax
+
     def __eq__(self, other):
         if isinstance(other, QEAmount):
             return self._amount_sat == other._amount_sat and self._amount_msat == other._amount_msat and self._is_max == other._is_max

@@ -197,11 +197,28 @@ Pane {
             app.channelOpenProgressDialog.error = message
         }
         onChannelOpenSuccess: {
-            var message = 'success!'
-            if (!has_backup)
-                message = message + ' (but no backup. TODO: show QR)'
+            var message = qsTr('Channel established.') + ' '
+                    + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
+            if (!tx_complete) {
+                message = message + ' ' + qsTr('Please sign and broadcast the funding transaction.')
+            }
             app.channelOpenProgressDialog.state = 'success'
-            app.channelOpenProgressDialog.error = message
+            app.channelOpenProgressDialog.info = message
+            if (!has_onchain_backup) {
+                app.channelOpenProgressDialog.closed.connect(function() {
+                    var dialog = app.genericShareDialog.createObject(app,
+                        {
+                            title: qsTr('Save Backup')
+                            text: channelopener.channelBackup(cid),
+                            text_help: qsTr('The channel you created is not recoverable from seed.')
+                            + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
+                            + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')
+                        }
+                    )
+                    dialog.open()
+                })
+            }
+            // TODO: handle incomplete TX
             channelopener.wallet.channelModel.new_channel(cid)
             app.stack.pop()
         }

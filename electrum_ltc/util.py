@@ -1299,6 +1299,7 @@ class OldTaskGroup(aiorpcx.TaskGroup):
         await group.spawn(task1())
         await group.spawn(task2())
     ```
+    # TODO see if we can migrate to asyncio.timeout, introduced in python 3.11, and use stdlib instead of aiorpcx.curio...
     """
     async def join(self):
         if self._wait is all:
@@ -1335,6 +1336,7 @@ class OldTaskGroup(aiorpcx.TaskGroup):
 # see https://github.com/kyuupichan/aiorpcX/issues/44
 # see https://github.com/aio-libs/async-timeout/issues/229
 # see https://bugs.python.org/issue42130 and https://bugs.python.org/issue45098
+# TODO see if we can migrate to asyncio.timeout, introduced in python 3.11, and use stdlib instead of aiorpcx.curio...
 def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
     def timeout_task():
         task._orig_cancel()
@@ -1348,7 +1350,26 @@ def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
         task.cancel = mycancel
     task._deadline_handle = task._loop.call_at(deadline, timeout_task)
 
-aiorpcx.curio._set_new_deadline = _aiorpcx_monkeypatched_set_new_deadline
+
+def _aiorpcx_monkeypatched_set_task_deadline(task, deadline):
+    ret = _aiorpcx_orig_set_task_deadline(task, deadline)
+    task._externally_cancelled = None
+    return ret
+
+
+def _aiorpcx_monkeypatched_unset_task_deadline(task):
+    if hasattr(task, "_orig_cancel"):
+        task.cancel = task._orig_cancel
+        del task._orig_cancel
+    return _aiorpcx_orig_unset_task_deadline(task)
+
+
+_aiorpcx_orig_set_task_deadline    = aiorpcx.curio._set_task_deadline
+_aiorpcx_orig_unset_task_deadline  = aiorpcx.curio._unset_task_deadline
+
+aiorpcx.curio._set_new_deadline    = _aiorpcx_monkeypatched_set_new_deadline
+aiorpcx.curio._set_task_deadline   = _aiorpcx_monkeypatched_set_task_deadline
+aiorpcx.curio._unset_task_deadline = _aiorpcx_monkeypatched_unset_task_deadline
 
 
 class NetworkJobOnDefaultServer(Logger, ABC):

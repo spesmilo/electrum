@@ -22,8 +22,16 @@ Pane {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Backup');
-                enabled: false
-                onTriggered: {}
+                onTriggered: {
+                    var dialog = app.genericShareDialog.createObject(root,
+                        {
+                            title: qsTr('Channel Backup for %1').arg(channeldetails.short_cid),
+                            text: channeldetails.channelBackup(),
+                            text_help: channeldetails.channelBackupHelpText()
+                        }
+                    )
+                    dialog.open()
+                }
                 icon.source: '../../icons/file.png'
             }
         }
@@ -92,7 +100,7 @@ Pane {
             columns: 2
 
             Label {
-                text: qsTr('Channel name')
+                text: qsTr('Node name')
                 color: Material.accentColor
             }
 

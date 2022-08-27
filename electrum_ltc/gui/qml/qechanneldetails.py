@@ -188,3 +188,15 @@ class QEChannelDetails(QObject, QtEventListener):
     @pyqtSlot()
     def deleteChannel(self):
         self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
+
+    @pyqtSlot(result=str)
+    def channelBackup(self):
+        return self._wallet.wallet.lnworker.export_channel_backup(self._channel.channel_id)
+
+    @pyqtSlot(result=str)
+    def channelBackupHelpText(self):
+        return ' '.join([
+            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Please note that channel backups cannot be used to restore your channels."),
+            _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
+        ])

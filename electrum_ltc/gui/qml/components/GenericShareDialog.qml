@@ -9,6 +9,9 @@ ElDialog {
     id: dialog
 
     property string text
+    property string text_qr
+    // if text_qr is undefined text will be used
+    property string text_help
 
     title: ''
     parent: Overlay.overlay
@@ -74,7 +77,16 @@ ElDialog {
                     wrapMode: Text.Wrap
                     font.pixelSize: constants.fontSizeLarge
                     font.family: FixedFont
+                    maximumLineCount: 4
+                    elide: Text.ElideRight
                 }
+            }
+
+            Label {
+                visible: dialog.text_help
+                text: dialog.text_help
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
             }
 
             RowLayout {
@@ -97,6 +109,6 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        qr.qrdata = dialog.text
+        qr.qrdata = dialog.text_qr ? dialog.text_qr : dialog.text
     }
 }

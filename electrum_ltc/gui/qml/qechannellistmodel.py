@@ -39,12 +39,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self.on_channel_updated(channel)
 
-    #    elif event == 'channels_updated':
-    @qt_event_listener
-    def on_event_channels_updated(self, wallet):
-        if wallet == self.wallet:
-            self.init_model() # TODO: remove/add less crude than full re-init
-
     def on_destroy(self):
         self.unregister_callbacks()
 
@@ -124,6 +118,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
             i = i + 1
 
     def do_update(self, modelindex, channel):
+        self._logger.debug(f'updating our channel {channel.short_id_for_GUI()}')
         modelitem = self.channels[modelindex]
         modelitem.update(self.channel_to_model(channel))
 
