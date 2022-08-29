@@ -4,7 +4,6 @@ set -e
 
 # Parameterize
 PYTHON_VERSION=3.9.11
-BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 
@@ -154,9 +153,6 @@ pyinstaller --version
 rm -rf ./dist
 
 git submodule update --init
-
-rm  -rf "$BUILDDIR" > /dev/null 2>&1
-mkdir "$BUILDDIR"
 
 info "generating locale"
 (
