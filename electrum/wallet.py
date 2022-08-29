@@ -82,7 +82,7 @@ from .mnemonic import Mnemonic
 from .logging import get_logger, Logger
 from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
-from .util import read_json_file, write_json_file, UserFacingException
+from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
 
 if TYPE_CHECKING:
@@ -986,7 +986,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
         return invoice
 
-    def save_invoice(self, invoice: Invoice) -> None:
+    def save_invoice(self, invoice: Invoice, *, write_to_disk: bool = True) -> None:
         key = self.get_key_for_outgoing_invoice(invoice)
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
@@ -995,7 +995,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
     def clear_invoices(self):
         self._invoices.clear()
@@ -1021,7 +1022,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def import_requests(self, path):
         data = read_json_file(path)
         for x in data:
-            req = Invoice(**x)
+            try:
+                req = Invoice(**x)
+            except:
+                raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
         self.save_db()
 
@@ -1031,8 +1035,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def import_invoices(self, path):
         data = read_json_file(path)
         for x in data:
-            invoice = Invoice(**x)
-            self.save_invoice(invoice)
+            try:
+                req = Invoice(**x)
+            except:
+                raise FileImportFailed(_("Invalid invoice format"))
+            self.save_invoice(invoice, write_to_disk=False)
+        self.save_db()
 
     def export_invoices(self, path):
         write_json_file(path, list(self._invoices.values()))
