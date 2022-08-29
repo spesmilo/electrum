@@ -1036,7 +1036,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         data = read_json_file(path)
         for x in data:
             try:
-                req = Invoice(**x)
+                invoice = Invoice(**x)
             except:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.save_invoice(invoice, write_to_disk=False)
