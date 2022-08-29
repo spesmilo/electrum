@@ -4,7 +4,7 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
@@ -361,6 +361,7 @@ class ReceiveTabWidget(QWidget):
             tooltip = _('Click to switch between text and QR code view')
             w._default_tooltip = tooltip
             w.setToolTip(tooltip)
+            w.setCursor(QCursor(Qt.PointingHandCursor))
         textedit.setFocusPolicy(Qt.NoFocus)
         if isinstance(help_widget, QLabel):
             help_widget.setFrameStyle(QFrame.StyledPanel)
