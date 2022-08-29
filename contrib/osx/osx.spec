@@ -129,5 +129,6 @@ app = BUNDLE(
                 'CFBundleURLName': 'bitcoin',
                 'CFBundleURLSchemes': ['bitcoin', 'lightning', ],
             }],
+        'LSMinimumSystemVersion': '10.13.0',
     },
 )
