@@ -107,6 +107,7 @@ exe = EXE(
     upx=True,
     icon=electrum+ICONS_FILE,
     console=False,
+    target_arch='x86_64',  # TODO investigate building 'universal2'
 )
 
 app = BUNDLE(

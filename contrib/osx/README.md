@@ -11,6 +11,9 @@ This guide explains how to build Electrum binaries for macOS systems.
 
 This needs to be done on a system running macOS or OS X.
 
+The script is only tested on Intel-based Macs, and the binary built
+targets `x86_64` currently.
+
 Notes about compatibility with different macOS versions:
 - In general the binary is not guaranteed to run on an older version of macOS
   than what the build machine has. This is due to bundling the compiled Python into

@@ -108,8 +108,8 @@ brew install autoconf automake libtool gettext coreutils pkgconfig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="40c9abce2d8de879e414fd377c933dccaab1e156"
-# ^ tag "4.2"
+PYINSTALLER_COMMIT="fbf7948be85177dd44b41217e9f039e1d176de6b"
+# ^ tag "5.3"
 # TODO test newer versions of pyinstaller for build-reproducibility.
 #      we are using this version for now due to change in code-signing behaviour
 #      (https://github.com/pyinstaller/pyinstaller/pull/5581)
@@ -139,7 +139,6 @@ PYINSTALLER_COMMIT="40c9abce2d8de879e414fd377c933dccaab1e156"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
-    rm pyinstaller.py  # workaround for https://github.com/pyinstaller/pyinstaller/pull/6701
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
