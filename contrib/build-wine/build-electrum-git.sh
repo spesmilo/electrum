@@ -56,7 +56,7 @@ rm -rf dist/
 
 # build standalone and portable versions
 info "Running pyinstaller..."
-wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
+ELECTRUM_CMDLINE_NAME="$NAME_ROOT-$VERSION" wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean -w deterministic.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist

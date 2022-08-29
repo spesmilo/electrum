@@ -10,11 +10,8 @@ MAIN_SCRIPT='run_electrum'
 ICONS_FILE=PYPKG + '/gui/icons/electrum.icns'
 
 
-for i, x in enumerate(sys.argv):
-    if x == '--name':
-        VERSION = sys.argv[i+1]
-        break
-else:
+VERSION = os.environ.get("ELECTRUM_VERSION")
+if not VERSION:
     raise Exception('no version')
 
 electrum = os.path.abspath(".") + "/"

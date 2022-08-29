@@ -2,12 +2,10 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
-import sys
-for i, x in enumerate(sys.argv):
-    if x == '--name':
-        cmdline_name = sys.argv[i+1]
-        break
-else:
+import sys, os
+
+cmdline_name = os.environ.get("ELECTRUM_CMDLINE_NAME")
+if not cmdline_name:
     raise Exception('no name')
 
 home = 'C:\\electrum\\'
