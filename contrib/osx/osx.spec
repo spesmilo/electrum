@@ -123,6 +123,11 @@ app = BUNDLE(
     bundle_identifier=None,
     info_plist={
         'NSHighResolutionCapable': 'True',
-        'NSSupportsAutomaticGraphicsSwitching': 'True'
+        'NSSupportsAutomaticGraphicsSwitching': 'True',
+        'CFBundleURLTypes':
+            [{
+                'CFBundleURLName': 'bitcoin',
+                'CFBundleURLSchemes': ['bitcoin', 'lightning', ],
+            }],
     },
 )
