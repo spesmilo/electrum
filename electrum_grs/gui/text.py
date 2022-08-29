@@ -288,7 +288,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         headers = fmt % ("Date", "Description", "Amount", "Status")
         for req in self.wallet.get_unpaid_requests():
             key = self.wallet.get_key_for_receive_request(req)
-            status = self.wallet.get_request_status(key)
+            status = self.wallet.get_invoice_status(req)
             status_str = req.get_status_str(status)
             timestamp = req.get_time()
             date = format_time(timestamp)

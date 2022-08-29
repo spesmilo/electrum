@@ -4,7 +4,6 @@ set -e
 
 # Parameterize
 PYTHON_VERSION=3.9.11
-BUILDDIR=/tmp/electrum-grs-build
 PACKAGE=Electrum-GRS
 GIT_REPO=https://github.com/groestlcoin/electrum-grs
 
@@ -109,8 +108,8 @@ brew install autoconf automake libtool gettext coreutils pkgconfig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="40c9abce2d8de879e414fd377c933dccaab1e156"
-# ^ tag "4.2"
+PYINSTALLER_COMMIT="fbf7948be85177dd44b41217e9f039e1d176de6b"
+# ^ tag "5.3"
 # TODO test newer versions of pyinstaller for build-reproducibility.
 #      we are using this version for now due to change in code-signing behaviour
 #      (https://github.com/pyinstaller/pyinstaller/pull/5581)
@@ -140,7 +139,6 @@ PYINSTALLER_COMMIT="40c9abce2d8de879e414fd377c933dccaab1e156"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
-    rm pyinstaller.py  # workaround for https://github.com/pyinstaller/pyinstaller/pull/6701
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
@@ -154,9 +152,6 @@ pyinstaller --version
 rm -rf ./dist
 
 git submodule update --init
-
-rm  -rf "$BUILDDIR" > /dev/null 2>&1
-mkdir "$BUILDDIR"
 
 info "generating locale"
 (
@@ -221,13 +216,7 @@ find . -exec touch -t '200101220000' {} + || true
 VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
 
 info "Building binary"
-pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
-
-info "Adding groestlcoin URI types to Info.plist"
-plutil -insert 'CFBundleURLTypes' \
-	-xml '<array><dict> <key>CFBundleURLName</key> <string>groestlcoin</string> <key>CFBundleURLSchemes</key> <array><string>groestlcoin</string><string>lightning</string></array> </dict></array>' \
-	-- dist/$PACKAGE.app/Contents/Info.plist \
-	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
+ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"
 
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app"
 

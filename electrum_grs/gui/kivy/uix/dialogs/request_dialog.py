@@ -187,7 +187,7 @@ class RequestDialog(Factory.Popup):
         address = req.get_address() or ''
         URI = self.app.wallet.get_request_URI(req) or ''
         lnaddr = req.lightning_invoice or ''
-        self.status = self.app.wallet.get_request_status(self.key)
+        self.status = self.app.wallet.get_invoice_status(req)
         self.status_str = req.get_status_str(self.status)
         self.status_color = pr_color[self.status]
         self.has_lightning = req.is_lightning()
