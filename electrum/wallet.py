@@ -2480,18 +2480,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         key = self.add_payment_request(req)
         return key
 
-    def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
-        raise
-        req = self._receive_requests.get(key)
-        assert not req.is_lightning()
-        alias_privkey = self.export_private_key(alias_addr, password)
-        pr = paymentrequest.make_unsigned_request(req)
-        paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
-        req.bip70 = pr.raw.hex()
-        req['name'] = pr.pki_data
-        req['sig'] = bh2u(pr.signature)
-        self._receive_requests[key] = req
-
     @classmethod
     def get_key_for_outgoing_invoice(cls, invoice: Invoice) -> str:
         """Return the key to use for this invoice in self.invoices."""

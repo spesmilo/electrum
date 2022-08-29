@@ -970,15 +970,6 @@ class Commands:
         wallet.save_db()
         return tx.txid()
 
-    @command('wp')
-    async def signrequest(self, address, password=None, wallet: Abstract_Wallet = None):
-        "Sign payment request with an OpenAlias"
-        alias = self.config.get('alias')
-        if not alias:
-            raise Exception('No alias in your configuration')
-        alias_addr = wallet.contacts.resolve(alias)['address']
-        wallet.sign_payment_request(address, alias, alias_addr, password)
-
     @command('w')
     async def delete_request(self, address, wallet: Abstract_Wallet = None):
         """Remove a payment request"""
