@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING, Sequence
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import QLabel, QLineEdit
+from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
 
-from electrum import util
+from electrum.util import EventListener
 from electrum.i18n import _
 from electrum.util import bh2u, format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
@@ -14,7 +14,8 @@ from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 from electrum.wallet import Abstract_Wallet
 
-from .util import Buttons, CloseButton, ButtonsLineEdit, MessageBoxMixin
+from .util import Buttons, CloseButton, ShowQRLineEdit, MessageBoxMixin, WWLabel
+from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -35,7 +36,52 @@ class LinkedLabel(QtWidgets.QLabel):
         self.linkActivated.connect(on_clicked)
 
 
-class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
+class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
+
+    def __init__(self, window: 'ElectrumWindow', chan: AbstractChannel):
+        super().__init__(window)
+        # initialize instance fields
+        self.window = window
+        self.wallet = window.wallet
+        self.chan = chan
+        self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
+        self.format_sat = lambda sat: window.format_amount_and_units(sat)
+        # register callbacks for updating
+        self.register_callbacks()
+        title = _('Lightning Channel') if not self.chan.is_backup() else _('Channel Backup')
+        self.setWindowTitle(title)
+        self.setMinimumSize(800, 400)
+        # activity labels. not used for backups.
+        self.local_balance_label = SelectableLabel()
+        self.remote_balance_label = SelectableLabel()
+        self.can_send_label = SelectableLabel()
+        self.can_receive_label = SelectableLabel()
+        # add widgets
+        vbox = QtWidgets.QVBoxLayout(self)
+        if self.chan.is_backup():
+            vbox.addWidget(QLabel('\n'.join([
+                _("This is a channel backup."),
+                _("It shows a channel that was opened with another instance of this wallet"),
+                _("A backup does not contain information about your local balance in the channel."),
+                _("You can use it to request a force close.")
+            ])))
+
+        form = self.get_common_form(chan)
+        vbox.addLayout(form)
+        if not self.chan.is_closed() and not self.chan.is_backup():
+            hbox_stats = self.get_hbox_stats(chan)
+            form.addRow(QLabel(_('Channel stats')+ ':'), hbox_stats)
+
+        if not self.chan.is_backup():
+            # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)
+            vbox.addWidget(QLabel(_('Payments (HTLCs):')))
+            w = self.create_htlc_list(chan)
+            vbox.addWidget(w)
+
+        vbox.addLayout(Buttons(CloseButton(self)))
+        # initialize sent/received fields
+        self.update()
+
     def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
         it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format_msat(i.amount_msat))])
@@ -83,120 +129,127 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    htlc_fulfilled = QtCore.pyqtSignal(str, bytes, bytes)
-    htlc_failed = QtCore.pyqtSignal(str, bytes, bytes)
-    htlc_added = QtCore.pyqtSignal(str, Channel, UpdateAddHtlc, Direction)
-    state_changed = QtCore.pyqtSignal(str, Abstract_Wallet, AbstractChannel)
-
-    @QtCore.pyqtSlot(str, Abstract_Wallet, AbstractChannel)
-    def do_state_changed(self, wallet, chan):
-        if wallet != self.wallet:
-            return
+    @qt_event_listener
+    def on_event_channel(self, wallet, chan):
         if chan == self.chan:
             self.update()
 
-    @QtCore.pyqtSlot(str, Channel, UpdateAddHtlc, Direction)
-    def on_htlc_added(self, evtname, chan, htlc, direction):
+    @qt_event_listener
+    def on_event_htlc_added(self, chan, htlc, direction):
         if chan != self.chan:
             return
         mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_htlc_item(htlc, direction))
 
-    @QtCore.pyqtSlot(str, bytes, bytes)
-    def on_htlc_fulfilled(self, evtname, payment_hash, chan_id):
-        if chan_id != self.chan.channel_id:
+    @qt_event_listener
+    def on_event_htlc_fulfilled(self, payment_hash, chan, htlc_id):
+        if chan.channel_id != self.chan.channel_id:
             return
         self.move('inflight', 'settled', payment_hash)
         self.update()
 
-    @QtCore.pyqtSlot(str, bytes, bytes)
-    def on_htlc_failed(self, evtname, payment_hash, chan_id):
-        if chan_id != self.chan.channel_id:
+    @qt_event_listener
+    def on_event_htlc_failed(self, payment_hash, chan, htlc_id):
+        if chan.channel_id != self.chan.channel_id:
             return
         self.move('inflight', 'failed', payment_hash)
         self.update()
 
     def update(self):
+        if self.chan.is_closed() or self.chan.is_backup():
+            return
         self.can_send_label.setText(self.format_msat(self.chan.available_to_spend(LOCAL)))
         self.can_receive_label.setText(self.format_msat(self.chan.available_to_spend(REMOTE)))
         self.sent_label.setText(self.format_msat(self.chan.total_msat(Direction.SENT)))
         self.received_label.setText(self.format_msat(self.chan.total_msat(Direction.RECEIVED)))
+        self.local_balance_label.setText(self.format_msat(self.chan.balance(LOCAL)))
+        self.remote_balance_label.setText(self.format_msat(self.chan.balance(REMOTE)))
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
-        funding_tx = self.wallet.db.get_transaction(self.chan.funding_outpoint.txid)
-        if not funding_tx:
-            self.show_error(_("Funding transaction not found."))
+        tx = self.wallet.adb.get_transaction(link_text)
+        if not tx:
+            self.show_error(_("Transaction not found."))
             return
-        self.window.show_transaction(funding_tx, tx_desc=_('Funding Transaction'))
+        self.window.show_transaction(tx, tx_desc=_('Transaction'))
 
-    def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
-        super().__init__(window)
+    def get_common_form(self, chan):
+        form = QtWidgets.QFormLayout(None)
+        remote_id_e = ShowQRLineEdit(chan.node_id.hex(), self.window.config, title=_("Remote Node ID"))
+        form.addRow(QLabel(_('Remote Node') + ':'), remote_id_e)
+        channel_id_e = ShowQRLineEdit(chan.channel_id.hex(), self.window.config, title=_("Channel ID"))
+        form.addRow(QLabel(_('Channel ID') + ':'), channel_id_e)
 
-        # initialize instance fields
-        self.window = window
-        self.wallet = window.wallet
-        chan = self.chan = window.wallet.lnworker.channels[chan_id]
-        self.format_msat = lambda msat: window.format_amount_and_units(msat / 1000)
+        form.addRow(QLabel(_('Short Channel ID') + ':'), QLabel(str(chan.short_channel_id)))
+        form.addRow(QLabel(_('State') + ':'), SelectableLabel(chan.get_state_for_GUI()))
 
-        # connect signals with slots
-        self.htlc_fulfilled.connect(self.on_htlc_fulfilled)
-        self.htlc_failed.connect(self.on_htlc_failed)
-        self.state_changed.connect(self.do_state_changed)
-        self.htlc_added.connect(self.on_htlc_added)
+        self.capacity = self.format_sat(chan.get_capacity())
+        form.addRow(QLabel(_('Capacity') + ':'), SelectableLabel(self.capacity))
+        if not chan.is_backup():
+            form.addRow(QLabel(_('Channel type:')), SelectableLabel(chan.storage['channel_type'].name_minimal))
+            initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
+            form.addRow(QLabel(_('Initiator:')), SelectableLabel(initiator))
+        else:
+            form.addRow(QLabel("Backup Type"), QLabel("imported" if self.chan.is_imported else "on-chain"))
+        funding_txid = chan.funding_outpoint.txid
+        funding_label_text = f'<a href={funding_txid}>{funding_txid}</a>:{chan.funding_outpoint.output_index}'
+        form.addRow(QLabel(_('Funding Outpoint') + ':'), LinkedLabel(funding_label_text, self.show_tx))
+        if chan.is_closed():
+            item = chan.get_closing_height()
+            if item:
+                closing_txid, closing_height, timestamp = item
+                closing_label_text = f'<a href={closing_txid}>{closing_txid}</a>'
+                form.addRow(QLabel(_('Closing Transaction') + ':'), LinkedLabel(closing_label_text, self.show_tx))
+        return form
 
-        # register callbacks for updating
-        util.register_callback(self.htlc_fulfilled.emit, ['htlc_fulfilled'])
-        util.register_callback(self.htlc_failed.emit, ['htlc_failed'])
-        util.register_callback(self.htlc_added.emit, ['htlc_added'])
-        util.register_callback(self.state_changed.emit, ['channel'])
-
-        # set attributes of QDialog
-        self.setWindowTitle(_('Channel Details'))
-        self.setMinimumSize(800, 400)
-
-        # add layouts
-        vbox = QtWidgets.QVBoxLayout(self)
-        vbox.addWidget(QLabel(_('Remote Node ID:')))
-        remote_id_e = ButtonsLineEdit(bh2u(chan.node_id))
-        remote_id_e.addCopyButton(self.window.app)
-        remote_id_e.setReadOnly(True)
-        vbox.addWidget(remote_id_e)
-        funding_label_text = f'<a href=click_destination>{chan.funding_outpoint.txid}</a>:{chan.funding_outpoint.output_index}'
-        vbox.addWidget(QLabel(_('Funding Outpoint:')))
-        vbox.addWidget(LinkedLabel(funding_label_text, self.show_tx))
-
-        form_layout = QtWidgets.QFormLayout(None)
-        # add form content
-        form_layout.addRow(_('Channel ID:'), SelectableLabel(f"{chan.channel_id.hex()} (Short: {chan.short_channel_id})"))
-        form_layout.addRow(_('State:'), SelectableLabel(chan.get_state_for_GUI()))
-        self.initiator = 'Local' if chan.constraints.is_initiator else 'Remote'
-        form_layout.addRow(_('Initiator:'), SelectableLabel(self.initiator))
-        self.capacity = self.window.format_amount_and_units(chan.get_capacity())
-        form_layout.addRow(_('Capacity:'), SelectableLabel(self.capacity))
-        self.can_send_label = SelectableLabel()
-        self.can_receive_label = SelectableLabel()
-        form_layout.addRow(_('Can send:'), self.can_send_label)
-        form_layout.addRow(_('Can receive:'), self.can_receive_label)
-        self.received_label = SelectableLabel()
-        form_layout.addRow(_('Received:'), self.received_label)
-        self.sent_label = SelectableLabel()
-        form_layout.addRow(_('Sent:'), self.sent_label)
+    def get_hbox_stats(self, chan):
+        hbox_stats = QHBoxLayout()
+        form_layout_left = QtWidgets.QFormLayout(None)
+        form_layout_right = QtWidgets.QFormLayout(None)
+        form_layout_left.addRow(_('Local balance') + ':', self.local_balance_label)
+        form_layout_right.addRow(_('Remote balance') + ':', self.remote_balance_label)
+        form_layout_left.addRow(_('Can send') + ':', self.can_send_label)
+        form_layout_right.addRow(_('Can receive') + ':', self.can_receive_label)
+        local_reserve_label = SelectableLabel("{}".format(
+            self.format_sat(chan.config[LOCAL].reserve_sat),
+        ))
+        remote_reserve_label = SelectableLabel("{}".format(
+            self.format_sat(chan.config[REMOTE].reserve_sat),
+        ))
+        form_layout_left.addRow(_('Local reserve') + ':', local_reserve_label)
+        form_layout_right.addRow(_('Remote reserve' + ':'), remote_reserve_label)
         #self.htlc_minimum_msat = SelectableLabel(str(chan.config[REMOTE].htlc_minimum_msat))
-        #form_layout.addRow(_('Minimum HTLC value accepted by peer (mSAT):'), self.htlc_minimum_msat)
+        #form_layout_left.addRow(_('Minimum HTLC value accepted by peer (mSAT):'), self.htlc_minimum_msat)
         #self.max_htlcs = SelectableLabel(str(chan.config[REMOTE].max_accepted_htlcs))
-        #form_layout.addRow(_('Maximum number of concurrent HTLCs accepted by peer:'), self.max_htlcs)
-        #self.max_htlc_value = SelectableLabel(self.window.format_amount_and_units(chan.config[REMOTE].max_htlc_value_in_flight_msat / 1000))
-        #form_layout.addRow(_('Maximum value of in-flight HTLCs accepted by peer:'), self.max_htlc_value)
-        self.dust_limit = SelectableLabel(self.window.format_amount_and_units(chan.config[REMOTE].dust_limit_sat))
-        form_layout.addRow(_('Remote dust limit:'), self.dust_limit)
-        self.remote_reserve = self.window.format_amount_and_units(chan.config[REMOTE].reserve_sat)
-        form_layout.addRow(_('Remote reserve:'), SelectableLabel(self.remote_reserve))
-        vbox.addLayout(form_layout)
+        #form_layout_left.addRow(_('Maximum number of concurrent HTLCs accepted by peer:'), self.max_htlcs)
+        #self.max_htlc_value = SelectableLabel(self.format_sat(chan.config[REMOTE].max_htlc_value_in_flight_msat / 1000))
+        #form_layout_left.addRow(_('Maximum value of in-flight HTLCs accepted by peer:'), self.max_htlc_value)
+        local_dust_limit_label = SelectableLabel("{}".format(
+            self.format_sat(chan.config[LOCAL].dust_limit_sat),
+        ))
+        remote_dust_limit_label = SelectableLabel("{}".format(
+            self.format_sat(chan.config[REMOTE].dust_limit_sat),
+        ))
+        form_layout_left.addRow(_('Local dust limit') + ':', local_dust_limit_label)
+        form_layout_right.addRow(_('Remote dust limit') + ':', remote_dust_limit_label)
+        self.received_label = SelectableLabel()
+        self.sent_label = SelectableLabel()
+        form_layout_left.addRow(_('Total sent') + ':', self.sent_label)
+        form_layout_right.addRow(_('Total received') + ':', self.received_label)
+        # channel stats left column
+        hbox_stats.addLayout(form_layout_left, 50)
+        # vertical line separator
+        line_separator = QtWidgets.QFrame()
+        line_separator.setFrameShape(QtWidgets.QFrame.VLine)
+        line_separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        line_separator.setLineWidth(1)
+        hbox_stats.addWidget(line_separator)
+        # channel stats right column
+        hbox_stats.addLayout(form_layout_right, 50)
+        return hbox_stats
 
-        # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)
-        vbox.addWidget(QLabel(_('Payments (HTLCs):')))
+    def create_htlc_list(self, chan):
         w = QtWidgets.QTreeView(self)
         htlc_dict = chan.get_payments()
         htlc_list = []
@@ -205,7 +258,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin):
                 htlc_list.append(htlc_with_status)
         w.setModel(self.make_model(htlc_list))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-        vbox.addWidget(w)
-        vbox.addLayout(Buttons(CloseButton(self)))
-        # initialize sent/received fields
-        self.update()
+        return w
+
+    def closeEvent(self, event):
+        self.unregister_callbacks()
+        event.accept()

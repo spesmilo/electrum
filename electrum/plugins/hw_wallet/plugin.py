@@ -66,13 +66,14 @@ class HW_PluginBase(BasePlugin):
         return self.parent.device_manager
 
     def create_device_from_hid_enumeration(self, d: dict, *, product_key) -> Optional['Device']:
+        # note: id_ needs to be unique between simultaneously connected devices,
+        #       and ideally unchanged while a device is connected.
         # Older versions of hid don't provide interface_number
         interface_number = d.get('interface_number', -1)
         usage_page = d['usage_page']
-        id_ = d['serial_number']
-        if len(id_) == 0:
-            id_ = str(d['path'])
-        id_ += str(interface_number) + str(usage_page)
+        # id_=str(d['path']) in itself might be sufficient, but this had to be touched
+        # a number of times already, so let's just go for the overkill approach:
+        id_ = f"{d['path']},{d['serial_number']},{interface_number},{usage_page}"
         device = Device(path=d['path'],
                         interface_number=interface_number,
                         id_=id_,
@@ -156,7 +157,11 @@ class HW_PluginBase(BasePlugin):
                     or versiontuple(library_version) < self.minimum_library
                     or versiontuple(library_version) >= self.maximum_library):
                 raise LibraryFoundButUnusable(library_version=library_version)
-        except ImportError:
+        except ImportError as e:
+            self.libraries_available_message = (
+                _("Missing libraries for {}.").format(self.name)
+                + f"\n    {e!r}"
+            )
             return False
         except LibraryFoundButUnusable as e:
             library_version = e.library_version

@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: neoscrypt
+Description: Bindings for the NeoScrypt proof-of-work algorithm
+URL: https://github.com/ghostlander/NeoScrypt
+Version: @PACKAGE_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lneoscrypt
+Libs.private: @SECP_LIBS@
+

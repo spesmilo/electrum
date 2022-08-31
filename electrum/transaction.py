@@ -194,6 +194,12 @@ class TxOutpoint(NamedTuple):
         return TxOutpoint(txid=bfh(hash_str),
                           out_idx=int(idx_str))
 
+    def __str__(self) -> str:
+        return f"""TxOutpoint("{self.to_str()}")"""
+
+    def __repr__(self):
+        return f"<{str(self)}>"
+
     def to_str(self) -> str:
         return f"{self.txid.hex()}:{self.out_idx}"
 
@@ -253,6 +259,8 @@ class TxInput:
         return d
 
     def witness_elements(self)-> Sequence[bytes]:
+        if not self.witness:
+            return []
         vds = BCDataStream()
         vds.write(self.witness)
         n = vds.read_compact_size()
@@ -474,7 +482,7 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
         raise Exception(f'amount ({amount}) is below dust limit for scriptpubkey type ({dust_limit})')
 
 
-def match_script_against_template(script, template) -> bool:
+def match_script_against_template(script, template, debug=False) -> bool:
     """Returns whether 'script' matches 'template'."""
     if script is None:
         return False
@@ -483,8 +491,14 @@ def match_script_against_template(script, template) -> bool:
         try:
             script = [x for x in script_GetOp(script)]
         except MalformedBitcoinScript:
+            if debug:
+                _logger.debug(f"malformed script")
             return False
+    if debug:
+        _logger.debug(f"match script against template: {script}")
     if len(script) != len(template):
+        if debug:
+            _logger.debug(f"length mismatch {len(script)} != {len(template)}")
         return False
     for i in range(len(script)):
         template_item = template[i]
@@ -494,6 +508,8 @@ def match_script_against_template(script, template) -> bool:
         if OPGeneric.is_instance(template_item) and template_item.match(script_item[0]):
             continue
         if template_item != script_item[0]:
+            if debug:
+                _logger.debug(f"item mismatch at position {i}: {template_item} != {script_item[0]}")
             return False
     return True
 
@@ -659,14 +675,15 @@ class Transaction:
             n_vin = vds.read_compact_size()
         if n_vin < 1:
             raise SerializationError('tx needs to have at least 1 input')
-        self._inputs = [parse_input(vds) for i in range(n_vin)]
+        txins = [parse_input(vds) for i in range(n_vin)]
         n_vout = vds.read_compact_size()
         if n_vout < 1:
             raise SerializationError('tx needs to have at least 1 output')
         self._outputs = [parse_output(vds) for i in range(n_vout)]
         if is_segwit:
-            for txin in self._inputs:
+            for txin in txins:
                 parse_witness(vds, txin)
+        self._inputs = txins  # only expose field after witness is parsed, for sanity
         self._locktime = vds.read_uint32()
         if vds.can_read_more():
             raise SerializationError('extra junk at the end')
@@ -710,6 +727,8 @@ class Transaction:
         if not txin.is_segwit():
             return construct_witness([])
 
+        if estimate_size and txin.witness_sizehint is not None:
+            return '00' * txin.witness_sizehint
         if _type in ('address', 'unknown') and estimate_size:
             _type = cls.guess_txintype_from_address(txin.address)
         pubkeys, sig_list = cls.get_siglist(txin, estimate_size=estimate_size)
@@ -1208,8 +1227,10 @@ class PartialTxInput(TxInput, PSBTSection):
         self._trusted_address = None  # type: Optional[str]
         self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown
         self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
+        self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
+        self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
 
     @property
     def utxo(self):
@@ -2025,10 +2046,7 @@ class PartialTransaction(Transaction):
                     continue
                 pubkey_hex = public_key.get_public_key_hex(compressed=True)
                 if pubkey_hex in pubkeys:
-                    try:
-                        public_key.verify_message_hash(sig_string, pre_hash)
-                    except Exception:
-                        _logger.exception('')
+                    if not public_key.verify_message_hash(sig_string, pre_hash):
                         continue
                     _logger.info(f"adding sig: txin_idx={i}, signing_pubkey={pubkey_hex}, sig={sig}")
                     self.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_hex, sig=sig)

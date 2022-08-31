@@ -1,0 +1,7 @@
+setup(
+    name='neoscrypt',
+    version=version,  # specified elsewhere
+    packages=[''],
+    package_dir={'': '.'},
+    package_data={'neoscrypt': ['libneoscrypt-0.dll']},
+)

@@ -28,11 +28,11 @@ from typing import Dict, List, TYPE_CHECKING, Tuple, Set
 from collections import defaultdict
 import logging
 
-from aiorpcx import TaskGroup, run_in_thread, RPCError
+from aiorpcx import run_in_thread, RPCError
 
 from . import util
 from .transaction import Transaction, PartialTransaction
-from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy
+from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
 from .bitcoin import address_to_scripthash, is_address
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
@@ -60,7 +60,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     """
     def __init__(self, network: 'Network'):
         self.asyncio_loop = network.asyncio_loop
-        self._reset_request_counters()
 
         NetworkJobOnDefaultServer.__init__(self, network)
 
@@ -69,7 +68,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         self.requested_addrs = set()
         self.scripthash_to_address = {}
         self._processed_some_notifications = False  # so that we don't miss them
-        self._reset_request_counters()
         # Queues
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
@@ -84,10 +82,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
         finally:
             # we are being cancelled now
             self.session.unsubscribe(self.status_queue)
-
-    def _reset_request_counters(self):
-        self._requests_sent = 0
-        self._requests_answered = 0
 
     def add(self, addr):
         asyncio.run_coroutine_threadsafe(self._add_address(addr), self.asyncio_loop)
@@ -129,9 +123,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             await self.taskgroup.spawn(self._on_address_status, addr, status)
             self._processed_some_notifications = True
 
-    def num_requests_sent_and_answered(self) -> Tuple[int, int]:
-        return self._requests_sent, self._requests_answered
-
     async def main(self):
         raise NotImplementedError()  # implemented by subclasses
 
@@ -144,9 +135,9 @@ class Synchronizer(SynchronizerBase):
     we don't have the full history of, and requests binary transaction
     data of any transactions the wallet doesn't have.
     '''
-    def __init__(self, wallet: 'AddressSynchronizer'):
-        self.wallet = wallet
-        SynchronizerBase.__init__(self, wallet.network)
+    def __init__(self, adb: 'AddressSynchronizer'):
+        self.adb = adb
+        SynchronizerBase.__init__(self, adb.network)
 
     def _reset(self):
         super()._reset()
@@ -155,7 +146,7 @@ class Synchronizer(SynchronizerBase):
         self._stale_histories = dict()  # type: Dict[str, asyncio.Task]
 
     def diagnostic_name(self):
-        return self.wallet.diagnostic_name()
+        return self.adb.diagnostic_name()
 
     def is_up_to_date(self):
         return (not self.requested_addrs
@@ -164,7 +155,7 @@ class Synchronizer(SynchronizerBase):
                 and not self._stale_histories)
 
     async def _on_address_status(self, addr, status):
-        history = self.wallet.db.get_addr_history(addr)
+        history = self.adb.db.get_addr_history(addr)
         if history_status(history) == status:
             return
         # No point in requesting history twice for the same announced status.
@@ -198,7 +189,7 @@ class Synchronizer(SynchronizerBase):
         else:
             self._stale_histories.pop(addr, asyncio.Future()).cancel()
             # Store received history
-            self.wallet.receive_history_callback(addr, hist, tx_fees)
+            self.adb.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
             await self._request_missing_txs(hist)
 
@@ -211,14 +202,14 @@ class Synchronizer(SynchronizerBase):
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
-            tx = self.wallet.db.get_transaction(tx_hash)
+            tx = self.adb.db.get_transaction(tx_hash)
             if tx and not isinstance(tx, PartialTransaction):
                 continue  # already have complete tx
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
 
         if not transaction_hashes: return
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             for tx_hash in transaction_hashes:
                 await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
 
@@ -240,35 +231,32 @@ class Synchronizer(SynchronizerBase):
         if tx_hash != tx.txid():
             raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)
-        self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
+        self.adb.receive_tx_callback(tx_hash, tx, tx_height)
         self.logger.info(f"received tx {tx_hash} height: {tx_height} bytes: {len(raw_tx)}")
-        # callbacks
-        util.trigger_callback('new_transaction', self.wallet, tx)
 
     async def main(self):
-        self.wallet.set_up_to_date(False)
+        self.adb.set_up_to_date(False)
         # request missing txns, if any
-        for addr in random_shuffled_copy(self.wallet.db.get_history()):
-            history = self.wallet.db.get_addr_history(addr)
+        for addr in random_shuffled_copy(self.adb.db.get_history()):
+            history = self.adb.db.get_addr_history(addr)
             # Old electrum servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
             await self._request_missing_txs(history, allow_server_not_finding_tx=True)
         # add addresses to bootstrap
-        for addr in random_shuffled_copy(self.wallet.get_addresses()):
+        for addr in random_shuffled_copy(self.adb.get_addresses()):
             await self._add_address(addr)
         # main loop
         while True:
             await asyncio.sleep(0.1)
-            await run_in_thread(self.wallet.synchronize)
-            up_to_date = self.is_up_to_date()
-            if (up_to_date != self.wallet.is_up_to_date()
+            hist_done = self.is_up_to_date()
+            spv_done = self.adb.verifier.is_up_to_date() if self.adb.verifier else True
+            up_to_date = hist_done and spv_done
+            # see if status changed
+            if (up_to_date != self.adb.is_up_to_date()
                     or up_to_date and self._processed_some_notifications):
                 self._processed_some_notifications = False
-                if up_to_date:
-                    self._reset_request_counters()
-                self.wallet.set_up_to_date(up_to_date)
-                util.trigger_callback('wallet_updated', self.wallet)
+                self.adb.set_up_to_date(up_to_date)
 
 
 class Notifier(SynchronizerBase):

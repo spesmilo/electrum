@@ -26,7 +26,7 @@
 import io
 import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING, Dict, Any, Optional
-from enum import IntEnum, IntFlag
+from enum import IntEnum
 
 from . import ecc
 from .crypto import sha256, hmac_oneshot, chacha20_encrypt

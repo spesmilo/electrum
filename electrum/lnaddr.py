@@ -211,7 +211,8 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
             route = bitstring.BitArray(pubkey) + bitstring.pack('intbe:32', feebase) + bitstring.pack('intbe:32', feerate) + bitstring.pack('intbe:16', cltv)
             data += tagged('t', route)
         elif k == 'f':
-            data += encode_fallback(v, addr.net)
+            if v is not None:
+                data += encode_fallback(v, addr.net)
         elif k == 'd':
             # truncate to max length: 1024*5 bits = 639 bytes
             data += tagged_bytes('d', v.encode()[0:639])
@@ -337,6 +338,9 @@ class LnAddr(object):
 
     def get_description(self) -> str:
         return self.get_tag('d') or ''
+
+    def get_fallback_address(self) -> str:
+        return self.get_tag('f') or ''
 
     def get_expiry(self) -> int:
         exp = self.get_tag('x')
@@ -510,7 +514,8 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
         #
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
-        ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash)
+        if not ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash):
+            raise LnDecodeException("bad signature")
         pubkey_copy = addr.pubkey
         class WrappedBytesKey:
             serialize = lambda: pubkey_copy

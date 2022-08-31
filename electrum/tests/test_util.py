@@ -1,10 +1,11 @@
 from decimal import Decimal
 
+from electrum import util
 from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
                            is_hash256_str, chunks, is_ip_address, list_enabled_bits,
                            format_satoshis_plain, is_private_netaddress, is_hex_str,
                            is_integer, is_non_negative_integer, is_int_or_float,
-                           is_non_negative_int_or_float)
+                           is_non_negative_int_or_float, is_subpath)
 
 from . import ElectrumTestCase
 
@@ -292,3 +293,25 @@ class TestUtil(ElectrumTestCase):
         self.assertFalse(is_private_netaddress("[2a00:1450:400e:80d::200e]"))
         self.assertFalse(is_private_netaddress("8.8.8.8"))
         self.assertFalse(is_private_netaddress("example.com"))
+
+    def test_is_subpath(self):
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e", "/a/b/c/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c/"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c"))
+        self.assertTrue(util.is_subpath("/a/b/c/d/e/", "/a/b/c/d/e/"))
+        self.assertTrue(util.is_subpath("/", "/"))
+        self.assertTrue(util.is_subpath("a/b/c", "a"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/b"))
+        self.assertTrue(util.is_subpath("a/b/c", "a/b/c"))
+
+        self.assertFalse(util.is_subpath("/a/b/c/d/e/", "/b"))
+        self.assertFalse(util.is_subpath("/a/b/c/d/e/", "/b/c/"))
+        self.assertFalse(util.is_subpath("/a/b/c", "/a/b/c/d/e/"))
+        self.assertFalse(util.is_subpath("/a/b/c", "a"))
+        self.assertFalse(util.is_subpath("/a/b/c", "c"))
+        self.assertFalse(util.is_subpath("a", "/a/b/c"))
+        self.assertFalse(util.is_subpath("c", "/a/b/c"))

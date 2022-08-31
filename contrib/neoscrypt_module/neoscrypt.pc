@@ -1,0 +1,13 @@
+prefix=/opt/wine64/drive_c/electrum/contrib/neoscrypt_module/dist
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: neoscrypt
+Description: Bindings for the NeoScrypt proof-of-work algorithm
+URL: https://github.com/ghostlander/NeoScrypt
+Version: 1.0
+Cflags: -I${includedir}
+Libs: -L${libdir} -lneoscrypt
+Libs.private: 
+

@@ -19,7 +19,7 @@ class HTLCManager:
                 'locked_in': {},         # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 'settles': {},           # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 'fails': {},             # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
-                'fee_updates': {},       # "side who initiated fee update" -> action -> list of FeeUpdates
+                'fee_updates': {},       # "side who initiated fee update" -> index -> list of FeeUpdates
                 'revack_pending': False,
                 'next_htlc_id': 0,
                 'ctn': -1,               # oldest unrevoked ctx of sub
@@ -28,6 +28,7 @@ class HTLCManager:
             log[LOCAL] = deepcopy(initial)
             log[REMOTE] = deepcopy(initial)
             log[LOCAL]['unacked_updates'] = {}
+            log[LOCAL]['was_revoke_last'] = False
 
         # maybe bootstrap fee_updates if initial_feerate was provided
         if initial_feerate is not None:
@@ -155,6 +156,7 @@ class HTLCManager:
     def send_ctx(self) -> None:
         assert self.ctn_latest(REMOTE) == self.ctn_oldest_unrevoked(REMOTE), (self.ctn_latest(REMOTE), self.ctn_oldest_unrevoked(REMOTE))
         self._set_revack_pending(REMOTE, True)
+        self.log[LOCAL]['was_revoke_last'] = False
 
     @with_lock
     def recv_ctx(self) -> None:
@@ -165,6 +167,7 @@ class HTLCManager:
     def send_rev(self) -> None:
         self.log[LOCAL]['ctn'] += 1
         self._set_revack_pending(LOCAL, False)
+        self.log[LOCAL]['was_revoke_last'] = True
         # htlcs
         for htlc_id in self._maybe_active_htlc_ids[REMOTE]:
             ctns = self.log[REMOTE]['locked_in'][htlc_id]
@@ -286,6 +289,11 @@ class HTLCManager:
         #return self.log[LOCAL]['unacked_updates']
         return {ctn: [bfh(msg) for msg in messages]
                 for ctn, messages in self.log[LOCAL]['unacked_updates'].items()}
+
+    @with_lock
+    def was_revoke_last(self) -> bool:
+        """Whether we sent a revoke_and_ack after the last commitment_signed we sent."""
+        return self.log[LOCAL].get('was_revoke_last') or False
 
     ##### Queries re HTLCs:
 

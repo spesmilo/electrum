@@ -69,8 +69,9 @@ fi
 
 info "Resetting modification time in C:\Python..."
 # (Because of some bugs in pyinstaller)
-pushd $WINEPREFIX/drive_c/python*
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+pushd /opt/wine64/drive_c/python*
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
+
 popd
 ls -l $WINEPREFIX/drive_c/python*
 

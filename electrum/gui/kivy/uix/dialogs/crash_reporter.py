@@ -12,7 +12,7 @@ from kivy.utils import platform
 
 from electrum.gui.kivy.i18n import _
 
-from electrum.base_crash_reporter import BaseCrashReporter
+from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.logging import Logger
 
 
@@ -180,11 +180,13 @@ class ExceptionHook(base.ExceptionHandler, Logger):
         Logger.__init__(self)
         self.main_window = main_window
         if not main_window.electrum_config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         # For exceptions in Kivy:
         base.ExceptionManager.add_handler(self)
         # For everything else:
         sys.excepthook = lambda exctype, value, tb: self.handle_exception(value)
+        EarlyExceptionsQueue.set_hook_as_ready()
 
     def handle_exception(self, _inst):
         exc_info = sys.exc_info()

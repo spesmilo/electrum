@@ -30,6 +30,8 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
+hiddenimports += ['electrum.plugins.jade.jade']
+hiddenimports += ['electrum.plugins.jade.jadepy.jade']
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 datas = [
@@ -68,13 +70,13 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/dnssec.py',
               electrum+'electrum/commands.py',
               electrum+'electrum/plugins/cosigner_pool/qt.py',
-              electrum+'electrum/plugins/email_requests/qt.py',
               electrum+'electrum/plugins/trezor/qt.py',
               electrum+'electrum/plugins/safe_t/client.py',
               electrum+'electrum/plugins/safe_t/qt.py',
               electrum+'electrum/plugins/keepkey/qt.py',
               electrum+'electrum/plugins/ledger/qt.py',
               electrum+'electrum/plugins/coldcard/qt.py',
+              electrum+'electrum/plugins/jade/qt.py',
               ],
              binaries=binaries,
              datas=datas,

@@ -43,6 +43,7 @@ from electrum.logging import get_logger
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
                    PasswordLineEdit)
+from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -53,27 +54,20 @@ _logger = get_logger(__name__)
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(QDialog):
-    def __init__(self, *, network: Network, config: 'SimpleConfig', network_updated_signal_obj):
+class NetworkDialog(QDialog, QtEventListener):
+    def __init__(self, *, network: Network, config: 'SimpleConfig'):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 500)
         self.nlayout = NetworkChoiceLayout(network, config)
-        self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.network_updated_signal_obj.network_updated_signal.connect(
-            self.on_update)
-        util.register_callback(self.on_network, ['network_updated'])
+        self.register_callbacks()
         self._cleaned_up = False
 
-    def on_network(self, event, *args):
-        signal_obj = self.network_updated_signal_obj
-        if signal_obj:
-            signal_obj.network_updated_signal.emit(event, args)
-
-    def on_update(self):
+    @qt_event_listener
+    def on_event_network_updated(self):
         self.nlayout.update()
 
     def clean_up(self):
@@ -81,8 +75,7 @@ class NetworkDialog(QDialog):
             return
         self._cleaned_up = True
         self.nlayout.clean_up()
-        self.network_updated_signal_obj.network_updated_signal.disconnect()
-        self.network_updated_signal_obj = None
+        self.unregister_callbacks()
 
 
 class NodesListWidget(QTreeWidget):

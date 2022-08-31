@@ -421,8 +421,8 @@ class HistoryModel(CustomModel, Logger):
             HistoryColumns.TXID: 'TXID',
         }[section]
 
-    def flags(self, idx):
-        extra_flags = Qt.NoItemFlags # type: Qt.ItemFlag
+    def flags(self, idx: QModelIndex) -> int:
+        extra_flags = Qt.NoItemFlags  # type: Qt.ItemFlag
         if idx.column() in self.view.editable_columns:
             extra_flags |= Qt.ItemIsEditable
         return super().flags(idx) | int(extra_flags)
@@ -658,11 +658,13 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             assert False
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
-        idx = self.indexAt(event.pos())
+        org_idx: QModelIndex = self.indexAt(event.pos())
+        idx = self.proxy.mapToSource(org_idx)
         if not idx.isValid():
+            # can happen e.g. before list is populated for the first time
             return
-        tx_item = self.tx_item_from_proxy_row(idx.row())
-        if self.hm.flags(self.model().mapToSource(idx)) & Qt.ItemIsEditable:
+        tx_item = idx.internalPointer().get_data()
+        if self.hm.flags(idx) & Qt.ItemIsEditable:
             super().mouseDoubleClickEvent(event)
         else:
             if tx_item.get('lightning'):
@@ -710,12 +712,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             key = tx_item['payment_hash']
             log = self.wallet.lnworker.logs.get(key)
             if log:
-                menu.addAction(_("View log"), lambda: self.parent.invoice_list.show_log(key, log))
+                menu.addAction(_("View log"), lambda: self.parent.send_tab.invoice_list.show_log(key, log))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
         if tx_item.get('lightning'):
-            tx = self.wallet.lnworker.lnwatcher.db.get_transaction(tx_hash)
+            tx = self.wallet.adb.get_transaction(tx_hash)
         else:
             tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
@@ -736,8 +738,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
         menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
         channel_id = tx_item.get('channel_id')
-        if channel_id:
-            menu.addAction(_("View Channel"), lambda: self.parent.show_channel(bytes.fromhex(channel_id)))
+        if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
+            menu.addAction(_("View Channel"), lambda: self.parent.show_channel_details(chan))
         if is_unconfirmed and tx:
             if tx_details.can_bump:
                 menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
@@ -746,7 +748,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp_dialog(tx))
             if tx_details.can_dscancel:
                 menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
-        invoices = self.wallet.get_relevant_invoices_for_tx(tx)
+        invoices = self.wallet.get_relevant_invoices_for_tx(tx_hash)
         if len(invoices) == 1:
             menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.parent.show_onchain_invoice(inv))
         elif len(invoices) > 1:
@@ -758,7 +760,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def remove_local_tx(self, tx_hash: str):
-        num_child_txs = len(self.wallet.get_depending_transactions(tx_hash))
+        num_child_txs = len(self.wallet.adb.get_depending_transactions(tx_hash))
         question = _("Are you sure you want to remove this transaction?")
         if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
@@ -766,7 +768,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not self.parent.question(msg=question,
                                     title=_("Please confirm")):
             return
-        self.wallet.remove_transaction(tx_hash)
+        self.wallet.adb.remove_transaction(tx_hash)
         self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
