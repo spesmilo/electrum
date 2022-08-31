@@ -1066,15 +1066,16 @@ class LNWallet(LNWorker):
         min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
         if min_funding_sat > LN_MAX_FUNDING_SAT:
             return
+        fee_est = partial(self.config.estimate_fee, allow_fallback_to_static_rates=True)  # to avoid NoDynamicFeeEstimates
         try:
-            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_est=None)
+            self.mktx_for_open_channel(coins=coins, funding_sat=min_funding_sat, node_id=bytes(32), fee_est=fee_est)
             funding_sat = min_funding_sat
         except NotEnoughFunds:
             return
         # if available, suggest twice that amount:
         if 2 * min_funding_sat <= LN_MAX_FUNDING_SAT:
             try:
-                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=None)
+                self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=fee_est)
                 funding_sat = 2 * min_funding_sat
             except NotEnoughFunds:
                 pass

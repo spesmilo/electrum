@@ -1548,11 +1548,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return selected_addr
 
     def can_pay_onchain(self, outputs, coins=None):
+        fee = partial(self.config.estimate_fee, allow_fallback_to_static_rates=True)  # to avoid NoDynamicFeeEstimates
         try:
             self.make_unsigned_transaction(
                 coins=coins,
                 outputs=outputs,
-                fee=None)
+                fee=fee)
         except NotEnoughFunds:
             return False
         return True
@@ -1565,6 +1566,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr: str = None,
             is_sweep=False,
             rbf=False) -> PartialTransaction:
+        """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
         if not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()

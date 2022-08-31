@@ -58,6 +58,8 @@ ElDialog {
 
             QRImage {
                 id: qr
+                render: dialog.enter ? false : true
+                qrdata: dialog.text_qr ? dialog.text_qr : dialog.text
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingSmall
                 Layout.bottomMargin: constants.paddingSmall
@@ -108,7 +110,12 @@ ElDialog {
         }
     }
 
-    Component.onCompleted: {
-        qr.qrdata = dialog.text_qr ? dialog.text_qr : dialog.text
+    Connections {
+        target: dialog.enter
+        function onRunningChanged() {
+            if (!dialog.enter.running) {
+                qr.render = true
+            }
+        }
     }
 }

@@ -64,14 +64,13 @@ class QERequestDetails(QObject):
     statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
     def status(self):
-        req = self._wallet.get_request(self._key)
+        req = self._wallet.wallet.get_request(self._key)
         return self._wallet.wallet.get_invoice_status(req)
 
     statusStringChanged = pyqtSignal()
     @pyqtProperty(str, notify=statusStringChanged)
     def status_str(self):
         return self._req.get_status_str(self.status)
-
 
     @pyqtProperty(bool, notify=detailsChanged)
     def isLightning(self):
