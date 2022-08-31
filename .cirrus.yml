@@ -182,6 +182,19 @@ task:
     path: "dist/*"
 
 task:
+  name: Android build (QML)
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 8
+    memory: 8G
+  build_script:
+    - ./contrib/android/make_apk qml arm64-v8a debug
+    - ./contrib/android/make_apk qml armeabi-v7a debug
+  binaries_artifacts:
+    path: "dist/*"
+  only_if: $CIRRUS_TAG =~ 'beta-.*'
+
+task:
   name: MacOS build
   macos_instance:
     image: catalina-xcode-11.3.1
