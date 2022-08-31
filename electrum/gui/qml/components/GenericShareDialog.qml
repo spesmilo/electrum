@@ -113,7 +113,6 @@ ElDialog {
     Connections {
         target: dialog.enter
         function onRunningChanged() {
-            console.log('dialog open animation running changed: ' + dialog.enter.running)
             if (!dialog.enter.running) {
                 qr.render = true
             }
