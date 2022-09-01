@@ -4,7 +4,7 @@
 
 from typing import Optional, TYPE_CHECKING
 
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
@@ -268,26 +268,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
                 data = self.receive_lightning_qr.data
             self.window.qr_window.qrw.setData(data)
 
-    def sign_payment_request(self, addr):
-        alias = self.config.get('alias')
-        if alias and self.wallet.contacts.alias_info:
-            alias_addr, alias_name, validated = self.wallet.contacts.alias_info
-            if alias_addr:
-                if self.wallet.is_mine(alias_addr):
-                    msg = _('This payment request will be signed.') + '\n' + _('Please enter your password')
-                    password = None
-                    if self.wallet.has_keystore_encryption():
-                        password = self.window.password_dialog(msg)
-                        if not password:
-                            return
-                    try:
-                        self.wallet.sign_payment_request(addr, alias, alias_addr, password)
-                    except Exception as e:
-                        self.show_error(repr(e))
-                        return
-                else:
-                    return
-
     def create_invoice(self):
         amount_sat = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
@@ -314,7 +294,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             self.logger.exception('Error adding payment request')
             self.show_error(_('Error adding payment request') + ':\n' + repr(e))
             return
-        self.sign_payment_request(address)
         assert key is not None
         self.window.address_list.refresh_all()
         self.request_list.update()
@@ -382,6 +361,7 @@ class ReceiveTabWidget(QWidget):
             tooltip = _('Click to switch between text and QR code view')
             w._default_tooltip = tooltip
             w.setToolTip(tooltip)
+            w.setCursor(QCursor(Qt.PointingHandCursor))
         textedit.setFocusPolicy(Qt.NoFocus)
         if isinstance(help_widget, QLabel):
             help_widget.setFrameStyle(QFrame.StyledPanel)

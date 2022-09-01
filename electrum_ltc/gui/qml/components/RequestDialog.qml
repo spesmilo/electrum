@@ -17,6 +17,8 @@ ElDialog {
     property string _bip21uri
     property string _address
 
+    property bool _render_qr: false // delay qr rendering until dialog is shown
+
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
@@ -91,18 +93,21 @@ ElDialog {
                         id: qri_bolt11
                         QRImage {
                             qrdata: _bolt11
+                            render: _render_qr
                         }
                     }
                     Component {
                         id: qri_bip21uri
                         QRImage {
                             qrdata: _bip21uri
+                            render: _render_qr
                         }
                     }
                     Component {
                         id: qri_address
                         QRImage {
                             qrdata: _address
+                            render: _render_qr
                         }
                     }
                 }
@@ -297,5 +302,15 @@ ElDialog {
         id: request
         wallet: Daemon.currentWallet
         key: dialog.key
+    }
+
+    // hack. delay qr rendering until dialog is shown
+    Connections {
+        target: dialog.enter
+        function onRunningChanged() {
+            if (!dialog.enter.running) {
+                dialog._render_qr = true
+            }
+        }
     }
 }

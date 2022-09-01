@@ -906,7 +906,7 @@ class Commands:
         out = wallet.get_sorted_requests()
         if f is not None:
             out = [req for req in out
-                   if f == wallet.get_request_status(wallet.get_key_for_receive_request(req))]
+                   if f == wallet.get_invoice_status(req)]
         return [wallet.export_request(x) for x in out]
 
     @command('w')
@@ -969,15 +969,6 @@ class Commands:
             return False
         wallet.save_db()
         return tx.txid()
-
-    @command('wp')
-    async def signrequest(self, address, password=None, wallet: Abstract_Wallet = None):
-        "Sign payment request with an OpenAlias"
-        alias = self.config.get('alias')
-        if not alias:
-            raise Exception('No alias in your configuration')
-        alias_addr = wallet.contacts.resolve(alias)['address']
-        wallet.sign_payment_request(address, alias, alias_addr, password)
 
     @command('w')
     async def delete_request(self, address, wallet: Abstract_Wallet = None):
@@ -1143,6 +1134,8 @@ class Commands:
                 'remote_pubkey': bh2u(chan.node_id),
                 'local_balance': chan.balance(LOCAL)//1000,
                 'remote_balance': chan.balance(REMOTE)//1000,
+                'local_ctn': chan.get_latest_ctn(LOCAL),
+                'remote_ctn': chan.get_latest_ctn(REMOTE),
                 'local_reserve': chan.config[REMOTE].reserve_sat, # their config has our reserve
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,

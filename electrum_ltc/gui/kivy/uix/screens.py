@@ -542,7 +542,7 @@ class ReceiveScreen(CScreen):
         key = self.app.wallet.get_key_for_receive_request(req)
         amount = req.get_amount_sat()
         description = req.message
-        status = self.app.wallet.get_request_status(key)
+        status = self.app.wallet.get_invoice_status(req)
         status_str = req.get_status_str(status)
         ci = {}
         ci['screen'] = self
@@ -568,7 +568,7 @@ class ReceiveScreen(CScreen):
         data = payments_container.data
         for item in data:
             if item['key'] == key:
-                status = self.app.wallet.get_request_status(key)
+                status = self.app.wallet.get_invoice_status(request)
                 status_str = request.get_status_str(status)
                 item['status'] = status
                 item['status_str'] = status_str

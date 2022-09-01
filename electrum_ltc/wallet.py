@@ -82,7 +82,7 @@ from .mnemonic import Mnemonic
 from .logging import get_logger, Logger
 from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
-from .util import read_json_file, write_json_file, UserFacingException
+from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
 
 if TYPE_CHECKING:
@@ -986,7 +986,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
         return invoice
 
-    def save_invoice(self, invoice: Invoice) -> None:
+    def save_invoice(self, invoice: Invoice, *, write_to_disk: bool = True) -> None:
         key = self.get_key_for_outgoing_invoice(invoice)
         if not invoice.is_lightning():
             if self.is_onchain_invoice_paid(invoice)[0]:
@@ -995,7 +995,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 for txout in invoice.get_outputs():
                     self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(key)
         self._invoices[key] = invoice
-        self.save_db()
+        if write_to_disk:
+            self.save_db()
 
     def clear_invoices(self):
         self._invoices.clear()
@@ -1021,7 +1022,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def import_requests(self, path):
         data = read_json_file(path)
         for x in data:
-            req = Invoice(**x)
+            try:
+                req = Invoice(**x)
+            except:
+                raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
         self.save_db()
 
@@ -1031,8 +1035,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def import_invoices(self, path):
         data = read_json_file(path)
         for x in data:
-            invoice = Invoice(**x)
-            self.save_invoice(invoice)
+            try:
+                invoice = Invoice(**x)
+            except:
+                raise FileImportFailed(_("Invalid invoice format"))
+            self.save_invoice(invoice, write_to_disk=False)
+        self.save_db()
 
     def export_invoices(self, path):
         write_json_file(path, list(self._invoices.values()))
@@ -1540,11 +1548,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return selected_addr
 
     def can_pay_onchain(self, outputs, coins=None):
+        fee = partial(self.config.estimate_fee, allow_fallback_to_static_rates=True)  # to avoid NoDynamicFeeEstimates
         try:
             self.make_unsigned_transaction(
                 coins=coins,
                 outputs=outputs,
-                fee=None)
+                fee=fee)
         except NotEnoughFunds:
             return False
         return True
@@ -1557,6 +1566,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr: str = None,
             is_sweep=False,
             rbf=False) -> PartialTransaction:
+        """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
         if not coins:  # any bitcoin tx must have at least 1 input by consensus
             raise NotEnoughFunds()
@@ -2324,7 +2334,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return status
 
     def get_invoice_status(self, invoice: Invoice):
-        """Returns status of (outgoing) invoice."""
+        """Returns status of (incoming) request or (outgoing) invoice."""
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
@@ -2340,25 +2350,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(invoice, status)
 
-    def get_request_status(self, key):
-        """Returns status of (incoming) receive request."""
-        r = self.get_request(key)
-        if r is None:
-            return PR_UNKNOWN
-        if r.is_lightning() and self.lnworker:
-            status = self.lnworker.get_payment_status(bfh(r.rhash))
-            if status != PR_UNPAID:
-                return self.check_expired_status(r, status)
-        paid, conf = self.is_onchain_invoice_paid(r)
-        if not paid:
-            status = PR_UNPAID
-        elif conf == 0:
-            status = PR_UNCONFIRMED
-        else:
-            assert conf >= 1, conf
-            status = PR_PAID
-        return self.check_expired_status(r, status)
-
     def get_request(self, key: str) -> Optional[Invoice]:
         if req := self._receive_requests.get(key):
             return req
@@ -2373,7 +2364,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def export_request(self, x: Invoice) -> Dict[str, Any]:
         key = self.get_key_for_receive_request(x)
-        status = self.get_request_status(key)
+        status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
         is_lightning = x.is_lightning()
         address = x.get_address()
@@ -2451,7 +2442,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txo in tx.outputs():
                 addr = txo.address
                 if self.get_request(addr):
-                    status = self.get_request_status(addr)
+                    req = self.get_request(addr)
+                    status = self.get_invoice_status(req)
                     util.trigger_callback('request_status', self, addr, status)
                 for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
                     relevant_invoice_keys.add(invoice_key)
@@ -2489,18 +2481,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         )
         key = self.add_payment_request(req)
         return key
-
-    def sign_payment_request(self, key, alias, alias_addr, password):  # FIXME this is broken
-        raise
-        req = self._receive_requests.get(key)
-        assert not req.is_lightning()
-        alias_privkey = self.export_private_key(alias_addr, password)
-        pr = paymentrequest.make_unsigned_request(req)
-        paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
-        req.bip70 = pr.raw.hex()
-        req['name'] = pr.pki_data
-        req['sig'] = bh2u(pr.signature)
-        self._receive_requests[key] = req
 
     @classmethod
     def get_key_for_outgoing_invoice(cls, invoice: Invoice) -> str:
@@ -2563,8 +2543,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return out
 
     def get_unpaid_requests(self):
-        out = [self.get_request(x) for x in self._receive_requests.keys() if self.get_request_status(x) != PR_PAID]
-        out = [x for x in out if x is not None]
+        out = [x for x in self._receive_requests.values() if self.get_invoice_status(x) != PR_PAID]
         out.sort(key=lambda x: x.time)
         return out
 
@@ -2846,7 +2825,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         URI = self.get_request_URI(req) or ''
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
         can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
-        status = self.get_request_status(key)
+        status = self.get_invoice_status(req)
 
         if status == PR_EXPIRED:
             address_help = URI_help = ln_help = _('This request has expired')

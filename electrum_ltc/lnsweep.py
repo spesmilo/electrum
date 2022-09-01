@@ -204,16 +204,18 @@ def create_sweeptxs_for_our_ctx(
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
         their_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', to_local_witness_script)
-    # to remote address
-    assert chan.is_static_remotekey_enabled()
-    their_payment_pubkey = their_conf.payment_basepoint.pubkey
-    to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
-    # test ctx
-    _logger.debug(f'testing our ctx: {to_local_address} {to_remote_address}')
-    if not ctx.get_output_idxs_from_address(to_local_address) \
-       and not ctx.get_output_idxs_from_address(to_remote_address):
+    # test if this is our_ctx
+    found_to_local = bool(ctx.get_output_idxs_from_address(to_local_address))
+    if not chan.is_backup():
+        assert chan.is_static_remotekey_enabled()
+        their_payment_pubkey = their_conf.payment_basepoint.pubkey
+        to_remote_address = make_commitment_output_to_remote_address(their_payment_pubkey)
+        found_to_remote = bool(ctx.get_output_idxs_from_address(to_remote_address))
+    else:
+        found_to_remote = False
+    if not found_to_local and not found_to_remote:
         return
-    # we have to_local, to_remote.
+    _logger.debug(f'found our ctx: {to_local_address} {to_remote_address}')
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
@@ -355,15 +357,18 @@ def create_sweeptxs_for_their_ctx(
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         our_revocation_pubkey, our_conf.to_self_delay, their_delayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
-    # to remote address
-    assert chan.is_static_remotekey_enabled()
-    our_payment_pubkey = our_conf.payment_basepoint.pubkey
-    to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
     # test if this is their ctx
-    _logger.debug(f'testing their ctx: {to_local_address} {to_remote_address}')
-    if not ctx.get_output_idxs_from_address(to_local_address) \
-       and not ctx.get_output_idxs_from_address(to_remote_address):
+    found_to_local = bool(ctx.get_output_idxs_from_address(to_local_address))
+    if not chan.is_backup():
+        assert chan.is_static_remotekey_enabled()
+        our_payment_pubkey = our_conf.payment_basepoint.pubkey
+        to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
+        found_to_remote = bool(ctx.get_output_idxs_from_address(to_remote_address))
+    else:
+        found_to_remote = False
+    if not found_to_local and not found_to_remote:
         return
+    _logger.debug(f'found their ctx: {to_local_address} {to_remote_address}')
     if is_revocation:
         our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
         gen_tx = create_sweeptx_for_their_revoked_ctx(chan, ctx, per_commitment_secret, chan.sweep_address)
