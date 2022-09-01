@@ -353,14 +353,15 @@ if [[ $1 == "watchtower" ]]; then
     echo "alice pays bob again"
     invoice2=$($bob add_request 0.01 -m "invoice2" | jq -r ".lightning_invoice")
     $alice lnpay $invoice2
+    alice_ctn=$($alice list_channels | jq '.[0].local_ctn')
     msg="waiting until watchtower is synchronized"
-    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != "3" ]]; do
-        sleep 1
-        msg="$msg."
-        printf "$msg\r"
+    # watchtower needs to be at latest revoked ctn
+    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((alice_ctn-1)) ]]; do
+        sleep 0.1
+        printf "$msg $alice_ctn $watchtower_ctn\r"
     done
     printf "\n"
-    echo "alice and bob do nothing"
+    echo "stopping alice and bob"
     $bob stop
     $alice stop
     ctx_id=$($bitcoin_cli sendrawtransaction $ctx)

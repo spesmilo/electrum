@@ -1134,6 +1134,8 @@ class Commands:
                 'remote_pubkey': bh2u(chan.node_id),
                 'local_balance': chan.balance(LOCAL)//1000,
                 'remote_balance': chan.balance(REMOTE)//1000,
+                'local_ctn': chan.get_latest_ctn(LOCAL),
+                'remote_ctn': chan.get_latest_ctn(REMOTE),
                 'local_reserve': chan.config[REMOTE].reserve_sat, # their config has our reserve
                 'remote_reserve': chan.config[LOCAL].reserve_sat,
                 'local_unsettled_sent': chan.balance_tied_up_in_htlcs_by_direction(LOCAL, direction=SENT) // 1000,
