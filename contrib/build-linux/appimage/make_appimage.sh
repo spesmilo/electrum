@@ -128,7 +128,7 @@ info "installing electrum and its dependencies."
 #	--cache-dir "$PIP_CACHE_DIR" "neoscrypt-python"
 #CFLAGS="-DDEBUG" "$python" ./setup.py install
 
-"#$python" -m pip install --no-dependencies --no-warn-script-#location \
+#"$python" -m pip install --no-dependencies --no-warn-script-#location \
 
 "$python" -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$PIP_CACHE_DIR" "$PROJECT_ROOT"
