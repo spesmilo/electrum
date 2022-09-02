@@ -137,6 +137,10 @@ class Invoice(StoredObject):
         # 0 means never
         return self.exp + self.time if self.exp else 0
 
+    def has_expired(self) -> bool:
+        exp = self.get_expiration_date()
+        return bool(exp) and exp < time.time()
+
     def get_amount_msat(self) -> Union[int, str, None]:
         return self.amount_msat
 

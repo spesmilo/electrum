@@ -389,7 +389,7 @@ class QEInvoiceParser(QEInvoice):
         if not self._effectiveInvoice:
             return
         # TODO detect duplicate?
-        self.key = self._wallet.wallet.get_key_for_outgoing_invoice(self._effectiveInvoice)
+        self.key = self._effectiveInvoice.get_id()
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
         self.invoiceSaved.emit()
 
@@ -486,7 +486,7 @@ class QEUserEnteredPayment(QEInvoice):
             self.invoiceCreateError.emit('fatal', _('Error creating payment') + ':\n' + str(e))
             return
 
-        self.key = self._wallet.wallet.get_key_for_outgoing_invoice(invoice)
+        self.key = invoice.get_id()
         self._wallet.wallet.save_invoice(invoice)
         self.invoiceSaved.emit()
 
