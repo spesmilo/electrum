@@ -4,15 +4,12 @@ import random
 
 from typing import Mapping, DefaultDict, Tuple, Optional, Dict, List
 
-from .logging import get_logger, Logger
 from .lnutil import LnFeatures
 from .lnonion import calc_hops_data_for_payment, new_onion_packet
 from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_to_use
 from .lnutil import NoPathFound, LNPeerAddr
 from . import constants
 
-
-_logger = get_logger(__name__)
 
 # trampoline nodes are supposed to advertise their fee and cltv in node_update message
 TRAMPOLINE_FEES = [
@@ -216,8 +213,6 @@ def create_trampoline_route(
         amount_msat += edge.fee_for_edge(amount_msat)
     if not is_route_sane_to_use(route, amount_msat, min_cltv_expiry):
         raise NoPathFound("We cannot afford to pay the fees.")
-    _logger.info(f'created route with trampoline fee level={trampoline_fee_level}, is legacy: {is_legacy}')
-    _logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in route]}')
     return route
 
 
@@ -255,7 +250,6 @@ def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payme
                 "payment_secret": payment_secret,
                 "total_msat": total_msat
             }
-        _logger.info(f'payload {i} {payload}')
     trampoline_session_key = os.urandom(32)
     trampoline_onion = new_onion_packet(payment_path_pubkeys, trampoline_session_key, hops_data, associated_data=payment_hash, trampoline=True)
     return trampoline_onion, amount_msat, cltv
@@ -301,4 +295,4 @@ def create_trampoline_route_and_onion(
     # trampoline fee for this very trampoline
     trampoline_fee = trampoline_route[0].fee_for_edge(amount_with_fees)
     amount_with_fees += trampoline_fee
-    return trampoline_onion, amount_with_fees, bucket_cltv_delta
+    return trampoline_route, trampoline_onion, amount_with_fees, bucket_cltv_delta
