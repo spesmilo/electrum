@@ -1081,8 +1081,7 @@ class TestPeer(TestCaseForTestnet):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
         self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
-    @needs_test_with_all_chacha20_implementations
-    def test_payment_trampoline(self):
+    def _run_trampoline_payment(self, is_legacy):
         async def turn_on_trampoline_alice():
             if graph.workers['alice'].network.channel_db:
                 graph.workers['alice'].network.channel_db.stop()
@@ -1106,25 +1105,32 @@ class TestPeer(TestCaseForTestnet):
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
 
-        for is_legacy in (True, False):
-            graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
-            # insert a channel from bob to carol for faster tests,
-            # otherwise will fail randomly
-            graph_definition['bob']['channels']['carol'] = high_fee_channel
-            graph = self.prepare_chans_and_peers_in_graph(graph_definition)
-            peers = graph.peers.values()
-            if is_legacy:
-                # turn off trampoline features
-                graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
+        # insert a channel from bob to carol for faster tests,
+        # otherwise will fail randomly
+        graph_definition['bob']['channels']['carol'] = high_fee_channel
+        graph = self.prepare_chans_and_peers_in_graph(graph_definition)
+        peers = graph.peers.values()
+        if is_legacy:
+            # turn off trampoline features
+            graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
 
-            # declare routing nodes as trampoline nodes
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
-                graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
-                graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
-            }
+        # declare routing nodes as trampoline nodes
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
+            graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
+        }
 
-            with self.assertRaises(PaymentDone):
-                run(f())
+        with self.assertRaises(PaymentDone):
+            run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_trampoline_payment_legacy(self):
+        self._run_trampoline_payment(True)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_trampoline_payment_e2e(self):
+        self._run_trampoline_payment(False)
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_trampoline_e2e(self):
