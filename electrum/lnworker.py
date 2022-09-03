@@ -1224,8 +1224,7 @@ class LNWallet(LNWorker):
         # sometimes need to fall back to a single trampoline forwarder, at the expense
         # of privacy
         use_two_trampolines = True
-
-        trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
+        self.trampoline_fee_level = self.INITIAL_TRAMPOLINE_FEE_LEVEL
         start_time = time.time()
         amount_inflight = 0  # what we sent in htlcs (that receiver gets, without fees)
         while True:
@@ -1244,7 +1243,7 @@ class LNWallet(LNWorker):
                     full_path=full_path,
                     payment_hash=payment_hash,
                     payment_secret=payment_secret,
-                    trampoline_fee_level=trampoline_fee_level,
+                    trampoline_fee_level=self.trampoline_fee_level,
                     use_two_trampolines=use_two_trampolines,
                     fwd_trampoline_onion=fwd_trampoline_onion,
                     channels=channels,
@@ -1263,7 +1262,7 @@ class LNWallet(LNWorker):
                         payment_secret=bucket_payment_secret,
                         min_cltv_expiry=cltv_delta,
                         trampoline_onion=trampoline_onion,
-                        trampoline_fee_level=trampoline_fee_level)
+                        trampoline_fee_level=self.trampoline_fee_level)
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
             # 3. await a queue
             self.logger.info(f"amount inflight {amount_inflight}")
@@ -1300,12 +1299,11 @@ class LNWallet(LNWorker):
             # trampoline
             if not self.channel_db:
                 def maybe_raise_trampoline_fee(htlc_log):
-                    global trampoline_fee_level
-                if htlc_log.trampoline_fee_level == trampoline_fee_level:
-                    trampoline_fee_level += 1
-                    self.logger.info(f'raising trampoline fee level {trampoline_fee_level}')
-                else:
-                    self.logger.info(f'NOT raising trampoline fee level, already at {trampoline_fee_level}')
+                    if htlc_log.trampoline_fee_level == self.trampoline_fee_level:
+                        self.trampoline_fee_level += 1
+                        self.logger.info(f'raising trampoline fee level {self.trampoline_fee_level}')
+                    else:
+                        self.logger.info(f'NOT raising trampoline fee level, already at {self.trampoline_fee_level}')
                 # FIXME The trampoline nodes in the path are chosen randomly.
                 #       Some of the errors might depend on how we have chosen them.
                 #       Having more attempts is currently useful in part because of the randomness,
