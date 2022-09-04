@@ -97,9 +97,8 @@ def encode_routing_info(r_tags):
     return result.tobytes()
 
 
-def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Optional[bytes]]:
-    """Returns if we deal with a legacy payment and gives back the possible last
-    trampoline pubkey.
+def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, List[bytes]]:
+    """Returns if we deal with a legacy payment and the list of trampoline pubkeys in the invoice.
     """
     invoice_features = LnFeatures(invoice_features)
     # trampoline-supporting wallets:
@@ -113,7 +112,7 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Optional[bytes]]:
         # Any trampoline node should be able to figure out a path to the receiver and
         # we can use an e2e payment.
         if not r_tags:
-            return False, None
+            return False, []
         else:
             # - We choose one routing hint at random, and
             #   use end-to-end trampoline if that node is a trampoline-forwarder (TF).
@@ -123,12 +122,11 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, Optional[bytes]]:
             #   endpoints connected to T1 and T2, and sender only has send-capacity with T1, while
             #   recipient only has recv-capacity with T2.
             singlehop_r_tags = [x for x in r_tags if len(x) == 1]
-            forwarder_pubkey = random.choice(singlehop_r_tags)[0][0]
-            if is_hardcoded_trampoline(forwarder_pubkey):
-                return False, forwarder_pubkey
+            invoice_trampolines = [x[0][0] for x in singlehop_r_tags if is_hardcoded_trampoline(x[0][0])]
+            return False, invoice_trampolines
     # if trampoline receiving is not supported or the forwarder is not known as a trampoline,
     # we send a legacy payment
-    return True, None
+    return True, []
 
 
 def trampoline_policy(
@@ -179,7 +177,7 @@ def create_trampoline_route(
         use_two_trampolines: bool
 ) -> LNPaymentRoute:
     # we decide whether to convert to a legacy payment
-    is_legacy, second_trampoline_pubkey = is_legacy_relay(invoice_features, r_tags)
+    is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
 
     # we build a route of trampoline hops and extend the route list in place
     route = []
@@ -202,7 +200,8 @@ def create_trampoline_route(
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
     else:
-        if second_trampoline_pubkey and trampoline_node_id != second_trampoline_pubkey:
+        if invoice_trampolines and trampoline_node_id not in invoice_trampolines:
+            second_trampoline_pubkey = random.choice(invoice_trampolines)
             extend_trampoline_route(route, trampoline_node_id, second_trampoline_pubkey, trampoline_fee_level)
 
     # final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
