@@ -646,7 +646,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def pay_lightning_invoice(self, invoice: Invoice):
         amount_sat = invoice.get_amount_sat()
-        key = self.wallet.get_key_for_outgoing_invoice(invoice)
+        key = invoice.get_id()
         if amount_sat is None:
             raise Exception("missing amount for LN invoice")
         if not self.wallet.lnworker.can_pay_invoice(invoice):
