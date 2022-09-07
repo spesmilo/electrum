@@ -79,6 +79,8 @@ def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
         return TRAMPOLINE_NODES_TESTNET
     elif constants.net.NET_NAME == "signet":
         return TRAMPOLINE_NODES_SIGNET
+    else:
+        return {}
 
 def trampolines_by_id():
     return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
