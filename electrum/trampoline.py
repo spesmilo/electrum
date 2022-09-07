@@ -71,15 +71,14 @@ TRAMPOLINE_NODES_SIGNET = {
 _TRAMPOLINE_NODES_UNITTESTS = {}  # used in unit tests
 
 def hardcoded_trampoline_nodes() -> Mapping[str, LNPeerAddr]:
-    nodes = {}
-    if constants.net.NET_NAME == "mainnet":
-        nodes.update(TRAMPOLINE_NODES_MAINNET)
+    if _TRAMPOLINE_NODES_UNITTESTS:
+        return _TRAMPOLINE_NODES_UNITTESTS
+    elif constants.net.NET_NAME == "mainnet":
+        return TRAMPOLINE_NODES_MAINNET
     elif constants.net.NET_NAME == "testnet":
-        nodes.update(TRAMPOLINE_NODES_TESTNET)
+        return TRAMPOLINE_NODES_TESTNET
     elif constants.net.NET_NAME == "signet":
-        nodes.update(TRAMPOLINE_NODES_SIGNET)
-    nodes.update(_TRAMPOLINE_NODES_UNITTESTS)
-    return nodes
+        return TRAMPOLINE_NODES_SIGNET
 
 def trampolines_by_id():
     return dict([(x.pubkey, x) for x in hardcoded_trampoline_nodes().values()])
