@@ -34,11 +34,12 @@ notification = None
 class QEAppController(QObject):
     userNotify = pyqtSignal(str)
 
-    def __init__(self, qedaemon):
+    def __init__(self, qedaemon, plugins):
         super().__init__()
         self.logger = get_logger(__name__)
 
         self._qedaemon = qedaemon
+        self._plugins = plugins
 
         # set up notification queue and notification_timer
         self.user_notification_queue = queue.Queue()
@@ -131,11 +132,22 @@ class QEAppController(QObject):
     def clipboardToText(self):
         return QGuiApplication.clipboard().text()
 
+    @pyqtSlot(str, result=QObject)
+    def plugin(self, plugin_name):
+        self.logger.warning(f'now {self._plugins.count()} plugins loaded')
+        plugin = self._plugins.get(plugin_name)
+        self.logger.debug(f'plugin with name {plugin_name} is {str(type(plugin))}')
+        if plugin:
+            return plugin.so
+        else:
+            self.logger.debug('None!')
+            return None
+
 class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
 
-    def __init__(self, args, config, daemon):
+    def __init__(self, args, config, daemon, plugins):
         super().__init__(args)
 
         self.logger = get_logger(__name__)
@@ -162,7 +174,6 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
-        self.engine.addImportPath('./qml')
 
         screensize = self.primaryScreen().size()
 
@@ -181,13 +192,13 @@ class ElectrumQmlApplication(QGuiApplication):
         self.context = self.engine.rootContext()
         self._qeconfig = QEConfig(config)
         self._qenetwork = QENetwork(daemon.network, self._qeconfig)
-        self._qedaemon = QEDaemon(daemon)
-        self._appController = QEAppController(self._qedaemon)
+        self.daemon = QEDaemon(daemon)
+        self.appController = QEAppController(self.daemon, plugins)
         self._maxAmount = QEAmount(is_max=True)
-        self.context.setContextProperty('AppController', self._appController)
+        self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self._qeconfig)
         self.context.setContextProperty('Network', self._qenetwork)
-        self.context.setContextProperty('Daemon', self._qedaemon)
+        self.context.setContextProperty('Daemon', self.daemon)
         self.context.setContextProperty('FixedFont', self.fixedFont)
         self.context.setContextProperty('MAX', self._maxAmount)
         self.context.setContextProperty('QRIP', self.qr_ip_h)
