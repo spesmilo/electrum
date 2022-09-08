@@ -217,6 +217,7 @@ Pane {
 
             Pane {
                 ColumnLayout {
+                    x: constants.paddingXXLarge
                     id: pluginsRootLayout
                 }
             }
@@ -232,12 +233,23 @@ Pane {
     Component {
         id: pluginHeader
         RowLayout {
-            property QtObject plugin
+            Layout.leftMargin: -constants.paddingXXLarge
+            property string name
+            property string fullname
+            property bool pluginEnabled
             Switch {
-                checked: plugin.pluginEnabled
+                checked: pluginEnabled
+                onCheckedChanged: {
+                    if (activeFocus)
+                        pluginEnabled = checked
+                }
             }
             Label {
-                text: plugin.name
+                text: fullname
+            }
+            onPluginEnabledChanged: {
+                console.log('!')
+                AppController.setPluginEnabled(name, pluginEnabled)
             }
         }
     }
@@ -252,13 +264,16 @@ Pane {
         spendUnconfirmed.checked = Config.spendUnconfirmed
         lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
 
-        var labelsPlugin = AppController.plugin('labels')
-        if (labelsPlugin) {
-            pluginHeader.createObject(pluginsRootLayout, { plugin: labelsPlugin })
-//             console.log(Qt.resolvedUrl(labelsPlugin.settingsComponent()))
-            if (labelsPlugin.settingsComponent()) {
-                var component = Qt.createComponent(Qt.resolvedUrl(labelsPlugin.settingsComponent()))
-                component.createObject(pluginsRootLayout, {plugin: labelsPlugin})
+        var plugins = AppController.plugins
+        for (var i=0; i<plugins.length; i++) {
+            var p = plugins[i]
+            pluginHeader.createObject(pluginsRootLayout, { name: p['name'], fullname: p['fullname'], pluginEnabled: p['enabled'] })
+            var labelsPlugin = AppController.plugin(p['name'])
+            if (labelsPlugin) {
+                if (labelsPlugin.settingsComponent()) {
+                    var component = Qt.createComponent(Qt.resolvedUrl(labelsPlugin.settingsComponent()))
+                    component.createObject(pluginsRootLayout, { plugin: labelsPlugin })
+                }
             }
         }
     }
