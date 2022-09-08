@@ -63,7 +63,7 @@ class ElectrumGui(Logger):
 
         self.gui_thread = threading.current_thread()
         self.plugins = plugins
-        self.app = ElectrumQmlApplication(sys.argv, config, daemon)
+        self.app = ElectrumQmlApplication(sys.argv, config, daemon, plugins)
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
