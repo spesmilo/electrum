@@ -3,7 +3,7 @@ import queue
 import time
 import os
 
-from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
@@ -33,6 +33,8 @@ notification = None
 
 class QEAppController(QObject):
     userNotify = pyqtSignal(str)
+
+    _dummy = pyqtSignal()
 
     def __init__(self, qedaemon, plugins):
         super().__init__()
@@ -134,14 +136,36 @@ class QEAppController(QObject):
 
     @pyqtSlot(str, result=QObject)
     def plugin(self, plugin_name):
-        self.logger.warning(f'now {self._plugins.count()} plugins loaded')
+        self.logger.debug(f'now {self._plugins.count()} plugins loaded')
         plugin = self._plugins.get(plugin_name)
         self.logger.debug(f'plugin with name {plugin_name} is {str(type(plugin))}')
-        if plugin:
+        if plugin and hasattr(plugin,'so'):
             return plugin.so
         else:
             self.logger.debug('None!')
             return None
+
+    @pyqtProperty('QVariant', notify=_dummy)
+    def plugins(self):
+        s = []
+        for item in self._plugins.descriptions:
+            self.logger.info(item)
+            s.append({
+                'name': item,
+                'fullname': self._plugins.descriptions[item]['fullname'],
+                'enabled': bool(self._plugins.get(item))
+                })
+
+        self.logger.debug(f'{str(s)}')
+        return s
+
+    @pyqtSlot(str, bool)
+    def setPluginEnabled(self, plugin, enabled):
+        if enabled:
+            self._plugins.enable(plugin)
+        else:
+            self._plugins.disable(plugin)
+
 
 class ElectrumQmlApplication(QGuiApplication):
 
@@ -190,10 +214,11 @@ class ElectrumQmlApplication(QGuiApplication):
             self.fixedFont = 'Monospace' # hope for the best
 
         self.context = self.engine.rootContext()
+        self.plugins = plugins
         self._qeconfig = QEConfig(config)
         self._qenetwork = QENetwork(daemon.network, self._qeconfig)
         self.daemon = QEDaemon(daemon)
-        self.appController = QEAppController(self.daemon, plugins)
+        self.appController = QEAppController(self.daemon, self.plugins)
         self._maxAmount = QEAmount(is_max=True)
         self.context.setContextProperty('AppController', self.appController)
         self.context.setContextProperty('Config', self._qeconfig)

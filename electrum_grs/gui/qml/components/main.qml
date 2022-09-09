@@ -349,7 +349,6 @@ ApplicationWindow
     property bool _lockDialogShown: false
 
     onActiveChanged: {
-        console.log('active='+active)
         if (!active) {
             // deactivated
             _lastActive = Date.now()

@@ -6,35 +6,23 @@ from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 
 from electrum_grs.gui.qml.qewallet import QEWallet
+from electrum_grs.gui.qml.plugins import PluginQObject
 
 from .labels import LabelsPlugin
 
 class Plugin(LabelsPlugin):
 
-    class QSignalObject(QObject):
-        pluginChanged = pyqtSignal()
-        pluginEnabledChanged = pyqtSignal()
+    class QSignalObject(PluginQObject):
         labelsChanged = pyqtSignal()
-        busyChanged = pyqtSignal()
         uploadSuccess = pyqtSignal()
         uploadFailed = pyqtSignal()
         downloadSuccess = pyqtSignal()
         downloadFailed = pyqtSignal()
 
-        _busy = False
+        _name = _('LabelSync Plugin')
 
-        def __init__(self, plugin, parent = None):
-            super().__init__(parent)
-            self.plugin = plugin
-
-        @pyqtProperty(str, notify=pluginChanged)
-        def name(self): return _('Labels Plugin')
-
-        @pyqtProperty(bool, notify=busyChanged)
-        def busy(self): return self._busy
-
-        @pyqtProperty(bool, notify=pluginEnabledChanged)
-        def pluginEnabled(self): return self.plugin.is_enabled()
+        def __init__(self, plugin, parent):
+            super().__init__(plugin, parent)
 
         @pyqtSlot(result=str)
         def settingsComponent(self): return '../../../plugins/labels/Labels.qml'
@@ -78,7 +66,7 @@ class Plugin(LabelsPlugin):
 
     @hook
     def load_wallet(self, wallet):
-        self.logger.info(f'load_wallet hook for wallet {str(type(wallet))}')
+        self.logger.debug(f'plugin enabled for wallet "{str(wallet)}"')
         self.start_wallet(wallet)
 
     def push_async(self):
@@ -130,8 +118,7 @@ class Plugin(LabelsPlugin):
 
     @hook
     def init_qml(self, gui: 'ElectrumGui'):
-        self.logger.debug('init_qml hook called')
-        self.logger.debug(f'gui={str(type(gui))}')
+        self.logger.debug(f'init_qml hook called, gui={str(type(gui))}')
         self._app = gui.app
         # important: QSignalObject needs to be parented, as keeping a ref
         # in the plugin is not enough to avoid gc
