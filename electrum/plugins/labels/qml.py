@@ -117,7 +117,7 @@ class Plugin(LabelsPlugin):
             _wallet.labelsUpdated.emit()
 
     @hook
-    def init_qml(self, gui: 'ElectrumGui'):
+    def init_qml(self, gui):
         self.logger.debug(f'init_qml hook called, gui={str(type(gui))}')
         self._app = gui.app
         # important: QSignalObject needs to be parented, as keeping a ref
