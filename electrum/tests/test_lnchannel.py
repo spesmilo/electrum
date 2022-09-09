@@ -49,8 +49,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                          local_amount, remote_amount, privkeys, other_pubkeys,
                          seed, cur, nex, other_node_id, l_dust, r_dust, l_csv,
                          r_csv):
-    assert local_amount > 0
-    assert remote_amount > 0
+    #assert local_amount > 0
+    #assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     state = {
             "channel_id":channel_id.hex(),

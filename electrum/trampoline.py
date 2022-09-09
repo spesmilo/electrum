@@ -10,7 +10,6 @@ from .lnrouter import RouteEdge, TrampolineEdge, LNPaymentRoute, is_route_sane_t
 from .lnutil import NoPathFound, LNPeerAddr
 from . import constants
 
-
 # trampoline nodes are supposed to advertise their fee and cltv in node_update message
 TRAMPOLINE_FEES = [
     {
@@ -165,6 +164,18 @@ def extend_trampoline_route(
             node_features=trampoline_features))
 
 
+def choose_second_trampoline(my_trampoline, trampolines, failed_routes):
+    if my_trampoline in trampolines:
+        trampolines.remove(my_trampoline)
+    for r in failed_routes:
+        if len(r) > 2:
+            t2 = bytes.fromhex(r[1])
+            if t2 in trampolines:
+                trampolines.remove(t2)
+    if not trampolines:
+        raise NoPathFound('all routes have failed')
+    return random.choice(trampolines)
+
 def create_trampoline_route(
         *,
         amount_msat: int,
@@ -172,28 +183,28 @@ def create_trampoline_route(
         invoice_pubkey: bytes,
         invoice_features: int,
         my_pubkey: bytes,
-        trampoline_node_id: bytes,  # the first trampoline in the path; which we are directly connected to
+        my_trampoline: bytes,  # the first trampoline in the path; which we are directly connected to
         r_tags,
         trampoline_fee_level: int,
-        use_two_trampolines: bool
+        use_two_trampolines: bool,
+        failed_routes: list,
 ) -> LNPaymentRoute:
     # we decide whether to convert to a legacy payment
     is_legacy, invoice_trampolines = is_legacy_relay(invoice_features, r_tags)
 
     # we build a route of trampoline hops and extend the route list in place
     route = []
+    second_trampoline = None
 
     # our first trampoline hop is decided by the channel we use
-    extend_trampoline_route(route, my_pubkey, trampoline_node_id, trampoline_fee_level)
+    extend_trampoline_route(route, my_pubkey, my_trampoline, trampoline_fee_level)
 
     if is_legacy:
         # we add another different trampoline hop for privacy
         if use_two_trampolines:
             trampolines = trampolines_by_id()
-            del trampolines[trampoline_node_id]
-            second_trampoline_pubkey = random.choice(list(trampolines.keys()))
-            extend_trampoline_route(route, trampoline_node_id, second_trampoline_pubkey, trampoline_fee_level)
-
+            second_trampoline = choose_second_trampoline(my_trampoline, list(trampolines.keys()), failed_routes)
+            extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
         # the last trampoline onion must contain routing hints for the last trampoline
         # node to find the recipient
         invoice_routing_info = encode_routing_info(r_tags)
@@ -201,13 +212,21 @@ def create_trampoline_route(
         route[-1].invoice_features = invoice_features
         route[-1].outgoing_node_id = invoice_pubkey
     else:
-        if invoice_trampolines and trampoline_node_id not in invoice_trampolines:
-            second_trampoline_pubkey = random.choice(invoice_trampolines)
-            extend_trampoline_route(route, trampoline_node_id, second_trampoline_pubkey, trampoline_fee_level)
+        if invoice_trampolines:
+            if my_trampoline in invoice_trampolines:
+                short_route = [my_trampoline.hex(), invoice_pubkey.hex()]
+                if short_route in failed_routes:
+                    add_trampoline = True
+                else:
+                    add_trampoline = False
+            else:
+                add_trampoline = True
+            if add_trampoline:
+                second_trampoline = choose_second_trampoline(my_trampoline, invoice_trampolines, failed_routes)
+                extend_trampoline_route(route, my_trampoline, second_trampoline, trampoline_fee_level)
 
     # final edge (not part of the route if payment is legacy, but eclair requires an encrypted blob)
     extend_trampoline_route(route, route[-1].end_node, invoice_pubkey, trampoline_fee_level, pay_fees=False)
-
     # check that we can pay amount and fees
     for edge in route[::-1]:
         amount_msat += edge.fee_for_edge(amount_msat)
@@ -269,7 +288,8 @@ def create_trampoline_route_and_onion(
         payment_secret,
         local_height: int,
         trampoline_fee_level: int,
-        use_two_trampolines: bool):
+        use_two_trampolines: bool,
+        failed_routes: list):
     # create route for the trampoline_onion
     trampoline_route = create_trampoline_route(
         amount_msat=amount_msat,
@@ -277,10 +297,11 @@ def create_trampoline_route_and_onion(
         my_pubkey=my_pubkey,
         invoice_pubkey=invoice_pubkey,
         invoice_features=invoice_features,
-        trampoline_node_id=node_id,
+        my_trampoline=node_id,
         r_tags=r_tags,
         trampoline_fee_level=trampoline_fee_level,
-        use_two_trampolines=use_two_trampolines)
+        use_two_trampolines=use_two_trampolines,
+        failed_routes=failed_routes)
     # compute onion and fees
     final_cltv = local_height + min_cltv_expiry
     trampoline_onion, amount_with_fees, bucket_cltv = create_trampoline_onion(
