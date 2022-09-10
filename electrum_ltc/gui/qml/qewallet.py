@@ -62,6 +62,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     transactionSigned = pyqtSignal([str], arguments=['txid'])
     #broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
+    labelsUpdated = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 

@@ -10,8 +10,6 @@ class Plugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
 
-    _logger = get_logger(__name__)
-
     @hook
     def init_qml(self, gui: 'ElectrumGui'):
-        self._logger.debug('init_qml hook called')
+        self.logger.debug('init_qml hook called')

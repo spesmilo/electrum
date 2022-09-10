@@ -7,6 +7,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.logging import get_logger
 from electrum_ltc.util import WalletFileException, standardize_path
 from electrum_ltc.wallet import Abstract_Wallet
+from electrum_ltc.plugin import run_hook
 from electrum_ltc.lnchannel import ChannelState
 
 from .auth import AuthMixin, auth_protect
@@ -179,6 +180,7 @@ class QEDaemon(AuthMixin, QObject):
                     self._logger.info('use single password disabled by config')
 
                 self.daemon.config.save_last_wallet(wallet)
+                run_hook('load_wallet', wallet)
             else:
                 self._logger.info('could not open wallet')
                 self.walletOpenError.emit('could not open wallet')
