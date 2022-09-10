@@ -12,7 +12,7 @@ class PluginQObject(QObject):
 
     _busy = False
 
-    def __init__(self, plugin, parent: 'ElectrumGuiApplication'):
+    def __init__(self, plugin, parent):
         super().__init__(parent)
         self.plugin = plugin
         self.app = parent
