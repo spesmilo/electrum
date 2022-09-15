@@ -7,7 +7,7 @@ set -e
 
 . $(dirname "$0")/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
 
-here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+here=$(dirname $(realpath "$0" 2>/dev/null || grealpath "$0"))
 CONTRIB="$here"
 PROJECT_ROOT="$CONTRIB/.."
 
@@ -20,7 +20,7 @@ info "Building $pkgname..."
         git clone https://github.com/libusb/libusb.git
     fi
     cd libusb
-    if ! $(git cat-file -e ${LIBUSB_VERSION}) ; then
+    if ! $(git cat-file -e ${LIBUSB_VERSION}); then
         info "Could not find requested version $LIBUSB_VERSION in local clone; fetching..."
         git fetch --all
     fi
@@ -28,12 +28,12 @@ info "Building $pkgname..."
     git clean -dfxq
     git checkout "${LIBUSB_VERSION}^{commit}"
 
-    if [ "$BUILD_TYPE" = "wine" ] ; then
-        echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >> libusb/Makefile.am
+    if [ "$BUILD_TYPE" = "wine" ]; then
+        echo "libusb_1_0_la_LDFLAGS += -Wc,-static" >>libusb/Makefile.am
     fi
     ./bootstrap.sh || fail "Could not bootstrap libusb"
-    if ! [ -r config.status ] ; then
-        if [ "$BUILD_TYPE" = "wine" ] ; then
+    if ! [ -r config.status ]; then
+        if [ "$BUILD_TYPE" = "wine" ]; then
             # windows target
             LDFLAGS="-Wl,--no-insert-timestamp"
         elif [ $(uname) == "Darwin" ]; then
@@ -44,20 +44,20 @@ info "Building $pkgname..."
             LDFLAGS=""
         fi
         LDFLAGS="$LDFLAGS" ./configure \
-            $AUTOCONF_FLAGS \
-            || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
+            $AUTOCONF_FLAGS ||
+            fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
     make -j4 || fail "Could not build $pkgname"
-    make install || fail "Could not install $pkgname"
+    make install || warn "Could not install $pkgname"
     . "$here/$pkgname/libusb/.libs/libusb-1.0.la"
     host_strip "$here/$pkgname/libusb/.libs/$dlname"
     TARGET_NAME="$dlname"
-    if [ $(uname) == "Darwin" ]; then  # on mac, dlname is "libusb-1.0.0.dylib"
+    if [ $(uname) == "Darwin" ]; then # on mac, dlname is "libusb-1.0.0.dylib"
         TARGET_NAME="libusb-1.0.dylib"
     fi
     cp -fpv "$here/$pkgname/libusb/.libs/$dlname" "$PROJECT_ROOT/electrum/$TARGET_NAME" || fail "Could not copy the $pkgname binary to its destination"
     info "$TARGET_NAME has been placed in the inner 'electrum' folder."
-    if [ -n "$DLL_TARGET_DIR" ] ; then
+    if [ -n "$DLL_TARGET_DIR" ]; then
         cp -fpv "$here/$pkgname/libusb/.libs/$dlname" "$DLL_TARGET_DIR/$TARGET_NAME" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
     fi
 )
