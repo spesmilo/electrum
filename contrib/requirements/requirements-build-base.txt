@@ -1,0 +1,23 @@
+# This file contains build-time dependencies needed to build other higher level build-time dependencies
+# and runtime dependencies.
+# For reproducibility, some build-time deps, most notably "wheel", need to be pinned. (see #7640)
+# By default, when doing e.g. "pip install", pip downloads the latest version of wheel (and setuptools, etc),
+# regardless whether a sufficiently recent version of wheel is already installed locally...
+# The only way I have found to avoid this, is to use the "--no-build-isolation" flag,
+# in which case it becomes our responsibility to install *all* build time deps...
+
+pip
+setuptools
+wheel
+
+# importlib_metadata also needs:
+# https://github.com/python/importlib_metadata/blob/1e2381fe101fd70742a0171e51c1be82aedf519b/pyproject.toml#L2
+setuptools_scm[toml]>=3.4.1
+
+# dnspython also needs:
+# https://github.com/rthalley/dnspython/blob/1a7c14fb6c200be02ef5c2f3bb9fd84b85004459/pyproject.toml#L64
+poetry-core
+
+# typing-extensions also needs:
+# https://github.com/python/typing/blob/a2371460d184c96aab7a69acc47fd059f875e3b4/typing_extensions/pyproject.toml#L3
+flit_core>=3.4,<4
