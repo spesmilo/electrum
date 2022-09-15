@@ -14,26 +14,25 @@ DISTDIR="$PROJECT_ROOT/dist"
 
 . "$CONTRIB"/build_tools_util.sh
 
-
 DOCKER_BUILD_FLAGS=""
-if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
+if [ ! -z "$ELECBUILD_NOCACHE" ]; then
     info "ELECBUILD_NOCACHE is set. forcing rebuild of docker image."
     DOCKER_BUILD_FLAGS="--pull --no-cache"
 fi
 
 info "building docker image."
-sudo docker build \
+docker build \
     $DOCKER_BUILD_FLAGS \
     -t electrum-appimage-builder-img \
     "$CONTRIB_APPIMAGE"
 
 # maybe do fresh clone
-if [ ! -z "$ELECBUILD_COMMIT" ] ; then
+if [ ! -z "$ELECBUILD_COMMIT" ]; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
-    FRESH_CLONE="$CONTRIB_APPIMAGE/fresh_clone/electrum" && \
-        sudo rm -rf "$FRESH_CLONE" && \
-        umask 0022 && \
-        git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
+    FRESH_CLONE="$CONTRIB_APPIMAGE/fresh_clone/electrum" &&
+        rm -rf "$FRESH_CLONE" &&
+        umask 0022 &&
+        git clone "$PROJECT_ROOT" "$FRESH_CLONE" &&
         cd "$FRESH_CLONE"
     git checkout "$ELECBUILD_COMMIT"
     PROJECT_ROOT_OR_FRESHCLONE_ROOT="$FRESH_CLONE"
@@ -42,7 +41,7 @@ else
 fi
 
 info "building binary..."
-sudo docker run -it \
+docker run \
     --name electrum-appimage-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/electrum \
     --rm \
@@ -51,7 +50,7 @@ sudo docker run -it \
     ./make_appimage.sh
 
 # make sure resulting binary location is independent of fresh_clone
-if [ ! -z "$ELECBUILD_COMMIT" ] ; then
+if [ ! -z "$ELECBUILD_COMMIT" ]; then
     mkdir --parents "$DISTDIR/"
-    sudo cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
+    cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
 fi
