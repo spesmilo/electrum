@@ -2,8 +2,7 @@
 
 NAME_ROOT=defichain-electrum
 
-export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
-
+export PYTHONDONTWRITEBYTECODE=1 # don't create __pycache__/ folders with .pyc files
 
 # Let's begin!
 set -e
@@ -12,45 +11,43 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum
 
-VERSION=`git describe --tags --dirty --always`
+VERSION=$(git describe --tags --dirty --always)
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release
 git submodule update --init
 
-pushd ./contrib/deterministic-build/electrum-locale
-if ! which msgfmt > /dev/null 2>&1; then
-    fail "Please install gettext"
-fi
+LOCALE="$WINEPREFIX/drive_c/electrum/electrum/locale/"
 # we want the binary to have only compiled (.mo) locale files; not source (.po) files
-rm -rf "$WINEPREFIX/drive_c/electrum/electrum/locale/"
-for i in ./locale/*; do
-    dir="$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES"
-    mkdir -p $dir
-    msgfmt --output-file="$dir/electrum.mo" "$i/electrum.po" || true
-done
+rm -rf "$LOCALE"
+"$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
+
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-popd
+# opt out of compiling C extensions
+export AIOHTTP_NO_EXTENSIONS=1
+export YARL_NO_EXTENSIONS=1
+export MULTIDICT_NO_EXTENSIONS=1
+export FROZENLIST_NO_EXTENSIONS=1
 
-
-# Install frozen dependencies
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+info "Installing requirements..."
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
-
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+info "Installing dependencies specific to binaries..."
+# TODO use "--no-binary :all:" (but we don't have a C compiler...)
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-binaries.txt
-
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+info "Installing hardware wallet requirements..."
+# TODO use "--no-binary :all:" (but we don't have a C compiler...)
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location .
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location .
 popd
-
 
 rm -rf dist/
 
@@ -60,7 +57,7 @@ wine "$WINE_PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 info "building NSIS installer"
@@ -86,11 +83,9 @@ with open(pe_file, "rb") as f:
 pe_offset = int.from_bytes(binary[0x3c:0x3c+4], byteorder="little")
 checksum_offset = pe_offset + 88
 checksum = 0
-
 # Pad data to 8-byte boundary.
 remainder = len(binary) % 8
 binary += bytes(8 - remainder)
-
 for i in range(len(binary) // 4):
     if i == checksum_offset // 4:  # Skip the checksum field
         continue
@@ -98,15 +93,12 @@ for i in range(len(binary) // 4):
     checksum = (checksum & 0xffffffff) + dword + (checksum >> 32)
     if checksum > 2 ** 32:
         checksum = (checksum & 0xffffffff) + (checksum >> 32)
-
 checksum = (checksum & 0xffff) + (checksum >> 16)
 checksum = (checksum) + (checksum >> 16)
 checksum = checksum & 0xffff
 checksum += len(binary)
-
 # Set the checksum
 binary[checksum_offset : checksum_offset + 4] = int.to_bytes(checksum, byteorder="little", length=4)
-
 with open(pe_file, "wb") as f:
     f.write(binary)
 EOF

@@ -1,0 +1,31 @@
+name: Windows build CI Test
+
+on:
+  # Triggers the workflow on pull request events but only for the "master" branch
+  pull_request:
+    branches: ['master']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checks-out repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v3
+
+      - name: Run build script
+        run: ./contrib/build-wine/build.sh
+
+      - name: Release without Tags
+        uses: softprops/action-gh-release@v1
+        if: ${{ github.ref_type	!= 'tag' }}
+        with:
+          name: ${{ github.head_ref }}
+          tag_name: ${{ github.head_ref }}
+          files: './contrib/build-wine/dist/*.exe'
+
+      - name: Release with Tags
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: './contrib/build-wine/dist/*.exe'
