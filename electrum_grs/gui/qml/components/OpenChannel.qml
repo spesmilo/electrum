@@ -208,7 +208,7 @@ Pane {
                 app.channelOpenProgressDialog.closed.connect(function() {
                     var dialog = app.genericShareDialog.createObject(app,
                         {
-                            title: qsTr('Save Backup')
+                            title: qsTr('Save Backup'),
                             text: channelopener.channelBackup(cid),
                             text_help: qsTr('The channel you created is not recoverable from seed.')
                             + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
