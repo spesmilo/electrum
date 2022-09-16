@@ -25,7 +25,7 @@ RUN apt-get update -q && \
     libncurses5=6.1-1ubuntu1.18.04 \
     libtinfo-dev=6.1-1ubuntu1.18.04 \
     libtinfo5=6.1-1ubuntu1.18.04 \
-    libsqlite3-dev=3.22.0-1ubuntu0.5 \
+    libsqlite3-dev=3.22.0-1ubuntu0.6 \
     libusb-1.0-0-dev=2:1.0.21-2 \
     libudev-dev=237-3ubuntu10.56 \
     libudev1=237-3ubuntu10.56 \
