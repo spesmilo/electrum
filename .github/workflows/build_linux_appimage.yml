@@ -1,7 +1,9 @@
 name: Linux build CI Test
 
 on:
-  # Triggers the workflow on pull request events but only for the "master" branch
+  push:
+    tags:
+      - 'v*'
   pull_request:
     branches: ['master']
 
