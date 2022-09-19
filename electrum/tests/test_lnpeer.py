@@ -185,6 +185,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     def channel_db(self):
         return self.network.channel_db if self.network else None
 
+    def uses_trampoline(self):
+        return not bool(self.channel_db)
+
     @property
     def channels(self):
         return self._channels
