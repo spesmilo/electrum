@@ -187,10 +187,10 @@ def init_cmdline(config_options, wallet_path, server, *, config: 'SimpleConfig')
         if storage.is_encrypted_with_hw_device():
             # this case is handled later in the control flow
             password = None
-        elif config.get("password"):
-            password = config.get("password")
+        elif config.get('password'):
+            password = config.get('password')
         else:
-            password = prompt_password("Password:", False)
+            password = prompt_password('Password:', False)
             if not password:
                 print_msg("Error: Password required")
                 sys_exit(1)
@@ -341,7 +341,7 @@ def main():
                 sys.argv[i] = sys.stdin.read()
                 break
             else:
-                raise Exception("Cannot get argument from stdin")
+                raise Exception('Cannot get argument from stdin')
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
@@ -429,7 +429,7 @@ def main():
 
     cmdname = config.get('cmd')
 
-    if cmdname == 'daemon' and config.get('detach'):
+    if cmdname == 'daemon' and config.get("detach"):
         # fork before creating the asyncio event loop
         pid = os.fork()
         if pid:
