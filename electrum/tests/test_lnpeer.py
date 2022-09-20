@@ -715,11 +715,15 @@ class TestPeer(TestCaseForTestnet):
         with self.assertRaises(SuccessfulTest):
             run(f())
 
-    @needs_test_with_all_chacha20_implementations
-    def test_payment(self):
+    def _test_simple_payment(self, trampoline: bool):
         """Alice pays Bob a single HTLC via direct channel."""
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
+        async def turn_on_trampoline_alice():
+            if w1.network.channel_db:
+                w1.network.channel_db.stop()
+                await w1.network.channel_db.stopped_event.wait()
+                w1.network.channel_db = None
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
             result, log = await w1.pay_invoice(pay_req)
@@ -727,6 +731,8 @@ class TestPeer(TestCaseForTestnet):
             self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
             raise PaymentDone()
         async def f():
+            if trampoline:
+                await turn_on_trampoline_alice()
             async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
@@ -737,8 +743,20 @@ class TestPeer(TestCaseForTestnet):
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
+        # declare bob as trampoline node
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+            'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+        }
         with self.assertRaises(PaymentDone):
             run(f())
+
+    @needs_test_with_all_chacha20_implementations
+    def test_simple_payment(self):
+        self._test_simple_payment(trampoline=False)
+
+    @needs_test_with_all_chacha20_implementations
+    def test_simple_payment_trampoline(self):
+        self._test_simple_payment(trampoline=True)
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_race(self):
