@@ -1736,12 +1736,12 @@ class LNWallet(LNWorker):
                     exclude_single_part_payments=True,
                 )
                 # We atomically loop through a split configuration. If there was
-                # a failure to find a path for a single part, we give back control
-                # after exhausting the split configuration.
-                yielded_from_split_configuration = False
+                # a failure to find a path for a single part, we try the next configuration.
                 self.logger.info(f'suggest_split {amount_msat} returned {len(split_configurations)} configurations')
                 for sc in split_configurations:
                     self.logger.info(f"trying split configuration: {list(sc.config.values())} rating: {sc.rating}")
+                    sc_routes = []
+                    sc_success = True
                     for (chan_id, _), part_amounts_msat in sc.config.items():
                         for part_amount_msat in part_amounts_msat:
                             channel = self.channels[chan_id]
@@ -1758,12 +1758,16 @@ class LNWallet(LNWorker):
                                         full_path=None
                                     )
                                 )
-                                yield route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion, None
-                                yielded_from_split_configuration = True
+                                sc_routes.append((route, part_amount_msat, final_total_msat, part_amount_msat, min_cltv_expiry, payment_secret, fwd_trampoline_onion, None))
                             except NoPathFound:
-                                continue
-                    if yielded_from_split_configuration:
+                                sc_success = False
+                                break
+                    if sc_success:
+                        for r in sc_routes:
+                            yield r
                         return
+                    else:
+                        continue
             raise NoPathFound()
 
     @profiler
