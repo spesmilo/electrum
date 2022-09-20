@@ -66,11 +66,11 @@ async def _request_lnurl(url: str) -> dict:
     return response
 
 
-async def request_lnurl(url: str) -> Optional[LNURL6Data]:
+async def request_lnurl(url: str) -> LNURL6Data:
     lnurl_dict = await _request_lnurl(url)
     tag = lnurl_dict.get('tag')
     if tag != 'payRequest':  # only LNURL6 is handled atm
-        return None
+        raise LNURLError(f"Unknown subtype of lnurl. tag={tag}")
     metadata = lnurl_dict.get('metadata')
     metadata_plaintext = ""
     for m in metadata:
