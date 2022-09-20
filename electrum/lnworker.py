@@ -1581,6 +1581,7 @@ class LNWallet(LNWorker):
                         continue
                     if chan.node_id == invoice_pubkey:
                         trampoline_onion = None
+                        trampoline_route = None
                         trampoline_payment_secret = payment_secret
                         trampoline_total_msat = final_total_msat
                         amount_with_fees = amount_msat
@@ -1605,8 +1606,9 @@ class LNWallet(LNWorker):
                         trampoline_total_msat = amount_with_fees
                     if chan.available_to_spend(LOCAL, strict=True) < amount_with_fees:
                         continue
-                    self.logger.info(f'created route with trampoline fee level={trampoline_fee_level}')
-                    self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
+                    if trampoline_route:
+                        self.logger.info(f'created route with trampoline fee level={trampoline_fee_level}')
+                        self.logger.info(f'trampoline hops: {[hop.end_node.hex() for hop in trampoline_route]}')
                     route = [
                         RouteEdge(
                             start_node=self.node_keypair.pubkey,
