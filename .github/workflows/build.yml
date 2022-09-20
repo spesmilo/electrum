@@ -6,8 +6,17 @@ on:
       - opened
       - synchronize
 
+env:
+  BUILD_CERTIFICATE_BASE64: ${{ secrets.OSX_BUILD_CERTIFICATE_BASE64 }}
+  P12_PASSWORD: ${{ secrets.OSX_P12_PASSWORD }}
+  KEYCHAIN_PASSWORD: ${{ secrets.OSX_KEYCHAIN_PASSWORD }}
+  CODESIGN_CERT: ${{ secrets.OSX_CODESIGN_CERT }}
+  APPLE_ID_USER: ${{ secrets.OSX_APPLE_ID_USER }}
+  APPLE_ID_PASSWORD: ${{ secrets.OSX_APPLE_ID_PASSWORD }}
+  APPLE_ID_PROVIDER_SHORT_NAME: ${{ secrets.OSX_APPLE_ID_PROVIDER_SHORT_NAME }}
+
 jobs:
-  windows:
+  windows: 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -60,6 +69,8 @@ jobs:
   tarball:
     runs-on: ubuntu-latest
     steps:
+      - name: work around permission issue
+        run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
@@ -81,3 +92,34 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
+
+  macos:
+    runs-on: macos-10.15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install the Apple certificate
+        run: |
+          # create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # import certificate and provisioning profile from secrets
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
+
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -k $KEYCHAIN_PATH -A
+          security list-keychain -d user -s $KEYCHAIN_PATH
+      - name: Build app
+        run: ./contrib/osx/make_osx $CODESIGN_CERT
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: artifact-macos
+          path: dist/*.dmg
