@@ -366,16 +366,16 @@ class Peer(Logger):
         self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('node_announcement', payload))
 
     def on_channel_announcement(self, payload):
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
@@ -702,7 +702,7 @@ class Peer(Logger):
         # will raise if init fails
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
-        if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
+        if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         feerate = self.lnworker.current_feerate_per_kw()

@@ -824,7 +824,7 @@ class Channel(AbstractChannel):
         return self.can_send_ctx_updates() and self.is_open()
 
     def is_frozen_for_sending(self) -> bool:
-        if self.lnworker and self.lnworker.channel_db is None and not self.lnworker.is_trampoline_peer(self.node_id):
+        if self.lnworker and self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.node_id):
             return True
         return self.storage.get('frozen_for_sending', False)
 
