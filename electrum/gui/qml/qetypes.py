@@ -78,6 +78,9 @@ class QEAmount(QObject):
         return not(self._is_max or self._amount_sat or self._amount_msat)
 
     def copyFrom(self, amount):
+        if not amount:
+            self._logger.warning('copyFrom with None argument. assuming 0') # TODO
+            amount = QEAmount()
         self.satsInt = amount.satsInt
         self.msatsInt = amount.msatsInt
         self.isMax = amount.isMax
