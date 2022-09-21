@@ -408,7 +408,7 @@ class TestPeer(TestCaseForTestnet):
                 shutil.rmtree(lnworker._user_dir)
             self._lnworkers_created.clear()
         run(cleanup_lnworkers())
-
+        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
         super().tearDown()
 
     def prepare_peers(
@@ -1194,17 +1194,14 @@ class TestPeer(TestCaseForTestnet):
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
-        try:
-            # end-to-end trampoline: we attempt
-            # * a payment with one trial: fails, because
-            #   we need at least one trial because the initial fees are too low
-            # * a payment with several trials: should succeed
-            self._run_mpp(
-                graph,
-                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 1},
-                success_kwargs={'alice_uses_trampoline': True, 'attempts': 30})
-        finally:
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
+        # end-to-end trampoline: we attempt
+        # * a payment with one trial: fails, because
+        #   we need at least one trial because the initial fees are too low
+        # * a payment with several trials: should succeed
+        self._run_mpp(
+            graph,
+            fail_kwargs={'alice_uses_trampoline': True, 'attempts': 1},
+            success_kwargs={'alice_uses_trampoline': True, 'attempts': 30})
 
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_trampoline_legacy(self):
@@ -1213,14 +1210,11 @@ class TestPeer(TestCaseForTestnet):
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
-        try:
-            # trampoline-to-legacy: this is restricted, as there are no forwarders capable of doing this
-            self._run_mpp(
-                graph,
-                fail_kwargs={'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True},
-                success_kwargs={})
-        finally:
-            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
+        # trampoline-to-legacy: this is restricted, as there are no forwarders capable of doing this
+        self._run_mpp(
+            graph,
+            fail_kwargs={'alice_uses_trampoline': True, 'attempts': 30, 'disable_trampoline_receiving': True},
+            success_kwargs={})
 
     @needs_test_with_all_chacha20_implementations
     def test_fail_pending_htlcs_on_shutdown(self):
