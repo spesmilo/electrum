@@ -1234,19 +1234,17 @@ class TestPeer(TestCaseForTestnet):
             graph.workers['bob'].enable_htlc_forwarding = False  # Bob will hold forwarded HTLCs
             assert graph.workers['alice'].network.channel_db is not None
             lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True, amount_msat=amount_to_pay)
-            try:
-                async with timeout_after(0.5):
-                    result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=1)
-            except TaskTimeout:
-                # by now Dave hopefully received some HTLCs:
-                self.assertTrue(len(graph.channels[('dave', 'carol')].hm.htlcs(LOCAL)) > 0)
-                self.assertTrue(len(graph.channels[('dave', 'carol')].hm.htlcs(REMOTE)) > 0)
-            else:
-                self.fail(f"pay_invoice finished but was not supposed to. result={result}")
+            result, log = await graph.workers['alice'].pay_invoice(pay_req, attempts=1)
+        async def stop():
+            hm = graph.channels[('dave', 'carol')].hm
+            while len(hm.htlcs(LOCAL)) == 0 or len(hm.htlcs(REMOTE)) == 0:
+                await asyncio.sleep(0.1)
+            self.assertTrue(len(hm.htlcs(LOCAL)) > 0)
+            self.assertTrue(len(hm.htlcs(REMOTE)) > 0)
             await graph.workers['dave'].stop()
             # Dave is supposed to have failed the pending incomplete MPP HTLCs
-            self.assertEqual(0, len(graph.channels[('dave', 'carol')].hm.htlcs(LOCAL)))
-            self.assertEqual(0, len(graph.channels[('dave', 'carol')].hm.htlcs(REMOTE)))
+            self.assertEqual(0, len(hm.htlcs(LOCAL)))
+            self.assertEqual(0, len(hm.htlcs(REMOTE)))
             raise SuccessfulTest()
 
         async def f():
@@ -1256,6 +1254,7 @@ class TestPeer(TestCaseForTestnet):
                     await group.spawn(peer.htlc_switch())
                 await asyncio.sleep(0.2)
                 await group.spawn(pay())
+                await group.spawn(stop())
 
         with self.assertRaises(SuccessfulTest):
             run(f())
