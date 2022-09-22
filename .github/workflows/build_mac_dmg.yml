@@ -1,35 +1,38 @@
 name: macOS CI Test
 
-  on:
-    # Triggers the workflow on pull request events but only for the "master" branch
-    pull_request:
-      branches: ['master']
+permissions:
+  contents: write
 
-  jobs:
-    # This workflow contains a single job called "build"
-    build:
-      runs-on: macos-latest
+on:
+  # Triggers the workflow on pull request events but only for the "master" branch
+  pull_request:
+    branches: ['master']
 
-      steps:
-        # Checks-out repository under $GITHUB_WORKSPACE
-        - uses: actions/checkout@v3
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    runs-on: macos-latest
 
-        - name: Install build time dependencies
-          run: brew install autoconf automake libtool gettext coreutils pkgconfig
+    steps:
+      # Checks-out repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v3
 
-        - name: Run make_libsecp256k1.sh and make_osx build scripts
-          run: ./contrib/make_libsecp256k1.sh && ./contrib/osx/make_osx
+      - name: Install build time dependencies
+        run: brew install autoconf automake libtool gettext coreutils pkgconfig
 
-        - name: Release without Tags
-          uses: softprops/action-gh-release@v1
-          if: ${{ github.ref_type	!= 'tag' }}
-          with:
-            name: ${{ github.head_ref }}
-            tag_name: ${{ github.head_ref }}
-            files: './dist/*.dmg'
+      - name: Run make_libsecp256k1.sh and make_osx build scripts
+        run: ./contrib/make_libsecp256k1.sh && ./contrib/osx/make_osx
 
-        - name: Release with Tags
-          uses: softprops/action-gh-release@v1
-          if: startsWith(github.ref, 'refs/tags/')
-          with:
-            files: './dist/*.dmg'
+      - name: Release without Tags
+        uses: softprops/action-gh-release@v1
+        if: ${{ github.ref_type	!= 'tag' }}
+        with:
+          name: ${{ github.head_ref }}
+          tag_name: ${{ github.head_ref }}
+          files: './dist/*.dmg'
+
+      - name: Release with Tags
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: './dist/*.dmg'
