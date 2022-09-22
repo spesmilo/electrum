@@ -26,7 +26,7 @@ Wizard {
 
     onAccepted: {
         console.log('Finished new wallet wizard')
-        wiz.create_storage(wizard_data, Daemon.singlePasswordEnabled, Daemon.singlePassword)
+        wiz.createStorage(wizard_data, Daemon.singlePasswordEnabled, Daemon.singlePassword)
     }
 
     Connections {
