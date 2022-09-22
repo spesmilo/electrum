@@ -2446,7 +2446,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 addr = txo.address
                 if request:=self.get_request_by_addr(addr):
                     status = self.get_invoice_status(request)
-                    util.trigger_callback('request_status', self, addr, status)
+                    util.trigger_callback('request_status', self, request.get_id(), status)
                 for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
                     relevant_invoice_keys.add(invoice_key)
         self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
