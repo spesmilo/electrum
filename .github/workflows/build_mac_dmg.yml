@@ -1,5 +1,8 @@
 name: macOS CI Test
 
+permissions:
+  contents: write
+
 on:
   # Triggers the workflow on pull request events but only for the "master" branch
   pull_request:
