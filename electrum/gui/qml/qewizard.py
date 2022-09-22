@@ -6,11 +6,6 @@ from PyQt5.QtQml import QQmlApplicationEngine
 from electrum.logging import get_logger
 from electrum.gui.wizard import NewWalletWizard
 
-from electrum.storage import WalletStorage, StorageEncryptionVersion
-from electrum.wallet_db import WalletDB
-from electrum.bip32 import normalize_bip32_derivation, xpub_type
-from electrum import keystore
-
 class QEAbstractWizard(QObject):
     _logger = get_logger(__name__)
 
@@ -80,75 +75,20 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     def last_if_single_password(self, view, wizard_data):
         return self._daemon.singlePasswordEnabled
 
-    @pyqtSlot('QJSValue',bool,str)
-    def create_storage(self, js_data, single_password_enabled, single_password):
+    @pyqtSlot('QJSValue', bool, str)
+    def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
         data = js_data.toVariant()
         self._logger.debug(str(data))
-
-        # only standard and 2fa wallets for now
-        assert data['wallet_type'] in ['standard', '2fa']
 
         if single_password_enabled and single_password:
             data['encrypt'] = True
             data['password'] = single_password
 
+        path = os.path.join(os.path.dirname(self._daemon.daemon.config.get_wallet_path()), data['wallet_name'])
+
         try:
-            path = os.path.join(os.path.dirname(self._daemon.daemon.config.get_wallet_path()), data['wallet_name'])
-            if os.path.exists(path):
-                raise Exception('file already exists at path')
-            storage = WalletStorage(path)
-
-            if data['keystore_type'] in ['createseed', 'haveseed']:
-                if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
-                    self._logger.debug('creating keystore from electrum seed')
-                    k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
-                elif data['seed_type'] == 'bip39':
-                    self._logger.debug('creating keystore from bip39 seed')
-                    root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
-                    derivation = normalize_bip32_derivation(data['derivation_path'])
-                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
-                    k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
-                elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa
-                    self._logger.debug('creating keystore from 2fa seed')
-                    k = keystore.from_xprv(data['x1/']['xprv'])
-                else:
-                    raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
-            elif data['keystore_type'] == 'masterkey':
-                k = keystore.from_master_key(data['master_key'])
-                has_xpub = isinstance(k, keystore.Xpub)
-                assert has_xpub
-                t1 = xpub_type(k.xpub)
-                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                    raise Exception('wrong key type %s' % t1)
-            else:
-                raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
-
-            if data['encrypt']:
-                if k.may_have_password():
-                    k.update_password(None, data['password'])
-                storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
-
-            db = WalletDB('', manual_upgrades=False)
-            db.set_keystore_encryption(bool(data['password']) and data['encrypt'])
-
-            db.put('wallet_type', data['wallet_type'])
-            if 'seed_type' in data:
-                db.put('seed_type', data['seed_type'])
-
-            if data['wallet_type'] == 'standard':
-                db.put('keystore', k.dump())
-            elif data['wallet_type'] == '2fa':
-                db.put('x1/', k.dump())
-                db.put('x2/', data['x2/'])
-                db.put('x3/', data['x3/'])
-                db.put('use_trustedcoin', True)
-
-            if k.can_have_deterministic_lightning_xprv():
-                db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
-
-            db.load_plugins()
-            db.write(storage)
+            self.create_storage(path, data)
 
             # minimally populate self after create
             self._password = data['password']
