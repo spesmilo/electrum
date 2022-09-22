@@ -5,12 +5,12 @@ set -e
 here="$(dirname "$(readlink -e "$0")")"
 test -n "$here" -a -d "$here" || exit
 
-if [ -z "$WIN_ARCH" ] ; then
-    export WIN_ARCH="win32"  # default
+if [ -z "$WIN_ARCH" ]; then
+    export WIN_ARCH="win32" # default
 fi
-if [ "$WIN_ARCH" = "win32" ] ; then
+if [ "$WIN_ARCH" = "win32" ]; then
     export GCC_TRIPLET_HOST="i686-w64-mingw32"
-elif [ "$WIN_ARCH" = "win64" ] ; then
+elif [ "$WIN_ARCH" = "win64" ]; then
     export GCC_TRIPLET_HOST="x86_64-w64-mingw32"
 else
     echo "unexpected WIN_ARCH: $WIN_ARCH"
@@ -64,7 +64,7 @@ fi
 info "Resetting modification time in C:\Python..."
 # (Because of some bugs in pyinstaller)
 pushd /opt/wine64/drive_c/python*
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
+find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
 ls -l /opt/wine64/drive_c/python*
 
