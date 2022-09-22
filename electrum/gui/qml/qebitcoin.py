@@ -10,6 +10,7 @@ from electrum.logging import get_logger
 from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
 from electrum.transaction import tx_from_any
+from electrum.mnemonic import is_any_2fa_seed_type
 
 from .qetypes import QEAmount
 
@@ -69,7 +70,8 @@ class QEBitcoin(QObject):
 
     @pyqtSlot(str)
     @pyqtSlot(str,bool,bool)
-    @pyqtSlot(str,bool,bool,str,str,str)
+    @pyqtSlot(str,bool,bool,str)
+    @pyqtSlot(str,bool,bool,str,str)
     def verify_seed(self, seed, bip39=False, slip39=False, wallet_type='standard', language='en'):
         self._logger.debug('bip39 ' + str(bip39))
         self._logger.debug('slip39 ' + str(slip39))
@@ -100,9 +102,10 @@ class QEBitcoin(QObject):
                 self.validationMessage = 'SLIP39: %s' % str(e)
             seed_valid = False # for now
 
-        # cosigning seed
-        if wallet_type != 'standard' and seed_type not in ['standard', 'segwit']:
-            seed_type = ''
+        # check if seed matches wallet type
+        if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
+            seed_valid = False
+        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit']:
             seed_valid = False
 
         self.seedType = seed_type

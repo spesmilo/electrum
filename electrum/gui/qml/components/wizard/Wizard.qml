@@ -24,12 +24,19 @@ Dialog {
     // Here we do some manual binding of page.valid -> pages.pagevalid and
     // page.last -> pages.lastpage to propagate the state without the binding
     // going stale.
-    function _loadNextComponent(comp, wdata={}) {
+    function _loadNextComponent(view, wdata={}) {
         // remove any existing pages after current page
         while (pages.contentChildren[pages.currentIndex+1]) {
             pages.takeItem(pages.currentIndex+1).destroy()
         }
 
+        var url = Qt.resolvedUrl(wiz.viewToComponent(view))
+        console.log(url)
+        var comp = Qt.createComponent(url)
+        if (comp.status == Component.Error) {
+            console.log(comp.errorString())
+            return null
+        }
         var page = comp.createObject(pages)
         page.validChanged.connect(function() {
             pages.pagevalid = page.valid
@@ -37,6 +44,21 @@ Dialog {
         page.lastChanged.connect(function() {
             pages.lastpage = page.last
         } )
+        page.next.connect(function() {
+            var newview = wiz.submit(page.wizard_data)
+            if (newview.view) {
+                console.log('next view: ' + newview.view)
+                var newpage = _loadNextComponent(newview.view, newview.wizard_data)
+                newpage.last = wiz.isLast(newview.wizard_data)
+            } else {
+                console.log('END')
+            }
+        })
+        page.prev.connect(function() {
+            var wdata = wiz.prev()
+            console.log('prev view data: ' + JSON.stringify(wdata))
+            page.last = wiz.isLast(wdata)
+        })
         Object.assign(page.wizard_data, wdata) // deep copy
         page.ready = true // signal page it can access wizard_data
         pages.pagevalid = page.valid
@@ -58,10 +80,12 @@ Dialog {
             clip:true
 
             function prev() {
+                currentItem.prev()
                 currentIndex = currentIndex - 1
                 _setWizardData(pages.contentChildren[currentIndex].wizard_data)
                 pages.pagevalid = pages.contentChildren[currentIndex].valid
                 pages.lastpage = pages.contentChildren[currentIndex].last
+
             }
 
             function next() {

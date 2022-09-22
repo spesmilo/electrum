@@ -69,7 +69,7 @@ def get_billing_xpub():
         return "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
 
 
-DISCLAIMER = [
+DESKTOP_DISCLAIMER = [
     _("Two-factor authentication is a service provided by TrustedCoin.  "
       "It uses a multi-signature wallet, where you own 2 of 3 keys.  "
       "The third key is stored on a remote server that signs transactions on "
@@ -86,8 +86,9 @@ DISCLAIMER = [
       "To be safe from malware, you may want to do this on an offline "
       "computer, and move your wallet later to an online computer."),
 ]
+DISCLAIMER = DESKTOP_DISCLAIMER
 
-KIVY_DISCLAIMER = [
+MOBILE_DISCLAIMER = [
     _("Two-factor authentication is a service provided by TrustedCoin. "
       "To use it, you must have a separate device with Google Authenticator."),
     _("This service uses a multi-signature wallet, where you own 2 of 3 keys.  "
@@ -98,6 +99,8 @@ KIVY_DISCLAIMER = [
       "your funds at any time and at no cost, without the remote server, by "
       "using the 'restore wallet' option with your wallet seed."),
 ]
+KIVY_DISCLAIMER = MOBILE_DISCLAIMER
+
 RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
 class TrustedCoinException(Exception):

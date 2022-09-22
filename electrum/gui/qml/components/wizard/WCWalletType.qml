@@ -6,6 +6,11 @@ WizardComponent {
 
     onAccept: {
         wizard_data['wallet_type'] = wallettypegroup.checkedButton.wallettype
+        if (wizard_data['wallet_type'] == 'standard')
+            wizard_data['seed_type'] = 'segwit'
+        else if (wizard_data['wallet_type'] == '2fa')
+            wizard_data['seed_type'] = '2fa_segwit'
+        // TODO: multisig
     }
 
     ButtonGroup {
@@ -22,7 +27,6 @@ WizardComponent {
             text: qsTr('Standard Wallet')
         }
         RadioButton {
-            enabled: false
             ButtonGroup.group: wallettypegroup
             property string wallettype: '2fa'
             text: qsTr('Wallet with two-factor authentication')
