@@ -304,6 +304,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canHaveLightning(self):
         return self.wallet.can_have_lightning()
 
+    @pyqtProperty(str, notify=dataChanged)
+    def walletType(self):
+        return self.wallet.wallet_type
+
     @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
         return self.wallet.has_seed()

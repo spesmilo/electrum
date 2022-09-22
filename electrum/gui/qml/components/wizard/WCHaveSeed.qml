@@ -12,6 +12,8 @@ WizardComponent {
     id: root
     valid: false
 
+    property bool is2fa: false
+
     onAccept: {
         wizard_data['seed'] = seedtext.text
         wizard_data['seed_type'] = bitcoin.seed_type
@@ -43,7 +45,7 @@ WizardComponent {
     }
 
     function checkValid() {
-        bitcoin.verify_seed(seedtext.text, seed_type.getTypeCode() == 'BIP39', seed_type.getTypeCode() == 'SLIP39')
+        bitcoin.verify_seed(seedtext.text, seed_type.getTypeCode() == 'BIP39', seed_type.getTypeCode() == 'SLIP39', wizard_data['wallet_type'])
     }
 
     Flickable {
@@ -58,11 +60,13 @@ WizardComponent {
             columns: 2
 
             Label {
+                visible: !is2fa
                 text: qsTr('Seed Type')
                 Layout.fillWidth: true
             }
             ComboBox {
                 id: seed_type
+                visible: !is2fa
                 model: ['Electrum', 'BIP39'/*, 'SLIP39'*/]
                 onActivated: {
                     setSeedTypeHelpText()
@@ -91,7 +95,7 @@ WizardComponent {
 
                 Rectangle {
                     anchors.fill: contentText
-                    color: 'green'
+                    color: root.valid ? 'green' : 'red'
                     border.color: Material.accentColor
                     radius: 2
                 }
@@ -147,5 +151,13 @@ WizardComponent {
 
     Component.onCompleted: {
         setSeedTypeHelpText()
+    }
+
+    onReadyChanged: {
+        if (!ready)
+            return
+
+        if (wizard_data['wallet_type'] == '2fa')
+            root.is2fa = true
     }
 }
