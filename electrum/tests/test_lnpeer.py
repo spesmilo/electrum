@@ -878,7 +878,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
@@ -922,7 +923,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(pay_req))
         with self.assertRaises(PaymentDone):
@@ -946,7 +948,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
@@ -981,7 +984,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
@@ -990,7 +994,7 @@ class TestPeer(TestCaseForTestnet):
             run(f())
 
     @needs_test_with_all_chacha20_implementations
-    def test_payment_with_temp_channel_failure_and_liquidty_hints(self):
+    def test_payment_with_temp_channel_failure_and_liquidity_hints(self):
         # prepare channels such that a temporary channel failure happens at c->d
         graph_definition = GRAPH_DEFINITIONS['square_graph'].copy()
         graph_definition['alice']['channels']['carol']['local_balance_msat'] = 200_000_000
@@ -1044,7 +1048,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], amount_msat=amount_to_pay, include_routing_hints=True)
                 await group.spawn(pay(lnaddr, pay_req))
         with self.assertRaises(PaymentDone):
@@ -1094,7 +1099,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 await group.spawn(pay(**kwargs))
 
         if fail_kwargs:
@@ -1141,7 +1147,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 lnaddr, pay_req = self.prepare_invoice(graph.workers['dave'], include_routing_hints=True)
                 for p in drop_dave:
                     do_drop_dave(p)
@@ -1252,7 +1259,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in peers:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in peers:
+                    await peer.initialized
                 await group.spawn(pay())
                 await group.spawn(stop())
 
@@ -1491,7 +1499,8 @@ class TestPeer(TestCaseForTestnet):
                 for peer in [p1, p2]:
                     await group.spawn(peer._message_loop())
                     await group.spawn(peer.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in [p1, p2]:
+                    await peer.initialized
                 await group.spawn(send_weird_messages())
 
         with self.assertRaises(SuccessfulTest):
@@ -1519,7 +1528,8 @@ class TestPeer(TestCaseForTestnet):
                 await group.spawn(p1.htlc_switch())
                 failing_task = await group.spawn(p2._message_loop())
                 await group.spawn(p2.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in [p1, p2]:
+                    await peer.initialized
                 await group.spawn(send_weird_messages())
 
         with self.assertRaises(lnmsg.UnknownMandatoryMsgType):
@@ -1548,7 +1558,8 @@ class TestPeer(TestCaseForTestnet):
                 await group.spawn(p1.htlc_switch())
                 failing_task = await group.spawn(p2._message_loop())
                 await group.spawn(p2.htlc_switch())
-                await asyncio.sleep(0.2)
+                for peer in [p1, p2]:
+                    await peer.initialized
                 await group.spawn(send_weird_messages())
 
         with self.assertRaises(lnmsg.UnexpectedEndOfStream):
