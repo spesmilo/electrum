@@ -279,7 +279,7 @@ class TxDialog(Factory.Popup):
         if fee is None:
             return  # fee left empty, treat is as "cancel"
         if fee > max_fee:
-            self.show_error(_('Max fee exceeded'))
+            self.app.show_error(_('Max fee exceeded'))
             return
         try:
             new_tx = self.wallet.cpfp(parent_tx, fee)
