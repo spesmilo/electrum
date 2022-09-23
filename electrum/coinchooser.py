@@ -24,7 +24,7 @@
 # SOFTWARE.
 from collections import defaultdict
 from math import floor, log10
-from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple
+from typing import NamedTuple, List, Callable, Sequence, Union, Dict, Tuple, Mapping, Type
 from decimal import Decimal
 
 from .bitcoin import sha256, COIN, is_address
@@ -478,7 +478,7 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
 COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
-}
+}  # type: Mapping[str, Type[CoinChooserBase]]
 
 def get_name(config):
     kind = config.get('coin_chooser')
@@ -486,7 +486,7 @@ def get_name(config):
         kind = 'Privacy'
     return kind
 
-def get_coin_chooser(config):
+def get_coin_chooser(config) -> CoinChooserBase:
     klass = COIN_CHOOSERS[get_name(config)]
     # note: we enable enable_output_value_rounding by default as
     #       - for sacrificing a few satoshis
