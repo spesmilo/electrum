@@ -989,6 +989,7 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             return
         assert self.tx
         self.finalized = True
+        self.stop_editor_updates()
         self.tx.set_rbf(self.rbf_cb.isChecked())
         locktime = self.locktime_e.get_locktime()
         if locktime is not None:
