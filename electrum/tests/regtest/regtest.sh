@@ -76,6 +76,7 @@ if [[ $1 == "init" ]]; then
     rm -rf /tmp/$2/
     agent="./run_electrum --regtest -D /tmp/$2"
     $agent create --offline > /dev/null
+    $agent setconfig --offline enable_anchor_channels True
     $agent setconfig --offline log_to_file True
     $agent setconfig --offline use_gossip True
     $agent setconfig --offline server 127.0.0.1:51001:t

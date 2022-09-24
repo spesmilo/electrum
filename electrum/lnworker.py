@@ -627,7 +627,10 @@ class LNWallet(LNWorker):
         self.wallet = wallet
         self.db = wallet.db
         Logger.__init__(self)
-        LNWorker.__init__(self, xprv, LNWALLET_FEATURES)
+        features = LNWALLET_FEATURES
+        if wallet.config.get('enable_anchor_channels'):
+            features |= LnFeatures.OPTION_ANCHOR_OUTPUTS_OPT
+        LNWorker.__init__(self, xprv, features)
         self.config = wallet.config
         self.lnwatcher = None
         self.lnrater: LNRater = None
