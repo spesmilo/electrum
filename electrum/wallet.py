@@ -353,6 +353,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # true when synchronized. this is stricter than adb.is_up_to_date():
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
         self._up_to_date = False
+        self._adb_uptodate_just_changed = False
 
         self.test_addresses_sanity()
         self.register_callbacks()
@@ -385,8 +386,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             #       have history that are mined and SPV-verified.
             num_new_addrs = await run_in_thread(self.synchronize)
             up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
-            if self.is_up_to_date() != up_to_date:
-                self.set_up_to_date(up_to_date)
+            if self.is_up_to_date() != up_to_date or self._adb_uptodate_just_changed:
+                 self.set_up_to_date(up_to_date)
+            if self._adb_uptodate_just_changed:
+                self._adb_uptodate_just_changed = False
 
     def save_db(self):
         if self.storage:
@@ -474,6 +477,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         util.trigger_callback('status')
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
+
+    @event_listener
+    def on_event_adb_set_up_to_date(self, adb):
+        if self.adb != adb:
+            return
+        self._adb_uptodate_just_changed = True
 
     @event_listener
     def on_event_adb_added_tx(self, adb, tx_hash):
