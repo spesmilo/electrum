@@ -27,7 +27,7 @@ ApplicationWindow
 
     property alias stack: mainStackView
 
-    property Dialog activeDialog: null
+    property variant activeDialogs: []
 
     header: ToolBar {
         id: toolbar
@@ -228,8 +228,9 @@ ApplicationWindow
     }
 
     onClosing: {
-        if (activeDialog) {
+        if (activeDialogs.length > 0) {
             console.log('dialog on top')
+            var activeDialog = activeDialogs.pop()
             if (activeDialog.allowClose) {
                 activeDialog.close()
             }

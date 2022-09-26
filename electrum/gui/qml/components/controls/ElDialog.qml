@@ -9,9 +9,9 @@ Dialog {
 
     onOpenedChanged: {
         if (opened) {
-            app.activeDialog = abstractdialog
+            app.activeDialogs.push(abstractdialog)
         } else {
-            app.activeDialog = null
+            app.activeDialogs.pop()
         }
     }
 }
