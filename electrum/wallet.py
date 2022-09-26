@@ -2467,6 +2467,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # for receiving
         amount_sat = amount_sat or 0
         assert isinstance(amount_sat, int), f"{amount_sat!r}"
+        message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(time.time())

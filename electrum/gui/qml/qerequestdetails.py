@@ -77,7 +77,7 @@ class QERequestDetails(QObject):
 
     @pyqtProperty(str, notify=detailsChanged)
     def address(self):
-        addr = self._req.get_address()
+        addr = self._req.get_address() if self._req else ''
         return addr if addr else ''
 
     @pyqtProperty(str, notify=detailsChanged)
@@ -98,11 +98,11 @@ class QERequestDetails(QObject):
 
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
-        return self._req.lightning_invoice
+        return self._req.lightning_invoice if self._req else ''
 
     @pyqtProperty(str, notify=detailsChanged)
     def bip21(self):
-        return self._req.get_bip21_URI()
+        return self._req.get_bip21_URI() if self._req else ''
 
 
     @pyqtSlot(str, int)
@@ -124,6 +124,7 @@ class QERequestDetails(QObject):
 
         self._amount = QEAmount(from_invoice=self._req)
 
+        self.detailsChanged.emit()
         self.initStatusStringTimer()
 
     def initStatusStringTimer(self):

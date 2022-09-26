@@ -11,9 +11,9 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property string _bolt11
-    property string _bip21uri
-    property string _address
+    property string _bolt11: request.bolt11
+    property string _bip21uri: request.bip21
+    property string _address: request.address
 
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
@@ -151,101 +151,10 @@ ElDialog {
             color: Material.accentColor
         }
 
-// aaaaaaaaaaaaaaaaaaaa
 
-
-        GridLayout {
-            id: form
-            width: parent.width
-            rowSpacing: constants.paddingSmall
-            columnSpacing: constants.paddingSmall
-            columns: 4
-
-            Label {
-                text: qsTr('Message')
-            }
-
-            TextField {
-                id: message
-                placeholderText: qsTr('Description of payment request')
-                Layout.columnSpan: 3
-                Layout.fillWidth: true
-            }
-
-            Label {
-                text: qsTr('Request')
-                wrapMode: Text.WordWrap
-                Layout.rightMargin: constants.paddingXLarge
-            }
-
-            BtcField {
-                id: amount
-                fiatfield: amountFiat
-                Layout.preferredWidth: parent.width /3
-            }
-
-            Label {
-                text: Config.baseUnit
-                color: Material.accentColor
-            }
-
-            Item { width: 1; height: 1; Layout.fillWidth: true }
-
-            Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
-
-            FiatField {
-                id: amountFiat
-                btcfield: amount
-                visible: Daemon.fx.enabled
-                Layout.preferredWidth: parent.width /3
-            }
-
-            Label {
-                visible: Daemon.fx.enabled
-                text: Daemon.fx.fiatCurrency
-                color: Material.accentColor
-            }
-
-            Item { visible: Daemon.fx.enabled; width: 1; height: 1; Layout.fillWidth: true }
-
-            Label {
-                text: qsTr('Expires after')
-                Layout.fillWidth: false
-            }
-
-            ElComboBox {
-                id: expires
-                Layout.columnSpan: 2
-
-                textRole: 'text'
-                valueRole: 'value'
-
-                model: ListModel {
-                    id: expiresmodel
-                    Component.onCompleted: {
-                        // we need to fill the model like this, as ListElement can't evaluate script
-                        expiresmodel.append({'text': qsTr('10 minutes'), 'value': 10*60})
-                        expiresmodel.append({'text': qsTr('1 hour'), 'value': 60*60})
-                        expiresmodel.append({'text': qsTr('1 day'), 'value': 24*60*60})
-                        expiresmodel.append({'text': qsTr('1 week'), 'value': 7*24*60*60})
-                        expiresmodel.append({'text': qsTr('1 month'), 'value': 31*24*60*60})
-                        expiresmodel.append({'text': qsTr('Never'), 'value': 0})
-                        expires.currentIndex = 0
-                    }
-                }
-            }
-
-            Item { width: 1; height: 1; Layout.fillWidth: true }
-
-            Button {
-                Layout.columnSpan: 4
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr('Create Request')
-                icon.source: '../../icons/qrcode.png'
-                onClicked: {
-                    createRequest()
-                }
-            }
+        Button {
+            text: 'specify'
+            onClicked: receiveDetailsDialog.open()
         }
     }
 
@@ -267,29 +176,31 @@ ElDialog {
     }
 
     function createRequest(ignoreGaplimit = false) {
-        var qamt = Config.unitsToSats(amount.text)
+        var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
         if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
             console.log('Creating OnChain request')
-            Daemon.currentWallet.create_request(qamt, message.text, expires.currentValue, false, ignoreGaplimit)
+            Daemon.currentWallet.create_request(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, ignoreGaplimit)
         } else {
             console.log('Creating Lightning request')
-            Daemon.currentWallet.create_request(qamt, message.text, expires.currentValue, true)
+            Daemon.currentWallet.create_request(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true)
         }
+    }
+
+    function createDefaultRequest(ignoreGaplimit = false) {
+        console.log('Creating default request')
+        Daemon.currentWallet.create_default_request(ignoreGaplimit)
     }
 
     Connections {
         target: Daemon.currentWallet
         function onRequestCreateSuccess(key) {
-            message.text = ''
-            amount.text = ''
-            var dialog = requestdialog.createObject(app, { key: key })
-            dialog.open()
+            request.key = key
         }
         function onRequestCreateError(code, error) {
             if (code == 'gaplimit') {
                 var dialog = app.messageDialog.createObject(app, {'text': error, 'yesno': true})
                 dialog.yesClicked.connect(function() {
-                    createRequest(true)
+                    createDefaultRequest(true)
                 })
             } else {
                 console.log(error)
@@ -297,14 +208,37 @@ ElDialog {
             }
             dialog.open()
         }
-        function onRequestStatusChanged(key, status) {
-            Daemon.currentWallet.requestModel.updateRequest(key, status)
+    }
+
+    RequestDetails {
+        id: request
+        wallet: Daemon.currentWallet
+        key: dialog.key
+        onDetailsChanged: {
+            if (bolt11) {
+                rootLayout.state = 'bolt11'
+            } else if (bip21) {
+                rootLayout.state = 'bip21uri'
+            } else {
+                rootLayout.state = 'address'
+            }
+        }
+    }
+
+    ReceiveDetailsDialog {
+        id: receiveDetailsDialog
+        onAccepted: {
+            console.log('accepted')
+            Daemon.currentWallet.delete_request(request.key)
+            createRequest()
+        }
+        onRejected: {
+            console.log('rejected')
         }
     }
 
     Component.onCompleted: {
-        _address = '1234567890'
-        rootLayout.state = 'address'
+        createDefaultRequest()
     }
 
     // hack. delay qr rendering until dialog is shown

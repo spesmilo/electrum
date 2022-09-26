@@ -526,28 +526,50 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
 
         assert key is not None
-        self._requestModel.add_invoice(self.wallet.get_request(key))
+        self.requestModel.add_invoice(self.wallet.get_request(key))
+        self.requestCreateSuccess.emit(key)
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def create_default_request(self, ignore_gap: bool = False):
+        try:
+            if self.wallet.lnworker.channels:
+                if self.wallet.config.get('bolt11_fallback', True):
+                    addr = self.wallet.get_unused_address()
+                    # if addr is None, we ran out of addresses. for lightning enabled wallets, ignore for now
+                key = self.wallet.create_request(None, None, 3600, addr) # TODO : expiration from config
+            else:
+                key, addr = self.create_bitcoin_request(None, None, 3600, ignore_gap)
+                if not key:
+                    return
+                # self.addressModel.init_model()
+        except InvoiceError as e:
+            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
+            return
+
+        assert key is not None
+        self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
     def delete_request(self, key: str):
         self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
-        self._requestModel.delete_invoice(key)
+        self.requestModel.delete_invoice(key)
 
     @pyqtSlot(str, result='QVariant')
     def get_request(self, key: str):
-        return self._requestModel.get_model_invoice(key)
+        return self.requestModel.get_model_invoice(key)
 
     @pyqtSlot(str)
     def delete_invoice(self, key: str):
         self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
-        self._invoiceModel.delete_invoice(key)
+        self.invoiceModel.delete_invoice(key)
 
     @pyqtSlot(str, result='QVariant')
     def get_invoice(self, key: str):
-        return self._invoiceModel.get_model_invoice(key)
+        return self.invoiceModel.get_model_invoice(key)
 
     @pyqtSlot(str, result=bool)
     def verify_password(self, password):
