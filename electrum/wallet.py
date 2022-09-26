@@ -353,7 +353,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # true when synchronized. this is stricter than adb.is_up_to_date():
         # to-be-generated (HD) addresses are also considered here (gap-limit-roll-forward)
         self._up_to_date = False
-        self._adb_uptodate_just_changed = False
 
         self.test_addresses_sanity()
         self.register_callbacks()
@@ -384,12 +383,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             await asyncio.sleep(0.1)
             # note: we only generate new HD addresses if the existing ones
             #       have history that are mined and SPV-verified.
-            num_new_addrs = await run_in_thread(self.synchronize)
-            up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
-            if self.is_up_to_date() != up_to_date or self._adb_uptodate_just_changed:
-                 self.set_up_to_date(up_to_date)
-            if self._adb_uptodate_just_changed:
-                self._adb_uptodate_just_changed = False
+            await run_in_thread(self.synchronize)
 
     def save_db(self):
         if self.storage:
@@ -465,7 +459,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_up_to_date(self) -> bool:
         return self._up_to_date
 
-    def set_up_to_date(self, up_to_date: bool) -> None:
+    @event_listener
+    async def on_event_adb_set_up_to_date(self, adb):
+        if self.adb != adb:
+            return
+        num_new_addrs = await run_in_thread(self.synchronize)
+        up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
         with self.lock:
             status_changed = self._up_to_date != up_to_date
             self._up_to_date = up_to_date
@@ -477,12 +476,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         util.trigger_callback('status')
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
-
-    @event_listener
-    def on_event_adb_set_up_to_date(self, adb):
-        if self.adb != adb:
-            return
-        self._adb_uptodate_just_changed = True
 
     @event_listener
     def on_event_adb_added_tx(self, adb, tx_hash):
