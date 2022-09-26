@@ -151,9 +151,41 @@ ElDialog {
             color: Material.accentColor
         }
 
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Button {
+                icon.source: '../../icons/copy_bw.png'
+                icon.color: 'transparent'
+                text: 'Copy'
+                onClicked: {
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.textToClipboard(_bolt11)
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.textToClipboard(_bip21uri)
+                    else
+                        AppController.textToClipboard(_address)
+                }
+            }
+            Button {
+                icon.source: '../../icons/share.png'
+                text: 'Share'
+                onClicked: {
+                    enabled = false
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.doShare(_bolt11, qsTr('Payment Request'))
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                    else
+                        AppController.doShare(_address, qsTr('Onchain address'))
+
+                    enabled = true
+                }
+            }
+        }
 
         Button {
-            text: 'specify'
+            Layout.alignment: Qt.AlignHCenter
+            text: qsTr('Edit')
             onClicked: receiveDetailsDialog.open()
         }
     }
