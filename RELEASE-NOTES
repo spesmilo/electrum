@@ -1,3 +1,18 @@
+# Release 4.3.2 - (September 26, 2022)
+ * When creating new requests, reuse addresses of expired requests
+   (fixes #7927).
+ * Index requests by ID instead of receiving address. This affects the
+   following commands: get_request, get_invoice, list_requests,
+   list_invoices, delete_request, delete_invoice
+ * Trampoline routing: remember routes that have failed. Try other
+   routes instead of systematically raising tampoline fees.
+ * Fix sweep to_local output from channel backup (#7959)
+ * Harden build script for macOS binary: avoid using
+   precompiled wheels from PyPI for most packages (#7918)
+ * The Windows/AppImage/Android binaries are now built on debian using
+   the snapshot.debian.org archive instead of ubuntu. This should help
+   with historical reproducibility. (#7926)
+
 # Release 4.3.1 - (August 17, 2022)
  * build: we now also distribute a "source-only"
    Linux-packager-friendly tarball (d0de44a7, #7594), in addition
