@@ -155,7 +155,7 @@ class QERequestListModel(QEAbstractInvoiceListModel):
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'request'
-        item['key'] = invoice.get_id() if invoice.is_lightning() else invoice.get_address()
+        item['key'] = invoice.get_id()
 
         return item
 

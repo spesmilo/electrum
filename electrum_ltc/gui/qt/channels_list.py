@@ -183,7 +183,7 @@ class ChannelsList(MyTreeView):
         WaitingDialog(self, 'please wait..', task, self.on_request_sent, self.on_failure)
 
     def freeze_channel_for_sending(self, chan, b):
-        if self.lnworker.channel_db or self.lnworker.is_trampoline_peer(chan.node_id):
+        if not self.lnworker.uses_trampoline() or self.lnworker.is_trampoline_peer(chan.node_id):
             chan.set_frozen_for_sending(b)
         else:
             msg = messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP
@@ -198,7 +198,7 @@ class ChannelsList(MyTreeView):
             channel_id2 = idx2.sibling(idx2.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
             chan1 = self.lnworker.channels.get(channel_id1)
             chan2 = self.lnworker.channels.get(channel_id2)
-            if chan1 and chan2 and (self.lnworker.channel_db or chan1.node_id != chan2.node_id):
+            if chan1 and chan2 and (not self.lnworker.uses_trampoline() or chan1.node_id != chan2.node_id):
                 return chan1, chan2
         return None, None
 

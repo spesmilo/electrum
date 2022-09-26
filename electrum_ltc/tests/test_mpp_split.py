@@ -37,6 +37,14 @@ class TestMppSplit(ElectrumTestCase):
                 splits[0].config
             )
 
+        with self.subTest(msg="payment amount that does not require to be split"):
+            splits = mpp_split.suggest_splits(50_000_000, self.channels_with_funds, exclude_single_part_payments=False)
+            self.assertEqual({(0, 0): [50_000_000]}, splits[0].config)
+            self.assertEqual({(1, 1): [50_000_000]}, splits[1].config)
+            self.assertEqual({(2, 0): [50_000_000]}, splits[2].config)
+            self.assertEqual({(3, 2): [50_000_000]}, splits[3].config)
+            self.assertEqual(2, mpp_split.number_parts(splits[4].config))
+
         with self.subTest(msg="do a payment with a larger amount than what is supported by a single channel"):
             splits = mpp_split.suggest_splits(1_100_000_000, self.channels_with_funds, exclude_single_part_payments=False)
             self.assertEqual(2, mpp_split.number_parts(splits[0].config))

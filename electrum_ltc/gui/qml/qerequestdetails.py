@@ -67,8 +67,7 @@ class QERequestDetails(QObject):
         req = self._wallet.wallet.get_request(self._key)
         return self._wallet.wallet.get_invoice_status(req)
 
-    statusStringChanged = pyqtSignal()
-    @pyqtProperty(str, notify=statusStringChanged)
+    @pyqtProperty(str, notify=statusChanged)
     def status_str(self):
         return self._req.get_status_str(self.status)
 

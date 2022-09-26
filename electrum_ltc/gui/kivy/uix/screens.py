@@ -237,9 +237,12 @@ class SendScreen(CScreen, Logger):
     def set_lnurl6(self, lnurl: str):
         url = decode_lnurl(lnurl)
         domain = urlparse(url).netloc
-        # FIXME network request blocking GUI thread:
-        lnurl_data = Network.run_from_another_thread(request_lnurl(url))
-        if not lnurl_data:
+        try:
+            # FIXME network request blocking GUI thread:
+            lnurl_data = Network.run_from_another_thread(request_lnurl(url))
+        except LNURLError as e:
+            self.app.show_error(f"LNURL request encountered error: {e}")
+            self.do_clear()
             return
         self.lnurl_data = lnurl_data
         self.address = "invoice from lnurl"

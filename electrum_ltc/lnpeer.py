@@ -366,16 +366,16 @@ class Peer(Logger):
         self.maybe_set_initialized()
 
     def on_node_announcement(self, payload):
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('node_announcement', payload))
 
     def on_channel_announcement(self, payload):
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_announcement', payload))
 
     def on_channel_update(self, payload):
         self.maybe_save_remote_update(payload)
-        if self.lnworker.channel_db:
+        if not self.lnworker.uses_trampoline():
             self.gossip_queue.put_nowait(('channel_update', payload))
 
     def maybe_save_remote_update(self, payload):
@@ -600,9 +600,6 @@ class Peer(Logger):
     def is_shutdown_anysegwit(self):
         return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
 
-    def is_static_remotekey(self):
-        return self.features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
-
     def is_channel_type(self):
         return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
 
@@ -631,13 +628,12 @@ class Peer(Logger):
         # flexibility to decide an address at closing time
         upfront_shutdown_script = b''
 
-        if channel_type & channel_type.OPTION_STATIC_REMOTEKEY:
-            wallet = self.lnworker.wallet
-            assert wallet.txin_type == 'p2wpkh'
-            addr = wallet.get_new_sweep_address_for_channel()
-            static_remotekey = bfh(wallet.get_public_key(addr))
-        else:
-            static_remotekey = None
+        assert channel_type & channel_type.OPTION_STATIC_REMOTEKEY
+        wallet = self.lnworker.wallet
+        assert wallet.txin_type == 'p2wpkh'
+        addr = wallet.get_new_sweep_address_for_channel()
+        static_remotekey = bytes.fromhex(wallet.get_public_key(addr))
+
         dust_limit_sat = bitcoin.DUST_LIMIT_P2PKH
         reserve_sat = max(funding_sat // 100, dust_limit_sat)
         # for comparison of defaults, see
@@ -702,16 +698,15 @@ class Peer(Logger):
         # will raise if init fails
         await asyncio.wait_for(self.initialized, LN_P2P_NETWORK_TIMEOUT)
         # trampoline is not yet in features
-        if not self.lnworker.channel_db and not self.lnworker.is_trampoline_peer(self.pubkey):
+        if self.lnworker.uses_trampoline() and not self.lnworker.is_trampoline_peer(self.pubkey):
             raise Exception('Not a trampoline node: ' + str(self.their_features))
 
         feerate = self.lnworker.current_feerate_per_kw()
         # we set a channel type for internal bookkeeping
         open_channel_tlvs = {}
-        if self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT):
-            our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
-        else:
-            our_channel_type = ChannelType(0)
+        assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+
         # if option_channel_type is negotiated: MUST set channel_type
         if self.is_channel_type():
             # if it includes channel_type: MUST set it to a defined type representing the type it wants.

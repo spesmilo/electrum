@@ -67,6 +67,9 @@ class TxEditor:
             self.update()
             self.needs_update = False
 
+    def stop_editor_updates(self):
+        self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
+
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:
             if self.config.use_mempool_fees():
@@ -193,6 +196,7 @@ class ConfirmTxDialog(TxEditor, WindowModalDialog):
     def run(self):
         cancelled = not self.exec_()
         password = self.pw.text() or None
+        self.stop_editor_updates()
         self.deleteLater()  # see #3956
         return cancelled, self.is_send, password, self.tx
 
