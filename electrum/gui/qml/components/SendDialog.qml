@@ -2,7 +2,6 @@ import QtQuick 2.6
 import QtQuick.Controls 2.14
 import QtQuick.Layouts 1.0
 import QtQuick.Controls.Material 2.0
-import QtQml.Models 2.1
 
 import org.electrum 1.0
 
@@ -12,8 +11,6 @@ ElDialog {
     id: dialog
 
     property InvoiceParser invoiceParser
-
-    signal manualInput
 
     parent: Overlay.overlay
     modal: true
@@ -27,8 +24,6 @@ ElDialog {
     }
 
     padding: 0
-
-    onClosed: destroy()
 
     ColumnLayout {
         anchors.fill: parent
@@ -44,7 +39,12 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Manual input')
             onClicked: {
-                manualInput()
+                var _mid = manualInputDialog.createObject(mainView)
+                _mid.accepted.connect(function() {
+                    console.log(_mid.recipient)
+                    invoiceParser.recipient = _mid.recipient
+                })
+                _mid.open()
             }
         }
 
@@ -55,4 +55,45 @@ ElDialog {
         }
     }
 
+    Component {
+        id: manualInputDialog
+        ElDialog {
+            property alias recipient: recipientTextEdit.text
+
+            anchors.centerIn: parent
+            implicitWidth: parent.width * 0.9
+
+            parent: Overlay.overlay
+            modal: true
+            standardButtons: Dialog.Ok
+
+            Overlay.modal: Rectangle {
+                color: "#aa000000"
+            }
+
+            title: qsTr('Manual Input')
+
+            ColumnLayout {
+                width: parent.width
+
+                Label {
+                    text: 'Enter a bitcoin address or a Lightning invoice'
+                    wrapMode: Text.Wrap
+                }
+
+                TextField {
+                    id: recipientTextEdit
+                    topPadding: constants.paddingXXLarge
+                    bottomPadding: constants.paddingXXLarge
+                    Layout.preferredWidth: parent.width
+                    font.family: FixedFont
+
+                    wrapMode: TextInput.WrapAnywhere
+                    placeholderText: qsTr('Enter the payment request here')
+                }
+            }
+
+            onClosed: destroy()
+        }
+    }
 }

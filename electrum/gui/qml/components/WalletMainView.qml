@@ -73,8 +73,6 @@ Item {
         }
     }
 
-    property var _sendDialog
-
     ColumnLayout {
         anchors.centerIn: parent
         width: parent.width
@@ -115,11 +113,7 @@ Item {
                 text: qsTr('Send')
                 onClicked: {
                     console.log('send')
-                    var comp = Qt.createComponent(Qt.resolvedUrl('SendDialog.qml'))
-                    if (comp.status == Component.Error)
-                        console.log(comp.errorString())
-                    _sendDialog = comp.createObject(mainView, { invoiceParser: invoiceParser } )
-                    // dialog.
+                    _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
                     _sendDialog.open()
                 }
             }
@@ -180,39 +174,48 @@ Item {
 
     Component {
         id: invoiceDialog
-    InvoiceDialog {
-        onDoPay: {
-            if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                var dialog = confirmPaymentDialog.createObject(mainView, {
-                        'address': invoice.address,
-                        'satoshis': invoice.amount,
-                        'message': invoice.message
-                })
-                var wo = Daemon.currentWallet.isWatchOnly
-                dialog.txaccepted.connect(function() {
-                    if (wo) {
-                        showUnsignedTx(dialog.finalizer.serializedTx(false), dialog.finalizer.serializedTx(true))
-                    } else {
-                        dialog.finalizer.send_onchain()
+        InvoiceDialog {
+            onDoPay: {
+                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                    var dialog = confirmPaymentDialog.createObject(mainView, {
+                            'address': invoice.address,
+                            'satoshis': invoice.amount,
+                            'message': invoice.message
+                    })
+                    var wo = Daemon.currentWallet.isWatchOnly
+                    dialog.txaccepted.connect(function() {
+                        if (wo) {
+                            showUnsignedTx(dialog.finalizer.serializedTx(false), dialog.finalizer.serializedTx(true))
+                        } else {
+                            dialog.finalizer.send_onchain()
+                        }
+                    })
+                    dialog.open()
+                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+                    console.log('About to pay lightning invoice')
+                    if (invoice.key == '') {
+                        console.log('No invoice key, aborting')
+                        return
                     }
-                })
-                dialog.open()
-            } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                console.log('About to pay lightning invoice')
-                if (invoice.key == '') {
-                    console.log('No invoice key, aborting')
-                    return
+                    var dialog = lightningPaymentProgressDialog.createObject(mainView, {
+                        invoice_key: invoice.key
+                    })
+                    dialog.open()
+                    Daemon.currentWallet.pay_lightning_invoice(invoice.key)
                 }
-                var dialog = lightningPaymentProgressDialog.createObject(mainView, {
-                    invoice_key: invoice.key
-                })
-                dialog.open()
-                Daemon.currentWallet.pay_lightning_invoice(invoice.key)
+                close()
             }
-            close()
+            // onClosed: destroy()
         }
-        // onClosed: destroy()
     }
+
+    property var _sendDialog
+
+    Component {
+        id: sendDialog
+        SendDialog {
+            onClosed: destroy()
+        }
     }
 
     Component {
