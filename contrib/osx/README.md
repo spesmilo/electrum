@@ -57,6 +57,9 @@ Before starting, you should install [`brew`](https://brew.sh/).
     $ xcrun --show-sdk-path
     /Library/Developer/CommandLineTools/SDKs/MacOSX10.14.sdk
     ```
+- Installing extraneous brew packages can result in build differences.
+  For example, pyinstaller seems to pick up and bundle brew-installed `libffi`.
+  So having a dedicated "electrum-grs binary builder macOS VM" is recommended.
 - Make sure that you are building from a fresh clone of electrum-grs
   (or run e.g. `git clean -ffxd` to rm all local changes).
 

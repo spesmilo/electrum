@@ -182,6 +182,15 @@ class ExchangeBase(Logger):
             return Decimal('NaN')
         return Decimal(rate)
 
+class Yadio(ExchangeBase):
+
+    async def get_currencies(self):
+        dicts = await self.get_json('api.yadio.io', '/currencies')
+        return list(dicts.keys())
+
+    async def get_rates(self, ccy: str) -> Mapping[str, Optional[Decimal]]:
+        json = await self.get_json('api.yadio.io', '/rate/%s/BTC' % ccy)
+        return {ccy: to_decimal(json['rate'])}
 
 class Bittrex(ExchangeBase):
     async def get_rates(self, ccy):

@@ -383,10 +383,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             await asyncio.sleep(0.1)
             # note: we only generate new HD addresses if the existing ones
             #       have history that are mined and SPV-verified.
-            num_new_addrs = await run_in_thread(self.synchronize)
-            up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
-            if self.is_up_to_date() != up_to_date:
-                self.set_up_to_date(up_to_date)
+            await run_in_thread(self.synchronize)
 
     def save_db(self):
         if self.storage:
@@ -462,7 +459,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_up_to_date(self) -> bool:
         return self._up_to_date
 
-    def set_up_to_date(self, up_to_date: bool) -> None:
+    @event_listener
+    async def on_event_adb_set_up_to_date(self, adb):
+        if self.adb != adb:
+            return
+        num_new_addrs = await run_in_thread(self.synchronize)
+        up_to_date = self.adb.is_up_to_date() and num_new_addrs == 0
         with self.lock:
             status_changed = self._up_to_date != up_to_date
             self._up_to_date = up_to_date
