@@ -22,10 +22,15 @@ ElDialog {
 
     padding: 0
 
+    function restart() {
+        qrscan.restart()
+    }
+
     ColumnLayout {
         anchors.fill: parent
 
         QRScan {
+            id: qrscan
             Layout.preferredWidth: parent.width
             Layout.fillHeight: true
 

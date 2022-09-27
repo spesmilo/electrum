@@ -143,6 +143,9 @@ Item {
         wallet: Daemon.currentWallet
         onValidationError: {
             var dialog = app.messageDialog.createObject(app, {'text': message })
+            dialog.closed.connect(function() {
+                _sendDialog.restart()
+            })
             dialog.open()
         }
         onValidationWarning: {
@@ -176,6 +179,9 @@ Item {
     Component {
         id: invoiceDialog
         InvoiceDialog {
+            width: parent.width
+            height: parent.height
+
             onDoPay: {
                 if (invoice.invoiceType == Invoice.OnchainInvoice) {
                     var dialog = confirmPaymentDialog.createObject(mainView, {
@@ -206,7 +212,7 @@ Item {
                 }
                 close()
             }
-            // onClosed: destroy()
+            onClosed: destroy()
         }
     }
 

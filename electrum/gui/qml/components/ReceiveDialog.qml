@@ -212,16 +212,16 @@ ElDialog {
         var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
         if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
             console.log('Creating OnChain request')
-            Daemon.currentWallet.create_request(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, ignoreGaplimit)
+            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, ignoreGaplimit)
         } else {
             console.log('Creating Lightning request')
-            Daemon.currentWallet.create_request(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true)
+            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true)
         }
     }
 
     function createDefaultRequest(ignoreGaplimit = false) {
         console.log('Creating default request')
-        Daemon.currentWallet.create_default_request(ignoreGaplimit)
+        Daemon.currentWallet.createDefaultRequest(ignoreGaplimit)
     }
 
     Connections {

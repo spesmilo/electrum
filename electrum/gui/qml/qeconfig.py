@@ -85,9 +85,7 @@ class QEConfig(AuthMixin, QObject):
     requestExpiryChanged = pyqtSignal()
     @pyqtProperty(int, notify=requestExpiryChanged)
     def requestExpiry(self):
-        a = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        self._logger.debug(f'request expiry {a}')
-        return a
+        return self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
 
     @requestExpiry.setter
     def requestExpiry(self, expiry):

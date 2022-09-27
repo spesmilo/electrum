@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum import bitcoin
 from electrum.i18n import _
-from electrum.invoices import (InvoiceError)
+from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTxOutput
@@ -505,7 +505,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
-    def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         # TODO: unify this method and create_bitcoin_request
         try:
             if is_lightning:
@@ -531,15 +531,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def create_default_request(self, ignore_gap: bool = False):
+    def createDefaultRequest(self, ignore_gap: bool = False):
         try:
+            default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
             if self.wallet.lnworker.channels:
+                addr = None
                 if self.wallet.config.get('bolt11_fallback', True):
                     addr = self.wallet.get_unused_address()
                     # if addr is None, we ran out of addresses. for lightning enabled wallets, ignore for now
-                key = self.wallet.create_request(None, None, 3600, addr) # TODO : expiration from config
+                key = self.wallet.create_request(None, None, default_expiry, addr)
             else:
-                key, addr = self.create_bitcoin_request(None, None, 3600, ignore_gap)
+                key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)
                 if not key:
                     return
                 # self.addressModel.init_model()

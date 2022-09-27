@@ -165,6 +165,16 @@ class QEInvoiceParser(QEInvoice):
         self._amount = QEAmount(from_invoice=self._effectiveInvoice)
         return self._amount
 
+    @amount.setter
+    def amount(self, new_amount):
+        self._logger.debug('set amount')
+        if self._effectiveInvoice:
+            self._effectiveInvoice.amount_msat = int(new_amount.satsInt * 1000)
+        # TODO: side effects?
+        # TODO: recalc outputs for onchain
+        self.determine_can_pay()
+        self.invoiceChanged.emit()
+
     @pyqtProperty('quint64', notify=invoiceChanged)
     def expiration(self):
         return self._effectiveInvoice.exp if self._effectiveInvoice else 0
@@ -242,6 +252,10 @@ class QEInvoiceParser(QEInvoice):
         self.statusChanged.emit()
 
     def determine_can_pay(self):
+        if self.amount.satsInt == 0:
+            self.canPay = False
+            return
+
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if self.get_max_spendable_lightning() >= self.amount.satsInt:
@@ -374,9 +388,12 @@ class QEInvoiceParser(QEInvoice):
         else:
             self._logger.debug('flow without LN but having bip21 uri')
             if 'amount' not in self._bip21: #TODO can we have amount-less invoices?
-                self.validationError.emit('no_amount', 'no amount in uri')
-                return
-            outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], self._bip21['amount'])]
+                # self.validationError.emit('no_amount', 'no amount in uri')
+                # return
+                amount = 0
+            else:
+                amount = self._bip21['amount']
+            outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], amount)]
             self._logger.debug(outputs)
             message = self._bip21['message'] if 'message' in self._bip21 else ''
             invoice = self.create_onchain_invoice(outputs, message, None, self._bip21)
