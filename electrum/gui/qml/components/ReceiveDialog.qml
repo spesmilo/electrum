@@ -37,17 +37,17 @@ ElDialog {
             State {
                 name: 'bolt11'
                 PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                PropertyChanges { target: bolt11label; font.bold: true }
+                PropertyChanges { target: bolt11label; font.bold: true; color: Material.accentColor }
             },
             State {
                 name: 'bip21uri'
                 PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                PropertyChanges { target: bip21label; font.bold: true }
+                PropertyChanges { target: bip21label; font.bold: true; color: Material.accentColor }
             },
             State {
                 name: 'address'
                 PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                PropertyChanges { target: addresslabel; font.bold: true }
+                PropertyChanges { target: addresslabel; font.bold: true; color: Material.accentColor }
             }
         ]
 
@@ -67,6 +67,7 @@ ElDialog {
 
             Loader {
                 id: qrloader
+
                 Component {
                     id: qri_bolt11
                     QRImage {
@@ -153,7 +154,7 @@ ElDialog {
 
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
-            Button {
+            FlatButton {
                 icon.source: '../../icons/copy_bw.png'
                 icon.color: 'transparent'
                 text: 'Copy'
@@ -166,7 +167,7 @@ ElDialog {
                         AppController.textToClipboard(_address)
                 }
             }
-            Button {
+            FlatButton {
                 icon.source: '../../icons/share.png'
                 text: 'Share'
                 onClicked: {
@@ -181,13 +182,14 @@ ElDialog {
                     enabled = true
                 }
             }
+            FlatButton {
+                Layout.alignment: Qt.AlignHCenter
+                icon.source: '../../icons/pen.png'
+                text: qsTr('Edit')
+                onClicked: receiveDetailsDialog.open()
+            }
         }
 
-        Button {
-            Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Edit')
-            onClicked: receiveDetailsDialog.open()
-        }
     }
 
 

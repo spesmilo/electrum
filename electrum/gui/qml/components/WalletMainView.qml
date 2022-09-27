@@ -110,6 +110,7 @@ Item {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
                 onClicked: {
                     console.log('send')
@@ -127,10 +128,10 @@ Item {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_receive.png'
                 text: qsTr('Receive')
                 onClicked: {
-                    var comp = Qt.createComponent(Qt.resolvedUrl('ReceiveDialog.qml'))
-                    var dialog = comp.createObject(mainView)
+                    var dialog = receiveDialog.createObject(mainView)
                     dialog.open()
                 }
             }
@@ -214,6 +215,13 @@ Item {
     Component {
         id: sendDialog
         SendDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: receiveDialog
+        ReceiveDialog {
             onClosed: destroy()
         }
     }

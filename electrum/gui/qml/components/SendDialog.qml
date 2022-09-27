@@ -37,6 +37,7 @@ ElDialog {
 
         FlatButton {
             Layout.fillWidth: true
+            icon.source: '../../icons/pen.png'
             text: qsTr('Manual input')
             onClicked: {
                 var _mid = manualInputDialog.createObject(mainView)
@@ -50,6 +51,7 @@ ElDialog {
 
         FlatButton {
             Layout.fillWidth: true
+            icon.source: '../../icons/paste.png'
             text: qsTr('Paste from clipboard')
             onClicked: invoiceParser.recipient = AppController.clipboardToText()
         }
