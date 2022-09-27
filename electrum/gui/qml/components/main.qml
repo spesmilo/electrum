@@ -229,10 +229,11 @@ ApplicationWindow
 
     onClosing: {
         if (activeDialogs.length > 0) {
-            console.log('dialog on top')
-            var activeDialog = activeDialogs.pop()
+            var activeDialog = activeDialogs[activeDialogs.length - 1]
             if (activeDialog.allowClose) {
                 activeDialog.close()
+            } else {
+                console.log('dialog disallowed close')
             }
             close.accepted = false
             return
