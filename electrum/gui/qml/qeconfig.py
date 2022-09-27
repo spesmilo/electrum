@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from electrum.logging import get_logger
 from electrum.util import DECIMAL_POINT_DEFAULT, format_satoshis
+from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
 
 from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
@@ -80,6 +81,18 @@ class QEConfig(AuthMixin, QObject):
     def spendUnconfirmed(self, checked):
         self.config.set_key('confirmed_only', not checked, True)
         self.spendUnconfirmedChanged.emit()
+
+    requestExpiryChanged = pyqtSignal()
+    @pyqtProperty(int, notify=requestExpiryChanged)
+    def requestExpiry(self):
+        a = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        self._logger.debug(f'request expiry {a}')
+        return a
+
+    @requestExpiry.setter
+    def requestExpiry(self, expiry):
+        self.config.set_key('request_expiry', expiry)
+        self.requestExpiryChanged.emit()
 
     pinCodeChanged = pyqtSignal()
     @pyqtProperty(str, notify=pinCodeChanged)
