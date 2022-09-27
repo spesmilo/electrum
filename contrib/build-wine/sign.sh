@@ -1,7 +1,7 @@
 #!/bin/bash
 
 here=$(dirname "$0")
-if [ ! $WIN_SIGNING_PASSWORD ]-, then
+if [ ! $WIN_SIGNING_PASSWORD ]; then
    echo "password missing"
    exit 1
 fi
