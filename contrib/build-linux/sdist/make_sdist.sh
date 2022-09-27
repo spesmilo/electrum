@@ -16,12 +16,12 @@ python3 --version || fail "python interpreter not found"
 break_legacy_easy_install
 
 # upgrade to modern pip so that it knows the flags we need.
-# (make_packages will later install a pinned version of pip in a venv)
+# (make_packages.sh will later install a pinned version of pip in a venv)
 python3 -m pip install --upgrade pip
 
 rm -rf "$PROJECT_ROOT/packages/"
 if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
-  "$CONTRIB"/make_packages || fail "make_packages failed"
+  "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
 git submodule update --init

@@ -33,14 +33,14 @@ similar system.
 
 ## Verifying reproducibility and comparing against official binary
 
-Every user can verify that the official binary was created from the source code in this 
+Every user can verify that the official binary was created from the source code in this
 repository.
 
 1. Build your own binary as described above.
    Make sure you don't build in `debug` mode,
    instead use either of `release` or `release-unsigned`.
    If you build in `release` mode, the apk will be signed, which requires a keystore
-   that you need to create manually (see source of `make_apk` for an example).
+   that you need to create manually (see source of `make_apk.sh` for an example).
 2. Note that the binaries are not going to be byte-for-byte identical, as the official
    release is signed by a keystore that only the project maintainers have.
    You can use the `apkdiff.py` python script (written by the Signal developers) to compare
@@ -102,7 +102,7 @@ If you just follow the instructions above, you will build the apk
 in debug mode. The most notable difference is that the apk will be
 signed using a debug keystore. If you are planning to upload
 what you build to e.g. the Play Store, you should create your own
-keystore, back it up safely, and run `./contrib/make_apk release`.
+keystore, back it up safely, and run `./contrib/make_apk.sh release`.
 
 See e.g. [kivy wiki](https://github.com/kivy/kivy/wiki/Creating-a-Release-APK)
 and [android dev docs](https://developer.android.com/studio/build/building-cmdline#sign_cmdline).

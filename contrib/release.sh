@@ -240,7 +240,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
     # upload sigs
-    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload"
+    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload.sh"
 
 else
     # ONLY release manager
@@ -262,7 +262,7 @@ else
     if test -f dist/uploaded; then
         info "files already uploaded"
     else
-        ./contrib/upload
+        ./contrib/upload.sh
         touch dist/uploaded
     fi
 

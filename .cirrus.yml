@@ -177,7 +177,7 @@ task:
     cpu: 2
     memory: 2G
   build_script:
-    - ./contrib/android/make_apk kivy arm64-v8a debug
+    - ./contrib/android/make_apk.sh kivy arm64-v8a debug
   binaries_artifacts:
     path: "dist/*"
 
@@ -190,7 +190,7 @@ task:
   install_script:
     - git fetch --all --tags
   build_script:
-    - ./contrib/osx/make_osx
+    - ./contrib/osx/make_osx.sh
   sum_script:
     - ls -lah dist
     - shasum -a 256 dist/*.dmg
