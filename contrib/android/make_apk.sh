@@ -15,7 +15,7 @@ LOCALE="$PROJECT_ROOT"/electrum/locale/
 export ELEC_APK_GUI=$1
 
 if [ ! -d "$PACKAGES" ]; then
-  "$CONTRIB"/make_packages.sh || fail "make_packages failed"
+    "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
 pushd "$PROJECT_ROOT"

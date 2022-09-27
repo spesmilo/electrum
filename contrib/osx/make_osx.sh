@@ -73,7 +73,7 @@ if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
     curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
 echo "c2073d44c404c661dadbf0cbda55c6e7d681baba9178ed1bdb126d34caa898a9  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
-     || fail "python pkg checksum mismatched"
+    || fail "python pkg checksum mismatched"
 sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"
 
@@ -232,7 +232,7 @@ find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -pr
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=`git describe --tags --dirty --always`
+VERSION=$(git describe --tags --dirty --always)
 
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"

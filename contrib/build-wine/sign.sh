@@ -29,14 +29,14 @@ echo "Found $(ls *.exe | wc -w) files to sign."
 for f in $(ls *.exe); do
     echo "Signing $f..."
     osslsigncode sign \
-      -pass $WIN_SIGNING_PASSWORD\
-      -h sha256 \
-      -certs "$CERT_FILE" \
-      -key "$KEY_FILE" \
-      -n "Electrum" \
-      -i "https://electrum.org/" \
-      -t "http://timestamp.digicert.com/" \
-      -in "$f" \
-      -out "../signed/$f"
+        -pass "$WIN_SIGNING_PASSWORD" \
+        -h sha256 \
+        -certs "$CERT_FILE" \
+        -key "$KEY_FILE" \
+        -n "Electrum" \
+        -i "https://electrum.org/" \
+        -t "http://timestamp.digicert.com/" \
+        -in "$f" \
+        -out "../signed/$f"
     ls ../signed/$f -lah
 done

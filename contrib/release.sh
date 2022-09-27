@@ -73,9 +73,9 @@ if [ ! -z "$RELEASEMANAGER" ] ; then
 fi
 
 
-VERSION=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
+VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
 info "VERSION: $VERSION"
-REV=`git describe --tags`
+REV=$(git describe --tags)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 
@@ -95,7 +95,7 @@ tarball="Electrum-$VERSION.tar.gz"
 if test -f "dist/$tarball"; then
     info "file exists: $tarball"
 else
-   ./contrib/build-linux/sdist/build.sh
+    ./contrib/build-linux/sdist/build.sh
 fi
 
 # create source-only tarball
@@ -103,7 +103,7 @@ srctarball="Electrum-sourceonly-$VERSION.tar.gz"
 if test -f "dist/$srctarball"; then
     info "file exists: $srctarball"
 else
-   OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
+    OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
 fi
 
 # appimage
@@ -184,7 +184,7 @@ sha256sum contrib/build-wine/dist/*.exe
 echo -n "proceed (y/n)? "
 read answer
 
-if [ "$answer" != "y" ] ;then
+if [ "$answer" != "y" ]; then
     echo "exit"
     exit 1
 fi
@@ -250,7 +250,7 @@ else
     info "updating www repo"
     ./contrib/make_download $WWW_DIR
     info "signing the version announcement file"
-    sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
+    sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
     echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
 
 

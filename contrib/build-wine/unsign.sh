@@ -14,7 +14,7 @@ set -e
 mkdir -p signed >/dev/null 2>&1
 mkdir -p signed/stripped >/dev/null 2>&1
 
-version=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
+version=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
 
 echo "Found $(ls dist/*.exe | wc -w) files to verify."
 

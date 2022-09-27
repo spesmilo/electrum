@@ -5,23 +5,23 @@
 set -e
 
 DEBIAN_SNAPSHOT_BASE="https://snapshot.debian.org/archive/debian/"
-DEBIAN_APPIMAGE_DISTRO="buster" # should match build-linux/appimage Dockerfile base
-DEBIAN_WINE_DISTRO="bullseye" # should match build-wine Dockerfile base
+DEBIAN_APPIMAGE_DISTRO="buster"  # should match build-linux/appimage Dockerfile base
+DEBIAN_WINE_DISTRO="bullseye"    # should match build-wine Dockerfile base
 DEBIAN_ANDROID_DISTRO="bullseye" # should match android Dockerfile base
 
 contrib=$(dirname "$0")
 
 
 if [ ! -x /bin/wget ]; then
-  echo "no wget"
-  exit 1
+    echo "no wget"
+    exit 1
 fi
 
-DEBIAN_SNAPSHOT_LATEST=$(wget -O- ${DEBIAN_SNAPSHOT_BASE}$(date +"?year=%Y&month=%m") 2>/dev/null|grep "^<a href=\"20"|tail -1|sed -e 's#[^"]*"\(.\{17,17\}\).*#\1#')
+DEBIAN_SNAPSHOT_LATEST=$(wget -O- ${DEBIAN_SNAPSHOT_BASE}$(date +"?year=%Y&month=%m") 2>/dev/null | grep "^<a href=\"20" | tail -1 | sed -e 's#[^"]*"\(.\{17,17\}\).*#\1#')
 
 if [ "${DEBIAN_SNAPSHOT_LATEST}x" = "x" ]; then
-  echo "could not find timestamp for debian packages"
-  exit 1
+    echo "could not find timestamp for debian packages"
+    exit 1
 fi
 
 DEBIAN_SNAPSHOT=${DEBIAN_SNAPSHOT_BASE}${DEBIAN_SNAPSHOT_LATEST}
