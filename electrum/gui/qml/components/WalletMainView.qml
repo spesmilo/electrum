@@ -142,7 +142,7 @@ Item {
         id: invoiceParser
         wallet: Daemon.currentWallet
         onValidationError: {
-            var dialog = app.messageDialog.createObject(app, {'text': message })
+            var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.closed.connect(function() {
                 _sendDialog.restart()
             })
@@ -150,7 +150,7 @@ Item {
         }
         onValidationWarning: {
             if (code == 'no_channels') {
-                var dialog = app.messageDialog.createObject(app, {'text': message })
+                var dialog = app.messageDialog.createObject(app, { text: message })
                 dialog.open()
                 // TODO: ask user to open a channel, if funds allow
                 // and maybe store invoice if expiry allows
@@ -158,16 +158,8 @@ Item {
         }
         onValidationSuccess: {
             _sendDialog.close()
-            // address only -> fill form fields and clear this instance
-            // else -> show invoice confirmation dialog
-            if (invoiceType == Invoice.OnchainOnlyAddress) {
-                recipient.text = invoice.recipient
-                invoiceParser.clear()
-            } else {
-                var dialog = invoiceDialog.createObject(app, {'invoice': invoiceParser})
-                // dialog.invoice = invoiceParser
-                dialog.open()
-            }
+            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser })
+            dialog.open()
         }
         onInvoiceCreateError: console.log(code + ' ' + message)
 

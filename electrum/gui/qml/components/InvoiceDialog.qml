@@ -325,5 +325,7 @@ ElDialog {
         if (invoice_key != '') {
             invoice.initFromKey(invoice_key)
         }
+        if (invoice.amount.satsInt == 0)
+            amountContainer.editmode = true
     }
 }

@@ -288,11 +288,11 @@ class QEInvoiceParser(QEInvoice):
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send()
 
-    def setValidAddressOnly(self):
-        self._logger.debug('setValidAddressOnly')
-        self.setInvoiceType(QEInvoice.Type.OnchainOnlyAddress)
-        self._effectiveInvoice = None
-        self.invoiceChanged.emit()
+    # def setValidAddressOnly(self):
+    #     self._logger.debug('setValidAddressOnly')
+    #     self.setInvoiceType(QEInvoice.Type.OnchainOnlyAddress)
+    #     self._effectiveInvoice = None
+    #     self.invoiceChanged.emit()
 
     def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')
@@ -335,7 +335,11 @@ class QEInvoiceParser(QEInvoice):
                     return
                 if ':' not in recipient:
                     # address only
-                    self.setValidAddressOnly()
+                    # create bare invoice
+                    outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], 0)]
+                    invoice = self.create_onchain_invoice(outputs, None, None, None)
+                    self._logger.debug(repr(invoice))
+                    self.setValidOnchainInvoice(invoice)
                     self.validationSuccess.emit()
                     return
                 else:
@@ -387,9 +391,7 @@ class QEInvoiceParser(QEInvoice):
                     self.validationSuccess.emit()
         else:
             self._logger.debug('flow without LN but having bip21 uri')
-            if 'amount' not in self._bip21: #TODO can we have amount-less invoices?
-                # self.validationError.emit('no_amount', 'no amount in uri')
-                # return
+            if 'amount' not in self._bip21:
                 amount = 0
             else:
                 amount = self._bip21['amount']
