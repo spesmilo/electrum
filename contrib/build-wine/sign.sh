@@ -1,9 +1,9 @@
 #!/bin/bash
 
 here=$(dirname "$0")
-if [ ! $WIN_SIGNING_PASSWORD ]; then
-   echo "password missing"
-   exit 1
+if [ -z "$WIN_SIGNING_PASSWORD" ]; then
+    echo "password missing"
+    exit 1
 fi
 
 test -n "$here" -a -d "$here" || exit

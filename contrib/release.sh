@@ -57,14 +57,19 @@ if [ "$GPGUSER" == "ThomasV" ]; then
     PUBKEY="--local-user 6694D8DE7BE8EE5631BED9502BD5824B7F9470E6"
     export SSHUSER=thomasv
     RELEASEMANAGER=1
+elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
+    PUBKEY="--local-user 0EEDCFD5CAFB459067349B23CA9EEEC43DF911DC"
+    export SSHUSER=sombernight
+fi
+
+
+if [ ! -z "$RELEASEMANAGER" ] ; then
     echo -n "Code signing passphrase:"
     read -s password
     export WIN_SIGNING_PASSWORD=$password
     export P4A_RELEASE_KEYSTORE_PASSWD=$password
     export P4A_RELEASE_KEYALIAS_PASSWD=$password
-elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
-    PUBKEY="--local-user 0EEDCFD5CAFB459067349B23CA9EEEC43DF911DC"
-    export SSHUSER=sombernight
+    # TODO add tests here to see if pw is correct
 fi
 
 
