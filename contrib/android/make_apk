@@ -53,12 +53,12 @@ fi
 if [[ "$3" == "release" ]] ; then
     # do release build, and sign the APKs.
     TARGET="release"
-    echo -n Keystore Password:
-    read -s password
     export P4A_RELEASE_KEYSTORE=~/.keystore
-    export P4A_RELEASE_KEYSTORE_PASSWD=$password
-    export P4A_RELEASE_KEYALIAS_PASSWD=$password
     export P4A_RELEASE_KEYALIAS=electrum
+    if [ ! $P4A_RELEASE_KEYSTORE_PASSWD ]; then
+	echo "p4a password not defined"
+	exit 1
+    fi
 elif [[ "$3" == "release-unsigned" ]] ; then
     # do release build, but do not sign the APKs.
     TARGET="release"
