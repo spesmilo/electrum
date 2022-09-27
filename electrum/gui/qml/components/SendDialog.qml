@@ -16,9 +16,6 @@ ElDialog {
     modal: true
     standardButtons: Dialog.Close
 
-    width: parent.width
-    height: parent.height
-
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }
@@ -42,7 +39,6 @@ ElDialog {
             onClicked: {
                 var _mid = manualInputDialog.createObject(mainView)
                 _mid.accepted.connect(function() {
-                    console.log(_mid.recipient)
                     invoiceParser.recipient = _mid.recipient
                 })
                 _mid.open()

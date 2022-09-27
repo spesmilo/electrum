@@ -215,6 +215,9 @@ Item {
     Component {
         id: sendDialog
         SendDialog {
+            width: parent.width
+            height: parent.height
+
             onClosed: destroy()
         }
     }
@@ -222,6 +225,9 @@ Item {
     Component {
         id: receiveDialog
         ReceiveDialog {
+            width: parent.width
+            height: parent.height
+
             onClosed: destroy()
         }
     }

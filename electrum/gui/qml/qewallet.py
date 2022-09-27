@@ -464,7 +464,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, self.wallet.network.asyncio_loop)
                 fut.result()
             except Exception as e:
-                self.userNotify.emit(self.wallet, repr(e))
+                self.paymentFailed.emit(invoice.get_id(), repr(e))
 
         threading.Thread(target=pay_thread).start()
 

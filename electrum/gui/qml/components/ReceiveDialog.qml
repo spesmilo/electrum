@@ -11,6 +11,8 @@ import "controls"
 ElDialog {
     id: dialog
 
+    title: qsTr('Receive Payment')
+
     property string _bolt11: request.bolt11
     property string _bip21uri: request.bip21
     property string _address: request.address
@@ -20,9 +22,6 @@ ElDialog {
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
-
-    width: parent.width
-    height: parent.height
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -261,6 +260,10 @@ ElDialog {
 
     ReceiveDetailsDialog {
         id: receiveDetailsDialog
+
+        width: parent.width * 0.9
+        anchors.centerIn: parent
+
         onAccepted: {
             console.log('accepted')
             Daemon.currentWallet.delete_request(request.key)

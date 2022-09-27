@@ -11,17 +11,15 @@ import "controls"
 ElDialog {
     id: dialog
 
+    title: qsTr('Edit payment request details')
+
     property alias amount: amountBtc.text
     property alias description: message.text
     property alias expiry: expires.currentValue
 
-
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
-
-    implicitWidth: parent.width
-    height: parent.height
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
