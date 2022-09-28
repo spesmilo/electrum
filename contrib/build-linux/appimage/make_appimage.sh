@@ -18,7 +18,6 @@ PYTHON_VERSION=3.9.11
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-
 VERSION=4.3.1
 APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 
@@ -52,11 +51,11 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
     patch -p1 < "$CONTRIB_APPIMAGE/patches/python-3.9-reproducible-buildinfo.diff"
     ./configure \
-      --cache-file="$CACHEDIR/python.config.cache" \
-      --prefix="$APPDIR/usr" \
-      --enable-ipv6 \
-      --enable-shared \
-      -q
+        --cache-file="$CACHEDIR/python.config.cache" \
+        --prefix="$APPDIR/usr" \
+        --enable-ipv6 \
+        --enable-shared \
+        -q
     make -j4 -s || fail "Could not build Python"
     make -s install > /dev/null || fail "Could not install Python"
     # When building in docker on macOS, python builds with .exe extension because the
@@ -73,10 +72,10 @@ cp -f "$PROJECT_ROOT/electrum_grs/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256
 
 
 appdir_python() {
-  env \
-    PYTHONNOUSERSITE=1 \
-    LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
-    "$APPDIR/usr/bin/python${PY_VER_MAJOR}" "$@"
+    env \
+        PYTHONNOUSERSITE=1 \
+        LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}" \
+        "$APPDIR/usr/bin/python${PY_VER_MAJOR}" "$@"
 }
 
 python='appdir_python'
@@ -173,17 +172,17 @@ info "stripping binaries from debug symbols."
 # "-R .comment" also strips the GCC version information
 strip_binaries()
 {
-  chmod u+w -R "$APPDIR"
-  {
-    printf '%s\0' "$APPDIR/usr/bin/python${PY_VER_MAJOR}"
-    find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
-  } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
+    chmod u+w -R "$APPDIR"
+    {
+        printf '%s\0' "$APPDIR/usr/bin/python${PY_VER_MAJOR}"
+        find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
+    } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
 strip_binaries
 
 remove_emptydirs()
 {
-  find "$APPDIR" -type d -empty -print0 | xargs -0 --no-run-if-empty rmdir -vp --ignore-fail-on-non-empty
+    find "$APPDIR" -type d -empty -print0 | xargs -0 --no-run-if-empty rmdir -vp --ignore-fail-on-non-empty
 }
 remove_emptydirs
 
@@ -200,8 +199,8 @@ rm -rf "$PYDIR"/site-packages/Cryptodome/SelfTest
 rm -rf "$PYDIR"/site-packages/{psutil,qrcode,websocket}/tests
 # rm lots of unused parts of Qt/PyQt. (assuming PyQt 5.15.3+ layout)
 for component in connectivity declarative help location multimedia quickcontrols2 serialport webengine websockets xmlpatterns ; do
-  rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/translations/qt${component}_*
-  rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/resources/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/translations/qt${component}_*
+    rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/resources/qt${component}_*
 done
 rm -rf "$PYDIR"/site-packages/PyQt5/Qt5/{qml,libexec}
 rm -rf "$PYDIR"/site-packages/PyQt5/{pyrcc*.so,pylupdate*.so,uic}

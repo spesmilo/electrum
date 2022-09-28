@@ -60,9 +60,19 @@ if [ "$GPGUSER" == "jackielove4u" ]; then
 fi
 
 
-VERSION=`python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)"`
+if [ ! -z "$RELEASEMANAGER" ] ; then
+    echo -n "Code signing passphrase:"
+    read -s password
+    export WIN_SIGNING_PASSWORD=$password
+    export P4A_RELEASE_KEYSTORE_PASSWD=$password
+    export P4A_RELEASE_KEYALIAS_PASSWD=$password
+    # TODO add tests here to see if pw is correct
+fi
+
+
+VERSION=$(python3 -c "import electrum_grs; print(electrum_grs.version.ELECTRUM_VERSION)")
 info "VERSION: $VERSION"
-REV=`git describe --tags`
+REV=$(git describe --tags)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 
@@ -82,7 +92,7 @@ tarball="Electrum-grs-$VERSION.tar.gz"
 if test -f "dist/$tarball"; then
     info "file exists: $tarball"
 else
-   ./contrib/build-linux/sdist/build.sh
+    ./contrib/build-linux/sdist/build.sh
 fi
 
 # create source-only tarball
@@ -90,7 +100,7 @@ srctarball="Electrum-grs-sourceonly-$VERSION.tar.gz"
 if test -f "dist/$srctarball"; then
     info "file exists: $srctarball"
 else
-   OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
+    OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
 fi
 
 # appimage
@@ -171,7 +181,7 @@ sha256sum contrib/build-wine/dist/*.exe
 echo -n "proceed (y/n)? "
 read answer
 
-if [ "$answer" != "y" ] ;then
+if [ "$answer" != "y" ]; then
     echo "exit"
     exit 1
 fi
@@ -227,7 +237,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
     # upload sigs
-    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload"
+    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload.sh"
 
 else
     # ONLY release manager
@@ -237,7 +247,7 @@ else
     info "updating www repo"
     ./contrib/make_download $WWW_DIR
     info "signing the version announcement file"
-    sig=`./run_electrum_grs -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
+    sig=$(./run_electrum_grs -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
     echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
 
 
@@ -249,7 +259,7 @@ else
     if test -f dist/uploaded; then
         info "files already uploaded"
     else
-        ./contrib/upload
+        ./contrib/upload.sh
         touch dist/uploaded
     fi
 

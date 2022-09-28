@@ -15,7 +15,7 @@ LOCALE="$PROJECT_ROOT"/electrum_grs/locale/
 export ELEC_APK_GUI=$1
 
 if [ ! -d "$PACKAGES" ]; then
-  "$CONTRIB"/make_packages || fail "make_packages failed"
+    "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
 pushd "$PROJECT_ROOT"
@@ -53,12 +53,12 @@ fi
 if [[ "$3" == "release" ]] ; then
     # do release build, and sign the APKs.
     TARGET="release"
-    echo -n Keystore Password:
-    read -s password
     export P4A_RELEASE_KEYSTORE=~/.keystore/electrumgrs.keystore
-    export P4A_RELEASE_KEYSTORE_PASSWD=$password
-    export P4A_RELEASE_KEYALIAS_PASSWD=$password
     export P4A_RELEASE_KEYALIAS=electrumgrs
+    if [ -z "$P4A_RELEASE_KEYSTORE_PASSWD" ] || [ -z "$P4A_RELEASE_KEYALIAS_PASSWD" ]; then
+        echo "p4a password not defined"
+        exit 1
+    fi
 elif [[ "$3" == "release-unsigned" ]] ; then
     # do release build, but do not sign the APKs.
     TARGET="release"

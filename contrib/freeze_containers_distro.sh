@@ -5,23 +5,23 @@
 set -e
 
 DEBIAN_SNAPSHOT_BASE="https://snapshot.debian.org/archive/debian/"
-DEBIAN_APPIMAGE_DISTRO="buster" # should match build-linux/appimage Dockerfile base
-DEBIAN_WINE_DISTRO="bullseye" # should match build-wine Dockerfile base
+DEBIAN_APPIMAGE_DISTRO="buster"  # should match build-linux/appimage Dockerfile base
+DEBIAN_WINE_DISTRO="bullseye"    # should match build-wine Dockerfile base
 DEBIAN_ANDROID_DISTRO="bullseye" # should match android Dockerfile base
 
 contrib=$(dirname "$0")
 
 
 if [ ! -x /bin/wget ]; then
-  echo "no wget"
-  exit 1
+    echo "no wget"
+    exit 1
 fi
 
-DEBIAN_SNAPSHOT_LATEST=$(wget -O- ${DEBIAN_SNAPSHOT_BASE}$(date +"?year=%Y&month=%m") 2>/dev/null|grep "^<a href=\"20"|tail -1|sed -e 's#[^"]*"\(.\{17,17\}\).*#\1#')
+DEBIAN_SNAPSHOT_LATEST=$(wget -O- ${DEBIAN_SNAPSHOT_BASE}$(date +"?year=%Y&month=%m") 2>/dev/null | grep "^<a href=\"20" | tail -1 | sed -e 's#[^"]*"\(.\{17,17\}\).*#\1#')
 
 if [ "${DEBIAN_SNAPSHOT_LATEST}x" = "x" ]; then
-  echo "could not find timestamp for debian packages"
-  exit 1
+    echo "could not find timestamp for debian packages"
+    exit 1
 fi
 
 DEBIAN_SNAPSHOT=${DEBIAN_SNAPSHOT_BASE}${DEBIAN_SNAPSHOT_LATEST}
@@ -38,6 +38,8 @@ echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main non-free contrib
 # build-wine
 echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >$contrib/build-wine/apt.sources.list
 echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >>$contrib/build-wine/apt.sources.list
+# we need win-iconv-mingw-w64-dev which is only in sid/unstable
+echo "deb [check-valid-until=no] ${DEBIAN_SNAPSHOT} unstable main non-free contrib" >>$contrib/build-wine/apt.sources.list
 
 # android
 echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >$contrib/android/apt.sources.list

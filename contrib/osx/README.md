@@ -103,18 +103,18 @@ $ hdiutil detach "/Volumes/Command Line Developer Tools"
 #### 2. Build Electrum-GRS
 
     cd electrum-grs
-    ./contrib/osx/make_osx
+    ./contrib/osx/make_osx.sh
 
 This creates both a folder named Electrum-GRS.app and the .dmg file.
 
 If you want the binaries codesigned for MacOS and notarised by Apple's central server,
-provide these env vars to the `make_osx` script:
+provide these env vars to the `make_osx.sh` script:
 
     export CODESIGN_CERT="Developer ID Application: Groestlcoin Developers" \
     export APPLE_ID_USER="me@email.com" \
     export APPLE_ID_PASSWORD="1234" \
     export APPLE_ITC_PROVIDER="TeamID""\
-    ./contrib/osx/make_osx
+    ./contrib/osx/make_osx.sh
 
 
 ## Verifying reproducibility and comparing against official binary

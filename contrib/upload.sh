@@ -15,7 +15,7 @@ fi
 
 cd "$PROJECT_ROOT"
 
-version=`git describe --tags --abbrev=0`
+version=$(git describe --tags --abbrev=0)
 echo $version
 
 if [ -z "$ELECBUILD_UPLOADFROM" ]; then

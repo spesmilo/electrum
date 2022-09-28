@@ -16,12 +16,12 @@ python3 --version || fail "python interpreter not found"
 break_legacy_easy_install
 
 # upgrade to modern pip so that it knows the flags we need.
-# (make_packages will later install a pinned version of pip in a venv)
+# (make_packages.sh will later install a pinned version of pip in a venv)
 python3 -m pip install --upgrade pip
 
 rm -rf "$PROJECT_ROOT/packages/"
 if ([ "$OMIT_UNCLEAN_FILES" != 1 ]); then
-  "$CONTRIB"/make_packages || fail "make_packages failed"
+    "$CONTRIB"/make_packages.sh || fail "make_packages failed"
 fi
 
 git submodule update --init
@@ -48,9 +48,10 @@ fi
     find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 
     # note: .zip sdists would not be reproducible due to https://bugs.python.org/issue40963
-    if ([ "$OMIT_UNCLEAN_FILES" = 1 ])
-        then PY_DISTDIR="dist/_sourceonly" # The DISTDIR variable of this script is only used to find where the output is *finally* placed.
-        else PY_DISTDIR="dist"
+    if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then
+        PY_DISTDIR="dist/_sourceonly" # The DISTDIR variable of this script is only used to find where the output is *finally* placed.
+    else
+        PY_DISTDIR="dist"
     fi
     TZ=UTC faketime -f '2000-11-11 11:11:11' python3 setup.py --quiet sdist --format=gztar --dist-dir="$PY_DISTDIR"
     if ([ "$OMIT_UNCLEAN_FILES" = 1 ]); then

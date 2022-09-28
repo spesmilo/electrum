@@ -1,3 +1,7 @@
 Package: *
-Pin: origin "snapshot.debian.org"
+Pin: release n=bullseye
+Pin-Priority: 1001
+
+Package: win-iconv-mingw-w64-dev
+Pin: release a=unstable
 Pin-Priority: 1001

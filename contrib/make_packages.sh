@@ -10,7 +10,7 @@ PACKAGES="$PROJECT_ROOT"/packages/
 test -n "$CONTRIB" -a -d "$CONTRIB" || exit
 
 if [ -d "$PACKAGES" ]; then
-  rm -r "$PACKAGES"
+    rm -r "$PACKAGES"
 fi
 
 # create virtualenv

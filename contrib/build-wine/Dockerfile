@@ -24,12 +24,12 @@ RUN dpkg --add-architecture i386 && \
         make \
         mingw-w64 \
         mingw-w64-tools \
+        win-iconv-mingw-w64-dev \
         autotools-dev \
         autoconf \
         autopoint \
         libtool \
         gettext \
-        sudo \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
