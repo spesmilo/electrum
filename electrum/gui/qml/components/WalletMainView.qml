@@ -163,6 +163,11 @@ Item {
         }
         onInvoiceCreateError: console.log(code + ' ' + message)
 
+        onLnurlRetrieved: {
+            var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            dialog.open()
+        }
+
         onInvoiceSaved: {
             Daemon.currentWallet.invoiceModel.init_model()
         }
@@ -249,5 +254,14 @@ Item {
         }
     }
 
+    Component {
+        id: lnurlPayDialog
+        LnurlPayRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
 }
 

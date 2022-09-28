@@ -1,3 +1,7 @@
+import threading
+import asyncio
+from urllib.parse import urlparse
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
 from electrum import bitcoin
@@ -11,6 +15,7 @@ from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier)
+from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -18,10 +23,10 @@ from .qewallet import QEWallet
 class QEInvoice(QObject):
     class Type:
         Invalid = -1
-        OnchainOnlyAddress = 0
-        OnchainInvoice = 1
-        LightningInvoice = 2
-        LightningAndOnchainInvoice = 3
+        OnchainInvoice = 0
+        LightningInvoice = 1
+        LightningAndOnchainInvoice = 2
+        LNURLPayRequest = 3
 
     class Status:
         Unpaid = PR_UNPAID
@@ -126,6 +131,9 @@ class QEInvoiceParser(QEInvoice):
 
     invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
 
+    lnurlRetrieved = pyqtSignal()
+    lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.clear()
@@ -148,9 +156,14 @@ class QEInvoiceParser(QEInvoice):
         #if self._recipient != recipient:
         self.canPay = False
         self._recipient = recipient
+        self._lnurlData = None
         if recipient:
             self.validateRecipient(recipient)
         self.recipientChanged.emit()
+
+    @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
+    def lnurlData(self):
+        return self._lnurlData
 
     @pyqtProperty(str, notify=invoiceChanged)
     def message(self):
@@ -167,11 +180,10 @@ class QEInvoiceParser(QEInvoice):
 
     @amount.setter
     def amount(self, new_amount):
-        self._logger.debug('set amount')
+        self._logger.debug(f'set new amount {repr(new_amount)}')
         if self._effectiveInvoice:
             self._effectiveInvoice.amount_msat = int(new_amount.satsInt * 1000)
-        # TODO: side effects?
-        # TODO: recalc outputs for onchain
+
         self.determine_can_pay()
         self.invoiceChanged.emit()
 
@@ -220,6 +232,7 @@ class QEInvoiceParser(QEInvoice):
         self.recipient = ''
         self.setInvoiceType(QEInvoice.Type.Invalid)
         self._bip21 = None
+        self._lnurlData = None
         self.canSave = False
         self.canPay = False
         self.userinfo = ''
@@ -306,6 +319,12 @@ class QEInvoiceParser(QEInvoice):
             raise Exception('unexpected Onchain invoice')
         self.set_effective_invoice(invoice)
 
+    def setValidLNURLPayRequest(self):
+        self._logger.debug('setValidLNURLPayRequest')
+        self.setInvoiceType(QEInvoice.Type.LNURLPayRequest)
+        self._effectiveInvoice = None
+        self.invoiceChanged.emit()
+
     def create_onchain_invoice(self, outputs, message, payment_request, uri):
         return self._wallet.wallet.create_invoice(
             outputs=outputs,
@@ -353,6 +372,9 @@ class QEInvoiceParser(QEInvoice):
         lninvoice = None
         maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
         if maybe_lightning_invoice is not None:
+            if maybe_lightning_invoice.startswith('lnurl'):
+                self.resolve_lnurl(maybe_lightning_invoice)
+                return
             try:
                 lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
             except InvoiceError as e:
@@ -378,7 +400,8 @@ class QEInvoiceParser(QEInvoice):
                     # TODO: lightning onchain fallback in ln invoice
                     #self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet'))
                     self.setValidLightningInvoice(lninvoice)
-                    self.clear()
+                    self.validationSuccess.emit()
+                    # self.clear()
                     return
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
@@ -402,6 +425,59 @@ class QEInvoiceParser(QEInvoice):
             self._logger.debug(repr(invoice))
             self.setValidOnchainInvoice(invoice)
             self.validationSuccess.emit()
+
+    def resolve_lnurl(self, lnurl):
+        self._logger.debug('resolve_lnurl')
+        url = decode_lnurl(lnurl)
+        self._logger.debug(f'{repr(url)}')
+
+        def resolve_task():
+            try:
+                coro = request_lnurl(url)
+                fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
+                self.on_lnurl(fut.result())
+            except Exception as e:
+                self.validationError.emit('lnurl', repr(e))
+
+        threading.Thread(target=resolve_task).start()
+
+    def on_lnurl(self, lnurldata):
+        self._logger.debug('on_lnurl')
+        self._logger.debug(f'{repr(lnurldata)}')
+
+        self._lnurlData = {
+            'domain': urlparse(lnurldata.callback_url).netloc,
+            'callback_url' : lnurldata.callback_url,
+            'min_sendable_sat': lnurldata.min_sendable_sat,
+            'max_sendable_sat': lnurldata.max_sendable_sat,
+            'metadata_plaintext': lnurldata.metadata_plaintext
+        }
+        self.setValidLNURLPayRequest()
+        self.lnurlRetrieved.emit()
+
+    @pyqtSlot('quint64')
+    def lnurlGetInvoice(self, amount):
+        assert self._lnurlData
+
+        self._logger.debug(f'fetching callback url {self._lnurlData["callback_url"]}')
+        def fetch_invoice_task():
+            try:
+                coro = callback_lnurl(self._lnurlData['callback_url'], {
+                    'amount': amount * 1000 # msats
+                })
+                fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
+                self.on_lnurl_invoice(fut.result())
+            except Exception as e:
+                self.lnurlError.emit('lnurl', repr(e))
+
+        threading.Thread(target=fetch_invoice_task).start()
+
+    def on_lnurl_invoice(self, invoice):
+        self._logger.debug('on_lnurl_invoice')
+        self._logger.debug(f'{repr(invoice)}')
+
+        invoice = invoice['pr']
+        self.recipient = invoice
 
     @pyqtSlot()
     def save_invoice(self):
