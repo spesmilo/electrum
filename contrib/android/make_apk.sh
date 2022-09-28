@@ -53,6 +53,8 @@ fi
 if [[ "$3" == "release" ]] ; then
     # do release build, and sign the APKs.
     TARGET="release"
+    export P4A_RELEASE_KEYSTORE_PASSWD="$4"
+    export P4A_RELEASE_KEYALIAS_PASSWD="$4"
     export P4A_RELEASE_KEYSTORE=~/.keystore/electrumgrs.keystore
     export P4A_RELEASE_KEYALIAS=electrumgrs
     if [ -z "$P4A_RELEASE_KEYSTORE_PASSWD" ] || [ -z "$P4A_RELEASE_KEYALIAS_PASSWD" ]; then

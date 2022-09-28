@@ -63,10 +63,10 @@ fi
 if [ ! -z "$RELEASEMANAGER" ] ; then
     echo -n "Code signing passphrase:"
     read -s password
+    # tests password against keystore
+    keytool -list -storepass $password
+    # the same password is used for windows signing
     export WIN_SIGNING_PASSWORD=$password
-    export P4A_RELEASE_KEYSTORE_PASSWD=$password
-    export P4A_RELEASE_KEYALIAS_PASSWD=$password
-    # TODO add tests here to see if pw is correct
 fi
 
 
