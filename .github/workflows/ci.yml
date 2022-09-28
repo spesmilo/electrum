@@ -104,7 +104,7 @@ jobs:
       - name: Compile Android apk
         run: |
           sudo mkdir --parents /.buildozer/.gradle
-          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk kivy all debug
+          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh kivy all debug
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
@@ -129,7 +129,7 @@ jobs:
         with:
           xcode-version: 11.7.0
       - name: Compile OSX dmg
-        run: ./contrib/osx/make_osx
+        run: ./contrib/osx/make_osx.sh
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
