@@ -36,7 +36,7 @@ version.regex = APK_VERSION = '(.*)'
 version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-#version = 4.3.1
+#version = 4.3.2
 
 # (list) Application requirements
 # note: versions and hashes are pinned in ./p4a_recipes/*
