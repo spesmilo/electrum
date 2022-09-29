@@ -161,7 +161,9 @@ class QEDaemon(AuthMixin, QObject):
         if not password:
             password = self._password
 
-        if self._path not in self.daemon._wallets:
+        wallet_already_open = self._path in self.daemon._wallets
+
+        if not wallet_already_open:
             # pre-checks, let walletdb trigger any necessary user interactions
             self._walletdb.path = self._path
             self._walletdb.password = password
@@ -172,9 +174,10 @@ class QEDaemon(AuthMixin, QObject):
         try:
             wallet = self.daemon.load_wallet(self._path, password)
             if wallet != None:
-                self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
-                self._current_wallet.password = password
+                if not wallet_already_open:
+                    self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)
+                    self._current_wallet.password = password
                 self.walletLoaded.emit()
 
                 if self.daemon.config.get('single_password'):
