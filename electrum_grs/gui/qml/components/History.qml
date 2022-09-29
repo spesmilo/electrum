@@ -14,10 +14,15 @@ Pane {
     padding: 0
     clip: true
 
+    background: Rectangle {
+        color: constants.darkerBackground
+    }
+
     ListView {
         id: listview
         width: parent.width
         height: parent.height
+        boundsBehavior: Flickable.StopAtBounds
 
         model: visualModel
 

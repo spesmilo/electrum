@@ -149,6 +149,18 @@ Pane {
                         }
 
                         Label {
+                            text: qsTr('Default request expiry')
+                            Layout.fillWidth: false
+                        }
+
+                        RequestExpiryComboBox {
+                            onCurrentValueChanged: {
+                                if (activeFocus)
+                                    Config.requestExpiry = currentValue
+                            }
+                        }
+
+                        Label {
                             text: qsTr('PIN')
                         }
 

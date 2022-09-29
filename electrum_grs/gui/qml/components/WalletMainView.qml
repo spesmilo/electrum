@@ -3,8 +3,12 @@ import QtQuick.Controls 2.3
 import QtQuick.Layouts 1.0
 import QtQml 2.6
 
+import org.electrum 1.0
+
+import "controls"
+
 Item {
-    id: rootItem
+    id: mainView
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
 
@@ -94,73 +98,170 @@ Item {
         anchors.fill: parent
         visible: Daemon.currentWallet
 
-        SwipeView {
-            id: swipeview
-
+        History {
+            id: history
+            Layout.preferredWidth: parent.width
             Layout.fillHeight: true
-            Layout.fillWidth: true
-            currentIndex: tabbar.currentIndex
-
-            Item {
-                Loader {
-                    anchors.fill: parent
-                    Receive {
-                        id: receive
-                        anchors.fill: parent
-                    }
-                }
-            }
-
-            Item {
-                Loader {
-                    anchors.fill: parent
-                    History {
-                        id: history
-                        anchors.fill: parent
-                    }
-                }
-            }
-
-
-            Item {
-                Loader {
-                    anchors.fill: parent
-                    Send {
-                        anchors.fill: parent
-                    }
-                }
-            }
-
         }
 
-        TabBar {
-            id: tabbar
-            position: TabBar.Footer
-            Layout.fillWidth: true
-            currentIndex: swipeview.currentIndex
-            TabButton {
-                text: qsTr('Receive')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            TabButton {
-                text: qsTr('History')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            TabButton {
+        RowLayout {
+            spacing: 0
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
-                font.pixelSize: constants.fontSizeLarge
+                onClicked: {
+                    console.log('send')
+                    _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+                    _sendDialog.open()
+                }
             }
-            Component.onCompleted: tabbar.setCurrentIndex(1)
+            Rectangle {
+                Layout.fillWidth: false
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: parent.height * 2/3
+                Layout.alignment: Qt.AlignVCenter
+                color: constants.darkerBackground
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_receive.png'
+                text: qsTr('Receive')
+                onClicked: {
+                    var dialog = receiveDialog.createObject(mainView)
+                    dialog.open()
+                }
+            }
         }
-
     }
 
-    Connections {
-        target: Daemon
-        function onWalletLoaded() {
-            tabbar.setCurrentIndex(1)
+    InvoiceParser {
+        id: invoiceParser
+        wallet: Daemon.currentWallet
+        onValidationError: {
+            var dialog = app.messageDialog.createObject(app, { text: message })
+            dialog.closed.connect(function() {
+                _sendDialog.restart()
+            })
+            dialog.open()
+        }
+        onValidationWarning: {
+            if (code == 'no_channels') {
+                var dialog = app.messageDialog.createObject(app, { text: message })
+                dialog.open()
+                // TODO: ask user to open a channel, if funds allow
+                // and maybe store invoice if expiry allows
+            }
+        }
+        onValidationSuccess: {
+            _sendDialog.close()
+            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser })
+            dialog.open()
+        }
+        onInvoiceCreateError: console.log(code + ' ' + message)
+
+        onLnurlRetrieved: {
+            var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            dialog.open()
+        }
+
+        onInvoiceSaved: {
+            Daemon.currentWallet.invoiceModel.init_model()
         }
     }
 
+    Component {
+        id: invoiceDialog
+        InvoiceDialog {
+            width: parent.width
+            height: parent.height
+
+            onDoPay: {
+                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                    var dialog = confirmPaymentDialog.createObject(mainView, {
+                            'address': invoice.address,
+                            'satoshis': invoice.amount,
+                            'message': invoice.message
+                    })
+                    var wo = Daemon.currentWallet.isWatchOnly
+                    dialog.txaccepted.connect(function() {
+                        if (wo) {
+                            showUnsignedTx(dialog.finalizer.serializedTx(false), dialog.finalizer.serializedTx(true))
+                        } else {
+                            dialog.finalizer.send_onchain()
+                        }
+                    })
+                    dialog.open()
+                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+                    console.log('About to pay lightning invoice')
+                    if (invoice.key == '') {
+                        console.log('No invoice key, aborting')
+                        return
+                    }
+                    var dialog = lightningPaymentProgressDialog.createObject(mainView, {
+                        invoice_key: invoice.key
+                    })
+                    dialog.open()
+                    Daemon.currentWallet.pay_lightning_invoice(invoice.key)
+                }
+                close()
+            }
+            onClosed: destroy()
+        }
+    }
+
+    property var _sendDialog
+
+    Component {
+        id: sendDialog
+        SendDialog {
+            width: parent.width
+            height: parent.height
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: receiveDialog
+        ReceiveDialog {
+            width: parent.width
+            height: parent.height
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: confirmPaymentDialog
+        ConfirmTxDialog {
+            title: qsTr('Confirm Payment')
+            finalizer: TxFinalizer {
+                wallet: Daemon.currentWallet
+                canRbf: true
+            }
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: lightningPaymentProgressDialog
+        LightningPaymentProgressDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: lnurlPayDialog
+        LnurlPayRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
 }
 

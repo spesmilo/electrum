@@ -15,9 +15,6 @@ ElDialog {
 
     signal doPay
 
-    width: parent.width
-    height: parent.height
-
     title: qsTr('Invoice')
     standardButtons: invoice_key != '' ? Dialog.Close : Dialog.Cancel
 
@@ -41,7 +38,150 @@ ElDialog {
         }
 
         Label {
+            text: qsTr('Amount to send')
+            color: Material.accentColor
+            Layout.columnSpan: 2
+        }
+
+        TextHighlightPane {
+            id: amountContainer
+
+            Layout.columnSpan: 2
+            Layout.preferredWidth: parent.width //* 0.75
+            Layout.alignment: Qt.AlignHCenter
+
+            padding: 0
+            leftPadding: constants.paddingXXLarge
+
+            property bool editmode: false
+
+            RowLayout {
+                id: amountLayout
+                width: parent.width
+
+                GridLayout {
+                    visible: !amountContainer.editmode
+                    columns: 2
+
+                    Label {
+                        font.pixelSize: constants.fontSizeXLarge
+                        font.family: FixedFont
+                        font.bold: true
+                        text: Config.formatSats(invoice.amount, false)
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: Config.baseUnit
+                        color: Material.accentColor
+                        font.pixelSize: constants.fontSizeXLarge
+                    }
+
+                    Label {
+                        id: fiatValue
+                        visible: Daemon.fx.enabled
+                        text: Daemon.fx.fiatValue(invoice.amount, false)
+                        font.pixelSize: constants.fontSizeMedium
+                        color: constants.mutedForeground
+                    }
+
+                    Label {
+                        visible: Daemon.fx.enabled
+                        Layout.fillWidth: true
+                        text: Daemon.fx.fiatCurrency
+                        font.pixelSize: constants.fontSizeMedium
+                        color: constants.mutedForeground
+                    }
+
+                }
+
+                ToolButton {
+                    visible: !amountContainer.editmode
+                    icon.source: '../../icons/pen.png'
+                    icon.color: 'transparent'
+                    onClicked: {
+                        amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
+                        amountContainer.editmode = true
+                        amountBtc.focus = true
+                    }
+                }
+                GridLayout {
+                    visible: amountContainer.editmode
+                    Layout.fillWidth: true
+                    columns: 2
+                    BtcField {
+                        id: amountBtc
+                        fiatfield: amountFiat
+                    }
+
+                    Label {
+                        text: Config.baseUnit
+                        color: Material.accentColor
+                        Layout.fillWidth: true
+                    }
+
+                    FiatField {
+                        id: amountFiat
+                        btcfield: amountBtc
+                        visible: Daemon.fx.enabled
+                    }
+
+                    Label {
+                        visible: Daemon.fx.enabled
+                        text: Daemon.fx.fiatCurrency
+                        color: Material.accentColor
+                    }
+                }
+                ToolButton {
+                    visible: amountContainer.editmode
+                    Layout.fillWidth: false
+                    icon.source: '../../icons/confirmed.png'
+                    icon.color: 'transparent'
+                    onClicked: {
+                        amountContainer.editmode = false
+                        invoice.amount = Config.unitsToSats(amountBtc.text)
+                    }
+                }
+                ToolButton {
+                    visible: amountContainer.editmode
+                    Layout.fillWidth: false
+                    icon.source: '../../icons/closebutton.png'
+                    icon.color: 'transparent'
+                    onClicked: amountContainer.editmode = false
+                }
+            }
+
+        }
+
+        Label {
+            text: qsTr('Description')
+            visible: invoice.message
+            Layout.columnSpan: 2
+            color: Material.accentColor
+        }
+
+        TextHighlightPane {
+            visible: invoice.message
+
+            Layout.columnSpan: 2
+            Layout.preferredWidth: parent.width
+            Layout.alignment: Qt.AlignHCenter
+
+            padding: 0
+            leftPadding: constants.paddingMedium
+
+            Label {
+                text: invoice.message
+                Layout.fillWidth: true
+                font.pixelSize: constants.fontSizeXLarge
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+            }
+        }
+
+        Label {
             text: qsTr('Type')
+            color: Material.accentColor
         }
 
         RowLayout {
@@ -65,47 +205,9 @@ ElDialog {
         }
 
         Label {
-            text: qsTr('Amount to send')
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Label {
-                font.pixelSize: constants.fontSizeLarge
-                font.family: FixedFont
-                font.bold: true
-                text: Config.formatSats(invoice.amount, false)
-            }
-
-            Label {
-                text: Config.baseUnit
-                color: Material.accentColor
-            }
-
-            Label {
-                id: fiatValue
-                Layout.fillWidth: true
-                text: Daemon.fx.enabled
-                        ? '(' + Daemon.fx.fiatValue(invoice.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-                        : ''
-                font.pixelSize: constants.fontSizeMedium
-            }
-        }
-
-        Label {
-            text: qsTr('Description')
-        }
-
-        Label {
-            text: invoice.message
-            Layout.fillWidth: true
-            wrapMode: Text.Wrap
-            elide: Text.ElideRight
-        }
-
-        Label {
             visible: invoice.invoiceType == Invoice.OnchainInvoice
             text: qsTr('Address')
+            color: Material.accentColor
         }
 
         Label {
@@ -119,6 +221,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             text: qsTr('Remote Pubkey')
+            color: Material.accentColor
         }
 
         Label {
@@ -132,6 +235,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             text: qsTr('Route via (t)')
+            color: Material.accentColor
         }
 
         Label {
@@ -145,6 +249,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             text: qsTr('Route via (r)')
+            color: Material.accentColor
         }
 
         Label {
@@ -157,6 +262,7 @@ ElDialog {
 
         Label {
             text: qsTr('Status')
+            color: Material.accentColor
         }
 
         Label {
@@ -194,30 +300,20 @@ ElDialog {
                 }
             }
 
-            Button {
-                text: qsTr('Save')
-                icon.source: '../../icons/save.png'
-                visible: invoice_key == ''
-                enabled: invoice.canSave
-                onClicked: {
-                    invoice.save_invoice()
-                    dialog.close()
-                }
-            }
-
-            Button {
-                text: qsTr('Pay now')
+            FlatButton {
+                text: qsTr('Pay')
                 icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
                     if (invoice_key == '') // save invoice if not retrieved from key
                         invoice.save_invoice()
                     dialog.close()
-                    if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                        doPay() // only signal here
-                    } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                        doPay() // only signal here
-                    }
+                    doPay() // only signal here
+                    // if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                    //     doPay() // only signal here
+                    // } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+                    //     doPay() // only signal here
+                    // }
                 }
             }
         }
@@ -229,5 +325,7 @@ ElDialog {
         if (invoice_key != '') {
             invoice.initFromKey(invoice_key)
         }
+        if (invoice.amount.satsInt == 0)
+            amountContainer.editmode = true
     }
 }

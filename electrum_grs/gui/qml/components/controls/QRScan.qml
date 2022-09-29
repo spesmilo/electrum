@@ -15,6 +15,12 @@ Item {
 
     signal found
 
+    function restart() {
+        still.source = ''
+        _pointsVisible = false
+        active = true
+    }
+
     VideoOutput {
         id: vo
         anchors.fill: parent

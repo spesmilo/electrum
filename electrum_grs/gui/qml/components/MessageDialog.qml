@@ -17,8 +17,9 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
+
+    anchors.centerIn: parent
+
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }

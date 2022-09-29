@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum_grs import bitcoin
 from electrum_grs.i18n import _
-from electrum_grs.invoices import (InvoiceError)
+from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.transaction import PartialTxOutput
@@ -464,7 +464,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, self.wallet.network.asyncio_loop)
                 fut.result()
             except Exception as e:
-                self.userNotify.emit(self.wallet, repr(e))
+                self.paymentFailed.emit(invoice.get_id(), repr(e))
 
         threading.Thread(target=pay_thread).start()
 
@@ -505,7 +505,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
-    def create_request(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
         # TODO: unify this method and create_bitcoin_request
         try:
             if is_lightning:
@@ -526,28 +526,52 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
 
         assert key is not None
-        self._requestModel.add_invoice(self.wallet.get_request(key))
+        self.requestModel.add_invoice(self.wallet.get_request(key))
+        self.requestCreateSuccess.emit(key)
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def createDefaultRequest(self, ignore_gap: bool = False):
+        try:
+            default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+            if self.wallet.lnworker.channels:
+                addr = None
+                if self.wallet.config.get('bolt11_fallback', True):
+                    addr = self.wallet.get_unused_address()
+                    # if addr is None, we ran out of addresses. for lightning enabled wallets, ignore for now
+                key = self.wallet.create_request(None, None, default_expiry, addr)
+            else:
+                key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)
+                if not key:
+                    return
+                # self.addressModel.init_model()
+        except InvoiceError as e:
+            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
+            return
+
+        assert key is not None
+        self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
     def delete_request(self, key: str):
         self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
-        self._requestModel.delete_invoice(key)
+        self.requestModel.delete_invoice(key)
 
     @pyqtSlot(str, result='QVariant')
     def get_request(self, key: str):
-        return self._requestModel.get_model_invoice(key)
+        return self.requestModel.get_model_invoice(key)
 
     @pyqtSlot(str)
     def delete_invoice(self, key: str):
         self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
-        self._invoiceModel.delete_invoice(key)
+        self.invoiceModel.delete_invoice(key)
 
     @pyqtSlot(str, result='QVariant')
     def get_invoice(self, key: str):
-        return self._invoiceModel.get_model_invoice(key)
+        return self.invoiceModel.get_model_invoice(key)
 
     @pyqtSlot(str, result=bool)
     def verify_password(self, password):
