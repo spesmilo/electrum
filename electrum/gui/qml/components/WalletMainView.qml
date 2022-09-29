@@ -237,6 +237,19 @@ Item {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onOtpRequested() {
+            console.log('OTP requested')
+            var dialog = otpDialog.createObject(mainView)
+            dialog.accepted.connect(function() {
+                console.log('accepted ' + dialog.otpauth)
+                Daemon.currentWallet.finish_otp(dialog.otpauth)
+            })
+            dialog.open()
+        }
+    }
+
     property var _sendDialog
 
     Component {
@@ -281,6 +294,16 @@ Item {
     Component {
         id: lnurlPayDialog
         LnurlPayRequestDialog {
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: otpDialog
+        OtpDialog {
             width: parent.width * 0.9
             anchors.centerIn: parent
 
