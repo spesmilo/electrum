@@ -77,9 +77,9 @@ def check_imports():
         import aiorpcx
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
-    if not ((0, 22, 0) <= aiorpcx._version < (0, 23)):
+    if not ((0, 18, 7) <= aiorpcx._version < (0, 19)):
         raise RuntimeError(
-            f'aiorpcX version {aiorpcx._version} does not match required: 0.22.0<=ver<0.23'
+            f'aiorpcX version {aiorpcx._version} does not match required: 0.18.7<=ver<0.19'
         )
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
