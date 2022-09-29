@@ -3,6 +3,7 @@ import queue
 import threading
 import time
 from typing import Optional, TYPE_CHECKING
+from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
@@ -13,6 +14,7 @@ from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_max_spend, InvalidPassword, event_listener)
+from electrum.plugin import run_hook
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
@@ -63,6 +65,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     #broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     labelsUpdated = pyqtSignal()
+    otpRequested = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -423,6 +426,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast), None)
+        if sign_hook:
+            self.do_sign(tx, False)
+            self._logger.debug('plugin needs to sign tx too')
+            sign_hook(tx)
+            return
+
+        self.do_sign(tx, broadcast)
+
+    def do_sign(self, tx, broadcast):
         tx = self.wallet.sign_transaction(tx, self.password)
 
         if tx is None:
@@ -440,6 +453,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         if broadcast:
             self.broadcast(tx)
+
+    def on_sign_complete(self, broadcast, tx):
+        if broadcast:
+            self.broadcast(tx)
+
+    def request_otp(self, on_submit):
+        self._otp_on_submit = on_submit
+        self.otpRequested.emit()
+
+    @pyqtSlot(str)
+    def finish_otp(self, otp):
+        self._otp_on_submit(otp)
 
     def broadcast(self, tx):
         assert tx.is_complete()

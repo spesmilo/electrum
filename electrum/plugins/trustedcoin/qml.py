@@ -6,6 +6,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtProperty, pyqtSlot
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.bip32 import xpub_type
+from electrum.util import UserFacingException
 from electrum import keystore
 
 from electrum.gui.qml.qewallet import QEWallet
@@ -18,8 +19,6 @@ from .trustedcoin import (TrustedCoinPlugin, server, ErrorConnectingServer,
 class Plugin(TrustedCoinPlugin):
 
     class QSignalObject(PluginQObject):
-        requestView = pyqtSignal([str], arguments=['component'])
-
         canSignWithoutServerChanged = pyqtSignal()
         _canSignWithoutServer = False
         termsAndConditionsChanged = pyqtSignal()
@@ -36,6 +35,8 @@ class Plugin(TrustedCoinPlugin):
         _otpSecret = ''
         shortIdChanged = pyqtSignal()
         _shortId = ''
+
+        requestOtp = pyqtSignal()
 
         def __init__(self, plugin, parent):
             super().__init__(plugin, parent)
@@ -307,26 +308,24 @@ class Plugin(TrustedCoinPlugin):
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
         self.logger.debug('prompt_user_for_otp')
         self.on_success = on_success
-        self.on_failure = on_failure
+        self.on_failure = on_failure if on_failure else lambda x: self.logger.error(x)
         self.wallet = wallet
         self.tx = tx
-        self.so.requestView.emit('../../../../plugins/trustedcoin/qml/OTP.qml')
+        qewallet = QEWallet.getInstanceFor(wallet)
+        qewallet.request_otp(self.on_otp)
 
     def on_otp(self, otp):
+        self.logger.debug(f'on_otp {otp} for tx {repr(self.tx)}')
         try:
             self.wallet.on_otp(self.tx, otp)
+        except UserFacingException as e:
+            self.on_failure(_('Invalid one-time password.'))
         except TrustedCoinException as e:
             if e.status_code == 400:  # invalid OTP
-#                Clock.schedule_once(lambda dt:
-                                        self.on_failure(_('Invalid one-time password.'))
-#                                        )
+                self.on_failure(_('Invalid one-time password.'))
             else:
-#                Clock.schedule_once(lambda dt, bound_e=e:
-                self.on_failure(_('Error') + ':\n' + str(bound_e))
-#                )
+                self.on_failure(_('Error') + ':\n' + str(e))
         except Exception as e:
-#            Clock.schedule_once(lambda dt, bound_e=e:
-                self.on_failure(_('Error') + ':\n' + str(bound_e))
-#                )
+                self.on_failure(_('Error') + ':\n' + str(e))
         else:
-            self.on_success(tx)
+            self.on_success(self.tx)
