@@ -1948,6 +1948,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for o in s:
             target_fee = int(math.ceil(tx.estimated_size() * new_fee_rate))
             delta = target_fee - tx.get_fee()
+            if delta <= 0:
+                break
             i = outputs.index(o)
             if o.value - delta >= self.dust_threshold():
                 new_output_value = o.value - delta
@@ -1959,6 +1961,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 del outputs[i]
                 # note: we mutated the outputs of tx, which will affect
                 #       tx.estimated_size() in the next iteration
+        else:
+            # recompute delta if there was no next iteration
+            target_fee = int(math.ceil(tx.estimated_size() * new_fee_rate))
+            delta = target_fee - tx.get_fee()
+
         if delta > 0:
             raise CannotBumpFee(_('Could not find suitable outputs'))
 
