@@ -60,6 +60,7 @@ ElDialog {
 
         TextArea {
             id: comment
+            visible: invoiceParser.lnurlData['comment_allowed'] > 0
             Layout.columnSpan: 2
             Layout.preferredWidth: parent.width
             Layout.minimumHeight: 80
