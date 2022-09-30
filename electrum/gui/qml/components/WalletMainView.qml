@@ -304,7 +304,7 @@ Item {
     Component {
         id: otpDialog
         OtpDialog {
-            width: parent.width * 0.9
+            width: parent.width * 2/3
             anchors.centerIn: parent
 
             onClosed: destroy()
