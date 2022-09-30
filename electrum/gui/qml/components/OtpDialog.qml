@@ -10,13 +10,13 @@ import "controls"
 ElDialog {
     id: dialog
 
-    title: qsTr('OTP auth')
+    title: qsTr('Trustedcoin')
+    iconSource: '../../../icons/trustedcoin-status.png'
 
     property string otpauth
 
-    // property var lnurlData
-    // property InvoiceParser invoiceParser
-    // property alias lnurlData: dialog.invoiceParser.lnurlData
+    property bool _waiting: false
+    property string _otpError
 
     standardButtons: Dialog.Cancel
 
@@ -26,28 +26,67 @@ ElDialog {
         color: "#aa000000"
     }
 
-    GridLayout {
-        columns: 2
-        implicitWidth: parent.width
+    focus: true
+
+    ColumnLayout {
+        width: parent.width
 
         Label {
-            text: qsTr('code')
+            text: qsTr('Enter Authenticator code')
+            font.pixelSize: constants.fontSizeLarge
+            Layout.alignment: Qt.AlignHCenter
         }
 
         TextField {
             id: otpEdit
+            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
+            Layout.alignment: Qt.AlignHCenter
+            font.pixelSize: constants.fontSizeXXLarge
+            maximumLength: 6
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhDigitsOnly
+            echoMode: TextInput.Password
+            focus: true
+            onTextChanged: {
+                if (activeFocus)
+                    _otpError = ''
+            }
+        }
+
+        Label {
+            opacity: _otpError ? 1 : 0
+            text: _otpError
+            color: constants.colorError
+            Layout.alignment: Qt.AlignHCenter
         }
 
         Button {
             Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Proceed')
+            text: qsTr('Submit')
+            enabled: !_waiting
             onClicked: {
-                // dialog.close()
-                otpauth = otpEdit.text
-                dialog.accept()
+                _waiting = true
+                Daemon.currentWallet.submitOtp(otpEdit.text)
             }
         }
+    }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onOtpSuccess() {
+            _waiting = false
+            otpauth = otpEdit.text
+            dialog.accept()
+        }
+        function onOtpFailed(code, message) {
+            _waiting = false
+            _otpError = message
+            otpEdit.text = ''
+        }
+    }
+
+    FontMetrics {
+        id: fontMetrics
+        font: otpEdit.font
     }
 }

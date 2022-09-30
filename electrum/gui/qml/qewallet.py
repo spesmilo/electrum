@@ -66,6 +66,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
+    otpSuccess = pyqtSignal()
+    otpFailed = pyqtSignal([str,str], arguments=['code','message'])
 
     _network_signal = pyqtSignal(str, object)
 
@@ -426,7 +428,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
-        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast), None)
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast),
+                             self.on_sign_failed)
         if sign_hook:
             self.do_sign(tx, False)
             self._logger.debug('plugin needs to sign tx too')
@@ -454,16 +457,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if broadcast:
             self.broadcast(tx)
 
+    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
     def on_sign_complete(self, broadcast, tx):
+        self.otpSuccess.emit()
         if broadcast:
             self.broadcast(tx)
+
+    def on_sign_failed(self, error):
+        self.otpFailed.emit('error', error)
 
     def request_otp(self, on_submit):
         self._otp_on_submit = on_submit
         self.otpRequested.emit()
 
     @pyqtSlot(str)
-    def finish_otp(self, otp):
+    def submitOtp(self, otp):
         self._otp_on_submit(otp)
 
     def broadcast(self, tx):
