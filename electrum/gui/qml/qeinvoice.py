@@ -450,21 +450,27 @@ class QEInvoiceParser(QEInvoice):
             'callback_url' : lnurldata.callback_url,
             'min_sendable_sat': lnurldata.min_sendable_sat,
             'max_sendable_sat': lnurldata.max_sendable_sat,
-            'metadata_plaintext': lnurldata.metadata_plaintext
+            'metadata_plaintext': lnurldata.metadata_plaintext,
+            'comment_allowed': lnurldata.comment_allowed
         }
         self.setValidLNURLPayRequest()
         self.lnurlRetrieved.emit()
 
     @pyqtSlot('quint64')
-    def lnurlGetInvoice(self, amount):
+    @pyqtSlot('quint64', str)
+    def lnurlGetInvoice(self, amount, comment=None):
         assert self._lnurlData
+
+        if self._lnurlData['comment_allowed'] == 0:
+            comment = None
 
         self._logger.debug(f'fetching callback url {self._lnurlData["callback_url"]}')
         def fetch_invoice_task():
             try:
-                coro = callback_lnurl(self._lnurlData['callback_url'], {
-                    'amount': amount * 1000 # msats
-                })
+                params = { 'amount': amount * 1000 }
+                if comment:
+                    params['comment'] = comment
+                coro = callback_lnurl(self._lnurlData['callback_url'], params)
                 fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
                 self.on_lnurl_invoice(fut.result())
             except Exception as e:
