@@ -120,6 +120,11 @@ ElDialog {
                 id: bolt11label
                 text: qsTr('Lightning')
                 color: _bolt11 ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _bolt11
+                    onClicked: rootLayout.state = 'bolt11'
+                }
             }
             Rectangle {
                 Layout.preferredWidth: constants.paddingXXSmall
@@ -131,6 +136,11 @@ ElDialog {
                 id: bip21label
                 text: qsTr('URI')
                 color: _bip21uri ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _bip21uri
+                    onClicked: rootLayout.state = 'bip21uri'
+                }
             }
             Rectangle {
                 Layout.preferredWidth: constants.paddingXXSmall
@@ -142,6 +152,11 @@ ElDialog {
                 id: addresslabel
                 text: qsTr('Address')
                 color: _address ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _address
+                    onClicked: rootLayout.state = 'address'
+                }
             }
         }
 

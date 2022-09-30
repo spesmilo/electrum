@@ -15,8 +15,7 @@ ElDialog {
     width: parent.width * 2/3
     height: parent.height * 1/3
 
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
+    anchors.centerIn: parent
 
     modal: true
     parent: Overlay.overlay
@@ -121,7 +120,7 @@ ElDialog {
 
         TextField {
             id: pin
-            Layout.preferredWidth: root.width *2/3
+            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
             Layout.alignment: Qt.AlignHCenter
             font.pixelSize: constants.fontSizeXXLarge
             maximumLength: 6
@@ -144,6 +143,11 @@ ElDialog {
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+    }
+
+    FontMetrics {
+        id: fontMetrics
+        font: pin.font
     }
 
 }

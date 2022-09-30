@@ -534,7 +534,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def createDefaultRequest(self, ignore_gap: bool = False):
         try:
             default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-            if self.wallet.lnworker.channels:
+            if self.wallet.lnworker and self.wallet.lnworker.channels:
                 addr = None
                 if self.wallet.config.get('bolt11_fallback', True):
                     addr = self.wallet.get_unused_address()

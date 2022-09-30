@@ -25,6 +25,8 @@ ElDialog {
         color: "#aa000000"
     }
 
+    implicitWidth: parent.width
+
     GridLayout {
         id: form
         width: parent.width

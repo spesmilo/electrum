@@ -227,7 +227,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             Layout.fillWidth: true
-            text: invoice.lnprops.pubkey
+            text: invoice.lnprops ? invoice.lnprops.pubkey : ''
             font.family: FixedFont
             wrapMode: Text.Wrap
         }
@@ -241,7 +241,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             Layout.fillWidth: true
-            text: invoice.lnprops.t
+            text: invoice.lnprops ? invoice.lnprops.t : ''
             font.family: FixedFont
             wrapMode: Text.Wrap
         }
@@ -255,7 +255,7 @@ ElDialog {
         Label {
             visible: invoice.invoiceType == Invoice.LightningInvoice
             Layout.fillWidth: true
-            text: invoice.lnprops.r
+            text: invoice.lnprops ? invoice.lnprops.r : ''
             font.family: FixedFont
             wrapMode: Text.Wrap
         }
