@@ -11,6 +11,7 @@ ElDialog {
     id: root
 
     title: qsTr('PIN')
+    iconSource: '../../../icons/lock.png'
 
     width: parent.width * 2/3
     height: parent.height * 1/3
@@ -72,39 +73,6 @@ ElDialog {
     onClosed: {
         if (!root.result) {
             root.reject() // make sure we reject the authed fn()
-        }
-    }
-
-    header: GridLayout {
-        columns: 2
-        rowSpacing: 0
-
-        Image {
-            source: "../../icons/lock.png"
-            Layout.preferredWidth: constants.iconSizeXLarge
-            Layout.preferredHeight: constants.iconSizeXLarge
-            Layout.leftMargin: constants.paddingMedium
-            Layout.topMargin: constants.paddingMedium
-            Layout.bottomMargin: constants.paddingMedium
-        }
-
-        Label {
-            text: title
-            elide: Label.ElideRight
-            Layout.fillWidth: true
-            topPadding: constants.paddingXLarge
-            bottomPadding: constants.paddingXLarge
-            font.bold: true
-            font.pixelSize: constants.fontSizeMedium
-        }
-
-        Rectangle {
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingXXSmall
-            Layout.rightMargin: constants.paddingXXSmall
-            height: 1
-            color: Qt.rgba(0,0,0,0.5)
         }
     }
 

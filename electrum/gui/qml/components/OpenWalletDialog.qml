@@ -14,6 +14,7 @@ ElDialog {
     height: parent.height
 
     title: qsTr("Open Wallet")
+    iconSource: '../../../icons/wallet.png'
 
     property string name
     property string path
@@ -29,38 +30,6 @@ ElDialog {
     focus: true
 
     property bool _unlockClicked: false
-
-    header: GridLayout {
-        columns: 2
-        rowSpacing: 0
-
-        Image {
-            source: "../../icons/wallet.png"
-            Layout.preferredWidth: constants.iconSizeXLarge
-            Layout.preferredHeight: constants.iconSizeXLarge
-            Layout.leftMargin: constants.paddingMedium
-            Layout.topMargin: constants.paddingMedium
-            Layout.bottomMargin: constants.paddingMedium
-        }
-
-        Label {
-            text: title
-            Layout.fillWidth: true
-            topPadding: constants.paddingXLarge
-            bottomPadding: constants.paddingXLarge
-            font.bold: true
-            font.pixelSize: constants.fontSizeMedium
-        }
-
-        Rectangle {
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingXXSmall
-            Layout.rightMargin: constants.paddingXXSmall
-            height: 1
-            color: Qt.rgba(0,0,0,0.5)
-        }
-    }
 
     ColumnLayout {
         width: parent.width
