@@ -1,5 +1,6 @@
 import threading
 import socket
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtProperty, pyqtSlot
 
@@ -15,6 +16,10 @@ from electrum.gui.qml.plugins import PluginQObject
 from .trustedcoin import (TrustedCoinPlugin, server, ErrorConnectingServer,
                           MOBILE_DISCLAIMER, get_user_id, get_signing_xpub,
                           TrustedCoinException, make_xpub)
+
+if TYPE_CHECKING:
+    from electrum.gui.qml import ElectrumGui
+    from electrum.wallet import Abstract_Wallet
 
 class Plugin(TrustedCoinPlugin):
 
@@ -297,14 +302,8 @@ class Plugin(TrustedCoinPlugin):
         wizard_data['x3/'] = k3.dump()
         # wizard_data['use_trustedcoin'] = True
 
+    # regular wallet prompt functions
 
-
-    # wizard
-    def request_otp_dialog(self, wizard, short_id, otp_secret, xpub3):
-        f = lambda otp, reset: self.check_otp(wizard, short_id, otp_secret, xpub3, otp, reset)
-        wizard.otp_dialog(otp_secret=otp_secret, run_next=f)
-
-    # regular wallet prompt function
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
         self.logger.debug('prompt_user_for_otp')
         self.on_success = on_success
