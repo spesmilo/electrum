@@ -199,8 +199,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         m.addAction(_("Network"), self.show_network_dialog)
         if network and network.lngossip:
             m.addAction(_("Lightning Network"), self.show_lightning_dialog)
-        if network and network.local_watchtower:
-            m.addAction(_("Local Watchtower"), self.show_watchtower_dialog)
         for window in self.windows:
             name = window.wallet.basename()
             submenu = m.addMenu(name)
@@ -284,11 +282,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not self.lightning_dialog:
             self.lightning_dialog = LightningDialog(self)
         self.lightning_dialog.bring_to_top()
-
-    def show_watchtower_dialog(self):
-        if not self.watchtower_dialog:
-            self.watchtower_dialog = WatchtowerDialog(self)
-        self.watchtower_dialog.bring_to_top()
 
     def show_network_dialog(self):
         if self.network_dialog:

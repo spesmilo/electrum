@@ -65,9 +65,5 @@ class TestLightningAB(TestLightning):
     def test_breach_with_spent_htlc(self):
         self.run_shell(['breach_with_spent_htlc'])
 
-
-class TestLightningABC(TestLightning):
-    agents = ['alice', 'bob', 'carol']
-
     def test_watchtower(self):
         self.run_shell(['watchtower'])

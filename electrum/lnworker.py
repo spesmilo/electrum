@@ -709,48 +709,29 @@ class LNWallet(LNWorker):
 
     @ignore_exceptions
     @log_exceptions
-    async def sync_with_local_watchtower(self):
-        watchtower = self.network.local_watchtower
-        if watchtower:
-            while True:
-                for chan in self.channels.values():
-                    await self.sync_channel_with_watchtower(chan, watchtower.sweepstore)
-                await asyncio.sleep(5)
-
-    @ignore_exceptions
-    @log_exceptions
-    async def sync_with_remote_watchtower(self):
+    async def sync_with_watchtower(self):
         while True:
             # periodically poll if the user updated 'watchtower_url'
             await asyncio.sleep(5)
             watchtower_url = self.config.get('watchtower_url')
             if not watchtower_url:
                 continue
-            parsed_url = urllib.parse.urlparse(watchtower_url)
-            if not (parsed_url.scheme == 'https' or is_private_netaddress(parsed_url.hostname)):
-                self.logger.warning(f"got watchtower URL for remote tower but we won't use it! "
-                                    f"can only use HTTPS (except if private IP): not using {watchtower_url!r}")
-                continue
             # try to sync with the remote watchtower
             try:
-                async with make_aiohttp_session(proxy=self.network.proxy) as session:
-                    watchtower = JsonRPCClient(session, watchtower_url)
-                    watchtower.add_method('get_ctn')
-                    watchtower.add_method('add_sweep_tx')
-                    for chan in self.channels.values():
-                        await self.sync_channel_with_watchtower(chan, watchtower)
+                for chan in self.channels.values():
+                    await self.sync_channel_with_watchtower(chan)
             except aiohttp.client_exceptions.ClientConnectorError:
                 self.logger.info(f'could not contact remote watchtower {watchtower_url}')
 
-    async def sync_channel_with_watchtower(self, chan: Channel, watchtower):
+    async def sync_channel_with_watchtower(self, chan: Channel):
         outpoint = chan.funding_outpoint.to_str()
         addr = chan.get_funding_address()
         current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
-        watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
+        watchtower_ctn = await self.network.watchtower_get_ctn(outpoint, addr)
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs(ctn)
             for tx in sweeptxs:
-                await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
+                await self.network.watchtower_add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
@@ -769,8 +750,7 @@ class LNWallet(LNWorker):
                 self.maybe_listen(),
                 self.lnwatcher.trigger_callbacks(), # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
-                self.sync_with_local_watchtower(),
-                self.sync_with_remote_watchtower(),
+                self.sync_with_watchtower(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)

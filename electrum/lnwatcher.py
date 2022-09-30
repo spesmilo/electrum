@@ -374,7 +374,7 @@ class WatchTower(LNWatcher):
             return txid
 
     async def get_ctn(self, outpoint, addr):
-        if addr not in self.callbacks.keys():
+        if addr and addr not in self.callbacks.keys():
             self.logger.info(f'watching new channel: {outpoint} {addr}')
             self.add_channel(outpoint, addr)
         return await self.sweepstore.get_ctn(outpoint, addr)

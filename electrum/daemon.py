@@ -340,34 +340,6 @@ class CommandsServer(AuthenticatedServer):
         return result
 
 
-class WatchTowerServer(AuthenticatedServer):
-
-    def __init__(self, network, netaddress):
-        self.addr = netaddress
-        self.config = network.config
-        self.network = network
-        watchtower_user = self.config.get('watchtower_user', '')
-        watchtower_password = self.config.get('watchtower_password', '')
-        AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
-        self.lnwatcher = network.local_watchtower
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.register_method(self.get_ctn)
-        self.register_method(self.add_sweep_tx)
-
-    async def run(self):
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
-        await site.start()
-        self.logger.info(f"now running and listening. addr={self.addr}")
-
-    async def get_ctn(self, *args):
-        return await self.lnwatcher.get_ctn(*args)
-
-    async def add_sweep_tx(self, *args):
-        return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
-
 
 
 
@@ -403,12 +375,6 @@ class Daemon(Logger):
         if listen_jsonrpc:
             self.commands_server = CommandsServer(self, fd)
             daemon_jobs.append(self.commands_server.run())
-        # server-side watchtower
-        self.watchtower = None
-        watchtower_address = self.config.get_netaddress('watchtower_address')
-        if not config.get('offline') and watchtower_address:
-            self.watchtower = WatchTowerServer(self.network, watchtower_address)
-            daemon_jobs.append(self.watchtower.run)
         if self.network:
             self.network.start(jobs=[self.fx.run])
             # prepare lightning functionality, also load channel db early
