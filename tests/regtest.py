@@ -105,12 +105,6 @@ class TestLightningWatchtower(TestLightning):
             'lightning_listen': 'localhost:9735',
             'watchtower_url': 'http://wtuser:wtpassword@127.0.0.1:12345',
         },
-        'carol':{
-            'run_watchtower': 'true',
-            'watchtower_user': 'wtuser',
-            'watchtower_password': 'wtpassword',
-            'watchtower_port': '12345',
-        }
     }
 
     def test_watchtower(self):

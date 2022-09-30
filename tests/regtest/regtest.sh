@@ -447,7 +447,7 @@ if [[ $1 == "watchtower" ]]; then
     alice_ctn=$($alice list_channels | jq '.[0].local_ctn')
     msg="waiting until watchtower is synchronized"
     # watchtower needs to be at latest revoked ctn
-    while watchtower_ctn=$($carol get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((alice_ctn-1)) ]]; do
+    while watchtower_ctn=$($bob get_watchtower_ctn $channel) && [[ $watchtower_ctn != $((alice_ctn-1)) ]]; do
         sleep 0.1
         printf "$msg $alice_ctn $watchtower_ctn\r"
     done

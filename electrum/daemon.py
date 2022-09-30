@@ -362,35 +362,6 @@ class CommandsServer(AuthenticatedServer):
         return result
 
 
-class WatchTowerServer(AuthenticatedServer):
-
-    def __init__(self, network: 'Network', port:int):
-        self.port = port
-        self.config = network.config
-        self.network = network
-        watchtower_user = self.config.WATCHTOWER_SERVER_USER or ""
-        watchtower_password = self.config.WATCHTOWER_SERVER_PASSWORD or ""
-        AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
-        self.lnwatcher = network.local_watchtower
-        self.app = web.Application()
-        self.app.router.add_post("/", self.handle)
-        self.register_method(self.get_ctn)
-        self.register_method(self.add_sweep_tx)
-
-    async def run(self):
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        site = web.TCPSite(self.runner, host='localhost', port=self.port)
-        await site.start()
-        self.logger.info(f"running and listening on port {self.port}")
-
-    async def get_ctn(self, *args):
-        return await self.lnwatcher.get_ctn(*args)
-
-    async def add_sweep_tx(self, *args):
-        return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
-
-
 
 
 class Daemon(Logger):
@@ -426,7 +397,6 @@ class Daemon(Logger):
         # wallet_key -> wallet
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         self._wallet_lock = threading.RLock()
-
         self._stop_entered = False
         self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
