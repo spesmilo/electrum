@@ -45,6 +45,7 @@ class LNURL6Data(NamedTuple):
     max_sendable_sat: int
     min_sendable_sat: int
     metadata_plaintext: str
+    comment_allowed: int
     #tag: str = "payRequest"
 
 
@@ -84,6 +85,7 @@ async def request_lnurl(url: str) -> LNURL6Data:
         max_sendable_sat=int(lnurl_dict['maxSendable']) // 1000,
         min_sendable_sat=int(lnurl_dict['minSendable']) // 1000,
         metadata_plaintext=metadata_plaintext,
+        comment_allowed=int(lnurl_dict['commentAllowed']) if 'commentAllowed' in lnurl_dict else 0
     )
     return data
 
