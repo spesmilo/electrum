@@ -118,8 +118,13 @@ ElDialog {
             spacing: constants.paddingLarge
             Label {
                 id: bolt11label
-                text: qsTr('BOLT11')
+                text: qsTr('Lightning')
                 color: _bolt11 ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _bolt11
+                    onClicked: rootLayout.state = 'bolt11'
+                }
             }
             Rectangle {
                 Layout.preferredWidth: constants.paddingXXSmall
@@ -129,8 +134,13 @@ ElDialog {
             }
             Label {
                 id: bip21label
-                text: qsTr('BIP21')
+                text: qsTr('URI')
                 color: _bip21uri ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _bip21uri
+                    onClicked: rootLayout.state = 'bip21uri'
+                }
             }
             Rectangle {
                 Layout.preferredWidth: constants.paddingXXSmall
@@ -140,8 +150,13 @@ ElDialog {
             }
             Label {
                 id: addresslabel
-                text: qsTr('ADDRESS')
+                text: qsTr('Address')
                 color: _address ? Material.foreground : constants.mutedForeground
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: _address
+                    onClicked: rootLayout.state = 'address'
+                }
             }
         }
 

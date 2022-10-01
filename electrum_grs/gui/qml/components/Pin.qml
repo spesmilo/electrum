@@ -11,12 +11,12 @@ ElDialog {
     id: root
 
     title: qsTr('PIN')
+    iconSource: '../../../icons/lock.png'
 
     width: parent.width * 2/3
     height: parent.height * 1/3
 
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
+    anchors.centerIn: parent
 
     modal: true
     parent: Overlay.overlay
@@ -76,39 +76,6 @@ ElDialog {
         }
     }
 
-    header: GridLayout {
-        columns: 2
-        rowSpacing: 0
-
-        Image {
-            source: "../../icons/lock.png"
-            Layout.preferredWidth: constants.iconSizeXLarge
-            Layout.preferredHeight: constants.iconSizeXLarge
-            Layout.leftMargin: constants.paddingMedium
-            Layout.topMargin: constants.paddingMedium
-            Layout.bottomMargin: constants.paddingMedium
-        }
-
-        Label {
-            text: title
-            elide: Label.ElideRight
-            Layout.fillWidth: true
-            topPadding: constants.paddingXLarge
-            bottomPadding: constants.paddingXLarge
-            font.bold: true
-            font.pixelSize: constants.fontSizeMedium
-        }
-
-        Rectangle {
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingXXSmall
-            Layout.rightMargin: constants.paddingXXSmall
-            height: 1
-            color: Qt.rgba(0,0,0,0.5)
-        }
-    }
-
     ColumnLayout {
         width: parent.width
         height: parent.height
@@ -121,7 +88,7 @@ ElDialog {
 
         TextField {
             id: pin
-            Layout.preferredWidth: root.width *2/3
+            Layout.preferredWidth: fontMetrics.advanceWidth(passwordCharacter) * 6
             Layout.alignment: Qt.AlignHCenter
             font.pixelSize: constants.fontSizeXXLarge
             maximumLength: 6
@@ -144,6 +111,11 @@ ElDialog {
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+    }
+
+    FontMetrics {
+        id: fontMetrics
+        font: pin.font
     }
 
 }

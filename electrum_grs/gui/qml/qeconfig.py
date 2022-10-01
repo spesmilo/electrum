@@ -120,6 +120,16 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('use_gossip', gossip)
         self.useGossipChanged.emit()
 
+    useFallbackAddressChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=useFallbackAddressChanged)
+    def useFallbackAddress(self):
+        return self.config.get('bolt11_fallback', True)
+
+    @useFallbackAddress.setter
+    def useFallbackAddress(self, use_fallback):
+        self.config.set_key('bolt11_fallback', use_fallback)
+        self.useFallbackAddressChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
