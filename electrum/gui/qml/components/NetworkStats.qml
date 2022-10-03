@@ -18,7 +18,6 @@ Pane {
             action: Action {
                 text: qsTr('Server Settings');
                 onTriggered: menu.openPage(sc_comp);
-                enabled: Daemon.currentWallet
                 icon.source: '../../icons/network.png'
             }
         }
@@ -27,7 +26,6 @@ Pane {
             action: Action {
                 text: qsTr('Proxy Settings');
                 onTriggered: menu.openPage(pc_comp);
-                enabled: Daemon.currentWallet
                 icon.source: '../../icons/status_connected_proxy.png'
             }
         }
