@@ -1411,12 +1411,10 @@ class LNWallet(LNWorker):
             OnionFailureCode.CHANNEL_DISABLED: 2,
         }
 
-        # determine a fallback channel to blacklist if we don't get the erring
-        # channel via the payload
         if sender_idx is None:
             raise PaymentFailure(failure_msg.code_name())
         try:
-            fallback_channel = route[sender_idx + 1].short_channel_id
+            failing_channel = route[sender_idx + 1].short_channel_id
         except IndexError:
             raise PaymentFailure(f'payment destination reported error: {failure_msg.code_name()}') from None
 
@@ -1427,33 +1425,32 @@ class LNWallet(LNWorker):
             channel_update_len = int.from_bytes(data[offset:offset+2], byteorder="big")
             channel_update_as_received = data[offset+2: offset+2+channel_update_len]
             payload = self._decode_channel_update_msg(channel_update_as_received)
-
             if payload is None:
                 self.logger.info(f'could not decode channel_update for failed htlc: '
                                  f'{channel_update_as_received.hex()}')
-                self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
+                blacklist = True
+            elif payload.get('short_channel_id') != failing_channel:
+                self.logger.info(f'short_channel_id in channel_update does not match our route')
+                blacklist = True
             else:
                 # apply the channel update or get blacklisted
                 blacklist, update = self._handle_chanupd_from_failed_htlc(
                     payload, route=route, sender_idx=sender_idx)
-
                 # we interpret a temporary channel failure as a liquidity issue
                 # in the channel and update our liquidity hints accordingly
                 if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
                     self.network.path_finder.update_liquidity_hints(
                         route,
                         amount,
-                        failing_channel=ShortChannelID(payload['short_channel_id']))
-                elif blacklist:
-                    self.network.path_finder.liquidity_hints.add_to_blacklist(
-                        payload['short_channel_id'])
-
+                        failing_channel=ShortChannelID(failing_channel))
                 # if we can't decide on some action, we are stuck
                 if not (blacklist or update):
                     raise PaymentFailure(failure_msg.code_name())
         # for errors that do not include a channel update
         else:
-            self.network.path_finder.liquidity_hints.add_to_blacklist(fallback_channel)
+            blacklist = True
+        if blacklist:
+            self.network.path_finder.liquidity_hints.add_to_blacklist(failing_channel)
 
     def _handle_chanupd_from_failed_htlc(self, payload, *, route, sender_idx) -> Tuple[bool, bool]:
         blacklist = False
