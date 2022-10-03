@@ -78,7 +78,7 @@ Pane {
         width: constants.paddingXXLarge
         drag.target: dragb
         onPressedChanged: if (pressed) {
-            dragb.y = mouseY - dragb.height/2
+            dragb.y = mouseY + listview.y - dragb.height/2
         }
     }
 
@@ -99,7 +99,7 @@ Pane {
                 listview.contentY =
                     Math.max(listview.originY,
                     Math.min(listview.contentHeight - listview.height + listview.originY,
-                        (y/vdragscroll.height) * listview.contentHeight))
+                        ((y-listview.y)/(listview.height - dragb.height)) * (listview.contentHeight - listview.height + listview.originY) ))
             }
         }
         Label {
