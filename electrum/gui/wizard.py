@@ -8,6 +8,7 @@ from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import keystore
+from electrum import bitcoin
 
 class WizardViewState(NamedTuple):
     view: str
@@ -162,6 +163,10 @@ class NewWalletWizard(AbstractWizard):
                 'next': 'wallet_password',
                 'last': self.last_if_single_password
             },
+            'imported': {
+                'next': 'wallet_password',
+                'last': self.last_if_single_password
+            },
             'wallet_password': {
                 'last': True
             }
@@ -180,10 +185,12 @@ class NewWalletWizard(AbstractWizard):
         return self.last_if_single_password(view, wizard_data) and not wizard_data['seed_type'] == 'bip39'
 
     def on_wallet_type(self, wizard_data):
-        if wizard_data['wallet_type'] == '2fa':
-            return 'trustedcoin_start'
-
-        return 'keystore_type'
+        t = wizard_data['wallet_type']
+        return {
+            'standard': 'keystore_type',
+            '2fa': 'trustedcoin_start',
+            'imported': 'imported'
+        }.get(t)
 
     def on_keystore_type(self, wizard_data):
         t = wizard_data['keystore_type']
@@ -205,13 +212,28 @@ class NewWalletWizard(AbstractWizard):
 
     def create_storage(self, path, data):
         # only standard and 2fa wallets for now
-        assert data['wallet_type'] in ['standard', '2fa']
+        assert data['wallet_type'] in ['standard', '2fa', 'imported']
 
         if os.path.exists(path):
             raise Exception('file already exists at path')
         storage = WalletStorage(path)
 
-        if data['keystore_type'] in ['createseed', 'haveseed']:
+        k = None
+        if not 'keystore_type' in data:
+            assert data['wallet_type'] == 'imported'
+            addresses = {}
+            if 'private_key_list' in data:
+                k = keystore.Imported_KeyStore({})
+                keys = keystore.get_private_keys(data['private_key_list'])
+                for pk in keys:
+                    assert bitcoin.is_private_key(pk)
+                    txin_type, pubkey = k.import_privkey(pk, None)
+                    addr = bitcoin.pubkey_to_address(txin_type, pubkey)
+                    addresses[addr] = {'type': txin_type, 'pubkey': pubkey}
+            elif 'address_list' in data:
+                for addr in data['address_list'].split():
+                    addresses[addr] = {}
+        elif data['keystore_type'] in ['createseed', 'haveseed']:
             if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
                 self._logger.debug('creating keystore from electrum seed')
                 k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
@@ -237,7 +259,7 @@ class NewWalletWizard(AbstractWizard):
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
         if data['encrypt']:
-            if k.may_have_password():
+            if k and k.may_have_password():
                 k.update_password(None, data['password'])
             storage.set_password(data['password'], enc_version=StorageEncryptionVersion.USER_PASSWORD)
 
@@ -255,8 +277,12 @@ class NewWalletWizard(AbstractWizard):
             db.put('x2/', data['x2/'])
             db.put('x3/', data['x3/'])
             db.put('use_trustedcoin', True)
+        elif data['wallet_type'] == 'imported':
+            if k:
+                db.put('keystore', k.dump())
+            db.put('addresses', addresses)
 
-        if k.can_have_deterministic_lightning_xprv():
+        if k and k.can_have_deterministic_lightning_xprv():
             db.put('lightning_xprv', k.get_lightning_xprv(data['password'] if data['encrypt'] else None))
 
         db.load_plugins()

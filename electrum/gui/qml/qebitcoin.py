@@ -164,3 +164,12 @@ class QEBitcoin(QObject):
             return True
         except:
             return False
+
+    @pyqtSlot(str, result=bool)
+    def isAddressList(self, csv: str):
+        return keystore.is_address_list(csv)
+
+    @pyqtSlot(str, result=bool)
+    def isPrivateKeyList(self, csv: str):
+        return keystore.is_private_key_list(csv)
+
