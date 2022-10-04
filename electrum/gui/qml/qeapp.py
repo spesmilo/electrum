@@ -29,7 +29,7 @@ from .qechannelopener import QEChannelOpener
 from .qelnpaymentdetails import QELnPaymentDetails
 from .qechanneldetails import QEChannelDetails
 from .qeswaphelper import QESwapHelper
-from .qewizard import QENewWalletWizard
+from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 notification = None
 
@@ -219,6 +219,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
         qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'NewWalletWizard', 'NewWalletWizard can only be used as property')
+        qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'ServerConnectWizard', 'ServerConnectWizard can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
 

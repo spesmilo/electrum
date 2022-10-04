@@ -15,9 +15,7 @@ Wizard {
 
     property string path
 
-    enter: null // disable transition
-
-    property QtObject wiz: Daemon.newWalletWizard
+    wiz: Daemon.newWalletWizard
 
     Component.onCompleted: {
         var view = wiz.start_wizard()

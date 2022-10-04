@@ -11,6 +11,8 @@ Wizard {
 
     enter: null // disable transition
 
+    wiz: Daemon.serverConnectWizard
+
     onAccepted: {
         var proxy = wizard_data['proxy']
         if (proxy && proxy['enabled'] == true) {
@@ -25,29 +27,7 @@ Wizard {
     }
 
     Component.onCompleted: {
-        var start = _loadNextComponent(autoconnect)
-        start.next.connect(function() {autoconnectDone()})
+        var view = wiz.start_wizard()
+        _loadNextComponent(view)
     }
-
-    function autoconnectDone() {
-        var page = _loadNextComponent(proxyconfig, wizard_data)
-        page.next.connect(function() {proxyconfigDone()})
-    }
-
-    function proxyconfigDone() {
-        var page = _loadNextComponent(serverconfig, wizard_data)
-    }
-
-    property Component autoconnect: Component {
-        WCAutoConnect {}
-    }
-
-    property Component proxyconfig: Component {
-        WCProxyConfig {}
-    }
-
-    property Component serverconfig: Component {
-        WCServerConfig {}
-    }
-
 }

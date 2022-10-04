@@ -287,3 +287,27 @@ class NewWalletWizard(AbstractWizard):
 
         db.load_plugins()
         db.write(storage)
+
+class ServerConnectWizard(AbstractWizard):
+
+    _logger = get_logger(__name__)
+
+    def __init__(self, daemon):
+        self.navmap = {
+            'autoconnect': {
+                'next': 'proxy_config',
+                'last': lambda v,d: d['autoconnect']
+            },
+            'proxy_config': {
+                'next': 'server_config'
+            },
+            'server_config': {
+                'last': True
+            }
+        }
+        self._daemon = daemon
+
+    def start(self, initial_data = {}):
+        self.reset()
+        self._current = WizardViewState('autoconnect', initial_data, {})
+        return self._current

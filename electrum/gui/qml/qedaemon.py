@@ -14,7 +14,7 @@ from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
 from .qewalletdb import QEWalletDB
-from .qewizard import QENewWalletWizard
+from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
@@ -123,6 +123,7 @@ class QEDaemon(AuthMixin, QObject):
     _available_wallets = None
     _current_wallet = None
     _new_wallet_wizard = None
+    _server_connect_wizard = None
     _path = None
     _use_single_password = False
     _password = None
@@ -131,6 +132,7 @@ class QEDaemon(AuthMixin, QObject):
     availableWalletsChanged = pyqtSignal()
     fxChanged = pyqtSignal()
     newWalletWizardChanged = pyqtSignal()
+    serverConnectWizardChanged = pyqtSignal()
 
     walletLoaded = pyqtSignal()
     walletRequiresPassword = pyqtSignal()
@@ -296,3 +298,10 @@ class QEDaemon(AuthMixin, QObject):
             self._new_wallet_wizard = QENewWalletWizard(self)
 
         return self._new_wallet_wizard
+
+    @pyqtProperty(QEServerConnectWizard, notify=serverConnectWizardChanged)
+    def serverConnectWizard(self):
+        if not self._server_connect_wizard:
+            self._server_connect_wizard = QEServerConnectWizard(self)
+
+        return self._server_connect_wizard

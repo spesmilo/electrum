@@ -8,4 +8,19 @@ Item {
     property bool valid
     property bool last: false
     property bool ready: false
+
+    onAccept: {
+        apply()
+    }
+
+    function apply() { }
+    function checkIsLast() {
+        apply()
+        last = wizard.wiz.isLast(wizard_data)
+    }
+
+    Component.onCompleted: {
+        checkIsLast()
+    }
+
 }
