@@ -130,6 +130,16 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('bolt11_fallback', use_fallback)
         self.useFallbackAddressChanged.emit()
 
+    useRbfChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=useRbfChanged)
+    def useRbf(self):
+        return self.config.get('use_rbf', True)
+
+    @useRbf.setter
+    def useRbf(self, useRbf):
+        self.config.set_key('use_rbf', useRbf)
+        self.useRbfChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
