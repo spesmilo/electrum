@@ -148,6 +148,16 @@ Pane {
                             }
                         }
 
+                        Switch {
+                            id: useRbf
+                            text: qsTr('Use Replace-By-Fee')
+                            Layout.columnSpan: 2
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.useRbf = checked
+                            }
+                        }
+
                         Label {
                             text: qsTr('Default request expiry')
                             Layout.fillWidth: false
@@ -224,22 +234,22 @@ Pane {
                         }
 
                         Switch {
+                            id: useRecoverableChannels
+                            text: qsTr('Create recoverable channels')
+                            Layout.columnSpan: 2
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.useRecoverableChannels = checked
+                            }
+                        }
+
+                        Switch {
                             id: useFallbackAddress
                             text: qsTr('Use onchain fallback address for Lightning invoices')
                             Layout.columnSpan: 2
                             onCheckedChanged: {
                                 if (activeFocus)
                                     Config.useFallbackAddress = checked
-                            }
-                        }
-
-                        Switch {
-                            id: useRbf
-                            text: qsTr('Use Replace-By-Fee')
-                            Layout.columnSpan: 2
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.useRbf = checked
                             }
                         }
 

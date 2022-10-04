@@ -140,6 +140,16 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('use_rbf', useRbf)
         self.useRbfChanged.emit()
 
+    useRecoverableChannelsChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=useRecoverableChannelsChanged)
+    def useRecoverableChannels(self):
+        return self.config.get('use_recoverable_channels', True)
+
+    @useRecoverableChannels.setter
+    def useRecoverableChannels(self, useRecoverableChannels):
+        self.config.set_key('use_recoverable_channels', useRecoverableChannels)
+        self.useRecoverableChannelsChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
