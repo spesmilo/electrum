@@ -12,6 +12,10 @@ WizardComponent {
 
     property bool otpVerified: false
 
+    function apply() {
+        wizard_data['trustedcoin_new_otp_secret'] = requestNewSecret.checked
+    }
+
     ColumnLayout {
         width: parent.width
 
@@ -20,16 +24,24 @@ WizardComponent {
         }
 
         InfoTextArea {
+            id: errorBox
             iconStyle: InfoTextArea.IconStyle.Error
-            visible: plugin ? plugin.createRemoteKeyError : false
-            text: plugin ? plugin.createRemoteKeyError : ''
+            visible: !otpVerified && plugin.remoteKeyState == 'error'
+        }
+
+        InfoTextArea {
+            iconStyle: InfoTextArea.IconStyle.Warn
+            visible: plugin.remoteKeyState == 'wallet_known'
+            text: qsTr('This wallet is already registered with TrustedCoin. ')
+                + qsTr('To finalize wallet creation, please enter your Google Authenticator Code. ')
         }
 
         QRImage {
             Layout.alignment: Qt.AlignHCenter
+            visible: plugin.remoteKeyState == ''
             qrdata: encodeURI('otpauth://totp/Electrum 2FA ' + wizard_data['wallet_name']
                     + '?secret=' + plugin.otpSecret + '&digits=6')
-            render: plugin ? plugin.otpSecret : false
+            render: plugin.otpSecret
         }
 
         TextHighlightPane {
@@ -43,17 +55,24 @@ WizardComponent {
         }
 
         Label {
+            visible: !otpVerified && plugin.otpSecret
             Layout.preferredWidth: parent.width
             wrapMode: Text.Wrap
             text: qsTr('Enter or scan into authenticator app. Then authenticate below')
-            visible: plugin.otpSecret && !otpVerified
+        }
+
+        Label {
+            visible: !otpVerified && plugin.remoteKeyState == 'wallet_known'
+            Layout.preferredWidth: parent.width
+            wrapMode: Text.Wrap
+            text: qsTr('If you still have your OTP secret, then authenticate below')
         }
 
         TextField {
             id: otp_auth
+            visible: !otpVerified && (plugin.otpSecret || plugin.remoteKeyState == 'wallet_known')
             Layout.alignment: Qt.AlignHCenter
             focus: true
-            visible: plugin.otpSecret && !otpVerified
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhDigitsOnly
             font.family: FixedFont
             font.pixelSize: constants.fontSizeLarge
@@ -65,12 +84,26 @@ WizardComponent {
             }
         }
 
+        Label {
+            visible: !otpVerified && plugin.remoteKeyState == 'wallet_known'
+            Layout.preferredWidth: parent.width
+            wrapMode: Text.Wrap
+            text: qsTr('Otherwise, you can request your OTP secret from the server, by pressing the button below')
+        }
+
+        Button {
+            Layout.alignment: Qt.AlignHCenter
+            visible: plugin.remoteKeyState == 'wallet_known' && !otpVerified
+            text: qsTr('Request OTP secret')
+            onClicked: plugin.resetOtpSecret()
+        }
+
         Image {
             Layout.alignment: Qt.AlignHCenter
             source: '../../../gui/icons/confirmed.png'
             visible: otpVerified
-            Layout.preferredWidth: constants.iconSizeLarge
-            Layout.preferredHeight: constants.iconSizeLarge
+            Layout.preferredWidth: constants.iconSizeXLarge
+            Layout.preferredHeight: constants.iconSizeXLarge
         }
     }
 
@@ -88,13 +121,16 @@ WizardComponent {
 
     Connections {
         target: plugin
-        function onOtpError() {
+        function onOtpError(message) {
             console.log('OTP verify error')
-            // TODO: show error in UI
+            errorBox.text = message
         }
         function onOtpSuccess() {
             console.log('OTP verify success')
             otpVerified = true
+        }
+        function onRemoteKeyError(message) {
+            errorBox.text = message
         }
     }
 }

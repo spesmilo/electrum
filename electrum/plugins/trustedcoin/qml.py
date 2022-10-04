@@ -1,12 +1,13 @@
 import threading
 import socket
+import base64
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtProperty, pyqtSlot
 
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.bip32 import xpub_type
+from electrum.bip32 import xpub_type, BIP32Node
 from electrum.util import UserFacingException
 from electrum import keystore
 
@@ -30,9 +31,7 @@ class Plugin(TrustedCoinPlugin):
         _termsAndConditions = ''
         termsAndConditionsErrorChanged = pyqtSignal()
         _termsAndConditionsError = ''
-        createRemoteKeyErrorChanged = pyqtSignal()
-        _createRemoteKeyError = ''
-        otpError = pyqtSignal()
+        otpError = pyqtSignal([str], arguments=['message'])
         otpSuccess = pyqtSignal()
         disclaimerChanged = pyqtSignal()
         keystoreChanged = pyqtSignal()
@@ -40,6 +39,10 @@ class Plugin(TrustedCoinPlugin):
         _otpSecret = ''
         shortIdChanged = pyqtSignal()
         _shortId = ''
+
+        _remoteKeyState = ''
+        remoteKeyStateChanged = pyqtSignal()
+        remoteKeyError = pyqtSignal([str], arguments=['message'])
 
         requestOtp = pyqtSignal()
 
@@ -81,9 +84,15 @@ class Plugin(TrustedCoinPlugin):
         def termsAndConditionsError(self):
             return self._termsAndConditionsError
 
-        @pyqtProperty(str, notify=createRemoteKeyErrorChanged)
-        def createRemoteKeyError(self):
-            return self._createRemoteKeyError
+        @pyqtProperty(str, notify=remoteKeyStateChanged)
+        def remoteKeyState(self):
+            return self._remoteKeyState
+
+        @remoteKeyState.setter
+        def remoteKeyState(self, new_state):
+            if self._remoteKeyState != new_state:
+                self._remoteKeyState = new_state
+                self.remoteKeyStateChanged.emit()
 
         @pyqtSlot()
         def fetchTermsAndConditions(self):
@@ -112,7 +121,8 @@ class Plugin(TrustedCoinPlugin):
 
         @pyqtSlot(str)
         def createKeystore(self, email):
-            xprv1, xpub1, xpub2, xpub3, short_id = self.plugin.create_keys()
+            self.remoteKeyState = ''
+            xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys()
             def create_remote_key_task():
                 try:
                     self.plugin.logger.debug('create remote key')
@@ -121,25 +131,32 @@ class Plugin(TrustedCoinPlugin):
                     otp_secret = r['otp_secret']
                     _xpub3 = r['xpubkey_cosigner']
                     _id = r['id']
-                except (socket.error, ErrorConnectingServer):
-                    self._createRemoteKeyError = _('Error creating key')
-                    self.createRemoteKeyErrorChanged.emit()
+                except (socket.error, ErrorConnectingServer) as e:
+                    self.remoteKeyState = 'error'
+                    self.remoteKeyError.emit(f'Network error: {str(e)}')
                 except TrustedCoinException as e:
-                    # if e.status_code == 409: TODO ?
-                    #     r = None
-                    self._createRemoteKeyError = str(e)
-                    self.createRemoteKeyErrorChanged.emit()
+                    if e.status_code == 409:
+                        self.remoteKeyState = 'wallet_known'
+                        self._shortId = short_id
+                        self.shortIdChanged.emit()
+                    else:
+                        self.remoteKeyState = 'error'
+                        self.logger.warning(str(e))
+                        self.remoteKeyError.emit(f'Service error: {str(e)}')
                 except (KeyError,TypeError) as e: # catch any assumptions
-                    self._createRemoteKeyError = str(e)
-                    self.createRemoteKeyErrorChanged.emit()
+                    self.remoteKeyState = 'error'
+                    self.remoteKeyError.emit(f'Error: {str(e)}')
+                    self.logger.error(str(e))
                 else:
                     if short_id != _id:
-                        self._createRemoteKeyError = "unexpected trustedcoin short_id: expected {}, received {}".format(short_id, _id)
-                        self.createRemoteKeyErrorChanged.emit()
+                        self.remoteKeyState = 'error'
+                        self.logger.error("unexpected trustedcoin short_id: expected {}, received {}".format(short_id, _id))
+                        self.remoteKeyError.emit('Unexpected short_id')
                         return
                     if xpub3 != _xpub3:
-                        self._createRemoteKeyError = "unexpected trustedcoin xpub3: expected {}, received {}".format(xpub3, _xpub3)
-                        self.createRemoteKeyErrorChanged.emit()
+                        self.remoteKeyState = 'error'
+                        self.logger.error("unexpected trustedcoin xpub3: expected {}, received {}".format(xpub3, _xpub3))
+                        self.remoteKeyError.emit('Unexpected trustedcoin xpub3')
                         return
                     self._otpSecret = otp_secret
                     self.otpSecretChanged.emit()
@@ -151,8 +168,47 @@ class Plugin(TrustedCoinPlugin):
 
             self._busy = True
             self.busyChanged.emit()
+
             t = threading.Thread(target=create_remote_key_task)
             t.daemon = True
+            t.start()
+
+        @pyqtSlot()
+        def resetOtpSecret(self):
+            self.remoteKeyState = ''
+            xprv1, xpub1, xprv2, xpub2, xpub3, short_id = self.plugin.create_keys()
+            def reset_otp_task():
+                try:
+                    self.plugin.logger.debug('reset_otp')
+                    r = server.get_challenge(short_id)
+                    challenge = r.get('challenge')
+                    message = 'TRUSTEDCOIN CHALLENGE: ' + challenge
+                    def f(xprv):
+                        rootnode = BIP32Node.from_xkey(xprv)
+                        key = rootnode.subkey_at_private_derivation((0, 0)).eckey
+                        sig = key.sign_message(message, True)
+                        return base64.b64encode(sig).decode()
+
+                    signatures = [f(x) for x in [xprv1, xprv2]]
+                    r = server.reset_auth(short_id, challenge, signatures)
+                    otp_secret = r.get('otp_secret')
+                except (socket.error, ErrorConnectingServer) as e:
+                    self.remoteKeyState = 'error'
+                    self.remoteKeyError.emit(f'Network error: {str(e)}')
+                except Exception as e:
+                    self.remoteKeyState = 'error'
+                    self.remoteKeyError.emit(f'Error: {str(e)}')
+                else:
+                    self._otpSecret = otp_secret
+                    self.otpSecretChanged.emit()
+                finally:
+                    self._busy = False
+                    self.busyChanged.emit()
+
+            self._busy = True
+            self.busyChanged.emit()
+
+            t = threading.Thread(target=reset_otp_task, daemon=True)
             t.start()
 
         @pyqtSlot(str, int)
@@ -164,15 +220,13 @@ class Plugin(TrustedCoinPlugin):
                 except TrustedCoinException as e:
                     if e.status_code == 400:  # invalid OTP
                         self.plugin.logger.debug('Invalid one-time password.')
-                        self.otpError.emit()
+                        self.otpError.emit(_('Invalid one-time password.'))
                     else:
                         self.plugin.logger.error(str(e))
-                        self._createRemoteKeyError = str(e)
-                        self.createRemoteKeyErrorChanged.emit()
+                        self.otpError.emit(f'Service error: {str(e)}')
                 except Exception as e:
                     self.plugin.logger.error(str(e))
-                    self._createRemoteKeyError = str(e)
-                    self.createRemoteKeyErrorChanged.emit()
+                    self.otpError.emit(f'Error: {str(e)}')
                 else:
                     self.plugin.logger.debug('OTP verify success')
                     self.otpSuccess.emit()
@@ -182,8 +236,7 @@ class Plugin(TrustedCoinPlugin):
 
             self._busy = True
             self.busyChanged.emit()
-            t = threading.Thread(target=check_otp_task)
-            t.daemon = True
+            t = threading.Thread(target=check_otp_task, daemon=True)
             t.start()
 
 
@@ -204,6 +257,7 @@ class Plugin(TrustedCoinPlugin):
                 _('This wallet was restored from seed, and it contains two master private keys.'),
                 _('Therefore, two-factor authentication is disabled.')
             ])
+            self.logger.info(msg)
             #action = lambda: window.show_message(msg)
         #else:
             #action = partial(self.settings_dialog, window)
@@ -233,7 +287,8 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_choose_seed': {
                 'gui': '../../../../plugins/trustedcoin/qml/ChooseSeed',
-                'next': self.on_choose_seed
+                'next': lambda d: 'trustedcoin_create_seed' if d['keystore_type'] == 'createseed'
+                        else 'trustedcoin_have_seed'
             },
             'trustedcoin_create_seed': {
                 'gui': 'WCCreateSeed',
@@ -245,7 +300,14 @@ class Plugin(TrustedCoinPlugin):
             },
             'trustedcoin_have_seed': {
                 'gui': 'WCHaveSeed',
-                'next': 'trustedcoin_tos_email'
+                'next': 'trustedcoin_keep_disable'
+            },
+            'trustedcoin_keep_disable': {
+                'gui': '../../../../plugins/trustedcoin/qml/KeepDisable',
+                'next': lambda d: 'trustedcoin_tos_email' if d['trustedcoin_keepordisable'] != 'disable'
+                        else 'wallet_password',
+                'accept': self.recovery_disable,
+                'last': lambda v,d: wizard.last_if_single_password() and d['trustedcoin_keepordisable'] == 'disable'
             },
             'trustedcoin_tos_email': {
                 'gui': '../../../../plugins/trustedcoin/qml/Terms',
@@ -260,12 +322,6 @@ class Plugin(TrustedCoinPlugin):
         }
         wizard.navmap_merge(views)
 
-    def on_choose_seed(self, wizard_data):
-        self.logger.debug('on_choose_seed')
-        if wizard_data['keystore_type'] == 'createseed':
-            return 'trustedcoin_create_seed'
-        else:
-            return 'trustedcoin_have_seed'
 
     # combined create_keystore and create_remote_key pre
     def create_keys(self):
@@ -286,13 +342,11 @@ class Plugin(TrustedCoinPlugin):
         xtype = xpub_type(xpub1)
         xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
 
-        return (xprv1,xpub1,xpub2,xpub3,short_id)
+        return (xprv1,xpub1,xprv2,xpub2,xpub3,short_id)
 
     def on_accept_otp_secret(self, wizard_data):
-        self.logger.debug('on accept otp: ' + repr(wizard_data))
-
-        xprv1,xpub1,xpub2,xpub3,short_id = self.create_keys()
-
+        self.logger.debug('OTP secret accepted, creating keystores')
+        xprv1,xpub1,xprv2,xpub2,xpub3,short_id = self.create_keys()
         k1 = keystore.from_xprv(xprv1)
         k2 = keystore.from_xpub(xpub2)
         k3 = keystore.from_xpub(xpub3)
@@ -300,7 +354,21 @@ class Plugin(TrustedCoinPlugin):
         wizard_data['x1/'] = k1.dump()
         wizard_data['x2/'] = k2.dump()
         wizard_data['x3/'] = k3.dump()
-        # wizard_data['use_trustedcoin'] = True
+
+    def recovery_disable(self, wizard_data):
+        if wizard_data['trustedcoin_keepordisable'] != 'disable':
+            return
+
+        self.logger.debug('2fa disabled, creating keystores')
+        xprv1,xpub1,xprv2,xpub2,xpub3,short_id = self.create_keys()
+        k1 = keystore.from_xprv(xprv1)
+        k2 = keystore.from_xprv(xprv2)
+        k3 = keystore.from_xpub(xpub3)
+
+        wizard_data['x1/'] = k1.dump()
+        wizard_data['x2/'] = k2.dump()
+        wizard_data['x3/'] = k3.dump()
+
 
     # regular wallet prompt functions
 
