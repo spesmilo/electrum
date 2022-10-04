@@ -143,7 +143,9 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str, str)
     def load_wallet(self, path=None, password=None):
         if path == None:
-            self._path = self.daemon.config.get('gui_last_wallet')
+            self._path = self.daemon.config.get('wallet_path') # command line -w option
+            if self._path is None:
+                self._path = self.daemon.config.get('gui_last_wallet')
         else:
             self._path = path
         if self._path is None:
