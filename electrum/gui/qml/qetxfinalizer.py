@@ -280,7 +280,7 @@ class QETxFinalizer(QObject):
         fee = tx.get_fee()
         feerate = Decimal(fee) / tx_size  # sat/byte
 
-        self.fee.satsInt = fee
+        self._fee.satsInt = int(fee)
         self.feeRate = f'{feerate:.1f}'
 
         #TODO

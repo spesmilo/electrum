@@ -407,7 +407,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
-        tx = self.wallet.sign_transaction(tx, None)
+        tx = self.wallet.sign_transaction(tx, self.password)
 
         if tx is None:
             self._logger.info('did not sign')
