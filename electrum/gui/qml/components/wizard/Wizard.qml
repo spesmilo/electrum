@@ -11,7 +11,8 @@ Dialog {
     height: parent.height
 
     property var wizard_data
-    property alias pages : pages
+    property alias pages: pages
+    property QtObject wiz
 
     function _setWizardData(wdata) {
         wizard_data = {}
@@ -49,7 +50,6 @@ Dialog {
             if (newview.view) {
                 console.log('next view: ' + newview.view)
                 var newpage = _loadNextComponent(newview.view, newview.wizard_data)
-                newpage.last = wiz.isLast(newview.wizard_data)
             } else {
                 console.log('END')
             }
@@ -57,7 +57,6 @@ Dialog {
         page.prev.connect(function() {
             var wdata = wiz.prev()
             console.log('prev view data: ' + JSON.stringify(wdata))
-            page.last = wiz.isLast(wdata)
         })
         Object.assign(page.wizard_data, wdata) // deep copy
         page.ready = true // signal page it can access wizard_data

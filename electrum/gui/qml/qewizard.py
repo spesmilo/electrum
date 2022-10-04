@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtQml import QQmlApplicationEngine
 
 from electrum.logging import get_logger
-from electrum.gui.wizard import NewWalletWizard
+from electrum.gui.wizard import NewWalletWizard, ServerConnectWizard
 
 class QEAbstractWizard(QObject):
     _logger = get_logger(__name__)
@@ -99,3 +99,17 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         except Exception as e:
             self._logger.error(repr(e))
             self.createError.emit(str(e))
+
+class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
+
+    def __init__(self, daemon, parent = None):
+        ServerConnectWizard.__init__(self, daemon)
+        QEAbstractWizard.__init__(self, parent)
+        self._daemon = daemon
+
+        # attach view names
+        self.navmap_merge({
+            'autoconnect': { 'gui': 'WCAutoConnect' },
+            'proxy_config': { 'gui': 'WCProxyConfig' },
+            'server_config': { 'gui': 'WCServerConfig' },
+        })
