@@ -153,9 +153,14 @@ Pane {
             Label { text: 'has Seed'; color: Material.accentColor }
             Label { text: Daemon.currentWallet.hasSeed }
 
-            Label { Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor }
+            Label {
+                visible: Daemon.currentWallet.masterPubkey
+                Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor
+            }
 
             TextHighlightPane {
+                visible: Daemon.currentWallet.masterPubkey
+
                 Layout.columnSpan: 4
                 Layout.fillWidth: true
                 padding: 0

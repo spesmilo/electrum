@@ -38,9 +38,8 @@ WizardComponent {
             text: qsTr('Multi-signature wallet')
         }
         RadioButton {
-            enabled: false
             ButtonGroup.group: wallettypegroup
-            property string wallettype: 'import'
+            property string wallettype: 'imported'
             text: qsTr('Import Bitcoin addresses or private keys')
         }
     }

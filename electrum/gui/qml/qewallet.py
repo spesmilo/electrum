@@ -319,6 +319,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
+        if self.wallet.wallet_type == 'imported':
+            return self.wallet.txin_type
         return self.wallet.get_txin_type(self.wallet.dummy_address())
 
     @pyqtProperty(bool, notify=dataChanged)
@@ -342,6 +344,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         keystores = self.wallet.get_keystores()
         if len(keystores) > 1:
             self._logger.debug('multiple keystores not supported yet')
+        if len(keystores) == 0:
+            self._logger.debug('no keystore')
+            return ''
         return keystores[0].get_derivation_prefix()
 
     @pyqtProperty(str, notify=dataChanged)
