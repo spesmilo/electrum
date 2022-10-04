@@ -221,6 +221,15 @@ ApplicationWindow
                 app.visible = false
                 Qt.callLater(Qt.quit)
             })
+            dialog.accepted.connect(function() {
+                var newww = app.newWalletWizard.createObject(app)
+                newww.open()
+                newww.walletCreated.connect(function() {
+                    Daemon.availableWallets.reload()
+                    // and load the new wallet
+                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                })
+            })
             dialog.open()
         } else {
             Daemon.load_wallet()
