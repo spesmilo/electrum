@@ -234,7 +234,7 @@ class NewWalletWizard(AbstractWizard):
                 for addr in data['address_list'].split():
                     addresses[addr] = {}
         elif data['keystore_type'] in ['createseed', 'haveseed']:
-            if data['seed_type'] in ['old', 'standard', 'segwit']: #2fa, 2fa-segwit
+            if data['seed_type'] in ['old', 'standard', 'segwit']:
                 self._logger.debug('creating keystore from electrum seed')
                 k = keystore.from_seed(data['seed'], data['seed_extra_words'], data['wallet_type'] == 'multisig')
             elif data['seed_type'] == 'bip39':
@@ -243,7 +243,7 @@ class NewWalletWizard(AbstractWizard):
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
-            elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa
+            elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa '2fa'
                 self._logger.debug('creating keystore from 2fa seed')
                 k = keystore.from_xprv(data['x1/']['xprv'])
             else:
@@ -274,7 +274,13 @@ class NewWalletWizard(AbstractWizard):
             db.put('keystore', k.dump())
         elif data['wallet_type'] == '2fa':
             db.put('x1/', k.dump())
-            db.put('x2/', data['x2/'])
+            if data['trustedcoin_keepordisable'] == 'disable':
+                k2 = keystore.from_xprv(data['x2/']['xprv'])
+                if data['encrypt'] and k2.may_have_password():
+                    k2.update_password(None, data['password'])
+                db.put('x2/', k2.dump())
+            else:
+                db.put('x2/', data['x2/'])
             db.put('x3/', data['x3/'])
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'imported':

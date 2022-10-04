@@ -73,7 +73,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self._path = path
         self.pathChanged.emit()
 
-    def last_if_single_password(self, view, wizard_data):
+    def last_if_single_password(self, *args):
         return self._daemon.singlePasswordEnabled
 
     @pyqtSlot('QJSValue', bool, str)
