@@ -118,6 +118,10 @@ ApplicationWindow
         anchors.fill: parent
 
         initialItem: Qt.resolvedUrl('WalletMainView.qml')
+
+        function getRoot() {
+            return mainStackView.get(0)
+        }
     }
 
     Timer {

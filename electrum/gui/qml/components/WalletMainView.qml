@@ -12,8 +12,22 @@ Item {
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
 
+    function openInvoice(key) {
+        var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
+        dialog.open()
+        return dialog
+    }
+
     property QtObject menu: Menu {
         id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Invoices');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
+                icon.source: '../../icons/tab_receive.png'
+            }
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
