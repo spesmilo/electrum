@@ -5,7 +5,7 @@ import QtQuick.Controls.Material 2.0
 
 Frame {
     id: root
-    height: layout.height
+
     font.pixelSize: constants.fontSizeMedium
 
     property string formattedBalance
@@ -35,97 +35,124 @@ Frame {
 
         columns: 2
         Label {
+            font.pixelSize: constants.fontSizeXLarge
+            text: qsTr('Balance:')
+            color: Material.accentColor
+            Layout.alignment: Qt.AlignRight | Qt.AlignTop
+        }
+        ColumnLayout {
+            spacing: 0
+
+            RowLayout {
+                Label {
+                    font.pixelSize: constants.fontSizeXLarge
+                    font.family: FixedFont
+                    text: formattedBalance
+                }
+                Label {
+                    font.pixelSize: constants.fontSizeXLarge
+                    color: Material.accentColor
+                    text: Config.baseUnit
+                }
+            }
+
+            Label {
+                visible: Daemon.fx.enabled
+                font.pixelSize: constants.fontSizeSmall
+                color: constants.mutedForeground
+                text: root.formattedBalanceFiat + ' ' + Daemon.fx.fiatCurrency
+            }
+        }
+
+        Label {
+            visible: Daemon.currentWallet.unconfirmedBalance.satsInt > 0
             font.pixelSize: constants.fontSizeLarge
-            text: qsTr('Balance: ')
+            text: qsTr('Unconfirmed:')
+            color: Material.accentColor
+            Layout.alignment: Qt.AlignRight | Qt.AlignTop
         }
-        RowLayout {
-            Label {
-                font.pixelSize: constants.fontSizeLarge
-                font.family: FixedFont
-                text: formattedBalance
-            }
-            Label {
-                font.pixelSize: constants.fontSizeMedium
-                color: Material.accentColor
-                text: Config.baseUnit
-            }
-            Label {
-                font.pixelSize: constants.fontSizeMedium
-                text: Daemon.fx.enabled
-                    ? '(' + root.formattedBalanceFiat + ' ' + Daemon.fx.fiatCurrency + ')'
-                    : ''
-            }
-        }
-        Label {
+        ColumnLayout {
             visible: Daemon.currentWallet.unconfirmedBalance.satsInt > 0
-            font.pixelSize: constants.fontSizeSmall
-            text: qsTr('Unconfirmed: ')
-        }
-        RowLayout {
-            visible: Daemon.currentWallet.unconfirmedBalance.satsInt > 0
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                font.family: FixedFont
-                text: formattedUnconfirmed
+            spacing: 0
+            RowLayout {
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    font.family: FixedFont
+                    text: formattedUnconfirmed
+                }
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    color: Material.accentColor
+                    text: Config.baseUnit
+                }
             }
             Label {
+                visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
-                color: Material.accentColor
-                text: Config.baseUnit
-            }
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                text: Daemon.fx.enabled
-                    ? '(' + root.formattedUnconfirmedFiat + ' ' + Daemon.fx.fiatCurrency + ')'
-                    : ''
+                color: constants.mutedForeground
+                text: root.formattedUnconfirmedFiat + ' ' + Daemon.fx.fiatCurrency
             }
         }
+
         Label {
             visible: Daemon.currentWallet.frozenBalance.satsInt > 0
-            font.pixelSize: constants.fontSizeSmall
-            text: qsTr('Frozen: ')
+            font.pixelSize: constants.fontSizeLarge
+            text: qsTr('Frozen:')
+            color: Material.accentColor
+            Layout.alignment: Qt.AlignRight | Qt.AlignTop
         }
-        RowLayout {
+        ColumnLayout {
             visible: Daemon.currentWallet.frozenBalance.satsInt > 0
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                font.family: FixedFont
-                text: root.formattedFrozen
+            spacing: 0
+
+            RowLayout {
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    font.family: FixedFont
+                    text: root.formattedFrozen
+                }
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    color: Material.accentColor
+                    text: Config.baseUnit
+                }
             }
             Label {
+                visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
-                color: Material.accentColor
-                text: Config.baseUnit
-            }
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                text: Daemon.fx.enabled
-                    ? '(' + root.formattedFrozenFiat + ' ' + Daemon.fx.fiatCurrency + ')'
-                    : ''
+                color: constants.mutedForeground
+                text: root.formattedFrozenFiat + ' ' + Daemon.fx.fiatCurrency
             }
         }
+
         Label {
             visible: Daemon.currentWallet.isLightning
-            font.pixelSize: constants.fontSizeSmall
-            text: qsTr('Lightning: ')
+            font.pixelSize: constants.fontSizeLarge
+            text: qsTr('Lightning:')
+            color: Material.accentColor
+            Layout.alignment: Qt.AlignRight | Qt.AlignTop
         }
-        RowLayout {
+        ColumnLayout {
             visible: Daemon.currentWallet.isLightning
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                font.family: FixedFont
-                text: formattedLightningBalance
+            spacing: 0
+
+            RowLayout {
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    font.family: FixedFont
+                    text: formattedLightningBalance
+                }
+                Label {
+                    font.pixelSize: constants.fontSizeLarge
+                    color: Material.accentColor
+                    text: Config.baseUnit
+                }
             }
             Label {
+                visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
-                color: Material.accentColor
-                text: Config.baseUnit
-            }
-            Label {
-                font.pixelSize: constants.fontSizeSmall
-                text: Daemon.fx.enabled
-                    ? '(' + root.formattedLightningBalanceFiat + ' ' + Daemon.fx.fiatCurrency + ')'
-                    : ''
+                color: constants.mutedForeground
+                text: root.formattedLightningBalanceFiat + ' ' + Daemon.fx.fiatCurrency
             }
         }
     }
