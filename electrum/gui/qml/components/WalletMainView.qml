@@ -89,7 +89,17 @@ Item {
             text: qsTr('Open/Create Wallet')
             Layout.alignment: Qt.AlignHCenter
             onClicked: {
-                stack.push(Qt.resolvedUrl('Wallets.qml'))
+                if (Daemon.availableWallets.rowCount() > 0) {
+                    stack.push(Qt.resolvedUrl('Wallets.qml'))
+                } else {
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                }
             }
         }
     }
