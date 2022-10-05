@@ -31,6 +31,113 @@ ElDialog {
         columns: 2
 
         Label {
+            text: qsTr('Type')
+            color: Material.accentColor
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Image {
+                Layout.preferredWidth: constants.iconSizeSmall
+                Layout.preferredHeight: constants.iconSizeSmall
+                source: invoice.invoiceType == Invoice.LightningInvoice
+                    ? "../../icons/lightning.png"
+                    : "../../icons/bitcoin.png"
+            }
+
+            Label {
+                text: invoice.invoiceType == Invoice.OnchainInvoice
+                        ? qsTr('On chain')
+                        : invoice.invoiceType == Invoice.LightningInvoice
+                            ? qsTr('Lightning')
+                            : ''
+                Layout.fillWidth: true
+            }
+        }
+
+        Label {
+            text: qsTr('Status')
+            color: Material.accentColor
+        }
+
+        Label {
+            text: invoice.status_str
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.OnchainInvoice
+            Layout.columnSpan: 2
+            text: qsTr('Address')
+            color: Material.accentColor
+        }
+
+        TextHighlightPane {
+            visible: invoice.invoiceType == Invoice.OnchainInvoice
+
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+
+            padding: 0
+            leftPadding: constants.paddingMedium
+
+            Label {
+                width: parent.width
+                text: invoice.address
+                font.family: FixedFont
+                wrapMode: Text.Wrap
+            }
+        }
+
+        Label {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+            text: qsTr('Remote Pubkey')
+            color: Material.accentColor
+        }
+
+        TextHighlightPane {
+            visible: invoice.invoiceType == Invoice.LightningInvoice
+
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+
+            padding: 0
+            leftPadding: constants.paddingMedium
+
+            Label {
+                width: parent.width
+                text: invoice.lnprops ? invoice.lnprops.pubkey : ''
+                font.family: FixedFont
+                wrapMode: Text.Wrap
+            }
+        }
+
+        Label {
+            text: qsTr('Description')
+            visible: invoice.message
+            Layout.columnSpan: 2
+            color: Material.accentColor
+        }
+
+        TextHighlightPane {
+            visible: invoice.message
+
+            Layout.columnSpan: 2
+            Layout.preferredWidth: parent.width
+            Layout.alignment: Qt.AlignHCenter
+
+            padding: 0
+            leftPadding: constants.paddingMedium
+
+            Label {
+                text: invoice.message
+                width: parent.width
+                font.pixelSize: constants.fontSizeXLarge
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+            }
+        }
+
+        Label {
             text: qsTr('Amount to send')
             color: Material.accentColor
             Layout.columnSpan: 2
@@ -144,129 +251,6 @@ ElDialog {
                 }
             }
 
-        }
-
-        Label {
-            text: qsTr('Description')
-            visible: invoice.message
-            Layout.columnSpan: 2
-            color: Material.accentColor
-        }
-
-        TextHighlightPane {
-            visible: invoice.message
-
-            Layout.columnSpan: 2
-            Layout.preferredWidth: parent.width
-            Layout.alignment: Qt.AlignHCenter
-
-            padding: 0
-            leftPadding: constants.paddingMedium
-
-            Label {
-                text: invoice.message
-                Layout.fillWidth: true
-                font.pixelSize: constants.fontSizeXLarge
-                wrapMode: Text.Wrap
-                elide: Text.ElideRight
-            }
-        }
-
-        Label {
-            text: qsTr('Type')
-            color: Material.accentColor
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Image {
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                source: invoice.invoiceType == Invoice.LightningInvoice
-                    ? "../../icons/lightning.png"
-                    : "../../icons/bitcoin.png"
-            }
-
-            Label {
-                text: invoice.invoiceType == Invoice.OnchainInvoice
-                        ? qsTr('On chain')
-                        : invoice.invoiceType == Invoice.LightningInvoice
-                            ? qsTr('Lightning')
-                            : ''
-                Layout.fillWidth: true
-            }
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.OnchainInvoice
-            text: qsTr('Address')
-            color: Material.accentColor
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.OnchainInvoice
-            Layout.fillWidth: true
-            text: invoice.address
-            font.family: FixedFont
-            wrapMode: Text.Wrap
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            text: qsTr('Remote Pubkey')
-            color: Material.accentColor
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            Layout.fillWidth: true
-            text: invoice.lnprops ? invoice.lnprops.pubkey : ''
-            font.family: FixedFont
-            wrapMode: Text.Wrap
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            text: qsTr('Route via (t)')
-            color: Material.accentColor
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            Layout.fillWidth: true
-            text: invoice.lnprops ? invoice.lnprops.t : ''
-            font.family: FixedFont
-            wrapMode: Text.Wrap
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            text: qsTr('Route via (r)')
-            color: Material.accentColor
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            Layout.fillWidth: true
-            text: invoice.lnprops ? invoice.lnprops.r : ''
-            font.family: FixedFont
-            wrapMode: Text.Wrap
-        }
-
-        Label {
-            text: qsTr('Status')
-            color: Material.accentColor
-        }
-
-        Label {
-            text: invoice.status_str
-        }
-
-        Rectangle {
-            height: 1
-            Layout.fillWidth: true
-            Layout.columnSpan: 2
-            color: Material.accentColor
         }
 
         Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
