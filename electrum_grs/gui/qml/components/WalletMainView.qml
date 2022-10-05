@@ -12,8 +12,22 @@ Item {
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
 
+    function openInvoice(key) {
+        var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
+        dialog.open()
+        return dialog
+    }
+
     property QtObject menu: Menu {
         id: menu
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Invoices');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
+                icon.source: '../../icons/tab_receive.png'
+            }
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
@@ -89,7 +103,17 @@ Item {
             text: qsTr('Open/Create Wallet')
             Layout.alignment: Qt.AlignHCenter
             onClicked: {
-                stack.push(Qt.resolvedUrl('Wallets.qml'))
+                if (Daemon.availableWallets.rowCount() > 0) {
+                    stack.push(Qt.resolvedUrl('Wallets.qml'))
+                } else {
+                    var newww = app.newWalletWizard.createObject(app)
+                    newww.walletCreated.connect(function() {
+                        Daemon.availableWallets.reload()
+                        // and load the new wallet
+                        Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    })
+                    newww.open()
+                }
             }
         }
     }
@@ -169,7 +193,7 @@ Item {
         }
 
         onInvoiceSaved: {
-            Daemon.currentWallet.invoiceModel.init_model()
+            Daemon.currentWallet.invoiceModel.addInvoice(key)
         }
     }
 
@@ -241,7 +265,7 @@ Item {
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
-                canRbf: true
+                canRbf: Config.useRbf
             }
             onClosed: destroy()
         }

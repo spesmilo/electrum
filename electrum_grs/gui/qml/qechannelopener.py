@@ -35,7 +35,7 @@ class QEChannelOpener(QObject, AuthMixin):
     conflictingBackup = pyqtSignal([str], arguments=['message'])
     channelOpening = pyqtSignal([str], arguments=['peer'])
     channelOpenError = pyqtSignal([str], arguments=['message'])
-    channelOpenSuccess = pyqtSignal([str,bool,int], arguments=['cid','has_onchain_backup','min_depth','tx_complete'])
+    channelOpenSuccess = pyqtSignal([str,bool,int,bool], arguments=['cid','has_onchain_backup','min_depth','tx_complete'])
 
     dataChanged = pyqtSignal() # generic notify signal
 
@@ -163,7 +163,7 @@ class QEChannelOpener(QObject, AuthMixin):
             node_id=self._peer.pubkey,
             fee_est=None)
 
-        acpt = lambda tx: self.do_open_channel(tx, str(self._peer), None)
+        acpt = lambda tx: self.do_open_channel(tx, str(self._peer), self._wallet.password)
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
         self._finalizer.canRbf = False

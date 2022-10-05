@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick 2.12
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
@@ -29,13 +29,6 @@ ElDialog {
         width: parent.width
         height: parent.height
         columns: 2
-
-        Rectangle {
-            height: 1
-            Layout.fillWidth: true
-            Layout.columnSpan: 2
-            color: Material.accentColor
-        }
 
         Label {
             text: qsTr('Amount to send')
@@ -290,12 +283,24 @@ ElDialog {
             Layout.alignment: Qt.AlignHCenter
             spacing: constants.paddingMedium
 
-            Button {
+            FlatButton {
                 text: qsTr('Delete')
                 icon.source: '../../icons/delete.png'
                 visible: invoice_key != ''
                 onClicked: {
                     invoice.wallet.delete_invoice(invoice_key)
+                    dialog.close()
+                }
+            }
+
+            FlatButton {
+                text: qsTr('Save')
+                icon.source: '../../icons/save.png'
+                visible: invoice_key == ''
+                enabled: invoice.canSave
+                onClicked: {
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                    invoice.save_invoice()
                     dialog.close()
                 }
             }
@@ -309,11 +314,6 @@ ElDialog {
                         invoice.save_invoice()
                     dialog.close()
                     doPay() // only signal here
-                    // if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                    //     doPay() // only signal here
-                    // } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                    //     doPay() // only signal here
-                    // }
                 }
             }
         }
