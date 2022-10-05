@@ -123,7 +123,7 @@ class QEInvoiceParser(QEInvoice):
     _userinfo = ''
 
     invoiceChanged = pyqtSignal()
-    invoiceSaved = pyqtSignal()
+    invoiceSaved = pyqtSignal([str], arguments=['key'])
 
     validationSuccess = pyqtSignal()
     validationWarning = pyqtSignal([str,str], arguments=['code', 'message'])
@@ -493,7 +493,7 @@ class QEInvoiceParser(QEInvoice):
         # TODO detect duplicate?
         self.key = self._effectiveInvoice.get_id()
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
-        self.invoiceSaved.emit()
+        self.invoiceSaved.emit(self.key)
 
 
 class QEUserEnteredPayment(QEInvoice):

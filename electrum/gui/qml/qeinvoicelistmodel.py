@@ -68,6 +68,10 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.invoices.insert(0, item)
         self.endInsertRows()
 
+    @pyqtSlot(str)
+    def addInvoice(self, key):
+        self.add_invoice(self.get_invoice_for_key(key))
+
     def delete_invoice(self, key: str):
         i = 0
         for invoice in self.invoices:

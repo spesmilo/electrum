@@ -193,7 +193,7 @@ Item {
         }
 
         onInvoiceSaved: {
-            Daemon.currentWallet.invoiceModel.init_model()
+            Daemon.currentWallet.invoiceModel.addInvoice(key)
         }
     }
 

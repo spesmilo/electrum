@@ -46,6 +46,14 @@ Pane {
                     }
                 }
 
+                add: Transition {
+                    NumberAnimation { properties: 'scale'; from: 0.75; to: 1; duration: 500 }
+                    NumberAnimation { properties: 'opacity'; from: 0; to: 1; duration: 500 }
+                }
+                addDisplaced: Transition {
+                    SpringAnimation { properties: 'y'; duration: 200; spring: 5; damping: 0.5; mass: 2 }
+                }
+
                 remove: Transition {
                     NumberAnimation { properties: 'scale'; to: 0.75; duration: 300 }
                     NumberAnimation { properties: 'opacity'; to: 0; duration: 300 }
