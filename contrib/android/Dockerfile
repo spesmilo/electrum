@@ -155,7 +155,7 @@ COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-
 COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
 RUN python3 -m pip install --no-build-isolation --no-dependencies --user \
     -r /opt/deterministic-build/requirements-build-base.txt
-RUN python3 -m pip install --no-build-isolation --no-dependencies --user \
+RUN python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --user \
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer

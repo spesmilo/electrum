@@ -55,7 +55,9 @@ for suffix in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-
         "${suffix}" == "" ||
         "${suffix}" == "-build-wine" ||
         "${suffix}" == "-build-mac" ||
-        "${suffix}" == "-build-appimage"
+        "${suffix}" == "-build-appimage" ||
+        "${suffix}" == "-build-android" ||
+        "0" == "1"
         ]] ;
     then
         HASHIN_FLAGS="--python-version source"
