@@ -58,6 +58,8 @@ from . import constants
 from .i18n import _
 from .logging import Logger
 from .transaction import Transaction
+from .lnutil import LNPeerAddr
+from .lntransport import LNClient
 
 if TYPE_CHECKING:
     from .network import Network
@@ -70,7 +72,7 @@ BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
 MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
 
-_KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
+_KNOWN_NETWORK_PROTOCOLS = {'t', 's', 'b'}
 PREFERRED_NETWORK_PROTOCOL = 's'
 assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
 
@@ -271,7 +273,7 @@ class _RSClient(RSClient):
 
 class ServerAddr:
 
-    def __init__(self, host: str, port: Union[int, str], *, protocol: str = None):
+    def __init__(self, host: str, port: Union[int, str], *, protocol: str = None, pubkey: str = None):
         assert isinstance(host, str), repr(host)
         if protocol is None:
             protocol = 's'
@@ -288,13 +290,20 @@ class ServerAddr:
         self.host = str(net_addr.host)  # canonical form (if e.g. IPv6 address)
         self.port = int(net_addr.port)
         self.protocol = protocol
+        self.pubkey = pubkey
         self._net_addr_str = str(net_addr)
 
     @classmethod
     def from_str(cls, s: str) -> 'ServerAddr':
         # host might be IPv6 address, hence do rsplit:
-        host, port, protocol = str(s).rsplit(':', 2)
-        return ServerAddr(host=host, port=port, protocol=protocol)
+        s = str(s).rsplit(':', 3)
+        if len(s) == 4:
+            host, port, protocol, pubkey = s
+            assert protocol == 'b'
+        elif len(s) == 3:
+            host, port, protocol = s
+            pubkey = None
+        return ServerAddr(host=host, port=port, protocol=protocol, pubkey=pubkey)
 
     @classmethod
     def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
@@ -654,11 +663,26 @@ class Interface(Logger):
         return (self.network.interface == self or
                 self.network.interface is None and self.network.default_server == self.server)
 
+    #@log_exceptions
     async def open_session(self, sslc, exit_early=False):
         session_factory = lambda *args, iface=self, **kwargs: NotificationSession(*args, **kwargs, interface=iface)
-        async with _RSClient(session_factory=session_factory,
-                             host=self.host, port=self.port,
-                             ssl=sslc, proxy=self.proxy) as session:
+
+        def create_client():
+            if self.protocol == 'b':
+                peer_addr = LNPeerAddr(self.host, self.port, bytes.fromhex(self.server.pubkey))
+                bolt8_privkey = os.urandom(32)
+                return LNClient(
+                    privkey=bolt8_privkey,
+                    session_factory=session_factory,
+                    peer_addr=peer_addr,
+                    proxy=self.proxy)
+            else:
+                return _RSClient(
+                    session_factory=session_factory,
+                    host=self.host, port=self.port,
+                    ssl=sslc, proxy=self.proxy)
+
+        async with create_client() as session:
             self.session = session  # type: NotificationSession
             self.session.set_default_timeout(self.network.get_network_timeout_seconds(NetworkTimeout.Generic))
             try:
