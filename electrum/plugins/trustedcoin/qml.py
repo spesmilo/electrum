@@ -49,9 +49,6 @@ class Plugin(TrustedCoinPlugin):
         def __init__(self, plugin, parent):
             super().__init__(plugin, parent)
 
-        @pyqtSlot(result=str)
-        def settingsComponent(self): return '../../../plugins/trustedcoin/qml/Settings.qml'
-
         @pyqtProperty(str, notify=disclaimerChanged)
         def disclaimer(self):
             return '\n\n'.join(MOBILE_DISCLAIMER)
