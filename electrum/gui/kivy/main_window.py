@@ -947,7 +947,8 @@ class ElectrumWindow(App, Logger, EventListener):
         # see #6276 (specifically "method 2" and "method 3")
         from jnius import autoclass
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        PythonActivity.requestFocusForMainView()
+        activity = PythonActivity.mActivity
+        activity.requestFocusForMainView()
 
     def update_status(self, *dt):
         if not self.wallet:
