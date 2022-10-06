@@ -50,9 +50,9 @@ RUN curl --location --progress-bar \
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
 # get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_TOOLS_VERSION="8092744"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="30.0.3"
-ENV ANDROID_SDK_HASH="d71f75333d79c9c6ef5c39d3456c6c58c613de30e6a751ea0dbd433e8f8b9cbf"
+ENV ANDROID_SDK_TOOLS_VERSION="8512546"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="33.0.0"
+ENV ANDROID_SDK_HASH="2ccbda4302db862a28ada25aa7425d99dce9462046003c1714b059b5c47970d8"
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
 ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
@@ -79,7 +79,7 @@ RUN apt -y update -qq \
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 # download platforms, API, build tools
-RUN ${ANDROID_SDK_MANAGER} "platforms;android-30" > /dev/null && \
+RUN ${ANDROID_SDK_MANAGER} "platforms;android-31" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/cmdline-tools/bin/avdmanager"
