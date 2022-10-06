@@ -28,12 +28,12 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="22b"
-ENV ANDROID_NDK_HASH="ac3a0421e76f71dd330d0cd55f9d99b9ac864c4c034fc67e0d671d022d4e806b"
+ENV ANDROID_NDK_VERSION="25b"
+ENV ANDROID_NDK_HASH="403ac3e3020dd0db63a848dcaba6ceb2603bf64de90949d5c4361f848e44b005"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
-ENV ANDROID_NDK_ARCHIVE="android-ndk-r${ANDROID_NDK_VERSION}-linux-x86_64.zip"
+ENV ANDROID_NDK_ARCHIVE="android-ndk-r${ANDROID_NDK_VERSION}-linux.zip"
 ENV ANDROID_NDK_DL_URL="https://dl.google.com/android/repository/${ANDROID_NDK_ARCHIVE}"
 
 # download and install Android NDK
@@ -55,7 +55,7 @@ ENV ANDROID_SDK_BUILD_TOOLS_VERSION="30.0.3"
 ENV ANDROID_SDK_HASH="d71f75333d79c9c6ef5c39d3456c6c58c613de30e6a751ea0dbd433e8f8b9cbf"
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
-ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
+ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
 
 # download and install Android SDK
 RUN curl --location --progress-bar \
@@ -64,7 +64,6 @@ RUN curl --location --progress-bar \
     && echo "${ANDROID_SDK_HASH} ${ANDROID_SDK_TOOLS_ARCHIVE}" | sha256sum -c - \
     && mkdir --parents "${ANDROID_SDK_HOME}" \
     && unzip -q "${ANDROID_SDK_TOOLS_ARCHIVE}" -d "${ANDROID_SDK_HOME}" \
-    && mv "${ANDROID_SDK_HOME}/cmdline-tools" "${ANDROID_SDK_HOME}/tools" \
     && rm -rf "${ANDROID_SDK_TOOLS_ARCHIVE}"
 
 # update Android SDK, install Android API, Build Tools...
@@ -83,7 +82,7 @@ RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-30" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
-    chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
+    chmod +x "${ANDROID_SDK_HOME}/cmdline-tools/bin/avdmanager"
 
 # download ANT
 ENV APACHE_ANT_VERSION="1.9.4"
@@ -165,8 +164,8 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421
-    && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
+    # commit: from branch sombernight/202210_sdk_path
+    && git checkout "4267f066e6970b74bbffec63bdf54d3da130dcac^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # install python-for-android
@@ -176,8 +175,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/qt5-wip
-    && git checkout "c6e39ae1fb4eb8d547eb70b26b89beda7e6ff4b6^{commit}" \
+    # commit: from branch sombernight/electrum_20221006
+    && git checkout "6b8a15a4b488a2ebee7876576325bed013486983^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars

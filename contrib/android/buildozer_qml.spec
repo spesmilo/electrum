@@ -91,7 +91,7 @@ android.api = 30
 android.minapi = 21
 
 # (str) Android NDK version to use
-android.ndk = 22b
+android.ndk = 25b
 
 # (int) Android NDK API to use (optional). This is the minimum API your app will support.
 android.ndk_api = 21
@@ -165,9 +165,10 @@ android.manifest.launch_mode = singleTask
 # Don't forget to add the WAKE_LOCK permission if you set this to True
 #android.wakelock = False
 
-# (str) The Android arch to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
-# note: can be overwritten by APP_ANDROID_ARCH env var
-#android.arch = armeabi-v7a
+# (list) The Android archs to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
+# In past, was `android.arch` as we weren't supporting builds for multiple archs at the same time.
+# note: can be overwritten by APP_ANDROID_ARCHS env var
+#android.archs = arm64-v8a, armeabi-v7a
 
 # (list) Android application meta-data to set (key=value format)
 #android.meta_data =
