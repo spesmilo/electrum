@@ -80,7 +80,7 @@ class Peer(Logger):
             self,
             lnworker: Union['LNGossip', 'LNWallet'],
             pubkey: bytes,
-            transport: LNTransportBase,
+            transport: LNTransport,
             *, is_channel_backup= False):
 
         self.lnworker = lnworker
@@ -94,7 +94,7 @@ class Peer(Logger):
         self.querying = asyncio.Event()
         self.transport = transport
         self.pubkey = pubkey  # remote pubkey
-        self.privkey = self.transport.privkey  # local privkey
+        self.privkey = self.transport._privkey  # local privkey
         self.features = self.lnworker.features  # type: LnFeatures
         self.their_features = LnFeatures(0)  # type: LnFeatures
         self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
@@ -160,10 +160,7 @@ class Peer(Logger):
                 and self.initialized.result() is True)
 
     async def initialize(self):
-        # If outgoing transport, do handshake now. For incoming, it has already been done.
-        if isinstance(self.transport, LNTransport):
-            await self.transport.handshake()
-        self.logger.info(f"handshake done for {self.transport.peer_addr or self.pubkey.hex()}")
+        assert self.transport.handshake_done.is_set()
         features = self.features.for_init_message()
         b = int.bit_length(features)
         flen = b // 8 + int(bool(b % 8))
@@ -912,7 +909,7 @@ class Peer(Logger):
         )
         chan.storage['funding_inputs'] = [txin.prevout.to_json() for txin in funding_tx.inputs()]
         chan.storage['has_onchain_backup'] = has_onchain_backup
-        if isinstance(self.transport, LNTransport):
+        if not self.transport.is_listener():
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         sig_64, _ = chan.sign_next_commitment()
         self.temp_id_to_id[temp_channel_id] = channel_id
@@ -1107,7 +1104,7 @@ class Peer(Logger):
             opening_fee = channel_opening_fee,
         )
         chan.storage['init_timestamp'] = int(time.time())
-        if isinstance(self.transport, LNTransport):
+        if not self.transport.is_listener():
             chan.add_or_update_peer_addr(self.transport.peer_addr)
         remote_sig = funding_created['signature']
         try:
