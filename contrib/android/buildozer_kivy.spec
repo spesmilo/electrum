@@ -170,6 +170,15 @@ android.whitelist = lib-dynload/_csv.so
 # (bool) enables Android auto backup feature (Android API >=23)
 android.allow_backup = False
 
+# (bool) disables the compilation of py to pyc/pyo files when packaging
+# android.no-compile-pyo = True
+
+# (str) The format used to package the app for release mode (aab or apk or aar).
+android.release_artifact = apk
+
+# (str) The format used to package the app for debug mode (apk or aar).
+android.debug_artifact = apk
+
 #
 # Python for android (p4a) specific
 #
