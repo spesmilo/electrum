@@ -15,8 +15,6 @@ Wizard {
 
     property alias path: walletdb.path
 
-    enter: null // disable transition
-
     // State transition functions. These functions are called when the 'Next'
     // button is pressed. Depending on the data create the next page
     // in the conversation.

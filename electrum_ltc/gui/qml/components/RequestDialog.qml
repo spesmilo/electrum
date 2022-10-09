@@ -30,20 +30,6 @@ ElDialog {
         color: "#aa000000"
     }
 
-    header: RowLayout {
-        width: dialog.width
-        Label {
-            Layout.fillWidth: true
-            text: dialog.title
-            visible: dialog.title
-            elide: Label.ElideRight
-            padding: constants.paddingXLarge
-            bottomPadding: 0
-            font.bold: true
-            font.pixelSize: constants.fontSizeMedium
-        }
-    }
-
     Flickable {
         anchors.fill: parent
         contentHeight: rootLayout.height

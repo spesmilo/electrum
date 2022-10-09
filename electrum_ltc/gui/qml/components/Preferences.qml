@@ -19,207 +19,224 @@ Pane {
     ColumnLayout {
         anchors.fill: parent
 
-        TabBar {
-            id: tabbar
-            Layout.fillWidth: true
-            currentIndex: swipeview.currentIndex
-            TabButton {
-                text: qsTr('Preferences')
-                font.pixelSize: constants.fontSizeLarge
-            }
-            TabButton {
-                text: qsTr('Plugins')
-                font.pixelSize: constants.fontSizeLarge
-            }
-        }
-
-        SwipeView {
-            id: swipeview
-
+        Flickable {
             Layout.fillHeight: true
             Layout.fillWidth: true
-            currentIndex: tabbar.currentIndex
 
-            Flickable {
-                contentHeight: prefsPane.height
-                interactive: height < contentHeight
-                clip: true
+            contentHeight: prefsPane.height
+            interactive: height < contentHeight
+            clip: true
 
-                Pane {
-                    id: prefsPane
-                    GridLayout {
-                        columns: 2
-                        width: parent.width
+            Pane {
+                id: prefsPane
+                GridLayout {
+                    columns: 2
+                    width: parent.width
 
+                    Label {
+                        text: qsTr('Language')
+                    }
+
+                    ElComboBox {
+                        id: language
+                        enabled: false
+                    }
+
+                    Label {
+                        text: qsTr('Base unit')
+                    }
+
+                    ElComboBox {
+                        id: baseUnit
+                        model: _baseunits
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Config.baseUnit = currentValue
+                        }
+                    }
+
+                    Switch {
+                        id: thousands
+                        Layout.columnSpan: 2
+                        text: qsTr('Add thousands separators to litecoin amounts')
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.thousandsSeparator = checked
+                        }
+                    }
+
+                    Switch {
+                        id: checkSoftware
+                        Layout.columnSpan: 2
+                        text: qsTr('Automatically check for software updates')
+                        enabled: false
+                    }
+
+                    Switch {
+                        id: fiatEnable
+                        text: qsTr('Fiat Currency')
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Daemon.fx.enabled = checked
+                        }
+                    }
+
+                    ElComboBox {
+                        id: currencies
+                        model: Daemon.fx.currencies
+                        enabled: Daemon.fx.enabled
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Daemon.fx.fiatCurrency = currentValue
+                        }
+                    }
+
+                    Switch {
+                        id: historicRates
+                        text: qsTr('Historic rates')
+                        enabled: Daemon.fx.enabled
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Daemon.fx.historicRates = checked
+                        }
+                    }
+
+                    Label {
+                        text: qsTr('Source')
+                        enabled: Daemon.fx.enabled
+                    }
+
+                    ElComboBox {
+                        id: rateSources
+                        enabled: Daemon.fx.enabled
+                        model: Daemon.fx.rateSources
+                        onModelChanged: {
+                            currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
+                        }
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Daemon.fx.rateSource = currentValue
+                        }
+                    }
+
+                    Switch {
+                        id: spendUnconfirmed
+                        text: qsTr('Spend unconfirmed')
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.spendUnconfirmed = checked
+                        }
+                    }
+
+                    Switch {
+                        id: useRbf
+                        text: qsTr('Use Replace-By-Fee')
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.useRbf = checked
+                        }
+                    }
+
+                    Label {
+                        text: qsTr('Default request expiry')
+                        Layout.fillWidth: false
+                    }
+
+                    RequestExpiryComboBox {
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Config.requestExpiry = currentValue
+                        }
+                    }
+
+                    Label {
+                        text: qsTr('PIN')
+                    }
+
+                    RowLayout {
                         Label {
-                            text: qsTr('Language')
+                            text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
+                            color: Material.accentColor
+                            Layout.rightMargin: constants.paddingMedium
                         }
-
-                        ElComboBox {
-                            id: language
-                            enabled: false
-                        }
-
-                        Label {
-                            text: qsTr('Base unit')
-                        }
-
-                        ElComboBox {
-                            id: baseUnit
-                            model: _baseunits
-                            onCurrentValueChanged: {
-                                if (activeFocus)
-                                    Config.baseUnit = currentValue
+                        Button {
+                            text: qsTr('Enable')
+                            visible: Config.pinCode == ''
+                            onClicked: {
+                                var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
+                                dialog.accepted.connect(function() {
+                                    Config.pinCode = dialog.pincode
+                                    dialog.close()
+                                })
+                                dialog.open()
                             }
                         }
-
-                        Switch {
-                            id: thousands
-                            Layout.columnSpan: 2
-                            text: qsTr('Add thousands separators to litecoin amounts')
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.thousandsSeparator = checked
+                        Button {
+                            text: qsTr('Change')
+                            visible: Config.pinCode != ''
+                            onClicked: {
+                                var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
+                                dialog.accepted.connect(function() {
+                                    Config.pinCode = dialog.pincode
+                                    dialog.close()
+                                })
+                                dialog.open()
                             }
                         }
-
-                        Switch {
-                            id: checkSoftware
-                            Layout.columnSpan: 2
-                            text: qsTr('Automatically check for software updates')
-                            enabled: false
-                        }
-
-                        Switch {
-                            id: fiatEnable
-                            text: qsTr('Fiat Currency')
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Daemon.fx.enabled = checked
-                            }
-                        }
-
-                        ElComboBox {
-                            id: currencies
-                            model: Daemon.fx.currencies
-                            enabled: Daemon.fx.enabled
-                            onCurrentValueChanged: {
-                                if (activeFocus)
-                                    Daemon.fx.fiatCurrency = currentValue
-                            }
-                        }
-
-                        Switch {
-                            id: historicRates
-                            text: qsTr('Historic rates')
-                            enabled: Daemon.fx.enabled
-                            Layout.columnSpan: 2
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Daemon.fx.historicRates = checked
-                            }
-                        }
-
-                        Label {
-                            text: qsTr('Source')
-                            enabled: Daemon.fx.enabled
-                        }
-
-                        ElComboBox {
-                            id: rateSources
-                            enabled: Daemon.fx.enabled
-                            model: Daemon.fx.rateSources
-                            onModelChanged: {
-                                currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
-                            }
-                            onCurrentValueChanged: {
-                                if (activeFocus)
-                                    Daemon.fx.rateSource = currentValue
-                            }
-                        }
-
-                        Switch {
-                            id: spendUnconfirmed
-                            text: qsTr('Spend unconfirmed')
-                            Layout.columnSpan: 2
-                            onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.spendUnconfirmed = checked
-                            }
-                        }
-
-                        Label {
-                            text: qsTr('PIN')
-                        }
-
-                        RowLayout {
-                            Label {
-                                text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
-                                color: Material.accentColor
-                                Layout.rightMargin: constants.paddingMedium
-                            }
-                            Button {
-                                text: qsTr('Enable')
-                                visible: Config.pinCode == ''
-                                onClicked: {
-                                    var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
-                                    dialog.accepted.connect(function() {
-                                        Config.pinCode = dialog.pincode
-                                        dialog.close()
-                                    })
-                                    dialog.open()
-                                }
-                            }
-                            Button {
-                                text: qsTr('Change')
-                                visible: Config.pinCode != ''
-                                onClicked: {
-                                    var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
-                                    dialog.accepted.connect(function() {
-                                        Config.pinCode = dialog.pincode
-                                        dialog.close()
-                                    })
-                                    dialog.open()
-                                }
-                            }
-                            Button {
-                                text: qsTr('Remove')
-                                visible: Config.pinCode != ''
-                                onClicked: {
-                                    Config.pinCode = ''
-                                }
-                            }
-                        }
-
-                        Label {
-                            text: qsTr('Lightning Routing')
-                        }
-
-                        ElComboBox {
-                            id: lnRoutingType
-                            enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
-
-                            valueRole: 'key'
-                            textRole: 'label'
-                            model: ListModel {
-                                ListElement { key: 'gossip'; label: qsTr('Gossip') }
-                                ListElement { key: 'trampoline'; label: qsTr('Trampoline') }
-                            }
-                            onCurrentValueChanged: {
-                                if (activeFocus)
-                                    Config.useGossip = currentValue == 'gossip'
+                        Button {
+                            text: qsTr('Remove')
+                            visible: Config.pinCode != ''
+                            onClicked: {
+                                Config.pinCode = ''
                             }
                         }
                     }
 
-                }
-            }
+                    Label {
+                        text: qsTr('Lightning Routing')
+                    }
 
-            Pane {
-                ColumnLayout {
-                    x: constants.paddingXXLarge
-                    id: pluginsRootLayout
+                    ElComboBox {
+                        id: lnRoutingType
+                        enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
+
+                        valueRole: 'key'
+                        textRole: 'label'
+                        model: ListModel {
+                            ListElement { key: 'gossip'; label: qsTr('Gossip') }
+                            ListElement { key: 'trampoline'; label: qsTr('Trampoline') }
+                        }
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Config.useGossip = currentValue == 'gossip'
+                        }
+                    }
+
+                    Switch {
+                        id: useRecoverableChannels
+                        text: qsTr('Create recoverable channels')
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.useRecoverableChannels = checked
+                        }
+                    }
+
+                    Switch {
+                        id: useFallbackAddress
+                        text: qsTr('Use onchain fallback address for Lightning invoices')
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.useFallbackAddress = checked
+                        }
+                    }
+
                 }
+
             }
         }
 
@@ -228,30 +245,6 @@ Pane {
     Component {
         id: pinSetup
         Pin {}
-    }
-
-    Component {
-        id: pluginHeader
-        RowLayout {
-            Layout.leftMargin: -constants.paddingXXLarge
-            property string name
-            property string fullname
-            property bool pluginEnabled
-            Switch {
-                checked: pluginEnabled
-                onCheckedChanged: {
-                    if (activeFocus)
-                        pluginEnabled = checked
-                }
-            }
-            Label {
-                text: fullname
-            }
-            onPluginEnabledChanged: {
-                console.log('!')
-                AppController.setPluginEnabled(name, pluginEnabled)
-            }
-        }
     }
 
     Component.onCompleted: {
@@ -263,18 +256,7 @@ Pane {
         fiatEnable.checked = Daemon.fx.enabled
         spendUnconfirmed.checked = Config.spendUnconfirmed
         lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
-
-        var plugins = AppController.plugins
-        for (var i=0; i<plugins.length; i++) {
-            var p = plugins[i]
-            pluginHeader.createObject(pluginsRootLayout, { name: p['name'], fullname: p['fullname'], pluginEnabled: p['enabled'] })
-            var labelsPlugin = AppController.plugin(p['name'])
-            if (labelsPlugin) {
-                if (labelsPlugin.settingsComponent()) {
-                    var component = Qt.createComponent(Qt.resolvedUrl(labelsPlugin.settingsComponent()))
-                    component.createObject(pluginsRootLayout, { plugin: labelsPlugin })
-                }
-            }
-        }
+        useFallbackAddress.checked = Config.useFallbackAddress
+        useRbf.checked = Config.useRbf
     }
 }

@@ -45,6 +45,7 @@ class LNURL6Data(NamedTuple):
     max_sendable_sat: int
     min_sendable_sat: int
     metadata_plaintext: str
+    comment_allowed: int
     #tag: str = "payRequest"
 
 
@@ -52,12 +53,15 @@ async def _request_lnurl(url: str) -> dict:
     """Requests payment data from a lnurl."""
     try:
         response = await Network.async_send_http_on_proxy("get", url, timeout=10)
+        response = json.loads(response)
     except asyncio.TimeoutError as e:
         raise LNURLError("Server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
+    except json.JSONDecodeError:
+        raise LNURLError(f"Invalid response from server")
     # TODO: handling of specific client errors
-    response = json.loads(response)
+
     if "metadata" in response:
         response["metadata"] = json.loads(response["metadata"])
     status = response.get("status")
@@ -81,6 +85,7 @@ async def request_lnurl(url: str) -> LNURL6Data:
         max_sendable_sat=int(lnurl_dict['maxSendable']) // 1000,
         min_sendable_sat=int(lnurl_dict['minSendable']) // 1000,
         metadata_plaintext=metadata_plaintext,
+        comment_allowed=int(lnurl_dict['commentAllowed']) if 'commentAllowed' in lnurl_dict else 0
     )
     return data
 

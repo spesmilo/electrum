@@ -27,7 +27,7 @@ ApplicationWindow
 
     property alias stack: mainStackView
 
-    property Dialog activeDialog: null
+    property variant activeDialogs: []
 
     header: ToolBar {
         id: toolbar
@@ -118,6 +118,10 @@ ApplicationWindow
         anchors.fill: parent
 
         initialItem: Qt.resolvedUrl('WalletMainView.qml')
+
+        function getRoot() {
+            return mainStackView.get(0)
+        }
     }
 
     Timer {
@@ -221,17 +225,38 @@ ApplicationWindow
                 app.visible = false
                 Qt.callLater(Qt.quit)
             })
+            dialog.accepted.connect(function() {
+                var newww = app.newWalletWizard.createObject(app)
+                newww.walletCreated.connect(function() {
+                    Daemon.availableWallets.reload()
+                    // and load the new wallet
+                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                })
+                newww.open()
+            })
             dialog.open()
         } else {
-            Daemon.load_wallet()
+            if (Daemon.availableWallets.rowCount() > 0) {
+                Daemon.load_wallet()
+            } else {
+                var newww = app.newWalletWizard.createObject(app)
+                newww.walletCreated.connect(function() {
+                    Daemon.availableWallets.reload()
+                    // and load the new wallet
+                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                })
+                newww.open()
+            }
         }
     }
 
     onClosing: {
-        if (activeDialog) {
-            console.log('dialog on top')
+        if (activeDialogs.length > 0) {
+            var activeDialog = activeDialogs[activeDialogs.length - 1]
             if (activeDialog.allowClose) {
                 activeDialog.close()
+            } else {
+                console.log('dialog disallowed close')
             }
             close.accepted = false
             return
