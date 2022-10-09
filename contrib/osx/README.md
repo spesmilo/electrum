@@ -57,6 +57,9 @@ Before starting, you should install [`brew`](https://brew.sh/).
     $ xcrun --show-sdk-path
     /Library/Developer/CommandLineTools/SDKs/MacOSX10.14.sdk
     ```
+- Installing extraneous brew packages can result in build differences.
+  For example, pyinstaller seems to pick up and bundle brew-installed `libffi`.
+  So having a dedicated "electrum binary builder macOS VM" is recommended.
 - Make sure that you are building from a fresh clone of electrum
   (or run e.g. `git clean -ffxd` to rm all local changes).
 
@@ -100,17 +103,17 @@ $ hdiutil detach "/Volumes/Command Line Developer Tools"
 #### 2. Build Electrum-LTC
 
     cd electrum-ltc
-    ./contrib/osx/make_osx
+    ./contrib/osx/make_osx.sh
 
 This creates both a folder named Electrum-LTC.app and the .dmg file.
 
 If you want the binaries codesigned for MacOS and notarised by Apple's central server,
-provide these env vars to the `make_osx` script:
+provide these env vars to the `make_osx.sh` script:
 
     CODESIGN_CERT="Developer ID Application: Electrum Technologies GmbH (L6P37P7P56)" \
     APPLE_ID_USER="me@email.com" \
     APPLE_ID_PASSWORD="1234" \
-    ./contrib/osx/make_osx
+    ./contrib/osx/make_osx.sh
 
 
 ## Verifying reproducibility and comparing against official binary

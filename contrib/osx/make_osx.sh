@@ -4,6 +4,7 @@ set -e
 
 # Parameterize
 PYTHON_VERSION=3.9.11
+PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PACKAGE=Electrum-LTC
 GIT_REPO=https://github.com/pooler/electrum-ltc
 
@@ -72,7 +73,7 @@ if [ ! -f "$CACHEDIR/$PKG_FILE" ]; then
     curl -o "$CACHEDIR/$PKG_FILE" "https://www.python.org/ftp/python/${PYTHON_VERSION}/$PKG_FILE"
 fi
 echo "c2073d44c404c661dadbf0cbda55c6e7d681baba9178ed1bdb126d34caa898a9  $CACHEDIR/$PKG_FILE" | shasum -a 256 -c \
-     || fail "python pkg checksum mismatched"
+    || fail "python pkg checksum mismatched"
 sudo installer -pkg "$CACHEDIR/$PKG_FILE" -target / \
     || fail "failed to install python"
 
@@ -93,13 +94,23 @@ source $VENV_DIR/bin/activate
 
 # don't add debug info to compiled C files (e.g. when pip calls setuptools/wheel calls gcc)
 # see https://github.com/pypa/pip/issues/6505#issuecomment-526613584
+# note: this does not seem sufficient when cython is involved (although it is on linux, just not on mac... weird.)
+#       see additional "strip" pass on built files later in the file.
 export CFLAGS="-g0"
 
 info "Installing build dependencies"
+# note: re pip installing from PyPI,
+#       we prefer compiling C extensions ourselves, instead of using binary wheels,
+#       hence "--no-binary :all:" flags. However, we specifically allow
+#       - PyQt5, as it's harder to build from source
+#       - cryptography, as it's harder to build from source
+#       - the whole of "requirements-build-base.txt", which includes pip and friends, as it also includes "wheel",
+#         and I am not quite sure how to break the circular dependence there (I guess we could introduce
+#         "requirements-build-base-base.txt" with just wheel in it...)
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-build-base.txt \
     || fail "Could not install build dependencies (base)"
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-build-mac.txt \
     || fail "Could not install build dependencies (mac)"
 
@@ -192,12 +203,14 @@ cp "$PROJECT_ROOT"/electrum_ltc/libusb-1.0.dylib "$CONTRIB"/osx
 
 
 info "Installing requirements..."
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: \
+    --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements.txt \
     || fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary cryptography \
+    --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-hw.txt \
     || fail "Could not install hardware wallet requirements"
 
@@ -205,7 +218,8 @@ info "Installing dependencies specific to binaries..."
 brew install openssl
 export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"
 export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --only-binary PyQt5,PyQt5-Qt5,cryptography,scrypt \
+    --no-warn-script-location \
     -Ir ./contrib/deterministic-build/requirements-binaries-mac.txt \
     || fail "Could not install dependencies specific to binaries"
 
@@ -213,10 +227,15 @@ info "Building $PACKAGE..."
 python3 -m pip install --no-build-isolation --no-dependencies \
     --no-warn-script-location . > /dev/null || fail "Could not build $PACKAGE"
 
+# strip debug symbols of some compiled libs
+# - hidapi (hid.cpython-39-darwin.so) in particular is not reproducible without this
+find "$VENV_DIR/lib/python$PY_VER_MAJOR/site-packages/" -type f -name '*.so' -print0 \
+    | xargs -0 -t strip -x
+
 info "Faking timestamps..."
 find . -exec touch -t '200101220000' {} + || true
 
-VERSION=`git describe --tags --dirty --always`
+VERSION=$(git describe --tags --dirty --always)
 
 info "Building binary"
 ELECTRUM_VERSION=$VERSION pyinstaller --noconfirm --ascii --clean contrib/osx/osx.spec || fail "Could not build binary"

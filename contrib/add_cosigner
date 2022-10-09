@@ -8,7 +8,7 @@
 # - BUILDER creates a PR against https://github.com/spesmilo/electrum-signatures/
 #   to add their sigs for a given release, which then gets merged
 # - SFTPUSER runs `$ electrum/contrib/add_cosigner $BUILDER`
-# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/upload`
+# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/upload.sh`
 # - SFTPUSER runs `$ electrum/contrib/make_download $WWW_DIR`
 # -     $ (cd $WWW_DIR; git commit -a -m "add_cosigner"; git push)
 # - SFTPUSER runs `$ electrum-web/publish.sh $SFTPUSER`

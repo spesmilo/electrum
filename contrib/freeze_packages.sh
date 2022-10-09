@@ -13,7 +13,7 @@ else
     SYSTEM_PYTHON=$(which $SYSTEM_PYTHON) || printf ""
 fi
 if [[ ! "$SYSTEM_PYTHON" ]] ; then
-    echo "Please specify which python to use in \$SYSTEM_PYTHON" && exit 1;
+    echo "Please specify which python to use in \$SYSTEM_PYTHON" && exit 1
 fi
 
 which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }

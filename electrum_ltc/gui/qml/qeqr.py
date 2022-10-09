@@ -44,7 +44,7 @@ class QEQRParser(QObject):
         self._busy = True
         self.busyChanged.emit()
 
-        self.logImageStats(image)
+        # self.logImageStats(image)
         self._parseQR(image)
 
     def logImageStats(self, image):

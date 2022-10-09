@@ -74,7 +74,7 @@ docker run -it --rm \
     $DOCKER_RUN_FLAGS \
     --workdir /home/user/wspace/electrum \
     electrum-android-builder-img \
-    ./contrib/android/make_apk "$@"
+    ./contrib/android/make_apk.sh "$@"
 
 # make sure resulting binary location is independent of fresh_clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then

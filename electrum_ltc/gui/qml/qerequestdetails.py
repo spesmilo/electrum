@@ -155,6 +155,6 @@ class QERequestDetails(QObject):
 
     @pyqtSlot()
     def updateStatusString(self):
-        self.statusStringChanged.emit()
+        self.statusChanged.emit()
         self.initStatusStringTimer()
 

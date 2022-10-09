@@ -63,9 +63,19 @@ elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
 fi
 
 
-VERSION=`python3 -c "import electrum_ltc; print(electrum_ltc.version.ELECTRUM_VERSION)"`
+if [ ! -z "$RELEASEMANAGER" ] ; then
+    echo -n "Code signing passphrase:"
+    read -s password
+    # tests password against keystore
+    keytool -list -storepass $password
+    # the same password is used for windows signing
+    export WIN_SIGNING_PASSWORD=$password
+fi
+
+
+VERSION=$(python3 -c "import electrum_ltc; print(electrum_ltc.version.ELECTRUM_VERSION)")
 info "VERSION: $VERSION"
-REV=`git describe --tags`
+REV=$(git describe --tags)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 
@@ -85,7 +95,7 @@ tarball="Electrum-LTC-$VERSION.tar.gz"
 if test -f "dist/$tarball"; then
     info "file exists: $tarball"
 else
-   ./contrib/build-linux/sdist/build.sh
+    ./contrib/build-linux/sdist/build.sh
 fi
 
 # create source-only tarball
@@ -93,7 +103,7 @@ srctarball="Electrum-LTC-sourceonly-$VERSION.tar.gz"
 if test -f "dist/$srctarball"; then
     info "file exists: $srctarball"
 else
-   OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
+    OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
 fi
 
 # appimage
@@ -137,7 +147,7 @@ if test -f "dist/$apk1"; then
     info "file exists: $apk1"
 else
     if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh kivy all release
+        ./contrib/android/build.sh kivy all release $password
     else
         ./contrib/android/build.sh kivy all release-unsigned
         mv "dist/$apk1_unsigned" "dist/$apk1"
@@ -174,7 +184,7 @@ sha256sum contrib/build-wine/dist/*.exe
 echo -n "proceed (y/n)? "
 read answer
 
-if [ "$answer" != "y" ] ;then
+if [ "$answer" != "y" ]; then
     echo "exit"
     exit 1
 fi
@@ -230,7 +240,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
     # upload sigs
-    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload"
+    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload.sh"
 
 else
     # ONLY release manager
@@ -240,7 +250,7 @@ else
     info "updating www repo"
     ./contrib/make_download $WWW_DIR
     info "signing the version announcement file"
-    sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
+    sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
     echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
 
 
@@ -252,7 +262,7 @@ else
     if test -f dist/uploaded; then
         info "files already uploaded"
     else
-        ./contrib/upload
+        ./contrib/upload.sh
         touch dist/uploaded
     fi
 
