@@ -50,12 +50,6 @@ ElDialog {
             }
         ]
 
-        Rectangle {
-            height: 1
-            Layout.fillWidth: true
-            color: Material.accentColor
-        }
-
         Item {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: constants.paddingSmall
@@ -162,7 +156,8 @@ ElDialog {
 
         Rectangle {
             height: 1
-            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: qrloader.width
             color: Material.accentColor
         }
 
