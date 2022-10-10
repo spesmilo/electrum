@@ -297,6 +297,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                     except ErrorAddingPeer as e:
                         self.logger.info(f"failed to add peer: {peer}. exc: {e!r}")
 
+    @log_exceptions
     async def _add_peer(self, host: str, port: int, node_id: bytes) -> Peer:
         if node_id in self._peers:
             return self._peers[node_id]
@@ -306,25 +307,29 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f"adding peer {peer_addr}")
         if node_id == self.node_keypair.pubkey:
             raise ErrorAddingPeer("cannot connect to self")
-        connector = self.network.proxy or self.network.asyncio_loop
-        protocol_factory = partial(LNTransport, LNSession, self.node_keypair.privkey, peer_addr=peer_addr)
-        asyncio_transport, protocol = await connector.create_connection(protocol_factory, peer_addr.host, peer_addr.port)
-        await protocol.handshake_done.wait()
-        peer = await self._add_peer_from_transport(node_id=node_id, transport=protocol)
-        return peer
+        session_factory = partial(Peer, self, node_id)
+        async with LNClient(
+                privkey=self.node_keypair.privkey,
+                session_factory=session_factory,
+                peer_addr=peer_addr,
+                proxy=self.network.proxy,
+                loop=self.network.asyncio_loop) as peer:
+            await self._add_peer_from_transport(node_id=node_id, peer=peer)
+            return peer
 
-    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransport) -> Peer:
-        peer = Peer(self, node_id, transport)
+    async def _add_peer_from_transport(self, *, node_id: bytes, peer: Peer) -> Peer:
         with self.lock:
             existing_peer = self._peers.get(node_id)
             if existing_peer:
+                self.logger.info(f"peer already exists {peer.pubkey}")
                 existing_peer.close_and_cleanup()
             assert node_id not in self._peers
             self._peers[node_id] = peer
         await self.taskgroup.spawn(peer.main_loop())
-        return peer
+
 
     def peer_closed(self, peer: Peer) -> None:
+        self.logger.info(f"peer closed {peer.pubkey}")
         with self.lock:
             peer2 = self._peers.get(peer.pubkey)
             if peer2 is peer:

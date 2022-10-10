@@ -62,7 +62,9 @@ if TYPE_CHECKING:
 LN_P2P_NETWORK_TIMEOUT = 20
 
 
-class Peer(Logger):
+from .lntransport import LNSession
+
+class Peer(Logger, LNSession):
     LOGGING_SHORTCUT = 'P'
 
     ORDERED_MESSAGES = (
@@ -79,6 +81,7 @@ class Peer(Logger):
             transport: LNTransport,
             *, is_channel_backup= False):
 
+        LNSession.__init__(self, transport)
         self.lnworker = lnworker
         self.network = lnworker.network
         self.asyncio_loop = self.network.asyncio_loop
@@ -572,12 +575,13 @@ class Peer(Logger):
             await asyncio.wait_for(self.initialize(), LN_P2P_NETWORK_TIMEOUT)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
-        async for msg in self.transport.read_messages():
-            self.process_message(msg)
-            if self.DELAY_INC_MSG_PROCESSING_SLEEP:
-                # rate-limit message-processing a bit, to make it harder
-                # for a single peer to bog down the event loop / cpu:
-                await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
+        #async for msg in self.transport.read_messages():
+        #    print(('uu', msg))
+        #    self.process_message(msg)
+        #    if self.DELAY_INC_MSG_PROCESSING_SLEEP:
+        #        # rate-limit message-processing a bit, to make it harder
+        #        # for a single peer to bog down the event loop / cpu:
+        #        await asyncio.sleep(self.DELAY_INC_MSG_PROCESSING_SLEEP)
 
     def on_reply_short_channel_ids_end(self, payload):
         self.querying.set()

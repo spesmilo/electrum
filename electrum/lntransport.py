@@ -43,7 +43,21 @@ class QueueFramer(FramerBase):
 
 
 class LNSession(SessionBase):
-    pass
+
+    @log_exceptions
+    async def _process_messages_loop(self, recv_message):
+        while True:
+            try:
+                msg = await recv_message()
+            except Exception as e:
+                self.logger.error(f'{e}')
+                self._bump_errors(e)
+                await self._group.spawn(self.close)
+                await sleep(0.001)
+            else:
+                print(('uu', msg))
+                if msg:
+                    await self.process_message(msg)
 
 
 class HandshakeState(object):
@@ -182,11 +196,6 @@ class LNTransport(RSTransport, Logger):
                         break
                 await self._data_received.wait()
                 self._data_received.clear()
-
-    async def read_messages(self):
-        while True:
-            msg = await self.receive_message()
-            yield msg
 
     def rn(self):
         o = self._rn, self.rk
