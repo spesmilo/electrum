@@ -260,11 +260,14 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
                 return
             def session_factory(transport):
+                node_id = transport.remote_pubkey()
+                peer = Peer(self, node_id, transport)
                 async def coro():
                     await transport.handshake_done.wait()
-                    await self._add_peer_from_transport(node_id=transport._remote_pubkey, transport=transport)
+                    await self._add_peer_from_transport(node_id=node_id, peer=peer)
+                    await self.taskgroup.spawn(peer.main_loop())
                 asyncio.run_coroutine_threadsafe(coro(), self.network.asyncio_loop)
-                return LNSession(transport)
+                return peer
             try:
                 self.listen_server = await create_bolt8_server(self.node_keypair.privkey, session_factory, str(netaddr.host), netaddr.port)
             except OSError as e:
@@ -307,15 +310,21 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f"adding peer {peer_addr}")
         if node_id == self.node_keypair.pubkey:
             raise ErrorAddingPeer("cannot connect to self")
-        session_factory = partial(Peer, self, node_id)
-        async with LNClient(
-                privkey=self.node_keypair.privkey,
-                session_factory=session_factory,
-                peer_addr=peer_addr,
-                proxy=self.network.proxy,
-                loop=self.network.asyncio_loop) as peer:
-            await self._add_peer_from_transport(node_id=node_id, peer=peer)
-            return peer
+        future = asyncio.Future()
+        async def run_peer():
+            session_factory = partial(Peer, self, node_id)
+            async with LNClient(
+                    privkey=self.node_keypair.privkey,
+                    session_factory=session_factory,
+                    peer_addr=peer_addr,
+                    proxy=self.network.proxy,
+                    loop=self.network.asyncio_loop) as peer:
+                await self._add_peer_from_transport(node_id=node_id, peer=peer)
+                future.set_result(peer)
+                await peer.main_loop()
+        await self.taskgroup.spawn(run_peer())
+        peer = await future
+        return peer
 
     async def _add_peer_from_transport(self, *, node_id: bytes, peer: Peer) -> Peer:
         with self.lock:
@@ -325,8 +334,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 existing_peer.close_and_cleanup()
             assert node_id not in self._peers
             self._peers[node_id] = peer
-        await self.taskgroup.spawn(peer.main_loop())
-
+            return peer
 
     def peer_closed(self, peer: Peer) -> None:
         self.logger.info(f"peer closed {peer.pubkey}")

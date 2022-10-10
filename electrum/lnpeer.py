@@ -194,7 +194,7 @@ class Peer(Logger, LNSession):
             self.pong_event.clear()
             await self.pong_event.wait()
 
-    def process_message(self, message):
+    async def process_message(self, message):
         try:
             message_type, payload = decode_msg(message)
         except UnknownOptionalMsgType as e:

@@ -55,7 +55,6 @@ class LNSession(SessionBase):
                 await self._group.spawn(self.close)
                 await sleep(0.001)
             else:
-                print(('uu', msg))
                 if msg:
                     await self.process_message(msg)
 
