@@ -672,6 +672,7 @@ class Interface(Logger):
                 peer_addr = LNPeerAddr(self.host, self.port, bytes.fromhex(self.server.pubkey))
                 bolt8_privkey = os.urandom(32)
                 return LNClient(
+                    prologue=b'electrum',
                     privkey=bolt8_privkey,
                     session_factory=session_factory,
                     peer_addr=peer_addr,

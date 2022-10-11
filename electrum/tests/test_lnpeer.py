@@ -300,7 +300,7 @@ class PutIntoOthersQueueTransport(MockTransport):
     def __init__(self, keypair, name):
         super().__init__(name)
         self.other_mock_transport = None
-        self.privkey = keypair.privkey
+        self._privkey = keypair.privkey
 
     def send_bytes(self, data):
         self.other_mock_transport.queue.put_nowait(data)

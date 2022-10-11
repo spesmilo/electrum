@@ -47,11 +47,11 @@ class LNSession(SessionBase):
 
 
 class HandshakeState(object):
-    prologue = b"lightning"
     protocol_name = b"Noise_XK_secp256k1_ChaChaPoly_SHA256"
     handshake_version = b"\x00"
 
-    def __init__(self, responder_pub):
+    def __init__(self, prologue, responder_pub):
+        self.prologue = prologue
         self.responder_pub = responder_pub
         self.h = sha256(self.protocol_name)
         self.ck = self.h
@@ -117,16 +117,23 @@ def create_ephemeral_key() -> (bytes, bytes):
     return privkey.get_secret_bytes(), privkey.get_public_key_bytes()
 
 
+MSG_SIZE_LEN = {
+    b'lightning': 2,
+    b'electrum': 4,
+}
+
 class LNTransport(RSTransport, Logger):
 
     _privkey: bytes
     _remote_pubkey: bytes
 
-    def __init__(self, session_factory, privkey, peer_addr=None):
+    def __init__(self, prologue, session_factory, privkey, peer_addr=None):
         framer = QueueFramer()
         kind = SessionKind.SERVER if peer_addr is None else SessionKind.CLIENT
         self.peer_addr = peer_addr # todo: remove this, pass only pubkey
         self._remote_pubkey = peer_addr.pubkey if peer_addr else None
+        self.prologue = prologue
+        self.msg_size_len = MSG_SIZE_LEN[prologue]
 
         Logger.__init__(self)
         RSTransport.__init__(self, session_factory, framer, kind)
@@ -152,10 +159,10 @@ class LNTransport(RSTransport, Logger):
         self.send_bytes(message)
 
     def send_bytes(self, msg: bytes) -> None:
-        l = len(msg).to_bytes(2, 'big')
+        l = len(msg).to_bytes(self.msg_size_len, 'big')
         lc = aead_encrypt(self.sk, self.sn(), b'', l)
         c = aead_encrypt(self.sk, self.sn(), b'', msg)
-        assert len(lc) == 18
+        assert len(lc) == 16 + self.msg_size_len
         assert len(c) == len(msg) + 16
         self._asyncio_transport.write(lc+c)
 
@@ -165,17 +172,18 @@ class LNTransport(RSTransport, Logger):
             await self.listener_handshake()
         else:
             await self.handshake()
+        header_length = 16 + self.msg_size_len
         while True:
             rn_l, rk_l = self.rn()
             rn_m, rk_m = self.rn()
             while True:
-                if len(self._data) >= 18:
-                    lc = bytes(self._data[:18])
+                if len(self._data) >= header_length:
+                    lc = bytes(self._data[:header_length])
                     l = aead_decrypt(rk_l, rn_l, b'', lc)
                     length = int.from_bytes(l, 'big')
-                    offset = 18 + length + 16
+                    offset = header_length + length + 16
                     if len(self._data) >= offset:
-                        c = bytes(self._data[18:offset])
+                        c = bytes(self._data[header_length:offset])
                         del self._data[:offset]  # much faster than: buffer=buffer[offset:]
                         msg = aead_decrypt(rk_m, rn_m, b'', c)
                         self._framer.received_message(msg)
@@ -211,7 +219,7 @@ class LNTransport(RSTransport, Logger):
         self.s_ck = ck
 
     async def listener_handshake(self, **kwargs):
-        hs = HandshakeState(privkey_to_pubkey(self._privkey))
+        hs = HandshakeState(self.prologue, privkey_to_pubkey(self._privkey))
         act1 = b''
         while len(act1) < 50:
             buf = await self.read_data(50 - len(act1))
@@ -278,7 +286,7 @@ class LNTransport(RSTransport, Logger):
 
     async def handshake(self):
         assert self._remote_pubkey is not None
-        hs = HandshakeState(self._remote_pubkey)
+        hs = HandshakeState(self.prologue, self._remote_pubkey)
         # Get a new ephemeral key
         epriv, epub = create_ephemeral_key()
         msg, _temp_k1 = act1_initiator_message(hs, epriv, epub)
@@ -333,14 +341,14 @@ class LNTransport(RSTransport, Logger):
 
 class LNClient:
 
-    def __init__(self, privkey, session_factory, peer_addr, proxy=None, loop=None):
+    def __init__(self, prologue, privkey, session_factory, peer_addr, proxy=None, loop=None):
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
         self.peer_addr = peer_addr
         self.proxy = MySocksProxy.from_proxy_dict(proxy) if proxy else None
         self.loop = loop or asyncio.get_running_loop()
         self.session_factory = session_factory
-        self.protocol_factory = partial(LNTransport, self.session_factory, self.privkey, peer_addr=self.peer_addr)
+        self.protocol_factory = partial(LNTransport, prologue, self.session_factory, self.privkey, peer_addr=self.peer_addr)
 
     @log_exceptions
     async def create_connection(self):
@@ -358,7 +366,7 @@ class LNClient:
 
 
 
-async def create_bolt8_server(privkey, session_factory, host=None, port=None, *, loop=None, **kwargs):
+async def create_bolt8_server(prologue, privkey, session_factory, host=None, port=None, *, loop=None, **kwargs):
     loop = loop or asyncio.get_event_loop()
-    protocol_factory = partial(LNTransport, session_factory, privkey)
+    protocol_factory = partial(LNTransport, prologue, session_factory, privkey)
     return await loop.create_server(protocol_factory, host, port)

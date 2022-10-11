@@ -266,7 +266,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 asyncio.run_coroutine_threadsafe(coro(), self.network.asyncio_loop)
                 return LNSession(transport)
             try:
-                self.listen_server = await create_bolt8_server(self.node_keypair.privkey, session_factory, str(netaddr.host), netaddr.port)
+                self.listen_server = await create_bolt8_server(b'lightning', self.node_keypair.privkey, session_factory, str(netaddr.host), netaddr.port)
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
@@ -307,7 +307,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         if node_id == self.node_keypair.pubkey:
             raise ErrorAddingPeer("cannot connect to self")
         connector = self.network.proxy or self.network.asyncio_loop
-        protocol_factory = partial(LNTransport, LNSession, self.node_keypair.privkey, peer_addr=peer_addr)
+        protocol_factory = partial(LNTransport, b'lightning', LNSession, self.node_keypair.privkey, peer_addr=peer_addr)
         asyncio_transport, protocol = await connector.create_connection(protocol_factory, peer_addr.host, peer_addr.port)
         await protocol.handshake_done.wait()
         peer = await self._add_peer_from_transport(node_id=node_id, transport=protocol)
