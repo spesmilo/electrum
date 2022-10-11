@@ -127,13 +127,14 @@ class LNTransport(RSTransport, Logger):
     _privkey: bytes
     _remote_pubkey: bytes
 
-    def __init__(self, prologue, session_factory, privkey, peer_addr=None):
+    def __init__(self, prologue, session_factory, privkey, peer_addr=None, whitelist=None):
         framer = QueueFramer()
         kind = SessionKind.SERVER if peer_addr is None else SessionKind.CLIENT
         self.peer_addr = peer_addr # todo: remove this, pass only pubkey
         self._remote_pubkey = peer_addr.pubkey if peer_addr else None
         self.prologue = prologue
         self.msg_size_len = MSG_SIZE_LEN[prologue]
+        self.whitelist = whitelist
 
         Logger.__init__(self)
         RSTransport.__init__(self, session_factory, framer, kind)
@@ -267,8 +268,11 @@ class LNTransport(RSTransport, Logger):
         self.rk, self.sk = get_bolt8_hkdf(ck, b'')
         self.init_counters(ck)
         self._remote_pubkey = rs
+        if self.whitelist is not None and rs not in self.whitelist:
+            raise HandshakeFailed(f'Not authorised {rs.hex()}')
         self.handshake_done.set()
         return rs
+
 
     def connection_made(self, transport):
         RSTransport.connection_made(self, transport)
@@ -366,7 +370,7 @@ class LNClient:
 
 
 
-async def create_bolt8_server(prologue, privkey, session_factory, host=None, port=None, *, loop=None, **kwargs):
+async def create_bolt8_server(prologue, privkey, whitelist, session_factory, host=None, port=None, *, loop=None, **kwargs):
     loop = loop or asyncio.get_event_loop()
-    protocol_factory = partial(LNTransport, prologue, session_factory, privkey)
+    protocol_factory = partial(LNTransport, prologue, session_factory, privkey, whitelist=whitelist)
     return await loop.create_server(protocol_factory, host, port)

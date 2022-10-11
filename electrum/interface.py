@@ -670,10 +670,11 @@ class Interface(Logger):
         def create_client():
             if self.protocol == 'b':
                 peer_addr = LNPeerAddr(self.host, self.port, bytes.fromhex(self.server.pubkey))
-                bolt8_privkey = os.urandom(32)
+                privkey = self.network.config.get_bolt8_privkey_for_server(self.server.pubkey)
+                privkey = bytes.fromhex(privkey) if privkey else os.urandom(32)
                 return LNClient(
                     prologue=b'electrum',
-                    privkey=bolt8_privkey,
+                    privkey=privkey,
                     session_factory=session_factory,
                     peer_addr=peer_addr,
                     proxy=self.proxy)

@@ -328,6 +328,14 @@ class Commands:
         return True
 
     @command('')
+    async def create_key_for_server(self, server_pubkey:str) -> str:
+        " returns a pubkey to add to electrumx, using the 'add_user' RPC"
+        privkey = os.urandom(32)
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_bytes(compressed=True)
+        self.config.set_bolt8_privkey_for_server(server_pubkey, privkey.hex())
+        return pubkey.hex()
+
+    @command('')
     async def get_ssl_domain(self):
         """Check and return the SSL domain set in ssl_keyfile and ssl_certfile
         """
