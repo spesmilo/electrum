@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtQml import QQmlApplicationEngine
 
 from electrum.logging import get_logger
-from electrum.gui.wizard import NewWalletWizard, ServerConnectWizard
+from electrum.wizard import NewWalletWizard, ServerConnectWizard
 
 class QEAbstractWizard(QObject):
     _logger = get_logger(__name__)
