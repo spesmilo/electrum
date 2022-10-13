@@ -55,7 +55,7 @@ ENV ANDROID_SDK_BUILD_TOOLS_VERSION="30.0.3"
 ENV ANDROID_SDK_HASH="d71f75333d79c9c6ef5c39d3456c6c58c613de30e6a751ea0dbd433e8f8b9cbf"
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
-ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
+ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
 
 # download and install Android SDK
 RUN curl --location --progress-bar \
@@ -64,7 +64,6 @@ RUN curl --location --progress-bar \
     && echo "${ANDROID_SDK_HASH} ${ANDROID_SDK_TOOLS_ARCHIVE}" | sha256sum -c - \
     && mkdir --parents "${ANDROID_SDK_HOME}" \
     && unzip -q "${ANDROID_SDK_TOOLS_ARCHIVE}" -d "${ANDROID_SDK_HOME}" \
-    && mv "${ANDROID_SDK_HOME}/cmdline-tools" "${ANDROID_SDK_HOME}/tools" \
     && rm -rf "${ANDROID_SDK_TOOLS_ARCHIVE}"
 
 # update Android SDK, install Android API, Build Tools...
@@ -83,7 +82,7 @@ RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 RUN ${ANDROID_SDK_MANAGER} "platforms;android-30" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
-    chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
+    chmod +x "${ANDROID_SDK_HOME}/cmdline-tools/bin/avdmanager"
 
 # download ANT
 ENV APACHE_ANT_VERSION="1.9.4"
@@ -166,7 +165,7 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
-    && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
+    && git checkout "6f03256e8312f8d1e5a6da3a2a1bf06e2738325e^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # install python-for-android
@@ -177,7 +176,7 @@ RUN cd /opt \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421d
-    && git checkout "4535a333f9928e894caedefc4f746f9c6a0dc50f^{commit}" \
+    && git checkout "1187e179aed6fddb19bf026274ff69903d3b04b2^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars
