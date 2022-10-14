@@ -5,7 +5,6 @@ cython
 
 # needed by buildozer:
 pexpect
-virtualenv
 sh
 
 # needed by python-for-android:
