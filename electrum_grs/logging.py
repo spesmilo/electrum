@@ -314,6 +314,9 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
 
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
+    if not verbosity:
+        if config.get('gui_enable_debug_logs') or is_android_debug_apk():
+            verbosity = '*'
     _configure_stderr_logging(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     if log_to_file is None:

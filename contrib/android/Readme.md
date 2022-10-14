@@ -117,6 +117,8 @@ $ run-as org.groestlcoin.electrumgrs ls /data/data/org.groestlcoin.electrumgrs/f
 $ run-as org.groestlcoin.electrumgrs cp /data/data/org.groestlcoin.electrumgrs/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```
 
+Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
+
 ### How to investigate diff between binaries if reproducibility fails?
 ```
 cd dist/

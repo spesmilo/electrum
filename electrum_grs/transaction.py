@@ -476,6 +476,8 @@ def check_scriptpubkey_template_and_dust(scriptpubkey, amount: Optional[int]):
         dust_limit = bitcoin.DUST_LIMIT_P2WSH
     elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_P2WPKH):
         dust_limit = bitcoin.DUST_LIMIT_P2WPKH
+    elif match_script_against_template(scriptpubkey, SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT):
+        dust_limit = bitcoin.DUST_LIMIT_UNKNOWN_SEGWIT
     else:
         raise Exception(f'scriptpubkey does not conform to any template: {scriptpubkey.hex()}')
     if amount < dust_limit:

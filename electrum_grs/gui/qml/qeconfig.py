@@ -130,6 +130,22 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('bolt11_fallback', use_fallback)
         self.useFallbackAddressChanged.emit()
 
+    enableDebugLogsChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=enableDebugLogsChanged)
+    def enableDebugLogs(self):
+        gui_setting = self.config.get('gui_enable_debug_logs', False)
+        return gui_setting or bool(self.config.get('verbosity'))
+
+    @pyqtProperty(bool, notify=enableDebugLogsChanged)
+    def canToggleDebugLogs(self):
+        gui_setting = self.config.get('gui_enable_debug_logs', False)
+        return not self.config.get('verbosity') or gui_setting
+
+    @enableDebugLogs.setter
+    def enableDebugLogs(self, enable):
+        self.config.set_key('gui_enable_debug_logs', enable)
+        self.enableDebugLogsChanged.emit()
+
     useRbfChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useRbfChanged)
     def useRbf(self):

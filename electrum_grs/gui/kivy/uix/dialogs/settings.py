@@ -102,6 +102,13 @@ Builder.load_string('''
                     title: _('Lightning Routing') + ': ' + self.status
                     description: _("Use trampoline routing or gossip.")
                     action: partial(root.routing_dialog, self)
+                CardSeparator
+                SettingsItem:
+                    disabled: bool(app.electrum_config.get('verbosity')) and not app.enable_debug_logs
+                    status: 'ON' if (bool(app.electrum_config.get('verbosity')) or app.enable_debug_logs) else 'OFF'
+                    title: _('Enable debug logs') + ': ' + self.status
+                    description: "(developer) Log to stderr, to inspect with logcat."
+                    action: partial(root.boolean_dialog, 'enable_debug_logs', _('Debug Logs'), self.description)
 
                 # disabled: there is currently only one coin selection policy
                 #CardSeparator
