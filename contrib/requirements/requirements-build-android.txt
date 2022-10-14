@@ -18,5 +18,5 @@ pep517<0.7.0
 toml
 
 # needed for the Qt/QML Android GUI:
-PyQt-builder
+# TODO double-check this
 typing-extensions

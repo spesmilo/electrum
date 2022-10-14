@@ -176,10 +176,11 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/qt5-wip
-    && git checkout "c6e39ae1fb4eb8d547eb70b26b89beda7e6ff4b6^{commit}" \
+    # commit: from branch sombernight/electrum_20210421d
+    && git checkout "4535a333f9928e894caedefc4f746f9c6a0dc50f^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars
 ENV USE_SDK_WRAPPER=1
 ENV GRADLE_OPTS="-Xmx1536M -Dorg.gradle.jvmargs='-Xmx1536M'"
+#ENV P4A_FULL_DEBUG=1
