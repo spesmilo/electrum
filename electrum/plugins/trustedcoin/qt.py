@@ -99,10 +99,11 @@ class Plugin(TrustedCoinPlugin):
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
+            icon = read_QIcon("trustedcoin-status-disabled.png")
         else:
             action = partial(self.settings_dialog, window)
-        button = StatusBarButton(read_QIcon("trustedcoin-status.png"),
-                                 _("TrustedCoin"), action)
+            icon = read_QIcon("trustedcoin-status.png")
+        button = StatusBarButton(icon, _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
         self.start_request_thread(window.wallet)
 
