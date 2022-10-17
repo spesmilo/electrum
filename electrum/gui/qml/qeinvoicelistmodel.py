@@ -7,6 +7,7 @@ from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
 from electrum.invoices import Invoice
 
+from .util import QtEventListener, qt_event_listener
 from .qetypes import QEAmount
 
 class QEAbstractInvoiceListModel(QAbstractListModel):
@@ -52,7 +53,6 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         invoices = []
         for invoice in self.get_invoice_list():
             item = self.invoice_to_model(invoice)
-            #self._logger.debug(str(item))
             invoices.append(item)
 
         self.clear()
@@ -128,11 +128,28 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         raise Exception('provide impl')
 
 
-class QEInvoiceListModel(QEAbstractInvoiceListModel):
+class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
     def __init__(self, wallet, parent=None):
         super().__init__(wallet, parent)
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
 
     _logger = get_logger(__name__)
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_invoice_status(self, wallet, key):
+        if wallet == self.wallet:
+            self._logger.debug('invoice status update for key %s' % key)
+            # FIXME event doesn't pass the new status, so we need to retrieve
+            invoice = self.wallet.get_invoice(key)
+            if invoice:
+                status = self.wallet.get_invoice_status(invoice)
+                self.updateInvoice(key, status)
+            else:
+                self._logger.debug(f'No invoice found for key {key}')
 
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
@@ -150,11 +167,22 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel):
     def get_invoice_as_dict(self, invoice: Invoice):
         return self.wallet.export_invoice(invoice)
 
-class QERequestListModel(QEAbstractInvoiceListModel):
+class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def __init__(self, wallet, parent=None):
         super().__init__(wallet, parent)
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
 
     _logger = get_logger(__name__)
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_request_status(self, wallet, key, status):
+        if wallet == self.wallet:
+            self._logger.debug('request status update for key %s' % key)
+            self.updateRequest(key, status)
 
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
