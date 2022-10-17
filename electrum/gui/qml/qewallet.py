@@ -367,6 +367,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
+    def totalBalance(self):
+        total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
+        self._totalBalance = QEAmount(amount_sat=total)
+        return self._totalBalance
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
         if not self.isLightning:
             self._lightningcansend = QEAmount()

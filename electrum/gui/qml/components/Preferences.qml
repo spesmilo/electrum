@@ -270,5 +270,6 @@ Pane {
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
         useRbf.checked = Config.useRbf
+        useRecoverableChannels.checked = Config.useRecoverableChannels
     }
 }
