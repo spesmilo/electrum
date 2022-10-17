@@ -1269,8 +1269,8 @@ class LNWallet(LNWorker):
                         trampoline_fee_level=self.trampoline_fee_level,
                         trampoline_route=trampoline_route)
                 util.trigger_callback('invoice_status', self.wallet, payment_hash.hex(), PR_INFLIGHT)
-                s = self.wallet.get_invoice_status(self.wallet.get_invoice(payment_hash.hex()))
-                self.logger.info(f"invoice status triggered (1) for key {payment_hash.hex()} and status {s}")
+                # s = self.wallet.get_invoice_status(self.wallet.get_invoice(payment_hash.hex()))
+                # self.logger.info(f"invoice status triggered (1) for key {payment_hash.hex()} and status {s}")
             # 3. await a queue
             self.logger.info(f"amount inflight {amount_inflight}")
             htlc_log = await self.sent_htlcs[payment_hash].get()
