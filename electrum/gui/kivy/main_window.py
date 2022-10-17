@@ -288,13 +288,13 @@ class ElectrumWindow(App, Logger, EventListener):
             self._trigger_update_history()
 
     @event_listener
-    def on_event_invoice_status(self, wallet, key):
+    def on_event_invoice_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
         req = self.wallet.get_invoice(key)
         if req is None:
             return
-        status = self.wallet.get_invoice_status(req)
+        # status = self.wallet.get_invoice_status(req)
         if self.send_screen:
             if status == PR_PAID:
                 self.send_screen.update()

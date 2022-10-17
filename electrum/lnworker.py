@@ -1268,7 +1268,9 @@ class LNWallet(LNWorker):
                         trampoline_onion=trampoline_onion,
                         trampoline_fee_level=self.trampoline_fee_level,
                         trampoline_route=trampoline_route)
-                util.trigger_callback('invoice_status', self.wallet, payment_hash.hex())
+                util.trigger_callback('invoice_status', self.wallet, payment_hash.hex(), PR_INFLIGHT)
+                s = self.wallet.get_invoice_status(self.wallet.get_invoice(payment_hash.hex()))
+                self.logger.info(f"invoice status triggered (1) for key {payment_hash.hex()} and status {s}")
             # 3. await a queue
             self.logger.info(f"amount inflight {amount_inflight}")
             htlc_log = await self.sent_htlcs[payment_hash].get()
@@ -1900,7 +1902,8 @@ class LNWallet(LNWorker):
             self.inflight_payments.remove(key)
         if status in SAVED_PR_STATUS:
             self.set_payment_status(bfh(key), status)
-        util.trigger_callback('invoice_status', self.wallet, key)
+        util.trigger_callback('invoice_status', self.wallet, key, status)
+        self.logger.info(f"invoice status triggered (2) for key {key} and status {status}")
 
     def set_request_status(self, payment_hash: bytes, status: int) -> None:
         if self.get_payment_status(payment_hash) == status:
