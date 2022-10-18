@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: 3.9.11
       - name: Builder image
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: 3.9.11
       - name: Builder image
@@ -117,34 +117,12 @@ jobs:
         with:
           name: electrum-grs-${{ github.sha }}-android-kivy
 
-  android-qml-all:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Builder image
-        run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
-      - name: Compile Android apk
-        run: |
-          sudo mkdir --parents /.buildozer/.gradle
-          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh qml all debug
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: electrum-grs-${{ github.sha }}-android-qml
-          path: dist/*.apk
-          if-no-files-found: error
-          retention-days: 7
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: electrum-grs-${{ github.sha }}-android-qml
-
   macos:
     runs-on: macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: 3.9.11
       - uses: maxim-lobanov/setup-xcode@v1
