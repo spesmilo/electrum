@@ -6,7 +6,7 @@ jobs:
   windows:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -20,21 +20,21 @@ jobs:
           TARGET_OS: Windows
         run: docker run --name electrum-grs-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-grs --rm --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine electrum-grs-wine-builder-img ./make_win.sh
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-windows
           path: contrib/build-wine/dist/*.exe
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-windows
 
   appimage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -44,61 +44,61 @@ jobs:
       - name: Compile Linux AppImage
         run: docker run --name electrum-grs-appimage-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/appimage electrum-grs-appimage-builder-img ./make_appimage.sh
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-appimage
           path: dist/*.AppImage
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-appimage
 
   tarball:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-sdist-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux tarball
         run: docker run --name electrum-grs-sdist-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist electrum-grs-sdist-builder-img ./make_sdist.sh
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-tarball
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-tarball
 
   source-only-tarball:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-source-only-tarball-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux tarball
         run: docker run --name electrum-grs-source-only-tarball-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist --env OMIT_UNCLEAN_FILES=1 electrum-grs-source-only-tarball-builder-img ./make_sdist.sh
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-source-only-tarball
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-source-only-tarball
 
   android-kivy-all:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
@@ -106,21 +106,21 @@ jobs:
           sudo mkdir --parents /.buildozer/.gradle
           sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh kivy all debug
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-android-kivy
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-android-kivy
 
   android-qml-all:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
@@ -128,21 +128,21 @@ jobs:
           sudo mkdir --parents /.buildozer/.gradle
           sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh qml all debug
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-android-qml
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-android-qml
 
   macos:
     runs-on: macos-11
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -153,13 +153,13 @@ jobs:
       - name: Compile OSX dmg
         run: ./contrib/osx/make_osx.sh
       - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-macos
           path: dist/*.dmg
           if-no-files-found: error
           retention-days: 7
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: electrum-grs-${{ github.sha }}-macos
