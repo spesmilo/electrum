@@ -191,10 +191,6 @@ Item {
             var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
             dialog.open()
         }
-
-        onInvoiceSaved: {
-            Daemon.currentWallet.invoiceModel.addInvoice(key)
-        }
     }
 
     Component {

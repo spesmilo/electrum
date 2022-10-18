@@ -490,10 +490,14 @@ class QEInvoiceParser(QEInvoice):
         self.canSave = False
         if not self._effectiveInvoice:
             return
-        # TODO detect duplicate?
+
         self.key = self._effectiveInvoice.get_id()
-        self._wallet.wallet.save_invoice(self._effectiveInvoice)
-        self.invoiceSaved.emit(self.key)
+        if self._wallet.wallet.get_invoice(self.key):
+            self._logger.info(f'invoice {self.key} already exists')
+        else:
+            self._wallet.wallet.save_invoice(self._effectiveInvoice)
+            self._wallet.invoiceModel.addInvoice(self.key)
+            self.invoiceSaved.emit(self.key)
 
 
 class QEUserEnteredPayment(QEInvoice):

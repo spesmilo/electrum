@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum_grs import bitcoin
 from electrum_grs.i18n import _
-from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING
+from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID
 from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.transaction import PartialTxOutput
@@ -145,11 +145,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.synchronizing_progress = ''
                 self.synchronizing = False
 
-    @event_listener
+    @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
         if wallet == self.wallet:
             self._logger.debug('request status %d for key %s' % (status, key))
             self.requestStatusChanged.emit(key, status)
+            if status == PR_PAID:
+                # might be new incoming LN payment, update history
+                # TODO: only update if it was paid over lightning,
+                # and even then, we can probably just add the payment instead
+                # of recreating the whole history (expensive)
+                self.historyModel.init_model()
 
     @event_listener
     def on_event_invoice_status(self, wallet, key):
@@ -359,6 +365,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         else:
             self._lightningbalance = QEAmount(amount_sat=int(self.wallet.lnworker.get_balance()))
         return self._lightningbalance
+
+    @pyqtProperty(QEAmount, notify=balanceChanged)
+    def totalBalance(self):
+        total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
+        self._totalBalance = QEAmount(amount_sat=total)
+        return self._totalBalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
