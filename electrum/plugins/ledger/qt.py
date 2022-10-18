@@ -28,7 +28,7 @@ class Plugin(LedgerPlugin, QtPluginBase):
         keystore = wallet.get_keystore()
         if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
             menu.addAction(_("Show on Ledger"), show_address)
 
 class Ledger_Handler(QtHandlerBase):
