@@ -7,8 +7,9 @@ from PyQt5.QtCore import pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLoc
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
-from electrum.logging import Logger, get_logger
 from electrum import version
+from electrum.logging import Logger, get_logger
+from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon, QEWalletListModel
@@ -33,6 +34,7 @@ notification = None
 
 class QEAppController(QObject):
     userNotify = pyqtSignal(str)
+    uriReceived = pyqtSignal(str)
 
     _dummy = pyqtSignal()
 
@@ -55,6 +57,8 @@ class QEAppController(QObject):
         self._qedaemon.walletLoaded.connect(self.on_wallet_loaded)
 
         self.userNotify.connect(self.notifyAndroid)
+
+        self.bindIntent()
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
@@ -104,6 +108,23 @@ class QEAppController(QObject):
             self.logger.warning('Notification: needs plyer; `sudo python3 -m pip install plyer`')
         except Exception as e:
             self.logger.error(repr(e))
+
+    def bindIntent(self):
+        try:
+            from android import activity
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            mactivity = PythonActivity.mActivity
+            self.on_new_intent(mactivity.getIntent())
+            activity.bind(on_new_intent=self.on_new_intent)
+        except Exception as e:
+            self.logger.error(f'unable to bind intent: {repr(e)}')
+
+    def on_new_intent(self, intent):
+        data = str(intent.getDataString())
+        scheme = str(intent.getScheme()).lower()
+        if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
+            self.uriReceived.emit(data)
 
     @pyqtSlot(str, str)
     def doShare(self, data, title):

@@ -12,10 +12,30 @@ Item {
 
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
 
+    property var _sendDialog
+
     function openInvoice(key) {
         var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
         dialog.open()
         return dialog
+    }
+
+    function openSendDialog() {
+        _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
+        _sendDialog.open()
+    }
+
+    function closeSendDialog() {
+        if (_sendDialog) {
+            _sendDialog.close()
+            _sendDialog = null
+        }
+    }
+
+    function restartSendDialog() {
+        if (_sendDialog) {
+            _sendDialog.restart()
+        }
     }
 
     property QtObject menu: Menu {
@@ -136,11 +156,7 @@ Item {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
-                onClicked: {
-                    console.log('send')
-                    _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
-                    _sendDialog.open()
-                }
+                onClicked: openSendDialog()
             }
             Rectangle {
                 Layout.fillWidth: false
@@ -168,7 +184,7 @@ Item {
         onValidationError: {
             var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.closed.connect(function() {
-                _sendDialog.restart()
+                restartSendDialog()
             })
             dialog.open()
         }
@@ -181,7 +197,7 @@ Item {
             }
         }
         onValidationSuccess: {
-            _sendDialog.close()
+            closeSendDialog()
             var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser })
             dialog.open()
         }
@@ -190,6 +206,13 @@ Item {
         onLnurlRetrieved: {
             var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
             dialog.open()
+        }
+    }
+
+    Connections {
+        target: AppController
+        function onUriReceived(uri) {
+            invoiceParser.recipient = uri
         }
     }
 
@@ -232,8 +255,6 @@ Item {
             onClosed: destroy()
         }
     }
-
-    property var _sendDialog
 
     Component {
         id: sendDialog
