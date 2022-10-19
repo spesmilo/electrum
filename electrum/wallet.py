@@ -412,7 +412,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def can_have_lightning(self) -> bool:
         # we want static_remotekey to be a wallet address
-        return self.txin_type == 'p2wpkh'
+        return self.txin_type == 'p2wpkh' and not self.is_watching_only()
 
     def can_have_deterministic_lightning(self) -> bool:
         if not self.can_have_lightning():
