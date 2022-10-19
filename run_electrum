@@ -325,7 +325,6 @@ def main():
         import importlib.util
         android_gui = 'kivy' if importlib.util.find_spec('kivy') else 'qml'
         config_options = {
-            'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
             'gui': android_gui,
             'single_password':True,

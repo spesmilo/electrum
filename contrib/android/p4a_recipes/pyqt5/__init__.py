@@ -7,7 +7,7 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 
 
 assert PyQt5Recipe._version == "5.15.6"
-assert PyQt5Recipe.depends == ['qt5', 'pyjnius', 'setuptools', 'pyqt5sip']
+assert PyQt5Recipe.depends == ['qt5', 'pyjnius', 'setuptools', 'pyqt5sip', 'hostpython3', 'pyqt_builder']
 assert PyQt5Recipe.python_depends == []
 
 

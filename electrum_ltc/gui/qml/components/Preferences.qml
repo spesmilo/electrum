@@ -235,6 +235,17 @@ Pane {
                         }
                     }
 
+                    Switch {
+                        id: enableDebugLogs
+                        text: qsTr('Enable debug logs (for developers)')
+                        Layout.columnSpan: 2
+                        onCheckedChanged: {
+                            if (activeFocus)
+                                Config.enableDebugLogs = checked
+                        }
+                        enabled: Config.canToggleDebugLogs
+                    }
+
                 }
 
             }
@@ -257,6 +268,8 @@ Pane {
         spendUnconfirmed.checked = Config.spendUnconfirmed
         lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
         useFallbackAddress.checked = Config.useFallbackAddress
+        enableDebugLogs.checked = Config.enableDebugLogs
         useRbf.checked = Config.useRbf
+        useRecoverableChannels.checked = Config.useRecoverableChannels
     }
 }

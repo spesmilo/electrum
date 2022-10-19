@@ -24,7 +24,6 @@ Pane {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Spend from')
-                //onTriggered:
                 icon.source: '../../icons/tab_send.png'
                 enabled: false
             }
@@ -43,6 +42,14 @@ Pane {
                 text: qsTr('Encrypt/Decrypt')
                 icon.source: '../../icons/mail_icon.png'
                 enabled: false
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: addressdetails.isFrozen ? qsTr('Unfreeze') : qsTr('Freeze')
+                onTriggered: addressdetails.freeze(!addressdetails.isFrozen)
+                icon.source: '../../icons/seal.png'
             }
         }
     }
@@ -244,15 +251,6 @@ Pane {
 
             Label {
                 text: addressdetails.isFrozen ? qsTr('Frozen') : qsTr('Not frozen')
-            }
-
-            ColumnLayout {
-                Layout.columnSpan: 2
-
-                Button {
-                    text: addressdetails.isFrozen ? qsTr('Unfreeze') : qsTr('Freeze')
-                    onClicked: addressdetails.freeze(!addressdetails.isFrozen)
-                }
             }
         }
     }

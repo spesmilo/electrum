@@ -117,6 +117,8 @@ $ run-as org.electrum_ltc.electrum_ltc ls /data/data/org.electrum_ltc.electrum_l
 $ run-as org.electrum_ltc.electrum_ltc cp /data/data/org.electrum_ltc.electrum_ltc/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
 ```
 
+Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
+
 ### How to investigate diff between binaries if reproducibility fails?
 ```
 cd dist/

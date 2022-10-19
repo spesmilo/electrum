@@ -8,8 +8,10 @@ Frame {
 
     font.pixelSize: constants.fontSizeMedium
 
-    property string formattedBalance
-    property string formattedBalanceFiat
+    property string formattedTotalBalance
+    property string formattedTotalBalanceFiat
+    property string formattedOnchainBalance
+    property string formattedOnchainBalanceFiat
     property string formattedUnconfirmed
     property string formattedUnconfirmedFiat
     property string formattedFrozen
@@ -18,12 +20,14 @@ Frame {
     property string formattedLightningBalanceFiat
 
     function setBalances() {
-        root.formattedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
+        root.formattedTotalBalance = Config.formatSats(Daemon.currentWallet.totalBalance)
+        root.formattedOnchainBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
         root.formattedUnconfirmed = Config.formatSats(Daemon.currentWallet.unconfirmedBalance)
         root.formattedFrozen = Config.formatSats(Daemon.currentWallet.frozenBalance)
         root.formattedLightningBalance = Config.formatSats(Daemon.currentWallet.lightningBalance)
         if (Daemon.fx.enabled) {
-            root.formattedBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance, false)
+            root.formattedTotalBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
+            root.formattedOnchainBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.confirmedBalance, false)
             root.formattedUnconfirmedFiat = Daemon.fx.fiatValue(Daemon.currentWallet.unconfirmedBalance, false)
             root.formattedFrozenFiat = Daemon.fx.fiatValue(Daemon.currentWallet.frozenBalance, false)
             root.formattedLightningBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.lightningBalance, false)
@@ -32,11 +36,26 @@ Frame {
 
     GridLayout {
         id: layout
-
         columns: 2
+
         Label {
             font.pixelSize: constants.fontSizeXLarge
-            text: qsTr('Balance:')
+            text: qsTr('Balance')
+            color: Material.accentColor
+            Layout.columnSpan: 2
+            Layout.alignment: Qt.AlignHCenter
+        }
+
+        Rectangle {
+            color: Material.accentColor
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+        }
+
+        Label {
+            font.pixelSize: constants.fontSizeXLarge
+            text: qsTr('Total:')
             color: Material.accentColor
             Layout.alignment: Qt.AlignRight | Qt.AlignTop
         }
@@ -47,7 +66,7 @@ Frame {
                 Label {
                     font.pixelSize: constants.fontSizeXLarge
                     font.family: FixedFont
-                    text: formattedBalance
+                    text: formattedTotalBalance
                 }
                 Label {
                     font.pixelSize: constants.fontSizeXLarge
@@ -60,13 +79,43 @@ Frame {
                 visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
                 color: constants.mutedForeground
-                text: root.formattedBalanceFiat + ' ' + Daemon.fx.fiatCurrency
+                text: root.formattedTotalBalanceFiat + ' ' + Daemon.fx.fiatCurrency
+            }
+        }
+
+        Label {
+            font.pixelSize: constants.fontSizeMedium
+            text: qsTr('On-chain:')
+            color: Material.accentColor
+            Layout.alignment: Qt.AlignRight | Qt.AlignTop
+        }
+        ColumnLayout {
+            spacing: 0
+
+            RowLayout {
+                Label {
+                    font.pixelSize: constants.fontSizeMedium
+                    font.family: FixedFont
+                    text: formattedOnchainBalance
+                }
+                Label {
+                    font.pixelSize: constants.fontSizeMedium
+                    color: Material.accentColor
+                    text: Config.baseUnit
+                }
+            }
+
+            Label {
+                visible: Daemon.fx.enabled
+                font.pixelSize: constants.fontSizeSmall
+                color: constants.mutedForeground
+                text: root.formattedOnchainBalanceFiat + ' ' + Daemon.fx.fiatCurrency
             }
         }
 
         Label {
             visible: Daemon.currentWallet.unconfirmedBalance.satsInt > 0
-            font.pixelSize: constants.fontSizeLarge
+            font.pixelSize: constants.fontSizeMedium
             text: qsTr('Unconfirmed:')
             color: Material.accentColor
             Layout.alignment: Qt.AlignRight | Qt.AlignTop
@@ -76,12 +125,12 @@ Frame {
             spacing: 0
             RowLayout {
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     font.family: FixedFont
                     text: formattedUnconfirmed
                 }
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     color: Material.accentColor
                     text: Config.baseUnit
                 }
@@ -96,7 +145,7 @@ Frame {
 
         Label {
             visible: Daemon.currentWallet.frozenBalance.satsInt > 0
-            font.pixelSize: constants.fontSizeLarge
+            font.pixelSize: constants.fontSizeMedium
             text: qsTr('Frozen:')
             color: Material.accentColor
             Layout.alignment: Qt.AlignRight | Qt.AlignTop
@@ -107,12 +156,12 @@ Frame {
 
             RowLayout {
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     font.family: FixedFont
                     text: root.formattedFrozen
                 }
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     color: Material.accentColor
                     text: Config.baseUnit
                 }
@@ -127,7 +176,7 @@ Frame {
 
         Label {
             visible: Daemon.currentWallet.isLightning
-            font.pixelSize: constants.fontSizeLarge
+            font.pixelSize: constants.fontSizeMedium
             text: qsTr('Lightning:')
             color: Material.accentColor
             Layout.alignment: Qt.AlignRight | Qt.AlignTop
@@ -138,12 +187,12 @@ Frame {
 
             RowLayout {
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     font.family: FixedFont
                     text: formattedLightningBalance
                 }
                 Label {
-                    font.pixelSize: constants.fontSizeLarge
+                    font.pixelSize: constants.fontSizeMedium
                     color: Material.accentColor
                     text: Config.baseUnit
                 }

@@ -19,19 +19,23 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    x: (parent.width - width) / 2
-    y: (parent.height - height) / 2
+    standardButtons: Dialog.Cancel
+    anchors.centerIn: parent
+    padding: 0
+
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }
 
     ColumnLayout {
         width: parent.width
+        spacing: 0
 
         InfoTextArea {
             visible: infotext
             text: infotext
-            Layout.preferredWidth: password_layout.width
+            Layout.margins: constants.paddingMedium
+            Layout.fillWidth: true
         }
 
         GridLayout {
@@ -59,25 +63,15 @@ ElDialog {
             }
         }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: constants.paddingXXLarge
-
-            Button {
-                text: qsTr("Ok")
-                enabled: confirmPassword ? pw_1.text == pw_2.text : true
-                onClicked: {
-                    password = pw_1.text
-                    passworddialog.accept()
-                }
-            }
-            Button {
-                text: qsTr("Cancel")
-                onClicked: {
-                    passworddialog.reject()
-                }
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr("Ok")
+            icon.source: '../../icons/confirmed.png'
+            enabled: confirmPassword ? pw_1.text == pw_2.text : true
+            onClicked: {
+                password = pw_1.text
+                passworddialog.accept()
             }
         }
     }
-
 }

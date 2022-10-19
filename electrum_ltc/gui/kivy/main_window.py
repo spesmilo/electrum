@@ -208,6 +208,10 @@ class ElectrumWindow(App, Logger, EventListener):
                 self.network.run_from_another_thread(
                     self.network.stop_gossip())
 
+    enable_debug_logs = BooleanProperty(False)
+    def on_enable_debug_logs(self, instance, x):
+        self.electrum_config.set_key('gui_enable_debug_logs', self.enable_debug_logs, True)
+
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
         if self.wallet:
@@ -435,6 +439,7 @@ class ElectrumWindow(App, Logger, EventListener):
         self.use_rbf = config.get('use_rbf', True)
         self.use_gossip = config.get('use_gossip', False)
         self.use_unconfirmed = not config.get('confirmed_only', False)
+        self.enable_debug_logs = config.get('gui_enable_debug_logs', False)
 
         # create triggers so as to minimize updating a max of 2 times a sec
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
@@ -947,7 +952,8 @@ class ElectrumWindow(App, Logger, EventListener):
         # see #6276 (specifically "method 2" and "method 3")
         from jnius import autoclass
         PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        PythonActivity.requestFocusForMainView()
+        activity = PythonActivity.mActivity
+        activity.requestFocusForMainView()
 
     def update_status(self, *dt):
         if not self.wallet:

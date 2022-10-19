@@ -18,291 +18,297 @@ ElDialog {
     title: qsTr('Invoice')
     standardButtons: invoice_key != '' ? Dialog.Close : Dialog.Cancel
 
+    padding: 0
+
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }
 
-    GridLayout {
-        id: layout
+    ColumnLayout {
         width: parent.width
         height: parent.height
-        columns: 2
+        spacing: 0
 
-        Label {
-            text: qsTr('Type')
-            color: Material.accentColor
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Image {
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                source: invoice.invoiceType == Invoice.LightningInvoice
-                    ? "../../icons/lightning.png"
-                    : "../../icons/bitcoin.png"
-            }
+        GridLayout {
+            id: layout
+            width: parent.width
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
+            columns: 2
 
             Label {
-                text: invoice.invoiceType == Invoice.OnchainInvoice
-                        ? qsTr('On chain')
-                        : invoice.invoiceType == Invoice.LightningInvoice
-                            ? qsTr('Lightning')
-                            : ''
-                Layout.fillWidth: true
+                text: qsTr('Type')
+                color: Material.accentColor
             }
-        }
-
-        Label {
-            text: qsTr('Status')
-            color: Material.accentColor
-        }
-
-        Label {
-            text: invoice.status_str
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.OnchainInvoice
-            Layout.columnSpan: 2
-            text: qsTr('Address')
-            color: Material.accentColor
-        }
-
-        TextHighlightPane {
-            visible: invoice.invoiceType == Invoice.OnchainInvoice
-
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-
-            padding: 0
-            leftPadding: constants.paddingMedium
-
-            Label {
-                width: parent.width
-                text: invoice.address
-                font.family: FixedFont
-                wrapMode: Text.Wrap
-            }
-        }
-
-        Label {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-            text: qsTr('Remote Pubkey')
-            color: Material.accentColor
-        }
-
-        TextHighlightPane {
-            visible: invoice.invoiceType == Invoice.LightningInvoice
-
-            Layout.columnSpan: 2
-            Layout.fillWidth: true
-
-            padding: 0
-            leftPadding: constants.paddingMedium
-
-            Label {
-                width: parent.width
-                text: invoice.lnprops ? invoice.lnprops.pubkey : ''
-                font.family: FixedFont
-                wrapMode: Text.Wrap
-            }
-        }
-
-        Label {
-            text: qsTr('Description')
-            visible: invoice.message
-            Layout.columnSpan: 2
-            color: Material.accentColor
-        }
-
-        TextHighlightPane {
-            visible: invoice.message
-
-            Layout.columnSpan: 2
-            Layout.preferredWidth: parent.width
-            Layout.alignment: Qt.AlignHCenter
-
-            padding: 0
-            leftPadding: constants.paddingMedium
-
-            Label {
-                text: invoice.message
-                width: parent.width
-                font.pixelSize: constants.fontSizeXLarge
-                wrapMode: Text.Wrap
-                elide: Text.ElideRight
-            }
-        }
-
-        Label {
-            text: qsTr('Amount to send')
-            color: Material.accentColor
-            Layout.columnSpan: 2
-        }
-
-        TextHighlightPane {
-            id: amountContainer
-
-            Layout.columnSpan: 2
-            Layout.preferredWidth: parent.width //* 0.75
-            Layout.alignment: Qt.AlignHCenter
-
-            padding: 0
-            leftPadding: constants.paddingXXLarge
-
-            property bool editmode: false
 
             RowLayout {
-                id: amountLayout
-                width: parent.width
-
-                GridLayout {
-                    visible: !amountContainer.editmode
-                    columns: 2
-
-                    Label {
-                        font.pixelSize: constants.fontSizeXLarge
-                        font.family: FixedFont
-                        font.bold: true
-                        text: Config.formatSats(invoice.amount, false)
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: Config.baseUnit
-                        color: Material.accentColor
-                        font.pixelSize: constants.fontSizeXLarge
-                    }
-
-                    Label {
-                        id: fiatValue
-                        visible: Daemon.fx.enabled
-                        text: Daemon.fx.fiatValue(invoice.amount, false)
-                        font.pixelSize: constants.fontSizeMedium
-                        color: constants.mutedForeground
-                    }
-
-                    Label {
-                        visible: Daemon.fx.enabled
-                        Layout.fillWidth: true
-                        text: Daemon.fx.fiatCurrency
-                        font.pixelSize: constants.fontSizeMedium
-                        color: constants.mutedForeground
-                    }
-
+                Layout.fillWidth: true
+                Image {
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
+                    source: invoice.invoiceType == Invoice.LightningInvoice
+                        ? "../../icons/lightning.png"
+                        : "../../icons/bitcoin.png"
                 }
 
-                ToolButton {
-                    visible: !amountContainer.editmode
-                    icon.source: '../../icons/pen.png'
-                    icon.color: 'transparent'
-                    onClicked: {
-                        amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
-                        amountContainer.editmode = true
-                        amountBtc.focus = true
-                    }
-                }
-                GridLayout {
-                    visible: amountContainer.editmode
+                Label {
+                    text: invoice.invoiceType == Invoice.OnchainInvoice
+                            ? qsTr('On chain')
+                            : invoice.invoiceType == Invoice.LightningInvoice
+                                ? qsTr('Lightning')
+                                : ''
                     Layout.fillWidth: true
-                    columns: 2
-                    BtcField {
-                        id: amountBtc
-                        fiatfield: amountFiat
+                }
+            }
+
+            Label {
+                text: qsTr('Status')
+                color: Material.accentColor
+            }
+
+            Label {
+                text: invoice.status_str
+            }
+
+            Label {
+                visible: invoice.invoiceType == Invoice.OnchainInvoice
+                Layout.columnSpan: 2
+                text: qsTr('Address')
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                visible: invoice.invoiceType == Invoice.OnchainInvoice
+
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+
+                padding: 0
+                leftPadding: constants.paddingMedium
+
+                Label {
+                    width: parent.width
+                    text: invoice.address
+                    font.family: FixedFont
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            Label {
+                visible: invoice.invoiceType == Invoice.LightningInvoice
+                text: qsTr('Remote Pubkey')
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                visible: invoice.invoiceType == Invoice.LightningInvoice
+
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+
+                padding: 0
+                leftPadding: constants.paddingMedium
+
+                Label {
+                    width: parent.width
+                    text: invoice.lnprops ? invoice.lnprops.pubkey : ''
+                    font.family: FixedFont
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            Label {
+                text: qsTr('Description')
+                visible: invoice.message
+                Layout.columnSpan: 2
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                visible: invoice.message
+
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+
+                padding: 0
+                leftPadding: constants.paddingMedium
+
+                Label {
+                    text: invoice.message
+                    width: parent.width
+                    font.pixelSize: constants.fontSizeXLarge
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                }
+            }
+
+            Label {
+                text: qsTr('Amount to send')
+                color: Material.accentColor
+                Layout.columnSpan: 2
+            }
+
+            TextHighlightPane {
+                id: amountContainer
+
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+
+                padding: 0
+                leftPadding: constants.paddingXXLarge
+
+                property bool editmode: false
+
+                RowLayout {
+                    id: amountLayout
+                    width: parent.width
+
+                    GridLayout {
+                        visible: !amountContainer.editmode
+                        columns: 2
+
+                        Label {
+                            font.pixelSize: constants.fontSizeXLarge
+                            font.family: FixedFont
+                            font.bold: true
+                            text: Config.formatSats(invoice.amount, false)
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: Config.baseUnit
+                            color: Material.accentColor
+                            font.pixelSize: constants.fontSizeXLarge
+                        }
+
+                        Label {
+                            id: fiatValue
+                            visible: Daemon.fx.enabled
+                            text: Daemon.fx.fiatValue(invoice.amount, false)
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+
+                        Label {
+                            visible: Daemon.fx.enabled
+                            Layout.fillWidth: true
+                            text: Daemon.fx.fiatCurrency
+                            font.pixelSize: constants.fontSizeMedium
+                            color: constants.mutedForeground
+                        }
+
                     }
 
-                    Label {
-                        text: Config.baseUnit
-                        color: Material.accentColor
+                    ToolButton {
+                        visible: !amountContainer.editmode
+                        icon.source: '../../icons/pen.png'
+                        icon.color: 'transparent'
+                        onClicked: {
+                            amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
+                            amountContainer.editmode = true
+                            amountBtc.focus = true
+                        }
+                    }
+                    GridLayout {
+                        visible: amountContainer.editmode
                         Layout.fillWidth: true
-                    }
+                        columns: 2
+                        BtcField {
+                            id: amountBtc
+                            fiatfield: amountFiat
+                        }
 
-                    FiatField {
-                        id: amountFiat
-                        btcfield: amountBtc
-                        visible: Daemon.fx.enabled
-                    }
+                        Label {
+                            text: Config.baseUnit
+                            color: Material.accentColor
+                            Layout.fillWidth: true
+                        }
 
-                    Label {
-                        visible: Daemon.fx.enabled
-                        text: Daemon.fx.fiatCurrency
-                        color: Material.accentColor
+                        FiatField {
+                            id: amountFiat
+                            btcfield: amountBtc
+                            visible: Daemon.fx.enabled
+                        }
+
+                        Label {
+                            visible: Daemon.fx.enabled
+                            text: Daemon.fx.fiatCurrency
+                            color: Material.accentColor
+                        }
+                    }
+                    ToolButton {
+                        visible: amountContainer.editmode
+                        Layout.fillWidth: false
+                        icon.source: '../../icons/confirmed.png'
+                        icon.color: 'transparent'
+                        onClicked: {
+                            amountContainer.editmode = false
+                            invoice.amount = Config.unitsToSats(amountBtc.text)
+                        }
+                    }
+                    ToolButton {
+                        visible: amountContainer.editmode
+                        Layout.fillWidth: false
+                        icon.source: '../../icons/closebutton.png'
+                        icon.color: 'transparent'
+                        onClicked: amountContainer.editmode = false
                     }
                 }
-                ToolButton {
-                    visible: amountContainer.editmode
-                    Layout.fillWidth: false
-                    icon.source: '../../icons/confirmed.png'
-                    icon.color: 'transparent'
-                    onClicked: {
-                        amountContainer.editmode = false
-                        invoice.amount = Config.unitsToSats(amountBtc.text)
-                    }
-                }
-                ToolButton {
-                    visible: amountContainer.editmode
-                    Layout.fillWidth: false
-                    icon.source: '../../icons/closebutton.png'
-                    icon.color: 'transparent'
-                    onClicked: amountContainer.editmode = false
-                }
+
             }
 
-        }
+            Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
 
-        Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
-
-        InfoTextArea {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            visible: invoice.userinfo
-            text: invoice.userinfo
-        }
-
-        RowLayout {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            spacing: constants.paddingMedium
-
-            FlatButton {
-                text: qsTr('Delete')
-                icon.source: '../../icons/delete.png'
-                visible: invoice_key != ''
-                onClicked: {
-                    invoice.wallet.delete_invoice(invoice_key)
-                    dialog.close()
-                }
-            }
-
-            FlatButton {
-                text: qsTr('Save')
-                icon.source: '../../icons/save.png'
-                visible: invoice_key == ''
-                enabled: invoice.canSave
-                onClicked: {
-                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
-                    invoice.save_invoice()
-                    dialog.close()
-                }
-            }
-
-            FlatButton {
-                text: qsTr('Pay')
-                icon.source: '../../icons/confirmed.png'
-                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
-                onClicked: {
-                    if (invoice_key == '') // save invoice if not retrieved from key
-                        invoice.save_invoice()
-                    dialog.close()
-                    doPay() // only signal here
-                }
+            InfoTextArea {
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignHCenter
+                visible: invoice.userinfo
+                text: invoice.userinfo
             }
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Pay')
+            icon.source: '../../icons/confirmed.png'
+            enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
+            onClicked: {
+                if (invoice_key == '') // save invoice if not retrieved from key
+                    invoice.save_invoice()
+                dialog.close()
+                doPay() // only signal here
+            }
+        }
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Delete')
+            icon.source: '../../icons/delete.png'
+            visible: invoice_key != ''
+            onClicked: {
+                invoice.wallet.delete_invoice(invoice_key)
+                dialog.close()
+            }
+        }
+
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Save')
+            icon.source: '../../icons/save.png'
+            visible: invoice_key == ''
+            enabled: invoice.canSave
+            onClicked: {
+                app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                invoice.save_invoice()
+                dialog.close()
+            }
+        }
+
     }
 
     Component.onCompleted: {

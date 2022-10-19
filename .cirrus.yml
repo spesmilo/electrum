@@ -171,7 +171,7 @@ task:
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build
+  name: Android build (Kivy arm64)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 2
@@ -180,6 +180,30 @@ task:
     - ./contrib/android/make_apk.sh kivy arm64-v8a debug
   binaries_artifacts:
     path: "dist/*"
+
+task:
+  name: Android build (QML arm64)
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 8
+    memory: 24G
+  build_script:
+    - ./contrib/android/make_apk.sh qml arm64-v8a debug
+  binaries_artifacts:
+    path: "dist/*"
+  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
+
+task:
+  name: Android build (QML arm32)
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 8
+    memory: 24G
+  build_script:
+    - ./contrib/android/make_apk.sh qml armeabi-v7a debug
+  binaries_artifacts:
+    path: "dist/*"
+  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
 
 task:
   name: MacOS build

@@ -19,6 +19,8 @@ ElDialog {
 
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
+    property bool _ispaid: false
+
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
@@ -31,6 +33,7 @@ ElDialog {
         id: rootLayout
         width: parent.width
         spacing: constants.paddingMedium
+        visible: !_ispaid
 
         states: [
             State {
@@ -198,9 +201,38 @@ ElDialog {
                 onClicked: receiveDetailsDialog.open()
             }
         }
-
     }
 
+    ColumnLayout {
+        visible: _ispaid
+        anchors.centerIn: parent
+        states: [
+            State {
+                name: 'paid'
+                when: _ispaid
+            }
+        ]
+        transitions: [
+            Transition {
+                from: ''
+                to: 'paid'
+                NumberAnimation { target: paidIcon; properties: 'opacity'; from: 0; to: 1; duration: 200 }
+                NumberAnimation { target: paidIcon; properties: 'scale'; from: 0; to: 1; duration: 500; easing.type: Easing.OutBack; easing.overshoot: 10 }
+            }
+        ]
+        Image {
+            id: paidIcon
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: constants.iconSizeXXLarge
+            Layout.preferredHeight: constants.iconSizeXXLarge
+            source: '../../icons/confirmed.png'
+        }
+        Label {
+            Layout.alignment: Qt.AlignHCenter
+            text: qsTr('Paid!')
+            font.pixelSize: constants.fontSizeXXLarge
+        }
+    }
 
     // make clicking the dialog background move the scope away from textedit fields
     // so the keyboard goes away
@@ -264,6 +296,11 @@ ElDialog {
                 rootLayout.state = 'bip21uri'
             } else {
                 rootLayout.state = 'address'
+            }
+        }
+        onStatusChanged: {
+            if (status == RequestDetails.Paid || status == RequestDetails.Unconfirmed) {
+                _ispaid = true
             }
         }
     }
