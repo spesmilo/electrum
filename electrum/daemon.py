@@ -359,13 +359,21 @@ class WatchTowerServer(AuthenticatedServer):
 
 class PayServer(Logger, EventListener):
 
+    WWW_DIR = os.path.join(os.path.dirname(__file__), 'www')
+
     def __init__(self, daemon: 'Daemon', netaddress):
         Logger.__init__(self)
+        assert self.has_www_dir(), self.WWW_DIR
         self.addr = netaddress
         self.daemon = daemon
         self.config = daemon.config
         self.pending = defaultdict(asyncio.Event)
         self.register_callbacks()
+
+    @classmethod
+    def has_www_dir(cls) -> bool:
+        index_html = os.path.join(cls.WWW_DIR, "index.html")
+        return os.path.exists(index_html)
 
     @property
     def wallet(self):
@@ -385,7 +393,7 @@ class PayServer(Logger, EventListener):
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
-        app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
+        app.add_routes([web.static(root, self.WWW_DIR)])
         if self.config.get('payserver_allow_create_invoice'):
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
@@ -489,8 +497,11 @@ class Daemon(Logger):
         self.pay_server = None
         payserver_address = self.config.get_netaddress('payserver_address')
         if not config.get('offline') and payserver_address:
-            self.pay_server = PayServer(self, payserver_address)
-            daemon_jobs.append(self.pay_server.run())
+            if PayServer.has_www_dir():
+                self.pay_server = PayServer(self, payserver_address)
+                daemon_jobs.append(self.pay_server.run())
+            else:
+                self.logger.error(f"PayServer configured but WWW_DIR missing or empty. skipping. ({PayServer.WWW_DIR})")
         # server-side watchtower
         self.watchtower = None
         watchtower_address = self.config.get_netaddress('watchtower_address')
