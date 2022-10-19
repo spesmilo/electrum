@@ -1,22 +1,34 @@
 from time import time
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
 from electrum.logging import get_logger
-from electrum.invoices import PR_UNPAID, LN_EXPIRY_NEVER
+from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
+                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 
 class QERequestDetails(QObject):
-    _logger = get_logger(__name__)
 
+    class Status:
+        Unpaid = PR_UNPAID
+        Expired = PR_EXPIRED
+        Unknown = PR_UNKNOWN
+        Paid = PR_PAID
+        Inflight = PR_INFLIGHT
+        Failed = PR_FAILED
+        Routing = PR_ROUTING
+        Unconfirmed = PR_UNCONFIRMED
+
+    Q_ENUMS(Status)
+
+    _logger = get_logger(__name__)
 
     _wallet = None
     _key = None
     _req = None
     _timer = None
-
     _amount = None
 
     detailsChanged = pyqtSignal() # generic request properties changed signal
