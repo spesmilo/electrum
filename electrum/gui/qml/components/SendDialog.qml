@@ -20,7 +20,9 @@ ElDialog {
         color: "#aa000000"
     }
 
+    header: Item {}
     padding: 0
+    topPadding: 0
 
     function restart() {
         qrscan.restart()
@@ -28,6 +30,7 @@ ElDialog {
 
     ColumnLayout {
         anchors.fill: parent
+        spacing: 0
 
         QRScan {
             id: qrscan
