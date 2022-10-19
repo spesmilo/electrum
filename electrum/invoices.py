@@ -128,7 +128,10 @@ class Invoice(StoredObject):
         if self.is_lightning():
             address = self.get_address()
             amount = self.get_amount_sat()
-            outputs = [PartialTxOutput.from_address_and_value(address, int(amount))] if address and amount else []
+            if address and amount is not None:
+                outputs = [PartialTxOutput.from_address_and_value(address, int(amount))]
+            else:
+                outputs = []
         else:
             outputs = self.outputs
         return outputs
