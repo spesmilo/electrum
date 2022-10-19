@@ -85,14 +85,21 @@ class AmountEdit(SizedFreezableLineEdit):
             painter.setPen(ColorScheme.GRAY.as_color())
             painter.drawText(textRect, int(Qt.AlignRight | Qt.AlignVCenter), self.base_unit())
 
-    def get_amount(self) -> Union[None, Decimal, int]:
+    def _get_amount_from_text(self, text: str) -> Union[None, Decimal, int]:
         try:
-            return (int if self.is_int else Decimal)(str(self.text()))
+            return (int if self.is_int else Decimal)(text)
         except:
             return None
 
-    def setAmount(self, x):
-        self.setText("%d"%x)
+    def get_amount(self) -> Union[None, Decimal, int]:
+        return self._get_amount_from_text(str(self.text()))
+
+    def _get_text_from_amount(self, amount) -> str:
+        return "%d" % amount
+
+    def setAmount(self, amount):
+        text = self._get_text_from_amount(amount)
+        self.setText(text)
 
 
 class BTCAmountEdit(AmountEdit):
@@ -104,10 +111,10 @@ class BTCAmountEdit(AmountEdit):
     def _base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point())
 
-    def get_amount(self):
+    def _get_amount_from_text(self, text):
         # returns amt in satoshis
         try:
-            x = Decimal(str(self.text()))
+            x = Decimal(text)
         except:
             return None
         # scale it to max allowed precision, make it an int
@@ -120,11 +127,15 @@ class BTCAmountEdit(AmountEdit):
         amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point())
         return Decimal(amount) if not self.is_int else int(amount)
 
+    def _get_text_from_amount(self, amount_sat):
+        return format_satoshis_plain(amount_sat, decimal_point=self.decimal_point())
+
     def setAmount(self, amount_sat):
         if amount_sat is None:
             self.setText(" ")  # Space forces repaint in case units changed
         else:
-            self.setText(format_satoshis_plain(amount_sat, decimal_point=self.decimal_point()))
+            text = self._get_text_from_amount(amount_sat)
+            self.setText(text)
         self.repaint()  # macOS hack for #6269
 
 
@@ -137,10 +148,10 @@ class FeerateEdit(BTCAmountEdit):
     def _base_unit(self):
         return 'sat/byte'
 
-    def get_amount(self):
-        sat_per_byte_amount = BTCAmountEdit.get_amount(self)
+    def _get_amount_from_text(self, text):
+        sat_per_byte_amount = super()._get_amount_from_text(text)
         return quantize_feerate(sat_per_byte_amount)
 
-    def setAmount(self, amount):
+    def _get_text_from_amount(self, amount):
         amount = quantize_feerate(amount)
-        super().setAmount(amount)
+        return super()._get_text_from_amount(amount)
