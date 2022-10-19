@@ -81,6 +81,7 @@ from .interface import NetworkException
 from .mnemonic import Mnemonic
 from .logging import get_logger, Logger
 from .lnworker import LNWallet
+from .lnchannel import ChannelState
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
@@ -2479,7 +2480,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         exp_delay = exp_delay or 0
         timestamp = int(time.time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
-        lightning = self.has_lightning()
+        lightning = self.has_lightning() and self.lnworker.channels \
+            and any([c.get_state() <= ChannelState.OPEN for c in self.lnworker.channels])
         if lightning:
             lightning_invoice = self.lnworker.add_request(
                 amount_sat=amount_sat,
