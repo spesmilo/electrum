@@ -11,6 +11,10 @@ from .util import char_width_in_lineedit, ColorScheme
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                            FEERATE_PRECISION, quantize_feerate)
+from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+
+
+_NOT_GIVEN = object()  # sentinel value
 
 
 class FreezableLineEdit(QLineEdit):
@@ -38,7 +42,7 @@ class SizedFreezableLineEdit(FreezableLineEdit):
 class AmountEdit(SizedFreezableLineEdit):
     shortcut = pyqtSignal()
 
-    def __init__(self, base_unit, is_int=False, parent=None):
+    def __init__(self, base_unit, is_int=False, parent=None, *, max_amount=None):
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         width = 16 * char_width_in_lineedit()
         super().__init__(width=width, parent=parent)
@@ -47,6 +51,7 @@ class AmountEdit(SizedFreezableLineEdit):
         self.is_int = is_int
         self.is_shortcut = False
         self.extra_precision = 0
+        self.max_amount = max_amount
 
     def decimal_point(self):
         return 8
@@ -68,6 +73,9 @@ class AmountEdit(SizedFreezableLineEdit):
                 p = s.find('.')
                 s = s.replace('.','')
                 s = s[:p] + '.' + s[p:p+self.max_precision()]
+        if self.max_amount:
+            if (amt := self._get_amount_from_text(s)) and amt >= self.max_amount:
+                s = self._get_text_from_amount(self.max_amount)
         self.setText(s)
         # setText sets Modified to False.  Instead we want to remember
         # if updates were because of user modification.
@@ -92,7 +100,10 @@ class AmountEdit(SizedFreezableLineEdit):
             return None
 
     def get_amount(self) -> Union[None, Decimal, int]:
-        return self._get_amount_from_text(str(self.text()))
+        amt = self._get_amount_from_text(str(self.text()))
+        if self.max_amount and amt and amt >= self.max_amount:
+            return self.max_amount
+        return amt
 
     def _get_text_from_amount(self, amount) -> str:
         return "%d" % amount
@@ -104,8 +115,10 @@ class AmountEdit(SizedFreezableLineEdit):
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None):
-        AmountEdit.__init__(self, self._base_unit, is_int, parent)
+    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
+        if max_amount is _NOT_GIVEN:
+            max_amount = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        AmountEdit.__init__(self, self._base_unit, is_int, parent, max_amount=max_amount)
         self.decimal_point = decimal_point
 
     def _base_unit(self):
@@ -141,8 +154,8 @@ class BTCAmountEdit(AmountEdit):
 
 class FeerateEdit(BTCAmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None):
-        super().__init__(decimal_point, is_int, parent)
+    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
+        super().__init__(decimal_point, is_int, parent, max_amount=max_amount)
         self.extra_precision = FEERATE_PRECISION
 
     def _base_unit(self):
