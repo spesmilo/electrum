@@ -1,0 +1,6 @@
+{
+    "name": "notary",
+    "fullname": "Notary",
+    "description": "Notary for pay-to-upvote nostr events",
+    "available_for": ["qt", "cmdline"]
+}
