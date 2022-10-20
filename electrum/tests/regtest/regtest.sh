@@ -83,10 +83,11 @@ if [[ $1 == "init" ]]; then
     # alice is funded, bob is listening
     if [[ $2 == "bob" ]]; then
         $bob setconfig --offline lightning_listen localhost:9735
-    else
-        echo "funding $2"
-        $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
+        $bob setconfig --offline use_swapserver true
+    #else
     fi
+    echo "funding $2"
+    $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
 fi
 
 
@@ -167,6 +168,24 @@ if [[ $1 == "collaborative_close" ]]; then
     wait_until_channel_open alice
     echo "alice closes channel"
     request=$($bob close_channel $channel)
+fi
+
+
+if [[ $1 == "reverse_swap" ]]; then
+    wait_for_balance alice 1
+    echo "alice opens channel"
+    bob_node=$($bob nodeid)
+    channel=$($alice open_channel $bob_node 0.15)
+    new_blocks 3
+    wait_until_channel_open alice
+    echo "alice initiates swap"
+    dryrun=$($alice reverse_swap 0.02 dryrun)
+    echo $dryrun | jq
+    onchain_amount=$(echo $dryrun| jq -r ".onchain_amount")
+    $alice reverse_swap 0.02 $onchain_amount
+    new_blocks 1
+    sleep 1
+    new_blocks 1
 fi
 
 

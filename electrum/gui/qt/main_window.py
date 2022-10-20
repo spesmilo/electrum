@@ -1191,10 +1191,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         invoice = self.wallet.get_invoice(key)
         if invoice and invoice.is_lightning() and invoice.get_address():
+            # fixme: we should display this popup only if the user initiated the payment
             if self.question(_('Payment failed') + '\n\n' + reason + '\n\n'+ 'Fallback to onchain payment?'):
                 self.send_tab.pay_onchain_dialog(invoice.get_outputs())
         else:
-            self.show_error(_('Payment failed') + '\n\n' + reason)
+            self.notify(_('Payment failed') + '\n\n' + reason)
 
     def get_coins(self, **kwargs) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()

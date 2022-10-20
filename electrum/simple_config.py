@@ -966,6 +966,8 @@ class SimpleConfig(Logger):
     PAYSERVER_ROOT = ConfigVar('payserver_root', default='/r', type_=str)
     PAYSERVER_ALLOW_CREATE_INVOICE = ConfigVar('payserver_allow_create_invoice', default=False, type_=bool)
 
+    SWAPSERVER_ADDRESS = ConfigVar('swapserver_address', default='localhost:5455', type_=str)
+
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 
 
