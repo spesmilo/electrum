@@ -67,13 +67,17 @@ ItemDelegate {
 
             Label {
                 id: amount
-                text: model.amount.isEmpty ? '' : Config.formatSats(model.amount)
+                text: model.amount.isEmpty
+                    ? ''
+                    : model.amount.isMax
+                        ? 'MAX'
+                        : Config.formatSats(model.amount)
                 font.pixelSize: constants.fontSizeMedium
                 font.family: FixedFont
             }
 
             Label {
-                text: model.amount.isEmpty ? '' : Config.baseUnit
+                text: model.amount.isEmpty || model.amount.isMax ? '' : Config.baseUnit
                 font.pixelSize: constants.fontSizeMedium
                 color: Material.accentColor
             }
@@ -105,14 +109,14 @@ ItemDelegate {
             }
             Label {
                 id: fiatValue
-                visible: Daemon.fx.enabled
+                visible: Daemon.fx.enabled && !model.amount.isMax
                 Layout.alignment: Qt.AlignRight
                 text: model.amount.isEmpty ? '' : Daemon.fx.fiatValue(model.amount, false)
                 font.family: FixedFont
                 font.pixelSize: constants.fontSizeSmall
             }
             Label {
-                visible: Daemon.fx.enabled
+                visible: Daemon.fx.enabled && !model.amount.isMax
                 Layout.alignment: Qt.AlignRight
                 text: model.amount.isEmpty ? '' : Daemon.fx.fiatCurrency
                 font.pixelSize: constants.fontSizeSmall

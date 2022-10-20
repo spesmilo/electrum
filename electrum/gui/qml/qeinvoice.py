@@ -182,7 +182,7 @@ class QEInvoiceParser(QEInvoice):
     def amount(self, new_amount):
         self._logger.debug(f'set new amount {repr(new_amount)}')
         if self._effectiveInvoice:
-            self._effectiveInvoice.amount_msat = int(new_amount.satsInt * 1000)
+            self._effectiveInvoice.amount_msat = '!' if new_amount.isMax else int(new_amount.satsInt * 1000)
 
         self.determine_can_pay()
         self.invoiceChanged.emit()
