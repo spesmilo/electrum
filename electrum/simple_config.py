@@ -966,7 +966,7 @@ class SimpleConfig(Logger):
     # submarine swap server
     SWAPSERVER_URL_MAINNET = ConfigVar('swapserver_url_mainnet', default='https://swaps.electrum.org/api', type_=str)
     SWAPSERVER_URL_TESTNET = ConfigVar('swapserver_url_testnet', default='https://swaps.electrum.org/testnet', type_=str)
-    SWAPSERVER_URL_REGTEST = ConfigVar('swapserver_url_regtest', default='https://localhost/api', type_=str)
+    SWAPSERVER_URL_REGTEST = ConfigVar('swapserver_url_regtest', default='http://localhost:5455/api', type_=str)
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar('use_watchtower', default=False, type_=bool)
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)
@@ -980,6 +980,8 @@ class SimpleConfig(Logger):
     PAYSERVER_ADDRESS = ConfigVar('payserver_address', default='localhost:8080', type_=str)
     PAYSERVER_ROOT = ConfigVar('payserver_root', default='/r', type_=str)
     PAYSERVER_ALLOW_CREATE_INVOICE = ConfigVar('payserver_allow_create_invoice', default=False, type_=bool)
+
+    SWAPSERVER_ADDRESS = ConfigVar('swapserver_address', default='localhost:5455', type_=str)
 
     PLUGIN_TRUSTEDCOIN_NUM_PREPAY = ConfigVar('trustedcoin_prepay', default=20, type_=int)
 
