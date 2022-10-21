@@ -115,7 +115,7 @@ ElDialog {
 
                 Label {
                     width: parent.width
-                    text: invoice.lnprops ? invoice.lnprops.pubkey : ''
+                    text: 'pubkey' in invoice.lnprops ? invoice.lnprops.pubkey : ''
                     font.family: FixedFont
                     wrapMode: Text.Wrap
                 }

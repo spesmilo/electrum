@@ -107,10 +107,13 @@ class QEInvoice(QObject):
             self.userinfoChanged.emit()
 
     def get_max_spendable_onchain(self):
-        c, u, x = self._wallet.wallet.get_balance()
-        #TODO determine real max
-        return c
+        spendable = self._wallet.confirmedBalance.satsInt
+        if not self._wallet.wallet.config.get('confirmed_only', False):
+            spendable += self._wallet.unconfirmedBalance.satsInt
+        return spendable
 
+    def get_max_spendable_lightning(self):
+        return self._wallet.wallet.lnworker.num_sats_can_send()
 
 class QEInvoiceParser(QEInvoice):
 
@@ -302,9 +305,6 @@ class QEInvoiceParser(QEInvoice):
                         PR_UNCONFIRMED: _('Invoice is already paid'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
-
-    def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send()
 
     def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')
