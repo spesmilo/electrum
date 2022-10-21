@@ -160,14 +160,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
         if wallet == self.wallet:
-            self._logger.debug('invoice status update for key %s' % key)
-            # FIXME event doesn't pass the new status, so we need to retrieve
-            # invoice = self.wallet.get_invoice(key)
-            # if invoice:
-            #     status = self.wallet.get_invoice_status(invoice)
-            #     self.invoiceStatusChanged.emit(key, status)
-            # else:
-            #     self._logger.debug(f'No invoice found for key {key}')
+            self._logger.debug(f'invoice status update for key {key} to {status}')
             self.invoiceStatusChanged.emit(key, status)
 
     @qt_event_listener
