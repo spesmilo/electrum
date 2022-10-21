@@ -265,8 +265,10 @@ class QEInvoiceParser(QEInvoice):
         self.statusChanged.emit()
 
     def determine_can_pay(self):
-        if self.amount.satsInt == 0:
-            self.canPay = False
+        self.canPay = False
+        self.userinfo = ''
+
+        if self.amount.isEmpty: # unspecified amount
             return
 
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
@@ -274,7 +276,7 @@ class QEInvoiceParser(QEInvoice):
                 if self.get_max_spendable_lightning() >= self.amount.satsInt:
                     self.canPay = True
                 else:
-                    self.userinfo = _('Can\'t pay, insufficient balance')
+                    self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
                         PR_EXPIRED: _('Invoice is expired'),
@@ -285,7 +287,11 @@ class QEInvoiceParser(QEInvoice):
                     }[self.status]
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
-                if self.get_max_spendable_onchain() >= self.amount.satsInt:
+                if self.amount.isMax and self.get_max_spendable_onchain() > 0:
+                    # TODO: dust limit?
+                    self.canPay = True
+                elif self.get_max_spendable_onchain() >= self.amount.satsInt:
+                    # TODO: dust limit?
                     self.canPay = True
                 else:
                     self.userinfo = _('Insufficient balance')
@@ -297,15 +303,8 @@ class QEInvoiceParser(QEInvoice):
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
 
-
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send()
-
-    # def setValidAddressOnly(self):
-    #     self._logger.debug('setValidAddressOnly')
-    #     self.setInvoiceType(QEInvoice.Type.OnchainOnlyAddress)
-    #     self._effectiveInvoice = None
-    #     self.invoiceChanged.emit()
 
     def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')

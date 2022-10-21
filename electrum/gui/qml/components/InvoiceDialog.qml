@@ -296,6 +296,7 @@ ElDialog {
             InfoTextArea {
                 Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: parent.width * 3/4
                 visible: invoice.userinfo
                 text: invoice.userinfo
             }
