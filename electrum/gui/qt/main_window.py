@@ -1157,13 +1157,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.receive_tab.request_list.refresh_item(key)
 
     @qt_event_listener
-    def on_event_invoice_status(self, wallet, key):
+    def on_event_invoice_status(self, wallet, key, status):
         if wallet != self.wallet:
             return
-        invoice = self.wallet.get_invoice(key)
-        if invoice is None:
-            return
-        status = self.wallet.get_invoice_status(invoice)
         if status == PR_PAID:
             self.send_tab.invoice_list.delete_item(key)
         else:
