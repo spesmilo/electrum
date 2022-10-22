@@ -393,6 +393,10 @@ class PayServer(Logger, EventListener):
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
         app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
+        # 'follow_symlinks=True' allows symlinks to traverse out the parent directory.
+        # This was requested by distro packagers for vendored libs, and we restrict it to only those
+        # to minimise attack surface. note: "add_routes" call order matters (inner path goes first)
+        app.add_routes([web.static(f"{root}/vendor", os.path.join(self.WWW_DIR, 'vendor'), follow_symlinks=True)])
         app.add_routes([web.static(root, self.WWW_DIR)])
         if self.config.get('payserver_allow_create_invoice'):
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
