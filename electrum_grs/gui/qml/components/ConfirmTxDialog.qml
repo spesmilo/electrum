@@ -175,6 +175,8 @@ ElDialog {
 
             InfoTextArea {
                 Layout.columnSpan: 2
+                Layout.preferredWidth: parent.width * 3/4
+                Layout.alignment: Qt.AlignHCenter
                 visible: finalizer.warning != ''
                 text: finalizer.warning
                 iconStyle: InfoTextArea.IconStyle.Warn
