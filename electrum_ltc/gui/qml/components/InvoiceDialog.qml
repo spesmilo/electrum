@@ -26,6 +26,8 @@ ElDialog {
         color: "#aa000000"
     }
 
+    property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
+
     ColumnLayout {
         width: parent.width
         height: parent.height
@@ -113,7 +115,7 @@ ElDialog {
 
                 Label {
                     width: parent.width
-                    text: invoice.lnprops ? invoice.lnprops.pubkey : ''
+                    text: 'pubkey' in invoice.lnprops ? invoice.lnprops.pubkey : ''
                     font.family: FixedFont
                     wrapMode: Text.Wrap
                 }
@@ -172,6 +174,16 @@ ElDialog {
                         columns: 2
 
                         Label {
+                            visible: invoice.amount.isMax
+                            Layout.columnSpan: 2
+                            font.pixelSize: constants.fontSizeXLarge
+                            font.bold: true
+                            Layout.fillWidth: true
+                            text: qsTr('All on-chain funds')
+                        }
+
+                        Label {
+                            visible: !invoice.amount.isMax
                             font.pixelSize: constants.fontSizeXLarge
                             font.family: FixedFont
                             font.bold: true
@@ -179,6 +191,7 @@ ElDialog {
                         }
 
                         Label {
+                            visible: !invoice.amount.isMax
                             Layout.fillWidth: true
                             text: Config.baseUnit
                             color: Material.accentColor
@@ -187,14 +200,14 @@ ElDialog {
 
                         Label {
                             id: fiatValue
-                            visible: Daemon.fx.enabled
+                            visible: Daemon.fx.enabled && !invoice.amount.isMax
                             text: Daemon.fx.fiatValue(invoice.amount, false)
                             font.pixelSize: constants.fontSizeMedium
                             color: constants.mutedForeground
                         }
 
                         Label {
-                            visible: Daemon.fx.enabled
+                            visible: Daemon.fx.enabled && !invoice.amount.isMax
                             Layout.fillWidth: true
                             text: Daemon.fx.fiatCurrency
                             font.pixelSize: constants.fontSizeMedium
@@ -209,6 +222,7 @@ ElDialog {
                         icon.color: 'transparent'
                         onClicked: {
                             amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
+                            amountMax.checked = invoice.amount.isMax
                             amountContainer.editmode = true
                             amountBtc.focus = true
                         }
@@ -216,26 +230,42 @@ ElDialog {
                     GridLayout {
                         visible: amountContainer.editmode
                         Layout.fillWidth: true
-                        columns: 2
+                        columns: 3
                         BtcField {
                             id: amountBtc
                             fiatfield: amountFiat
+                            enabled: !amountMax.checked
                         }
 
                         Label {
                             text: Config.baseUnit
                             color: Material.accentColor
+                            Layout.fillWidth: amountMax.visible ? false : true
+                            Layout.columnSpan: amountMax.visible ? 1 : 2
+                        }
+                        Switch {
+                            id: amountMax
+                            text: qsTr('Max')
+                            visible: _canMax
                             Layout.fillWidth: true
+                            checked: invoice.amount.isMax
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    invoice.amount.isMax = checked
+                                }
+                            }
                         }
 
                         FiatField {
                             id: amountFiat
                             btcfield: amountBtc
-                            visible: Daemon.fx.enabled
+                            visible: Daemon.fx.enabled && !amountMax.checked
+                            enabled: !amountMax.checked
                         }
 
                         Label {
-                            visible: Daemon.fx.enabled
+                            Layout.columnSpan: 2
+                            visible: Daemon.fx.enabled && !amountMax.checked
                             text: Daemon.fx.fiatCurrency
                             color: Material.accentColor
                         }
@@ -247,7 +277,7 @@ ElDialog {
                         icon.color: 'transparent'
                         onClicked: {
                             amountContainer.editmode = false
-                            invoice.amount = Config.unitsToSats(amountBtc.text)
+                            invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
                         }
                     }
                     ToolButton {
@@ -266,6 +296,7 @@ ElDialog {
             InfoTextArea {
                 Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: parent.width * 3/4
                 visible: invoice.userinfo
                 text: invoice.userinfo
             }
@@ -315,7 +346,7 @@ ElDialog {
         if (invoice_key != '') {
             invoice.initFromKey(invoice_key)
         }
-        if (invoice.amount.satsInt == 0)
+        if (invoice.amount.isEmpty)
             amountContainer.editmode = true
     }
 }

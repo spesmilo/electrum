@@ -31,10 +31,6 @@ if TYPE_CHECKING:
 
 from .qeapp import ElectrumQmlApplication
 
-class UncaughtException(Exception):
-    pass
-
-
 class ElectrumGui(Logger):
 
     @profiler

@@ -129,7 +129,10 @@ Pane {
             Label { text: 'derivation prefix (BIP32)'; visible: Daemon.currentWallet.isDeterministic; color: Material.accentColor; Layout.columnSpan: 2 }
             Label { text: Daemon.currentWallet.derivationPrefix; visible: Daemon.currentWallet.isDeterministic; Layout.columnSpan: 2 }
 
-            Label { text: 'txinType'; color: Material.accentColor }
+            Label { text: 'wallet type'; color: Material.accentColor }
+            Label { text: Daemon.currentWallet.walletType }
+
+            Label { text: 'txin Type'; color: Material.accentColor }
             Label { text: Daemon.currentWallet.txinType }
 
             Label { text: 'is deterministic'; color: Material.accentColor }
@@ -148,11 +151,16 @@ Pane {
             Label { text: Daemon.currentWallet.isLightning }
 
             Label { text: 'has Seed'; color: Material.accentColor }
-            Label { text: Daemon.currentWallet.hasSeed; Layout.columnSpan: 3 }
+            Label { text: Daemon.currentWallet.hasSeed }
 
-            Label { Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor }
+            Label {
+                visible: Daemon.currentWallet.masterPubkey
+                Layout.columnSpan:4; text: qsTr('Master Public Key'); color: Material.accentColor
+            }
 
             TextHighlightPane {
+                visible: Daemon.currentWallet.masterPubkey
+
                 Layout.columnSpan: 4
                 Layout.fillWidth: true
                 padding: 0

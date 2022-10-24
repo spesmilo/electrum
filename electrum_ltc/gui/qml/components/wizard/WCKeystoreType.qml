@@ -4,7 +4,7 @@ import QtQuick.Controls 2.1
 WizardComponent {
     valid: keystoregroup.checkedButton !== null
 
-    onAccept: {
+    function apply() {
         wizard_data['keystore_type'] = keystoregroup.checkedButton.keystoretype
     }
 

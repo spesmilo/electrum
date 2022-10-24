@@ -4,7 +4,7 @@ WizardComponent {
     valid: true
     last: true
 
-    onAccept: {
+    function apply() {
         wizard_data['oneserver'] = !sc.auto_server
         wizard_data['server'] = sc.address
     }

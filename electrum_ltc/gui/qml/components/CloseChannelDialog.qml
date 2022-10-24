@@ -26,68 +26,104 @@ ElDialog {
 
     closePolicy: Popup.NoAutoClose
 
-    GridLayout {
-        id: layout
+    padding: 0
+
+    ColumnLayout {
         width: parent.width
         height: parent.height
-        columns: 2
+        spacing: 0
 
-        Label {
-            text: qsTr('Channel name')
-            color: Material.accentColor
+        GridLayout {
+            id: layout
+            Layout.preferredWidth: parent.width
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
+            columns: 2
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr('Channel name')
+                color: Material.accentColor
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: channeldetails.name
+            }
+
+            Label {
+                text: qsTr('Short channel ID')
+                color: Material.accentColor
+            }
+
+            Label {
+                text: channeldetails.short_cid
+            }
+
+            Item { Layout.preferredHeight: constants.paddingMedium; Layout.preferredWidth: 1; Layout.columnSpan: 2 }
+
+            InfoTextArea {
+                Layout.columnSpan: 2
+                Layout.preferredWidth: parent.width * 3/4
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr(channeldetails.message_force_close)
+            }
+
+            ColumnLayout {
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignHCenter
+
+                ButtonGroup {
+                    id: closetypegroup
+                }
+
+                RadioButton {
+                    ButtonGroup.group: closetypegroup
+                    property string closetype: 'cooperative'
+                    checked: true
+                    enabled: !closing && channeldetails.canCoopClose
+                    text: qsTr('Cooperative close')
+                }
+                RadioButton {
+                    ButtonGroup.group: closetypegroup
+                    property string closetype: 'remote_force'
+                    enabled: !closing && channeldetails.canForceClose
+                    text: qsTr('Request Force-close')
+                }
+                RadioButton {
+                    ButtonGroup.group: closetypegroup
+                    property string closetype: 'local_force'
+                    enabled: !closing && channeldetails.canForceClose
+                    text: qsTr('Local Force-close')
+                }
+            }
+
+            ColumnLayout {
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignHCenter
+                Label {
+                    id: errorText
+                    visible: !closing && errorText
+                    wrapMode: Text.Wrap
+                    Layout.preferredWidth: layout.width
+                }
+                Label {
+                    text: qsTr('Closing...')
+                    visible: closing
+                }
+                BusyIndicator {
+                    visible: closing
+                }
+            }
         }
 
-        Label {
-            text: channeldetails.name
-        }
+        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
-        Label {
-            text: qsTr('Short channel ID')
-            color: Material.accentColor
-        }
-
-        Label {
-            text: channeldetails.short_cid
-        }
-
-        InfoTextArea {
+        FlatButton {
             Layout.columnSpan: 2
-            text: qsTr(channeldetails.message_force_close)
-        }
-
-        ColumnLayout {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-
-            ButtonGroup {
-                id: closetypegroup
-            }
-
-            RadioButton {
-                ButtonGroup.group: closetypegroup
-                property string closetype: 'cooperative'
-                checked: true
-                enabled: !closing && channeldetails.canCoopClose
-                text: qsTr('Cooperative close')
-            }
-            RadioButton {
-                ButtonGroup.group: closetypegroup
-                property string closetype: 'remote_force'
-                enabled: !closing && channeldetails.canForceClose
-                text: qsTr('Request Force-close')
-            }
-            RadioButton {
-                ButtonGroup.group: closetypegroup
-                property string closetype: 'local_force'
-                enabled: !closing && channeldetails.canForceClose
-                text: qsTr('Local Force-close')
-            }
-        }
-
-        Button {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
             text: qsTr('Close')
+            icon.source: '../../icons/closebutton.png'
             enabled: !closing
             onClicked: {
                 closing = true
@@ -95,25 +131,6 @@ ElDialog {
             }
 
         }
-
-        ColumnLayout {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            Label {
-                id: errorText
-                visible: !closing && errorText
-                wrapMode: Text.Wrap
-                Layout.preferredWidth: layout.width
-            }
-            Label {
-                text: qsTr('Closing...')
-                visible: closing
-            }
-            BusyIndicator {
-                visible: closing
-            }
-        }
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
     }
 

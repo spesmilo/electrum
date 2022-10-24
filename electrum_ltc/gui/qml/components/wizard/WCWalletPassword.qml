@@ -7,7 +7,7 @@ import "../controls"
 WizardComponent {
     valid: password1.text === password2.text && password1.text.length > 4
 
-    onAccept: {
+    function apply() {
         wizard_data['password'] = password1.text
         wizard_data['encrypt'] = password1.text != ''
     }

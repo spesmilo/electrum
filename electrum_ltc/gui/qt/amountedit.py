@@ -11,6 +11,10 @@ from .util import char_width_in_lineedit, ColorScheme
 
 from electrum_ltc.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
                                FEERATE_PRECISION, quantize_feerate)
+from electrum_ltc.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+
+
+_NOT_GIVEN = object()  # sentinel value
 
 
 class FreezableLineEdit(QLineEdit):
@@ -38,7 +42,7 @@ class SizedFreezableLineEdit(FreezableLineEdit):
 class AmountEdit(SizedFreezableLineEdit):
     shortcut = pyqtSignal()
 
-    def __init__(self, base_unit, is_int=False, parent=None):
+    def __init__(self, base_unit, is_int=False, parent=None, *, max_amount=None):
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         width = 16 * char_width_in_lineedit()
         super().__init__(width=width, parent=parent)
@@ -47,6 +51,7 @@ class AmountEdit(SizedFreezableLineEdit):
         self.is_int = is_int
         self.is_shortcut = False
         self.extra_precision = 0
+        self.max_amount = max_amount
 
     def decimal_point(self):
         return 8
@@ -68,6 +73,9 @@ class AmountEdit(SizedFreezableLineEdit):
                 p = s.find('.')
                 s = s.replace('.','')
                 s = s[:p] + '.' + s[p:p+self.max_precision()]
+        if self.max_amount:
+            if (amt := self._get_amount_from_text(s)) and amt >= self.max_amount:
+                s = self._get_text_from_amount(self.max_amount)
         self.setText(s)
         # setText sets Modified to False.  Instead we want to remember
         # if updates were because of user modification.
@@ -85,29 +93,41 @@ class AmountEdit(SizedFreezableLineEdit):
             painter.setPen(ColorScheme.GRAY.as_color())
             painter.drawText(textRect, int(Qt.AlignRight | Qt.AlignVCenter), self.base_unit())
 
-    def get_amount(self) -> Union[None, Decimal, int]:
+    def _get_amount_from_text(self, text: str) -> Union[None, Decimal, int]:
         try:
-            return (int if self.is_int else Decimal)(str(self.text()))
+            return (int if self.is_int else Decimal)(text)
         except:
             return None
 
-    def setAmount(self, x):
-        self.setText("%d"%x)
+    def get_amount(self) -> Union[None, Decimal, int]:
+        amt = self._get_amount_from_text(str(self.text()))
+        if self.max_amount and amt and amt >= self.max_amount:
+            return self.max_amount
+        return amt
+
+    def _get_text_from_amount(self, amount) -> str:
+        return "%d" % amount
+
+    def setAmount(self, amount):
+        text = self._get_text_from_amount(amount)
+        self.setText(text)
 
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None):
-        AmountEdit.__init__(self, self._base_unit, is_int, parent)
+    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
+        if max_amount is _NOT_GIVEN:
+            max_amount = TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN
+        AmountEdit.__init__(self, self._base_unit, is_int, parent, max_amount=max_amount)
         self.decimal_point = decimal_point
 
     def _base_unit(self):
         return decimal_point_to_base_unit_name(self.decimal_point())
 
-    def get_amount(self):
+    def _get_amount_from_text(self, text):
         # returns amt in satoshis
         try:
-            x = Decimal(str(self.text()))
+            x = Decimal(text)
         except:
             return None
         # scale it to max allowed precision, make it an int
@@ -120,27 +140,31 @@ class BTCAmountEdit(AmountEdit):
         amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point())
         return Decimal(amount) if not self.is_int else int(amount)
 
+    def _get_text_from_amount(self, amount_sat):
+        return format_satoshis_plain(amount_sat, decimal_point=self.decimal_point())
+
     def setAmount(self, amount_sat):
         if amount_sat is None:
             self.setText(" ")  # Space forces repaint in case units changed
         else:
-            self.setText(format_satoshis_plain(amount_sat, decimal_point=self.decimal_point()))
+            text = self._get_text_from_amount(amount_sat)
+            self.setText(text)
         self.repaint()  # macOS hack for #6269
 
 
 class FeerateEdit(BTCAmountEdit):
 
-    def __init__(self, decimal_point, is_int=False, parent=None):
-        super().__init__(decimal_point, is_int, parent)
+    def __init__(self, decimal_point, is_int=False, parent=None, *, max_amount=_NOT_GIVEN):
+        super().__init__(decimal_point, is_int, parent, max_amount=max_amount)
         self.extra_precision = FEERATE_PRECISION
 
     def _base_unit(self):
         return 'sat/byte'
 
-    def get_amount(self):
-        sat_per_byte_amount = BTCAmountEdit.get_amount(self)
+    def _get_amount_from_text(self, text):
+        sat_per_byte_amount = super()._get_amount_from_text(text)
         return quantize_feerate(sat_per_byte_amount)
 
-    def setAmount(self, amount):
+    def _get_text_from_amount(self, amount):
         amount = quantize_feerate(amount)
-        super().setAmount(amount)
+        return super()._get_text_from_amount(amount)

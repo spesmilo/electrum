@@ -12,38 +12,39 @@ WizardComponent {
     id: root
     valid: false
 
-    onAccept: {
+    property bool is2fa: false
+
+    function apply() {
         wizard_data['seed'] = seedtext.text
+        wizard_data['seed_variant'] = seed_variant.currentValue
         wizard_data['seed_type'] = bitcoin.seed_type
         wizard_data['seed_extend'] = extendcb.checked
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
-        wizard_data['seed_bip39'] = seed_type.getTypeCode() == 'BIP39'
-        wizard_data['seed_slip39'] = seed_type.getTypeCode() == 'SLIP39'
     }
 
     function setSeedTypeHelpText() {
         var t = {
-            'Electrum': [
+            'electrum': [
                 qsTr('Electrum seeds are the default seed type.'),
                 qsTr('If you are restoring from a seed previously created by Electrum, choose this option')
             ].join(' '),
-            'BIP39': [
+            'bip39': [
                 qsTr('BIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
                 '<br/><br/>',
                 qsTr('However, we do not generate BIP39 seeds, because they do not meet our safety standard.'),
                 qsTr('BIP39 seeds do not include a version number, which compromises compatibility with future software.')
             ].join(' '),
-            'SLIP39': [
+            'slip39': [
                 qsTr('SLIP39 seeds can be imported in Electrum, so that users can access funds locked in other wallets.'),
                 '<br/><br/>',
                 qsTr('However, we do not generate SLIP39 seeds.')
             ].join(' ')
         }
-        infotext.text = t[seed_type.currentText]
+        infotext.text = t[seed_variant.currentValue]
     }
 
     function checkValid() {
-        bitcoin.verify_seed(seedtext.text, seed_type.getTypeCode() == 'BIP39', seed_type.getTypeCode() == 'SLIP39')
+        bitcoin.verify_seed(seedtext.text, seed_variant.currentValue, wizard_data['wallet_type'])
     }
 
     Flickable {
@@ -58,18 +59,24 @@ WizardComponent {
             columns: 2
 
             Label {
+                visible: !is2fa
                 text: qsTr('Seed Type')
                 Layout.fillWidth: true
             }
             ComboBox {
-                id: seed_type
-                model: ['Electrum', 'BIP39'/*, 'SLIP39'*/]
+                id: seed_variant
+                visible: !is2fa
+
+                textRole: 'text'
+                valueRole: 'value'
+                model: [
+                    { text: qsTr('Electrum'), value: 'electrum' },
+                    { text: qsTr('BIP39'), value: 'bip39' }
+                ]
                 onActivated: {
                     setSeedTypeHelpText()
+                    checkIsLast()
                     checkValid()
-                }
-                function getTypeCode() {
-                    return currentText
                 }
             }
             InfoTextArea {
@@ -91,7 +98,7 @@ WizardComponent {
 
                 Rectangle {
                     anchors.fill: contentText
-                    color: 'green'
+                    color: root.valid ? 'green' : 'red'
                     border.color: Material.accentColor
                     radius: 2
                 }
@@ -147,5 +154,13 @@ WizardComponent {
 
     Component.onCompleted: {
         setSeedTypeHelpText()
+    }
+
+    onReadyChanged: {
+        if (!ready)
+            return
+
+        if (wizard_data['wallet_type'] == '2fa')
+            root.is2fa = true
     }
 }

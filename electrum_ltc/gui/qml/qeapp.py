@@ -29,6 +29,7 @@ from .qechannelopener import QEChannelOpener
 from .qelnpaymentdetails import QELnPaymentDetails
 from .qechanneldetails import QEChannelDetails
 from .qeswaphelper import QESwapHelper
+from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 notification = None
 
@@ -217,6 +218,8 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QERequestDetails, 'org.electrum_ltc', 1, 0, 'RequestDetails')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum_ltc', 1, 0, 'Amount', 'Amount can only be used as property')
+        qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum_ltc', 1, 0, 'NewWalletWizard', 'NewWalletWizard can only be used as property')
+        qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum_ltc', 1, 0, 'ServerConnectWizard', 'ServerConnectWizard can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
 
@@ -253,6 +256,8 @@ class ElectrumQmlApplication(QGuiApplication):
             'apk_version': version.APK_VERSION,
             'protocol_version': version.PROTOCOL_VERSION
         })
+
+        self.plugins.load_plugin('trustedcoin')
 
         qInstallMessageHandler(self.message_handler)
 

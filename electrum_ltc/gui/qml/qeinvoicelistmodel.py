@@ -140,16 +140,10 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
         self.unregister_callbacks()
 
     @qt_event_listener
-    def on_event_invoice_status(self, wallet, key):
+    def on_event_invoice_status(self, wallet, key, status):
         if wallet == self.wallet:
-            self._logger.debug('invoice status update for key %s' % key)
-            # FIXME event doesn't pass the new status, so we need to retrieve
-            invoice = self.wallet.get_invoice(key)
-            if invoice:
-                status = self.wallet.get_invoice_status(invoice)
-                self.updateInvoice(key, status)
-            else:
-                self._logger.debug(f'No invoice found for key {key}')
+            self._logger.debug(f'invoice status update for key {key} to {status}')
+            self.updateInvoice(key, status)
 
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
@@ -181,7 +175,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
         if wallet == self.wallet:
-            self._logger.debug('request status update for key %s' % key)
+            self._logger.debug(f'request status update for key {key} to {status}')
             self.updateRequest(key, status)
 
     def invoice_to_model(self, invoice: Invoice):
