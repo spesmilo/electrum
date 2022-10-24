@@ -4,8 +4,13 @@ import QtQuick.Controls 2.1
 WizardComponent {
     valid: wallettypegroup.checkedButton !== null
 
-    onAccept: {
+    function apply() {
         wizard_data['wallet_type'] = wallettypegroup.checkedButton.wallettype
+        if (wizard_data['wallet_type'] == 'standard')
+            wizard_data['seed_type'] = 'segwit'
+        else if (wizard_data['wallet_type'] == '2fa')
+            wizard_data['seed_type'] = '2fa_segwit'
+        // TODO: multisig
     }
 
     ButtonGroup {
@@ -22,7 +27,6 @@ WizardComponent {
             text: qsTr('Standard Wallet')
         }
         RadioButton {
-            enabled: false
             ButtonGroup.group: wallettypegroup
             property string wallettype: '2fa'
             text: qsTr('Wallet with two-factor authentication')
@@ -34,9 +38,8 @@ WizardComponent {
             text: qsTr('Multi-signature wallet')
         }
         RadioButton {
-            enabled: false
             ButtonGroup.group: wallettypegroup
-            property string wallettype: 'import'
+            property string wallettype: 'imported'
             text: qsTr('Import Bitcoin addresses or private keys')
         }
     }

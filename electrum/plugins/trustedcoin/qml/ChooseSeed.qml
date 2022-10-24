@@ -1,10 +1,13 @@
+import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
+
+import "../../../gui/qml/components/wizard"
 
 WizardComponent {
     valid: keystoregroup.checkedButton !== null
 
-    function apply() {
+    onAccept: {
         wizard_data['keystore_type'] = keystoregroup.checkedButton.keystoretype
     }
 
@@ -12,9 +15,13 @@ WizardComponent {
         id: keystoregroup
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('What kind of wallet do you want to create?') }
+    ColumnLayout {
+        width: parent.width
+        Label {
+            text: qsTr('Do you want to create a new seed, or restore a wallet using an existing seed?')
+            Layout.preferredWidth: parent.width
+            wrapMode: Text.Wrap
+        }
         RadioButton {
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'createseed'
@@ -25,18 +32,6 @@ WizardComponent {
             ButtonGroup.group: keystoregroup
             property string keystoretype: 'haveseed'
             text: qsTr('I already have a seed')
-        }
-        RadioButton {
-            ButtonGroup.group: keystoregroup
-            property string keystoretype: 'masterkey'
-            text: qsTr('Use a master key')
-        }
-        RadioButton {
-            enabled: false
-            visible: false
-            ButtonGroup.group: keystoregroup
-            property string keystoretype: 'hardware'
-            text: qsTr('Use a hardware device')
         }
     }
 }

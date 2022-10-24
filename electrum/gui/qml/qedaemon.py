@@ -14,6 +14,7 @@ from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
 from .qewallet import QEWallet
 from .qewalletdb import QEWalletDB
+from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 # wallet list model. supports both wallet basenames (wallet file basenames)
 # and whole Wallet instances (loaded wallets)
@@ -121,16 +122,21 @@ class QEDaemon(AuthMixin, QObject):
     _loaded_wallets = QEWalletListModel()
     _available_wallets = None
     _current_wallet = None
+    _new_wallet_wizard = None
+    _server_connect_wizard = None
     _path = None
     _use_single_password = False
     _password = None
 
-    walletLoaded = pyqtSignal()
-    walletRequiresPassword = pyqtSignal()
     activeWalletsChanged = pyqtSignal()
     availableWalletsChanged = pyqtSignal()
-    walletOpenError = pyqtSignal([str], arguments=["error"])
     fxChanged = pyqtSignal()
+    newWalletWizardChanged = pyqtSignal()
+    serverConnectWizardChanged = pyqtSignal()
+
+    walletLoaded = pyqtSignal()
+    walletRequiresPassword = pyqtSignal()
+    walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
 
     @pyqtSlot()
@@ -157,7 +163,9 @@ class QEDaemon(AuthMixin, QObject):
         if not password:
             password = self._password
 
-        if self._path not in self.daemon._wallets:
+        wallet_already_open = self._path in self.daemon._wallets
+
+        if not wallet_already_open:
             # pre-checks, let walletdb trigger any necessary user interactions
             self._walletdb.path = self._path
             self._walletdb.password = password
@@ -168,9 +176,10 @@ class QEDaemon(AuthMixin, QObject):
         try:
             wallet = self.daemon.load_wallet(self._path, password)
             if wallet != None:
-                self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
-                self._current_wallet.password = password
+                if not wallet_already_open:
+                    self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)
+                    self._current_wallet.password = password
                 self.walletLoaded.emit()
 
                 if self.daemon.config.get('single_password'):
@@ -283,3 +292,16 @@ class QEDaemon(AuthMixin, QObject):
         self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
         self._password = password
 
+    @pyqtProperty(QENewWalletWizard, notify=newWalletWizardChanged)
+    def newWalletWizard(self):
+        if not self._new_wallet_wizard:
+            self._new_wallet_wizard = QENewWalletWizard(self)
+
+        return self._new_wallet_wizard
+
+    @pyqtProperty(QEServerConnectWizard, notify=serverConnectWizardChanged)
+    def serverConnectWizard(self):
+        if not self._server_connect_wizard:
+            self._server_connect_wizard = QEServerConnectWizard(self)
+
+        return self._server_connect_wizard
