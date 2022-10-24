@@ -182,7 +182,7 @@ class NewWalletWizard(AbstractWizard):
         raise NotImplementedError()
 
     def last_if_single_password_and_not_bip39(self, view, wizard_data):
-        return self.last_if_single_password(view, wizard_data) and not wizard_data['seed_type'] == 'bip39'
+        return self.last_if_single_password(view, wizard_data) and not wizard_data['seed_variant'] == 'bip39'
 
     def on_wallet_type(self, wizard_data):
         t = wizard_data['wallet_type']

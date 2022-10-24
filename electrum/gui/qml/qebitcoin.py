@@ -68,23 +68,18 @@ class QEBitcoin(QObject):
 
         asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), get_asyncio_loop())
 
-    @pyqtSlot(str)
-    @pyqtSlot(str,bool,bool)
-    @pyqtSlot(str,bool,bool,str)
-    @pyqtSlot(str,bool,bool,str,str)
-    def verify_seed(self, seed, bip39=False, slip39=False, wallet_type='standard', language='en'):
-        self._logger.debug('bip39 ' + str(bip39))
-        self._logger.debug('slip39 ' + str(slip39))
-
+    @pyqtSlot(str,str)
+    @pyqtSlot(str,str,str)
+    def verify_seed(self, seed, seed_variant, wallet_type='standard'):
         seed_type = ''
         seed_valid = False
         self.validationMessage = ''
 
-        if not (bip39 or slip39):
+        if seed_variant == 'electrum':
             seed_type = mnemonic.seed_type(seed)
             if seed_type != '':
                 seed_valid = True
-        elif bip39:
+        elif seed_variant == 'bip39':
             is_checksum, is_wordlist = keystore.bip39_is_checksum_valid(seed)
             status = ('checksum: ' + ('ok' if is_checksum else 'failed')) if is_wordlist else 'unknown wordlist'
             self.validationMessage = 'BIP39 (%s)' % status
@@ -92,8 +87,7 @@ class QEBitcoin(QObject):
             if is_checksum:
                 seed_type = 'bip39'
                 seed_valid = True
-
-        elif slip39: # TODO: incomplete impl, this code only validates a single share.
+        elif seed_variant == 'slip39': # TODO: incomplete impl, this code only validates a single share.
             try:
                 share = decode_mnemonic(seed)
                 seed_type = 'slip39'
@@ -101,11 +95,13 @@ class QEBitcoin(QObject):
             except Slip39Error as e:
                 self.validationMessage = 'SLIP39: %s' % str(e)
             seed_valid = False # for now
+        else:
+            raise Exception(f'unknown seed variant {seed_variant}')
 
         # check if seed matches wallet type
         if wallet_type == '2fa' and not is_any_2fa_seed_type(seed_type):
             seed_valid = False
-        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit']:
+        elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39']:
             seed_valid = False
 
         self.seedType = seed_type
