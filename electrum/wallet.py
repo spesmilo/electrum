@@ -1715,6 +1715,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         In particular, this test triggers for large "dusting transactions"
         that are used for advertising purposes by some entities.
         see #6960
+        To disable this test, set
+        ```
+            "unconf_utxo_freeze_threshold": 0
+        ```
+        in ~/.electrum/config. Make sure to back up your config file first as
+        JSON syntax is somewhat difficult to get right, and the config file
+        will be overwritten with defaults if you get it wrong.
         """
         # confirmed UTXOs are fine; check this first for performance:
         block_height = utxo.block_height
