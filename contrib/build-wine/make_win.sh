@@ -50,6 +50,30 @@ fi
 if [ -f "$DLL_TARGET_DIR/libzbar-0.dll" ]; then
     info "libzbar already built, skipping"
 else
+    (
+        # As debian bullseye doesn't provide win-iconv-mingw-w64-dev, we need to build it:
+        WIN_ICONV_COMMIT="9f98392dfecadffd62572e73e9aba878e03496c4"
+        # ^ tag "v0.0.8"
+        info "Building win-iconv..."
+        cd "$CACHEDIR"
+        if [ ! -d win-iconv ]; then
+            git clone https://github.com/win-iconv/win-iconv.git
+        fi
+        cd win-iconv
+        if ! $(git cat-file -e ${WIN_ICONV_COMMIT}) ; then
+            info "Could not find requested version $WIN_ICONV_COMMIT in local clone; fetching..."
+            git fetch --all
+        fi
+        git reset --hard
+        git clean -dfxq
+        git checkout "${WIN_ICONV_COMMIT}^{commit}"
+
+        # note: "-j1" as parallel jobs lead to non-reproducibility seemingly due to ordering issues
+        #       see https://github.com/win-iconv/win-iconv/issues/42
+        CC="${GCC_TRIPLET_HOST}-gcc" make -j1 || fail "Could not build win-iconv"
+        # FIXME avoid using sudo
+        sudo make install prefix="/usr/${GCC_TRIPLET_HOST}"  || fail "Could not install win-iconv"
+    )
     "$CONTRIB"/make_zbar.sh || fail "Could not build zbar"
 fi
 
