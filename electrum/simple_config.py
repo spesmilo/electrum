@@ -717,8 +717,8 @@ def read_user_config(path):
         with open(config_path, "r", encoding='utf-8') as f:
             data = f.read()
         result = json.loads(data)
-    except:
-        _logger.warning(f"Cannot read config file. {config_path}")
+    except Exception as exc:
+        _logger.warning(f"Cannot read config file at {config_path}: {exc}")
         return {}
     if not type(result) is dict:
         return {}
