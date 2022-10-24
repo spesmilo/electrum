@@ -188,6 +188,10 @@ ElDialog {
                 Layout.columnSpan: 2
                 checked: finalizer.rbf
                 visible: finalizer.canRbf
+                onCheckedChanged: {
+                    if (activeFocus)
+                        finalizer.rbf = checked
+                }
             }
 
             Label {
