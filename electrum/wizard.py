@@ -179,7 +179,7 @@ class NewWalletWizard(AbstractWizard):
         return self._current
 
     def last_if_single_password(self, view, wizard_data):
-        return False # TODO: self._daemon.config.get('single_password')
+        raise NotImplementedError()
 
     def last_if_single_password_and_not_bip39(self, view, wizard_data):
         return self.last_if_single_password(view, wizard_data) and not wizard_data['seed_type'] == 'bip39'
