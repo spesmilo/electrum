@@ -10,10 +10,11 @@ import "../controls"
 WizardComponent {
     valid: false
 
-    onAccept: {
+    function apply() {
         wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
         wizard_data['derivation_path'] = derivationpathtext.text
     }
+
     function getScriptTypePurposeDict() {
         return {
             'p2pkh': 44,

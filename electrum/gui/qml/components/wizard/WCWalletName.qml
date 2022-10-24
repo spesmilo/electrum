@@ -7,7 +7,7 @@ import org.electrum 1.0
 WizardComponent {
     valid: wallet_name.text.length > 0
 
-    onAccept: {
+    function apply() {
         wizard_data['wallet_name'] = wallet_name.text
     }
 

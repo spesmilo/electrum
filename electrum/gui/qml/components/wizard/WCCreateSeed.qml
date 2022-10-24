@@ -10,7 +10,7 @@ import "../controls"
 WizardComponent {
     valid: seedtext.text != ''
 
-    onAccept: {
+    function apply() {
         wizard_data['seed'] = seedtext.text
         wizard_data['seed_extend'] = extendcb.checked
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''

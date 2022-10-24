@@ -4,7 +4,7 @@ import QtQuick.Controls 2.1
 WizardComponent {
     valid: wallettypegroup.checkedButton !== null
 
-    onAccept: {
+    function apply() {
         wizard_data['wallet_type'] = wallettypegroup.checkedButton.wallettype
         if (wizard_data['wallet_type'] == 'standard')
             wizard_data['seed_type'] = 'segwit'

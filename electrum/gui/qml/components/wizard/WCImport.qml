@@ -11,7 +11,7 @@ WizardComponent {
 
     valid: false
 
-    onAccept: {
+    function apply() {
         if (bitcoin.isAddressList(import_ta.text)) {
             wizard_data['address_list'] = import_ta.text
         } else if (bitcoin.isPrivateKeyList(import_ta.text)) {

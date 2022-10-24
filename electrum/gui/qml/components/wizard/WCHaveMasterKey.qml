@@ -11,7 +11,7 @@ WizardComponent {
 
     valid: false
 
-    onAccept: {
+    function apply() {
         wizard_data['master_key'] = masterkey_ta.text
     }
 
