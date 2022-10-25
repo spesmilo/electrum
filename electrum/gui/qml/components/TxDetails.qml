@@ -28,7 +28,18 @@ Pane {
             action: Action {
                 text: qsTr('Bump fee')
                 enabled: txdetails.canBump
-                //onTriggered:
+                onTriggered: {
+                    var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
+                    dialog.open()
+                }
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Child pays for parent')
+                enabled: txdetails.canCpfp
+                onTriggered: notificationPopup.show('Not implemented')
             }
         }
         MenuItem {
@@ -36,6 +47,15 @@ Pane {
             action: Action {
                 text: qsTr('Cancel double-spend')
                 enabled: txdetails.canCancel
+                onTriggered: notificationPopup.show('Not implemented')
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Remove')
+                enabled: txdetails.canRemove
+                onTriggered: notificationPopup.show('Not implemented')
             }
         }
     }
@@ -349,4 +369,22 @@ Pane {
         rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
     }
+
+    Component {
+        id: bumpFeeDialog
+        BumpFeeDialog {
+            id: dialog
+            txfeebumper: TxFeeBumper {
+                id: txfeebumper
+                wallet: Daemon.currentWallet
+                txid: dialog.txid
+            }
+
+            onTxaccepted: {
+                root.rawtx = txfeebumper.getNewTx()
+            }
+            onClosed: destroy()
+        }
+    }
+
 }

@@ -82,6 +82,8 @@ class QETxDetails(QObject):
         if self._rawtx != rawtx:
             self._logger.debug('rawtx set -> %s' % rawtx)
             self._rawtx = rawtx
+            if not rawtx:
+                return
             try:
                 self._tx = tx_from_any(rawtx, deserialize=True)
                 self._logger.debug('tx type is %s' % str(type(self._tx)))
@@ -209,7 +211,7 @@ class QETxDetails(QObject):
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
-        #self._logger.debug(repr(txinfo))
+        self._logger.debug(repr(txinfo))
 
         # can be None if outputs unrelated to wallet seed,
         # e.g. to_local local_force_close commitment CSV-locked p2wsh script
