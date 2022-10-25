@@ -267,6 +267,9 @@ Item {
             })
             dialog.open()
         }
+        function onBroadcastFailed() {
+            notificationPopup.show(qsTr('Broadcast transaction failed'))
+        }
     }
 
     Component {

@@ -284,4 +284,24 @@ class QETxDetails(QObject):
     @pyqtSlot()
     def broadcast(self):
         assert self._tx.is_complete()
+
+        try:
+            self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+        except:
+            pass
+        self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
+
+        self._can_broadcast = False
+        self.detailsChanged.emit()
+
         self._wallet.broadcast(self._tx)
+
+    @pyqtSlot(str,str,str)
+    def onBroadcastFailed(self, txid, code, reason):
+        if txid != self._txid:
+            return
+
+        self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+
+        self._can_broadcast = True
+        self.detailsChanged.emit()
