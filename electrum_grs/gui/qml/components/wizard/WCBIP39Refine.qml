@@ -10,10 +10,11 @@ import "../controls"
 WizardComponent {
     valid: false
 
-    onAccept: {
+    function apply() {
         wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
         wizard_data['derivation_path'] = derivationpathtext.text
     }
+
     function getScriptTypePurposeDict() {
         return {
             'p2pkh': 44,
@@ -51,10 +52,9 @@ WizardComponent {
         clip:true
         interactive: height < contentHeight
 
-        GridLayout {
+        ColumnLayout {
             id: mainLayout
             width: parent.width
-            columns: 1
 
             Label { text: qsTr('Script type and Derivation path') }
             Button {
@@ -79,6 +79,7 @@ WizardComponent {
                 text: qsTr('native segwit (p2wpkh)')
             }
             InfoTextArea {
+                Layout.preferredWidth: parent.width
                 text: qsTr('You can override the suggested derivation path.') + ' ' +
                     qsTr('If you are not sure what this is, leave this field unchanged.')
             }

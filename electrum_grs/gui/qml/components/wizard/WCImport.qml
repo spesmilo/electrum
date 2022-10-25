@@ -12,35 +12,47 @@ WizardComponent {
     valid: false
 
     function apply() {
-        wizard_data['master_key'] = masterkey_ta.text
+        if (bitcoin.isAddressList(import_ta.text)) {
+            wizard_data['address_list'] = import_ta.text
+        } else if (bitcoin.isPrivateKeyList(import_ta.text)) {
+            wizard_data['private_key_list'] = import_ta.text
+        }
     }
 
-    function verifyMasterKey(key) {
-        return valid = bitcoin.verify_master_key(key)
+    function verify(text) {
+        return bitcoin.isAddressList(text) || bitcoin.isPrivateKeyList(text)
     }
 
     ColumnLayout {
         width: parent.width
 
-        Label { text: qsTr('Create keystore from a master key') }
+        Label { text: qsTr('Import Groestlcoin Addresses') }
+
+        InfoTextArea {
+            text: qsTr('Enter a list of Groestlcoin addresses (this will create a watching-only wallet), or a list of private keys.')
+        }
 
         RowLayout {
             TextArea {
-                id: masterkey_ta
+                id: import_ta
                 Layout.fillWidth: true
                 Layout.minimumHeight: 80
                 focus: true
                 wrapMode: TextEdit.WrapAnywhere
-                onTextChanged: verifyMasterKey(text)
+                onTextChanged: valid = verify(text)
             }
             ColumnLayout {
+                Layout.alignment: Qt.AlignTop
                 ToolButton {
                     icon.source: '../../../icons/paste.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
                     onClicked: {
-                        if (verifyMasterKey(AppController.clipboardToText()))
-                            masterkey_ta.text = AppController.clipboardToText()
+                        if (verify(AppController.clipboardToText())) {
+                            if (import_ta.text != '')
+                                import_ta.text = import_ta.text + '\n'
+                            import_ta.text = import_ta.text + AppController.clipboardToText()
+                        }
                     }
                 }
                 ToolButton {
@@ -51,8 +63,11 @@ WizardComponent {
                     onClicked: {
                         var scan = qrscan.createObject(root)
                         scan.onFound.connect(function() {
-                            if (verifyMasterKey(scan.scanData))
-                                masterkey_ta.text = scan.scanData
+                            if (verify(scan.scanData)) {
+                                if (import_ta.text != '')
+                                    import_ta.text = import_ta.text + ',\n'
+                                import_ta.text = import_ta.text + scan.scanData
+                            }
                             scan.destroy()
                         })
                     }
@@ -83,4 +98,5 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
     }
+
 }

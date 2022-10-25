@@ -1,14 +1,12 @@
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
-import ".."
 import "../controls"
 
 WizardComponent {
     valid: true
-    last: serverconnectgroup.checkedButton.connecttype === 'auto'
 
-    onAccept: {
+    function apply() {
         wizard_data['autoconnect'] = serverconnectgroup.checkedButton.connecttype === 'auto'
     }
 
@@ -22,17 +20,18 @@ WizardComponent {
 
         ButtonGroup {
             id: serverconnectgroup
+            onCheckedButtonChanged: checkIsLast()
         }
 
         RadioButton {
             ButtonGroup.group: serverconnectgroup
             property string connecttype: 'auto'
             text: qsTr('Auto connect')
+            checked: true
         }
         RadioButton {
             ButtonGroup.group: serverconnectgroup
             property string connecttype: 'manual'
-            checked: true
             text: qsTr('Select servers manually')
         }
 

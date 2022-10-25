@@ -10,21 +10,12 @@ import "controls"
 ElDialog {
     id: dialog
 
-    required property QtObject finalizer
-    required property Amount satoshis
-    property string address
-    property string message
-    property alias amountLabelText: amountLabel.text
-    property alias sendButtonText: sendButton.text
+    required property string txid
+    required property QtObject txfeebumper
 
-    signal txcancelled
     signal txaccepted
 
-    title: qsTr('Confirm Transaction')
-
-    // copy these to finalizer
-    onAddressChanged: finalizer.address = address
-    onSatoshisChanged: finalizer.amount = satoshis
+    title: qsTr('Bump Fee')
 
     width: parent.width
     height: parent.height
@@ -38,12 +29,12 @@ ElDialog {
         color: "#aa000000"
     }
 
-    function updateAmountText() {
-        btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
-        fiatValue.text = Daemon.fx.enabled
-            ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-            : ''
-    }
+    // function updateAmountText() {
+    //     btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
+    //     fiatValue.text = Daemon.fx.enabled
+    //         ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+    //         : ''
+    // }
 
     ColumnLayout {
         width: parent.width
@@ -51,43 +42,77 @@ ElDialog {
         spacing: 0
 
         GridLayout {
-            width: parent.width
-            columns: 2
+            Layout.preferredWidth: parent.width
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
+            columns: 2
 
             Label {
-                id: amountLabel
-                text: qsTr('Amount to send')
+                text: qsTr('Old fee')
                 color: Material.accentColor
             }
 
             RowLayout {
-                Layout.fillWidth: true
                 Label {
-                    id: btcValue
-                    font.bold: true
+                    id: oldfee
+                    text: Config.formatSats(txfeebumper.oldfee)
                 }
 
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
                 }
+            }
+
+            Label {
+                text: qsTr('Old fee rate')
+                color: Material.accentColor
+            }
+
+            RowLayout {
+                Label {
+                    id: oldfeeRate
+                    text: txfeebumper.oldfeeRate
+                }
 
                 Label {
-                    id: fiatValue
-                    Layout.fillWidth: true
-                    font.pixelSize: constants.fontSizeMedium
-                }
-
-                Component.onCompleted: updateAmountText()
-                Connections {
-                    target: finalizer
-                    function onEffectiveAmountChanged() {
-                        updateAmountText()
-                    }
+                    text: 'gro/vB'
+                    color: Material.accentColor
                 }
             }
+
+            // Label {
+            //     id: amountLabel
+            //     text: qsTr('Amount to send')
+            //     color: Material.accentColor
+            // }
+            //
+            // RowLayout {
+            //     Layout.fillWidth: true
+            //     Label {
+            //         id: btcValue
+            //         font.bold: true
+            //     }
+            //
+            //     Label {
+            //         text: Config.baseUnit
+            //         color: Material.accentColor
+            //     }
+            //
+            //     Label {
+            //         id: fiatValue
+            //         Layout.fillWidth: true
+            //         font.pixelSize: constants.fontSizeMedium
+            //     }
+            //
+            //     Component.onCompleted: updateAmountText()
+            //     Connections {
+            //         target: finalizer
+            //         function onEffectiveAmountChanged() {
+            //             updateAmountText()
+            //         }
+            //     }
+            // }
 
             Label {
                 text: qsTr('Mining fee')
@@ -97,10 +122,11 @@ ElDialog {
             RowLayout {
                 Label {
                     id: fee
-                    text: Config.formatSats(finalizer.fee)
+                    text: txfeebumper.valid ? Config.formatSats(txfeebumper.fee) : ''
                 }
 
                 Label {
+                    visible: txfeebumper.valid
                     text: Config.baseUnit
                     color: Material.accentColor
                 }
@@ -114,11 +140,12 @@ ElDialog {
             RowLayout {
                 Label {
                     id: feeRate
-                    text: finalizer.feeRate
+                    text: txfeebumper.valid ? txfeebumper.feeRate : ''
                 }
 
                 Label {
-                    text: 'sat/vB'
+                    visible: txfeebumper.valid
+                    text: 'gro/vB'
                     color: Material.accentColor
                 }
             }
@@ -130,7 +157,7 @@ ElDialog {
 
             Label {
                 id: targetdesc
-                text: finalizer.target
+                text: txfeebumper.target
             }
 
             Slider {
@@ -139,36 +166,35 @@ ElDialog {
                 snapMode: Slider.SnapOnRelease
                 stepSize: 1
                 from: 0
-                to: finalizer.sliderSteps
+                to: txfeebumper.sliderSteps
                 onValueChanged: {
                     if (activeFocus)
-                        finalizer.sliderPos = value
+                        txfeebumper.sliderPos = value
                 }
                 Component.onCompleted: {
-                    value = finalizer.sliderPos
+                    value = txfeebumper.sliderPos
                 }
                 Connections {
-                    target: finalizer
+                    target: txfeebumper
                     function onSliderPosChanged() {
-                        feeslider.value = finalizer.sliderPos
+                        feeslider.value = txfeebumper.sliderPos
                     }
                 }
             }
 
             FeeMethodComboBox {
                 id: target
-                feeslider: finalizer
+                feeslider: txfeebumper
             }
 
             CheckBox {
                 id: final_cb
                 text: qsTr('Replace-by-Fee')
                 Layout.columnSpan: 2
-                checked: finalizer.rbf
-                visible: finalizer.canRbf
+                checked: txfeebumper.rbf
                 onCheckedChanged: {
                     if (activeFocus)
-                        finalizer.rbf = checked
+                        txfeebumper.rbf = checked
                 }
             }
 
@@ -176,19 +202,20 @@ ElDialog {
                 Layout.columnSpan: 2
                 Layout.preferredWidth: parent.width * 3/4
                 Layout.alignment: Qt.AlignHCenter
-                visible: finalizer.warning != ''
-                text: finalizer.warning
+                visible: txfeebumper.warning != ''
+                text: txfeebumper.warning
                 iconStyle: InfoTextArea.IconStyle.Warn
             }
 
             Label {
+                visible: txfeebumper.valid
                 text: qsTr('Outputs')
                 Layout.columnSpan: 2
                 color: Material.accentColor
             }
 
             Repeater {
-                model: finalizer.outputs
+                model: txfeebumper.valid ? txfeebumper.outputs : []
                 delegate: TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
@@ -224,9 +251,9 @@ ElDialog {
         FlatButton {
             id: sendButton
             Layout.fillWidth: true
-            text: Daemon.currentWallet.isWatchOnly ? qsTr('Finalize') : qsTr('Pay')
+            text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
-            enabled: finalizer.valid
+            enabled: txfeebumper.valid
             onClicked: {
                 txaccepted()
                 dialog.close()
@@ -234,5 +261,4 @@ ElDialog {
         }
     }
 
-    onClosed: txcancelled()
 }

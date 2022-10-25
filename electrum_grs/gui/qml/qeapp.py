@@ -19,7 +19,7 @@ from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
-from .qetxfinalizer import QETxFinalizer
+from .qetxfinalizer import QETxFinalizer, QETxFeeBumper
 from .qeinvoice import QEInvoice, QEInvoiceParser, QEUserEnteredPayment
 from .qerequestdetails import QERequestDetails
 from .qetypes import QEAmount
@@ -29,6 +29,7 @@ from .qechannelopener import QEChannelOpener
 from .qelnpaymentdetails import QELnPaymentDetails
 from .qechanneldetails import QEChannelDetails
 from .qeswaphelper import QESwapHelper
+from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 notification = None
 
@@ -215,8 +216,11 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QEChannelDetails, 'org.electrum', 1, 0, 'ChannelDetails')
         qmlRegisterType(QESwapHelper, 'org.electrum', 1, 0, 'SwapHelper')
         qmlRegisterType(QERequestDetails, 'org.electrum', 1, 0, 'RequestDetails')
+        qmlRegisterType(QETxFeeBumper, 'org.electrum', 1, 0, 'TxFeeBumper')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
+        qmlRegisterUncreatableType(QENewWalletWizard, 'org.electrum', 1, 0, 'NewWalletWizard', 'NewWalletWizard can only be used as property')
+        qmlRegisterUncreatableType(QEServerConnectWizard, 'org.electrum', 1, 0, 'ServerConnectWizard', 'ServerConnectWizard can only be used as property')
 
         self.engine = QQmlApplicationEngine(parent=self)
 
@@ -253,6 +257,8 @@ class ElectrumQmlApplication(QGuiApplication):
             'apk_version': version.APK_VERSION,
             'protocol_version': version.PROTOCOL_VERSION
         })
+
+        self.plugins.load_plugin('trustedcoin')
 
         qInstallMessageHandler(self.message_handler)
 

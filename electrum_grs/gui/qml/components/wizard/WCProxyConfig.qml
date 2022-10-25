@@ -3,7 +3,7 @@ import "../controls"
 WizardComponent {
     valid: true
 
-    onAccept: {
+    function apply() {
         wizard_data['proxy'] = pc.toProxyDict()
     }
 

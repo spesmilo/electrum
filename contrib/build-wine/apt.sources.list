@@ -1,3 +1,2 @@
 deb https://snapshot.debian.org/archive/debian/20220811T031049Z/ bullseye main non-free contrib
 deb-src https://snapshot.debian.org/archive/debian/20220811T031049Z/ bullseye main non-free contrib
-deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20220811T031049Z/ sid main non-free contrib

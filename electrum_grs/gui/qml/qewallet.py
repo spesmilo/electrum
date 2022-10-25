@@ -3,6 +3,7 @@ import queue
 import threading
 import time
 from typing import Optional, TYPE_CHECKING
+from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
@@ -13,6 +14,7 @@ from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.util import (parse_max_spend, InvalidPassword, event_listener)
+from electrum_grs.plugin import run_hook
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
@@ -63,6 +65,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     #broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     labelsUpdated = pyqtSignal()
+    otpRequested = pyqtSignal()
+    otpSuccess = pyqtSignal()
+    otpFailed = pyqtSignal([str,str], arguments=['code','message'])
 
     _network_signal = pyqtSignal(str, object)
 
@@ -298,12 +303,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canHaveLightning(self):
         return self.wallet.can_have_lightning()
 
+    @pyqtProperty(str, notify=dataChanged)
+    def walletType(self):
+        return self.wallet.wallet_type
+
     @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
         return self.wallet.has_seed()
 
     @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
+        if self.wallet.wallet_type == 'imported':
+            return self.wallet.txin_type
         return self.wallet.get_txin_type(self.wallet.dummy_address())
 
     @pyqtProperty(bool, notify=dataChanged)
@@ -327,6 +338,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         keystores = self.wallet.get_keystores()
         if len(keystores) > 1:
             self._logger.debug('multiple keystores not supported yet')
+        if len(keystores) == 0:
+            self._logger.debug('no keystore')
+            return ''
         return keystores[0].get_derivation_prefix()
 
     @pyqtProperty(str, notify=dataChanged)
@@ -392,7 +406,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._logger.info('send_onchain: %s %d' % (address,amount))
         coins = self.wallet.get_spendable_coins(None)
         if not bitcoin.is_address(address):
-            self._logger.warning('Invalid Bitcoin Address: ' + address)
+            self._logger.warning('Invalid Groestlcoin Address: ' + address)
             return False
 
         outputs = [PartialTxOutput.from_address_and_value(address, amount)]
@@ -413,6 +427,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast),
+                             self.on_sign_failed)
+        if sign_hook:
+            self.do_sign(tx, False)
+            self._logger.debug('plugin needs to sign tx too')
+            sign_hook(tx)
+            return
+
+        self.do_sign(tx, broadcast)
+
+    def do_sign(self, tx, broadcast):
         tx = self.wallet.sign_transaction(tx, self.password)
 
         if tx is None:
@@ -430,6 +455,23 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         if broadcast:
             self.broadcast(tx)
+
+    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
+    def on_sign_complete(self, broadcast, tx):
+        self.otpSuccess.emit()
+        if broadcast:
+            self.broadcast(tx)
+
+    def on_sign_failed(self, error):
+        self.otpFailed.emit('error', error)
+
+    def request_otp(self, on_submit):
+        self._otp_on_submit = on_submit
+        self.otpRequested.emit()
+
+    @pyqtSlot(str)
+    def submitOtp(self, otp):
+        self._otp_on_submit(otp)
 
     def broadcast(self, tx):
         assert tx.is_complete()
@@ -544,7 +586,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 addr = None
                 if self.wallet.config.get('bolt11_fallback', True):
                     addr = self.wallet.get_unused_address()
-                    # if addr is None, we ran out of addresses. for lightning enabled wallets, ignore for now
+                    # if addr is None, we ran out of addresses
+                    if addr is None:
+                        # TODO: remove oldest unpaid request having a fallback address and try again
+                        pass
                 key = self.wallet.create_request(None, None, default_expiry, addr)
             else:
                 key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)

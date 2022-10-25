@@ -10,9 +10,8 @@ import "../controls"
 WizardComponent {
     valid: seedtext.text != ''
 
-    onAccept: {
+    function apply() {
         wizard_data['seed'] = seedtext.text
-        wizard_data['seed_type'] = 'segwit'
         wizard_data['seed_extend'] = extendcb.checked
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
     }
@@ -73,9 +72,14 @@ WizardComponent {
             }
             Component.onCompleted : {
                 setWarningText(12)
-                bitcoin.generate_seed()
             }
         }
+    }
+
+    onReadyChanged: {
+        if (!ready)
+            return
+        bitcoin.generate_seed(wizard_data['seed_type'])
     }
 
     Bitcoin {
