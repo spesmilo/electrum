@@ -7,6 +7,7 @@ from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import NotEnoughFunds, profiler
 from electrum.wallet import CannotBumpFee
+from electrum.network import NetworkException
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
