@@ -171,7 +171,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
+            self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
+            self.addressModel.setDirty()
             self.historyModel.init_model() # TODO: be less dramatic
 
     @qt_event_listener
