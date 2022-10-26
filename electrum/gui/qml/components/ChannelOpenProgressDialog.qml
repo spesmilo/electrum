@@ -28,10 +28,13 @@ ElDialog {
     property alias info: infoText.text
     property alias peer: peerText.text
 
+    property string channelBackup
+
     function reset() {
         state = ''
         errorText.text = ''
         peerText.text = ''
+        channelBackup = ''
     }
 
     Item {
@@ -97,23 +100,35 @@ ElDialog {
             }
         }
 
-        Item {
+        InfoTextArea {
+            id: errorText
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: dialog.width * 2/3
-            InfoTextArea {
-                id: errorText
-                visible: false
-                iconStyle: InfoTextArea.IconStyle.Error
-                width: parent.width
-                textFormat: TextEdit.PlainText
-            }
+            visible: false
+            iconStyle: InfoTextArea.IconStyle.Error
+            textFormat: TextEdit.PlainText
+        }
 
-            InfoTextArea {
-                id: infoText
-                visible: false
-                width: parent.width
-            }
+        InfoTextArea {
+            id: infoText
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: dialog.width * 2/3
+            visible: false
+            textFormat: TextEdit.PlainText
         }
     }
 
+    onClosed: {
+        if (!dialog.channelBackup)
+            return
+
+        var sharedialog = app.genericShareDialog.createObject(app, {
+            title: qsTr('Save Channel Backup'),
+            text: dialog.channelBackup,
+            text_help: qsTr('The channel you created is not recoverable from seed.')
+            + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
+            + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')
+        })
+        sharedialog.open()
+    }
 }

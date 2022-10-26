@@ -131,7 +131,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         self._logger.debug('new channel with cid %s' % cid)
         lnchannels = self.wallet.lnworker.channels
         for channel in lnchannels.values():
-            self._logger.debug(repr(channel))
             if cid == channel.channel_id.hex():
                 item = self.channel_to_model(channel)
                 self._logger.debug(item)
