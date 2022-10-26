@@ -14,6 +14,7 @@ ElDialog {
     property string invoice_key
 
     signal doPay
+    signal invoiceAmountChanged
 
     title: qsTr('Invoice')
     standardButtons: invoice_key != '' ? Dialog.Close : Dialog.Cancel
@@ -116,6 +117,29 @@ ElDialog {
                 Label {
                     width: parent.width
                     text: 'pubkey' in invoice.lnprops ? invoice.lnprops.pubkey : ''
+                    font.family: FixedFont
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            Label {
+                visible: invoice.invoiceType == Invoice.LightningInvoice
+                text: qsTr('Payment hash')
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                visible: invoice.invoiceType == Invoice.LightningInvoice
+
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+
+                padding: 0
+                leftPadding: constants.paddingMedium
+
+                Label {
+                    width: parent.width
+                    text: 'payment_hash' in invoice.lnprops ? invoice.lnprops.payment_hash : ''
                     font.family: FixedFont
                     wrapMode: Text.Wrap
                 }
@@ -278,6 +302,7 @@ ElDialog {
                         onClicked: {
                             amountContainer.editmode = false
                             invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                            invoiceAmountChanged()
                         }
                     }
                     ToolButton {
@@ -308,7 +333,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
-            enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
+            enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay && !amountContainer.editmode
             onClicked: {
                 if (invoice_key == '') // save invoice if not retrieved from key
                     invoice.save_invoice()

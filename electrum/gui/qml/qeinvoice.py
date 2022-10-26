@@ -16,6 +16,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier)
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
+from electrum.bitcoin import COIN
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -226,6 +227,7 @@ class QEInvoiceParser(QEInvoice):
         self._logger.debug(str(lnaddr.get_routing_info('t')))
         return {
             'pubkey': lnaddr.pubkey.serialize().hex(),
+            'payment_hash': lnaddr.paymenthash.hex(),
             't': '', #lnaddr.get_routing_info('t')[0][0].hex(),
             'r': '' #lnaddr.get_routing_info('r')[0][0][0].hex()
         }
@@ -277,7 +279,11 @@ class QEInvoiceParser(QEInvoice):
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if self.get_max_spendable_lightning() >= self.amount.satsInt:
-                    self.canPay = True
+                    lnaddr = self._effectiveInvoice._lnaddr
+                    if self.amount.satsInt < lnaddr.amount * COIN:
+                        self.userinfo = _('Cannot pay less than the amount specified in the invoice')
+                    else:
+                        self.canPay = True
                 else:
                     self.userinfo = _('Insufficient balance')
             else:
