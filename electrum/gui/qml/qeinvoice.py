@@ -280,7 +280,7 @@ class QEInvoiceParser(QEInvoice):
             if self.status in [PR_UNPAID, PR_FAILED]:
                 if self.get_max_spendable_lightning() >= self.amount.satsInt:
                     lnaddr = self._effectiveInvoice._lnaddr
-                    if self.amount.satsInt < lnaddr.amount * COIN:
+                    if lnaddr.amount and self.amount.satsInt < lnaddr.amount * COIN:
                         self.userinfo = _('Cannot pay less than the amount specified in the invoice')
                     else:
                         self.canPay = True
