@@ -2121,6 +2121,17 @@ class PartialTransaction(Transaction):
             txout.bip32_paths.clear()
             txout._unknown.clear()
 
+    def prepare_for_export_for_hardware_device(self, wallet: 'Abstract_Wallet') -> None:
+        self.add_info_from_wallet(wallet, include_xpubs=True)
+        # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
+        from .keystore import Xpub
+        def is_ks_missing_info(ks):
+            return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
+                                              or ks.get_derivation_prefix() is None))
+        if any([is_ks_missing_info(ks) for ks in wallet.get_keystores()]):
+            _logger.warning('PSBT was requested to be filled with full bip32 paths but '
+                            'some keystores lacked either the derivation prefix or the root fingerprint')
+
     def convert_all_utxos_to_witness_utxos(self) -> None:
         """Replaces all NON-WITNESS-UTXOs with WITNESS-UTXOs.
         This will likely make an exported PSBT invalid spec-wise,
