@@ -1715,7 +1715,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         In particular, this test triggers for large "dusting transactions"
         that are used for advertising purposes by some entities.
         see #6960
-        To disable this test, set
+        If this happens in error, you can manually un-freeze the coins in the
+        Coins tab (View | Show Coins, then navigate to the now-visibe tab). If
+        it happens repeatedly, you can disable this test using `setconfig`:
+        ```
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold 1234
+        true
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        1234
+        $ ./run_electrum -o setconfig unconf_utxo_freeze_threshold null
+        true
+        $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
+        ```
+        It is also possible (but not recommended) to disable this by manually
+        editing the config file. To do this, set
         ```
             "unconf_utxo_freeze_threshold": 0
         ```
