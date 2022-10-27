@@ -15,8 +15,8 @@ from electrum_grs.logging import get_logger
 from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier)
-from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
-from electrum.bitcoin import COIN
+from electrum_grs.lnurl import decode_lnurl, request_lnurl, callback_lnurl
+from electrum_grs.bitcoin import COIN
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
