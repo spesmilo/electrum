@@ -26,7 +26,7 @@
 from enum import IntEnum
 
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont, QBrush
 from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
 
 from electrum.i18n import _
@@ -105,6 +105,10 @@ class AddressList(MyTreeView):
         self.proxy = MySortModel(self, sort_role=self.ROLE_SORT_ORDER)
         self.proxy.setSourceModel(self.std_model)
         self.setModel(self.proxy)
+
+        self._frozen_addr_bg_brush = QBrush(ColorScheme.BLUE.as_color(True))
+        self._frozen_coin_bg_brush = QBrush(ColorScheme.BLUE.as_color(True), Qt.Dense4Pattern)
+
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
@@ -222,6 +226,7 @@ class AddressList(MyTreeView):
         c, u, x = self.wallet.get_addr_balance(address)
         balance = c + u + x
         balance_text = self.parent.format_amount(balance, whitespaces=True)
+        utxos = self.wallet.adb.get_addr_utxo(address)
         # create item
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
@@ -235,8 +240,12 @@ class AddressList(MyTreeView):
         address_item[self.Columns.COIN_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
         address_item[self.Columns.FIAT_BALANCE].setText(fiat_balance_str)
         address_item[self.Columns.NUM_TXS].setText("%d"%num)
-        c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
-        address_item[self.Columns.ADDRESS].setBackground(c)
+        brush = self._default_bg_brush
+        if self.wallet.is_frozen_address(address):
+            brush = self._frozen_addr_bg_brush
+        elif any(self.wallet.is_frozen_coin(txout) for txout in utxos.values()):
+            brush = self._frozen_coin_bg_brush
+        address_item[self.Columns.ADDRESS].setBackground(brush)
         if address in self.addresses_beyond_gap_limit:
             address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
 
@@ -277,14 +286,19 @@ class AddressList(MyTreeView):
                 menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
 
             if not self.wallet.is_frozen_address(addr):
-                menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
+                menu.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
             else:
-                menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
+                menu.addAction(_("Unfreeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
 
         else:
             # multiple items selected
-            menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
-            menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+            menu.addAction(_("Freeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
+            menu.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+
+        utxos_nested = [self.wallet.adb.get_addr_utxo(addr).values() for addr in addrs]
+        utxos = [utxo for sublist in utxos_nested for utxo in sublist]  # flatten list
+        if any(self.wallet.is_frozen_coin(txout) for txout in utxos):
+            menu.addAction(_("Unfreeze Coins"), lambda: self.parent.set_frozen_state_of_coins(utxos, False))
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:
