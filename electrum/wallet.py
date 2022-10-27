@@ -1716,7 +1716,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         that are used for advertising purposes by some entities.
         see #6960
         If this happens in error, you can manually un-freeze the coins in the
-        Coins tab (View | Show Coins, then navigate to the now-visibe tab). If
+        Coins tab (View | Show Coins, then navigate to the now-visible tab). If
         it happens repeatedly, you can disable this test using `setconfig`:
         ```
         $ ./run_electrum -o getconfig unconf_utxo_freeze_threshold
