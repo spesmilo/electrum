@@ -278,6 +278,10 @@ Item {
             width: parent.width
             height: parent.height
 
+            onTxFound: {
+                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+                close()
+            }
             onClosed: destroy()
         }
     }

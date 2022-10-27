@@ -35,9 +35,9 @@ class QETxDetails(QObject):
     _can_cpfp = False
     _can_save_as_local = False
     _can_remove = False
+    _can_sign = False
     _is_unrelated = False
     _is_complete = False
-
     _is_mined = False
 
     _mempool_depth = ''
@@ -187,6 +187,10 @@ class QETxDetails(QObject):
         return self._can_remove
 
     @pyqtProperty(bool, notify=detailsChanged)
+    def canSign(self):
+        return self._can_sign
+
+    @pyqtProperty(bool, notify=detailsChanged)
     def isUnrelated(self):
         return self._is_unrelated
 
@@ -249,6 +253,7 @@ class QETxDetails(QObject):
         self._can_cpfp = txinfo.can_cpfp
         self._can_save_as_local = txinfo.can_save_as_local
         self._can_remove = txinfo.can_remove
+        self._can_sign = not self._is_complete and self._wallet.wallet.can_sign(self._tx)
 
         self.detailsChanged.emit()
 
@@ -326,3 +331,11 @@ class QETxDetails(QObject):
 
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
+
+    @pyqtSlot(result=str)
+    @pyqtSlot(bool, result=str)
+    def serializedTx(self, for_qr=False):
+        if for_qr:
+            return self._tx.to_qr_data()
+        else:
+            return str(self._tx)
