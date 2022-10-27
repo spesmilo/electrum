@@ -70,6 +70,7 @@ ElDialog {
     ColumnLayout {
         id: content
         anchors.centerIn: parent
+        width: parent.width
 
         Item {
             Layout.alignment: Qt.AlignHCenter
@@ -92,15 +93,18 @@ ElDialog {
 
         Label {
             id: helpText
+            Layout.alignment: Qt.AlignHCenter
             text: qsTr('Paying...')
             font.pixelSize: constants.fontSizeXXLarge
-            Layout.alignment: Qt.AlignHCenter
         }
 
         Label {
             id: errorText
-            font.pixelSize: constants.fontSizeLarge
+            Layout.preferredWidth: parent.width
             Layout.alignment: Qt.AlignHCenter
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            font.pixelSize: constants.fontSizeLarge
         }
     }
 

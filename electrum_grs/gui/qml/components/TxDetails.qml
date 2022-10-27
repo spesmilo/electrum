@@ -21,6 +21,10 @@ Pane {
 
     signal detailsChanged
 
+    function close() {
+        app.stack.pop()
+    }
+
     property QtObject menu: Menu {
         id: menu
         MenuItem {
@@ -55,7 +59,7 @@ Pane {
             action: Action {
                 text: qsTr('Remove')
                 enabled: txdetails.canRemove
-                onTriggered: notificationPopup.show('Not implemented')
+                onTriggered: txdetails.removeLocalTx()
             }
         }
     }
@@ -368,6 +372,16 @@ Pane {
         txid: root.txid
         rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
+        onConfirmRemoveLocalTx: {
+            var dialog = app.messageDialog.createObject(app, {'text': message, 'yesno': true})
+            dialog.yesClicked.connect(function() {
+                dialog.close()
+                txdetails.removeLocalTx(true)
+                txdetails.wallet.historyModel.init_model()
+                root.close()
+            })
+            dialog.open()
+        }
     }
 
     Component {

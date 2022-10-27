@@ -62,7 +62,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     paymentFailed = pyqtSignal([str,str], arguments=['key','reason'])
     requestNewPassword = pyqtSignal()
     transactionSigned = pyqtSignal([str], arguments=['txid'])
-    #broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
+    broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
@@ -171,7 +171,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
+            self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
+            self.addressModel.setDirty()
             self.historyModel.init_model() # TODO: be less dramatic
 
     @qt_event_listener
@@ -476,21 +478,25 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def broadcast(self, tx):
         assert tx.is_complete()
 
-        self.network = self.wallet.network # TODO not always defined?
+        network = self.wallet.network # TODO not always defined?
 
-        try:
-            self._logger.info('running broadcast in thread')
-            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-            self._logger.info('broadcast submit done')
-        except TxBroadcastError as e:
-            self.broadcastFailed.emit(tx.txid(),'',repr(e))
-            self._logger.error(e)
-        except BestEffortRequestFailed as e:
-            self.broadcastFailed.emit(tx.txid(),'',repr(e))
-            self._logger.error(e)
+        def broadcast_thread():
+            try:
+                self._logger.info('running broadcast in thread')
+                result = network.run_from_another_thread(network.broadcast_transaction(tx))
+                self._logger.info(repr(result))
+            except TxBroadcastError as e:
+                self._logger.error(repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+            except BestEffortRequestFailed as e:
+                self._logger.error(repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+            else:
+                self.broadcastSucceeded.emit(tx.txid())
+
+        threading.Thread(target=broadcast_thread).start()
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
-        #might need callback from network.py
 
     paymentAuthRejected = pyqtSignal()
     def ln_auth_rejected(self):

@@ -1,5 +1,6 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
 from electrum_grs.util import format_time
 from electrum_grs.transaction import tx_from_any
@@ -21,9 +22,9 @@ class QETxDetails(QObject):
     _tx = None
 
     _status = ''
-    _amount = QEAmount(amount_sat=0)
-    _lnamount = QEAmount(amount_sat=0)
-    _fee = QEAmount(amount_sat=0)
+    _amount = QEAmount()
+    _lnamount = QEAmount()
+    _fee = QEAmount()
     _inputs = []
     _outputs = []
 
@@ -46,6 +47,8 @@ class QETxDetails(QObject):
     _confirmations = 0
     _txpos = -1
     _header_hash = ''
+
+    confirmRemoveLocalTx = pyqtSignal([str], arguments=['message'])
 
     detailsChanged = pyqtSignal()
 
@@ -284,4 +287,42 @@ class QETxDetails(QObject):
     @pyqtSlot()
     def broadcast(self):
         assert self._tx.is_complete()
+
+        try:
+            self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+        except:
+            pass
+        self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
+
+        self._can_broadcast = False
+        self.detailsChanged.emit()
+
         self._wallet.broadcast(self._tx)
+
+    @pyqtSlot(str,str,str)
+    def onBroadcastFailed(self, txid, code, reason):
+        if txid != self._txid:
+            return
+
+        self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+
+        self._can_broadcast = True
+        self.detailsChanged.emit()
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def removeLocalTx(self, confirm = False):
+        txid = self._txid
+
+        if not confirm:
+            num_child_txs = len(self._wallet.wallet.adb.get_depending_transactions(txid))
+            question = _("Are you sure you want to remove this transaction?")
+            if num_child_txs > 0:
+                question = (
+                    _("Are you sure you want to remove this transaction and {} child transactions?")
+                    .format(num_child_txs))
+            self.confirmRemoveLocalTx.emit(question)
+            return
+
+        self._wallet.wallet.adb.remove_transaction(txid)
+        self._wallet.wallet.save_db()

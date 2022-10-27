@@ -12,6 +12,10 @@ Pane {
 
     property string title: qsTr("Open Lightning Channel")
 
+    function close() {
+        app.stack.pop()
+    }
+
     GridLayout {
         id: form
         width: parent.width
@@ -200,28 +204,17 @@ Pane {
             var message = qsTr('Channel established.') + ' '
                     + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
             if (!tx_complete) {
-                message = message + ' ' + qsTr('Please sign and broadcast the funding transaction.')
+                message = message + '\n\n' + qsTr('Please sign and broadcast the funding transaction.')
+                channelopener.wallet.historyModel.init_model() // local tx doesn't trigger model update
             }
             app.channelOpenProgressDialog.state = 'success'
             app.channelOpenProgressDialog.info = message
             if (!has_onchain_backup) {
-                app.channelOpenProgressDialog.closed.connect(function() {
-                    var dialog = app.genericShareDialog.createObject(app,
-                        {
-                            title: qsTr('Save Backup'),
-                            text: channelopener.channelBackup(cid),
-                            text_help: qsTr('The channel you created is not recoverable from seed.')
-                            + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
-                            + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')
-                        }
-                    )
-                    dialog.open()
-                })
+                app.channelOpenProgressDialog.channelBackup = channelopener.channelBackup(cid)
             }
             // TODO: handle incomplete TX
             channelopener.wallet.channelModel.new_channel(cid)
-            app.stack.pop()
+            root.close()
         }
     }
-
 }
