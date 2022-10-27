@@ -388,7 +388,7 @@ class PayServer(Logger, EventListener):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        root = self.config.get('payserver_root', '/r')
+        self.root = root = self.config.get('payserver_root', '/r')
         app = web.Application()
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
@@ -407,18 +407,17 @@ class PayServer(Logger, EventListener):
         self.logger.info(f"now running and listening. addr={self.addr}")
 
     async def create_request(self, request):
-        raise NotImplementedError()  # FIXME code here is broken
         params = await request.post()
         wallet = self.wallet
         if 'amount_sat' not in params or not params['amount_sat'].isdigit():
             raise web.HTTPUnsupportedMediaType()
         amount = int(params['amount_sat'])
         message = params['message'] or "donation"
-        payment_hash = wallet.lnworker.add_request(
+        key = wallet.create_request(
             amount_sat=amount,
             message=message,
-            expiry=3600)
-        key = payment_hash.hex()
+            exp_delay=3600,
+            address=None)
         raise web.HTTPFound(self.root + '/pay?id=' + key)
 
     async def get_request(self, r):
