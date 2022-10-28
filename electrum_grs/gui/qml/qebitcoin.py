@@ -154,7 +154,7 @@ class QEBitcoin(QObject):
         return create_bip21_uri(address, satoshis.satsInt, message, extra_query_params=extra_params)
 
     @pyqtSlot(str, result=bool)
-    def verify_raw_tx(self, rawtx):
+    def isRawTx(self, rawtx):
         try:
             tx_from_any(rawtx)
             return True

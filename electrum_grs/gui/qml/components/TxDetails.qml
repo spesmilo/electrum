@@ -30,6 +30,16 @@ Pane {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
+                text: qsTr('Export')
+                onTriggered: {
+                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+                    dialog.open()
+                }
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
                 text: qsTr('Bump fee')
                 enabled: txdetails.canBump
                 onTriggered: {
@@ -292,7 +302,7 @@ Pane {
                 RowLayout {
                     width: parent.width
                     Label {
-                        text: root.txid
+                        text: txdetails.txid
                         font.pixelSize: constants.fontSizeLarge
                         font.family: FixedFont
                         Layout.fillWidth: true
@@ -301,10 +311,10 @@ Pane {
                     ToolButton {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
-                        enabled: root.txid
+                        enabled: txdetails.txid
                         onClicked: {
                             var dialog = app.genericShareDialog.createObject(root,
-                                { title: qsTr('Transaction ID'), text: root.txid }
+                                { title: qsTr('Transaction ID'), text: txdetails.txid }
                             )
                             dialog.open()
                         }
@@ -354,7 +364,7 @@ Pane {
                 Layout.columnSpan: 2
                 Button {
                     text: qsTr('Sign')
-                    enabled: !txdetails.isComplete
+                    enabled: txdetails.canSign
                     onClicked: txdetails.sign()
                 }
                 Button {
@@ -401,4 +411,10 @@ Pane {
         }
     }
 
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
 }
