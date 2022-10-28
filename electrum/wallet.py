@@ -2410,17 +2410,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
                 d['confirmations'] = conf
-        # add URL if we are running a payserver
-        payserver = self.config.get_netaddress('payserver_address')
-        if payserver:
-            root = self.config.get('payserver_root', '/r')
-            use_ssl = bool(self.config.get('ssl_keyfile'))
-            protocol = 'https' if use_ssl else 'http'
-            base = '%s://%s:%d'%(protocol, payserver.host, payserver.port)
-            d['view_url'] = base + root + '/pay?id=' + key
-            if use_ssl and 'URI' in d:
-                request_url = base + '/bip70/' + key + '.bip70'
-                d['bip70_url'] = request_url
+        run_hook('wallet_export_request', d, key)
         return d
 
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:

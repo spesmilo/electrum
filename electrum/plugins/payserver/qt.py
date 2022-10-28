@@ -23,7 +23,43 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from functools import partial
+from PyQt5 import QtWidgets
+from electrum.i18n import _
+from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton
 from .payserver import PayServerPlugin
 
+
 class Plugin(PayServerPlugin):
-    pass
+
+    def requires_settings(self):
+        return True
+
+    def settings_widget(self, window: WindowModalDialog):
+        return EnterButton(
+            _('Settings'),
+            partial(self.settings_dialog, window))
+
+    def settings_dialog(self, window: WindowModalDialog):
+        d = WindowModalDialog(window, _("PayServer Settings"))
+        form = QtWidgets.QFormLayout(None)
+        addr = self.config.get('payserver_address', 'localhost:8080')
+        url = self.server.base_url + self.server.root + '/create_invoice.html'
+        self.help_label = QtWidgets.QLabel('create invoice: <a href="%s">%s</a>'%(url, url))
+        self.help_label.setOpenExternalLinks(True)
+        address_e = QtWidgets.QLineEdit(addr)
+        keyfile_e = QtWidgets.QLineEdit(self.config.get('ssl_keyfile', ''))
+        certfile_e = QtWidgets.QLineEdit(self.config.get('ssl_certfile', ''))
+        form.addRow(QtWidgets.QLabel("Network address:"), address_e)
+        form.addRow(QtWidgets.QLabel("SSL key file:"), keyfile_e)
+        form.addRow(QtWidgets.QLabel("SSL cert file:"), certfile_e)
+        vbox = QtWidgets.QVBoxLayout(d)
+        vbox.addLayout(form)
+        vbox.addSpacing(20)
+        vbox.addWidget(self.help_label)
+        vbox.addSpacing(20)
+        vbox.addLayout(Buttons(OkButton(d)))
+        if d.exec_():
+            self.config.set_key('payserver_address', str(address_e.text()))
+            self.config.set_key('ssl_keyfile', str(keyfile_e.text()))
+            self.config.set_key('ssl_certfile', str(certfile_e.text()))

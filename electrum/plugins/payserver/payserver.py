@@ -62,6 +62,9 @@ class PayServerPlugin(BasePlugin):
         self.server = PayServer(self.config, wallet)
         asyncio.run_coroutine_threadsafe(daemon._run(jobs=[self.server.run()]), daemon.asyncio_loop)
 
+    @hook
+    def wallet_export_request(self, d, key):
+        d['view_url'] = self.server.base_url + self.server.root + '/pay?id=' + key
 
 
 class PayServer(Logger, EventListener):
@@ -83,6 +86,18 @@ class PayServer(Logger, EventListener):
         index_html = os.path.join(cls.WWW_DIR, "index.html")
         return os.path.exists(index_html)
 
+    @property
+    def base_url(self):
+        payserver = self.config.get('payserver_address', 'localhost:8080')
+        payserver = NetAddress.from_string(payserver)
+        use_ssl = bool(self.config.get('ssl_keyfile'))
+        protocol = 'https' if use_ssl else 'http'
+        return '%s://%s:%d'%(protocol, payserver.host, payserver.port)
+
+    @property
+    def root(self):
+        return self.config.get('payserver_root', '/r')
+
     @event_listener
     async def on_event_request_status(self, wallet, key, status):
         if status == PR_PAID:
@@ -91,7 +106,6 @@ class PayServer(Logger, EventListener):
     @ignore_exceptions
     @log_exceptions
     async def run(self):
-        self.root = root = self.config.get('payserver_root', '/r')
         app = web.Application()
         app.add_routes([web.get('/api/get_invoice', self.get_request)])
         app.add_routes([web.get('/api/get_status', self.get_status)])
@@ -99,8 +113,8 @@ class PayServer(Logger, EventListener):
         # 'follow_symlinks=True' allows symlinks to traverse out the parent directory.
         # This was requested by distro packagers for vendored libs, and we restrict it to only those
         # to minimise attack surface. note: "add_routes" call order matters (inner path goes first)
-        app.add_routes([web.static(f"{root}/vendor", os.path.join(self.WWW_DIR, 'vendor'), follow_symlinks=True)])
-        app.add_routes([web.static(root, self.WWW_DIR)])
+        app.add_routes([web.static(f"{self.root}/vendor", os.path.join(self.WWW_DIR, 'vendor'), follow_symlinks=True)])
+        app.add_routes([web.static(self.root, self.WWW_DIR)])
         if self.config.get('payserver_allow_create_invoice'):
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
