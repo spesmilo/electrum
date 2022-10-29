@@ -2,7 +2,7 @@
 	path = contrib/deterministic-build/electrum-locale
 	url = https://github.com/spesmilo/electrum-locale
 [submodule "electrum_grs/www"]
-	path = electrum_grs/www
+	path = electrum_grs/plugins/payserver/www
 	url = https://github.com/Groestlcoin/electrum-http.git
 [submodule "electrum_grs/gui/kivy/theming/atlas"]
 	path = electrum_grs/gui/kivy/theming/atlas
