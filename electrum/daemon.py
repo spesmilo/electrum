@@ -278,7 +278,7 @@ class CommandsServer(AuthenticatedServer):
             site = web.TCPSite(self.runner, self.host, self.port)
         else:
             raise Exception(f"unknown socktype '{self.socktype!r}'")
-        await site.start()
+        await site.start()  #
         socket = site._server.sockets[0]
         if self.socktype == 'unix':
             addr = self.sockpath
@@ -517,7 +517,12 @@ class Daemon(Logger):
         try:
             self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
-            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+            self.logger.info("got KeyboardInterrupt")
+        # we either initiate shutdown now,
+        # or it has already been initiated (in which case this is a no-op):
+        self.logger.info("run_daemon is calling stop()")
+        asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+        # wait until "stop" finishes:
         self._stopped_event.wait()
 
     async def stop(self):
