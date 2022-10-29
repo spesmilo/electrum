@@ -25,8 +25,8 @@
 
 from functools import partial
 from PyQt5 import QtWidgets
-from electrum.i18n import _
-from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton
+from electrum_grs.i18n import _
+from electrum_grs.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton
 from .payserver import PayServerPlugin
 
 

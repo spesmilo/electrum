@@ -33,15 +33,15 @@ from aiorpcx import timeout_after, TaskTimeout, ignore_after
 from aiorpcx import NetAddress
 
 
-from electrum.util import log_exceptions, ignore_exceptions
-from electrum.crypto import sha256
-from electrum.plugin import BasePlugin, hook
-from electrum.logging import Logger
+from electrum_grs.util import log_exceptions, ignore_exceptions
+from electrum_grs.crypto import sha256
+from electrum_grs.plugin import BasePlugin, hook
+from electrum_grs.logging import Logger
 
 
-from electrum.logging import Logger
-from electrum.util import EventListener, event_listener
-from electrum.invoices import PR_PAID, PR_EXPIRED
+from electrum_grs.logging import Logger
+from electrum_grs.util import EventListener, event_listener
+from electrum_grs.invoices import PR_PAID, PR_EXPIRED
 
 
 
@@ -178,4 +178,3 @@ class PayServer(Logger, EventListener):
         await ws.send_str('paid')
         await ws.close()
         return ws
-
