@@ -53,6 +53,7 @@ from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
 from . import GuiImportError
+from .plugin import run_hook
 
 if TYPE_CHECKING:
     from electrum_grs import gui
@@ -268,6 +269,14 @@ class CommandsServer(AuthenticatedServer):
             self.register_method(getattr(self.cmd_runner, cmdname))
         self.register_method(self.run_cmdline)
 
+    def _socket_config_str(self) -> str:
+        if self.socktype == 'unix':
+            return f"<socket type={self.socktype}, path={self.sockpath}>"
+        elif self.socktype == 'tcp':
+            return f"<socket type={self.socktype}, host={self.host}, port={self.port}>"
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
+
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -277,7 +286,10 @@ class CommandsServer(AuthenticatedServer):
             site = web.TCPSite(self.runner, self.host, self.port)
         else:
             raise Exception(f"unknown socktype '{self.socktype!r}'")
-        await site.start()
+        try:
+            await site.start()
+        except Exception as e:
+            raise Exception(f"failed to start CommandsServer at {self._socket_config_str()}. got exc: {e!r}") from None
         socket = site._server.sockets[0]
         if self.socktype == 'unix':
             addr = self.sockpath
@@ -357,111 +369,6 @@ class WatchTowerServer(AuthenticatedServer):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
 
-class PayServer(Logger, EventListener):
-
-    WWW_DIR = os.path.join(os.path.dirname(__file__), 'www')
-
-    def __init__(self, daemon: 'Daemon', netaddress):
-        Logger.__init__(self)
-        assert self.has_www_dir(), self.WWW_DIR
-        self.addr = netaddress
-        self.daemon = daemon
-        self.config = daemon.config
-        self.pending = defaultdict(asyncio.Event)
-        self.register_callbacks()
-
-    @classmethod
-    def has_www_dir(cls) -> bool:
-        index_html = os.path.join(cls.WWW_DIR, "index.html")
-        return os.path.exists(index_html)
-
-    @property
-    def wallet(self):
-        # FIXME specify wallet somehow?
-        return list(self.daemon.get_wallets().values())[0]
-
-    @event_listener
-    async def on_event_request_status(self, wallet, key, status):
-        if status == PR_PAID:
-            self.pending[key].set()
-
-    @ignore_exceptions
-    @log_exceptions
-    async def run(self):
-        self.root = root = self.config.get('payserver_root', '/r')
-        app = web.Application()
-        app.add_routes([web.get('/api/get_invoice', self.get_request)])
-        app.add_routes([web.get('/api/get_status', self.get_status)])
-        app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
-        # 'follow_symlinks=True' allows symlinks to traverse out the parent directory.
-        # This was requested by distro packagers for vendored libs, and we restrict it to only those
-        # to minimise attack surface. note: "add_routes" call order matters (inner path goes first)
-        app.add_routes([web.static(f"{root}/vendor", os.path.join(self.WWW_DIR, 'vendor'), follow_symlinks=True)])
-        app.add_routes([web.static(root, self.WWW_DIR)])
-        if self.config.get('payserver_allow_create_invoice'):
-            app.add_routes([web.post('/api/create_invoice', self.create_request)])
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
-        await site.start()
-        self.logger.info(f"now running and listening. addr={self.addr}")
-
-    async def create_request(self, request):
-        params = await request.post()
-        wallet = self.wallet
-        if 'amount_sat' not in params or not params['amount_sat'].isdigit():
-            raise web.HTTPUnsupportedMediaType()
-        amount = int(params['amount_sat'])
-        message = params['message'] or "donation"
-        key = wallet.create_request(
-            amount_sat=amount,
-            message=message,
-            exp_delay=3600,
-            address=None)
-        raise web.HTTPFound(self.root + '/pay?id=' + key)
-
-    async def get_request(self, r):
-        key = r.query_string
-        request = self.wallet.get_formatted_request(key)
-        return web.json_response(request)
-
-    async def get_bip70_request(self, r):
-        from .paymentrequest import make_request
-        key = r.match_info['key']
-        request = self.wallet.get_request(key)
-        if not request:
-            return web.HTTPNotFound()
-        pr = make_request(self.config, request)
-        return web.Response(body=pr.SerializeToString(), content_type='application/bitcoin-paymentrequest')
-
-    async def get_status(self, request):
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
-        key = request.query_string
-        info = self.wallet.get_formatted_request(key)
-        if not info:
-            await ws.send_str('unknown invoice')
-            await ws.close()
-            return ws
-        if info.get('status') == PR_PAID:
-            await ws.send_str(f'paid')
-            await ws.close()
-            return ws
-        if info.get('status') == PR_EXPIRED:
-            await ws.send_str(f'expired')
-            await ws.close()
-            return ws
-        while True:
-            try:
-                await asyncio.wait_for(self.pending[key].wait(), 1)
-                break
-            except asyncio.TimeoutError:
-                # send data on the websocket, to keep it alive
-                await ws.send_str('waiting')
-        await ws.send_str('paid')
-        await ws.close()
-        return ws
-
 
 
 class Daemon(Logger):
@@ -496,15 +403,6 @@ class Daemon(Logger):
         if listen_jsonrpc:
             self.commands_server = CommandsServer(self, fd)
             daemon_jobs.append(self.commands_server.run())
-        # pay server
-        self.pay_server = None
-        payserver_address = self.config.get_netaddress('payserver_address')
-        if not config.get('offline') and payserver_address:
-            if PayServer.has_www_dir():
-                self.pay_server = PayServer(self, payserver_address)
-                daemon_jobs.append(self.pay_server.run())
-            else:
-                self.logger.error(f"PayServer configured but WWW_DIR missing or empty. skipping. ({PayServer.WWW_DIR})")
         # server-side watchtower
         self.watchtower = None
         watchtower_address = self.config.get_netaddress('watchtower_address')
@@ -559,6 +457,7 @@ class Daemon(Logger):
             return
         wallet.start_network(self.network)
         self._wallets[path] = wallet
+        run_hook('daemon_wallet_loaded', self, wallet)
         return wallet
 
     @staticmethod
@@ -629,7 +528,12 @@ class Daemon(Logger):
         try:
             self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
-            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+            self.logger.info("got KeyboardInterrupt")
+        # we either initiate shutdown now,
+        # or it has already been initiated (in which case this is a no-op):
+        self.logger.info("run_daemon is calling stop()")
+        asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+        # wait until "stop" finishes:
         self._stopped_event.wait()
 
     async def stop(self):
