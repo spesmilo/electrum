@@ -408,7 +408,7 @@ class TestPeer(TestCaseForTestnet):
                 shutil.rmtree(lnworker._user_dir)
             self._lnworkers_created.clear()
         run(cleanup_lnworkers())
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {}
         super().tearDown()
 
     def prepare_peers(
@@ -587,7 +587,7 @@ class TestPeer(TestCaseForTestnet):
         gath = asyncio.gather(reestablish(), p1._message_loop(), p2._message_loop(), p1.htlc_switch(), p2.htlc_switch())
         async def f():
             await gath
-        with self.assertRaises(electrum.lnutil.RemoteMisbehaving):
+        with self.assertRaises(electrum_grs.lnutil.RemoteMisbehaving):
             run(f())
         self.assertEqual(alice_channel_0.peer_state, PeerState.BAD)
         self.assertEqual(bob_channel._state, ChannelState.FORCE_CLOSING)
@@ -745,7 +745,7 @@ class TestPeer(TestCaseForTestnet):
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
         # declare bob as trampoline node
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
         }
         with self.assertRaises(PaymentDone):
@@ -1168,7 +1168,7 @@ class TestPeer(TestCaseForTestnet):
             graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
 
         # declare routing nodes as trampoline nodes
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
@@ -1197,7 +1197,7 @@ class TestPeer(TestCaseForTestnet):
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_trampoline_e2e(self):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }
@@ -1213,7 +1213,7 @@ class TestPeer(TestCaseForTestnet):
     @needs_test_with_all_chacha20_implementations
     def test_payment_multipart_trampoline_legacy(self):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+        electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
             graph.workers['bob'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['bob'].node_keypair.pubkey),
             graph.workers['carol'].name: LNPeerAddr(host="127.0.0.1", port=9735, pubkey=graph.workers['carol'].node_keypair.pubkey),
         }

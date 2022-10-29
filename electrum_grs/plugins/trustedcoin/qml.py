@@ -19,8 +19,8 @@ from .trustedcoin import (TrustedCoinPlugin, server, ErrorConnectingServer,
                           TrustedCoinException, make_xpub)
 
 if TYPE_CHECKING:
-    from electrum.gui.qml import ElectrumGui
-    from electrum.wallet import Abstract_Wallet
+    from electrum_grs.gui.qml import ElectrumGui
+    from electrum_grs.wallet import Abstract_Wallet
 
 class Plugin(TrustedCoinPlugin):
 
