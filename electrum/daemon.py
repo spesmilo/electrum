@@ -269,6 +269,14 @@ class CommandsServer(AuthenticatedServer):
             self.register_method(getattr(self.cmd_runner, cmdname))
         self.register_method(self.run_cmdline)
 
+    def _socket_config_str(self) -> str:
+        if self.socktype == 'unix':
+            return f"<socket type={self.socktype}, path={self.sockpath}>"
+        elif self.socktype == 'tcp':
+            return f"<socket type={self.socktype}, host={self.host}, port={self.port}>"
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
+
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -278,7 +286,10 @@ class CommandsServer(AuthenticatedServer):
             site = web.TCPSite(self.runner, self.host, self.port)
         else:
             raise Exception(f"unknown socktype '{self.socktype!r}'")
-        await site.start()  #
+        try:
+            await site.start()
+        except Exception as e:
+            raise Exception(f"failed to start CommandsServer at {self._socket_config_str()}. got exc: {e!r}") from None
         socket = site._server.sockets[0]
         if self.socktype == 'unix':
             addr = self.sockpath
