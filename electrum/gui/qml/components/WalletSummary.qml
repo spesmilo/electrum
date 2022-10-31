@@ -173,11 +173,9 @@ Item {
                 id: piechart
                 visible: Daemon.currentWallet.totalBalance.satsInt > 0
                 Layout.preferredWidth: parent.width
-                // Layout.preferredHeight: 200
                 implicitHeight: 200
                 innerOffset: 6
                 function updateSlices() {
-                    console.log('update piechart, w='+width+',h='+height)
                     var totalB = Daemon.currentWallet.totalBalance.satsInt
                     var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
                     var frozenB = Daemon.currentWallet.frozenBalance.satsInt

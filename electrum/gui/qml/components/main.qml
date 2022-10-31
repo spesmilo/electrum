@@ -62,7 +62,7 @@ ApplicationWindow
                     font.bold: true
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: walletDetails.toggle()
+                        onClicked: walletSummary.toggle()
                     }
                 }
 
@@ -121,8 +121,8 @@ ApplicationWindow
                 }
             }
 
-            WalletDetails {
-                id: walletDetails
+            WalletSummary {
+                id: walletSummary
                 Layout.preferredWidth: parent.width
             }
         }
