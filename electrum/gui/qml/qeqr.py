@@ -37,7 +37,7 @@ class QEQRParser(QObject):
             self._logger.warning("Already processing an image. Check 'busy' property before calling scanImage")
             return
 
-        if image == None:
+        if image is None:
             self._logger.warning("No image to decode")
             return
 

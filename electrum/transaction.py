@@ -1931,17 +1931,17 @@ class PartialTransaction(Transaction):
         if txin.is_segwit():
             if bip143_shared_txdigest_fields is None:
                 bip143_shared_txdigest_fields = self._calc_bip143_shared_txdigest_fields()
-            if not(sighash & Sighash.ANYONECANPAY):
+            if not (sighash & Sighash.ANYONECANPAY):
                 hashPrevouts = bip143_shared_txdigest_fields.hashPrevouts
             else:
                 hashPrevouts = '00' * 32
-            if (not(sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+            if not (sighash & Sighash.ANYONECANPAY) and (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
                 hashSequence = bip143_shared_txdigest_fields.hashSequence
             else:
                 hashSequence = '00' * 32
-            if ((sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE):
+            if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
                 hashOutputs = bip143_shared_txdigest_fields.hashOutputs
-            elif ((sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs)):
+            elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
                 hashOutputs = bh2u(sha256d(outputs[txin_index].serialize_to_network()))
             else:
                 hashOutputs = '00' * 32

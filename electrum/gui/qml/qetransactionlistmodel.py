@@ -59,7 +59,7 @@ class QETransactionListModel(QAbstractListModel):
 
         item['key'] = item['txid'] if 'txid' in item else item['payment_hash']
 
-        if not 'lightning' in item:
+        if 'lightning' not in item:
             item['lightning'] = False
 
         if item['lightning']:

@@ -333,7 +333,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Pad r and s points with 0x00 bytes when the point is small to get valid signature.
         r_padded = bytes([0x00]) * (32 - len(r)) + r
         s_padded = bytes([0x00]) * (32 - len(s)) + s
-        
+
         return bytes([27 + 4 + (signature[0] & 0x01)]) + r_padded + s_padded
 
     @runs_in_hwd_thread

@@ -52,9 +52,9 @@ class ElectrumGui(Logger):
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
         if hasattr(QtCore.Qt, "AA_EnableHighDpiScaling"):
-            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling);
+            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
 
-        if not "QT_QUICK_CONTROLS_STYLE" in os.environ:
+        if "QT_QUICK_CONTROLS_STYLE" not in os.environ:
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
 
         self.gui_thread = threading.current_thread()
