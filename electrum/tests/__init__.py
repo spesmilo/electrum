@@ -36,6 +36,8 @@ class SequentialTestCase(unittest.TestCase):
 class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
+    # maxDiff = None
+
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()

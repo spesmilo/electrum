@@ -1250,7 +1250,6 @@ class PartialTxInput(TxInput, PSBTSection):
             return
         self._utxo = tx
         self.validate_data()
-        self.ensure_there_is_only_one_utxo()
 
     @property
     def witness_utxo(self):
@@ -1260,7 +1259,6 @@ class PartialTxInput(TxInput, PSBTSection):
     def witness_utxo(self, value: Optional[TxOutput]):
         self._witness_utxo = value
         self.validate_data()
-        self.ensure_there_is_only_one_utxo()
 
     def to_json(self):
         d = super().to_json()
@@ -1387,7 +1385,6 @@ class PartialTxInput(TxInput, PSBTSection):
             self._unknown[full_key] = val
 
     def serialize_psbt_section_kvs(self, wr):
-        self.ensure_there_is_only_one_utxo()
         if self.witness_utxo:
             wr(PSBTInputType.WITNESS_UTXO, self.witness_utxo.serialize_to_network())
         if self.utxo:
@@ -1515,15 +1512,9 @@ class PartialTxInput(TxInput, PSBTSection):
             if other_txin.witness_script is not None:
                 self.witness_script = other_txin.witness_script
             self._unknown.update(other_txin._unknown)
-        self.ensure_there_is_only_one_utxo()
+        self.validate_data()
         # try to finalize now
         self.finalize()
-
-    def ensure_there_is_only_one_utxo(self):
-        # we prefer having the full previous tx, even for segwit inputs. see #6198
-        # for witness v1, witness_utxo will be enough though
-        if self.utxo is not None and self.witness_utxo is not None:
-            self.witness_utxo = None
 
     def convert_utxo_to_witness_utxo(self) -> None:
         if self.utxo:
