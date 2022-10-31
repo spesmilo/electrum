@@ -136,6 +136,12 @@ class Invoice(StoredObject):
             outputs = self.outputs
         return outputs
 
+    def can_be_paid_onchain(self) -> bool:
+        if self.is_lightning():
+            return bool(self._lnaddr.get_fallback_address())
+        else:
+            return True
+
     def get_expiration_date(self):
         # 0 means never
         return self.exp + self.time if self.exp else 0
