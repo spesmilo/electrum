@@ -65,7 +65,7 @@ from .invoices import Invoice
 from . import submarine_swaps
 from . import GuiImportError
 from . import crypto
-
+from . import constants
 
 if TYPE_CHECKING:
     from .network import Network
@@ -204,6 +204,7 @@ class Commands:
         """ network info """
         net_params = self.network.get_parameters()
         response = {
+			'network': constants.net.NET_NAME,
             'path': self.network.config.path,
             'server': net_params.server.host,
             'blockchain_height': self.network.get_local_height(),
