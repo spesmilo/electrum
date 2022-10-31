@@ -149,7 +149,7 @@ task:
   matrix:
     - name: Flake8 Mandatory
       env:
-        ELECTRUM_LINTERS: E9,F63,F7,F82
+        ELECTRUM_LINTERS: E9,F63,F7,F82,W191
     - name: Flake8 Non-Mandatory
       env:
         ELECTRUM_LINTERS: E,F,W,C90
