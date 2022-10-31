@@ -443,7 +443,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         label = out.get('label')
         message = out.get('message')
         lightning = out.get('lightning')
-        if lightning:
+        if lightning and (self.wallet.has_lightning() or not address):
             self.handle_payment_identifier(lightning, can_use_network=can_use_network)
             return
         # use label as description (not BIP21 compliant)
