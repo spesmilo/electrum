@@ -39,6 +39,12 @@ Item {
     }
 
     property QtObject menu: Menu {
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
+
         id: menu
         MenuItem {
             icon.color: 'transparent'

@@ -9,10 +9,14 @@ import "controls"
 
 Pane {
     id: root
-    property string title: qsTr("Lightning Channels")
 
     property QtObject menu: Menu {
         id: menu
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
@@ -45,6 +49,20 @@ Pane {
             id: summaryLayout
             Layout.preferredWidth: parent.width
             columns: 2
+
+            Label {
+                Layout.columnSpan: 2
+                text: qsTr('Lightning Channels')
+                font.pixelSize: constants.fontSizeLarge
+                color: Material.accentColor
+            }
+
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                height: 1
+                color: Material.accentColor
+            }
 
             Label {
                 Layout.columnSpan: 2

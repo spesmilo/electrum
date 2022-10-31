@@ -8,6 +8,8 @@ Canvas {
     property int innerOffset: 10
     property bool showLegend: true
 
+    onSlicesChanged: piechart.requestPaint()
+
     onPaint: {
         var startR = -Math.PI/2
 

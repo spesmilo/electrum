@@ -116,6 +116,7 @@ ApplicationWindow
                         stack.currentItem.menu.open()
                         // position the menu to the right
                         stack.currentItem.menu.x = toolbar.width - stack.currentItem.menu.width
+                        stack.currentItem.menu.y = toolbarTopLayout.height
                     }
                 }
             }

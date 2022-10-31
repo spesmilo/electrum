@@ -10,7 +10,6 @@ import "controls"
 Item {
     id: root
     clip: true
-    Layout.fillWidth: true
     implicitHeight: 0
 
     function open() {
@@ -56,36 +55,21 @@ Item {
         }
 
         ColumnLayout {
+            id: rootLayout
             width: parent.width
+            spacing: constants.paddingXLarge
 
             GridLayout {
-                id: detailsLayout
                 visible: Daemon.currentWallet
                 rowSpacing: constants.paddingSmall
                 Layout.preferredWidth: parent.width
-                Layout.margins: constants.paddingXLarge
+                Layout.topMargin: constants.paddingXLarge
 
                 columns: 2
 
-                // Label {
-                //     text: qsTr('Wallet')
-                //     color: Material.accentColor
-                //     font.pixelSize: constants.fontSizeLarge
-                // }
-                Image {
-                    source: '../../icons/wallet.png'
-                    Layout.preferredWidth: constants.iconSizeLarge
-                    Layout.preferredHeight: constants.iconSizeLarge
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: Daemon.currentWallet.name;
-                    font.bold: true;
-                    font.pixelSize: constants.fontSizeXLarge
-                }
-
                 RowLayout {
                     Layout.columnSpan: 2
+                    Layout.alignment: Qt.AlignHCenter
                     Tag {
                         text: Daemon.currentWallet.walletType
                         font.pixelSize: constants.fontSizeSmall
@@ -140,7 +124,71 @@ Item {
                     }
                 }
 
-           }
+            }
+
+            TextHighlightPane {
+                Layout.alignment: Qt.AlignHCenter
+                GridLayout {
+                    columns: 3
+
+                    Label {
+                        font.pixelSize: constants.fontSizeXLarge
+                        text: qsTr('Balance:')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        font.pixelSize: constants.fontSizeXLarge
+                        font.family: FixedFont
+                        text: Config.formatSats(Daemon.currentWallet.totalBalance)
+                    }
+                    Label {
+                        font.pixelSize: constants.fontSizeXLarge
+                        color: Material.accentColor
+                        text: Config.baseUnit
+                    }
+
+                    Item {
+                        visible: Daemon.fx.enabled
+                        Layout.preferredHeight: 1
+                        Layout.preferredWidth: 1
+                    }
+                    Label {
+                        Layout.alignment: Qt.AlignRight
+                        visible: Daemon.fx.enabled
+                        font.pixelSize: constants.fontSizeLarge
+                        color: constants.mutedForeground
+                        text: Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
+                    }
+                    Label {
+                        visible: Daemon.fx.enabled
+                        font.pixelSize: constants.fontSizeLarge
+                        color: constants.mutedForeground
+                        text: Daemon.fx.fiatCurrency
+                    }
+                }
+            }
+
+            Piechart {
+                id: piechart
+                visible: Daemon.currentWallet.totalBalance.satsInt > 0
+                Layout.preferredWidth: parent.width
+                // Layout.preferredHeight: 200
+                implicitHeight: 200
+                innerOffset: 6
+                function updateSlices() {
+                    console.log('update piechart, w='+width+',h='+height)
+                    var totalB = Daemon.currentWallet.totalBalance.satsInt
+                    var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
+                    var frozenB = Daemon.currentWallet.frozenBalance.satsInt
+                    var lnB = Daemon.currentWallet.lightningBalance.satsInt
+                    piechart.slices = [
+                        { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
+                        { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
+                        { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' }
+                    ]
+                }
+            }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -156,6 +204,13 @@ Item {
                     Layout.preferredWidth: 1
                 }
             }
+        }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onBalanceChanged() {
+            piechart.updateSlices()
         }
     }
 
