@@ -67,9 +67,12 @@ Item {
 
                 columns: 2
 
-                RowLayout {
+                Flow {
                     Layout.columnSpan: 2
                     Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: parent.width * 4/5
+                    spacing: constants.paddingMedium
+
                     Tag {
                         text: Daemon.currentWallet.walletType
                         font.pixelSize: constants.fontSizeSmall
@@ -140,7 +143,7 @@ Item {
                     Label {
                         font.pixelSize: constants.fontSizeXLarge
                         font.family: FixedFont
-                        text: Config.formatSats(Daemon.currentWallet.totalBalance)
+                        text: formattedTotalBalance
                     }
                     Label {
                         font.pixelSize: constants.fontSizeXLarge
@@ -158,7 +161,7 @@ Item {
                         visible: Daemon.fx.enabled
                         font.pixelSize: constants.fontSizeLarge
                         color: constants.mutedForeground
-                        text: Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
+                        text: formattedTotalBalanceFiat
                     }
                     Label {
                         visible: Daemon.fx.enabled
@@ -205,10 +208,41 @@ Item {
         }
     }
 
+    property string formattedTotalBalance
+    property string formattedTotalBalanceFiat
+
+    function setBalances() {
+        root.formattedTotalBalance = Config.formatSats(Daemon.currentWallet.totalBalance)
+        if (Daemon.fx.enabled) {
+            root.formattedTotalBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
+        }
+        piechart.updateSlices()
+    }
+
+
+    // instead of all these explicit connections, we should expose
+    // formatted balances directly as a property
+    Connections {
+        target: Config
+        function onBaseUnitChanged() { setBalances() }
+        function onThousandsSeparatorChanged() { setBalances() }
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() { setBalances() }
+    }
+
+    Connections {
+        target: Daemon.fx
+        function onEnabledUpdated() { setBalances() }
+        function onQuotesUpdated() { setBalances() }
+    }
+
     Connections {
         target: Daemon.currentWallet
         function onBalanceChanged() {
-            piechart.updateSlices()
+            setBalances()
         }
     }
 

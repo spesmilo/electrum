@@ -123,7 +123,7 @@ ApplicationWindow
 
             WalletSummary {
                 id: walletSummary
-                Layout.preferredWidth: parent.width
+                Layout.preferredWidth: app.width
             }
         }
     }
