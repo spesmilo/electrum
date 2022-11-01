@@ -61,7 +61,7 @@ class AbstractWizard:
             else:
                 self._logger.error(f'accept handler for view {view} not callable')
 
-        if not 'next' in nav:
+        if 'next' not in nav:
             # finished
             self.finished(wizard_data)
             return (None, wizard_data, {})
@@ -107,7 +107,7 @@ class AbstractWizard:
 
         nav = self.navmap[view]
 
-        if not 'last' in nav:
+        if 'last' not in nav:
             return False
 
         lastnav = nav['last']
@@ -219,7 +219,7 @@ class NewWalletWizard(AbstractWizard):
         storage = WalletStorage(path)
 
         k = None
-        if not 'keystore_type' in data:
+        if 'keystore_type' not in data:
             assert data['wallet_type'] == 'imported'
             addresses = {}
             if 'private_key_list' in data:

@@ -482,7 +482,7 @@ COIN_CHOOSERS = {
 
 def get_name(config):
     kind = config.get('coin_chooser')
-    if not kind in COIN_CHOOSERS:
+    if kind not in COIN_CHOOSERS:
         kind = 'Privacy'
     return kind
 

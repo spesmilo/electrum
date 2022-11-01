@@ -36,6 +36,8 @@ class SequentialTestCase(unittest.TestCase):
 class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
+    # maxDiff = None
+
     def setUp(self):
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
@@ -49,6 +51,7 @@ class ElectrumTestCase(SequentialTestCase):
 
 
 class TestCaseForTestnet(ElectrumTestCase):
+    """Class that runs member tests in testnet mode"""
 
     @classmethod
     def setUpClass(cls):
@@ -59,3 +62,19 @@ class TestCaseForTestnet(ElectrumTestCase):
     def tearDownClass(cls):
         super().tearDownClass()
         constants.set_mainnet()
+
+
+def as_testnet(func):
+    """Function decorator to run a single unit test in testnet mode.
+
+    NOTE: this is inherently sequential; tests running in parallel would break things
+    """
+    def run_test(*args, **kwargs):
+        old_net = constants.net
+        try:
+            constants.set_testnet()
+            func(*args, **kwargs)
+        finally:
+            constants.net = old_net
+    return run_test
+

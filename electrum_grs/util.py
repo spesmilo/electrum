@@ -995,16 +995,17 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
-        try:
-            lnaddr = lndecode(out['lightning'])
-            amount_sat = out.get('amount')
-            if amount_sat:
-                assert int(lnaddr.get_amount_sat()) == amount_sat
-            address = out.get('address')
-            if address:
-                assert lnaddr.get_fallback_address() == address
-        except Exception as e:
-            raise InvalidBitcoinURI(f"Inconsistent lightning field: {repr(e)}") from e
+        lnaddr = lndecode(out['lightning'])
+        amount_sat = out.get('amount')
+        if amount_sat:
+            # allow small leeway due to msat precision
+            if abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
+                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: amount")
+        address = out.get('address')
+        ln_fallback_addr = lnaddr.get_fallback_address()
+        if address and ln_fallback_addr:
+            if ln_fallback_addr != address:
+                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: address")
 
     r = out.get('r')
     sig = out.get('sig')

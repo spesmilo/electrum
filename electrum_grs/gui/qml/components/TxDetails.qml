@@ -12,7 +12,7 @@ Pane {
     width: parent.width
     height: parent.height
 
-    property string title: qsTr("Transaction details")
+    // property string title: qsTr("Transaction details")
 
     property string txid
     property string rawtx
@@ -27,6 +27,11 @@ Pane {
 
     property QtObject menu: Menu {
         id: menu
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
@@ -84,6 +89,20 @@ Pane {
             id: rootLayout
             width: parent.width
             columns: 2
+
+            Label {
+                Layout.columnSpan: 2
+                text: qsTr('Transaction Details')
+                font.pixelSize: constants.fontSizeLarge
+                color: Material.accentColor
+            }
+
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                height: 1
+                color: Material.accentColor
+            }
 
             RowLayout {
                 Layout.fillWidth: true

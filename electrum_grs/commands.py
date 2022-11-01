@@ -204,7 +204,7 @@ class Commands:
         """ network info """
         net_params = self.network.get_parameters()
         response = {
-			'network': constants.net.NET_NAME,
+            'network': constants.net.NET_NAME,
             'path': self.network.config.path,
             'server': net_params.server.host,
             'blockchain_height': self.network.get_local_height(),

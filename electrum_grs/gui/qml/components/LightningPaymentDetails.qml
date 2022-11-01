@@ -12,7 +12,7 @@ Pane {
     width: parent.width
     height: parent.height
 
-    property string title: qsTr("Lightning payment details")
+    // property string title: qsTr("Lightning payment details")
 
     property string key
 
@@ -30,6 +30,20 @@ Pane {
             id: rootLayout
             width: parent.width
             columns: 2
+
+            Label {
+                Layout.columnSpan: 2
+                text: qsTr('Lightning payment details')
+                font.pixelSize: constants.fontSizeLarge
+                color: Material.accentColor
+            }
+
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                height: 1
+                color: Material.accentColor
+            }
 
             Label {
                 text: qsTr('Status')

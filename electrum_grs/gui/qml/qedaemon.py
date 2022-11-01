@@ -44,25 +44,25 @@ class QEWalletListModel(QAbstractListModel):
         if role_name == 'path':
             return wallet_path
         if role_name == 'active':
-            return wallet != None
+            return wallet is not None
 
     def add_wallet(self, wallet_path = None, wallet: Abstract_Wallet = None):
-        if wallet_path == None and wallet == None:
+        if wallet_path is None and wallet is None:
             return
         # only add wallet instance if instance not yet in model
         if wallet:
             for name,path,w in self.wallets:
                 if w == wallet:
                     return
-        self.beginInsertRows(QModelIndex(), len(self.wallets), len(self.wallets));
-        if wallet == None:
+        self.beginInsertRows(QModelIndex(), len(self.wallets), len(self.wallets))
+        if wallet is None:
             wallet_name = os.path.basename(wallet_path)
         else:
             wallet_name = wallet.basename()
         wallet_path = standardize_path(wallet_path)
         item = (wallet_name, wallet_path, wallet)
-        self.wallets.append(item);
-        self.endInsertRows();
+        self.wallets.append(item)
+        self.endInsertRows()
 
     def remove_wallet(self, path):
         i = 0
@@ -148,7 +148,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str)
     @pyqtSlot(str, str)
     def load_wallet(self, path=None, password=None):
-        if path == None:
+        if path is None:
             self._path = self.daemon.config.get('wallet_path') # command line -w option
             if self._path is None:
                 self._path = self.daemon.config.get('gui_last_wallet')
@@ -175,7 +175,7 @@ class QEDaemon(AuthMixin, QObject):
 
         try:
             wallet = self.daemon.load_wallet(self._path, password)
-            if wallet != None:
+            if wallet is not None:
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
                 if not wallet_already_open:
                     self._loaded_wallets.add_wallet(wallet_path=self._path, wallet=wallet)

@@ -11,7 +11,7 @@ class ApkDiff:
         sourceZip      = ZipFile(sourceApk, 'r')
         destinationZip = ZipFile(destinationApk, 'r')
 
-        if self.compareManifests(sourceZip, destinationZip) and self.compareEntries(sourceZip, destinationZip) == True:
+        if self.compareManifests(sourceZip, destinationZip) and self.compareEntries(sourceZip, destinationZip):
             print("APKs match!")
             return True
         else:
@@ -50,7 +50,7 @@ class ApkDiff:
                     sourceEntry      = sourceZip.open(sourceEntryInfo, 'r')
                     destinationEntry = destinationZip.open(destinationEntryInfo, 'r')
 
-                    if self.compareFiles(sourceEntry, destinationEntry) != True:
+                    if not self.compareFiles(sourceEntry, destinationEntry):
                         print("APK entry %s does not match %s!" % (sourceEntryInfo.filename, destinationEntryInfo.filename))
                         return False
 

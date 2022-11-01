@@ -246,7 +246,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
     # both.
     if 'd' in tags_set and 'h' in tags_set:
         raise ValueError("Cannot include both 'd' and 'h'")
-    if not 'd' in tags_set and not 'h' in tags_set:
+    if 'd' not in tags_set and 'h' not in tags_set:
         raise ValueError("Must include either 'd' or 'h'")
 
     # We actually sign the hrp, then data (padded to 8 bits with zeroes).

@@ -26,19 +26,6 @@ Pane {
 
         model: visualModel
 
-        header: Item {
-            width: parent.width
-            height: headerLayout.height
-            ColumnLayout {
-                id: headerLayout
-                anchors.centerIn: parent
-                Item { height: constants.paddingXLarge; width: 1 }
-                BalanceSummary {}
-                Item { height: constants.paddingXLarge; width: 1 }
-            }
-        }
-        headerPositioning: ListView.InlineHeader
-
         readonly property variant sectionLabels: {
             'today': qsTr('Today'),
             'yesterday': qsTr('Yesterday'),

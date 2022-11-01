@@ -125,5 +125,5 @@ class QEAddressDetails(QObject):
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
-        assert(self._numtx == self.historyModel.rowCount(0))
+        assert self._numtx == self.historyModel.rowCount(0)
         self.detailsChanged.emit()
