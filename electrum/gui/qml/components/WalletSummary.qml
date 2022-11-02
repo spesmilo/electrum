@@ -41,7 +41,7 @@ Item {
         Transition {
             from: 'opened'
             to: ''
-            NumberAnimation { target: root; properties: 'implicitHeight'; duration: 200 }
+            NumberAnimation { target: root; properties: 'implicitHeight'; duration: 100 }
         }
     ]
 
@@ -59,75 +59,7 @@ Item {
             width: parent.width
             spacing: constants.paddingXLarge
 
-            GridLayout {
-                visible: Daemon.currentWallet
-                rowSpacing: constants.paddingSmall
-                Layout.preferredWidth: parent.width
-                Layout.topMargin: constants.paddingXLarge
-
-                columns: 2
-
-                Flow {
-                    Layout.columnSpan: 2
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: parent.width * 4/5
-                    spacing: constants.paddingMedium
-
-                    Tag {
-                        text: Daemon.currentWallet.walletType
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/wallet.png'
-                    }
-                    Tag {
-                        text: Daemon.currentWallet.txinType
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                    }
-                    Tag {
-                        text: qsTr('HD')
-                        visible: Daemon.currentWallet.isDeterministic
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                    }
-                    Tag {
-                        text: qsTr('Watch only')
-                        visible: Daemon.currentWallet.isWatchOnly
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/eye1.png'
-                    }
-                    Tag {
-                        text: qsTr('Encrypted')
-                        visible: Daemon.currentWallet.isEncrypted
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/key.png'
-                    }
-                    Tag {
-                        text: qsTr('HW')
-                        visible: Daemon.currentWallet.isHardware
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/seed.png'
-                    }
-                    Tag {
-                        text: qsTr('Lightning')
-                        visible: Daemon.currentWallet.isLightning
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/lightning.png'
-                    }
-                    Tag {
-                        text: qsTr('Seed')
-                        visible: Daemon.currentWallet.hasSeed
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/seed.png'
-                    }
-                }
-
-            }
+            Item { Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
 
             TextHighlightPane {
                 Layout.alignment: Qt.AlignHCenter
@@ -172,37 +104,28 @@ Item {
                 }
             }
 
-            Piechart {
-                id: piechart
-                visible: Daemon.currentWallet.totalBalance.satsInt > 0
-                Layout.preferredWidth: parent.width
-                implicitHeight: 200
-                innerOffset: 6
-                function updateSlices() {
-                    var totalB = Daemon.currentWallet.totalBalance.satsInt
-                    var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
-                    var frozenB = Daemon.currentWallet.frozenBalance.satsInt
-                    var lnB = Daemon.currentWallet.lightningBalance.satsInt
-                    piechart.slices = [
-                        { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
-                        { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
-                        { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' }
-                    ]
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
                 FlatButton {
                     text: qsTr('More details')
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
+                    enabled: app.stack.currentItem.objectName != 'WalletDetails'
+                    onClicked: {
+                        root.close()
+                        app.stack.pushOnRoot(Qt.resolvedUrl('WalletDetails.qml'))
+                    }
                 }
                 FlatButton {
                     text: qsTr('Switch wallet')
                     Layout.fillWidth: true
                     icon.source: '../../icons/file.png'
                     Layout.preferredWidth: 1
+                    enabled: app.stack.currentItem.objectName != 'Wallets'
+                    onClicked: {
+                        root.close()
+                        app.stack.pushOnRoot(Qt.resolvedUrl('Wallets.qml'))
+                    }
                 }
             }
         }
@@ -216,7 +139,6 @@ Item {
         if (Daemon.fx.enabled) {
             root.formattedTotalBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
         }
-        piechart.updateSlices()
     }
 
 
