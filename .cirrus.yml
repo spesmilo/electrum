@@ -174,39 +174,52 @@ task:
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build (Kivy arm64)
+  name: Android build (Kivy $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 2
     memory: 2G
+  env:
+    APK_ARCH: arm64-v8a
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - echo "kivy $APK_ARCH"
+    populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
-    - ./contrib/android/make_apk.sh kivy arm64-v8a debug
+    - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
 
 task:
-  name: Android build (QML arm64)
+  name: Android build (QML $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
     memory: 24G
+  matrix:
+    - env:
+        APK_ARCH: arm64-v8a
+    - env:
+        APK_ARCH: armeabi-v7a
+      only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - echo "qml $APK_ARCH"
+    populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
-    - ./contrib/android/make_apk.sh qml arm64-v8a debug
+    - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
-  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
-
-task:
-  name: Android build (QML arm32)
-  container:
-    dockerfile: contrib/android/Dockerfile
-    cpu: 8
-    memory: 24G
-  build_script:
-    - ./contrib/android/make_apk.sh qml armeabi-v7a debug
-  binaries_artifacts:
-    path: "dist/*"
-  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
 
 task:
   name: MacOS build
