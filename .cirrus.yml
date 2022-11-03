@@ -46,7 +46,7 @@ task:
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
   env:
-    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-travis.txt
+    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # following CI_* env vars are set up for coveralls
     CI_NAME: "CirrusCI"
@@ -72,14 +72,14 @@ task:
     populate_script: mkdir -p /tmp/electrum-build
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-0 gettext
+    - apt-get -y install gettext
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
   locale_script:
     - contrib/push_locale
   env:
     ELECTRUM_IMAGE: python:3.8
-    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-travis.txt
+    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
     - Tox Python 3.9
