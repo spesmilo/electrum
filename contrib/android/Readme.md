@@ -137,3 +137,23 @@ $(cd apk2; find -type f -exec sha256sum '{}' \; > ./../sha256sum2)
 diff sha256sum1 sha256sum2 > d
 cat d
 ```
+
+### How to install apks built by the CI on my phone?
+
+The CI (Cirrus) builds apks on most git commits.
+See e.g. [here](https://github.com/spesmilo/electrum/runs/9272252577).
+The task name should start with "Android build".
+Click "View more details on Cirrus CI" to get to cirrus' website, and search for "Artifacts".
+The apk is built in `debug` mode, and is signed using an ephemeral RSA key.
+
+For tech demo purposes, you can directly install this apk on your phone.
+However, if you already have electrum installed on your phone, Android's TOFU signing model
+will not let you upgrade that to the CI apk due to mismatching signing keys. As the CI key
+is ephemeral, it is not even possible to upgrade from an older CI apk to a newer CI apk.
+
+However, it is possible to resign the apk manually with one's own key, using
+e.g. [`apksigner`](https://developer.android.com/studio/command-line/apksigner),
+mutating the apk in place, after which it should be possible to upgrade:
+```
+apksigner sign --ks ~/wspace/electrum/contrib/android/android_debug.keystore Electrum-*-arm64-v8a-debug.apk
+```
