@@ -2187,6 +2187,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             except UnknownTxinType:
                 pass
         self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
+        txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
