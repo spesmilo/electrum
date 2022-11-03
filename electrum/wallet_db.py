@@ -1338,14 +1338,6 @@ class WalletDB(JsonDB):
         self.tx_fees.pop(txid, None)
 
     @locked
-    def get_dict(self, name) -> dict:
-        # Warning: interacts un-intuitively with 'put': certain parts
-        # of 'data' will have pointers saved as separate variables.
-        if name not in self.data:
-            self.data[name] = {}
-        return self.data[name]
-
-    @locked
     def num_change_addresses(self) -> int:
         return len(self.change_addresses)
 
