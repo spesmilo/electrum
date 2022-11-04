@@ -166,6 +166,17 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('use_recoverable_channels', useRecoverableChannels)
         self.useRecoverableChannelsChanged.emit()
 
+    trustedcoinPrepayChanged = pyqtSignal()
+    @pyqtProperty(int, notify=trustedcoinPrepayChanged)
+    def trustedcoinPrepay(self):
+        return self.config.get('trustedcoin_prepay', 20)
+
+    @trustedcoinPrepay.setter
+    def trustedcoinPrepay(self, num_prepay):
+        if num_prepay != self.config.get('trustedcoin_prepay', 20):
+            self.config.set_key('trustedcoin_prepay', num_prepay)
+            self.trustedcoinPrepayChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)

@@ -519,7 +519,12 @@ class TrustedCoinPlugin(BasePlugin):
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1, None)
+        self.billing_info_retrieved(wallet)
         return True
+
+    def billing_info_retrieved(self, wallet):
+        # override to handle billing info when it becomes available
+        pass
 
     def start_request_thread(self, wallet):
         from threading import Thread

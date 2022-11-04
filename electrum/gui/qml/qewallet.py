@@ -301,6 +301,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isLightning(self):
         return bool(self.wallet.lnworker)
 
+    billingInfoChanged = pyqtSignal()
+    @pyqtProperty('QVariantMap', notify=billingInfoChanged)
+    def billingInfo(self):
+        return {} if self.wallet.wallet_type != '2fa' else self.wallet.billing_info
+
     @pyqtProperty(bool, notify=dataChanged)
     def canHaveLightning(self):
         return self.wallet.can_have_lightning()
@@ -348,6 +353,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=dataChanged)
     def masterPubkey(self):
         return self.wallet.get_master_public_key()
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def canSignWithoutServer(self):
+        return self.wallet.can_sign_without_server() if self.wallet.wallet_type == '2fa' else True
 
     balanceChanged = pyqtSignal()
 

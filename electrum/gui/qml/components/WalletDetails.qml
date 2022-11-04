@@ -164,12 +164,85 @@ Pane {
                 }
 
                 GridLayout {
+                    visible: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
+                    Layout.preferredWidth: parent.width
+
+                    columns: 2
+
+                    Label {
+                        text: qsTr('2FA')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: Daemon.currentWallet.canSignWithoutServer
+                                ? qsTr('disabled (can sign without server')
+                                : qsTr('enabled')
+                    }
+
+                    Label {
+                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        text: qsTr('Remaining TX')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        text: 'tx_remaining' in Daemon.currentWallet.billingInfo
+                                ? Daemon.currentWallet.billingInfo['tx_remaining']
+                                : qsTr('unknown')
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
+                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        text: qsTr('Billing')
+                        color: Material.accentColor
+                    }
+
+                    ColumnLayout {
+                        Layout.columnSpan: 2
+                        Layout.leftMargin: constants.paddingMedium
+                        spacing: 0
+
+                        ButtonGroup {
+                            id: billinggroup
+                            onCheckedButtonChanged: {
+                                Config.trustedcoinPrepay = checkedButton.value
+                            }
+                        }
+
+                        Repeater {
+                            model: AppController.plugin('trustedcoin').billingModel
+                            delegate: RowLayout {
+                                RadioButton {
+                                    ButtonGroup.group: billinggroup
+                                    property string value: modelData.value
+                                    text: modelData.text
+                                    checked: modelData.value == Config.trustedcoinPrepay
+                                }
+                                Label {
+                                    text: Config.formatSats(modelData.sats_per_tx)
+                                    font.family: FixedFont
+                                }
+                                Label {
+                                    text: Config.baseUnit + '/tx'
+                                    color: Material.accentColor
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+                GridLayout {
                     id: detailsLayout
                     visible: Daemon.currentWallet
                     Layout.preferredWidth: parent.width
 
                     columns: 2
-
                     Label {
                         text: qsTr('Derivation prefix')
                         visible: Daemon.currentWallet.isDeterministic
