@@ -273,12 +273,18 @@ task:
     cpu: 2
     memory: 1G
   pip_cache:
-    folder: contrib/build-linux/appimage/.cache/appimage/pip_cache
+    folder: contrib/build-linux/appimage/.cache/pip_cache
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
       - find contrib/build-linux/appimage/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
-    populate_script: mkdir -p contrib/build-linux/appimage/.cache/appimage/pip_cache
+    populate_script: mkdir -p contrib/build-linux/appimage/.cache/pip_cache
+  build2_cache:
+    folder: contrib/build-linux/appimage/.cache/appimage
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - find contrib/build-linux/appimage/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:

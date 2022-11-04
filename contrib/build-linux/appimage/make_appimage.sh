@@ -9,7 +9,8 @@ DISTDIR="$PROJECT_ROOT/dist"
 BUILDDIR="$CONTRIB_APPIMAGE/build/appimage"
 APPDIR="$BUILDDIR/electrum.AppDir"
 CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
-PIP_CACHE_DIR="$CACHEDIR/pip_cache"
+export DLL_TARGET_DIR="$CACHEDIR/dlls"
+PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 
 export GCC_STRIP_BINARIES="1"
 
@@ -24,7 +25,7 @@ APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
 . "$CONTRIB"/build_tools_util.sh
 
 rm -rf "$BUILDDIR"
-mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR"
+mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR" "$DLL_TARGET_DIR"
 
 # potential leftover from setuptools that might make pip put garbage in binary
 rm -rf "$PROJECT_ROOT/build"
@@ -43,9 +44,13 @@ verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "66767a35309d724f370df9e50
 
 
 info "building python."
-tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
+tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
 (
-    cd "$BUILDDIR/Python-$PYTHON_VERSION"
+    if [ -f "$CACHEDIR/Python-$PYTHON_VERSION/python" ]; then
+        info "python already built, skipping"
+        exit 0
+    fi
+    cd "$CACHEDIR/Python-$PYTHON_VERSION"
     LC_ALL=C export BUILD_DATE=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%b %d %Y")
     LC_ALL=C export BUILD_TIME=$(date -u -d "@$SOURCE_DATE_EPOCH" "+%H:%M:%S")
     # Patch taken from Ubuntu http://archive.ubuntu.com/ubuntu/pool/main/p/python3.9/python3.9_3.9.5-3~21.04.debian.tar.xz
@@ -57,6 +62,10 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
         --enable-shared \
         -q
     make -j4 -s || fail "Could not build Python"
+)
+info "installing python."
+(
+    cd "$CACHEDIR/Python-$PYTHON_VERSION"
     make -s install > /dev/null || fail "Could not install Python"
     # When building in docker on macOS, python builds with .exe extension because the
     # case insensitive file system of macOS leaks into docker. This causes the build
@@ -67,8 +76,12 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 )
 
 
-"$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
-cp -f "$PROJECT_ROOT/electrum/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.0" ]; then
+    info "libsecp256k1 already built, skipping"
+else
+    "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
+fi
+cp -f "$DLL_TARGET_DIR/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
 
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.
@@ -77,6 +90,10 @@ info "building libxcb-util1."
 XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
 # ^ git tag 0.4.0
 (
+    if [ -f "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" ]; then
+        info "libxcb-util1 already built, skipping"
+        exit 0
+    fi
     cd "$CACHEDIR"
     mkdir "libxcb-util1"
     cd "libxcb-util1"
@@ -95,8 +112,8 @@ XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
     ./autogen.sh
     ./configure --enable-shared
     make -j4 -s || fail "Could not build libxcb-util1"
-    cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
 ) || fail "Could build libxcb-util1"
+cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
 
 
 appdir_python() {
