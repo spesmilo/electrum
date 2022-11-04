@@ -240,7 +240,7 @@ task:
     folder: ~/Library/Caches/pip
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
-      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
     populate_script: mkdir -p ~/Library/Caches/pip
   install_script:
     - git fetch --all --tags
