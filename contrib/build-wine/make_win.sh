@@ -23,8 +23,8 @@ export GCC_STRIP_BINARIES="1"
 
 export CONTRIB="$here/.."
 export PROJECT_ROOT="$CONTRIB/.."
-export CACHEDIR="$here/.cache/$WIN_ARCH"
-export PIP_CACHE_DIR="$CACHEDIR/wine_pip_cache"
+export CACHEDIR="$here/.cache/$WIN_ARCH/build"
+export PIP_CACHE_DIR="$here/.cache/$WIN_ARCH/wine_pip_cache"
 export WINE_PIP_CACHE_DIR="c:/electrum/contrib/build-wine/.cache/$WIN_ARCH/wine_pip_cache"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
 
