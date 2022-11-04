@@ -36,7 +36,6 @@ from .logging import get_logger, Logger
 _logger = get_logger(__name__)
 
 HEADER_SIZE = 80  # bytes
-<<<<<<< HEAD
 MAX_TARGET = 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 MAX_TARGET_NEOSCRYPT = 0x0000003FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 SEVEN_DAYS = 7 * 24 * 60 * 60
@@ -44,11 +43,6 @@ HEIGHT_FORK_ONE = 33000
 HEIGHT_FORK_TWO = 87948
 HEIGHT_FORK_THREE = 204639
 HEIGHT_FORK_FOUR = 432000
-=======
-
-# see https://github.com/bitcoin/bitcoin/blob/feedb9c84e72e4fff489810a2bbeec09bcda5763/src/chainparams.cpp#L76
-MAX_TARGET = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff  # compact: 0x1d00ffff
->>>>>>> 4.3.1
 
 
 class MissingHeader(Exception):
@@ -654,29 +648,12 @@ class Blockchain(Logger):
         if not (0 <= bits < (1 << 32)):
             raise Exception(f"bits should be uint32. got {bits!r}")
         bitsN = (bits >> 24) & 0xff
-<<<<<<< HEAD
         if not (0x03 <= bitsN <= 0x1e):
             raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))
-=======
-        bitsBase = bits & 0x7fffff
-        if bitsN <= 3:
-            target = bitsBase >> (8 * (3-bitsN))
-        else:
-            target = bitsBase << (8 * (bitsN-3))
-        if target != 0 and bits & 0x800000 != 0:
-            # Bit number 24 (0x800000) represents the sign of N
-            raise Exception("target cannot be negative")
-        if (target != 0 and
-                (bitsN > 34 or
-                 (bitsN > 33 and bitsBase > 0xff) or
-                 (bitsN > 32 and bitsBase > 0xffff))):
-            raise Exception("target has overflown")
-        return target
->>>>>>> 4.3.1
 
     @classmethod
     def target_to_bits(cls, target: int) -> int:

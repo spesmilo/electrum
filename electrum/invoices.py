@@ -9,7 +9,7 @@ from .i18n import _
 from .util import age, InvoiceError
 from .lnaddr import lndecode, LnAddr
 from . import constants
-from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_FTC
 from .bitcoin import address_to_script
 
 from .transaction import PartialTxOutput
@@ -120,24 +120,8 @@ class Invoice(StoredObject):
 
     def get_address(self) -> Optional[str]:
         """returns the first address, to be displayed in GUI"""
-#<<<<<<< HEAD
-#        return self.outputs[0].address
-
-#    def get_amount_sat(self) -> Union[int, str]:
-#        return self.amount_sat or 0
-
-#    @amount_sat.validator
-#    def _validate_amount(self, attribute, value):
-#        if isinstance(value, int):
-#            if not (0 <= value <= TOTAL_COIN_SUPPLY_LIMIT_IN_FTC * COIN):
-#                raise InvoiceError(f"amount is out-of-bounds: {value!r} sat")
-#        elif isinstance(value, str):
-#            if value != '!':
-#                raise InvoiceError(f"unexpected amount: {value!r}")
-#=======
         if self.is_lightning():
             return self._lnaddr.get_fallback_address() or None
-#>>>>>>> 4.3.1
         else:
             return self.outputs[0].address
 

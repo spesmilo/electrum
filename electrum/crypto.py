@@ -32,10 +32,8 @@ import hmac
 #<<<<<<< HEAD
 #from typing import Union
 #import scrypt
-#import neoscrypt
-#=======
+import neoscrypt
 from typing import Union, Mapping, Optional
-#>>>>>>> 4.3.1
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
 from .i18n import _
