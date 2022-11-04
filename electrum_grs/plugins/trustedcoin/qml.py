@@ -39,6 +39,8 @@ class Plugin(TrustedCoinPlugin):
         _otpSecret = ''
         shortIdChanged = pyqtSignal()
         _shortId = ''
+        billingModelChanged = pyqtSignal()
+        _billingModel = []
 
         _remoteKeyState = ''
         remoteKeyStateChanged = pyqtSignal()
@@ -90,6 +92,27 @@ class Plugin(TrustedCoinPlugin):
             if self._remoteKeyState != new_state:
                 self._remoteKeyState = new_state
                 self.remoteKeyStateChanged.emit()
+
+        @pyqtProperty('QVariantList', notify=billingModelChanged)
+        def billingModel(self):
+            return self._billingModel
+
+        def updateBillingInfo(self, wallet):
+            billingModel = []
+
+            price_per_tx = wallet.price_per_tx
+            for k, v in sorted(price_per_tx.items()):
+                if k == 1:
+                    continue
+                item = {
+                    'text': 'Pay every %d transactions' % k,
+                    'value': k,
+                    'sats_per_tx': v/k
+                }
+                billingModel.append(item)
+
+            self._billingModel = billingModel
+            self.billingModelChanged.emit()
 
         @pyqtSlot()
         def fetchTermsAndConditions(self):
@@ -274,6 +297,8 @@ class Plugin(TrustedCoinPlugin):
         # extend wizard
         self.extend_wizard()
 
+    # wizard support functions
+
     def extend_wizard(self):
         wizard = self._app.daemon.newWalletWizard
         self.logger.debug(repr(wizard))
@@ -367,7 +392,7 @@ class Plugin(TrustedCoinPlugin):
         wizard_data['x3/'] = k3.dump()
 
 
-    # regular wallet prompt functions
+    # running wallet functions
 
     def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
         self.logger.debug('prompt_user_for_otp')
@@ -379,7 +404,12 @@ class Plugin(TrustedCoinPlugin):
         qewallet.request_otp(self.on_otp)
 
     def on_otp(self, otp):
+        if not otp:
+            self.on_failure(_('No auth code'))
+            return
+
         self.logger.debug(f'on_otp {otp} for tx {repr(self.tx)}')
+
         try:
             self.wallet.on_otp(self.tx, otp)
         except UserFacingException as e:
@@ -388,8 +418,15 @@ class Plugin(TrustedCoinPlugin):
             if e.status_code == 400:  # invalid OTP
                 self.on_failure(_('Invalid one-time password.'))
             else:
-                self.on_failure(_('Error') + ':\n' + str(e))
+                self.on_failure(_('Service Error') + ':\n' + str(e))
         except Exception as e:
                 self.on_failure(_('Error') + ':\n' + str(e))
         else:
             self.on_success(self.tx)
+
+    def billing_info_retrieved(self, wallet):
+        self.logger.info('billing_info_retrieved')
+        qewallet = QEWallet.getInstanceFor(wallet)
+        qewallet.billingInfoChanged.emit()
+        self.so.updateBillingInfo(wallet)
+

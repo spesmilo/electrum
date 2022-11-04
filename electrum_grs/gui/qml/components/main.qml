@@ -137,6 +137,13 @@ ApplicationWindow
         function getRoot() {
             return mainStackView.get(0)
         }
+        function pushOnRoot(item) {
+            if (mainStackView.depth > 1) {
+                mainStackView.replace(mainStackView.get(1), item)
+            } else {
+                mainStackView.push(item)
+            }
+        }
     }
 
     Timer {

@@ -4,6 +4,20 @@ task:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
     memory: 2G
+  pip_cache:
+    folder: contrib/build-wine/.cache/win32/wine_pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-wine/
+  build2_cache:
+    folder: contrib/build-wine/.cache/win32/build
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - cat contrib/make_libusb.sh | sha256sum
+      - cat contrib/make_zbar.sh | sha256sum
+      - git ls-files -s contrib/build-wine/
   build_script:
     - cd contrib/build-wine
     - ./make_win.sh
@@ -14,39 +28,56 @@ task:
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build (Kivy arm64)
+  name: Android build (Kivy $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 2
     memory: 2G
+  env:
+    APK_ARCH: arm64-v8a
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - git ls-files -s contrib/android/
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - git ls-files -s contrib/android/
+      - echo "kivy $APK_ARCH"
   build_script:
-    - ./contrib/android/make_apk.sh kivy arm64-v8a debug
+    - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
 
 task:
-  name: Android build (QML arm64)
+  name: Android build (QML $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
     memory: 24G
+  env:
+    APK_ARCH: arm64-v8a
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - git ls-files -s contrib/android/
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - git ls-files -s contrib/android/
+      - echo "qml $APK_ARCH"
   build_script:
-    - ./contrib/android/make_apk.sh qml arm64-v8a debug
+    - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
-  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
-
-task:
-  name: Android build (QML arm32)
-  container:
-    dockerfile: contrib/android/Dockerfile
-    cpu: 8
-    memory: 24G
-  build_script:
-    - ./contrib/android/make_apk.sh qml armeabi-v7a debug
-  binaries_artifacts:
-    path: "dist/*"
-  only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
 
 task:
   name: MacOS build
@@ -54,6 +85,20 @@ task:
     image: catalina-xcode-11.3.1
   env:
     TARGET_OS: macOS
+  pip_cache:
+    folder: ~/Library/Caches/pip
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/osx/
+  build2_cache:
+    folder: contrib/osx/.cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | shasum -a 256
+      - cat contrib/make_libusb.sh | shasum -a 256
+      - cat contrib/make_zbar.sh | shasum -a 256
+      - git ls-files -s contrib/osx/
   install_script:
     - git fetch --all --tags
   build_script:
@@ -70,6 +115,18 @@ task:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
     memory: 1G
+  pip_cache:
+    folder: contrib/build-linux/appimage/.cache/pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/appimage/
+  build2_cache:
+    folder: contrib/build-linux/appimage/.cache/appimage
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - git ls-files -s contrib/build-linux/appimage/
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
@@ -82,6 +139,12 @@ task:
     dockerfile: contrib/build-linux/sdist/Dockerfile
     cpu: 1
     memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/sdist/
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
   binaries_artifacts:

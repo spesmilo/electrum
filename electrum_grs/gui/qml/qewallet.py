@@ -301,6 +301,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isLightning(self):
         return bool(self.wallet.lnworker)
 
+    billingInfoChanged = pyqtSignal()
+    @pyqtProperty('QVariantMap', notify=billingInfoChanged)
+    def billingInfo(self):
+        return {} if self.wallet.wallet_type != '2fa' else self.wallet.billing_info
+
     @pyqtProperty(bool, notify=dataChanged)
     def canHaveLightning(self):
         return self.wallet.can_have_lightning()
@@ -343,11 +348,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if len(keystores) == 0:
             self._logger.debug('no keystore')
             return ''
+        if not self.isDeterministic:
+            return ''
         return keystores[0].get_derivation_prefix()
 
     @pyqtProperty(str, notify=dataChanged)
     def masterPubkey(self):
         return self.wallet.get_master_public_key()
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def canSignWithoutServer(self):
+        return self.wallet.can_sign_without_server() if self.wallet.wallet_type == '2fa' else True
 
     balanceChanged = pyqtSignal()
 
@@ -651,3 +662,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.password = password
         except InvalidPassword as e:
             self._logger.exception(repr(e))
+
+    @pyqtSlot(str)
+    def importAddresses(self, addresslist):
+        self.wallet.import_addresses(addresslist.split())
+
+    @pyqtSlot(str)
+    def importPrivateKeys(self, keyslist):
+        self.wallet.import_private_keys(keyslist.split(), self.password)
+

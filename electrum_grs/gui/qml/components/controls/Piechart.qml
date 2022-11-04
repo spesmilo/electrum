@@ -6,6 +6,7 @@ Canvas {
     property var slices
 
     property int innerOffset: 10
+    property int legendOffset: 8
     property bool showLegend: true
 
     onSlicesChanged: piechart.requestPaint()
@@ -20,7 +21,7 @@ Canvas {
         ctx.lineWidth = 2
         var pcx = width/2
         var pcy = height/2
-        var radius = height/4
+        var radius = height/3
 
         var endR = startR
         for (const i in slices) {
@@ -48,23 +49,25 @@ Canvas {
                 continue
 
             // displace legend
-            var dx = Math.cos(phi) * (radius + innerOffset + constants.paddingMedium)
-            var dy = Math.sin(phi) * (radius + innerOffset + constants.paddingMedium)
+            var dx = Math.cos(phi) * (radius + innerOffset + legendOffset)
+            var dy = Math.sin(phi) * (radius + innerOffset + legendOffset)
+            var dx2 = Math.cos(phi) * (radius + innerOffset + 2 * legendOffset)
+            var dy2 = Math.sin(phi) * (radius + innerOffset + 2 * legendOffset)
             ctx.lineWidth = 1
             ctx.beginPath()
             if (dx > 0) {
                 var ddx = ctx.measureText(slice.text).width + 2 * constants.paddingMedium
-                var xtext = pcx+dx*1.2 + constants.paddingMedium
+                var xtext = pcx+dx2 + constants.paddingMedium
             } else {
                 var ddx = -(ctx.measureText(slice.text).width + 2 * constants.paddingMedium)
-                var xtext = pcx+dx*1.2+ddx + constants.paddingMedium
+                var xtext = pcx+dx2+ddx + constants.paddingMedium
             }
             ctx.moveTo(pcx+dx, pcy+dy)
-            ctx.lineTo(pcx+dx*1.2, pcy+dy*1.2)
-            ctx.lineTo(pcx+dx*1.2+ddx, pcy+dy*1.2)
-            ctx.moveTo(pcx+dx*1.2, pcy+dy*1.2)
+            ctx.lineTo(pcx+dx2, pcy+dy2)
+            ctx.lineTo(pcx+dx2+ddx, pcy+dy2)
+            ctx.moveTo(pcx+dx2, pcy+dy2)
 
-            ctx.text(slice.text, xtext, pcy+dy*1.2 - constants.paddingXSmall)
+            ctx.text(slice.text, xtext, pcy+dy2 - constants.paddingXSmall)
             ctx.stroke()
         }
 

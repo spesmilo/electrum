@@ -931,7 +931,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
-    from .lnaddr import lndecode
+    from .lnaddr import lndecode, LnDecodeException
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -995,7 +995,10 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
-        lnaddr = lndecode(out['lightning'])
+        try:
+            lnaddr = lndecode(out['lightning'])
+        except LnDecodeException as e:
+            raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
         amount_sat = out.get('amount')
         if amount_sat:
             # allow small leeway due to msat precision
