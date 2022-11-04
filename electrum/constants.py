@@ -49,7 +49,8 @@ class AbstractNet:
     @classmethod
     def max_checkpoint(cls) -> int:
         if len(cls.CHECKPOINTS) >= 1:
-            return max(0, cls.CHECKPOINTS[len(cls.CHECKPOINTS)-1][1])
+           # return max(0, len(cls.CHECKPOINTS) * 2016 - 1) # the original version from upstream
+            return max(0, cls.CHECKPOINTS[len(cls.CHECKPOINTS)-1][1]) # to be tested
         return 0
 
 
@@ -72,6 +73,7 @@ class BitcoinMainnet(AbstractNet):
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 4149000
+    LN_DNS_SEEDS = []
 
     XPRV_HEADERS = {
         'standard':    0x0488daee,  # xprv
@@ -123,10 +125,7 @@ class BitcoinTestnet(AbstractNet):
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
     BIP44_COIN_TYPE = 1
     LN_REALM_BYTE = 1
-    LN_DNS_SEEDS = [  # TODO investigate this again
-        #'test.nodes.lightning.directory.',  # times out.
-        #'lseed.bitcoinstats.com.',  # ignores REALM byte and returns mainnet peers...
-    ]
+    LN_DNS_SEEDS = []
 
 
 class BitcoinRegtest(BitcoinTestnet):

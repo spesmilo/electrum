@@ -31,7 +31,7 @@ import hashlib
 import hmac
 #<<<<<<< HEAD
 #from typing import Union
-#import scrypt
+import scrypt
 import neoscrypt
 from typing import Union, Mapping, Optional
 

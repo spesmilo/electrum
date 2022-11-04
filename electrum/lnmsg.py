@@ -229,7 +229,7 @@ def _write_field(*, fd: io.BytesIO, field_type: str, count: Union[int, str],
             raise UnknownMsgFieldType(f"unknown field type: {field_type!r}")
         total_len = count * type_len
         if isinstance(value, int) and (count == 1 or field_type == 'byte'):
-            value = int.to_bytes(value, length=total_len, byteorder="big", signed=False)
+            value = int.to_bytes(abs(value), length=total_len, byteorder="big", signed=False)
     if not isinstance(value, (bytes, bytearray)):
         raise Exception(f"can only write bytes into fd. got: {value!r}")
     if count != "..." and total_len != len(value):

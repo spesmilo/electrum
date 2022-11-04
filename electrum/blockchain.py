@@ -24,7 +24,6 @@ import os
 import threading
 import time
 from typing import Optional, Dict, Mapping, Sequence
-
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
 from .crypto import sha256d, PoWHash, PoWNeoScryptHash
@@ -314,22 +313,22 @@ class Blockchain(Logger):
 
     @classmethod
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
-        
+
         # a lot of checks are disabled. cause of check failures probably is the pow_hash_header funkktion
         _hash = pow_hash_header(header)
-        #if expected_header_hash and expected_header_hash != _hash:
-        #   raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
+        if expected_header_hash and expected_header_hash != _hash:
+           raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
         if header.get('block_height') >= constants.net.max_checkpoint():
-            bits = cls.target_to_bits(target)
-        #    if bits != header.get('bits'):
-        #        raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+            #bits = cls.target_to_bits(target)
+            #if bits != header.get('bits'):
+            #    raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
             block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        #    if block_hash_as_num > target:
-        #        raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+            if block_hash_as_num > target:
+                raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
             return
 
     def verify_chunk(self, index: int, data: bytes) -> None:
@@ -613,7 +612,7 @@ class Blockchain(Logger):
     def __vanilla_target(self, height, headers):
         interval = 2016
         last_height = height - 1
-        
+
         if last_height == 0:        #special handling for the first block after GENESIS
             return MAX_TARGET
         last = self.get_header(last_height, height, headers)
@@ -714,23 +713,24 @@ class Blockchain(Logger):
             return False
         if height == 0:
             return hash_header(header) == constants.net.GENESIS
-       
+
         try:
             prev_hash = self.get_hash(height - 1)
-        except: 
+        except:
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
-        
+
         try:
             # target = self.(height, None)
             target = self.get_target(height,None)
-           
+
         except MissingHeader:
             return False
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:
+            print(repr(e))
             return False
         return True
 
