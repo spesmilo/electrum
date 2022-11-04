@@ -1,36 +1,51 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
-import QtQuick.Controls 2.1
+import QtQuick.Controls 2.3
 
 import org.electrum 1.0
 
-import "../controls"
+import "controls"
 
-WizardComponent {
+ElDialog {
     id: root
 
-    valid: false
+    property bool valid: false
 
-    function apply() {
-        if (bitcoin.isAddressList(import_ta.text)) {
-            wizard_data['address_list'] = import_ta.text
-        } else if (bitcoin.isPrivateKeyList(import_ta.text)) {
-            wizard_data['private_key_list'] = import_ta.text
-        }
+    standardButtons: Dialog.Close
+    modal: true
+    parent: Overlay.overlay
+    Overlay.modal: Rectangle {
+        color: "#aa000000"
     }
+    width: parent.width
+    height: parent.height
+
+    title: Daemon.currentWallet.isWatchOnly
+            ? qsTr('Import additional addresses')
+            : qsTr('Import additional keys')
 
     function verify(text) {
-        return bitcoin.isAddressList(text) || bitcoin.isPrivateKeyList(text)
+        if (Daemon.currentWallet.isWatchOnly)
+            return bitcoin.isAddressList(text)
+        else
+            return bitcoin.isPrivateKeyList(text)
+    }
+
+    onAccepted: {
+        if (Daemon.currentWallet.isWatchOnly)
+            Daemon.currentWallet.importAddresses(import_ta.text)
+        else
+            Daemon.currentWallet.importPrivateKeys(import_ta.text)
     }
 
     ColumnLayout {
         width: parent.width
+        height: parent.height
 
-        Label { text: qsTr('Import Bitcoin Addresses') }
-
-        InfoTextArea {
-            Layout.preferredWidth: parent.width
-            text: qsTr('Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.')
+        Label {
+            text: Daemon.currentWallet.isWatchOnly
+                    ? qsTr('Import additional addresses')
+                    : qsTr('Import additional keys')
         }
 
         RowLayout {
@@ -45,7 +60,7 @@ WizardComponent {
             ColumnLayout {
                 Layout.alignment: Qt.AlignTop
                 ToolButton {
-                    icon.source: '../../../icons/paste.png'
+                    icon.source: '../../icons/paste.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
                     onClicked: {
@@ -57,12 +72,12 @@ WizardComponent {
                     }
                 }
                 ToolButton {
-                    icon.source: '../../../icons/qrcode.png'
+                    icon.source: '../../icons/qrcode.png'
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root)
+                        var scan = qrscan.createObject(root.contentItem) // can't use dialog as parent?
                         scan.onFound.connect(function() {
                             if (verify(scan.scanData)) {
                                 if (import_ta.text != '')
@@ -75,16 +90,28 @@ WizardComponent {
                 }
             }
         }
+
+        Item {
+            Layout.preferredWidth: 1
+            Layout.fillHeight: true
+        }
+
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Import')
+            enabled: valid
+            onClicked: accept()
+        }
     }
 
     Component {
         id: qrscan
         QRScan {
-            width: root.width
-            height: root.height
+            width: parent.width
+            height: parent.height
 
             ToolButton {
-                icon.source: '../../../icons/closebutton.png'
+                icon.source: '../../icons/closebutton.png'
                 icon.height: constants.iconSizeMedium
                 icon.width: constants.iconSizeMedium
                 anchors.right: parent.right

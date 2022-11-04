@@ -36,6 +36,10 @@ Pane {
         Daemon.start_change_password()
     }
 
+    function importAddressesKeys() {
+        var dialog = importAddressesKeysDialog.createObject(rootItem)
+        dialog.open()
+    }
 
     ColumnLayout {
         id: rootLayout
@@ -202,34 +206,37 @@ Pane {
                         color: Material.accentColor
                     }
 
-                    ColumnLayout {
+                    TextHighlightPane {
                         Layout.columnSpan: 2
-                        Layout.leftMargin: constants.paddingMedium
-                        spacing: 0
+                        Layout.fillWidth: true
 
-                        ButtonGroup {
-                            id: billinggroup
-                            onCheckedButtonChanged: {
-                                Config.trustedcoinPrepay = checkedButton.value
+                        ColumnLayout {
+                            spacing: 0
+
+                            ButtonGroup {
+                                id: billinggroup
+                                onCheckedButtonChanged: {
+                                    Config.trustedcoinPrepay = checkedButton.value
+                                }
                             }
-                        }
 
-                        Repeater {
-                            model: AppController.plugin('trustedcoin').billingModel
-                            delegate: RowLayout {
-                                RadioButton {
-                                    ButtonGroup.group: billinggroup
-                                    property string value: modelData.value
-                                    text: modelData.text
-                                    checked: modelData.value == Config.trustedcoinPrepay
-                                }
-                                Label {
-                                    text: Config.formatSats(modelData.sats_per_tx)
-                                    font.family: FixedFont
-                                }
-                                Label {
-                                    text: Config.baseUnit + '/tx'
-                                    color: Material.accentColor
+                            Repeater {
+                                model: AppController.plugin('trustedcoin').billingModel
+                                delegate: RowLayout {
+                                    RadioButton {
+                                        ButtonGroup.group: billinggroup
+                                        property string value: modelData.value
+                                        text: modelData.text
+                                        checked: modelData.value == Config.trustedcoinPrepay
+                                    }
+                                    Label {
+                                        text: Config.formatSats(modelData.sats_per_tx)
+                                        font.family: FixedFont
+                                    }
+                                    Label {
+                                        text: Config.baseUnit + '/tx'
+                                        color: Material.accentColor
+                                    }
                                 }
                             }
                         }
@@ -294,19 +301,27 @@ Pane {
 
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Change Password');
+            visible: Daemon.currentWallet.walletType == 'imported'
+            text: Daemon.currentWallet.isWatchOnly
+                    ? qsTr('Import additional addresses')
+                    : qsTr('Import additional keys')
+            onClicked: rootItem.importAddressesKeys()
+        }
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Change Password')
             onClicked: rootItem.changePassword()
             icon.source: '../../icons/lock.png'
         }
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Delete Wallet');
+            text: qsTr('Delete Wallet')
             onClicked: rootItem.deleteWallet()
             icon.source: '../../icons/delete.png'
         }
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Enable Lightning');
+            text: qsTr('Enable Lightning')
             onClicked: rootItem.enableLightning()
             visible: Daemon.currentWallet && Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
             icon.source: '../../icons/lightning.png'
@@ -369,6 +384,15 @@ Pane {
         }
         function onBalanceChanged() {
             piechart.updateSlices()
+        }
+    }
+
+    Component {
+        id: importAddressesKeysDialog
+        ImportAddressesKeysDialog {
+            width: parent.width
+            height: parent.height
+            onClosed: destroy()
         }
     }
 

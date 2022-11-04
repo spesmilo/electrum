@@ -348,6 +348,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if len(keystores) == 0:
             self._logger.debug('no keystore')
             return ''
+        if not self.isDeterministic:
+            return ''
         return keystores[0].get_derivation_prefix()
 
     @pyqtProperty(str, notify=dataChanged)
@@ -660,3 +662,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.password = password
         except InvalidPassword as e:
             self._logger.exception(repr(e))
+
+    @pyqtSlot(str)
+    def importAddresses(self, addresslist):
+        self.wallet.import_addresses(addresslist.split())
+
+    @pyqtSlot(str)
+    def importPrivateKeys(self, keyslist):
+        self.wallet.import_private_keys(keyslist.split(), self.password)
+
