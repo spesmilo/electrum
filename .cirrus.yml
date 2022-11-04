@@ -162,9 +162,11 @@ task:
   dll_cache:
     folder: contrib/build-wine/.cache/win32/dlls
     fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
       - cat contrib/make_libsecp256k1.sh | sha256sum
       - cat contrib/make_libusb.sh | sha256sum
       - cat contrib/make_zbar.sh | sha256sum
+      - find contrib/build-wine/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
     populate_script: mkdir -p contrib/build-wine/.cache/win32/dlls
   build_script:
     - cd contrib/build-wine
@@ -246,6 +248,14 @@ task:
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
       - find contrib/osx/ -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
     populate_script: mkdir -p ~/Library/Caches/pip
+  build2_cache:
+    folder: contrib/osx/.cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | shasum -a 256
+      - cat contrib/make_libusb.sh | shasum -a 256
+      - cat contrib/make_zbar.sh | shasum -a 256
+      - find contrib/osx/ -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
   install_script:
     - git fetch --all --tags
   build_script:

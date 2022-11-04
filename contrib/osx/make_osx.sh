@@ -19,8 +19,9 @@ CONTRIB_OSX="$(dirname "$(realpath "$0")")"
 CONTRIB="$CONTRIB_OSX/.."
 PROJECT_ROOT="$CONTRIB/.."
 CACHEDIR="$CONTRIB_OSX/.cache"
+export DLL_TARGET_DIR="$CACHEDIR/dlls"
 
-mkdir -p "$CACHEDIR"
+mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
 
 cd "$PROJECT_ROOT"
 
@@ -177,29 +178,29 @@ info "generating locale"
 ) || fail "failed generating locale"
 
 
-if [ ! -f "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib ]; then
+if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" ]; then
     info "Building libsecp256k1 dylib..."
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 else
     info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
-cp "$PROJECT_ROOT"/electrum/libsecp256k1.0.dylib "$CONTRIB"/osx
+cp -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libsecp256k1 dylib"
 
-if [ ! -f "$PROJECT_ROOT"/electrum/libzbar.0.dylib ]; then
+if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."
     "$CONTRIB"/make_zbar.sh || fail "Could not build ZBar dylib"
 else
     info "Skipping ZBar build: reusing already built dylib."
 fi
-cp "$PROJECT_ROOT"/electrum/libzbar.0.dylib "$CONTRIB"/osx
+cp -f "$DLL_TARGET_DIR/libzbar.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy ZBar dylib"
 
-if [ ! -f "$PROJECT_ROOT"/electrum/libusb-1.0.dylib ]; then
+if [ ! -f "$DLL_TARGET_DIR/libusb-1.0.dylib" ]; then
     info "Building libusb dylib..."
     "$CONTRIB"/make_libusb.sh || fail "Could not build libusb dylib"
 else
     info "Skipping libusb build: reusing already built dylib."
 fi
-cp "$PROJECT_ROOT"/electrum/libusb-1.0.dylib "$CONTRIB"/osx
+cp -f "$DLL_TARGET_DIR/libusb-1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libusb dylib"
 
 
 info "Installing requirements..."
