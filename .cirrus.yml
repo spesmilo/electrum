@@ -29,7 +29,6 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
   version_script:
     - $ELECTRUM_PYTHON_NAME --version
   tag_script:
@@ -63,7 +62,6 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI
-    populate_script: mkdir -p ~/.cache/pip
   install_script:
     - apt-get update
     - apt-get -y install gettext
@@ -90,7 +88,6 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo Regtest && echo docker_builder && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
   bitcoind_cache:
     folder: /tmp/bitcoind
     populate_script: mkdir -p /tmp/bitcoind
@@ -126,7 +123,6 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
   install_script:
     - pip install flake8
   flake8_script:
@@ -158,7 +154,6 @@ task:
       - echo $CIRRUS_TASK_NAME
       - git ls-files -s contrib/deterministic-build/*.txt
       - git ls-files -s contrib/build-wine/
-    populate_script: mkdir -p contrib/build-wine/.cache/win32/wine_pip_cache
   build2_cache:
     folder: contrib/build-wine/.cache/win32/build
     fingerprint_script:
@@ -197,7 +192,6 @@ task:
       # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
       - git ls-files -s contrib/android/
       - echo "kivy $APK_ARCH"
-    populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
     - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
@@ -228,7 +222,6 @@ task:
       # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
       - git ls-files -s contrib/android/
       - echo "qml $APK_ARCH"
-    populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
     - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
@@ -246,7 +239,6 @@ task:
       - echo $CIRRUS_TASK_NAME
       - git ls-files -s contrib/deterministic-build/*.txt
       - git ls-files -s contrib/osx/
-    populate_script: mkdir -p ~/Library/Caches/pip
   build2_cache:
     folder: contrib/osx/.cache
     fingerprint_script:
@@ -277,7 +269,6 @@ task:
       - echo $CIRRUS_TASK_NAME
       - git ls-files -s contrib/deterministic-build/*.txt
       - git ls-files -s contrib/build-linux/appimage/
-    populate_script: mkdir -p contrib/build-linux/appimage/.cache/pip_cache
   build2_cache:
     folder: contrib/build-linux/appimage/.cache/appimage
     fingerprint_script:
@@ -302,7 +293,6 @@ task:
       - echo $CIRRUS_TASK_NAME
       - git ls-files -s contrib/deterministic-build/*.txt
       - git ls-files -s contrib/build-linux/sdist/
-    populate_script: mkdir -p ~/.cache/pip
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
   binaries_artifacts:
