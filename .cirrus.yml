@@ -203,12 +203,8 @@ task:
     dockerfile: contrib/android/Dockerfile
     cpu: 8
     memory: 24G
-  matrix:
-    - env:
-        APK_ARCH: arm64-v8a
-    - env:
-        APK_ARCH: armeabi-v7a
-      only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
+  env:
+    APK_ARCH: arm64-v8a
   packages_tld_folder_cache:
     folder: packages
     fingerprint_script:
