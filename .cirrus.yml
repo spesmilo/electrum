@@ -157,6 +157,7 @@ task:
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - find contrib/build-wine/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
     populate_script: mkdir -p contrib/build-wine/.cache/win32/wine_pip_cache
   dll_cache:
     folder: contrib/build-wine/.cache/win32/dlls
@@ -186,6 +187,7 @@ task:
     folder: packages
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
@@ -216,6 +218,7 @@ task:
     folder: packages
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
@@ -241,6 +244,7 @@ task:
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
+      - find contrib/osx/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
     populate_script: mkdir -p ~/Library/Caches/pip
   install_script:
     - git fetch --all --tags
@@ -263,6 +267,7 @@ task:
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - find contrib/build-linux/appimage/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
     populate_script: mkdir -p contrib/build-linux/appimage/.cache/appimage/pip_cache
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
@@ -281,6 +286,7 @@ task:
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - find contrib/build-linux/sdist/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
     populate_script: mkdir -p ~/.cache/pip
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
