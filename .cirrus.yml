@@ -156,8 +156,8 @@ task:
     folder: contrib/build-wine/.cache/win32/wine_pip_cache
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
-      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
-      - find contrib/build-wine/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-wine/
     populate_script: mkdir -p contrib/build-wine/.cache/win32/wine_pip_cache
   build2_cache:
     folder: contrib/build-wine/.cache/win32/build
@@ -166,7 +166,7 @@ task:
       - cat contrib/make_libsecp256k1.sh | sha256sum
       - cat contrib/make_libusb.sh | sha256sum
       - cat contrib/make_zbar.sh | sha256sum
-      - find contrib/build-wine/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/build-wine/
   build_script:
     - cd contrib/build-wine
     - ./make_win.sh
@@ -188,14 +188,14 @@ task:
     folder: packages
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
-      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/android/
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
       - ".buildozer/android/platform/build-$APK_ARCH/build"
     fingerprint_script:
       # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
-      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/android/
       - echo "kivy $APK_ARCH"
     populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
@@ -219,14 +219,14 @@ task:
     folder: packages
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
-      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/android/
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
       - ".buildozer/android/platform/build-$APK_ARCH/build"
     fingerprint_script:
       # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
-      - find contrib/android/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/android/
       - echo "qml $APK_ARCH"
     populate_script: mkdir -p ".buildozer/android/platform/$APK_ARCH"/{packages,build}
   build_script:
@@ -244,8 +244,8 @@ task:
     folder: ~/Library/Caches/pip
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
-      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
-      - find contrib/osx/ -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/osx/
     populate_script: mkdir -p ~/Library/Caches/pip
   build2_cache:
     folder: contrib/osx/.cache
@@ -254,7 +254,7 @@ task:
       - cat contrib/make_libsecp256k1.sh | shasum -a 256
       - cat contrib/make_libusb.sh | shasum -a 256
       - cat contrib/make_zbar.sh | shasum -a 256
-      - find contrib/osx/ -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
+      - git ls-files -s contrib/osx/
   install_script:
     - git fetch --all --tags
   build_script:
@@ -275,15 +275,15 @@ task:
     folder: contrib/build-linux/appimage/.cache/pip_cache
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
-      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
-      - find contrib/build-linux/appimage/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/appimage/
     populate_script: mkdir -p contrib/build-linux/appimage/.cache/pip_cache
   build2_cache:
     folder: contrib/build-linux/appimage/.cache/appimage
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
       - cat contrib/make_libsecp256k1.sh | sha256sum
-      - find contrib/build-linux/appimage/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/build-linux/appimage/
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
@@ -300,8 +300,8 @@ task:
     folder: ~/.cache/pip
     fingerprint_script:
       - echo $CIRRUS_TASK_NAME
-      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
-      - find contrib/build-linux/sdist/ -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/sdist/
     populate_script: mkdir -p ~/.cache/pip
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
