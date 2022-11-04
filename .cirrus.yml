@@ -152,6 +152,19 @@ task:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
     memory: 2G
+  pip_cache:
+    folder: contrib/build-wine/.cache/win32/wine_pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+    populate_script: mkdir -p contrib/build-wine/.cache/win32/wine_pip_cache
+  dll_cache:
+    folder: contrib/build-wine/.cache/win32/dlls
+    fingerprint_script:
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - cat contrib/make_libusb.sh | sha256sum
+      - cat contrib/make_zbar.sh | sha256sum
+    populate_script: mkdir -p contrib/build-wine/.cache/win32/dlls
   build_script:
     - cd contrib/build-wine
     - ./make_win.sh
@@ -169,6 +182,10 @@ task:
     memory: 2G
   env:
     APK_ARCH: arm64-v8a
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
@@ -195,6 +212,10 @@ task:
     - env:
         APK_ARCH: armeabi-v7a
       only_if: $CIRRUS_TAG != '' || $CIRRUS_BRANCH == 'ci-qml-beta'
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
   p4a_cache:
     folders:
       - ".buildozer/android/platform/build-$APK_ARCH/packages"
@@ -215,6 +236,12 @@ task:
     image: catalina-xcode-11.3.1
   env:
     TARGET_OS: macOS
+  pip_cache:
+    folder: ~/Library/Caches/pip
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+    populate_script: mkdir -p ~/Library/Caches/pip
   install_script:
     - git fetch --all --tags
   build_script:
@@ -231,6 +258,12 @@ task:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
     memory: 1G
+  pip_cache:
+    folder: contrib/build-linux/appimage/.cache/appimage/pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+    populate_script: mkdir -p contrib/build-linux/appimage/.cache/appimage/pip_cache
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
@@ -243,6 +276,12 @@ task:
     dockerfile: contrib/build-linux/sdist/Dockerfile
     cpu: 1
     memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - find contrib/deterministic-build/*.txt -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum
+    populate_script: mkdir -p ~/.cache/pip
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
   binaries_artifacts:
