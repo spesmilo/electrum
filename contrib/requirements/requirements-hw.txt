@@ -15,3 +15,8 @@ pyserial>=3.5.0,<4.0.0
 # prefer older protobuf (see #7922)
 # (pulled in via e.g. keepkey and bitbox02)
 protobuf>=3.12,<4
+
+# prefer older colorama to avoid needing hatchling
+# (pulled in via trezor -> click -> colorama)
+# (pulled in via safet -> click -> colorama)
+colorama<0.4.6

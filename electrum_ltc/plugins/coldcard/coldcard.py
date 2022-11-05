@@ -241,7 +241,7 @@ class CKCCClient(HardwareClientBase):
         # get a file
         return self.dev.download_file(length, checksum, file_number=file_number)
 
-        
+
 
 class Coldcard_KeyStore(Hardware_KeyStore):
     hw_type = 'coldcard'
@@ -311,7 +311,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         except (UnicodeError, AssertionError):
             # there are other restrictions on message content,
             # but let the device enforce and report those
-            self.handler.show_error('Only short (%d max) ASCII messages can be signed.' 
+            self.handler.show_error('Only short (%d max) ASCII messages can be signed.'
                                             % MSG_SIGNING_MAX_LENGTH)
             return b''
 
@@ -382,7 +382,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                         break
 
                 rlen, rsha = resp
-            
+
                 # download the resulting txn.
                 raw_resp = client.download_file(rlen, rsha)
 

@@ -39,6 +39,12 @@ Item {
     }
 
     property QtObject menu: Menu {
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
+
         id: menu
         MenuItem {
             icon.color: 'transparent'
@@ -267,6 +273,9 @@ Item {
             })
             dialog.open()
         }
+        function onBroadcastFailed() {
+            notificationPopup.show(qsTr('Broadcast transaction failed'))
+        }
     }
 
     Component {
@@ -275,6 +284,10 @@ Item {
             width: parent.width
             height: parent.height
 
+            onTxFound: {
+                app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
+                close()
+            }
             onClosed: destroy()
         }
     }

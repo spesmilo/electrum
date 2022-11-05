@@ -135,7 +135,7 @@ class Drawer(Factory.RelativeLayout):
         return
 
     def on_touch_move(self, touch):
-        if not touch.grab_current is self:
+        if touch.grab_current is not self:
             return
         self._touch = False
         # skip on tablet mode
@@ -175,7 +175,7 @@ class Drawer(Factory.RelativeLayout):
         return
 
     def on_touch_up(self, touch):
-        if not touch.grab_current is self:
+        if touch.grab_current is not self:
             return
 
         self._triigger_gc()

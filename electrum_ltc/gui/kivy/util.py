@@ -3,12 +3,12 @@ from kivy.utils import get_color_from_hex, platform
 
 def address_colors(wallet, addr):
     """
-    Chooses the appropriate text color and background color to 
+    Chooses the appropriate text color and background color to
     mark receiving, change and billing addresses.
 
     Returns: color, background_color
     """
-    
+
     # modified colors (textcolor, background_color) from electrum/gui/qt/util.py
     GREEN = ("#000000", "#8af296")
     YELLOW = ("#000000", "#ffff00")

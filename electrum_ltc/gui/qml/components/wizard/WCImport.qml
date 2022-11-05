@@ -29,6 +29,7 @@ WizardComponent {
         Label { text: qsTr('Import Litecoin Addresses') }
 
         InfoTextArea {
+            Layout.preferredWidth: parent.width
             text: qsTr('Enter a list of Litecoin addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 

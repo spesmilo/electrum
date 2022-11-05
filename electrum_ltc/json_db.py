@@ -168,6 +168,20 @@ class JsonDB(Logger):
         return False
 
     @locked
+    def get_dict(self, name) -> dict:
+        # Warning: interacts un-intuitively with 'put': certain parts
+        # of 'data' will have pointers saved as separate variables.
+        if name not in self.data:
+            self.data[name] = {}
+        return self.data[name]
+
+    def _convert_dict(self, path, key, v):
+        return v
+
+    def _convert_value(self, path, key, v):
+        return v
+
+    @locked
     def dump(self, *, human_readable: bool = True) -> str:
         """Serializes the DB as a string.
         'human_readable': makes the json indented and sorted, but this is ~2x slower

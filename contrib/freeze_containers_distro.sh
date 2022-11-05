@@ -38,8 +38,6 @@ echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main non-free contrib
 # build-wine
 echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >$contrib/build-wine/apt.sources.list
 echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >>$contrib/build-wine/apt.sources.list
-# we need win-iconv-mingw-w64-dev which is only in sid/unstable
-echo "deb [check-valid-until=no] ${DEBIAN_SNAPSHOT} unstable main non-free contrib" >>$contrib/build-wine/apt.sources.list
 
 # android
 echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >$contrib/android/apt.sources.list

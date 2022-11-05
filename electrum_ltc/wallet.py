@@ -2130,9 +2130,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             address: str = None,
             ignore_network_issues: bool = True,
     ) -> None:
-        # We prefer to include UTXO (full tx) for every input.
-        # We cannot include UTXO if the prev tx is not signed yet though (chain of unsigned txs),
-        # in which case we might include a WITNESS_UTXO.
+        # - We prefer to include UTXO (full tx), even for segwit inputs (see #6198).
+        # - For witness v0 inputs, we include *both* UTXO and WITNESS_UTXO. UTXO is a strict superset,
+        #   so this is redundant, but it is (implied to be) "expected" from bip-0174 (see #8039).
+        #   Regardless, this might improve compatibility with some other software.
+        # - For witness v1, witness_utxo will be enough though (bip-0341 sighash fixes known prior issues).
+        # - We cannot include UTXO if the prev tx is not signed yet (chain of unsigned txs).
         address = address or txin.address
         if txin.witness_utxo is None and txin.is_segwit() and address:
             received, spent = self.adb.get_addr_io(address)
@@ -2142,7 +2145,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
         if txin.utxo is None:
             txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)
-        txin.ensure_there_is_only_one_utxo()
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                                         address: str) -> bool:
@@ -2185,6 +2187,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             except UnknownTxinType:
                 pass
         self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
+        txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
@@ -2410,17 +2413,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             d['URI'] = self.get_request_URI(x)
             if conf is not None:
                 d['confirmations'] = conf
-        # add URL if we are running a payserver
-        payserver = self.config.get_netaddress('payserver_address')
-        if payserver:
-            root = self.config.get('payserver_root', '/r')
-            use_ssl = bool(self.config.get('ssl_keyfile'))
-            protocol = 'https' if use_ssl else 'http'
-            base = '%s://%s:%d'%(protocol, payserver.host, payserver.port)
-            d['view_url'] = base + root + '/pay?id=' + key
-            if use_ssl and 'URI' in d:
-                request_url = base + '/bip70/' + key + '.bip70'
-                d['bip70_url'] = request_url
+        run_hook('wallet_export_request', d, key)
         return d
 
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:

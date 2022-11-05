@@ -69,7 +69,7 @@ async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
         # only check non-onion addresses
         addr = None
         for a in work['addrs']:
-            if not "onion" in a[0]:
+            if "onion" not in a[0]:
                 addr = a
         if not addr:
             await results_queue.put(None)

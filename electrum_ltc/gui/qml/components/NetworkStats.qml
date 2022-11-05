@@ -13,6 +13,11 @@ Pane {
 
     property QtObject menu: Menu {
         id: menu
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {

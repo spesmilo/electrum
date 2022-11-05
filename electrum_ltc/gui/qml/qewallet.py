@@ -62,7 +62,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     paymentFailed = pyqtSignal([str,str], arguments=['key','reason'])
     requestNewPassword = pyqtSignal()
     transactionSigned = pyqtSignal([str], arguments=['txid'])
-    #broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
+    broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
@@ -171,7 +171,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @qt_event_listener
     def on_event_new_transaction(self, wallet, tx):
         if wallet == self.wallet:
+            self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
+            self.addressModel.setDirty()
             self.historyModel.init_model() # TODO: be less dramatic
 
     @qt_event_listener
@@ -299,6 +301,11 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isLightning(self):
         return bool(self.wallet.lnworker)
 
+    billingInfoChanged = pyqtSignal()
+    @pyqtProperty('QVariantMap', notify=billingInfoChanged)
+    def billingInfo(self):
+        return {} if self.wallet.wallet_type != '2fa' else self.wallet.billing_info
+
     @pyqtProperty(bool, notify=dataChanged)
     def canHaveLightning(self):
         return self.wallet.can_have_lightning()
@@ -341,11 +348,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if len(keystores) == 0:
             self._logger.debug('no keystore')
             return ''
+        if not self.isDeterministic:
+            return ''
         return keystores[0].get_derivation_prefix()
 
     @pyqtProperty(str, notify=dataChanged)
     def masterPubkey(self):
         return self.wallet.get_master_public_key()
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def canSignWithoutServer(self):
+        return self.wallet.can_sign_without_server() if self.wallet.wallet_type == '2fa' else True
 
     balanceChanged = pyqtSignal()
 
@@ -476,21 +489,25 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def broadcast(self, tx):
         assert tx.is_complete()
 
-        self.network = self.wallet.network # TODO not always defined?
+        network = self.wallet.network # TODO not always defined?
 
-        try:
-            self._logger.info('running broadcast in thread')
-            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-            self._logger.info('broadcast submit done')
-        except TxBroadcastError as e:
-            self.broadcastFailed.emit(tx.txid(),'',repr(e))
-            self._logger.error(e)
-        except BestEffortRequestFailed as e:
-            self.broadcastFailed.emit(tx.txid(),'',repr(e))
-            self._logger.error(e)
+        def broadcast_thread():
+            try:
+                self._logger.info('running broadcast in thread')
+                result = network.run_from_another_thread(network.broadcast_transaction(tx))
+                self._logger.info(repr(result))
+            except TxBroadcastError as e:
+                self._logger.error(repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+            except BestEffortRequestFailed as e:
+                self._logger.error(repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+            else:
+                self.broadcastSucceeded.emit(tx.txid())
+
+        threading.Thread(target=broadcast_thread).start()
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
-        #might need callback from network.py
 
     paymentAuthRejected = pyqtSignal()
     def ln_auth_rejected(self):
@@ -645,3 +662,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.password = password
         except InvalidPassword as e:
             self._logger.exception(repr(e))
+
+    @pyqtSlot(str)
+    def importAddresses(self, addresslist):
+        self.wallet.import_addresses(addresslist.split())
+
+    @pyqtSlot(str)
+    def importPrivateKeys(self, keyslist):
+        self.wallet.import_private_keys(keyslist.split(), self.password)
+

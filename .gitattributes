@@ -1,0 +1,12 @@
+# Auto detect text files and perform end-of-line normalization (to LF)
+*        text=auto
+
+# These Windows files should have CRLF line endings in checkout
+*.bat    text eol=crlf
+*.ps1    text eol=crlf
+
+# Never perform LF normalization on these files
+*.ico    binary
+*.jar    binary
+*.png    binary
+*.zip    binary

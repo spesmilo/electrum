@@ -34,6 +34,10 @@ Item {
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
 
+    property color colorPiechartOnchain: Qt.darker(Material.accentColor, 1.50)
+    property color colorPiechartFrozen: 'gray'
+    property color colorPiechartLightning: 'orange' //Qt.darker(Material.accentColor, 1.20)
+
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)
     }

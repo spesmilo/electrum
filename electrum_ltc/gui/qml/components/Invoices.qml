@@ -42,7 +42,12 @@ Pane {
                     id: delegateModel
                     model: Daemon.currentWallet.invoiceModel
                     delegate: InvoiceDelegate {
-                        onClicked: app.stack.getRoot().openInvoice(model.key)
+                        onClicked: {
+                            var dialog = app.stack.getRoot().openInvoice(model.key)
+                            dialog.invoiceAmountChanged.connect(function () {
+                                Daemon.currentWallet.invoiceModel.init_model()
+                            })
+                        }
                     }
                 }
 

@@ -1,5 +1,6 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum_ltc.i18n import _
 from electrum_ltc.logging import get_logger
 from electrum_ltc.util import format_time
 from electrum_ltc.transaction import tx_from_any
@@ -21,9 +22,9 @@ class QETxDetails(QObject):
     _tx = None
 
     _status = ''
-    _amount = QEAmount(amount_sat=0)
-    _lnamount = QEAmount(amount_sat=0)
-    _fee = QEAmount(amount_sat=0)
+    _amount = QEAmount()
+    _lnamount = QEAmount()
+    _fee = QEAmount()
     _inputs = []
     _outputs = []
 
@@ -34,9 +35,9 @@ class QETxDetails(QObject):
     _can_cpfp = False
     _can_save_as_local = False
     _can_remove = False
+    _can_sign = False
     _is_unrelated = False
     _is_complete = False
-
     _is_mined = False
 
     _mempool_depth = ''
@@ -46,6 +47,8 @@ class QETxDetails(QObject):
     _confirmations = 0
     _txpos = -1
     _header_hash = ''
+
+    confirmRemoveLocalTx = pyqtSignal([str], arguments=['message'])
 
     detailsChanged = pyqtSignal()
 
@@ -82,6 +85,8 @@ class QETxDetails(QObject):
         if self._rawtx != rawtx:
             self._logger.debug('rawtx set -> %s' % rawtx)
             self._rawtx = rawtx
+            if not rawtx:
+                return
             try:
                 self._tx = tx_from_any(rawtx, deserialize=True)
                 self._logger.debug('tx type is %s' % str(type(self._tx)))
@@ -182,6 +187,10 @@ class QETxDetails(QObject):
         return self._can_remove
 
     @pyqtProperty(bool, notify=detailsChanged)
+    def canSign(self):
+        return self._can_sign
+
+    @pyqtProperty(bool, notify=detailsChanged)
     def isUnrelated(self):
         return self._is_unrelated
 
@@ -209,7 +218,7 @@ class QETxDetails(QObject):
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
-        #self._logger.debug(repr(txinfo))
+        self._logger.debug(repr(txinfo))
 
         # can be None if outputs unrelated to wallet seed,
         # e.g. to_local local_force_close commitment CSV-locked p2wsh script
@@ -244,6 +253,7 @@ class QETxDetails(QObject):
         self._can_cpfp = txinfo.can_cpfp
         self._can_save_as_local = txinfo.can_save_as_local
         self._can_remove = txinfo.can_remove
+        self._can_sign = not self._is_complete and self._wallet.wallet.can_sign(self._tx)
 
         self.detailsChanged.emit()
 
@@ -282,4 +292,50 @@ class QETxDetails(QObject):
     @pyqtSlot()
     def broadcast(self):
         assert self._tx.is_complete()
+
+        try:
+            self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+        except:
+            pass
+        self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
+
+        self._can_broadcast = False
+        self.detailsChanged.emit()
+
         self._wallet.broadcast(self._tx)
+
+    @pyqtSlot(str,str,str)
+    def onBroadcastFailed(self, txid, code, reason):
+        if txid != self._txid:
+            return
+
+        self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+
+        self._can_broadcast = True
+        self.detailsChanged.emit()
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def removeLocalTx(self, confirm = False):
+        txid = self._txid
+
+        if not confirm:
+            num_child_txs = len(self._wallet.wallet.adb.get_depending_transactions(txid))
+            question = _("Are you sure you want to remove this transaction?")
+            if num_child_txs > 0:
+                question = (
+                    _("Are you sure you want to remove this transaction and {} child transactions?")
+                    .format(num_child_txs))
+            self.confirmRemoveLocalTx.emit(question)
+            return
+
+        self._wallet.wallet.adb.remove_transaction(txid)
+        self._wallet.wallet.save_db()
+
+    @pyqtSlot(result=str)
+    @pyqtSlot(bool, result=str)
+    def serializedTx(self, for_qr=False):
+        if for_qr:
+            return self._tx.to_qr_data()
+        else:
+            return str(self._tx)

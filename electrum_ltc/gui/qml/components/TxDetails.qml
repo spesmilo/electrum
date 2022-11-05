@@ -12,7 +12,7 @@ Pane {
     width: parent.width
     height: parent.height
 
-    property string title: qsTr("Transaction details")
+    // property string title: qsTr("Transaction details")
 
     property string txid
     property string rawtx
@@ -21,14 +21,44 @@ Pane {
 
     signal detailsChanged
 
+    function close() {
+        app.stack.pop()
+    }
+
     property QtObject menu: Menu {
         id: menu
+        parent: Overlay.overlay
+        dim: true
+        Overlay.modeless: Rectangle {
+            color: "#44000000"
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Export')
+                onTriggered: {
+                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+                    dialog.open()
+                }
+            }
+        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Bump fee')
                 enabled: txdetails.canBump
-                //onTriggered:
+                onTriggered: {
+                    var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
+                    dialog.open()
+                }
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Child pays for parent')
+                enabled: txdetails.canCpfp
+                onTriggered: notificationPopup.show('Not implemented')
             }
         }
         MenuItem {
@@ -36,6 +66,15 @@ Pane {
             action: Action {
                 text: qsTr('Cancel double-spend')
                 enabled: txdetails.canCancel
+                onTriggered: notificationPopup.show('Not implemented')
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Remove')
+                enabled: txdetails.canRemove
+                onTriggered: txdetails.removeLocalTx()
             }
         }
     }
@@ -50,6 +89,20 @@ Pane {
             id: rootLayout
             width: parent.width
             columns: 2
+
+            Label {
+                Layout.columnSpan: 2
+                text: qsTr('Transaction Details')
+                font.pixelSize: constants.fontSizeLarge
+                color: Material.accentColor
+            }
+
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                height: 1
+                color: Material.accentColor
+            }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -268,7 +321,7 @@ Pane {
                 RowLayout {
                     width: parent.width
                     Label {
-                        text: root.txid
+                        text: txdetails.txid
                         font.pixelSize: constants.fontSizeLarge
                         font.family: FixedFont
                         Layout.fillWidth: true
@@ -277,10 +330,10 @@ Pane {
                     ToolButton {
                         icon.source: '../../icons/share.png'
                         icon.color: 'transparent'
-                        enabled: root.txid
+                        enabled: txdetails.txid
                         onClicked: {
                             var dialog = app.genericShareDialog.createObject(root,
-                                { title: qsTr('Transaction ID'), text: root.txid }
+                                { title: qsTr('Transaction ID'), text: txdetails.txid }
                             )
                             dialog.open()
                         }
@@ -330,7 +383,7 @@ Pane {
                 Layout.columnSpan: 2
                 Button {
                     text: qsTr('Sign')
-                    enabled: !txdetails.isComplete
+                    enabled: txdetails.canSign
                     onClicked: txdetails.sign()
                 }
                 Button {
@@ -348,5 +401,39 @@ Pane {
         txid: root.txid
         rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
+        onConfirmRemoveLocalTx: {
+            var dialog = app.messageDialog.createObject(app, {'text': message, 'yesno': true})
+            dialog.yesClicked.connect(function() {
+                dialog.close()
+                txdetails.removeLocalTx(true)
+                txdetails.wallet.historyModel.init_model()
+                root.close()
+            })
+            dialog.open()
+        }
+    }
+
+    Component {
+        id: bumpFeeDialog
+        BumpFeeDialog {
+            id: dialog
+            txfeebumper: TxFeeBumper {
+                id: txfeebumper
+                wallet: Daemon.currentWallet
+                txid: dialog.txid
+            }
+
+            onTxaccepted: {
+                root.rawtx = txfeebumper.getNewTx()
+            }
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
     }
 }

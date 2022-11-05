@@ -4,11 +4,11 @@ Cython==0.29.32 \
     --hash=sha256:8733cf4758b79304f2a4e39ebfac5e92341bce47bcceb26c1254398b2f8c1af7
 macholib==1.16.2 \
     --hash=sha256:557bbfa1bb255c20e9abafe7ed6cd8046b48d9525db2f9b77d3122a63a2a8bf8
-pip==22.2.2 \
-    --hash=sha256:3fd1929db052f056d7a998439176d3333fa1b3f6c1ad881de1885c0717608a4b
-pyinstaller-hooks-contrib==2022.10 \
-    --hash=sha256:e5edd4094175e78c178ef987b61be19efff6caa23d266ade456fc753e847f62e
-setuptools==65.4.1 \
-    --hash=sha256:3050e338e5871e70c72983072fe34f6032ae1cdeeeb67338199c2f74e083a80e
-wheel==0.37.1 \
-    --hash=sha256:e9a504e793efbca1b8e0e9cb979a249cf4a0a7b5b8c9e8b65a5e39d49529c1c4
+pip==22.3 \
+    --hash=sha256:8182aec21dad6c0a49a2a3d121a87cd524b950e0b6092b181625f07ebdde7530
+pyinstaller-hooks-contrib==2022.11 \
+    --hash=sha256:2e1870350bb9ef2e09c1c1bb30347eb3185c5ef38c040ed04190d6d0b4b5df62
+setuptools==65.5.1 \
+    --hash=sha256:e197a19aa8ec9722928f2206f8de752def0e4c9fc6953527360d1c36d94ddb2f
+wheel==0.38.1 \
+    --hash=sha256:ea041edf63f4ccba53ad6e035427997b3bb10ee88a4cd014ae82aeb9eea77bb9

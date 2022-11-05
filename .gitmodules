@@ -2,7 +2,7 @@
 	path = contrib/deterministic-build/electrum-ltc-locale
 	url = https://github.com/pooler/electrum-ltc-locale
 [submodule "electrum_ltc/www"]
-	path = electrum_ltc/www
+	path = electrum_ltc/plugins/payserver/www
 	url = https://github.com/pooler/electrum-ltc-http.git
 [submodule "electrum_ltc/gui/kivy/theming/atlas"]
 	path = electrum_ltc/gui/kivy/theming/atlas

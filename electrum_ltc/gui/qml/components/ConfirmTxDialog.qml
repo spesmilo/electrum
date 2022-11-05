@@ -155,21 +155,20 @@ ElDialog {
                 }
             }
 
-            ComboBox {
+            FeeMethodComboBox {
                 id: target
-                textRole: 'text'
-                valueRole: 'value'
-                model: [
-                    { text: qsTr('ETA'), value: 1 },
-                    { text: qsTr('Mempool'), value: 2 },
-                    { text: qsTr('Static'), value: 0 }
-                ]
-                onCurrentValueChanged: {
+                feeslider: finalizer
+            }
+
+            CheckBox {
+                id: final_cb
+                text: qsTr('Replace-by-Fee')
+                Layout.columnSpan: 2
+                checked: finalizer.rbf
+                visible: finalizer.canRbf
+                onCheckedChanged: {
                     if (activeFocus)
-                        finalizer.method = currentValue
-                }
-                Component.onCompleted: {
-                    currentIndex = indexOfValue(finalizer.method)
+                        finalizer.rbf = checked
                 }
             }
 
@@ -180,14 +179,6 @@ ElDialog {
                 visible: finalizer.warning != ''
                 text: finalizer.warning
                 iconStyle: InfoTextArea.IconStyle.Warn
-            }
-
-            CheckBox {
-                id: final_cb
-                text: qsTr('Replace-by-Fee')
-                Layout.columnSpan: 2
-                checked: finalizer.rbf
-                visible: finalizer.canRbf
             }
 
             Label {

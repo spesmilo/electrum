@@ -32,83 +32,98 @@ ApplicationWindow
     header: ToolBar {
         id: toolbar
 
-        RowLayout {
-            anchors.fill: parent
+        ColumnLayout {
+            spacing: 0
 
-            ToolButton {
-                text: qsTr("‹")
-                enabled: stack.depth > 1
-                onClicked: stack.pop()
-            }
+            RowLayout {
+                id: toolbarTopLayout
+                Layout.preferredWidth: app.width
 
-            Image {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: constants.iconSizeLarge
-                Layout.preferredHeight: constants.iconSizeLarge
-                source: "../../icons/electrum-ltc.png"
-            }
+                ToolButton {
+                    text: qsTr("‹")
+                    enabled: stack.depth > 1
+                    onClicked: stack.pop()
+                }
 
-            Label {
-                text: stack.currentItem.title
-                elide: Label.ElideRight
-                horizontalAlignment: Qt.AlignHCenter
-                verticalAlignment: Qt.AlignVCenter
-                Layout.fillWidth: true
-                font.pixelSize: constants.fontSizeMedium
-                font.bold: true
-            }
+                Image {
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: constants.iconSizeLarge
+                    Layout.preferredHeight: constants.iconSizeLarge
+                    source: "../../icons/electrum-ltc.png"
+                }
 
-            Item {
-                visible: Network.isTestNet
-                width: column.width
-                height: column.height
-
-                ColumnLayout {
-                    id: column
-                    spacing: 0
-                    Image {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: "../../icons/info.png"
+                Label {
+                    text: stack.currentItem.title
+                    elide: Label.ElideRight
+                    horizontalAlignment: Qt.AlignHCenter
+                    verticalAlignment: Qt.AlignVCenter
+                    Layout.fillWidth: true
+                    font.pixelSize: constants.fontSizeMedium
+                    font.bold: true
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: walletSummary.toggle()
                     }
+                }
 
-                    Label {
-                        id: networkNameLabel
-                        text: Network.networkName
-                        color: Material.accentColor
-                        font.pixelSize: constants.fontSizeXSmall
+                Item {
+                    visible: Network.isTestNet
+                    width: column.width
+                    height: column.height
+
+                    ColumnLayout {
+                        id: column
+                        spacing: 0
+                        Image {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: constants.iconSizeSmall
+                            Layout.preferredHeight: constants.iconSizeSmall
+                            source: "../../icons/info.png"
+                        }
+
+                        Label {
+                            id: networkNameLabel
+                            text: Network.networkName
+                            color: Material.accentColor
+                            font.pixelSize: constants.fontSizeXSmall
+                        }
+                    }
+                }
+
+                Image {
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
+                    visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
+                    source: '../../icons/eye1.png'
+                    scale: 1.5
+                }
+
+                NetworkStatusIndicator { }
+
+                Rectangle {
+                    color: 'transparent'
+                    Layout.preferredWidth: constants.paddingSmall
+                    height: 1
+                    visible: !menuButton.visible
+                }
+
+                ToolButton {
+                    id: menuButton
+                    enabled: stack.currentItem && stack.currentItem.menu ? stack.currentItem.menu.count > 0 : false
+                    text: enabled ? qsTr("≡") : ''
+                    font.pixelSize: constants.fontSizeXLarge
+                    onClicked: {
+                        stack.currentItem.menu.open()
+                        // position the menu to the right
+                        stack.currentItem.menu.x = toolbar.width - stack.currentItem.menu.width
+                        stack.currentItem.menu.y = toolbarTopLayout.height
                     }
                 }
             }
 
-            Image {
-                Layout.preferredWidth: constants.iconSizeSmall
-                Layout.preferredHeight: constants.iconSizeSmall
-                visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
-                source: '../../icons/eye1.png'
-                scale: 1.5
-            }
-
-            NetworkStatusIndicator { }
-
-            Rectangle {
-                color: 'transparent'
-                Layout.preferredWidth: constants.paddingSmall
-                height: 1
-                visible: !menuButton.visible
-            }
-
-            ToolButton {
-                id: menuButton
-                enabled: stack.currentItem && stack.currentItem.menu ? stack.currentItem.menu.count > 0 : false
-                text: enabled ? qsTr("≡") : ''
-                font.pixelSize: constants.fontSizeXLarge
-                onClicked: {
-                    stack.currentItem.menu.open()
-                    // position the menu to the right
-                    stack.currentItem.menu.x = toolbar.width - stack.currentItem.menu.width
-                }
+            WalletSummary {
+                id: walletSummary
+                Layout.preferredWidth: app.width
             }
         }
     }
@@ -121,6 +136,13 @@ ApplicationWindow
 
         function getRoot() {
             return mainStackView.get(0)
+        }
+        function pushOnRoot(item) {
+            if (mainStackView.depth > 1) {
+                mainStackView.replace(mainStackView.get(1), item)
+            } else {
+                mainStackView.push(item)
+            }
         }
     }
 

@@ -12,6 +12,8 @@ ElDialog {
 
     property InvoiceParser invoiceParser
 
+    signal txFound(data: string)
+
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
@@ -28,6 +30,15 @@ ElDialog {
         qrscan.restart()
     }
 
+    function dispatch(data) {
+        if (bitcoin.isRawTx(data)) {
+            // app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: text })
+            txFound(data)
+        } else {
+            invoiceParser.recipient = data
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -37,7 +48,7 @@ ElDialog {
             Layout.preferredWidth: parent.width
             Layout.fillHeight: true
 
-            onFound: invoiceParser.recipient = scanData
+            onFound: dialog.dispatch(scanData)
         }
 
         FlatButton {
@@ -47,7 +58,7 @@ ElDialog {
             onClicked: {
                 var _mid = manualInputDialog.createObject(mainView)
                 _mid.accepted.connect(function() {
-                    invoiceParser.recipient = _mid.recipient
+                    dialog.dispatch(_mid.recipient)
                 })
                 _mid.open()
             }
@@ -57,7 +68,7 @@ ElDialog {
             Layout.fillWidth: true
             icon.source: '../../icons/paste.png'
             text: qsTr('Paste from clipboard')
-            onClicked: invoiceParser.recipient = AppController.clipboardToText()
+            onClicked: dialog.dispatch(AppController.clipboardToText())
         }
     }
 
@@ -101,5 +112,9 @@ ElDialog {
 
             onClosed: destroy()
         }
+    }
+
+    Bitcoin {
+        id: bitcoin
     }
 }

@@ -523,9 +523,13 @@ class Xpub(MasterPublicKeyMixin):
         child_number_int = der_full[-1] if len(der_full) >= 1 else 0
         child_number_bytes = child_number_int.to_bytes(length=4, byteorder="big")
         fingerprint = bytes(4) if depth == 0 else bip32node.fingerprint
-        bip32node = bip32node._replace(depth=depth,
-                                       fingerprint=fingerprint,
-                                       child_number=child_number_bytes)
+        bip32node = bip32node._replace(
+            depth=depth,
+            fingerprint=fingerprint,
+            child_number=child_number_bytes,
+            # only put plain xpubs (not ypub/zpub) in PSBTs:
+            xtype="standard",
+        )
         return bip32node.to_xpub()
 
     def add_key_origin_from_root_node(self, *, derivation_prefix: str, root_node: BIP32Node):
