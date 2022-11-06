@@ -12,13 +12,9 @@ import platform
 from typing import Optional, TYPE_CHECKING
 import copy
 import subprocess
-import time
 
 if TYPE_CHECKING:
     from .simple_config import SimpleConfig
-
-
-_time_zero = time.time()
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -41,7 +37,7 @@ file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(na
 class LogFormatterForConsole(logging.Formatter):
 
     def formatTime(self, record, datefmt=None):
-        t = record.created - _time_zero
+        t = record.relativeCreated / 1000
         return f"{t:6.2f}"
 
     def format(self, record):
