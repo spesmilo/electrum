@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -q && \
     apt-get install -qy \
-        git=1:2.25.1-1ubuntu3 \
+        git \
         gettext \
         python3 \
         python3-pip \
