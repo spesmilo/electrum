@@ -66,7 +66,7 @@ popd
 
 info "building NSIS installer"
 # $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum-grs.nsi
+makensis -DPRODUCT_VERSION=$VERSION electrum-grs.nsi
 
 cd dist
 mv electrum-grs-setup.exe $NAME_ROOT-$VERSION-setup.exe

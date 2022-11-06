@@ -41,11 +41,15 @@ for suffix in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-
     echo "OK."
 
     requirements=$(pip freeze --all)
+
     restricted=$(echo $requirements | ${SYSTEM_PYTHON} $contrib/deterministic-build/find_restricted_dependencies.py)
-    requirements="$requirements $restricted"
+    if [ ! -z "$restricted" ]; then
+        python -m pip install $restricted
+        requirements=$(pip freeze --all)
+    fi
 
     echo "Generating package hashes... (${reqfile})"
-    rm "$contrib/deterministic-build/${reqfile}"
+    rm -f "$contrib/deterministic-build/${reqfile}"
     touch "$contrib/deterministic-build/${reqfile}"
 
     # restrict ourselves to source-only packages.
@@ -63,10 +67,8 @@ for suffix in '' '-hw' '-binaries' '-binaries-mac' '-build-wine' '-build-mac' '-
         HASHIN_FLAGS="--python-version source"
     fi
 
-    for requirement in $requirements; do
-        echo -e "\r  Hashing $requirement..."
-        ${SYSTEM_PYTHON} -m hashin $HASHIN_FLAGS -r "$contrib/deterministic-build/${reqfile}" "${requirement}"
-    done
+    echo -e "\r  Hashing requirements for $reqfile..."
+    ${SYSTEM_PYTHON} -m hashin $HASHIN_FLAGS -r "$contrib/deterministic-build/${reqfile}" $requirements
 
     echo "OK."
 done

@@ -1697,12 +1697,12 @@ class EventListener:
 
     def register_callbacks(self):
         for name, method in self._list_callbacks():
-            _logger.info(f'registering callback {method}')
+            #_logger.debug(f'registering callback {method}')
             register_callback(method, [name])
 
     def unregister_callbacks(self):
         for name, method in self._list_callbacks():
-            _logger.info(f'unregistering callback {method}')
+            #_logger.debug(f'unregistering callback {method}')
             unregister_callback(method)
 
 

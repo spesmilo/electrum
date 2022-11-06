@@ -15,7 +15,7 @@ PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
-PYTHON_VERSION=3.9.11
+PYTHON_VERSION=3.9.15
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
@@ -39,7 +39,7 @@ download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppI
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
-verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "66767a35309d724f370df9e503c172b4ee444f49d62b98bc4eca725123e26c49"
+verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "12daff6809528d9f6154216950423c9e30f0e47336cb57c6aa0b4387dd5eb4b2"
 
 
 

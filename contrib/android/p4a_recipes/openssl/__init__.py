@@ -11,8 +11,8 @@ assert OpenSSLRecipe.python_depends == []
 
 
 class OpenSSLRecipePinned(util.InheritedRecipeMixin, OpenSSLRecipe):
-    url_version = "1.1.1n"
-    sha512sum = "1937796736613dcf4105a54e42ecb61f95a1cea74677156f9459aea0f2c95159359e766089632bf364ee6b0d28d661eb9957bce8fecc9d2436378d8d79e8d0a4"
+    url_version = "1.1.1s"
+    sha512sum = "2ef983f166b5e1bf456ca37938e7e39d58d4cd85e9fc4b5174a05f5c37cc5ad89c3a9af97a6919bcaab128a8a92e4bdc8a045e5d9156d90768da8f73ac67c5b9"
 
 
 recipe = OpenSSLRecipePinned()

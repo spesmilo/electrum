@@ -1,15 +1,10 @@
 #!/bin/bash
 
-# Please update these carefully, some versions won't work under Wine
-NSIS_FILENAME=nsis-3.08-setup.exe
-NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.08/$NSIS_FILENAME
-NSIS_SHA256=bbc76be36ecb2fc00d493c91befdaf71654226ad8a4fc4dc338458916bf224d0
-
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
 PYINSTALLER_COMMIT="0fe956a2c6157e1b276819de1a050c242de70a29"
 # ^ latest commit from "v4" branch, somewhat after "4.10" tag
 
-PYTHON_VERSION=3.9.11
+PYTHON_VERSION=3.9.13
 
 
 # Let's begin!
@@ -55,11 +50,6 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-scr
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-base.txt
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
-
-info "Installing NSIS."
-download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
-verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
-wine "$CACHEDIR/$NSIS_FILENAME" /S
 
 
 # copy already built DLLs

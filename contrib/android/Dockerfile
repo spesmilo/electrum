@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:bullseye@sha256:82bab30ed448b8e2509aabe21f40f0607d905b7fd0dec72802627a20274eba55
+FROM debian:bullseye@sha256:bfe6615d017d1eebe19f349669de58cda36c668ef916e618be78071513c690e5
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -15,7 +15,7 @@ COPY contrib/android/apt.sources.list /etc/apt/sources.list
 COPY contrib/android/apt.preferences /etc/apt/preferences.d/snapshot
 
 # configure locale
-RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
+RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends --allow-downgrades \
     locales && \
     locale-gen en_US.UTF-8
 ENV LANG="en_US.UTF-8" \
@@ -23,7 +23,10 @@ ENV LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8"
 
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends curl unzip ca-certificates \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
+    curl \
+    unzip \
+    ca-certificates \
     && apt -y autoremove
 
 
@@ -73,7 +76,7 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 
 # accept Android licenses (JDK necessary!)
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
         openjdk-11-jdk-headless \
     && apt -y autoremove
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
@@ -104,7 +107,7 @@ RUN curl --location --progress-bar \
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
         python3 \
         python3-dev \
         python3-pip \
