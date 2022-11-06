@@ -2408,13 +2408,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
         if address:
-            paid, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            d["tx_hashes"] = tx_hashes
             d['amount_sat'] = int(x.get_amount_sat())
             d['address'] = address
             d['URI'] = self.get_request_URI(x)
-            if conf is not None:
-                d['confirmations'] = conf
+            # if request was paid onchain, add relevant fields
+            # note: addr is reused when getting paid on LN! so we check for that.
+            is_paid, conf, tx_hashes = self._is_onchain_invoice_paid(x)
+            if is_paid and self.lnworker.get_invoice_status(x) != PR_PAID:
+                if conf is not None:
+                    d['confirmations'] = conf
+                d['tx_hashes'] = tx_hashes
         run_hook('wallet_export_request', d, key)
         return d
 
