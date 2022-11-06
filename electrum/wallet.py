@@ -2414,7 +2414,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # if request was paid onchain, add relevant fields
             # note: addr is reused when getting paid on LN! so we check for that.
             is_paid, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            if is_paid and self.lnworker.get_invoice_status(x) != PR_PAID:
+            if is_paid and (not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID):
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
