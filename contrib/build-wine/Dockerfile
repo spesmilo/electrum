@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
-    apt-get install -qy \
+    apt-get install -qy --allow-downgrades \
         wget \
         gnupg2 \
         dirmngr \
