@@ -6,11 +6,6 @@ import base64
 import hashlib
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import ledger_bitcoin
-from ledger_bitcoin import WalletPolicy, MultisigWallet, AddressType, Chain
-from ledger_bitcoin.exception.errors import DenyError, NotSupportedError, SecurityStatusNotSatisfiedError
-from ledger_bitcoin.key import KeyOriginInfo
-from ledgercomm.interfaces.hid_device import HID
 
 from electrum import bip32, constants, ecc
 from electrum.base_wizard import ScriptTypeNotSupported
@@ -26,24 +21,34 @@ from electrum.util import bfh, UserFacingException, versiontuple
 from electrum.wallet import Standard_Wallet
 
 from ..hw_wallet import HardwareClientBase, HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, validate_op_return_output, LibraryFoundButUnusable
+
 
 _logger = get_logger(__name__)
 
+
 try:
+    import ledger_bitcoin
+    from ledger_bitcoin import WalletPolicy, MultisigWallet, AddressType, Chain
+    from ledger_bitcoin.exception.errors import DenyError, NotSupportedError, SecurityStatusNotSatisfiedError
+    from ledger_bitcoin.key import KeyOriginInfo
+    from ledgercomm.interfaces.hid_device import HID
+
+    # legacy imports
     import hid
-    from btchip.btchipComm import HIDDongleHIDAPI
-    from btchip.btchip import btchip
-    from btchip.btchipUtils import compress_public_key
-    from btchip.bitcoinTransaction import bitcoinTransaction
-    from btchip.btchipFirmwareWizard import checkFirmware
-    from btchip.btchipException import BTChipException
-    BTCHIP = True
-    BTCHIP_DEBUG = False
+    from ledger_bitcoin.btchip.btchipComm import HIDDongleHIDAPI
+    from ledger_bitcoin.btchip.btchip import btchip
+    from ledger_bitcoin.btchip.btchipUtils import compress_public_key
+    from ledger_bitcoin.btchip.bitcoinTransaction import bitcoinTransaction
+    from ledger_bitcoin.btchip.btchipException import BTChipException
+
+    LEDGER_BITCOIN = True
 except ImportError as e:
-    if not (isinstance(e, ModuleNotFoundError) and e.name == 'btchip'):
+    if not (isinstance(e, ModuleNotFoundError) and e.name == 'ledger_bitcoin'):
         _logger.exception('error importing ledger plugin deps')
-    BTCHIP = False
+
+    LEDGER_BITCOIN = False
+
 
 MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + \
     ' https://www.ledgerwallet.com'
@@ -485,9 +490,6 @@ class Ledger_Client_Legacy(Ledger_Client):
             self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
             self.segwitTrustedInputs = versiontuple(firmware) >= versiontuple(SEGWIT_TRUSTEDINPUTS)
 
-            if not checkFirmware(firmwareInfo):
-                self.close()
-                raise UserFacingException(MSG_NEEDS_FW_UPDATE_GENERIC)
             try:
                 self.dongleObject.getOperationMode()
             except BTChipException as e:
@@ -1311,8 +1313,17 @@ class LedgerPlugin(HW_PluginBase):
         self.device_manager().register_vendor_ids(self.VENDOR_IDS, plugin=self)
 
     def get_library_version(self):
-        # Older versions of the device would rather require the btchip library
-        return ledger_bitcoin.__version__
+        try:
+            import ledger_bitcoin
+            version = ledger_bitcoin.__version__
+        except ImportError:
+            raise
+        except:
+            version = "unknown"
+        if LEDGER_BITCOIN:
+            return version
+        else:
+            raise LibraryFoundButUnusable(library_version=version)
 
     @classmethod
     def _recognize_device(cls, product_key) -> Tuple[bool, Optional[str]]:
