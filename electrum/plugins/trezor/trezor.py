@@ -363,6 +363,7 @@ class TrezorPlugin(HW_PluginBase):
                                        lock_time=tx.locktime,
                                        version=tx.version,
                                        amount_unit=self.get_trezor_amount_unit(),
+                                       serialize=False,
                                        prev_txes=prev_tx)
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
