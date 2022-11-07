@@ -163,6 +163,9 @@ class NewWalletWizard(AbstractWizard):
                 'next': 'wallet_password',
                 'last': self.last_if_single_password
             },
+            'multisig': {
+                'next': 'first_cosigner'
+            },
             'imported': {
                 'next': 'wallet_password',
                 'last': self.last_if_single_password
@@ -189,6 +192,7 @@ class NewWalletWizard(AbstractWizard):
         return {
             'standard': 'keystore_type',
             '2fa': 'trustedcoin_start',
+            'multisig': 'multisig',
             'imported': 'imported'
         }.get(t)
 

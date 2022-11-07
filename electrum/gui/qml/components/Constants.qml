@@ -39,6 +39,9 @@ Item {
     property color colorPiechartFrozen: 'gray'
     property color colorPiechartLightning: 'orange' //Qt.darker(Material.accentColor, 1.20)
 
+    property color colorPiechartParticipant: 'gray'
+    property color colorPiechartSignature: 'yellow'
+
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)
     }

@@ -59,6 +59,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'have_seed': { 'gui': 'WCHaveSeed' },
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig': { 'gui': 'WCMultisig' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
