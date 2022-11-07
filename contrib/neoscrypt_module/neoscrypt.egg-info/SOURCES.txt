@@ -1,5 +1,0 @@
-setup.py
-neoscrypt.egg-info/PKG-INFO
-neoscrypt.egg-info/SOURCES.txt
-neoscrypt.egg-info/dependency_links.txt
-neoscrypt.egg-info/top_level.txt
