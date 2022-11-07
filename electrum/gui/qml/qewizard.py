@@ -60,6 +60,10 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': 'WCMultisig' },
+            'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
+            'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
+            'multisig_cosigner_key': { 'gui': 'WCCosignerKey' },
+            'multisig_cosigner_seed': { 'gui': 'WCCosignerSeed' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
@@ -74,7 +78,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self._path = path
         self.pathChanged.emit()
 
-    def last_if_single_password(self, *args):
+    def is_single_password(self):
         return self._daemon.singlePasswordEnabled
 
     @pyqtSlot('QJSValue', bool, str)

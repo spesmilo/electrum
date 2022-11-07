@@ -148,27 +148,39 @@ class NewWalletWizard(AbstractWizard):
                 'next': 'confirm_seed'
             },
             'confirm_seed': {
-                'next': 'wallet_password',
-                'last': self.last_if_single_password
+                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'last': lambda v,d: self.is_single_password()
             },
             'have_seed': {
                 'next': self.on_have_seed,
-                'last': self.last_if_single_password_and_not_bip39
+                'last': lambda v,d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
             },
             'bip39_refine': {
-                'next': 'wallet_password',
-                'last': self.last_if_single_password
+                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'last': lambda v,d: self.is_single_password()
             },
             'have_master_key': {
-                'next': 'wallet_password',
-                'last': self.last_if_single_password
+                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'last': lambda v,d: self.is_single_password()
             },
             'multisig': {
-                'next': 'first_cosigner'
+                'next': 'keystore_type'
+            },
+            'multisig_show_masterpubkey': {
+                'next': 'multisig_cosigner_keystore'
+            },
+            'multisig_cosigner_keystore': {
+                'next': self.on_cosigner_keystore_type
+            },
+            'multisig_cosigner_key': {
+                'next': 'multisig_cosigner_keystore' # TODO
+            },
+            'multisig_cosigner_seed': {
+                'next': 'multisig_cosigner_keystore' # TODO
             },
             'imported': {
                 'next': 'wallet_password',
-                'last': self.last_if_single_password
+                'last': lambda v,d: self.is_single_password()
             },
             'wallet_password': {
                 'last': True
@@ -181,11 +193,14 @@ class NewWalletWizard(AbstractWizard):
         self._current = WizardViewState('wallet_name', initial_data, {})
         return self._current
 
-    def last_if_single_password(self, view, wizard_data):
+    def is_single_password(self):
         raise NotImplementedError()
 
-    def last_if_single_password_and_not_bip39(self, view, wizard_data):
-        return self.last_if_single_password(view, wizard_data) and not wizard_data['seed_variant'] == 'bip39'
+    def is_bip39_seed(self, wizard_data):
+        return wizard_data['seed_variant'] == 'bip39'
+
+    def is_multisig(self, wizard_data):
+        return 'multisig' in wizard_data and wizard_data['multisig'] == True
 
     def on_wallet_type(self, wizard_data):
         t = wizard_data['wallet_type']
@@ -205,10 +220,19 @@ class NewWalletWizard(AbstractWizard):
         }.get(t)
 
     def on_have_seed(self, wizard_data):
-        if (wizard_data['seed_type'] == 'bip39'):
+        if self.is_bip39_seed(wizard_data):
             return 'bip39_refine'
+        elif self.is_multisig(wizard_data):
+            return 'multisig_show_masterpubkey'
         else:
             return 'wallet_password'
+
+    def on_cosigner_keystore_type(self, wizard_data):
+        t = wizard_data['cosigner_keystore_type']
+        return {
+            'key': 'multisig_cosigner_key',
+            'seed': 'multisig_cosigner_seed'
+        }.get(t)
 
     def finished(self, wizard_data):
         self._logger.debug('finished')

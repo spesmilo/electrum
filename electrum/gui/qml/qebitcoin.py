@@ -169,3 +169,16 @@ class QEBitcoin(QObject):
     def isPrivateKeyList(self, csv: str):
         return keystore.is_private_key_list(csv)
 
+    @pyqtSlot(str, str, str, result=str)
+    @pyqtSlot(str, str, str, str, result=str)
+    def getMultisigMasterPubkey(self, seed_variant, seed, seed_extra_words, derivation_path = None):
+        if seed_variant == 'electrum':
+            k = keystore.from_seed(seed, seed_extra_words, True)
+        elif seed_variant == 'bip39':
+            root_seed = keystore.bip39_to_seed(seed, seed_extra_words)
+            derivation = normalize_bip32_derivation(derivation_path)
+            k = keystore.from_bip43_rootseed(root_seed, derivation, xtype='p2wsh')
+        else:
+            raise Exception(f'Unsupported seed variant {seed_variant}')
+
+        return k.get_master_public_key()
