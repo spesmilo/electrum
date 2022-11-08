@@ -5,7 +5,6 @@ import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
-import ".."
 import "../controls"
 
 WizardComponent {
@@ -14,9 +13,19 @@ WizardComponent {
 
     property bool is2fa: false
 
+    property string headingtext
+
+    // expose for WCCosignerSeed 'subclass'
+    property alias seed: seedtext.text
+    property alias seed_variant: seed_variant_cb.currentValue
+    property alias seed_type: bitcoin.seed_type
+    property alias seed_extend: extendcb.checked
+    property string seed_extra_words: extendcb.checked ? customwordstext.text : ''
+
     function apply() {
+        console.log('apply fn called (WCHaveSeed)')
         wizard_data['seed'] = seedtext.text
-        wizard_data['seed_variant'] = seed_variant.currentValue
+        wizard_data['seed_variant'] = seed_variant_cb.currentValue
         wizard_data['seed_type'] = bitcoin.seed_type
         wizard_data['seed_extend'] = extendcb.checked
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
@@ -40,11 +49,11 @@ WizardComponent {
                 qsTr('However, we do not generate SLIP39 seeds.')
             ].join(' ')
         }
-        infotext.text = t[seed_variant.currentValue]
+        infotext.text = t[seed_variant_cb.currentValue]
     }
 
     function checkValid() {
-        bitcoin.verify_seed(seedtext.text, seed_variant.currentValue, wizard_data['wallet_type'])
+        bitcoin.verify_seed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
     }
 
     Flickable {
@@ -59,12 +68,18 @@ WizardComponent {
             columns: 2
 
             Label {
+                Layout.columnSpan: 2
+                visible: headingtext
+                text: headingtext
+            }
+
+            Label {
                 visible: !is2fa
                 text: qsTr('Seed Type')
                 Layout.fillWidth: true
             }
             ComboBox {
-                id: seed_variant
+                id: seed_variant_cb
                 visible: !is2fa
 
                 textRole: 'text'

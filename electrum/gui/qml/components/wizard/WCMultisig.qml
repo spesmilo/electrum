@@ -90,6 +90,7 @@ WizardComponent {
             stepSize: 1
             from: 1
             to: participants
+            value: signatures
             onValueChanged: {
                 if (activeFocus)
                     signatures = value

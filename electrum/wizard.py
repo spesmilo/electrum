@@ -173,10 +173,12 @@ class NewWalletWizard(AbstractWizard):
                 'next': self.on_cosigner_keystore_type
             },
             'multisig_cosigner_key': {
-                'next': 'multisig_cosigner_keystore' # TODO
+                'next': lambda d: 'multisig_cosigner_keystore' if self.has_all_cosigner_data(d) else 'wallet_password',
+                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'multisig_cosigner_seed': {
-                'next': 'multisig_cosigner_keystore' # TODO
+                'next': lambda d: 'multisig_cosigner_keystore' if self.has_all_cosigner_data(d) else 'wallet_password',
+                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'imported': {
                 'next': 'wallet_password',
@@ -233,6 +235,9 @@ class NewWalletWizard(AbstractWizard):
             'key': 'multisig_cosigner_key',
             'seed': 'multisig_cosigner_seed'
         }.get(t)
+
+    def has_all_cosigner_data(self, wizard_data):
+        return len(wizard_data['multisig_cosigner_data']) < (wizard_data['multisig_participants'] - 1)
 
     def finished(self, wizard_data):
         self._logger.debug('finished')
