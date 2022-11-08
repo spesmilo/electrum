@@ -167,7 +167,7 @@ Dialog {
         }
 
         Label {
-            text: title
+            text: title + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
             elide: Label.ElideRight
             Layout.fillWidth: true
             topPadding: constants.paddingXLarge

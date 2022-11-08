@@ -8,6 +8,7 @@ Item {
     property bool valid
     property bool last: false
     property bool ready: false
+    property string title: ''
 
     onAccept: {
         apply()
