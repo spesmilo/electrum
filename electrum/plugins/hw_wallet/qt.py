@@ -28,7 +28,7 @@ import threading
 from functools import partial
 from typing import TYPE_CHECKING, Union, Optional, Callable, Any
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, Qt
 from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
@@ -167,14 +167,17 @@ class QtHandlerBase(HardwareHandlerBase, QObject, Logger):
         self.word = text.text()
         self.done.set()
 
-    def message_dialog(self, msg, on_cancel):
-        # Called more than once during signing, to confirm output and fee
+    MESSAGE_DIALOG_TITLE = None  # type: Optional[str]
+    def message_dialog(self, msg, on_cancel=None):
         self.clear_dialog()
-        title = _('Please check your {} device').format(self.device)
+        title = self.MESSAGE_DIALOG_TITLE
+        if title is None:
+            title = _('Please check your {} device').format(self.device)
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), title)
-        l = QLabel(msg)
+        label = QLabel(msg)
+        label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
+        vbox.addWidget(label)
         if on_cancel:
             dialog.rejected.connect(on_cancel)
             vbox.addLayout(Buttons(CancelButton(dialog)))

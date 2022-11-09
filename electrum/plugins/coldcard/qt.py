@@ -84,17 +84,10 @@ class Plugin(ColdcardPlugin, QtPluginBase):
 
 
 class Coldcard_Handler(QtHandlerBase):
+    MESSAGE_DIALOG_TITLE = _("Coldcard Status")
 
     def __init__(self, win):
         super(Coldcard_Handler, self).__init__(win, 'Coldcard')
-
-    def message_dialog(self, msg):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Coldcard Status"))
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        dialog.show()
 
 
 class CKCCSettingsDialog(WindowModalDialog):
