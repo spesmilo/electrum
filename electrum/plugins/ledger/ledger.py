@@ -1338,12 +1338,14 @@ class LedgerPlugin(HW_PluginBase):
         return btchip_device
 
     @runs_in_hwd_thread
-    def create_client(self, device, handler) -> Ledger_Client:
-        # TODO: refactor
-        client = self.get_btchip_device(device)
-        if client is not None:
-            client = Ledger_Client(client, product_key=device.product_key, plugin=self)
-        return client
+    def create_client(self, device, handler) -> Optional[Ledger_Client]:
+        hid_device = self.get_btchip_device(device)
+        if hid_device is not None:
+            try:
+                return Ledger_Client(hid_device, product_key=device.product_key, plugin=self)
+            except:
+                return None
+        return None
 
     def setup_device(self, device_info, wizard, purpose):
         device_id = device_info.device.id_
