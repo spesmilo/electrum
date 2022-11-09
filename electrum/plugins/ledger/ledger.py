@@ -1143,17 +1143,17 @@ class Ledger_Client_New(Ledger_Client):
                         if key == psbt_in.tap_internal_key and origin.fingerprint == master_fp:
                             process_origin(origin)
 
-                self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
+            self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
 
-                if len(wallets) == 0:
-                    # Could not find a WalletPolicy to sign with
-                    raise UserFacingException(_('Unable to sign this transaction'))
+            if len(wallets) == 0:
+                # Could not find a WalletPolicy to sign with
+                raise UserFacingException(_('Unable to sign this transaction'))
 
-                # For each wallet, sign
-                for __, (__, wallet, wallet_hmac) in wallets.items():
-                    input_sigs = self.client.sign_psbt(psbt, wallet, wallet_hmac)
-                    for idx, pubkey, sig in input_sigs:
-                        tx.add_signature_to_txin(txin_idx=idx, signing_pubkey=pubkey.hex(), sig=sig.hex())
+            # For each wallet, sign
+            for __, (__, wallet, wallet_hmac) in wallets.items():
+                input_sigs = self.client.sign_psbt(psbt, wallet, wallet_hmac)
+                for idx, pubkey, sig in input_sigs:
+                    tx.add_signature_to_txin(txin_idx=idx, signing_pubkey=pubkey.hex(), sig=sig.hex())
         except DenyError:
             pass  # cancelled by user
         except BaseException as e:
