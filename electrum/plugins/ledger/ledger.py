@@ -35,12 +35,13 @@ try:
     from ledgercomm.interfaces.hid_device import HID
 
     # legacy imports
+    # note: we could replace "btchip" with "ledger_bitcoin.btchip" but the latter does not support HW.1
     import hid
-    from ledger_bitcoin.btchip.btchipComm import HIDDongleHIDAPI
-    from ledger_bitcoin.btchip.btchip import btchip
-    from ledger_bitcoin.btchip.btchipUtils import compress_public_key
-    from ledger_bitcoin.btchip.bitcoinTransaction import bitcoinTransaction
-    from ledger_bitcoin.btchip.btchipException import BTChipException
+    from btchip.btchipComm import HIDDongleHIDAPI
+    from btchip.btchip import btchip
+    from btchip.btchipUtils import compress_public_key
+    from btchip.bitcoinTransaction import bitcoinTransaction
+    from btchip.btchipException import BTChipException
 
     LEDGER_BITCOIN = True
 except ImportError as e:
@@ -298,21 +299,26 @@ def get_chain() -> 'Chain':
         raise ValueError("Unsupported network")
 
 
-# Metaclass, concretely instantiated in Ledger_Client_Legacy and Ledger_Client_New
 class Ledger_Client(HardwareClientBase, ABC):
     is_legacy: bool
 
-    def __new__(cls, hidDevice, *args, **kwargs):
-        transport = ledger_bitcoin.TransportClient('hid', hid=hidDevice)
+    @staticmethod
+    def construct_new(*args, device: Device, **kwargs) -> 'Ledger_Client':
+        """The 'real' constructor, that automatically decides which subclass to use."""
+        if LedgerPlugin.is_hw1(device.product_key):
+            return Ledger_Client_Legacy_HW1(*args, **kwargs, device=device)
+        # for nano S or newer hw, decide which client impl to use based on software/firmware version:
+        hid_device = HID()
+        hid_device.path = device.path
+        hid_device.open()
+        transport = ledger_bitcoin.TransportClient('hid', hid=hid_device)
         cl = ledger_bitcoin.createClient(transport, chain=get_chain())
-
         if isinstance(cl, ledger_bitcoin.client.NewClient):
-            return super().__new__(Ledger_Client_New)
+            return Ledger_Client_New(hid_device, *args, **kwargs)
         else:
-            return super().__new__(Ledger_Client_Legacy)
+            return Ledger_Client_Legacy(hid_device, *args, **kwargs)
 
-    def __init__(self, hidDevice, *, product_key: Tuple[int, int],
-                 plugin: HW_PluginBase):
+    def __init__(self, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
 
     def get_master_fingerprint(self) -> bytes:
@@ -342,9 +348,9 @@ class Ledger_Client_Legacy(Ledger_Client):
     """Client based on the bitchip library, targeting versions 2.0.* and below."""
     is_legacy = True
 
-    def __init__(self, hidDevice, *, product_key: Tuple[int, int],
+    def __init__(self, hidDevice: 'HID', *, product_key: Tuple[int, int],
                  plugin: HW_PluginBase):
-        Ledger_Client.__init__(self, hidDevice, product_key=product_key, plugin=plugin)
+        Ledger_Client.__init__(self, plugin=plugin)
 
         # Hack, we close the old object and instantiate a new one
         hidDevice.close()
@@ -396,7 +402,7 @@ class Ledger_Client_Legacy(Ledger_Client):
         return self._soft_device_id
 
     def is_hw1(self) -> bool:
-        return self._product_key[0] == 0x2581
+        return LedgerPlugin.is_hw1(self._product_key)
 
     def device_model_name(self):
         return LedgerPlugin.device_name_from_product_key(self._product_key)
@@ -655,6 +661,8 @@ class Ledger_Client_Legacy(Ledger_Client):
             firstTransaction = True
             inputIndex = 0
             rawTx = tx.serialize_to_network()
+            if self.is_hw1():
+                self.dongleObject.enableAlternate2fa(False)
             if segwitTransaction:
                 self.dongleObject.startUntrustedTransaction(True, inputIndex, chipInputs, redeemScripts[inputIndex], version=tx.version)
                 # we don't set meaningful outputAddress, amount and fees
@@ -785,14 +793,97 @@ class Ledger_Client_Legacy(Ledger_Client):
         return bytes([27 + 4 + (signature[0] & 0x01)]) + r_padded + s_padded
 
 
+class Ledger_Client_Legacy_HW1(Ledger_Client_Legacy):
+    """Even "legacy-er" client for deprecated HW.1 support."""
+
+    MIN_SUPPORTED_HW1_FW_VERSION = "1.0.2"
+
+    def __init__(self, product_key: Tuple[int, int],
+                 plugin: HW_PluginBase, device: 'Device'):
+        # note: Ledger_Client_Legacy.__init__ is *not* called
+        Ledger_Client.__init__(self, plugin=plugin)
+        self._product_key = product_key
+        assert self.is_hw1()
+
+        ledger = device.product_key[1] in (0x3b7c, 0x4b7c)
+        dev = hid.device()
+        dev.open_path(device.path)
+        dev.set_nonblocking(True)
+        hid_device = HIDDongleHIDAPI(dev, ledger, debug=False)
+        self.dongleObject = btchip(hid_device)
+
+        self._preflightDone = False
+        self.signing = False
+        self._soft_device_id = None
+
+    @runs_in_hwd_thread
+    def checkDevice(self):
+        super().checkDevice()
+        self._perform_hw1_preflight()
+
+    def _perform_hw1_preflight(self):
+        assert self.is_hw1()
+        if self._preflightDone:
+            return
+        try:
+            firmwareInfo = self.dongleObject.getFirmwareVersion()
+            firmware = firmwareInfo['version']
+            if versiontuple(firmware) < versiontuple(self.MIN_SUPPORTED_HW1_FW_VERSION):
+                self.close()
+                raise UserFacingException(
+                    _("Unsupported device firmware (too old).") + f"\nInstalled: {firmware}. Needed: >={self.MIN_SUPPORTED_HW1_FW_VERSION}")
+            try:
+                self.dongleObject.getOperationMode()
+            except BTChipException as e:
+                if (e.sw == 0x6985):
+                    self.close()
+                    self.handler.get_setup()
+                    # Acquire the new client on the next run
+                else:
+                    raise e
+            if self.has_detached_pin_support(self.dongleObject) and not self.is_pin_validated(self.dongleObject):
+                assert self.handler, "no handler for client"
+                remaining_attempts = self.dongleObject.getVerifyPinRemainingAttempts()
+                if remaining_attempts != 1:
+                    msg = "Enter your Ledger PIN - remaining attempts : " + str(remaining_attempts)
+                else:
+                    msg = "Enter your Ledger PIN - WARNING : LAST ATTEMPT. If the PIN is not correct, the dongle will be wiped."
+                confirmed, p, pin = self.password_dialog(msg)
+                if not confirmed:
+                    raise UserFacingException('Aborted by user - please unplug the dongle and plug it again before retrying')
+                pin = pin.encode()
+                self.dongleObject.verifyPin(pin)
+        except BTChipException as e:
+            if (e.sw == 0x6faa):
+                raise UserFacingException("Dongle is temporarily locked - please unplug it and replug it again")
+            if ((e.sw & 0xFFF0) == 0x63c0):
+                raise UserFacingException("Invalid PIN - please unplug the dongle and plug it again before retrying")
+            if e.sw == 0x6f00 and e.message == 'Invalid channel':
+                # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
+                raise UserFacingException("Invalid channel.\n"
+                                          "Please make sure that 'Browser support' is disabled on your device.")
+            if e.sw == 0x6d00 or e.sw == 0x6700:
+                raise UserFacingException(_("Device not in Bitcoin mode")) from e
+            raise e
+        else:
+            deprecation_warning = (
+                "This Ledger device (HW.1) is being deprecated.\n\nIt is no longer supported by Ledger.\n"
+                "Future versions of Electrum will no longer be compatible with it.\n\n"
+                "You should move your coins and migrate to a modern hardware device.")
+            _logger.warning(deprecation_warning.replace("\n", " "))
+            if self.handler:
+                self.handler.show_message(deprecation_warning)
+            self._preflightDone = True
+
+
 class Ledger_Client_New(Ledger_Client):
     """Client based on the ledger_bitcoin library, targeting versions 2.1.* and above."""
 
     is_legacy = False
 
-    def __init__(self, hidDevice, *, product_key: Tuple[int, int],
+    def __init__(self, hidDevice: 'HID', *, product_key: Tuple[int, int],
                  plugin: HW_PluginBase):
-        Ledger_Client.__init__(self, hidDevice, product_key=product_key, plugin=plugin)
+        Ledger_Client.__init__(self, plugin=plugin)
 
         transport = ledger_bitcoin.TransportClient('hid', hid=hidDevice)
         self.client = ledger_bitcoin.client.NewClient(transport, get_chain())
@@ -1277,11 +1368,15 @@ class LedgerPlugin(HW_PluginBase):
             raise LibraryFoundButUnusable(library_version=version)
 
     @classmethod
+    def is_hw1(cls, product_key) -> bool:
+        return product_key[0] == 0x2581
+
+    @classmethod
     def _recognize_device(cls, product_key) -> Tuple[bool, Optional[str]]:
         """Returns (can_recognize, model_name) tuple."""
         # legacy product_keys
         if product_key in cls.DEVICE_IDS:
-            if product_key[0] == 0x2581:
+            if cls.is_hw1(product_key):
                 return True, "Ledger HW.1"
             if product_key == (0x2c97, 0x0000):
                 return True, "Ledger Blue"
@@ -1316,33 +1411,11 @@ class LedgerPlugin(HW_PluginBase):
         return device
 
     @runs_in_hwd_thread
-    def get_btchip_device(self, device: Device) -> Optional['HID']:
-        # TODO: refactor
-        ledger = False
-        if device.product_key[0] == 0x2581 and device.product_key[1] == 0x3b7c:
-            ledger = True
-        if device.product_key[0] == 0x2581 and device.product_key[1] == 0x4b7c:
-            ledger = True
-        if device.product_key[0] == 0x2c97:
-            if device.interface_number == 0 or device.usage_page == 0xffa0:
-                ledger = True
-            else:
-                return None  # non-compatible interface of a Nano S or Blue
-
-        btchip_device = HID()
-        btchip_device.path = device.path
-        btchip_device.open()
-
-        return btchip_device
-
-    @runs_in_hwd_thread
     def create_client(self, device, handler) -> Optional[Ledger_Client]:
-        hid_device = self.get_btchip_device(device)
-        if hid_device is not None:
-            try:
-                return Ledger_Client(hid_device, product_key=device.product_key, plugin=self)
-            except Exception as e:
-                self.logger.info(f"cannot connect at {device.path} {e}")
+        try:
+            return Ledger_Client.construct_new(device=device, product_key=device.product_key, plugin=self)
+        except Exception as e:
+            self.logger.info(f"cannot connect at {device.path} {e}")
         return None
 
     def setup_device(self, device_info, wizard, purpose):
