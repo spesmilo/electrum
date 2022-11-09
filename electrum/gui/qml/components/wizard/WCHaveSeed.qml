@@ -53,7 +53,7 @@ WizardComponent {
     }
 
     function checkValid() {
-        bitcoin.verify_seed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
+        bitcoin.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
     }
 
     Flickable {

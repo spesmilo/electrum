@@ -9,6 +9,8 @@ import "../controls"
 WizardComponent {
     valid: false
 
+    property bool isMultisig
+
     function apply() {
         wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
         wizard_data['derivation_path'] = derivationpathtext.text
@@ -22,9 +24,18 @@ WizardComponent {
         }
     }
 
+    function getMultisigScriptTypePurposeDict() {
+        return {
+            'p2sh': 45,
+            'p2wsh-p2sh': 48,
+            'p2wsh': 48
+        }
+    }
+
     function validate() {
         valid = false
-        if (!scripttypegroup.checkedButton.scripttype in getScriptTypePurposeDict())
+        var p = isMultisig ? getMultisigScriptTypePurposeDict() : getScriptTypePurposeDict()
+        if (!scripttypegroup.checkedButton.scripttype in p)
             return
         if (!bitcoin.verify_derivation_path(derivationpathtext.text))
             return
@@ -32,10 +43,20 @@ WizardComponent {
     }
 
     function setDerivationPath() {
-        var p = getScriptTypePurposeDict()
-        derivationpathtext.text =
-            "m/" + p[scripttypegroup.checkedButton.scripttype] + "'/"
-            + (Network.isTestNet ? 1 : 0) + "'/0'"
+        var p = isMultisig ? getMultisigScriptTypePurposeDict() : getScriptTypePurposeDict()
+        var scripttype = scripttypegroup.checkedButton.scripttype
+        if (isMultisig) {
+            if (scripttype == 'p2sh')
+                derivationpathtext.text = "m/" + p[scripttype] + "'/0"
+            else
+                derivationpathtext.text = "m/" + p[scripttype] + "'/"
+                + (Network.isTestNet ? 1 : 0) + "'/0'/"
+                + (scripttype == 'p2wsh' ? 2 : 1) + "'"
+        } else {
+            derivationpathtext.text =
+                "m/" + p[scripttypegroup.checkedButton.scripttype] + "'/"
+                + (Network.isTestNet ? 1 : 0) + "'/0'"
+        }
     }
 
     ButtonGroup {
@@ -59,23 +80,46 @@ WizardComponent {
             Button {
                 text: qsTr('Detect Existing Accounts')
                 enabled: false
+                visible: !isMultisig
             }
             Label { text: qsTr('Choose the type of addresses in your wallet.') }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2pkh'
                 text: qsTr('legacy (p2pkh)')
+                visible: !isMultisig
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wpkh-p2sh'
                 text: qsTr('wrapped segwit (p2wpkh-p2sh)')
+                visible: !isMultisig
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wpkh'
-                checked: true
+                checked: !isMultisig
                 text: qsTr('native segwit (p2wpkh)')
+                visible: !isMultisig
+            }
+            RadioButton {
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2sh'
+                text: qsTr('legacy multisig (p2sh)')
+                visible: isMultisig
+            }
+            RadioButton {
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2wsh-p2sh'
+                text: qsTr('p2sh-segwit multisig (p2wsh-p2sh)')
+                visible: isMultisig
+            }
+            RadioButton {
+                ButtonGroup.group: scripttypegroup
+                property string scripttype: 'p2wsh'
+                checked: isMultisig
+                text: qsTr('native segwit multisig (p2wsh)')
+                visible: isMultisig
             }
             InfoTextArea {
                 Layout.preferredWidth: parent.width
@@ -95,5 +139,8 @@ WizardComponent {
         id: bitcoin
     }
 
+    Component.onCompleted: {
+        isMultisig = 'multisig' in wizard_data && wizard_data['multisig'] == true
+    }
 }
 
