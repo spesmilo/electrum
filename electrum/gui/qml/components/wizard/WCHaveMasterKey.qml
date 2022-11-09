@@ -11,18 +11,32 @@ WizardComponent {
 
     valid: false
 
+    property int cosigner: 0
+    property int participants: 0
+
     function apply() {
-        wizard_data['master_key'] = masterkey_ta.text
+        if (cosigner) {
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = masterkey_ta.text
+        } else {
+            wizard_data['master_key'] = masterkey_ta.text
+        }
     }
 
     function verifyMasterKey(key) {
-        return valid = bitcoin.verify_master_key(key)
+        return valid = bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type'])
     }
 
     ColumnLayout {
         width: parent.width
 
-        Label { text: qsTr('Create keystore from a master key') }
+        Label {
+            text: qsTr('Cosigner #%1 of %2').arg(cosigner).arg(participants)
+            visible: cosigner
+        }
+
+        Label {
+            text: qsTr('Create keystore from a master key')
+        }
 
         RowLayout {
             TextArea {
@@ -59,6 +73,18 @@ WizardComponent {
                 }
             }
         }
+
+        TextArea {
+            id: validationtext
+            text: bitcoin.validationMessage
+            visible: bitcoin.validationMessage
+            Layout.fillWidth: true
+            readOnly: true
+            wrapMode: TextInput.WordWrap
+            background: Rectangle {
+                color: 'transparent'
+            }
+        }
     }
 
     Component {
@@ -82,5 +108,13 @@ WizardComponent {
 
     Bitcoin {
         id: bitcoin
+    }
+
+    Component.onCompleted: {
+        if (wizard_data['wallet_type'] == 'multisig') {
+            if ('multisig_current_cosigner' in wizard_data)
+                cosigner = wizard_data['multisig_current_cosigner']
+            participants = wizard_data['multisig_participants']
+        }
     }
 }

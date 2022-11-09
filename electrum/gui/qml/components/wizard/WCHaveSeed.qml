@@ -9,26 +9,27 @@ import "../controls"
 
 WizardComponent {
     id: root
+
     valid: false
 
     property bool is2fa: false
-
-    property string headingtext
-
-    // expose for WCCosignerSeed 'subclass'
-    property alias seed: seedtext.text
-    property alias seed_variant: seed_variant_cb.currentValue
-    property alias seed_type: bitcoin.seed_type
-    property alias seed_extend: extendcb.checked
-    property string seed_extra_words: extendcb.checked ? customwordstext.text : ''
+    property int cosigner: 0
+    property int participants: 0
 
     function apply() {
-        console.log('apply fn called (WCHaveSeed)')
-        wizard_data['seed'] = seedtext.text
-        wizard_data['seed_variant'] = seed_variant_cb.currentValue
-        wizard_data['seed_type'] = bitcoin.seed_type
-        wizard_data['seed_extend'] = extendcb.checked
-        wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+        if (cosigner) {
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seed_type
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+        } else {
+            wizard_data['seed'] = seedtext.text
+            wizard_data['seed_variant'] = seed_variant_cb.currentValue
+            wizard_data['seed_type'] = bitcoin.seed_type
+            wizard_data['seed_extend'] = extendcb.checked
+            wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+        }
     }
 
     function setSeedTypeHelpText() {
@@ -69,8 +70,8 @@ WizardComponent {
 
             Label {
                 Layout.columnSpan: 2
-                visible: headingtext
-                text: headingtext
+                text: qsTr('Cosigner #%1 of %2').arg(cosigner).arg(participants)
+                visible: cosigner
             }
 
             Label {
@@ -129,7 +130,8 @@ WizardComponent {
             }
             TextArea {
                 id: validationtext
-                visible: text != ''
+                text: bitcoin.validationMessage
+                visible: bitcoin.validationMessage
                 Layout.fillWidth: true
                 readOnly: true
                 wrapMode: TextInput.WordWrap
@@ -157,7 +159,6 @@ WizardComponent {
         id: bitcoin
         onSeedTypeChanged: contentText.text = bitcoin.seed_type
         onSeedValidChanged: root.valid = bitcoin.seed_valid
-        onValidationMessageChanged: validationtext.text = bitcoin.validation_message
     }
 
     Timer {
@@ -168,8 +169,13 @@ WizardComponent {
     }
 
     Component.onCompleted: {
-        if (wizard_data['wallet_type'] == '2fa')
-            root.is2fa = true
+        if (wizard_data['wallet_type'] == '2fa') {
+            is2fa = true
+        } else if (wizard_data['wallet_type'] == 'multisig') {
+            participants = wizard_data['multisig_participants']
+            if ('multisig_current_cosigner' in wizard_data)
+                cosigner = wizard_data['multisig_current_cosigner']
+        }
         setSeedTypeHelpText()
     }
 

@@ -9,11 +9,18 @@ import "../controls"
 WizardComponent {
     valid: false
 
-    property bool isMultisig
+    property bool isMultisig: false
+    property int cosigner: 0
+    property int participants: 0
 
     function apply() {
-        wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
-        wizard_data['derivation_path'] = derivationpathtext.text
+        if (cosigner) {
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['script_type'] = scripttypegroup.checkedButton.scripttype
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['derivation_path'] = derivationpathtext.text
+        } else {
+            wizard_data['script_type'] = scripttypegroup.checkedButton.scripttype
+            wizard_data['derivation_path'] = derivationpathtext.text
+        }
     }
 
     function getScriptTypePurposeDict() {
@@ -37,7 +44,7 @@ WizardComponent {
         var p = isMultisig ? getMultisigScriptTypePurposeDict() : getScriptTypePurposeDict()
         if (!scripttypegroup.checkedButton.scripttype in p)
             return
-        if (!bitcoin.verify_derivation_path(derivationpathtext.text))
+        if (!bitcoin.verifyDerivationPath(derivationpathtext.text))
             return
         valid = true
     }
@@ -76,13 +83,20 @@ WizardComponent {
             id: mainLayout
             width: parent.width
 
-            Label { text: qsTr('Script type and Derivation path') }
+            Label {
+                text: qsTr('Script type and Derivation path')
+            }
             Button {
                 text: qsTr('Detect Existing Accounts')
                 enabled: false
                 visible: !isMultisig
             }
-            Label { text: qsTr('Choose the type of addresses in your wallet.') }
+
+            Label {
+                text: qsTr('Choose the type of addresses in your wallet.')
+            }
+
+            // standard
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2pkh'
@@ -102,6 +116,8 @@ WizardComponent {
                 text: qsTr('native segwit (p2wpkh)')
                 visible: !isMultisig
             }
+
+            // multisig
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2sh'
@@ -121,11 +137,13 @@ WizardComponent {
                 text: qsTr('native segwit multisig (p2wsh)')
                 visible: isMultisig
             }
+
             InfoTextArea {
                 Layout.preferredWidth: parent.width
                 text: qsTr('You can override the suggested derivation path.') + ' ' +
                     qsTr('If you are not sure what this is, leave this field unchanged.')
             }
+
             TextField {
                 id: derivationpathtext
                 Layout.fillWidth: true
@@ -140,7 +158,12 @@ WizardComponent {
     }
 
     Component.onCompleted: {
-        isMultisig = 'multisig' in wizard_data && wizard_data['multisig'] == true
+        isMultisig = wizard_data['wallet_type'] == 'multisig'
+        if (isMultisig) {
+            participants = wizard_data['multisig_participants']
+            if ('multisig_current_cosigner' in wizard_data)
+                cosigner = wizard_data['multisig_current_cosigner']
+        }
     }
 }
 

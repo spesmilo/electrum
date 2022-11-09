@@ -24,7 +24,6 @@ WizardComponent {
     }
 
     function apply() {
-        wizard_data['multisig'] = true
         wizard_data['multisig_participants'] = participants
         wizard_data['multisig_signatures'] = signatures
         wizard_data['multisig_cosigner_data'] = {}

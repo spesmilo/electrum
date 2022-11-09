@@ -169,15 +169,19 @@ class NewWalletWizard(AbstractWizard):
             'multisig_show_masterpubkey': {
                 'next': 'multisig_cosigner_keystore'
             },
-            'multisig_cosigner_keystore': {
+            'multisig_cosigner_keystore': { # this view should set 'multisig_current_cosigner'
                 'next': self.on_cosigner_keystore_type
             },
             'multisig_cosigner_key': {
-                'next': lambda d: 'multisig_cosigner_keystore' if self.has_all_cosigner_data(d) else 'wallet_password',
+                'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
                 'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'multisig_cosigner_seed': {
-                'next': lambda d: 'multisig_cosigner_keystore' if self.has_all_cosigner_data(d) else 'wallet_password',
+                'next': self.on_have_cosigner_seed,
+                'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
+            },
+            'multisig_cosigner_bip39_refine': {
+                'next': lambda d: 'wallet_password' if self.has_all_cosigner_data(d) else 'multisig_cosigner_keystore',
                 'last': lambda v,d: self.is_single_password() and self.has_all_cosigner_data(d)
             },
             'imported': {
@@ -202,7 +206,7 @@ class NewWalletWizard(AbstractWizard):
         return wizard_data['seed_variant'] == 'bip39'
 
     def is_multisig(self, wizard_data):
-        return 'multisig' in wizard_data and wizard_data['multisig'] is True
+        return wizard_data['wallet_type'] == 'multisig'
 
     def on_wallet_type(self, wizard_data):
         t = wizard_data['wallet_type']
@@ -236,8 +240,26 @@ class NewWalletWizard(AbstractWizard):
             'seed': 'multisig_cosigner_seed'
         }.get(t)
 
+    def on_have_cosigner_seed(self, wizard_data):
+        current_cosigner_data = wizard_data['multisig_cosigner_data'][str(wizard_data['multisig_current_cosigner'])]
+        if self.has_all_cosigner_data(wizard_data):
+            return 'wallet_password'
+        elif current_cosigner_data['seed_type'] == 'bip39' and 'derivation_path' not in current_cosigner_data:
+            return 'multisig_cosigner_bip39_refine'
+        else:
+            return 'multisig_cosigner_keystore'
+
     def has_all_cosigner_data(self, wizard_data):
-        return len(wizard_data['multisig_cosigner_data']) < (wizard_data['multisig_participants'] - 1)
+        # number of items in multisig_cosigner_data is less than participants?
+        if len(wizard_data['multisig_cosigner_data']) < (wizard_data['multisig_participants'] - 1):
+            return False
+
+        # if last cosigner uses bip39 seed, we still need derivation path
+        current_cosigner_data = wizard_data['multisig_cosigner_data'][str(wizard_data['multisig_current_cosigner'])]
+        if current_cosigner_data['seed_type'] == 'bip39' and 'derivation_path' not in current_cosigner_data:
+            return False
+
+        return True
 
     def finished(self, wizard_data):
         self._logger.debug('finished')

@@ -31,7 +31,7 @@ class QEBitcoin(QObject):
     seedType = ''
 
     validationMessageChanged = pyqtSignal()
-    validationMessage = ''
+    _validationMessage = ''
 
     @pyqtProperty('QString', notify=generatedSeedChanged)
     def generated_seed(self):
@@ -46,13 +46,13 @@ class QEBitcoin(QObject):
         return self.seedType
 
     @pyqtProperty('QString', notify=validationMessageChanged)
-    def validation_message(self):
-        return self.validationMessage
+    def validationMessage(self):
+        return self._validationMessage
 
-    @validation_message.setter
-    def validation_message(self, msg):
-        if self.validationMessage != msg:
-            self.validationMessage = msg
+    @validationMessage.setter
+    def validationMessage(self, msg):
+        if self._validationMessage != msg:
+            self._validationMessage = msg
             self.validationMessageChanged.emit()
 
     @pyqtSlot()
@@ -115,28 +115,34 @@ class QEBitcoin(QObject):
 
         self._logger.debug('seed verified: ' + str(seed_valid))
 
-    @pyqtSlot(str, result=bool)
     @pyqtSlot(str, str, result=bool)
-    def verify_master_key(self, key, wallet_type='standard'):
+    def verifyMasterKey(self, key, wallet_type='standard'):
         self.validationMessage = ''
         if not keystore.is_master_key(key):
             self.validationMessage = _('Not a master key')
             return False
 
+        k = keystore.from_master_key(key)
+        has_xpub = isinstance(k, keystore.Xpub)
+        assert has_xpub
+        t1 = xpub_type(k.xpub)
+
         if wallet_type == 'standard':
-            # validation message?
-            k = keystore.from_master_key(key)
-            has_xpub = isinstance(k, keystore.Xpub)
-            assert has_xpub
-            t1 = xpub_type(k.xpub)
             if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
                 return False
             return True
-        return False
+        elif wallet_type == 'multisig':
+            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                return False
+            # TODO: check against other cosigner xpubs
+            return True
+
+        raise Exception(f'Unsupported wallet type: {wallet_type}')
 
     @pyqtSlot(str, result=bool)
-    def verify_derivation_path(self, path):
+    def verifyDerivationPath(self, path):
         return is_bip32_derivation(path)
 
     @pyqtSlot(str, result='QVariantMap')

@@ -62,13 +62,9 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'multisig': { 'gui': 'WCMultisig' },
             'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
-            'multisig_cosigner_key': { 'gui': 'WCCosignerKey' },
-            'multisig_cosigner_seed': { 'gui': 'WCCosignerSeed',
-                'accept': self.accept_cosigner_seed
-            },
-            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine',
-                'accept': self.accept_cosigner_bip39refine
-            },
+            'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
+            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
@@ -85,21 +81,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
     def is_single_password(self):
         return self._daemon.singlePasswordEnabled
-
-    def accept_cosigner_seed(self, wizard_data):
-        self._logger.debug('accept_cosigner_seed')
-        cosigner = wizard_data['multisig_current_cosigner'] if 'multisig_current_cosigner' in wizard_data else 2
-        wizard_data['multisig_cosigner_data'][str(cosigner)] = {
-            'seed': wizard_data['cosigner_seed'],
-            'seed_variant': wizard_data['cosigner_seed_variant'],
-            'seed_type': wizard_data['cosigner_seed_type'],
-            'seed_extend': wizard_data['cosigner_seed_extend'],
-            'seed_extra_words': wizard_data['cosigner_seed_extra_words']
-        }
-
-    def accept_cosigner_bip39refine(self, wizard_data):
-        pass # TODO
-
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):

@@ -17,6 +17,7 @@ WizardComponent {
     function apply() {
         wizard_data['cosigner_keystore_type'] = keystoregroup.checkedButton.keystoretype
         wizard_data['multisig_current_cosigner'] = cosigner
+        wizard_data['multisig_cosigner_data'][cosigner.toString()] = {}
     }
 
     ButtonGroup {
