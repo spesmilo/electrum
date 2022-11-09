@@ -23,10 +23,7 @@ WCHaveSeed {
         wizard_data['cosigner_seed_extra_words'] = seed_extra_words
     }
 
-    onReadyChanged: {
-        if (!ready)
-            return
-
+    Component.onCompleted: {
         participants = wizard_data['multisig_participants']
         cosigner = wizard_data['multisig_current_cosigner']
     }

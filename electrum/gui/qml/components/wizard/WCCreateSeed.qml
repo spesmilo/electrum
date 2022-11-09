@@ -76,9 +76,7 @@ WizardComponent {
         }
     }
 
-    onReadyChanged: {
-        if (!ready)
-            return
+    Component.onCompleted: {
         bitcoin.generate_seed(wizard_data['seed_type'])
     }
 

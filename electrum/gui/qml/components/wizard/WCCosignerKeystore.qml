@@ -40,10 +40,7 @@ WizardComponent {
         }
     }
 
-    onReadyChanged: {
-        if (!ready)
-            return
-
+    Component.onCompleted: {
         participants = wizard_data['multisig_participants']
 
         // cosigner index is determined here and put on the wizard_data dict in apply()

@@ -52,8 +52,7 @@ WizardComponent {
         }
     }
 
-    onReadyChanged: {
-        if (ready)
-            customwordstext.visible = wizard_data['seed_extend']
+    Component.onCompleted: {
+        customwordstext.visible = wizard_data['seed_extend']
     }
 }

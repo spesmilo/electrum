@@ -168,14 +168,9 @@ WizardComponent {
     }
 
     Component.onCompleted: {
+        if (wizard_data['wallet_type'] == '2fa')
+            root.is2fa = true
         setSeedTypeHelpText()
     }
 
-    onReadyChanged: {
-        if (!ready)
-            return
-
-        if (wizard_data['wallet_type'] == '2fa')
-            root.is2fa = true
-    }
 }

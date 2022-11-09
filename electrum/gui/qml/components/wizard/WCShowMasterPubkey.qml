@@ -52,10 +52,7 @@ WizardComponent {
         id: bitcoin
     }
 
-    onReadyChanged: {
-        if (!ready)
-            return
-
+    Component.onCompleted: {
         if (wizard_data['seed_variant'] == 'electrum') {
             masterPubkey = bitcoin.getMultisigMasterPubkey(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'])
         } else {
