@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum import mnemonic
 from electrum import keystore
 from electrum.i18n import _
-from electrum.bip32 import is_bip32_derivation, xpub_type
+from electrum.bip32 import is_bip32_derivation, normalize_bip32_derivation, xpub_type
 from electrum.logging import get_logger
 from electrum.slip39 import decode_mnemonic, Slip39Error
 from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop

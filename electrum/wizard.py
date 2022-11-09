@@ -202,7 +202,7 @@ class NewWalletWizard(AbstractWizard):
         return wizard_data['seed_variant'] == 'bip39'
 
     def is_multisig(self, wizard_data):
-        return 'multisig' in wizard_data and wizard_data['multisig'] == True
+        return 'multisig' in wizard_data and wizard_data['multisig'] is True
 
     def on_wallet_type(self, wizard_data):
         t = wizard_data['wallet_type']

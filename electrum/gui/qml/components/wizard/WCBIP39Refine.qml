@@ -4,7 +4,6 @@ import QtQuick.Controls 2.1
 
 import org.electrum 1.0
 
-import ".."
 import "../controls"
 
 WizardComponent {
