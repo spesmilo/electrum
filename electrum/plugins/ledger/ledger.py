@@ -1258,7 +1258,7 @@ class LedgerPlugin(HW_PluginBase):
         HW_PluginBase.__init__(self, parent, config, name)
         self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:
-            print("Library unavailable")
+            _logger.info("Library unavailable")
             return
         # to support legacy devices and legacy firmwares
         self.device_manager().register_devices(self.DEVICE_IDS, plugin=self)
