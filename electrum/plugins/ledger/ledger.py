@@ -315,8 +315,6 @@ class Ledger_Client(HardwareClientBase, ABC):
                  plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
 
-        self.busy: bool = False
-
     def get_master_fingerprint(self) -> bytes:
         return self.request_root_fingerprint_from_device()
 
@@ -596,10 +594,10 @@ class Ledger_Client_Legacy(Ledger_Client):
                 self.give_error("Transaction with more than 2 outputs not supported")
         for txout in tx.outputs():
             if self.is_hw1() and txout.address and not is_b58_address(txout.address):
-                self.give_error(_("This {} device can only send to base58 addresses.").format(self.device))
+                self.give_error(_("This {} device can only send to base58 addresses.").format(keystore.device))
             if not txout.address:
                 if self.is_hw1():
-                    self.give_error(_("Only address outputs are supported by {}").format(self.device))
+                    self.give_error(_("Only address outputs are supported by {}").format(keystore.device))
                 # note: max_size based on https://github.com/LedgerHQ/ledger-app-btc/commit/3a78dee9c0484821df58975803e40d58fbfc2c38#diff-c61ccd96a6d8b54d48f54a3bc4dfa7e2R26
                 validate_op_return_output(txout, max_size=190)
 
@@ -1343,8 +1341,8 @@ class LedgerPlugin(HW_PluginBase):
         if hid_device is not None:
             try:
                 return Ledger_Client(hid_device, product_key=device.product_key, plugin=self)
-            except:
-                return None
+            except Exception as e:
+                self.logger.info(f"cannot connect at {device.path} {e}")
         return None
 
     def setup_device(self, device_info, wizard, purpose):
