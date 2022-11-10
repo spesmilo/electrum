@@ -149,7 +149,7 @@ class NewWalletWizard(AbstractWizard):
             },
             'confirm_seed': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
-                'last': lambda v,d: self.is_single_password()
+                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
                 'next': self.on_have_seed,
@@ -157,11 +157,11 @@ class NewWalletWizard(AbstractWizard):
             },
             'bip39_refine': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
-                'last': lambda v,d: self.is_single_password()
+                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_master_key': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
-                'last': lambda v,d: self.is_single_password()
+                'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'multisig': {
                 'next': 'keystore_type'
@@ -261,12 +261,16 @@ class NewWalletWizard(AbstractWizard):
 
         return True
 
+    def has_duplicate_keys(self, wizard_data):
+        # TODO
+        return False
+
     def finished(self, wizard_data):
         self._logger.debug('finished')
         # override
 
     def create_storage(self, path, data):
-        # only standard and 2fa wallets for now
+        # only standard, 2fa and imported wallets for now
         assert data['wallet_type'] in ['standard', '2fa', 'imported']
 
         if os.path.exists(path):

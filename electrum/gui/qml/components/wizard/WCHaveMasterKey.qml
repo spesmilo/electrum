@@ -23,7 +23,21 @@ WizardComponent {
     }
 
     function verifyMasterKey(key) {
-        return valid = bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type'])
+        valid = false
+        validationtext.text = ''
+
+        if (!bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type']))
+            return false
+
+        if (cosigner) {
+            apply()
+            if (wiz.hasDuplicateKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: duplicate master public key')
+                return false
+            }
+        }
+
+        return valid = true
     }
 
     ColumnLayout {
@@ -76,8 +90,7 @@ WizardComponent {
 
         TextArea {
             id: validationtext
-            text: bitcoin.validationMessage
-            visible: bitcoin.validationMessage
+            visible: text
             Layout.fillWidth: true
             readOnly: true
             wrapMode: TextInput.WordWrap
@@ -108,6 +121,7 @@ WizardComponent {
 
     Bitcoin {
         id: bitcoin
+        onValidationMessageChanged: validationtext.text = validationMessage
     }
 
     Component.onCompleted: {

@@ -82,6 +82,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     def is_single_password(self):
         return self._daemon.singlePasswordEnabled
 
+    @pyqtSlot('QJSValue', result=bool)
+    def hasDuplicateKeys(self, js_data):
+        self._logger.info('Checking for duplicate keys')
+        data = js_data.toVariant()
+        return self.has_duplicate_keys(data)
+
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')

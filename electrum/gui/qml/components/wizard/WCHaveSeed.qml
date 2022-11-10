@@ -54,7 +54,22 @@ WizardComponent {
     }
 
     function checkValid() {
-        bitcoin.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
+        valid = false
+        validationtext.text = ''
+
+        var validSeed = bitcoin.verifySeed(seedtext.text, seed_variant_cb.currentValue, wizard_data['wallet_type'])
+        if (!cosigner || !validSeed) {
+            valid = validSeed
+            return
+        } else {
+            apply()
+            if (wiz.hasDuplicateKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: duplicate master public key')
+                return
+            } else {
+                valid = true
+            }
+        }
     }
 
     Flickable {
@@ -130,8 +145,7 @@ WizardComponent {
             }
             TextArea {
                 id: validationtext
-                text: bitcoin.validationMessage
-                visible: bitcoin.validationMessage
+                visible: text
                 Layout.fillWidth: true
                 readOnly: true
                 wrapMode: TextInput.WordWrap
@@ -151,6 +165,9 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
+                onTextChanged: {
+                    validationTimer.restart()
+                }
             }
         }
     }
@@ -158,7 +175,7 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
         onSeedTypeChanged: contentText.text = bitcoin.seed_type
-        onSeedValidChanged: root.valid = bitcoin.seed_valid
+        onValidationMessageChanged: validationtext.text = validationMessage
     }
 
     Timer {

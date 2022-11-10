@@ -24,9 +24,6 @@ class QEBitcoin(QObject):
     generatedSeedChanged = pyqtSignal()
     generatedSeed = ''
 
-    seedValidChanged = pyqtSignal()
-    seedValid = False
-
     seedTypeChanged = pyqtSignal()
     seedType = ''
 
@@ -36,10 +33,6 @@ class QEBitcoin(QObject):
     @pyqtProperty('QString', notify=generatedSeedChanged)
     def generated_seed(self):
         return self.generatedSeed
-
-    @pyqtProperty(bool, notify=seedValidChanged)
-    def seed_valid(self):
-        return self.seedValid
 
     @pyqtProperty('QString', notify=seedTypeChanged)
     def seed_type(self):
@@ -58,7 +51,7 @@ class QEBitcoin(QObject):
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str,str)
-    def generate_seed(self, seed_type='segwit', language='en'):
+    def generateSeed(self, seed_type='segwit', language='en'):
         self._logger.debug('generating seed of type ' + str(seed_type))
 
         async def co_gen_seed(seed_type, language):
@@ -68,8 +61,7 @@ class QEBitcoin(QObject):
 
         asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), get_asyncio_loop())
 
-    @pyqtSlot(str,str)
-    @pyqtSlot(str,str,str)
+    @pyqtSlot(str,str,str, result=bool)
     def verifySeed(self, seed, seed_variant, wallet_type='standard'):
         seed_type = ''
         seed_valid = False
@@ -109,11 +101,9 @@ class QEBitcoin(QObject):
         self.seedType = seed_type
         self.seedTypeChanged.emit()
 
-        if self.seedValid != seed_valid:
-            self.seedValid = seed_valid
-            self.seedValidChanged.emit()
-
         self._logger.debug('seed verified: ' + str(seed_valid))
+
+        return seed_valid
 
     @pyqtSlot(str, str, result=bool)
     def verifyMasterKey(self, key, wallet_type='standard'):
