@@ -4,8 +4,8 @@ aiohttp-socks==0.7.1 \
     --hash=sha256:2215cac4891ef3fa14b7d600ed343ed0f0a670c23b10e4142aa862b3db20341a
 aiorpcX==0.22.1 \
     --hash=sha256:6026f7bed3432e206589c94dcf599be8cd85b5736b118c7275845c1bd922a553
-aiosignal==1.2.0 \
-    --hash=sha256:78ed67db6c7b7ced4f98e495e572106d5c432a93e1ddd1bf475e1dc05f5b7df2
+aiosignal==1.3.1 \
+    --hash=sha256:54cd96e15e1649b75d6c87526a6ff0b6c1b0dd3459f43d9ca11d48c339b68cfc
 async-timeout==4.0.2 \
     --hash=sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15
 attrs==22.1.0 \
@@ -18,16 +18,16 @@ charset-normalizer==2.1.1 \
     --hash=sha256:5a3d016c7c547f69d6f81fb0db9449ce888b418b5b9952cc5e6e66843e9dd845
 dnspython==2.2.1 \
     --hash=sha256:0f7569a4a6ff151958b64304071d370daa3243d15941a7beedf0c9fe5105603e
-frozenlist==1.3.1 \
-    --hash=sha256:3a735e4211a04ccfa3f4833547acdf5d2f863bfeb01cfd3edaffbc251f15cec8
+frozenlist==1.3.3 \
+    --hash=sha256:58bcc55721e8a90b88332d6cd441261ebb22342e238296bb330968952fbb3a6a
 idna==3.4 \
     --hash=sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4
 multidict==6.0.2 \
     --hash=sha256:5ff3bd75f38e4c43f1f470f2df7a4d430b821c4ce22be384e1459cb57d6bb013
 packaging==21.3 \
     --hash=sha256:dd47c42927d89ab911e606518907cc2d3a1f38bbd026385970643f9c5b8ecfeb
-pip==22.3 \
-    --hash=sha256:8182aec21dad6c0a49a2a3d121a87cd524b950e0b6092b181625f07ebdde7530
+pip==22.3.1 \
+    --hash=sha256:65fd48317359f3af8e593943e6ae1506b66325085ea64b706a998c6e83eeaf38
 protobuf==3.20.3 \
     --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2
 pyparsing==3.0.9 \
@@ -38,11 +38,11 @@ QDarkStyle==3.1 \
     --hash=sha256:600584d625343e0ddd128de08393d3c35637786a49827f174d29aa7caa8279c1
 qrcode==7.3.1 \
     --hash=sha256:375a6ff240ca9bd41adc070428b5dfc1dcfbb0f2507f1ac848f6cded38956578
-QtPy==2.2.1 \
-    --hash=sha256:7d5231133b772e40b4ee514b6673aca558331e4b88ca038b26c9e16c5c95524f
+QtPy==2.3.0 \
+    --hash=sha256:0603c9c83ccc035a4717a12908bf6bc6cb22509827ea2ec0e94c2da7c9ed57c5
 setuptools==65.5.1 \
     --hash=sha256:e197a19aa8ec9722928f2206f8de752def0e4c9fc6953527360d1c36d94ddb2f
-wheel==0.38.1 \
-    --hash=sha256:ea041edf63f4ccba53ad6e035427997b3bb10ee88a4cd014ae82aeb9eea77bb9
+wheel==0.38.4 \
+    --hash=sha256:965f5259b566725405b05e7cf774052044b1ed30119b5d586b2703aafe8719ac
 yarl==1.8.1 \
     --hash=sha256:af887845b8c2e060eb5605ff72b6f2dd2aab7a761379373fd89d314f4752abbf
