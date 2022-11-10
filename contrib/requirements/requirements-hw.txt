@@ -3,12 +3,27 @@
 # Note: newer hidapi should also work.
 hidapi<0.11
 
+# device plugin: trezor
 trezor[hidapi]>=0.13.0,<0.14
+
+# device plugin: safe_t
 safet>=0.1.5
+
+# device plugin: keepkey
 keepkey>=6.3.1
+
+# device plugin: ledger
+# note: btchip-python only needed for "legacy" protocol and HW.1 support
 btchip-python>=0.1.32
+ledger-bitcoin>=0.1.1,<0.2.0
+
+# device plugin: coldcard
 ckcc-protocol>=0.7.7
+
+# device plugin: bitbox02
 bitbox02>=6.0.0
+
+# device plugin: jade
 cbor>=1.0.0,<2.0.0
 pyserial>=3.5.0,<4.0.0
 

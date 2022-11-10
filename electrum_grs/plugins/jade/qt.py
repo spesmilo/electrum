@@ -35,13 +35,7 @@ class Jade_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
     auth_signal = pyqtSignal(object, object)
 
+    MESSAGE_DIALOG_TITLE = _("Jade Status")
+
     def __init__(self, win):
         super(Jade_Handler, self).__init__(win, 'Jade')
-
-    def message_dialog(self, msg):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Jade Status"))
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        dialog.show()

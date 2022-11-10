@@ -28,12 +28,14 @@ class Plugin(LedgerPlugin, QtPluginBase):
         keystore = wallet.get_keystore()
         if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore=keystore))
             menu.addAction(_("Show on Ledger"), show_address)
 
 class Ledger_Handler(QtHandlerBase):
     setup_signal = pyqtSignal()
     auth_signal = pyqtSignal(object, object)
+
+    MESSAGE_DIALOG_TITLE = _("Ledger Status")
 
     def __init__(self, win):
         super(Ledger_Handler, self).__init__(win, 'Ledger')
@@ -47,14 +49,6 @@ class Ledger_Handler(QtHandlerBase):
         else:
             self.word = str(response[0])
         self.done.set()
-
-    def message_dialog(self, msg):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Ledger Status"))
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        dialog.show()
 
     def auth_dialog(self, data, client: 'Ledger_Client'):
         try:
