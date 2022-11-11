@@ -29,7 +29,6 @@ class QEWalletListModel(QAbstractListModel):
     def __init__(self, daemon, parent=None):
         QAbstractListModel.__init__(self, parent)
         self.daemon = daemon
-        self.wallets = []
         self.reload()
 
     def rowCount(self, index):
@@ -52,10 +51,9 @@ class QEWalletListModel(QAbstractListModel):
     @pyqtSlot()
     def reload(self):
         self._logger.debug('enumerating available wallets')
-        if len(self.wallets) > 0:
-            self.beginRemoveRows(QModelIndex(), 0, len(self.wallets) - 1)
-            self.wallets = []
-            self.endRemoveRows()
+        self.beginResetModel()
+        self.wallets = []
+        self.endResetModel()
 
         available = []
         wallet_folder = os.path.dirname(self.daemon.config.get_wallet_path())
@@ -97,6 +95,16 @@ class QEWalletListModel(QAbstractListModel):
             if name == wallet_name:
                 return True
         return False
+
+    @pyqtSlot(str)
+    def updateWallet(self, path):
+        i = 0
+        for wallet_name, wallet_path in self.wallets:
+            if wallet_path == path:
+                mi = self.createIndex(i, i)
+                self.dataChanged.emit(mi, mi, self._ROLE_KEYS)
+                return
+            i += 1
 
 class QEDaemon(AuthMixin, QObject):
     def __init__(self, daemon, parent=None):
@@ -164,6 +172,7 @@ class QEDaemon(AuthMixin, QObject):
             if wallet is not None:
                 self._current_wallet = QEWallet.getInstanceFor(wallet)
                 if not wallet_already_open:
+                    self.availableWallets.updateWallet(self._path)
                     self._current_wallet.password = password
                 self.walletLoaded.emit()
 
