@@ -13,8 +13,6 @@ Pane {
 
     padding: 0
 
-    // property string title: qsTr('Wallets')
-
     function createWallet() {
         var dialog = app.newWalletWizard.createObject(rootItem)
         dialog.open()

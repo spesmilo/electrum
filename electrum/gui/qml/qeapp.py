@@ -12,7 +12,7 @@ from electrum.logging import Logger, get_logger
 from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 
 from .qeconfig import QEConfig
-from .qedaemon import QEDaemon, QEWalletListModel
+from .qedaemon import QEDaemon
 from .qenetwork import QENetwork
 from .qewallet import QEWallet
 from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
