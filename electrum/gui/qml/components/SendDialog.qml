@@ -32,7 +32,6 @@ ElDialog {
 
     function dispatch(data) {
         if (bitcoin.isRawTx(data)) {
-            // app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: text })
             txFound(data)
         } else {
             invoiceParser.recipient = data
