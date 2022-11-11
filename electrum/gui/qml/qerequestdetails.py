@@ -76,12 +76,11 @@ class QERequestDetails(QObject):
     statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
     def status(self):
-        req = self._wallet.wallet.get_request(self._key)
-        return self._wallet.wallet.get_invoice_status(req)
+        return self._wallet.wallet.get_invoice_status(self._req)
 
     @pyqtProperty(str, notify=statusChanged)
     def status_str(self):
-        return self._req.get_status_str(self.status)
+        return self._req.get_status_str(self.status) if self._req else ''
 
     @pyqtProperty(bool, notify=detailsChanged)
     def isLightning(self):
@@ -94,7 +93,7 @@ class QERequestDetails(QObject):
 
     @pyqtProperty(str, notify=detailsChanged)
     def message(self):
-        return self._req.get_message()
+        return self._req.get_message() if self._req else ''
 
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
