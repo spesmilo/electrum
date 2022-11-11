@@ -9,7 +9,6 @@ Pane {
     id: rootItem
     padding: 0
     width: parent.width
-    property string title: Daemon.currentWallet.name + ' - ' + qsTr('Addresses')
 
     ColumnLayout {
         id: layout
@@ -50,17 +49,15 @@ Pane {
 
                     ColumnLayout {
                         id: delegateLayout
+                        width: parent.width
                         spacing: 0
-                        x: constants.paddingMedium
-                        width: parent.width - 2*constants.paddingMedium
-
-                        Item {
-                            Layout.preferredWidth: 1
-                            Layout.preferredHeight: constants.paddingTiny
-                        }
 
                         GridLayout {
                             columns: 2
+                            Layout.topMargin: constants.paddingSmall
+                            Layout.leftMargin: constants.paddingLarge
+                            Layout.rightMargin: constants.paddingLarge
+
                             Label {
                                 id: indexLabel
                                 font.bold: true
@@ -137,30 +134,25 @@ Pane {
 
     Component {
         id: sectionDelegate
-        Rectangle {
+        Item {
             id: root
             width: ListView.view.width
             height: childrenRect.height
-            color: 'transparent'
 
             required property string section
 
-            RowLayout {
-                x: constants.paddingMedium
-                width: parent.width - 2 * constants.paddingMedium
-
-                Rectangle {
-                    Layout.preferredHeight: 1
-                    Layout.fillWidth: true
+            ColumnLayout {
+                width: parent.width
+                Label {
+                    Layout.topMargin: constants.paddingLarge
+                    Layout.leftMargin: constants.paddingLarge
+                    text: root.section + ' ' + qsTr('addresses')
+                    font.pixelSize: constants.fontSizeLarge
                     color: Material.accentColor
                 }
-                Label {
-                    padding: constants.paddingMedium
-                    text: root.section + ' ' + qsTr('addresses')
-                    font.bold: true
-                    font.pixelSize: constants.fontSizeMedium
-                }
                 Rectangle {
+                    Layout.leftMargin: constants.paddingLarge
+                    Layout.rightMargin: constants.paddingLarge
                     Layout.preferredHeight: 1
                     Layout.fillWidth: true
                     color: Material.accentColor
