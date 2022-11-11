@@ -19,7 +19,7 @@ Pane {
 
         GridLayout {
             id: summaryLayout
-            Layout.fillWidth: true
+            Layout.preferredWidth: parent.width
             Layout.topMargin: constants.paddingLarge
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge

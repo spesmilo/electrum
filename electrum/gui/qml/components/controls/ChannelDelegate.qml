@@ -68,7 +68,11 @@ ItemDelegate {
 
             Label {
                 text: model.state
-                color: _closed ? constants.mutedForeground : Material.foreground
+                color: _closed
+                        ? constants.mutedForeground
+                        : model.state == 'OPEN'
+                            ? constants.colorChannelOpen
+                            : Material.foreground
             }
         }
 
