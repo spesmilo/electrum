@@ -50,10 +50,7 @@ class QEWalletDB(QObject):
 
     @path.setter
     def path(self, wallet_path):
-        if wallet_path == self._path:
-            return
-
-        self._logger.info('setting path: ' + wallet_path)
+        self._logger.debug('setting path: ' + wallet_path)
         self.reset()
         self._path = wallet_path
 

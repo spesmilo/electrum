@@ -33,6 +33,7 @@ Item {
     property color colorError: '#ffff8080'
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
+    property color colorChannelOpen: "#ff80ff80"
 
     property color colorPiechartOnchain: Qt.darker(Material.accentColor, 1.50)
     property color colorPiechartFrozen: 'gray'

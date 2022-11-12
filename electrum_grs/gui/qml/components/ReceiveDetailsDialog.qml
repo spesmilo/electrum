@@ -11,7 +11,7 @@ import "controls"
 ElDialog {
     id: dialog
 
-    title: qsTr('Edit payment request details')
+    title: qsTr('Edit payment request')
 
     property alias amount: amountBtc.text
     property alias description: message.text
@@ -20,6 +20,7 @@ ElDialog {
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
+    iconSource: Qt.resolvedUrl('../../icons/pen.png')
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -93,14 +94,12 @@ ElDialog {
 
         Item { width: 1; height: 1; Layout.fillWidth: true }
 
-        Button {
+        FlatButton {
             Layout.columnSpan: 4
-            Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Create Request')
-            icon.source: '../../icons/qrcode.png'
-            onClicked: {
-                accept()
-            }
+            Layout.fillWidth: true
+            text: qsTr('Apply')
+            icon.source: '../../icons/confirmed.png'
+            onClicked: accept()
         }
     }
 

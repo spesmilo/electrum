@@ -26,14 +26,14 @@ Pane {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Really delete this wallet?'), 'yesno': true})
         dialog.yesClicked.connect(function() {
-            Daemon.check_then_delete_wallet(Daemon.currentWallet)
+            Daemon.checkThenDeleteWallet(Daemon.currentWallet)
         })
         dialog.open()
     }
 
     function changePassword() {
         // trigger dialog via wallet (auth then signal)
-        Daemon.start_change_password()
+        Daemon.startChangePassword()
     }
 
     function importAddressesKeys() {
@@ -343,7 +343,7 @@ Pane {
                         restore from seed. Please make sure you have your seed stored safely')
                     } )
             dialog.accepted.connect(function() {
-                Daemon.set_password(dialog.password)
+                Daemon.setPassword(dialog.password)
             })
             dialog.open()
         }
@@ -351,13 +351,13 @@ Pane {
             if (code == 'unpaid_requests') {
                 var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
                 dialog.yesClicked.connect(function() {
-                    Daemon.check_then_delete_wallet(Daemon.currentWallet, true)
+                    Daemon.checkThenDeleteWallet(Daemon.currentWallet, true)
                 })
                 dialog.open()
             } else if (code == 'balance') {
                 var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
                 dialog.yesClicked.connect(function() {
-                    Daemon.check_then_delete_wallet(Daemon.currentWallet, true, true)
+                    Daemon.checkThenDeleteWallet(Daemon.currentWallet, true, true)
                 })
                 dialog.open()
             } else {

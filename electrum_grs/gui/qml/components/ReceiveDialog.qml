@@ -164,6 +164,57 @@ ElDialog {
             color: Material.accentColor
         }
 
+        GridLayout {
+            columns: 2
+            visible: request.message || !request.amount.isEmpty
+            Layout.maximumWidth: qrloader.width
+            Layout.alignment: Qt.AlignHCenter
+
+            Label {
+                visible: request.message
+                text: qsTr('Message')
+                color: Material.accentColor
+            }
+            Label {
+                visible: request.message
+                Layout.fillWidth: true
+                text: request.message
+                wrapMode: Text.Wrap
+            }
+            Label {
+                visible: !request.amount.isEmpty
+                text: qsTr('Amount')
+                color: Material.accentColor
+            }
+            RowLayout {
+                visible: !request.amount.isEmpty
+                Label {
+                    text: Config.formatSats(request.amount)
+                    font.family: FixedFont
+                    font.pixelSize: constants.fontSizeMedium
+                    font.bold: true
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                    font.pixelSize: constants.fontSizeMedium
+                }
+                Label {
+                    visible: Daemon.fx.enabled
+                    text: '(' + Daemon.fx.fiatValue(request.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
+                    font.pixelSize: constants.fontSizeMedium
+                }
+            }
+        }
+
+        Rectangle {
+            visible: request.message || !request.amount.isEmpty
+            height: 1
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: qrloader.width
+            color: Material.accentColor
+        }
+
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             FlatButton {

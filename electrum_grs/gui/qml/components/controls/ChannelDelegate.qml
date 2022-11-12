@@ -30,13 +30,13 @@ ItemDelegate {
         Rectangle {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
+            Layout.preferredHeight: constants.paddingXXSmall
             color: 'transparent'
         }
 
         Image {
             id: walleticon
-            source: "../../../icons/lightning.png"
+            source: model.is_trampoline ? '../../../icons/kangaroo.png' : '../../../icons/lightning.png'
             fillMode: Image.PreserveAspectFit
             Layout.rowSpan: 3
             Layout.preferredWidth: constants.iconSizeLarge
@@ -45,13 +45,13 @@ ItemDelegate {
 
             Image {
                 visible: model.is_trampoline
-                source: "../../../icons/kangaroo.png"
+                source: '../../../icons/lightning.png'
                 anchors {
                     right: parent.right
                     bottom: parent.bottom
                 }
-                width: parent.width * 2/3
-                height: parent.height * 2/3
+                width: parent.width * 1/3
+                height: parent.height * 1/3
             }
         }
 
@@ -68,7 +68,11 @@ ItemDelegate {
 
             Label {
                 text: model.state
-                color: _closed ? constants.mutedForeground : Material.foreground
+                color: _closed
+                        ? constants.mutedForeground
+                        : model.state == 'OPEN'
+                            ? constants.colorChannelOpen
+                            : Material.foreground
             }
         }
 
@@ -136,11 +140,10 @@ ItemDelegate {
             height: 1
         }
 
-        Rectangle {
+        Item {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: constants.paddingTiny
-            color: 'transparent'
+            Layout.preferredHeight: constants.paddingXXSmall
         }
 
     }
