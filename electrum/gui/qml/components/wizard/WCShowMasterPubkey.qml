@@ -53,10 +53,12 @@ WizardComponent {
     }
 
     Component.onCompleted: {
-        if (wizard_data['seed_variant'] == 'electrum') {
-            masterPubkey = bitcoin.getMultisigMasterPubkey(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'])
+        if ('master_key' in wizard_data) {
+            masterPubkey = bitcoin.getMultisigMasterPubkeyFromKey(wizard_data['master_key'])
+        } else if (wizard_data['seed_variant'] == 'electrum') {
+            masterPubkey = bitcoin.getMultisigMasterPubkeyFromSeed(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'])
         } else {
-            masterPubkey = bitcoin.getMultisigMasterPubkey(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'], wizard_data['derivation_path'])
+            masterPubkey = bitcoin.getMultisigMasterPubkeyFromSeed(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'], wizard_data['derivation_path'])
         }
     }
 }

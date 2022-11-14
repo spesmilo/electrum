@@ -26,8 +26,10 @@ WizardComponent {
         valid = false
         validationtext.text = ''
 
-        if (!bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type']))
+        if (!bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type'])) {
+            validationtext.text = qsTr('Error: invalid master key')
             return false
+        }
 
         if (cosigner) {
             apply()
@@ -57,6 +59,7 @@ WizardComponent {
                 id: masterkey_ta
                 Layout.fillWidth: true
                 Layout.minimumHeight: 80
+                font.family: FixedFont
                 focus: true
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: verifyMasterKey(text)
@@ -67,8 +70,7 @@ WizardComponent {
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
                     onClicked: {
-                        if (verifyMasterKey(AppController.clipboardToText()))
-                            masterkey_ta.text = AppController.clipboardToText()
+                        masterkey_ta.text = AppController.clipboardToText()
                     }
                 }
                 ToolButton {
@@ -79,8 +81,7 @@ WizardComponent {
                     onClicked: {
                         var scan = qrscan.createObject(root)
                         scan.onFound.connect(function() {
-                            if (verifyMasterKey(scan.scanData))
-                                masterkey_ta.text = scan.scanData
+                            masterkey_ta.text = scan.scanData
                             scan.destroy()
                         })
                     }

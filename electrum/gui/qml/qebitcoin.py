@@ -126,7 +126,6 @@ class QEBitcoin(QObject):
             if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
                 self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
                 return False
-            # TODO: check against other cosigner xpubs
             return True
 
         raise Exception(f'Unsupported wallet type: {wallet_type}')
@@ -167,9 +166,13 @@ class QEBitcoin(QObject):
     def isPrivateKeyList(self, csv: str):
         return keystore.is_private_key_list(csv)
 
+    @pyqtSlot(str, result=str)
+    def getMultisigMasterPubkeyFromKey(self, key):
+        return keystore.from_master_key(key).get_master_public_key()
+
     @pyqtSlot(str, str, str, result=str)
     @pyqtSlot(str, str, str, str, result=str)
-    def getMultisigMasterPubkey(self, seed_variant, seed, seed_extra_words, derivation_path = None):
+    def getMultisigMasterPubkeyFromSeed(self, seed_variant, seed, seed_extra_words, derivation_path = None):
         if seed_variant == 'electrum':
             k = keystore.from_seed(seed, seed_extra_words, True)
         elif seed_variant == 'bip39':
