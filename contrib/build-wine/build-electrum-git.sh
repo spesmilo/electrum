@@ -38,7 +38,6 @@ export FROZENLIST_NO_EXTENSIONS=1
 
 info "Installing requirements..."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
-
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
 info "Installing dependencies specific to binaries..."
 # TODO use "--no-binary :all:" (but we don't have a C compiler...)
