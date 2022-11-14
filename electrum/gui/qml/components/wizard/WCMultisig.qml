@@ -29,70 +29,78 @@ WizardComponent {
         wizard_data['multisig_cosigner_data'] = {}
     }
 
-    ColumnLayout {
-        width: parent.width
+    Flickable {
+        anchors.fill: parent
+        contentHeight: rootLayout.height
+        clip:true
+        interactive: height < contentHeight
 
-        Label { text: qsTr('Multisig wallet') }
+        ColumnLayout {
+            id: rootLayout
+            width: parent.width
 
-        InfoTextArea {
-            Layout.preferredWidth: parent.width
-            text: qsTr('Choose the number of participants, and the number of signatures needed to unlock funds in your wallet.')
-        }
+            Label { text: qsTr('Multisig wallet') }
 
-        Piechart {
-            id: piechart
-            Layout.preferredWidth: parent.width * 1/2
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredHeight: 200 // TODO
-            showLegend: false
-            innerOffset: 3
-            function updateSlices() {
-                var s = []
-                for (let i=0; i < participants; i++) {
-                    var item = {
-                        v: (1/participants),
-                        color: i < signatures ? constants.colorPiechartSignature : constants.colorPiechartParticipant
+            InfoTextArea {
+                Layout.preferredWidth: parent.width
+                text: qsTr('Choose the number of participants, and the number of signatures needed to unlock funds in your wallet.')
+            }
+
+            Piechart {
+                id: piechart
+                Layout.preferredWidth: parent.width * 1/2
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredHeight: 200 // TODO
+                showLegend: false
+                innerOffset: 3
+                function updateSlices() {
+                    var s = []
+                    for (let i=0; i < participants; i++) {
+                        var item = {
+                            v: (1/participants),
+                            color: i < signatures ? constants.colorPiechartSignature : constants.colorPiechartParticipant
+                        }
+                        s.push(item)
                     }
-                    s.push(item)
+                    piechart.slices = s
                 }
-                piechart.slices = s
             }
-        }
 
-        Label {
-            text: qsTr('Number of cosigners: %1').arg(participants)
-        }
-
-        Slider {
-            id: participants_slider
-            Layout.preferredWidth: parent.width * 4/5
-            Layout.alignment: Qt.AlignHCenter
-            snapMode: Slider.SnapAlways
-            stepSize: 1
-            from: 2
-            to: 15
-            onValueChanged: {
-                if (activeFocus)
-                    participants = value
+            Label {
+                text: qsTr('Number of cosigners: %1').arg(participants)
             }
-        }
 
-        Label {
-            text: qsTr('Number of signatures: %1').arg(signatures)
-        }
+            Slider {
+                id: participants_slider
+                Layout.preferredWidth: parent.width * 4/5
+                Layout.alignment: Qt.AlignHCenter
+                snapMode: Slider.SnapAlways
+                stepSize: 1
+                from: 2
+                to: 15
+                onValueChanged: {
+                    if (activeFocus)
+                        participants = value
+                }
+            }
 
-        Slider {
-            id: signatures_slider
-            Layout.preferredWidth: parent.width * 4/5
-            Layout.alignment: Qt.AlignHCenter
-            snapMode: Slider.SnapAlways
-            stepSize: 1
-            from: 1
-            to: participants
-            value: signatures
-            onValueChanged: {
-                if (activeFocus)
-                    signatures = value
+            Label {
+                text: qsTr('Number of signatures: %1').arg(signatures)
+            }
+
+            Slider {
+                id: signatures_slider
+                Layout.preferredWidth: parent.width * 4/5
+                Layout.alignment: Qt.AlignHCenter
+                snapMode: Slider.SnapAlways
+                stepSize: 1
+                from: 1
+                to: participants
+                value: signatures
+                onValueChanged: {
+                    if (activeFocus)
+                        signatures = value
+                }
             }
         }
     }
