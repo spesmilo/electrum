@@ -262,8 +262,35 @@ class NewWalletWizard(AbstractWizard):
         return True
 
     def has_duplicate_keys(self, wizard_data):
-        # TODO
+        xpubs = []
+        xpubs.append(self.xpub_from_data(wizard_data))
+        for cosigner in wizard_data['multisig_cosigner_data']:
+            xpubs.append(self.xpub_from_data(wizard_data['multisig_cosigner_data'][cosigner]))
+
+        while len(xpubs):
+            xpub = xpubs.pop()
+            if xpub in xpubs:
+                return True
+
         return False
+
+    def xpub_from_data(self, data):
+        if 'seed' in data:
+            if data['seed_variant'] == 'electrum':
+                k = keystore.from_seed(data['seed'], data['seed_extra_words'], True)
+            elif data['seed_variant'] == 'bip39':
+                root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
+                derivation = normalize_bip32_derivation(data['derivation_path'])
+                k = keystore.from_bip43_rootseed(root_seed, derivation, xtype='p2wsh')
+            else:
+                raise Exception('Unsupported seed variant %s' % data['seed_variant'])
+
+            return k.get_master_public_key()
+        elif 'master_key' in data:
+            k = keystore.from_master_key(data['master_key'])
+            return k.get_master_public_key()
+        else:
+            raise Exception('no seed or master_key in data')
 
     def finished(self, wizard_data):
         self._logger.debug('finished')

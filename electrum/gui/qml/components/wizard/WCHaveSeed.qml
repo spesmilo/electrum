@@ -158,6 +158,7 @@ WizardComponent {
                 id: extendcb
                 Layout.columnSpan: 2
                 text: qsTr('Extend seed with custom words')
+                onCheckedChanged: validationTimer.restart()
             }
             TextField {
                 id: customwordstext
@@ -165,9 +166,7 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
-                onTextChanged: {
-                    validationTimer.restart()
-                }
+                onTextChanged: validationTimer.restart()
             }
         }
     }
