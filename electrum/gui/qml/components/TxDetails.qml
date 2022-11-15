@@ -353,12 +353,31 @@ Pane {
             }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Export')
-            onClicked: {
-                var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-                dialog.open()
+        RowLayout {
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Export')
+                onClicked: {
+                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+                    dialog.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Save')
+                visible: txdetails.canSaveAsLocal
+                onClicked: txdetails.save()
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Remove')
+                visible: txdetails.canRemove
+                onClicked: txdetails.removeLocalTx()
             }
         }
 
@@ -370,13 +389,6 @@ Pane {
                 var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
                 dialog.open()
             }
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Remove')
-            visible: txdetails.canRemove
-            onClicked: txdetails.removeLocalTx()
         }
 
     }
@@ -394,6 +406,19 @@ Pane {
                 txdetails.removeLocalTx(true)
                 txdetails.wallet.historyModel.init_model()
                 root.close()
+            })
+            dialog.open()
+        }
+        onSaveTxSuccess: {
+            var dialog = app.messageDialog.createObject(app, {
+                'text': qsTr('Transaction added to wallet history.') + '\n\n' +
+                        qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
+            })
+            dialog.open()
+        }
+        onSaveTxError: {
+            var dialog = app.messageDialog.createObject(app, {
+                'text': message
             })
             dialog.open()
         }
