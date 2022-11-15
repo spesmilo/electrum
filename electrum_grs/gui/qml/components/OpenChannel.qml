@@ -186,7 +186,7 @@ Pane {
                 'satoshis': channelopener.amount
             })
             dialog.txaccepted.connect(function() {
-                dialog.finalizer.send_onchain()
+                dialog.finalizer.signAndSend()
             })
             dialog.open()
         }

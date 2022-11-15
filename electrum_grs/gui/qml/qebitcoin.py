@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum_grs import mnemonic
 from electrum_grs import keystore
 from electrum_grs.i18n import _
-from electrum_grs.bip32 import is_bip32_derivation, xpub_type
+from electrum_grs.bip32 import is_bip32_derivation, normalize_bip32_derivation, xpub_type
 from electrum_grs.logging import get_logger
 from electrum_grs.slip39 import decode_mnemonic, Slip39Error
 from electrum_grs.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
@@ -24,41 +24,34 @@ class QEBitcoin(QObject):
     generatedSeedChanged = pyqtSignal()
     generatedSeed = ''
 
-    seedValidChanged = pyqtSignal()
-    seedValid = False
-
     seedTypeChanged = pyqtSignal()
     seedType = ''
 
     validationMessageChanged = pyqtSignal()
-    validationMessage = ''
+    _validationMessage = ''
 
     @pyqtProperty('QString', notify=generatedSeedChanged)
     def generated_seed(self):
         return self.generatedSeed
-
-    @pyqtProperty(bool, notify=seedValidChanged)
-    def seed_valid(self):
-        return self.seedValid
 
     @pyqtProperty('QString', notify=seedTypeChanged)
     def seed_type(self):
         return self.seedType
 
     @pyqtProperty('QString', notify=validationMessageChanged)
-    def validation_message(self):
-        return self.validationMessage
+    def validationMessage(self):
+        return self._validationMessage
 
-    @validation_message.setter
-    def validation_message(self, msg):
-        if self.validationMessage != msg:
-            self.validationMessage = msg
+    @validationMessage.setter
+    def validationMessage(self, msg):
+        if self._validationMessage != msg:
+            self._validationMessage = msg
             self.validationMessageChanged.emit()
 
     @pyqtSlot()
     @pyqtSlot(str)
     @pyqtSlot(str,str)
-    def generate_seed(self, seed_type='segwit', language='en'):
+    def generateSeed(self, seed_type='segwit', language='en'):
         self._logger.debug('generating seed of type ' + str(seed_type))
 
         async def co_gen_seed(seed_type, language):
@@ -68,9 +61,8 @@ class QEBitcoin(QObject):
 
         asyncio.run_coroutine_threadsafe(co_gen_seed(seed_type, language), get_asyncio_loop())
 
-    @pyqtSlot(str,str)
-    @pyqtSlot(str,str,str)
-    def verify_seed(self, seed, seed_variant, wallet_type='standard'):
+    @pyqtSlot(str,str,str, result=bool)
+    def verifySeed(self, seed, seed_variant, wallet_type='standard'):
         seed_type = ''
         seed_valid = False
         self.validationMessage = ''
@@ -103,38 +95,43 @@ class QEBitcoin(QObject):
             seed_valid = False
         elif wallet_type == 'standard' and seed_type not in ['old', 'standard', 'segwit', 'bip39']:
             seed_valid = False
+        elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
+            seed_valid = False
 
         self.seedType = seed_type
         self.seedTypeChanged.emit()
 
-        if self.seedValid != seed_valid:
-            self.seedValid = seed_valid
-            self.seedValidChanged.emit()
-
         self._logger.debug('seed verified: ' + str(seed_valid))
 
-    @pyqtSlot(str, result=bool)
+        return seed_valid
+
     @pyqtSlot(str, str, result=bool)
-    def verify_master_key(self, key, wallet_type='standard'):
+    def verifyMasterKey(self, key, wallet_type='standard'):
         self.validationMessage = ''
         if not keystore.is_master_key(key):
             self.validationMessage = _('Not a master key')
             return False
 
+        k = keystore.from_master_key(key)
+        has_xpub = isinstance(k, keystore.Xpub)
+        assert has_xpub
+        t1 = xpub_type(k.xpub)
+
         if wallet_type == 'standard':
-            # validation message?
-            k = keystore.from_master_key(key)
-            has_xpub = isinstance(k, keystore.Xpub)
-            assert has_xpub
-            t1 = xpub_type(k.xpub)
             if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
                 self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
                 return False
             return True
-        return False
+        elif wallet_type == 'multisig':
+            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                return False
+            return True
+
+        raise Exception(f'Unsupported wallet type: {wallet_type}')
 
     @pyqtSlot(str, result=bool)
-    def verify_derivation_path(self, path):
+    def verifyDerivationPath(self, path):
         return is_bip32_derivation(path)
 
     @pyqtSlot(str, result='QVariantMap')
@@ -168,3 +165,21 @@ class QEBitcoin(QObject):
     @pyqtSlot(str, result=bool)
     def isPrivateKeyList(self, csv: str):
         return keystore.is_private_key_list(csv)
+
+    @pyqtSlot(str, result=str)
+    def getMultisigMasterPubkeyFromKey(self, key):
+        return keystore.from_master_key(key).get_master_public_key()
+
+    @pyqtSlot(str, str, str, result=str)
+    @pyqtSlot(str, str, str, str, result=str)
+    def getMultisigMasterPubkeyFromSeed(self, seed_variant, seed, seed_extra_words, derivation_path = None):
+        if seed_variant == 'electrum':
+            k = keystore.from_seed(seed, seed_extra_words, True)
+        elif seed_variant == 'bip39':
+            root_seed = keystore.bip39_to_seed(seed, seed_extra_words)
+            derivation = normalize_bip32_derivation(derivation_path)
+            k = keystore.from_bip43_rootseed(root_seed, derivation, xtype='p2wsh')
+        else:
+            raise Exception(f'Unsupported seed variant {seed_variant}')
+
+        return k.get_master_public_key()

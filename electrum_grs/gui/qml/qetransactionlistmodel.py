@@ -7,13 +7,19 @@ from electrum_grs.logging import get_logger
 from electrum_grs.util import Satoshis, TxMinedInfo
 
 from .qetypes import QEAmount
+from .util import QtEventListener, qt_event_listener
 
-class QETransactionListModel(QAbstractListModel):
+class QETransactionListModel(QAbstractListModel, QtEventListener):
     def __init__(self, wallet, parent=None, *, onchain_domain=None, include_lightning=True):
         super().__init__(parent)
         self.wallet = wallet
         self.onchain_domain = onchain_domain
         self.include_lightning = include_lightning
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+        self.requestRefresh.connect(lambda: self.init_model())
+
         self.init_model()
 
     _logger = get_logger(__name__)
@@ -25,6 +31,17 @@ class QETransactionListModel(QAbstractListModel):
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
+
+    requestRefresh = pyqtSignal()
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @qt_event_listener
+    def on_event_verified(self, wallet, txid, info):
+        if wallet == self.wallet:
+            self._logger.debug('verified event for txid %s' % txid)
+            self.on_tx_verified(txid, info)
 
     def rowCount(self, index):
         return len(self.tx_history)
@@ -117,6 +134,7 @@ class QETransactionListModel(QAbstractListModel):
     # initial model data
     @pyqtSlot()
     def init_model(self):
+        self._logger.debug('retrieving history')
         history = self.wallet.get_full_history(onchain_domain=self.onchain_domain,
                                                include_lightning=self.include_lightning)
         txs = []
@@ -129,7 +147,7 @@ class QETransactionListModel(QAbstractListModel):
         self.tx_history.reverse()
         self.endInsertRows()
 
-    def update_tx(self, txid, info):
+    def on_tx_verified(self, txid, info):
         i = 0
         for tx in self.tx_history:
             if 'txid' in tx and tx['txid'] == txid:

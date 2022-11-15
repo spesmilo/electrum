@@ -22,10 +22,9 @@ WizardComponent {
         clip:true
         interactive: height < contentHeight
 
-        GridLayout {
+        ColumnLayout {
             id: mainLayout
             width: parent.width
-            columns: 1
 
             InfoTextArea {
                 Layout.fillWidth: true
@@ -33,27 +32,27 @@ WizardComponent {
                     qsTr('If you lose your seed, your money will be permanently lost.') + ' ' +
                     qsTr('To make sure that you have properly saved your seed, please retype it here.')
             }
-            Label { text: qsTr('Confirm your seed (re-enter)') }
+
+            Label {
+                text: qsTr('Confirm your seed (re-enter)')
+            }
+
             SeedTextArea {
                 id: confirm
                 Layout.fillWidth: true
-                onTextChanged: {
-                    checkValid()
-                }
+                onTextChanged: checkValid()
             }
+
             TextField {
                 id: customwordstext
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
-                onTextChanged: {
-                    checkValid()
-                }
+                onTextChanged: checkValid()
             }
         }
     }
 
-    onReadyChanged: {
-        if (ready)
-            customwordstext.visible = wizard_data['seed_extend']
+    Component.onCompleted: {
+        customwordstext.visible = wizard_data['seed_extend']
     }
 }

@@ -252,12 +252,13 @@ Pane {
                     columns: 2
                     Label {
                         text: qsTr('Derivation prefix')
-                        visible: Daemon.currentWallet.isDeterministic
+                        visible: Daemon.currentWallet.derivationPrefix
                         color: Material.accentColor
                     }
                     Label {
+                        Layout.fillWidth: true
                         text: Daemon.currentWallet.derivationPrefix
-                        visible: Daemon.currentWallet.isDeterministic
+                        visible: Daemon.currentWallet.derivationPrefix
                     }
 
                     Label {

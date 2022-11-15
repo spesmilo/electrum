@@ -49,7 +49,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         QEAbstractWizard.__init__(self, parent)
         self._daemon = daemon
 
-        # attach view names
+        # attach view names and accept handlers
         self.navmap_merge({
             'wallet_name': { 'gui': 'WCWalletName' },
             'wallet_type': { 'gui': 'WCWalletType' },
@@ -59,6 +59,12 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'have_seed': { 'gui': 'WCHaveSeed' },
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig': { 'gui': 'WCMultisig' },
+            'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
+            'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
+            'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
+            'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
+            'multisig_cosigner_bip39_refine': { 'gui': 'WCBIP39Refine' },
             'imported': { 'gui': 'WCImport' },
             'wallet_password': { 'gui': 'WCWalletPassword' }
         })
@@ -73,8 +79,14 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self._path = path
         self.pathChanged.emit()
 
-    def last_if_single_password(self, *args):
+    def is_single_password(self):
         return self._daemon.singlePasswordEnabled
+
+    @pyqtSlot('QJSValue', result=bool)
+    def hasDuplicateKeys(self, js_data):
+        self._logger.info('Checking for duplicate keys')
+        data = js_data.toVariant()
+        return self.has_duplicate_keys(data)
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):

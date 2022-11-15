@@ -38,7 +38,11 @@ Dialog {
             console.log(comp.errorString())
             return null
         }
-        var page = comp.createObject(pages)
+
+        // make a deepcopy of wdata and pass it to the component
+        var wdata_copy={}
+        Object.assign(wdata_copy, wdata)
+        var page = comp.createObject(pages, {wizard_data: wdata_copy})
         page.validChanged.connect(function() {
             pages.pagevalid = page.valid
         } )
@@ -58,8 +62,7 @@ Dialog {
             var wdata = wiz.prev()
             console.log('prev view data: ' + JSON.stringify(wdata))
         })
-        Object.assign(page.wizard_data, wdata) // deep copy
-        page.ready = true // signal page it can access wizard_data
+
         pages.pagevalid = page.valid
         pages.lastpage = page.last
 
@@ -167,7 +170,7 @@ Dialog {
         }
 
         Label {
-            text: title
+            text: title + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
             elide: Label.ElideRight
             Layout.fillWidth: true
             topPadding: constants.paddingXLarge

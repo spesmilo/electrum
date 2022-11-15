@@ -11,8 +11,7 @@ Pane {
     id: root
     width: parent.width
     height: parent.height
-
-    // property string title: qsTr("Transaction details")
+    padding: 0
 
     property string txid
     property string rawtx
@@ -25,374 +24,373 @@ Pane {
         app.stack.pop()
     }
 
-    property QtObject menu: Menu {
-        id: menu
-        parent: Overlay.overlay
-        dim: true
-        Overlay.modeless: Rectangle {
-            color: "#44000000"
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Export')
-                onTriggered: {
-                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-                    dialog.open()
-                }
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Bump fee')
-                enabled: txdetails.canBump
-                onTriggered: {
-                    var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
-                    dialog.open()
-                }
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Child pays for parent')
-                enabled: txdetails.canCpfp
-                onTriggered: notificationPopup.show('Not implemented')
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Cancel double-spend')
-                enabled: txdetails.canCancel
-                onTriggered: notificationPopup.show('Not implemented')
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Remove')
-                enabled: txdetails.canRemove
-                onTriggered: txdetails.removeLocalTx()
-            }
-        }
-    }
-
-    Flickable {
+    ColumnLayout {
         anchors.fill: parent
-        contentHeight: rootLayout.height
-        clip: true
-        interactive: height < contentHeight
+        spacing: 0
 
-        GridLayout {
-            id: rootLayout
-            width: parent.width
-            columns: 2
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.topMargin: constants.paddingLarge
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
 
-            Label {
-                Layout.columnSpan: 2
-                text: qsTr('Transaction Details')
-                font.pixelSize: constants.fontSizeLarge
-                color: Material.accentColor
-            }
+            contentHeight: contentLayout.height
+            clip: true
+            interactive: height < contentHeight
 
-            Rectangle {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                height: 1
-                color: Material.accentColor
-            }
+            GridLayout {
+                id: contentLayout
+                width: parent.width
+                columns: 2
 
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.columnSpan: 2
-                visible: txdetails.isUnrelated
-                Image {
-                    source: '../../icons/warning.png'
-                    Layout.preferredWidth: constants.iconSizeSmall
-                    Layout.preferredHeight: constants.iconSizeSmall
-                }
                 Label {
-                    text: qsTr('Transaction is unrelated to this wallet')
+                    Layout.columnSpan: 2
+                    text: qsTr('Transaction Details')
+                    font.pixelSize: constants.fontSizeLarge
                     color: Material.accentColor
                 }
-            }
 
-            Label {
-                Layout.fillWidth: true
-                visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt == 0
-                text: txdetails.amount.satsInt > 0
-                        ? qsTr('Amount received')
-                        : qsTr('Amount sent')
-                color: Material.accentColor
-            }
-
-            Label {
-                Layout.fillWidth: true
-                visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
-                text: txdetails.lnAmount.satsInt > 0
-                        ? qsTr('Amount received in channels')
-                        : qsTr('Amount withdrawn from channels')
-                color: Material.accentColor
-                wrapMode: Text.Wrap
-            }
-
-            RowLayout {
-                visible: !txdetails.isUnrelated
-                Layout.fillWidth: true
-                Label {
-                    visible: txdetails.lnAmount.satsInt == 0
-                    text: Config.formatSats(txdetails.amount)
-                    font.family: FixedFont
-                }
-                Label {
-                    visible: txdetails.lnAmount.satsInt != 0
-                    text: Config.formatSats(txdetails.lnAmount)
-                    font.family: FixedFont
-                }
-                Label {
-                    text: Config.baseUnit
+                Rectangle {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    height: 1
                     color: Material.accentColor
                 }
-            }
-
-            Item {
-                visible: !txdetails.isUnrelated && Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
-            }
-
-            Label {
-                visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
-                text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
-            }
-
-            Label {
-                visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
-                text: Daemon.fx.fiatValue(txdetails.lnAmount, false) + ' ' + Daemon.fx.fiatCurrency
-            }
-
-
-            Label {
-                Layout.fillWidth: true
-                visible: txdetails.fee.satsInt != 0
-                text: qsTr('Transaction fee')
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                visible: txdetails.fee.satsInt != 0
-                Label {
-                    text: Config.formatSats(txdetails.fee)
-                    font.family: FixedFont
-                }
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
-            }
-
-            Label {
-                text: qsTr('Status')
-                color: Material.accentColor
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: txdetails.status
-            }
-
-            Label {
-                text: qsTr('Mempool depth')
-                color: Material.accentColor
-                visible: !txdetails.isMined && txdetails.canBroadcast
-            }
-
-            Label {
-                text: txdetails.mempoolDepth
-                visible: !txdetails.isMined && txdetails.canBroadcast
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: qsTr('Date')
-                color: Material.accentColor
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: txdetails.date
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: qsTr('Height')
-                color: Material.accentColor
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: txdetails.height
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: qsTr('TX index')
-                color: Material.accentColor
-            }
-
-            Label {
-                visible: txdetails.isMined
-                text: txdetails.txpos
-            }
-
-            Label {
-                text: qsTr('Label')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
-
-            TextHighlightPane {
-                id: labelContent
-
-                property bool editmode: false
-
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                padding: 0
-                leftPadding: constants.paddingSmall
 
                 RowLayout {
-                    width: parent.width
+                    Layout.fillWidth: true
+                    Layout.columnSpan: 2
+                    visible: txdetails.isUnrelated
+                    Image {
+                        source: '../../icons/warning.png'
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                    }
                     Label {
-                        visible: !labelContent.editmode
-                        text: txdetails.label
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                        font.pixelSize: constants.fontSizeLarge
-                    }
-                    ToolButton {
-                        visible: !labelContent.editmode
-                        icon.source: '../../icons/pen.png'
-                        icon.color: 'transparent'
-                        onClicked: {
-                            labelEdit.text = txdetails.label
-                            labelContent.editmode = true
-                            labelEdit.focus = true
-                        }
-                    }
-                    TextField {
-                        id: labelEdit
-                        visible: labelContent.editmode
-                        text: txdetails.label
-                        font.pixelSize: constants.fontSizeLarge
-                        Layout.fillWidth: true
-                    }
-                    ToolButton {
-                        visible: labelContent.editmode
-                        icon.source: '../../icons/confirmed.png'
-                        icon.color: 'transparent'
-                        onClicked: {
-                            labelContent.editmode = false
-                            txdetails.set_label(labelEdit.text)
-                        }
-                    }
-                    ToolButton {
-                        visible: labelContent.editmode
-                        icon.source: '../../icons/closebutton.png'
-                        icon.color: 'transparent'
-                        onClicked: labelContent.editmode = false
+                        text: qsTr('Transaction is unrelated to this wallet')
+                        color: Material.accentColor
                     }
                 }
-            }
 
-            Label {
-                text: qsTr('Transaction ID')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
+                Label {
+                    Layout.fillWidth: true
+                    visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt == 0
+                    text: txdetails.amount.satsInt > 0
+                            ? qsTr('Amount received')
+                            : qsTr('Amount sent')
+                    color: Material.accentColor
+                }
 
-            TextHighlightPane {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                padding: 0
-                leftPadding: constants.paddingSmall
+                Label {
+                    Layout.fillWidth: true
+                    visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt != 0
+                    text: txdetails.lnAmount.satsInt > 0
+                            ? qsTr('Amount received in channels')
+                            : qsTr('Amount withdrawn from channels')
+                    color: Material.accentColor
+                    wrapMode: Text.Wrap
+                }
 
                 RowLayout {
-                    width: parent.width
+                    visible: !txdetails.isUnrelated
+                    Layout.fillWidth: true
                     Label {
-                        text: txdetails.txid
-                        font.pixelSize: constants.fontSizeLarge
+                        visible: txdetails.lnAmount.satsInt == 0
+                        text: Config.formatSats(txdetails.amount)
                         font.family: FixedFont
-                        Layout.fillWidth: true
-                        wrapMode: Text.Wrap
                     }
-                    ToolButton {
-                        icon.source: '../../icons/share.png'
-                        icon.color: 'transparent'
-                        enabled: txdetails.txid
-                        onClicked: {
-                            var dialog = app.genericShareDialog.createObject(root,
-                                { title: qsTr('Transaction ID'), text: txdetails.txid }
-                            )
-                            dialog.open()
-                        }
+                    Label {
+                        visible: txdetails.lnAmount.satsInt != 0
+                        text: Config.formatSats(txdetails.lnAmount)
+                        font.family: FixedFont
+                    }
+                    Label {
+                        text: Config.baseUnit
+                        color: Material.accentColor
                     }
                 }
-            }
 
-            Label {
-                text: qsTr('Outputs')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
+                Item {
+                    visible: !txdetails.isUnrelated && Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                }
 
-            Repeater {
-                model: txdetails.outputs
-                delegate: TextHighlightPane {
+                Label {
+                    visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
+                    text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
+                }
+
+                Label {
+                    visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
+                    text: Daemon.fx.fiatValue(txdetails.lnAmount, false) + ' ' + Daemon.fx.fiatCurrency
+                }
+
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: txdetails.fee.satsInt != 0
+                    text: qsTr('Transaction fee')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: txdetails.fee.satsInt != 0
+                    Label {
+                        text: Config.formatSats(txdetails.fee)
+                        font.family: FixedFont
+                    }
+                    Label {
+                        text: Config.baseUnit
+                        color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    text: qsTr('Status')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: txdetails.status
+                }
+
+                Label {
+                    text: qsTr('Mempool depth')
+                    color: Material.accentColor
+                    visible: !txdetails.isMined && txdetails.canBroadcast
+                }
+
+                Label {
+                    text: txdetails.mempoolDepth
+                    visible: !txdetails.isMined && txdetails.canBroadcast
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: qsTr('Date')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: txdetails.date
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: qsTr('Height')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: txdetails.height
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: qsTr('TX index')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    visible: txdetails.isMined
+                    text: txdetails.txpos
+                }
+
+                Label {
+                    text: qsTr('Label')
+                    Layout.columnSpan: 2
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    id: labelContent
+
+                    property bool editmode: false
+
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     padding: 0
                     leftPadding: constants.paddingSmall
+
                     RowLayout {
                         width: parent.width
                         Label {
-                            text: modelData.address
-                            Layout.fillWidth: true
+                            visible: !labelContent.editmode
+                            text: txdetails.label
                             wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                            font.pixelSize: constants.fontSizeLarge
+                        }
+                        ToolButton {
+                            visible: !labelContent.editmode
+                            icon.source: '../../icons/pen.png'
+                            icon.color: 'transparent'
+                            onClicked: {
+                                labelEdit.text = txdetails.label
+                                labelContent.editmode = true
+                                labelEdit.focus = true
+                            }
+                        }
+                        TextField {
+                            id: labelEdit
+                            visible: labelContent.editmode
+                            text: txdetails.label
+                            font.pixelSize: constants.fontSizeLarge
+                            Layout.fillWidth: true
+                        }
+                        ToolButton {
+                            visible: labelContent.editmode
+                            icon.source: '../../icons/confirmed.png'
+                            icon.color: 'transparent'
+                            onClicked: {
+                                labelContent.editmode = false
+                                txdetails.set_label(labelEdit.text)
+                            }
+                        }
+                        ToolButton {
+                            visible: labelContent.editmode
+                            icon.source: '../../icons/closebutton.png'
+                            icon.color: 'transparent'
+                            onClicked: labelContent.editmode = false
+                        }
+                    }
+                }
+
+                Label {
+                    text: qsTr('Transaction ID')
+                    Layout.columnSpan: 2
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    padding: 0
+                    leftPadding: constants.paddingSmall
+
+                    RowLayout {
+                        width: parent.width
+                        Label {
+                            text: txdetails.txid
                             font.pixelSize: constants.fontSizeLarge
                             font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
+                            Layout.fillWidth: true
+                            wrapMode: Text.Wrap
                         }
-                        Label {
-                            text: Config.formatSats(modelData.value)
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            icon.color: 'transparent'
+                            enabled: txdetails.txid
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(root,
+                                    { title: qsTr('Transaction ID'), text: txdetails.txid }
+                                )
+                                dialog.open()
+                            }
                         }
-                        Label {
-                            text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    text: qsTr('Outputs')
+                    Layout.columnSpan: 2
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: txdetails.outputs
+                    delegate: TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        padding: 0
+                        leftPadding: constants.paddingSmall
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: modelData.address
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                color: modelData.is_mine ? constants.colorMine : Material.foreground
+                            }
+                            Label {
+                                text: Config.formatSats(modelData.value)
+                                font.pixelSize: constants.fontSizeMedium
+                                font.family: FixedFont
+                            }
+                            Label {
+                                text: Config.baseUnit
+                                font.pixelSize: constants.fontSizeMedium
+                                color: Material.accentColor
+                            }
                         }
                     }
                 }
             }
 
-            RowLayout {
-                visible: !txdetails.isMined && !txdetails.isUnrelated
-                Layout.columnSpan: 2
-                Button {
-                    text: qsTr('Sign')
-                    enabled: txdetails.canSign
-                    onClicked: txdetails.sign()
-                }
-                Button {
-                    text: qsTr('Broadcast')
-                    enabled: txdetails.canBroadcast
-                    onClicked: txdetails.broadcast()
-                }
+        }
+
+        RowLayout {
+            visible: !txdetails.isMined && !txdetails.isUnrelated
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Sign')
+                enabled: txdetails.canSign
+                onClicked: txdetails.sign()
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Broadcast')
+                enabled: txdetails.canBroadcast
+                onClicked: txdetails.broadcast()
             }
         }
+
+        RowLayout {
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Export')
+                onClicked: {
+                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+                    dialog.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Save')
+                visible: txdetails.canSaveAsLocal
+                onClicked: txdetails.save()
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Remove')
+                visible: txdetails.canRemove
+                onClicked: txdetails.removeLocalTx()
+            }
+        }
+
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Bump fee')
+            visible: txdetails.canBump
+            onClicked: {
+                var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
+                dialog.open()
+            }
+        }
+
     }
 
     TxDetails {
@@ -408,6 +406,20 @@ Pane {
                 txdetails.removeLocalTx(true)
                 txdetails.wallet.historyModel.init_model()
                 root.close()
+            })
+            dialog.open()
+        }
+        onSaveTxSuccess: {
+            var dialog = app.messageDialog.createObject(app, {
+                'text': qsTr('Transaction added to wallet history.') + '\n\n' +
+                        qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
+            })
+            dialog.open()
+            root.close()
+        }
+        onSaveTxError: {
+            var dialog = app.messageDialog.createObject(app, {
+                'text': message
             })
             dialog.open()
         }

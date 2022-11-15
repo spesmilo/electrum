@@ -320,7 +320,7 @@ class QETxFinalizer(TxFeeSlider):
         self.validChanged.emit()
 
     @pyqtSlot()
-    def send_onchain(self):
+    def signAndSend(self):
         if not self._valid or not self._tx:
             self._logger.debug('no valid tx')
             return
@@ -330,6 +330,35 @@ class QETxFinalizer(TxFeeSlider):
             return
 
         self._wallet.sign(self._tx, broadcast=True)
+
+    @pyqtSlot()
+    def signAndSave(self):
+        if not self._valid or not self._tx:
+            self._logger.error('no valid tx')
+            return
+
+        # TODO: f_accept handler not used
+        # if self.f_accept:
+        #     self.f_accept(self._tx)
+        #     return
+
+        try:
+            self._wallet.transactionSigned.disconnect(self.onSigned)
+        except:
+            pass
+        self._wallet.transactionSigned.connect(self.onSigned)
+        self._wallet.sign(self._tx)
+
+    @pyqtSlot(str)
+    def onSigned(self, txid):
+        if txid != self._tx.txid():
+            return
+
+        self._logger.debug('onSigned')
+        self._wallet.transactionSigned.disconnect(self.onSigned)
+
+        if not self._wallet.wallet.adb.add_transaction(self._tx):
+            self._logger.error('Could not save tx')
 
     @pyqtSlot(result=str)
     @pyqtSlot(bool, result=str)
