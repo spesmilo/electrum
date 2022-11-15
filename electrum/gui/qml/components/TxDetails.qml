@@ -415,6 +415,7 @@ Pane {
                         qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
             })
             dialog.open()
+            root.close()
         }
         onSaveTxError: {
             var dialog = app.messageDialog.createObject(app, {

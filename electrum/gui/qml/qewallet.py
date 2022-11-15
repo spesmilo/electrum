@@ -176,11 +176,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.addressModel.setDirty()
             self.historyModel.init_model() # TODO: be less dramatic
 
-    @qt_event_listener
-    def on_event_verified(self, wallet, txid, info):
-        if wallet == self.wallet:
-            self.historyModel.update_tx(txid, info)
-
     @event_listener
     def on_event_wallet_updated(self, wallet):
         if wallet == self.wallet:
@@ -489,13 +484,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def broadcast(self, tx):
         assert tx.is_complete()
 
-        network = self.wallet.network # TODO not always defined?
+        # network = self.wallet.network # TODO not always defined?
 
         def broadcast_thread():
             try:
                 self._logger.info('running broadcast in thread')
-                result = network.run_from_another_thread(network.broadcast_transaction(tx))
-                self._logger.info(repr(result))
+                self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(),'',repr(e))
@@ -503,7 +497,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(),'',repr(e))
             else:
+                self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
+                self.historyModel.requestRefresh.emit() # via qt thread
 
         threading.Thread(target=broadcast_thread).start()
 
