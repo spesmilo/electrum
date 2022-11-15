@@ -15,6 +15,7 @@ from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_max_spend, InvalidPassword, event_listener)
 from electrum.plugin import run_hook
+from electrum.wallet import Multisig_Wallet
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
@@ -355,6 +356,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def canSignWithoutServer(self):
         return self.wallet.can_sign_without_server() if self.wallet.wallet_type == '2fa' else True
 
+    @pyqtProperty(bool, notify=dataChanged)
+    def canSignWithoutCosigner(self):
+        if isinstance(self.wallet, Multisig_Wallet):
+            if self.wallet.wallet_type == '2fa': # 2fa is multisig, but it handles cosigning itself
+                return True
+            return self.wallet.m == 1
+        return True
+
     balanceChanged = pyqtSignal()
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
@@ -453,12 +462,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
 
         txid = tx.txid()
-        self._logger.debug(f'txid={txid}')
+        self._logger.debug(f'do_sign(), txid={txid}')
 
         self.transactionSigned.emit(txid)
 
         if not tx.is_complete():
-            self._logger.info('tx not complete')
+            self._logger.debug('tx not complete')
             return
 
         if broadcast:
