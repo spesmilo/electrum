@@ -8,6 +8,10 @@ Dialog {
     property bool allowClose: true
     property string iconSource
 
+    function doClose() {
+        close()
+    }
+
     onOpenedChanged: {
         if (opened) {
             app.activeDialogs.push(abstractdialog)

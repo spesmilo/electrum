@@ -9,7 +9,7 @@ import "wizard"
 Wizard {
     id: walletwizard
 
-    title: qsTr('New Wallet')
+    wizardTitle: qsTr('New Wallet')
 
     signal walletCreated
 
