@@ -16,6 +16,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_max_spend, InvalidPassword, event_listener)
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
+from electrum.crypto import pw_decode_with_version_and_mac
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
@@ -65,6 +66,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     transactionSigned = pyqtSignal([str], arguments=['txid'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
+    importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
     otpSuccess = pyqtSignal()
@@ -676,3 +678,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def importPrivateKeys(self, keyslist):
         self.wallet.import_private_keys(keyslist.split(), self.password)
 
+    @pyqtSlot(str)
+    def importChannelBackup(self, backup_str):
+        try:
+            self.wallet.lnworker.import_channel_backup(backup_str)
+        except Exception as e:
+            self._logger.debug(f'could not import channel backup: {repr(e)}')
+            self.importChannelBackupFailed.emit(f'Failed to import backup:\n\n{str(e)}')
+
+    @pyqtSlot(str, result=bool)
+    def isValidChannelBackup(self, backup_str):
+        try:
+            assert backup_str.startswith('channel_backup:')
+            encrypted = backup_str[15:]
+            xpub = self.wallet.get_fingerprint()
+            decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
+            return True
+        except Exception as e:
+            return False
