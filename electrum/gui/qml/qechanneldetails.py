@@ -78,11 +78,11 @@ class QEChannelDetails(QObject, QtEventListener):
     def name(self):
         if not self._channel:
             return
-        return self._wallet.wallet.lnworker.get_node_alias(self._channel.node_id) or self._channel.node_id.hex()
+        return self._wallet.wallet.lnworker.get_node_alias(self._channel.node_id) or ''
 
     @pyqtProperty(str, notify=channelChanged)
     def pubkey(self):
-        return self._channel.node_id.hex() #if self._channel else ''
+        return self._channel.node_id.hex()
 
     @pyqtProperty(str, notify=channelChanged)
     def short_cid(self):

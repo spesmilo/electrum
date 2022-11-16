@@ -67,7 +67,8 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         lnworker = self.wallet.lnworker
         item = {}
         item['cid'] = lnc.channel_id.hex()
-        item['node_alias'] = lnworker.get_node_alias(lnc.node_id) or lnc.node_id.hex()
+        item['node_id'] = lnc.node_id.hex()
+        item['node_alias'] = lnworker.get_node_alias(lnc.node_id) or ''
         item['short_cid'] = lnc.short_id_for_GUI()
         item['state'] = lnc.get_state_for_GUI()
         item['state_code'] = int(lnc.get_state())

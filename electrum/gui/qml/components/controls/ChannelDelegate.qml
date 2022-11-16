@@ -59,7 +59,7 @@ ItemDelegate {
             Layout.fillWidth: true
             Label {
                 Layout.fillWidth: true
-                text: model.node_alias
+                text: model.node_alias ? model.node_alias : model.node_id
                 elide: Text.ElideRight
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
