@@ -271,6 +271,7 @@ Pane {
 
         RowLayout {
             Layout.fillWidth: true
+            visible: channeldetails.isOpen
 
             FlatButton {
                 Layout.fillWidth: true

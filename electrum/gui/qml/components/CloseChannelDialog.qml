@@ -121,7 +121,7 @@ ElDialog {
                 RadioButton {
                     ButtonGroup.group: closetypegroup
                     property string closetype: 'local_force'
-                    enabled: !closing && channeldetails.canForceClose
+                    enabled: !closing && channeldetails.canForceClose && !channeldetails.isBackup
                     text: qsTr('Local Force-close')
                 }
             }

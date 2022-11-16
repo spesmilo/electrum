@@ -36,7 +36,11 @@ ItemDelegate {
 
         Image {
             id: walleticon
-            source: model.is_trampoline ? '../../../icons/kangaroo.png' : '../../../icons/lightning.png'
+            source: model.is_backup
+                        ? '../../../icons/nocloud.png'
+                        : model.is_trampoline
+                            ? '../../../icons/kangaroo.png'
+                            : '../../../icons/lightning.png'
             fillMode: Image.PreserveAspectFit
             Layout.rowSpan: 3
             Layout.preferredWidth: constants.iconSizeLarge
