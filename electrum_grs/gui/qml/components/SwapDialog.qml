@@ -90,15 +90,15 @@ ElDialog {
 
             RowLayout {
                 Label {
-                    text: swaphelper.serverfeeperc
-                }
-                Label {
                     text: Config.formatSats(swaphelper.serverfee)
                     font.family: FixedFont
                 }
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
+                }
+                Label {
+                    text: '(' + swaphelper.serverfeeperc + ')'
                 }
             }
 
