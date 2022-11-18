@@ -350,6 +350,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return result
 
     @pyqtProperty(str, notify=dataChanged)
+    def lightningNodePubkey(self):
+        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.lnworker else ''
+
+    @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
         keystores = self.wallet.get_keystores()
         if len(keystores) > 1:

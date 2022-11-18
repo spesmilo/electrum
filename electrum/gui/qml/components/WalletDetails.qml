@@ -175,6 +175,41 @@ Pane {
                     columns: 2
 
                     Label {
+                        Layout.columnSpan: 2
+                        visible: Daemon.currentWallet.isLightning
+                        text: qsTr('Lightning Node ID')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: Daemon.currentWallet.isLightning
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                Layout.fillWidth: true
+                                text: Daemon.currentWallet.lightningNodePubkey
+                                wrapMode: Text.Wrap
+                                font.family: FixedFont
+                                font.pixelSize: constants.fontSizeMedium
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(rootItem, {
+                                        title: qsTr('Lightning Node ID'),
+                                        text: Daemon.currentWallet.lightningNodePubkey
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
                         visible: _is2fa
                         text: qsTr('2FA')
                         color: Material.accentColor
@@ -278,6 +313,7 @@ Pane {
                                         Layout.fillWidth: true
                                         text: modelData.derivation_prefix
                                         visible: modelData.derivation_prefix
+                                        font.family: FixedFont
                                     }
 
                                     Label {
