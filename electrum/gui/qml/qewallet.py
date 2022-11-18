@@ -338,6 +338,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isHardware(self):
         return self.wallet.storage.is_encrypted_with_hw_device()
 
+    @pyqtProperty('QVariantList', notify=dataChanged)
+    def keystores(self):
+        result = []
+        for k in self.wallet.get_keystores():
+            result.append({
+                'derivation_prefix': k.get_derivation_prefix() or '',
+                'master_pubkey': k.get_master_public_key() or '',
+                'fingerprint': k.get_root_fingerprint() or ''
+            })
+        return result
+
     @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
         keystores = self.wallet.get_keystores()

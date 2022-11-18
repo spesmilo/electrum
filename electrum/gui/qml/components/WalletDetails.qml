@@ -246,52 +246,86 @@ Pane {
                         }
                     }
 
-                    Label {
-                        text: qsTr('Derivation prefix')
-                        visible: Daemon.currentWallet.derivationPrefix
-                        color: Material.accentColor
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: Daemon.currentWallet.derivationPrefix
-                        visible: Daemon.currentWallet.derivationPrefix
-                    }
-
-                    Label {
-                        visible: Daemon.currentWallet.masterPubkey
-                        Layout.columnSpan:2; text: qsTr('Master Public Key'); color: Material.accentColor
-                    }
-
-                    TextHighlightPane {
-                        visible: Daemon.currentWallet.masterPubkey
-
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        padding: 0
-                        leftPadding: constants.paddingSmall
-
-                        RowLayout {
-                            width: parent.width
-                            Label {
-                                text: Daemon.currentWallet.masterPubkey
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                                font.family: FixedFont
-                                font.pixelSize: constants.fontSizeMedium
+                    Repeater {
+                        id: keystores
+                        model: Daemon.currentWallet.keystores
+                        delegate: ColumnLayout {
+                            Layout.columnSpan: 2
+                            RowLayout {
+                                Label {
+                                    text: qsTr('Keystore')
+                                    color: Material.accentColor
+                                }
+                                Label {
+                                    text: '#' + index
+                                    visible: keystores.count > 1
+                                }
                             }
-                            ToolButton {
-                                icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
-                                onClicked: {
-                                    var dialog = app.genericShareDialog.createObject(rootItem, {
-                                        title: qsTr('Master Public Key'),
-                                        text: Daemon.currentWallet.masterPubkey
-                                    })
-                                    dialog.open()
+                            TextHighlightPane {
+                                Layout.fillWidth: true
+                                leftPadding: constants.paddingLarge
+
+                                GridLayout {
+                                    width: parent.width
+                                    columns: 2
+
+                                    Label {
+                                        text: qsTr('Derivation prefix')
+                                        visible: modelData.derivation_prefix
+                                        color: Material.accentColor
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.derivation_prefix
+                                        visible: modelData.derivation_prefix
+                                    }
+
+                                    Label {
+                                        text: qsTr('BIP32 fingerprint')
+                                        visible: modelData.fingerprint
+                                        color: Material.accentColor
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.fingerprint
+                                        visible: modelData.fingerprint
+                                        font.family: FixedFont
+                                    }
+
+                                    Label {
+                                        Layout.columnSpan: 2
+                                        visible: modelData.master_pubkey
+                                        text: qsTr('Master Public Key')
+                                        color: Material.accentColor
+                                    }
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.columnSpan: 2
+                                        Layout.leftMargin: constants.paddingLarge
+                                        Label {
+                                            text: modelData.master_pubkey
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                            font.family: FixedFont
+                                            font.pixelSize: constants.fontSizeMedium
+                                        }
+                                        ToolButton {
+                                            icon.source: '../../icons/share.png'
+                                            icon.color: 'transparent'
+                                            onClicked: {
+                                                var dialog = app.genericShareDialog.createObject(rootItem, {
+                                                    title: qsTr('Master Public Key'),
+                                                    text: modelData.master_pubkey
+                                                })
+                                                dialog.open()
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
                 }
             }
         }
