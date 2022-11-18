@@ -149,7 +149,7 @@ class RequestList(MyTreeView):
             labels[self.Columns.DESCRIPTION] = message
             labels[self.Columns.AMOUNT] = amount_str
             labels[self.Columns.STATUS] = status_str
-            labels[self.Columns.ADDRESS] = req.get_address()
+            labels[self.Columns.ADDRESS] = req.get_address() or ""
             labels[self.Columns.LN_INVOICE] = req.lightning_invoice or ""
             labels[self.Columns.LN_RHASH] = req.rhash if req.is_lightning() else ""
             items = [QStandardItem(e) for e in labels]
