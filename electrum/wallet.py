@@ -1061,6 +1061,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._requests_addr_to_key = {}
         for req in self._receive_requests.values():
             if req.is_lightning() and (addr:=req.get_address()):
+                # give priority to not-yet-expired requests, to postpone reusing the address
+                # FIXME maybe self._receive_requests should be a multi-map instead
+                if req.has_expired() and addr in self._requests_addr_to_key:
+                    continue
                 self._requests_addr_to_key[addr] = req.get_id()
 
     def _prepare_onchain_invoice_paid_detection(self):
