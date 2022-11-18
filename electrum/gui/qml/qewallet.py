@@ -607,19 +607,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
             if self.wallet.lnworker and self.wallet.lnworker.channels:
-                addr = None
-                if self.wallet.config.get('bolt11_fallback', True):
-                    addr = self.wallet.get_unused_address()
-                    # if addr is None, we ran out of addresses
-                    if addr is None:
-                        # TODO: remove oldest unpaid request having a fallback address and try again
-                        pass
+                addr = self.wallet.get_unused_address()
+                # if addr is None, we ran out of addresses
+                if addr is None:
+                    # TODO: remove oldest unpaid request having a fallback address and try again
+                    pass
                 key = self.wallet.create_request(None, None, default_expiry, addr)
             else:
                 key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)
                 if not key:
                     return
-                # self.addressModel.init_model()
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return

@@ -122,9 +122,8 @@ class Invoice(StoredObject):
         address = None
         if self.outputs:
             address = self.outputs[0].address if len(self.outputs) > 0 else None
-        if not address:
-            if self.is_lightning():
-                address = self._lnaddr.get_fallback_address() or None
+        if not address and self.is_lightning():
+            address = self._lnaddr.get_fallback_address() or None
         return address
 
     def get_outputs(self):

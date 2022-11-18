@@ -13,6 +13,8 @@ Pane {
 
     padding: 0
 
+    property bool _is2fa: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
+
     function enableLightning() {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
@@ -168,32 +170,33 @@ Pane {
                 }
 
                 GridLayout {
-                    visible: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
                     Layout.preferredWidth: parent.width
-
+                    visible: Daemon.currentWallet
                     columns: 2
 
                     Label {
+                        visible: _is2fa
                         text: qsTr('2FA')
                         color: Material.accentColor
                     }
 
                     Label {
                         Layout.fillWidth: true
+                        visible: _is2fa
                         text: Daemon.currentWallet.canSignWithoutServer
-                                ? qsTr('disabled (can sign without server')
+                                ? qsTr('disabled (can sign without server)')
                                 : qsTr('enabled')
                     }
 
                     Label {
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: qsTr('Remaining TX')
                         color: Material.accentColor
                     }
 
                     Label {
                         Layout.fillWidth: true
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: 'tx_remaining' in Daemon.currentWallet.billingInfo
                                 ? Daemon.currentWallet.billingInfo['tx_remaining']
                                 : qsTr('unknown')
@@ -201,7 +204,7 @@ Pane {
 
                     Label {
                         Layout.columnSpan: 2
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: qsTr('Billing')
                         color: Material.accentColor
                     }
@@ -209,6 +212,7 @@ Pane {
                     TextHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
 
                         ColumnLayout {
                             spacing: 0
@@ -242,14 +246,6 @@ Pane {
                         }
                     }
 
-                }
-
-                GridLayout {
-                    id: detailsLayout
-                    visible: Daemon.currentWallet
-                    Layout.preferredWidth: parent.width
-
-                    columns: 2
                     Label {
                         text: qsTr('Derivation prefix')
                         visible: Daemon.currentWallet.derivationPrefix
