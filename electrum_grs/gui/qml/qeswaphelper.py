@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import math
 from typing import Union
 
@@ -191,7 +192,7 @@ class QESwapHelper(AuthMixin, QObject):
         reverse = int(min(lnworker.num_sats_can_send(),
                           swap_manager.get_max_amount()))
         max_recv_amt_ln = int(swap_manager.num_sats_can_receive())
-        max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or float('inf')
+        max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or 0
         forward = int(min(max_recv_amt_oc,
                           # maximally supported swap amount by provider
                           swap_manager.get_max_amount(),
@@ -274,7 +275,7 @@ class QESwapHelper(AuthMixin, QObject):
             self.userinfo = _('Swap below minimal swap size, change the slider.')
             self.valid = False
 
-    def do_normal_swap(self, lightning_amount, onchain_amount, password):
+    def do_normal_swap(self, lightning_amount, onchain_amount):
         assert self._tx
         if lightning_amount is None or onchain_amount is None:
             return
@@ -282,12 +283,21 @@ class QESwapHelper(AuthMixin, QObject):
         coro = self._wallet.wallet.lnworker.swap_manager.normal_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
-            password=password,
+            password=self._wallet.password,
             tx=self._tx,
         )
-        asyncio.run_coroutine_threadsafe(coro, loop)
 
-    def do_reverse_swap(self, lightning_amount, onchain_amount, password):
+        def swap_task():
+            try:
+                fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                result = fut.result()
+            except Exception as e:
+                self._logger.error(str(e))
+                self.error.emit(str(e))
+
+        threading.Thread(target=swap_task).start()
+
+    def do_reverse_swap(self, lightning_amount, onchain_amount):
         if lightning_amount is None or onchain_amount is None:
             return
         swap_manager = self._wallet.wallet.lnworker.swap_manager
@@ -296,7 +306,16 @@ class QESwapHelper(AuthMixin, QObject):
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
         )
-        asyncio.run_coroutine_threadsafe(coro, loop)
+
+        def swap_task():
+            try:
+                fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                result = fut.result()
+            except Exception as e:
+                self._logger.error(str(e))
+                self.error.emit(str(e))
+
+        threading.Thread(target=swap_task).start()
 
     @pyqtSlot()
     @pyqtSlot(bool)
@@ -320,8 +339,8 @@ class QESwapHelper(AuthMixin, QObject):
         if self.isReverse:
             lightning_amount = self._send_amount
             onchain_amount = self._receive_amount
-            self.do_reverse_swap(lightning_amount, onchain_amount, None)
+            self.do_reverse_swap(lightning_amount, onchain_amount)
         else:
             lightning_amount = self._receive_amount
             onchain_amount = self._send_amount
-            self.do_normal_swap(lightning_amount, onchain_amount, None)
+            self.do_normal_swap(lightning_amount, onchain_amount)

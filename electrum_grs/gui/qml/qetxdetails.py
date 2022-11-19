@@ -2,7 +2,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
-from electrum_grs.util import format_time
+from electrum_grs.util import format_time, AddTransactionException
 from electrum_grs.transaction import tx_from_any
 
 from .qewallet import QEWallet

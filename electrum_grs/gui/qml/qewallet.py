@@ -16,6 +16,7 @@ from electrum_grs.transaction import PartialTxOutput
 from electrum_grs.util import (parse_max_spend, InvalidPassword, event_listener)
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import Multisig_Wallet
+from electrum_grs.crypto import pw_decode_with_version_and_mac
 
 from .auth import AuthMixin, auth_protect
 from .qeaddresslistmodel import QEAddressListModel
@@ -65,6 +66,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     transactionSigned = pyqtSignal([str], arguments=['txid'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
+    importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
     otpSuccess = pyqtSignal()
@@ -336,6 +338,21 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def isHardware(self):
         return self.wallet.storage.is_encrypted_with_hw_device()
 
+    @pyqtProperty('QVariantList', notify=dataChanged)
+    def keystores(self):
+        result = []
+        for k in self.wallet.get_keystores():
+            result.append({
+                'derivation_prefix': k.get_derivation_prefix() or '',
+                'master_pubkey': k.get_master_public_key() or '',
+                'fingerprint': k.get_root_fingerprint() or ''
+            })
+        return result
+
+    @pyqtProperty(str, notify=dataChanged)
+    def lightningNodePubkey(self):
+        return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.lnworker else ''
+
     @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
         keystores = self.wallet.get_keystores()
@@ -605,19 +622,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
             if self.wallet.lnworker and self.wallet.lnworker.channels:
-                addr = None
-                if self.wallet.config.get('bolt11_fallback', True):
-                    addr = self.wallet.get_unused_address()
-                    # if addr is None, we ran out of addresses
-                    if addr is None:
-                        # TODO: remove oldest unpaid request having a fallback address and try again
-                        pass
+                addr = self.wallet.get_unused_address()
+                # if addr is None, we ran out of addresses
+                if addr is None:
+                    # TODO: remove oldest unpaid request having a fallback address and try again
+                    pass
                 key = self.wallet.create_request(None, None, default_expiry, addr)
             else:
                 key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)
                 if not key:
                     return
-                # self.addressModel.init_model()
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
@@ -675,3 +689,22 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(str)
     def importPrivateKeys(self, keyslist):
         self.wallet.import_private_keys(keyslist.split(), self.password)
+
+    @pyqtSlot(str)
+    def importChannelBackup(self, backup_str):
+        try:
+            self.wallet.lnworker.import_channel_backup(backup_str)
+        except Exception as e:
+            self._logger.debug(f'could not import channel backup: {repr(e)}')
+            self.importChannelBackupFailed.emit(f'Failed to import backup:\n\n{str(e)}')
+
+    @pyqtSlot(str, result=bool)
+    def isValidChannelBackup(self, backup_str):
+        try:
+            assert backup_str.startswith('channel_backup:')
+            encrypted = backup_str[15:]
+            xpub = self.wallet.get_fingerprint()
+            decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
+            return True
+        except Exception as e:
+            return False

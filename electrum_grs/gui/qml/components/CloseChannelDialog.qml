@@ -29,26 +29,49 @@ ElDialog {
     padding: 0
 
     ColumnLayout {
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
         spacing: 0
 
         GridLayout {
             id: layout
-            Layout.preferredWidth: parent.width
+            Layout.preferredWidth: parent.width - 2*constants.paddingLarge
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
             columns: 2
 
             Label {
                 Layout.fillWidth: true
+                visible: channeldetails.name
                 text: qsTr('Channel name')
                 color: Material.accentColor
             }
 
             Label {
                 Layout.fillWidth: true
+                visible: channeldetails.name
                 text: channeldetails.name
+            }
+
+            Label {
+                text: qsTr('Remote node ID')
+                Layout.columnSpan: 2
+                color: Material.accentColor
+            }
+
+            TextHighlightPane {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+
+                Label {
+                    width: parent.width
+                    text: channeldetails.pubkey
+                    font.pixelSize: constants.fontSizeLarge
+                    font.family: FixedFont
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                }
             }
 
             Label {
@@ -64,9 +87,14 @@ ElDialog {
 
             InfoTextArea {
                 Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width * 3/4
-                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
                 text: qsTr(channeldetails.message_force_close)
+            }
+
+            Label {
+                text: qsTr('Choose closing method')
+                Layout.columnSpan: 2
+                color: Material.accentColor
             }
 
             ColumnLayout {
@@ -93,7 +121,7 @@ ElDialog {
                 RadioButton {
                     ButtonGroup.group: closetypegroup
                     property string closetype: 'local_force'
-                    enabled: !closing && channeldetails.canForceClose
+                    enabled: !closing && channeldetails.canForceClose && !channeldetails.isBackup
                     text: qsTr('Local Force-close')
                 }
             }
@@ -122,7 +150,7 @@ ElDialog {
         FlatButton {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            text: qsTr('Close')
+            text: qsTr('Close channel')
             icon.source: '../../icons/closebutton.png'
             enabled: !closing
             onClicked: {

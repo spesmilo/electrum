@@ -13,6 +13,8 @@ Pane {
 
     padding: 0
 
+    property bool _is2fa: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
+
     function enableLightning() {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
@@ -168,32 +170,68 @@ Pane {
                 }
 
                 GridLayout {
-                    visible: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
                     Layout.preferredWidth: parent.width
-
+                    visible: Daemon.currentWallet
                     columns: 2
 
                     Label {
+                        Layout.columnSpan: 2
+                        visible: Daemon.currentWallet.isLightning
+                        text: qsTr('Lightning Node ID')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: Daemon.currentWallet.isLightning
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                Layout.fillWidth: true
+                                text: Daemon.currentWallet.lightningNodePubkey
+                                wrapMode: Text.Wrap
+                                font.family: FixedFont
+                                font.pixelSize: constants.fontSizeMedium
+                            }
+                            ToolButton {
+                                icon.source: '../../icons/share.png'
+                                icon.color: 'transparent'
+                                onClicked: {
+                                    var dialog = app.genericShareDialog.createObject(rootItem, {
+                                        title: qsTr('Lightning Node ID'),
+                                        text: Daemon.currentWallet.lightningNodePubkey
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        visible: _is2fa
                         text: qsTr('2FA')
                         color: Material.accentColor
                     }
 
                     Label {
                         Layout.fillWidth: true
+                        visible: _is2fa
                         text: Daemon.currentWallet.canSignWithoutServer
-                                ? qsTr('disabled (can sign without server')
+                                ? qsTr('disabled (can sign without server)')
                                 : qsTr('enabled')
                     }
 
                     Label {
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: qsTr('Remaining TX')
                         color: Material.accentColor
                     }
 
                     Label {
                         Layout.fillWidth: true
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: 'tx_remaining' in Daemon.currentWallet.billingInfo
                                 ? Daemon.currentWallet.billingInfo['tx_remaining']
                                 : qsTr('unknown')
@@ -201,7 +239,7 @@ Pane {
 
                     Label {
                         Layout.columnSpan: 2
-                        visible: !Daemon.currentWallet.canSignWithoutServer
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                         text: qsTr('Billing')
                         color: Material.accentColor
                     }
@@ -209,6 +247,7 @@ Pane {
                     TextHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
 
                         ColumnLayout {
                             spacing: 0
@@ -242,60 +281,87 @@ Pane {
                         }
                     }
 
-                }
-
-                GridLayout {
-                    id: detailsLayout
-                    visible: Daemon.currentWallet
-                    Layout.preferredWidth: parent.width
-
-                    columns: 2
-                    Label {
-                        text: qsTr('Derivation prefix')
-                        visible: Daemon.currentWallet.derivationPrefix
-                        color: Material.accentColor
-                    }
-                    Label {
-                        Layout.fillWidth: true
-                        text: Daemon.currentWallet.derivationPrefix
-                        visible: Daemon.currentWallet.derivationPrefix
-                    }
-
-                    Label {
-                        visible: Daemon.currentWallet.masterPubkey
-                        Layout.columnSpan:2; text: qsTr('Master Public Key'); color: Material.accentColor
-                    }
-
-                    TextHighlightPane {
-                        visible: Daemon.currentWallet.masterPubkey
-
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        padding: 0
-                        leftPadding: constants.paddingSmall
-
-                        RowLayout {
-                            width: parent.width
-                            Label {
-                                text: Daemon.currentWallet.masterPubkey
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                                font.family: FixedFont
-                                font.pixelSize: constants.fontSizeMedium
+                    Repeater {
+                        id: keystores
+                        model: Daemon.currentWallet.keystores
+                        delegate: ColumnLayout {
+                            Layout.columnSpan: 2
+                            RowLayout {
+                                Label {
+                                    text: qsTr('Keystore')
+                                    color: Material.accentColor
+                                }
+                                Label {
+                                    text: '#' + index
+                                    visible: keystores.count > 1
+                                }
                             }
-                            ToolButton {
-                                icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
-                                onClicked: {
-                                    var dialog = app.genericShareDialog.createObject(rootItem, {
-                                        title: qsTr('Master Public Key'),
-                                        text: Daemon.currentWallet.masterPubkey
-                                    })
-                                    dialog.open()
+                            TextHighlightPane {
+                                Layout.fillWidth: true
+                                leftPadding: constants.paddingLarge
+
+                                GridLayout {
+                                    width: parent.width
+                                    columns: 2
+
+                                    Label {
+                                        text: qsTr('Derivation prefix')
+                                        visible: modelData.derivation_prefix
+                                        color: Material.accentColor
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.derivation_prefix
+                                        visible: modelData.derivation_prefix
+                                        font.family: FixedFont
+                                    }
+
+                                    Label {
+                                        text: qsTr('BIP32 fingerprint')
+                                        visible: modelData.fingerprint
+                                        color: Material.accentColor
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.fingerprint
+                                        visible: modelData.fingerprint
+                                        font.family: FixedFont
+                                    }
+
+                                    Label {
+                                        Layout.columnSpan: 2
+                                        visible: modelData.master_pubkey
+                                        text: qsTr('Master Public Key')
+                                        color: Material.accentColor
+                                    }
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.columnSpan: 2
+                                        Layout.leftMargin: constants.paddingLarge
+                                        Label {
+                                            text: modelData.master_pubkey
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                            font.family: FixedFont
+                                            font.pixelSize: constants.fontSizeMedium
+                                        }
+                                        ToolButton {
+                                            icon.source: '../../icons/share.png'
+                                            icon.color: 'transparent'
+                                            onClicked: {
+                                                var dialog = app.genericShareDialog.createObject(rootItem, {
+                                                    title: qsTr('Master Public Key'),
+                                                    text: modelData.master_pubkey
+                                                })
+                                                dialog.open()
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
                 }
             }
         }

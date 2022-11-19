@@ -7,7 +7,7 @@ import "wizard"
 Wizard {
     id: serverconnectwizard
 
-    title: qsTr('How do you want to connect to a server?')
+    wizardTitle: qsTr('Network configuration')
 
     enter: null // disable transition
 

@@ -167,7 +167,7 @@ ElDialog {
         id: swaphelper
         wallet: Daemon.currentWallet
         onError: {
-            var dialog = app.messageDialog.createObject(root, {'text': message})
+            var dialog = app.messageDialog.createObject(app, {'text': message})
             dialog.open()
         }
         onConfirm: {

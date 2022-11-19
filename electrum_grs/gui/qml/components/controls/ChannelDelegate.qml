@@ -36,7 +36,11 @@ ItemDelegate {
 
         Image {
             id: walleticon
-            source: model.is_trampoline ? '../../../icons/kangaroo.png' : '../../../icons/lightning.png'
+            source: model.is_backup
+                        ? '../../../icons/nocloud.png'
+                        : model.is_trampoline
+                            ? '../../../icons/kangaroo.png'
+                            : '../../../icons/lightning.png'
             fillMode: Image.PreserveAspectFit
             Layout.rowSpan: 3
             Layout.preferredWidth: constants.iconSizeLarge
@@ -59,15 +63,18 @@ ItemDelegate {
             Layout.fillWidth: true
             Label {
                 Layout.fillWidth: true
-                text: model.node_alias
+                text: model.node_alias ? model.node_alias : model.node_id
+                font.family: model.node_alias ? app.font.family : FixedFont
+                font.pixelSize: model.node_alias ? constants.fontSizeMedium : constants.fontSizeSmall
                 elide: Text.ElideRight
                 wrapMode: Text.Wrap
-                maximumLineCount: 2
+                maximumLineCount: model.node_alias ? 2 : 1
                 color: _closed ? constants.mutedForeground : Material.foreground
             }
 
             Label {
                 text: model.state
+                font.pixelSize: constants.fontSizeMedium
                 color: _closed
                         ? constants.mutedForeground
                         : model.state == 'OPEN'

@@ -18,13 +18,13 @@ from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 class QRCodeWidget(QWidget):
 
-    def __init__(self, data = None):
+    def __init__(self, data=None, *, manual_size: bool = False):
         QWidget.__init__(self)
         self.data = None
         self.qr = None
         self._framesize = None  # type: Optional[int]
+        self._manual_size = manual_size
         self.setData(data)
-
 
     def setData(self, data):
         if self.data != data:
@@ -36,6 +36,9 @@ class QRCodeWidget(QWidget):
                 border=0,
             )
             self.qr.add_data(self.data)
+            if not self._manual_size:
+                k = len(self.qr.get_matrix())
+                self.setMinimumSize(k * 5, k * 5)
         else:
             self.qr = None
 
@@ -120,7 +123,7 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
 
-        qrw = QRCodeWidget(data)
+        qrw = QRCodeWidget(data, manual_size=True)
         qrw.setMinimumSize(250, 250)
         vbox.addWidget(qrw, 1)
 

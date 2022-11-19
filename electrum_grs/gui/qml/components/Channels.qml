@@ -144,10 +144,36 @@ Pane {
             icon.source: '../../icons/lightning.png'
         }
 
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Import channel backup')
+            onClicked: {
+                var dialog = importChannelBackupDialog.createObject(root)
+                dialog.open()
+            }
+            icon.source: '../../icons/file.png'
+        }
+
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(root, { text: message })
+            dialog.open()
+        }
     }
 
     Component {
         id: swapDialog
         SwapDialog {}
     }
+
+    Component {
+        id: importChannelBackupDialog
+        ImportChannelBackupDialog {
+            onClosed: destroy()
+        }
+    }
+
 }

@@ -55,14 +55,23 @@ class RequestList(MyTreeView):
         DESCRIPTION = 1
         AMOUNT = 2
         STATUS = 3
+        ADDRESS = 4
+        LN_INVOICE = 5
+        LN_RHASH = 6
 
     headers = {
         Columns.DATE: _('Date'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
+        Columns.ADDRESS: _('Address'),
+        Columns.LN_INVOICE: 'LN Request',
+        Columns.LN_RHASH: 'LN RHASH',
     }
-    filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
+    filter_columns = [
+        Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT,
+        Columns.ADDRESS, Columns.LN_INVOICE, Columns.LN_RHASH,
+    ]
 
     def __init__(self, receive_tab: 'ReceiveTab'):
         window = receive_tab.window
@@ -125,6 +134,7 @@ class RequestList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.update_headers(self.__class__.headers)
+        self.set_visibility_of_columns()
         for req in self.wallet.get_unpaid_requests():
             key = req.get_id()
             status = self.wallet.get_invoice_status(req)
@@ -134,7 +144,14 @@ class RequestList(MyTreeView):
             message = req.get_message()
             date = format_time(timestamp)
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, message, amount_str, status_str]
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.DATE] = date
+            labels[self.Columns.DESCRIPTION] = message
+            labels[self.Columns.AMOUNT] = amount_str
+            labels[self.Columns.STATUS] = status_str
+            labels[self.Columns.ADDRESS] = req.get_address() or ""
+            labels[self.Columns.LN_INVOICE] = req.lightning_invoice or ""
+            labels[self.Columns.LN_RHASH] = req.rhash if req.is_lightning() else ""
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
@@ -196,3 +213,10 @@ class RequestList(MyTreeView):
             self.delete_item(key)
         self.wallet.save_db()
         self.receive_tab.do_clear()
+
+    def set_visibility_of_columns(self):
+        def set_visible(col: int, b: bool):
+            self.showColumn(col) if b else self.hideColumn(col)
+        set_visible(self.Columns.ADDRESS, False)
+        set_visible(self.Columns.LN_INVOICE, False)
+        set_visible(self.Columns.LN_RHASH, False)

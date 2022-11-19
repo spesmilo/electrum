@@ -135,9 +135,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_lightning_help = FramedWidget()
         self.receive_lightning_help.setVisible(False)
         self.receive_lightning_help.setLayout(vbox)
-        self.receive_address_qr = QRCodeWidget()
-        self.receive_URI_qr = QRCodeWidget()
-        self.receive_lightning_qr = QRCodeWidget()
+        self.receive_address_qr = QRCodeWidget(manual_size=True)
+        self.receive_URI_qr = QRCodeWidget(manual_size=True)
+        self.receive_lightning_qr = QRCodeWidget(manual_size=True)
 
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))

@@ -51,11 +51,13 @@ Pane {
                 }
 
                 Label {
+                    visible: channeldetails.name
                     text: qsTr('Node name')
                     color: Material.accentColor
                 }
 
                 Label {
+                    visible: channeldetails.name
                     text: channeldetails.name
                 }
 
@@ -269,6 +271,7 @@ Pane {
 
         RowLayout {
             Layout.fillWidth: true
+            visible: channeldetails.isOpen
 
             FlatButton {
                 Layout.fillWidth: true

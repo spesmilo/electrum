@@ -67,9 +67,8 @@ class QEChannelDetails(QObject, QtEventListener):
             self.channelidChanged.emit()
 
     def load(self):
-        lnchannels = self._wallet.wallet.lnworker.channels
+        lnchannels = self._wallet.wallet.lnworker.get_channel_objects()
         for channel in lnchannels.values():
-            #self._logger.debug('%s == %s ?' % (self._channelid, channel.channel_id))
             if self._channelid == channel.channel_id.hex():
                 self._channel = channel
                 self.channelChanged.emit()
@@ -78,11 +77,11 @@ class QEChannelDetails(QObject, QtEventListener):
     def name(self):
         if not self._channel:
             return
-        return self._wallet.wallet.lnworker.get_node_alias(self._channel.node_id) or self._channel.node_id.hex()
+        return self._wallet.wallet.lnworker.get_node_alias(self._channel.node_id) or ''
 
     @pyqtProperty(str, notify=channelChanged)
     def pubkey(self):
-        return self._channel.node_id.hex() #if self._channel else ''
+        return self._channel.node_id.hex()
 
     @pyqtProperty(str, notify=channelChanged)
     def short_cid(self):
@@ -94,6 +93,8 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=channelChanged)
     def initiator(self):
+        if self._channel.is_backup():
+            return ''
         return 'Local' if self._channel.constraints.is_initiator else 'Remote'
 
     @pyqtProperty(QEAmount, notify=channelChanged)
@@ -103,12 +104,18 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def canSend(self):
-        self._can_send = QEAmount(amount_sat=self._channel.available_to_spend(LOCAL)/1000)
+        if self._channel.is_backup():
+            self._can_send = QEAmount()
+        else:
+            self._can_send = QEAmount(amount_sat=self._channel.available_to_spend(LOCAL)/1000)
         return self._can_send
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def canReceive(self):
-        self._can_receive = QEAmount(amount_sat=self._channel.available_to_spend(REMOTE)/1000)
+        if self._channel.is_backup():
+            self._can_receive = QEAmount()
+        else:
+            self._can_receive = QEAmount(amount_sat=self._channel.available_to_spend(REMOTE)/1000)
         return self._can_receive
 
     @pyqtProperty(bool, notify=channelChanged)
@@ -121,7 +128,7 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=channelChanged)
     def channelType(self):
-        return self._channel.storage['channel_type'].name_minimal
+        return self._channel.storage['channel_type'].name_minimal if 'channel_type' in self._channel.storage else 'Channel Backup'
 
     @pyqtProperty(bool, notify=channelChanged)
     def isOpen(self):
@@ -137,7 +144,7 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(bool, notify=channelChanged)
     def canForceClose(self):
-        return ChanCloseOption.LOCAL_FCLOSE in self._channel.get_close_options()
+        return any([o in [ChanCloseOption.LOCAL_FCLOSE, ChanCloseOption.REQUEST_REMOTE_FCLOSE] for o in self._channel.get_close_options()])
 
     @pyqtProperty(bool, notify=channelChanged)
     def canDelete(self):
@@ -146,6 +153,10 @@ class QEChannelDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=channelChanged)
     def message_force_close(self, notify=channelChanged):
         return _(messages.MSG_REQUEST_FORCE_CLOSE)
+
+    @pyqtProperty(bool, notify=channelChanged)
+    def isBackup(self):
+        return self._channel.is_backup()
 
     @pyqtSlot()
     def freezeForSending(self):
