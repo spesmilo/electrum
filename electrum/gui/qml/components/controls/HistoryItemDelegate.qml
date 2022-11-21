@@ -64,7 +64,7 @@ Item {
                     Layout.rowSpan: 2
                     source: model.lightning
                         ? "../../../icons/lightning.png"
-                        : model.complete
+                        : model.complete && model.section != 'local'
                             ? tx_icons[Math.min(6,model.confirmations)]
                             : '../../../icons/offline_tx.png'
                 }
@@ -93,7 +93,7 @@ Item {
                 }
                 Label {
                     font.pixelSize: constants.fontSizeSmall
-                    text: model.date
+                    text: model.date ? model.date : ''
                     color: constants.mutedForeground
                 }
                 Label {

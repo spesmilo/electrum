@@ -27,6 +27,8 @@ Pane {
         model: visualModel
 
         readonly property variant sectionLabels: {
+            'local': qsTr('Local'),
+            'mempool': qsTr('Mempool'),
             'today': qsTr('Today'),
             'yesterday': qsTr('Yesterday'),
             'lastweek': qsTr('Last week'),
