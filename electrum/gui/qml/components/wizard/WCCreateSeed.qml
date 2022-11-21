@@ -11,6 +11,7 @@ WizardComponent {
 
     function apply() {
         wizard_data['seed'] = seedtext.text
+        wizard_data['seed_variant'] = 'electrum' // generated seed always electrum variant
         wizard_data['seed_extend'] = extendcb.checked
         wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
     }
