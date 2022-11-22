@@ -39,6 +39,7 @@ class QETxDetails(QObject):
     _is_unrelated = False
     _is_complete = False
     _is_mined = False
+    _is_final = False
 
     _mempool_depth = ''
 
@@ -200,6 +201,10 @@ class QETxDetails(QObject):
     def isComplete(self):
         return self._is_complete
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def isFinal(self):
+        return self._is_final
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
@@ -250,6 +255,7 @@ class QETxDetails(QObject):
                 self._lnamount.satsInt = 0
 
         self._is_complete = self._tx.is_complete()
+        self._is_final = self._tx.is_final()
         self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
         self._can_bump = txinfo.can_bump

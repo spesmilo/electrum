@@ -201,6 +201,15 @@ Pane {
                 }
 
                 Label {
+                    text: qsTr('RbF')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    text: txdetails.isFinal ? qsTr('No') : qsTr('Yes')
+                }
+
+                Label {
                     text: qsTr('Label')
                     Layout.columnSpan: 2
                     color: Material.accentColor
