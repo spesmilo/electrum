@@ -400,6 +400,16 @@ Pane {
             }
         }
 
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Cancel Tx')
+            visible: txdetails.canCancel
+            onClicked: {
+                var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                dialog.open()
+            }
+        }
+
     }
 
     TxDetails {
@@ -446,6 +456,23 @@ Pane {
 
             onTxaccepted: {
                 root.rawtx = txfeebumper.getNewTx()
+            }
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: rbfCancelDialog
+        RbfCancelDialog {
+            id: dialog
+            txcanceller: TxCanceller {
+                id: txcanceller
+                wallet: Daemon.currentWallet
+                txid: dialog.txid
+            }
+
+            onTxaccepted: {
+                root.rawtx = txcanceller.getNewTx()
             }
             onClosed: destroy()
         }
