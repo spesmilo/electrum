@@ -6,7 +6,7 @@ from electrum_grs.logging import get_logger
 from electrum_grs.i18n import _
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction
 from electrum_grs.util import NotEnoughFunds, profiler
-from electrum_grs.wallet import CannotBumpFee
+from electrum_grs.wallet import CannotBumpFee, CannotDoubleSpendTx
 from electrum_grs.network import NetworkException
 
 from .qewallet import QEWallet
@@ -490,6 +490,124 @@ class QETxFeeBumper(TxFeeSlider):
         #     self.warning = long_warning
         # else:
         #     self.warning = ''
+
+        self._valid = True
+        self.validChanged.emit()
+
+    @pyqtSlot(result=str)
+    def getNewTx(self):
+        return str(self._tx)
+
+class QETxCanceller(TxFeeSlider):
+    _logger = get_logger(__name__)
+
+    _oldfee = QEAmount()
+    _oldfee_rate = 0
+    _orig_tx = None
+    _txid = ''
+    _rbf = True
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    txidChanged = pyqtSignal()
+    @pyqtProperty(str, notify=txidChanged)
+    def txid(self):
+        return self._txid
+
+    @txid.setter
+    def txid(self, txid):
+        if self._txid != txid:
+            self._txid = txid
+            self.get_tx()
+            self.txidChanged.emit()
+
+    oldfeeChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=oldfeeChanged)
+    def oldfee(self):
+        return self._oldfee
+
+    @oldfee.setter
+    def oldfee(self, oldfee):
+        if self._oldfee != oldfee:
+            self._oldfee.copyFrom(oldfee)
+            self.oldfeeChanged.emit()
+
+    oldfeeRateChanged = pyqtSignal()
+    @pyqtProperty(str, notify=oldfeeRateChanged)
+    def oldfeeRate(self):
+        return self._oldfee_rate
+
+    @oldfeeRate.setter
+    def oldfeeRate(self, oldfeerate):
+        if self._oldfee_rate != oldfeerate:
+            self._oldfee_rate = oldfeerate
+            self.oldfeeRateChanged.emit()
+
+
+    def get_tx(self):
+        assert self._txid
+        self._orig_tx = self._wallet.wallet.get_input_tx(self._txid)
+        assert self._orig_tx
+
+        if not isinstance(self._orig_tx, PartialTransaction):
+            self._orig_tx = PartialTransaction.from_tx(self._orig_tx)
+
+        if not self._add_info_to_tx_from_wallet_and_network(self._orig_tx):
+            return
+
+        self.update_from_tx(self._orig_tx)
+
+        self.oldfee = self.fee
+        self.oldfeeRate = self.feeRate
+        self.update()
+
+    # TODO: duplicated from kivy gui, candidate for moving into backend wallet
+    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
+        """Returns whether successful."""
+        # note side-effect: tx is being mutated
+        assert isinstance(tx, PartialTransaction)
+        try:
+            # note: this might download input utxos over network
+            # FIXME network code in gui thread...
+            tx.add_info_from_wallet(self._wallet.wallet, ignore_network_issues=False)
+        except NetworkException as e:
+            # self.app.show_error(repr(e))
+            self._logger.error(repr(e))
+            return False
+        return True
+
+    def update(self):
+        if not self._txid:
+            # not initialized yet
+            return
+
+        fee_per_kb = self._config.fee_per_kb()
+        if fee_per_kb is None:
+            # dynamic method and no network
+            self._logger.debug('no fee_per_kb')
+            self.warning = _('Cannot determine dynamic fees, not connected')
+            return
+
+        new_fee_rate = fee_per_kb / 1000
+
+        try:
+            self._tx = self._wallet.wallet.dscancel(
+                tx=self._orig_tx,
+                new_fee_rate=new_fee_rate,
+            )
+        except CannotDoubleSpendTx as e:
+            self._valid = False
+            self.validChanged.emit()
+            self._logger.error(str(e))
+            self.warning = str(e)
+            return
+        else:
+            self.warning = ''
+
+        self._tx.set_rbf(self.rbf)
+
+        self.update_from_tx(self._tx)
 
         self._valid = True
         self.validChanged.emit()

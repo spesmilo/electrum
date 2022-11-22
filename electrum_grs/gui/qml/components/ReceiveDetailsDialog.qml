@@ -19,83 +19,88 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Close
+    standardButtons: Dialog.Cancel
     iconSource: Qt.resolvedUrl('../../icons/pen.png')
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }
 
-    implicitWidth: parent.width
+    padding: 0
 
-    GridLayout {
-        id: form
+    ColumnLayout {
         width: parent.width
-        rowSpacing: constants.paddingSmall
-        columnSpacing: constants.paddingSmall
-        columns: 4
 
-        Label {
-            text: qsTr('Message')
-        }
-
-        TextField {
-            id: message
-            placeholderText: qsTr('Description of payment request')
-            Layout.columnSpan: 3
+        GridLayout {
+            id: form
             Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
+
+            rowSpacing: constants.paddingSmall
+            columnSpacing: constants.paddingSmall
+            columns: 4
+
+            Label {
+                text: qsTr('Message')
+            }
+
+            TextField {
+                id: message
+                placeholderText: qsTr('Description of payment request')
+                Layout.columnSpan: 3
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: qsTr('Request')
+                wrapMode: Text.WordWrap
+                Layout.rightMargin: constants.paddingXLarge
+            }
+
+            BtcField {
+                id: amountBtc
+                fiatfield: amountFiat
+                Layout.preferredWidth: parent.width /3
+            }
+
+            Label {
+                text: Config.baseUnit
+                color: Material.accentColor
+            }
+
+            Item { width: 1; height: 1; Layout.fillWidth: true }
+
+            Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
+
+            FiatField {
+                id: amountFiat
+                btcfield: amountBtc
+                visible: Daemon.fx.enabled
+                Layout.preferredWidth: parent.width /3
+            }
+
+            Label {
+                visible: Daemon.fx.enabled
+                text: Daemon.fx.fiatCurrency
+                color: Material.accentColor
+            }
+
+            Item { visible: Daemon.fx.enabled; width: 1; height: 1; Layout.fillWidth: true }
+
+            Label {
+                text: qsTr('Expires after')
+                Layout.fillWidth: false
+            }
+
+            RequestExpiryComboBox {
+                id: expires
+                Layout.columnSpan: 2
+            }
         }
-
-        Label {
-            text: qsTr('Request')
-            wrapMode: Text.WordWrap
-            Layout.rightMargin: constants.paddingXLarge
-        }
-
-        BtcField {
-            id: amountBtc
-            fiatfield: amountFiat
-            Layout.preferredWidth: parent.width /3
-        }
-
-        Label {
-            text: Config.baseUnit
-            color: Material.accentColor
-        }
-
-        Item { width: 1; height: 1; Layout.fillWidth: true }
-
-        Item { visible: Daemon.fx.enabled; width: 1; height: 1 }
-
-        FiatField {
-            id: amountFiat
-            btcfield: amountBtc
-            visible: Daemon.fx.enabled
-            Layout.preferredWidth: parent.width /3
-        }
-
-        Label {
-            visible: Daemon.fx.enabled
-            text: Daemon.fx.fiatCurrency
-            color: Material.accentColor
-        }
-
-        Item { visible: Daemon.fx.enabled; width: 1; height: 1; Layout.fillWidth: true }
-
-        Label {
-            text: qsTr('Expires after')
-            Layout.fillWidth: false
-        }
-
-        RequestExpiryComboBox {
-            id: expires
-            Layout.columnSpan: 2
-        }
-
-        Item { width: 1; height: 1; Layout.fillWidth: true }
 
         FlatButton {
-            Layout.columnSpan: 4
             Layout.fillWidth: true
             text: qsTr('Apply')
             icon.source: '../../icons/confirmed.png'
