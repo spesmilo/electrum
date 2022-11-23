@@ -402,6 +402,16 @@ Pane {
 
         FlatButton {
             Layout.fillWidth: true
+            text: qsTr('Bump fee (CPFP)')
+            visible: txdetails.canCpfp
+            onClicked: {
+                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                dialog.open()
+            }
+        }
+
+        FlatButton {
+            Layout.fillWidth: true
             text: qsTr('Cancel Tx')
             visible: txdetails.canCancel
             onClicked: {
@@ -456,6 +466,23 @@ Pane {
 
             onTxaccepted: {
                 root.rawtx = rbffeebumper.getNewTx()
+            }
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: cpfpBumpFeeDialog
+        CpfpBumpFeeDialog {
+            id: dialog
+            cpfpfeebumper: TxCpfpFeeBumper {
+                id: cpfpfeebumper
+                wallet: Daemon.currentWallet
+                txid: dialog.txid
+            }
+
+            onTxaccepted: {
+                root.rawtx = cpfpfeebumper.getNewTx() // TODO: don't replace tx, but push new window
             }
             onClosed: destroy()
         }

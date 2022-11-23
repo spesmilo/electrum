@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
@@ -202,6 +203,9 @@ class TxFeeSlider(FeeSlider):
         self.fee = QEAmount(amount_sat=int(fee))
         self.feeRate = f'{feerate:.1f}'
 
+        self.update_outputs_from_tx(tx)
+
+    def update_outputs_from_tx(self, tx):
         outputs = []
         for o in tx.outputs():
             outputs.append({
@@ -615,3 +619,174 @@ class QETxCanceller(TxFeeSlider):
     @pyqtSlot(result=str)
     def getNewTx(self):
         return str(self._tx)
+
+class QETxCpfpFeeBumper(TxFeeSlider):
+    _logger = get_logger(__name__)
+
+    _input_amount = QEAmount()
+    _output_amount = QEAmount()
+    _fee_for_child = QEAmount()
+    _total_fee = QEAmount()
+    _total_fee_rate = 0
+    _total_size = 0
+
+    _parent_tx = None
+    _new_tx = None
+    _parent_tx_size = 0
+    _parent_fee = 0
+    _max_fee = 0
+    _txid = ''
+    _rbf = True
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    txidChanged = pyqtSignal()
+    @pyqtProperty(str, notify=txidChanged)
+    def txid(self):
+        return self._txid
+
+    @txid.setter
+    def txid(self, txid):
+        if self._txid != txid:
+            self._txid = txid
+            self.get_tx()
+            self.txidChanged.emit()
+
+    totalFeeChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=totalFeeChanged)
+    def totalFee(self):
+        return self._total_fee
+
+    @totalFee.setter
+    def totalFee(self, totalfee):
+        if self._total_fee != totalfee:
+            self._total_fee.copyFrom(totalfee)
+            self.totalFeeChanged.emit()
+
+    totalFeeRateChanged = pyqtSignal()
+    @pyqtProperty(str, notify=totalFeeRateChanged)
+    def totalFeeRate(self):
+        return self._total_fee_rate
+
+    @totalFeeRate.setter
+    def totalFeeRate(self, totalfeerate):
+        if self._total_fee_rate != totalfeerate:
+            self._total_fee_rate = totalfeerate
+            self.totalFeeRateChanged.emit()
+
+    feeForChildChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=feeForChildChanged)
+    def feeForChild(self):
+        return self._fee_for_child
+
+    @feeForChild.setter
+    def feeForChild(self, feeforchild):
+        if self._fee_for_child != feeforchild:
+            self._fee_for_child.copyFrom(feeforchild)
+            self.feeForChildChanged.emit()
+
+    inputAmountChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=inputAmountChanged)
+    def inputAmount(self):
+        return self._input_amount
+
+    outputAmountChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=outputAmountChanged)
+    def outputAmount(self):
+        return self._output_amount
+
+    totalSizeChanged = pyqtSignal()
+    @pyqtProperty(int, notify=totalSizeChanged)
+    def totalSize(self):
+        return self._total_size
+
+
+    def get_tx(self):
+        assert self._txid
+        self._parent_tx = self._wallet.wallet.get_input_tx(self._txid)
+        assert self._parent_tx
+
+        if isinstance(self._parent_tx, PartialTransaction):
+            self._logger.error('unexpected PartialTransaction')
+            return
+
+        self._parent_tx_size = self._parent_tx.estimated_size()
+        self._parent_fee = self._wallet.wallet.adb.get_tx_fee(self._txid)
+
+        if self._parent_fee is None:
+            self._logger.error(_("Can't CPFP: unknown fee for parent transaction."))
+            self.warning = _("Can't CPFP: unknown fee for parent transaction.")
+            return
+
+        self._new_tx = self._wallet.wallet.cpfp(self._parent_tx, 0)
+        self._total_size = self._parent_tx_size + self._new_tx.estimated_size()
+        self.totalSizeChanged.emit()
+        self._max_fee = self._new_tx.output_value()
+        self._input_amount.satsInt = self._max_fee
+
+        self.update()
+
+    def get_child_fee_from_total_feerate(self, fee_per_kb: Optional[int]) -> Optional[int]:
+        if fee_per_kb is None:
+            return None
+        fee = fee_per_kb * self._total_size / 1000 - self._parent_fee
+        fee = round(fee)
+        fee = min(self._max_fee, fee)
+        fee = max(self._total_size, fee)  # pay at least 1 sat/byte for combined size
+        return fee
+
+    def update(self):
+        if not self._txid: # not initialized yet
+            return
+
+        assert self._parent_tx
+
+        self._valid = False
+        self.validChanged.emit()
+        self.warning = ''
+
+        fee_per_kb = self._config.fee_per_kb()
+        if fee_per_kb is None:
+            # dynamic method and no network
+            self._logger.debug('no fee_per_kb')
+            self.warning = _('Cannot determine dynamic fees, not connected')
+            return
+
+        fee = self.get_child_fee_from_total_feerate(fee_per_kb=fee_per_kb)
+
+        if fee is None:
+            self._logger.warning('no fee')
+            self.warning = _('No fee')
+            return
+        if fee > self._max_fee:
+            self._logger.warning('max fee exceeded')
+            self.warning = _('Max fee exceeded')
+            return
+
+
+        comb_fee = fee + self._parent_fee
+        comb_feerate = comb_fee / self._total_size
+
+        self._fee_for_child.satsInt = fee
+        self._output_amount.satsInt = self._max_fee - fee
+        self.outputAmountChanged.emit()
+
+        self._total_fee.satsInt = fee + self._parent_fee
+        self._total_fee_rate = f'{comb_feerate:.1f}'
+
+        try:
+            self._new_tx = self._wallet.wallet.cpfp(self._parent_tx, fee)
+        except CannotCPFP as e:
+            self._logger.error(str(e))
+            self.warning = str(e)
+            return
+
+        self.update_outputs_from_tx(self._new_tx)
+
+        self._valid = True
+        self.validChanged.emit()
+
+    @pyqtSlot(result=str)
+    def getNewTx(self):
+        return str(self._new_tx)

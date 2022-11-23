@@ -19,7 +19,7 @@ from .qeqr import QEQRParser, QEQRImageProvider, QEQRImageProviderHelper
 from .qewalletdb import QEWalletDB
 from .qebitcoin import QEBitcoin
 from .qefx import QEFX
-from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCanceller
+from .qetxfinalizer import QETxFinalizer, QETxRbfFeeBumper, QETxCpfpFeeBumper, QETxCanceller
 from .qeinvoice import QEInvoice, QEInvoiceParser, QEUserEnteredPayment
 from .qerequestdetails import QERequestDetails
 from .qetypes import QEAmount
@@ -217,6 +217,7 @@ class ElectrumQmlApplication(QGuiApplication):
         qmlRegisterType(QESwapHelper, 'org.electrum', 1, 0, 'SwapHelper')
         qmlRegisterType(QERequestDetails, 'org.electrum', 1, 0, 'RequestDetails')
         qmlRegisterType(QETxRbfFeeBumper, 'org.electrum', 1, 0, 'TxRbfFeeBumper')
+        qmlRegisterType(QETxCpfpFeeBumper, 'org.electrum', 1, 0, 'TxCpfpFeeBumper')
         qmlRegisterType(QETxCanceller, 'org.electrum', 1, 0, 'TxCanceller')
 
         qmlRegisterUncreatableType(QEAmount, 'org.electrum', 1, 0, 'Amount', 'Amount can only be used as property')
