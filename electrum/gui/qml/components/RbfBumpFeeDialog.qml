@@ -11,7 +11,7 @@ ElDialog {
     id: dialog
 
     required property string txid
-    required property QtObject txfeebumper
+    required property QtObject rbffeebumper
 
     signal txaccepted
 
@@ -55,7 +55,7 @@ ElDialog {
             RowLayout {
                 Label {
                     id: oldfee
-                    text: Config.formatSats(txfeebumper.oldfee)
+                    text: Config.formatSats(rbffeebumper.oldfee)
                 }
 
                 Label {
@@ -72,7 +72,7 @@ ElDialog {
             RowLayout {
                 Label {
                     id: oldfeeRate
-                    text: txfeebumper.oldfeeRate
+                    text: rbffeebumper.oldfeeRate
                 }
 
                 Label {
@@ -122,11 +122,11 @@ ElDialog {
             RowLayout {
                 Label {
                     id: fee
-                    text: txfeebumper.valid ? Config.formatSats(txfeebumper.fee) : ''
+                    text: rbffeebumper.valid ? Config.formatSats(rbffeebumper.fee) : ''
                 }
 
                 Label {
-                    visible: txfeebumper.valid
+                    visible: rbffeebumper.valid
                     text: Config.baseUnit
                     color: Material.accentColor
                 }
@@ -140,11 +140,11 @@ ElDialog {
             RowLayout {
                 Label {
                     id: feeRate
-                    text: txfeebumper.valid ? txfeebumper.feeRate : ''
+                    text: rbffeebumper.valid ? rbffeebumper.feeRate : ''
                 }
 
                 Label {
-                    visible: txfeebumper.valid
+                    visible: rbffeebumper.valid
                     text: 'sat/vB'
                     color: Material.accentColor
                 }
@@ -157,7 +157,7 @@ ElDialog {
 
             Label {
                 id: targetdesc
-                text: txfeebumper.target
+                text: rbffeebumper.target
             }
 
             Slider {
@@ -166,35 +166,35 @@ ElDialog {
                 snapMode: Slider.SnapOnRelease
                 stepSize: 1
                 from: 0
-                to: txfeebumper.sliderSteps
+                to: rbffeebumper.sliderSteps
                 onValueChanged: {
                     if (activeFocus)
-                        txfeebumper.sliderPos = value
+                        rbffeebumper.sliderPos = value
                 }
                 Component.onCompleted: {
-                    value = txfeebumper.sliderPos
+                    value = rbffeebumper.sliderPos
                 }
                 Connections {
-                    target: txfeebumper
+                    target: rbffeebumper
                     function onSliderPosChanged() {
-                        feeslider.value = txfeebumper.sliderPos
+                        feeslider.value = rbffeebumper.sliderPos
                     }
                 }
             }
 
             FeeMethodComboBox {
                 id: target
-                feeslider: txfeebumper
+                feeslider: rbffeebumper
             }
 
             CheckBox {
                 id: final_cb
                 text: qsTr('Replace-by-Fee')
                 Layout.columnSpan: 2
-                checked: txfeebumper.rbf
+                checked: rbffeebumper.rbf
                 onCheckedChanged: {
                     if (activeFocus)
-                        txfeebumper.rbf = checked
+                        rbffeebumper.rbf = checked
                 }
             }
 
@@ -202,20 +202,20 @@ ElDialog {
                 Layout.columnSpan: 2
                 Layout.preferredWidth: parent.width * 3/4
                 Layout.alignment: Qt.AlignHCenter
-                visible: txfeebumper.warning != ''
-                text: txfeebumper.warning
+                visible: rbffeebumper.warning != ''
+                text: rbffeebumper.warning
                 iconStyle: InfoTextArea.IconStyle.Warn
             }
 
             Label {
-                visible: txfeebumper.valid
+                visible: rbffeebumper.valid
                 text: qsTr('Outputs')
                 Layout.columnSpan: 2
                 color: Material.accentColor
             }
 
             Repeater {
-                model: txfeebumper.valid ? txfeebumper.outputs : []
+                model: rbffeebumper.valid ? rbffeebumper.outputs : []
                 delegate: TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
@@ -253,7 +253,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
-            enabled: txfeebumper.valid
+            enabled: rbffeebumper.valid
             onClicked: {
                 txaccepted()
                 dialog.close()

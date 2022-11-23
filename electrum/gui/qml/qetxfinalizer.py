@@ -369,7 +369,7 @@ class QETxFinalizer(TxFeeSlider):
             return str(self._tx)
 
 
-class QETxFeeBumper(TxFeeSlider):
+class QETxRbfFeeBumper(TxFeeSlider):
     _logger = get_logger(__name__)
 
     _oldfee = QEAmount()

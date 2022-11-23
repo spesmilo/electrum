@@ -395,7 +395,7 @@ Pane {
             text: qsTr('Bump fee')
             visible: txdetails.canBump
             onClicked: {
-                var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
+                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
                 dialog.open()
             }
         }
@@ -445,17 +445,17 @@ Pane {
     }
 
     Component {
-        id: bumpFeeDialog
-        BumpFeeDialog {
+        id: rbfBumpFeeDialog
+        RbfBumpFeeDialog {
             id: dialog
-            txfeebumper: TxFeeBumper {
-                id: txfeebumper
+            rbffeebumper: TxRbfFeeBumper {
+                id: rbffeebumper
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
 
             onTxaccepted: {
-                root.rawtx = txfeebumper.getNewTx()
+                root.rawtx = rbffeebumper.getNewTx()
             }
             onClosed: destroy()
         }
