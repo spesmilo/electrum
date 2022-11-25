@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
@@ -7,7 +7,7 @@ from electrum.logging import get_logger
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import NotEnoughFunds, profiler
-from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx
+from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP
 from electrum.network import NetworkException
 
 from .qewallet import QEWallet
