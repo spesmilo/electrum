@@ -141,8 +141,23 @@ Pane {
                         font.family: FixedFont
                     }
                     Label {
+                        Layout.fillWidth: true
                         text: Config.baseUnit
                         color: Material.accentColor
+                    }
+                    FlatButton {
+                        icon.source: '../../icons/warning.png'
+                        icon.color: 'transparent'
+                        text: qsTr('Bump fee')
+                        visible: txdetails.canBump || txdetails.canCpfp
+                        onClicked: {
+                            if (txdetails.canBump) {
+                                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                            } else {
+                                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                            }
+                            dialog.open()
+                        }
                     }
                 }
 
@@ -198,15 +213,6 @@ Pane {
                 Label {
                     visible: txdetails.isMined
                     text: txdetails.txpos
-                }
-
-                Label {
-                    text: qsTr('RbF')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: txdetails.isFinal ? qsTr('No') : qsTr('Yes')
                 }
 
                 Label {
@@ -345,7 +351,7 @@ Pane {
         }
 
         RowLayout {
-            visible: !txdetails.isMined && !txdetails.isUnrelated
+            visible: txdetails.canSign || txdetails.canBroadcast
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -387,16 +393,6 @@ Pane {
                 text: qsTr('Remove')
                 visible: txdetails.canRemove
                 onClicked: txdetails.removeLocalTx()
-            }
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Bump fee')
-            visible: txdetails.canBump
-            onClicked: {
-                var dialog = bumpFeeDialog.createObject(root, { txid: root.txid })
-                dialog.open()
             }
         }
 
@@ -445,17 +441,37 @@ Pane {
     }
 
     Component {
-        id: bumpFeeDialog
-        BumpFeeDialog {
+        id: rbfBumpFeeDialog
+        RbfBumpFeeDialog {
             id: dialog
-            txfeebumper: TxFeeBumper {
-                id: txfeebumper
+            rbffeebumper: TxRbfFeeBumper {
+                id: rbffeebumper
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
 
             onTxaccepted: {
-                root.rawtx = txfeebumper.getNewTx()
+                root.rawtx = rbffeebumper.getNewTx()
+                // TODO: sign & send when possible?
+            }
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: cpfpBumpFeeDialog
+        CpfpBumpFeeDialog {
+            id: dialog
+            cpfpfeebumper: TxCpfpFeeBumper {
+                id: cpfpfeebumper
+                wallet: Daemon.currentWallet
+                txid: dialog.txid
+            }
+
+            onTxaccepted: {
+                // replaces parent tx with cpfp tx
+                root.rawtx = cpfpfeebumper.getNewTx()
+                // TODO: sign & send when possible?
             }
             onClosed: destroy()
         }
@@ -473,6 +489,7 @@ Pane {
 
             onTxaccepted: {
                 root.rawtx = txcanceller.getNewTx()
+                // TODO: sign & send when possible?
             }
             onClosed: destroy()
         }
