@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
+import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
@@ -13,6 +14,7 @@ WizardComponent {
 
     property int cosigner: 0
     property int participants: 0
+    property string multisigMasterPubkey: wizard_data['multisig_master_pubkey']
 
     function apply() {
         wizard_data['cosigner_keystore_type'] = keystoregroup.checkedButton.keystoretype
@@ -25,6 +27,52 @@ WizardComponent {
     }
 
     ColumnLayout {
+        width: parent.width
+
+        Label {
+            visible: cosigner
+            text: qsTr('Here is your master public key. Please share it with your cosigners')
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+        }
+
+        TextHighlightPane {
+            visible: cosigner
+            Layout.fillWidth: true
+            padding: 0
+            leftPadding: constants.paddingSmall
+
+            RowLayout {
+                width: parent.width
+                Label {
+                    Layout.fillWidth: true
+                    text: multisigMasterPubkey
+                    font.pixelSize: constants.fontSizeMedium
+                    font.family: FixedFont
+                    wrapMode: Text.Wrap
+                }
+                ToolButton {
+                    icon.source: '../../../icons/share.png'
+                    icon.color: 'transparent'
+                    onClicked: {
+                        var dialog = app.genericShareDialog.createObject(app,
+                            { title: qsTr('Master public key'), text: multisigMasterPubkey }
+                        )
+                        dialog.open()
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.preferredWidth: parent.width
+            Layout.preferredHeight: 1
+            Layout.topMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
+            visible: cosigner
+            color: Material.accentColor
+        }
+
         Label {
             text: qsTr('Add cosigner #%1 of %2 to your multi-sig wallet').arg(cosigner).arg(participants)
         }

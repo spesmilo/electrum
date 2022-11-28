@@ -149,26 +149,30 @@ class NewWalletWizard(AbstractWizard):
             },
             'confirm_seed': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
                 'next': self.on_have_seed,
+                'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
             },
             'bip39_refine': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_master_key': {
                 'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'multisig': {
                 'next': 'keystore_type'
             },
-            'multisig_show_masterpubkey': {
-                'next': 'multisig_cosigner_keystore'
-            },
+            # 'multisig_show_masterpubkey': {
+            #     'next': 'multisig_cosigner_keystore'
+            # },
             'multisig_cosigner_keystore': { # this view should set 'multisig_current_cosigner'
                 'next': self.on_cosigner_keystore_type
             },
@@ -229,9 +233,17 @@ class NewWalletWizard(AbstractWizard):
         if self.is_bip39_seed(wizard_data):
             return 'bip39_refine'
         elif self.is_multisig(wizard_data):
-            return 'multisig_show_masterpubkey'
+            return 'multisig_cosigner_keystore'
         else:
             return 'wallet_password'
+
+    def maybe_master_pubkey(self, wizard_data):
+        self._logger.info('maybe_master_pubkey')
+        if self.is_bip39_seed(wizard_data) and 'derivation_path' not in wizard_data:
+            self._logger.info('maybe_master_pubkey2')
+            return
+
+        wizard_data['multisig_master_pubkey'] = self.keystore_from_data(wizard_data).get_master_public_key()
 
     def on_cosigner_keystore_type(self, wizard_data):
         t = wizard_data['cosigner_keystore_type']

@@ -510,8 +510,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def broadcast(self, tx):
         assert tx.is_complete()
 
-        # network = self.wallet.network # TODO not always defined?
-
         def broadcast_thread():
             try:
                 self._logger.info('running broadcast in thread')
