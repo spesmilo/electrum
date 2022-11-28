@@ -61,49 +61,6 @@ Item {
 
             Item { Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
 
-            TextHighlightPane {
-                Layout.alignment: Qt.AlignHCenter
-                GridLayout {
-                    columns: 3
-
-                    Label {
-                        font.pixelSize: constants.fontSizeXLarge
-                        text: qsTr('Balance:')
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        font.pixelSize: constants.fontSizeXLarge
-                        font.family: FixedFont
-                        text: formattedTotalBalance
-                    }
-                    Label {
-                        font.pixelSize: constants.fontSizeXLarge
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-
-                    Item {
-                        visible: Daemon.fx.enabled
-                        Layout.preferredHeight: 1
-                        Layout.preferredWidth: 1
-                    }
-                    Label {
-                        Layout.alignment: Qt.AlignRight
-                        visible: Daemon.fx.enabled
-                        font.pixelSize: constants.fontSizeLarge
-                        color: constants.mutedForeground
-                        text: formattedTotalBalanceFiat
-                    }
-                    Label {
-                        visible: Daemon.fx.enabled
-                        font.pixelSize: constants.fontSizeLarge
-                        color: constants.mutedForeground
-                        text: Daemon.fx.fiatCurrency
-                    }
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
                 FlatButton {
