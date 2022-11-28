@@ -62,7 +62,8 @@ ApplicationWindow
                     font.bold: true
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: walletSummary.toggle()
+                        // TODO: disable for now
+                        // onClicked: walletSummary.toggle()
                     }
                 }
 
