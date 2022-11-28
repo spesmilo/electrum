@@ -7,11 +7,9 @@ from electrum.transaction import tx_from_any
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .util import QtEventListener, event_listener
 
-class QETxDetails(QObject):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
+class QETxDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     _wallet = None
@@ -54,6 +52,20 @@ class QETxDetails(QObject):
     saveTxSuccess = pyqtSignal()
 
     detailsChanged = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_verified(self, wallet, txid, info):
+        if wallet == self._wallet.wallet and txid == self._txid:
+            self._logger.debug('verified event for our txid %s' % txid)
+            self.update()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)

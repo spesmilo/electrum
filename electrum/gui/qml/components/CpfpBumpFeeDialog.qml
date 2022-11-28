@@ -7,8 +7,6 @@ import org.electrum 1.0
 
 import "controls"
 
-//TODO: listen to tx to be bumped, mined = abort this
-
 ElDialog {
     id: dialog
 
@@ -256,4 +254,10 @@ ElDialog {
         }
     }
 
+    Connections {
+        target: cpfpfeebumper
+        function onTxMined() {
+            dialog.close()
+        }
+    }
 }

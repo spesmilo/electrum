@@ -29,13 +29,6 @@ ElDialog {
         color: "#aa000000"
     }
 
-    // function updateAmountText() {
-    //     btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
-    //     fiatValue.text = Daemon.fx.enabled
-    //         ? '(' + Daemon.fx.fiatValue(finalizer.effectiveAmount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-    //         : ''
-    // }
-
     ColumnLayout {
         width: parent.width
         height: parent.height
@@ -80,39 +73,6 @@ ElDialog {
                     color: Material.accentColor
                 }
             }
-
-            // Label {
-            //     id: amountLabel
-            //     text: qsTr('Amount to send')
-            //     color: Material.accentColor
-            // }
-            //
-            // RowLayout {
-            //     Layout.fillWidth: true
-            //     Label {
-            //         id: btcValue
-            //         font.bold: true
-            //     }
-            //
-            //     Label {
-            //         text: Config.baseUnit
-            //         color: Material.accentColor
-            //     }
-            //
-            //     Label {
-            //         id: fiatValue
-            //         Layout.fillWidth: true
-            //         font.pixelSize: constants.fontSizeMedium
-            //     }
-            //
-            //     Component.onCompleted: updateAmountText()
-            //     Connections {
-            //         target: finalizer
-            //         function onEffectiveAmountChanged() {
-            //             updateAmountText()
-            //         }
-            //     }
-            // }
 
             Label {
                 text: qsTr('Mining fee')
@@ -261,4 +221,10 @@ ElDialog {
         }
     }
 
+    Connections {
+        target: rbffeebumper
+        function onTxMined() {
+            dialog.close()
+        }
+    }
 }
