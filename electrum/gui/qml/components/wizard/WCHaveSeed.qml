@@ -164,7 +164,7 @@ WizardComponent {
                 Layout.columnSpan: 2
             }
             Label {
-                text: qsTr('Enter your seed')
+                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
                 Layout.columnSpan: 2
             }
             SeedTextArea {

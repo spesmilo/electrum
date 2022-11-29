@@ -17,24 +17,30 @@ WizardComponent {
     property string multisigMasterPubkey: wizard_data['multisig_master_pubkey']
 
     function apply() {
+        applyMasterKey(masterkey_ta.text)
+    }
+
+    function applyMasterKey(key) {
+        key = key.trim()
         if (cosigner) {
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = masterkey_ta.text
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['master_key'] = key
         } else {
-            wizard_data['master_key'] = masterkey_ta.text
+            wizard_data['master_key'] = key
         }
     }
 
     function verifyMasterKey(key) {
         valid = false
         validationtext.text = ''
+        key = key.trim()
 
-        if (!bitcoin.verifyMasterKey(key.trim(), wizard_data['wallet_type'])) {
+        if (!bitcoin.verifyMasterKey(key, wizard_data['wallet_type'])) {
             validationtext.text = qsTr('Error: invalid master key')
             return false
         }
 
         if (cosigner) {
-            apply()
+            applyMasterKey(key)
             if (wiz.hasDuplicateKeys(wizard_data)) {
                 validationtext.text = qsTr('Error: duplicate master public key')
                 return false
@@ -97,7 +103,9 @@ WizardComponent {
         }
 
         Label {
-            text: qsTr('Create keystore from a master key')
+            text: cosigner
+                    ? qsTr('Enter cosigner master public key')
+                    : qsTr('Create keystore from a master key')
         }
 
         RowLayout {
@@ -108,7 +116,10 @@ WizardComponent {
                 font.family: FixedFont
                 focus: true
                 wrapMode: TextEdit.WrapAnywhere
-                onTextChanged: verifyMasterKey(text)
+                onTextChanged: {
+                    if (activeFocus)
+                        verifyMasterKey(text)
+                }
             }
             ColumnLayout {
                 ToolButton {
@@ -116,7 +127,10 @@ WizardComponent {
                     icon.height: constants.iconSizeMedium
                     icon.width: constants.iconSizeMedium
                     onClicked: {
-                        masterkey_ta.text = AppController.clipboardToText()
+                        if (verifyMasterKey(AppController.clipboardToText()))
+                            masterkey_ta.text = AppController.clipboardToText()
+                        else
+                            masterkey_ta.text = ''
                     }
                 }
                 ToolButton {
@@ -127,7 +141,10 @@ WizardComponent {
                     onClicked: {
                         var scan = qrscan.createObject(root)
                         scan.onFound.connect(function() {
-                            masterkey_ta.text = scan.scanData
+                            if (verifyMasterKey(scan.scanData))
+                                masterkey_ta.text = scan.scanData
+                            else
+                                masterkey_ta.text = ''
                             scan.destroy()
                         })
                     }
