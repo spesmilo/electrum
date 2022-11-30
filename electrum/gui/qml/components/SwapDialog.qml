@@ -36,12 +36,26 @@ ElDialog {
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
 
-            Label {
-                text: qsTr('You send')
-                color: Material.accentColor
+            RowLayout {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
+                Label {
+                    Layout.preferredWidth: 1
+                    Layout.fillWidth: true
+                    text: qsTr('You send')
+                    color: Material.accentColor
+                }
+                Image {
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
+                    source: swaphelper.isReverse ? '../../icons/lightning.png' : '../../icons/bitcoin.png'
+                    visible: swaphelper.valid
+                }
             }
 
             RowLayout {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 Label {
                     id: tosend
                     text: Config.formatSats(swaphelper.tosend)
@@ -53,18 +67,27 @@ ElDialog {
                     color: Material.accentColor
                     visible: swaphelper.valid
                 }
+            }
+
+            RowLayout {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 Label {
-                    text: swaphelper.isReverse ? qsTr('(offchain)') : qsTr('(onchain)')
+                    Layout.preferredWidth: 1
+                    Layout.fillWidth: true
+                    text: qsTr('You receive')
+                    color: Material.accentColor
+                }
+                Image {
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
+                    source: swaphelper.isReverse ? '../../icons/bitcoin.png' : '../../icons/lightning.png'
                     visible: swaphelper.valid
                 }
             }
 
-            Label {
-                text: qsTr('You receive')
-                color: Material.accentColor
-            }
-
             RowLayout {
+                Layout.preferredWidth: 1
                 Layout.fillWidth: true
                 Label {
                     id: toreceive
@@ -77,18 +100,18 @@ ElDialog {
                     color: Material.accentColor
                     visible: swaphelper.valid
                 }
-                Label {
-                    text: swaphelper.isReverse ? qsTr('(onchain)') : qsTr('(offchain)')
-                    visible: swaphelper.valid
-                }
             }
 
             Label {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 text: qsTr('Server fee')
                 color: Material.accentColor
             }
 
             RowLayout {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 Label {
                     text: Config.formatSats(swaphelper.serverfee)
                     font.family: FixedFont
@@ -103,52 +126,60 @@ ElDialog {
             }
 
             Label {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 text: qsTr('Mining fee')
                 color: Material.accentColor
             }
 
             RowLayout {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
                 Label {
                     text: Config.formatSats(swaphelper.miningfee)
                     font.family: FixedFont
                 }
                 Label {
+                    Layout.fillWidth: true
                     text: Config.baseUnit
                     color: Material.accentColor
                 }
             }
+        }
 
-            Slider {
-                id: swapslider
-                Layout.columnSpan: 2
-                Layout.preferredWidth: 2/3 * layout.width
-                Layout.alignment: Qt.AlignHCenter
+        Slider {
+            id: swapslider
+            Layout.topMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
+            Layout.fillWidth: true
 
-                from: swaphelper.rangeMin
-                to: swaphelper.rangeMax
+            from: swaphelper.rangeMin
+            to: swaphelper.rangeMax
 
-                onValueChanged: {
-                    if (activeFocus)
-                        swaphelper.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = swaphelper.sliderPos
-                }
-                Connections {
-                    target: swaphelper
-                    function onSliderPosChanged() {
-                        swapslider.value = swaphelper.sliderPos
-                    }
+            onValueChanged: {
+                if (activeFocus)
+                    swaphelper.sliderPos = value
+            }
+            Component.onCompleted: {
+                value = swaphelper.sliderPos
+            }
+            Connections {
+                target: swaphelper
+                function onSliderPosChanged() {
+                    swapslider.value = swaphelper.sliderPos
                 }
             }
+        }
 
-            InfoTextArea {
-                Layout.columnSpan: 2
-                Layout.preferredWidth: swapslider.width
-                Layout.alignment: Qt.AlignHCenter
-                visible: swaphelper.userinfo != ''
-                text: swaphelper.userinfo
-            }
+        InfoTextArea {
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            visible: swaphelper.userinfo != ''
+            text: swaphelper.userinfo
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
