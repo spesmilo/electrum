@@ -345,7 +345,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             result.append({
                 'derivation_prefix': k.get_derivation_prefix() or '',
                 'master_pubkey': k.get_master_public_key() or '',
-                'fingerprint': k.get_root_fingerprint() or ''
+                'fingerprint': k.get_root_fingerprint() or '',
+                'watch_only': k.is_watching_only()
             })
         return result
 
