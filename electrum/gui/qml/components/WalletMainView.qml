@@ -75,7 +75,7 @@ Item {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Network');
-                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkStats.qml'))
+                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
                 icon.source: '../../icons/network.png'
             }
         }
