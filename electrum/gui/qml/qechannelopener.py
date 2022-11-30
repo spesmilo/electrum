@@ -71,7 +71,7 @@ class QEChannelOpener(QObject, AuthMixin):
     @amount.setter
     def amount(self, amount: QEAmount):
         if self._amount != amount:
-            self._amount = amount
+            self._amount.copyFrom(amount)
             self.amountChanged.emit()
             self.validate()
 

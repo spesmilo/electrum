@@ -14,6 +14,7 @@ ElDialog {
     height: parent.height
 
     title: qsTr('Lightning Swap')
+    iconSource: Qt.resolvedUrl('../../icons/update.png')
     standardButtons: Dialog.Cancel
 
     modal: true

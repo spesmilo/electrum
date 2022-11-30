@@ -11,7 +11,7 @@ ElDialog {
 
     property bool valid: false
 
-    standardButtons: Dialog.Close
+    standardButtons: Dialog.Cancel
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {
@@ -23,6 +23,7 @@ ElDialog {
     padding: 0
 
     title: qsTr('Import channel backup')
+    iconSource: Qt.resolvedUrl('../../icons/file.png')
 
     function verifyChannelBackup(text) {
         return valid = Daemon.currentWallet.isValidChannelBackup(text)

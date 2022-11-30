@@ -140,7 +140,10 @@ Pane {
         FlatButton {
             Layout.fillWidth: true
             text: qsTr('Open Channel')
-            onClicked: app.stack.push(Qt.resolvedUrl('OpenChannel.qml'))
+            onClicked: {
+                var dialog = openChannelDialog.createObject(root)
+                dialog.open()
+            }
             icon.source: '../../icons/lightning.png'
         }
 
@@ -166,7 +169,16 @@ Pane {
 
     Component {
         id: swapDialog
-        SwapDialog {}
+        SwapDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: openChannelDialog
+        OpenChannelDialog {
+            onClosed: destroy()
+        }
     }
 
     Component {
