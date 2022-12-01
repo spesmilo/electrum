@@ -15,6 +15,7 @@ WizardComponent {
     property bool is2fa: false
     property int cosigner: 0
     property int participants: 0
+    property string multisigMasterPubkey: wizard_data['multisig_master_pubkey']
 
     function apply() {
         if (cosigner) {
@@ -85,14 +86,61 @@ WizardComponent {
 
             Label {
                 Layout.columnSpan: 2
-                text: qsTr('Cosigner #%1 of %2').arg(cosigner).arg(participants)
+                Layout.fillWidth: true
                 visible: cosigner
+                text: qsTr('Here is your master public key. Please share it with your cosigners')
+                wrapMode: Text.Wrap
+            }
+
+            TextHighlightPane {
+                visible: cosigner
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                padding: 0
+                leftPadding: constants.paddingSmall
+
+                RowLayout {
+                    width: parent.width
+                    Label {
+                        Layout.fillWidth: true
+                        text: multisigMasterPubkey
+                        font.pixelSize: constants.fontSizeMedium
+                        font.family: FixedFont
+                        wrapMode: Text.Wrap
+                    }
+                    ToolButton {
+                        icon.source: '../../../icons/share.png'
+                        icon.color: 'transparent'
+                        onClicked: {
+                            var dialog = app.genericShareDialog.createObject(app,
+                                { title: qsTr('Master public key'), text: multisigMasterPubkey }
+                            )
+                            dialog.open()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.preferredWidth: parent.width
+                Layout.preferredHeight: 1
+                Layout.topMargin: constants.paddingLarge
+                Layout.bottomMargin: constants.paddingLarge
+                visible: cosigner
+                color: Material.accentColor
             }
 
             Label {
+                Layout.columnSpan: 2
+                visible: cosigner
+                text: qsTr('Cosigner #%1 of %2').arg(cosigner).arg(participants)
+            }
+
+            Label {
+                Layout.fillWidth: true
                 visible: !is2fa
                 text: qsTr('Seed Type')
-                Layout.fillWidth: true
             }
             ComboBox {
                 id: seed_variant_cb
@@ -116,7 +164,7 @@ WizardComponent {
                 Layout.columnSpan: 2
             }
             Label {
-                text: qsTr('Enter your seed')
+                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
                 Layout.columnSpan: 2
             }
             SeedTextArea {

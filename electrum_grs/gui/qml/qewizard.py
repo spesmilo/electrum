@@ -60,7 +60,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': 'WCMultisig' },
-            'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
+            # 'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
             'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },

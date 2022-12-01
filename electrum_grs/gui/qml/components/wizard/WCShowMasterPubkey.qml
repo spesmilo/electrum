@@ -9,7 +9,7 @@ import "../controls"
 WizardComponent {
     valid: true
 
-    property string masterPubkey: ''
+    property string masterPubkey: wizard_data['multisig_master_pubkey']
 
     ColumnLayout {
         width: parent.width
@@ -48,17 +48,4 @@ WizardComponent {
         }
     }
 
-    Bitcoin {
-        id: bitcoin
-    }
-
-    Component.onCompleted: {
-        if ('master_key' in wizard_data) {
-            masterPubkey = bitcoin.getMultisigMasterPubkeyFromKey(wizard_data['master_key'])
-        } else if (wizard_data['seed_variant'] == 'electrum') {
-            masterPubkey = bitcoin.getMultisigMasterPubkeyFromSeed(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'])
-        } else {
-            masterPubkey = bitcoin.getMultisigMasterPubkeyFromSeed(wizard_data['seed_variant'], wizard_data['seed'], wizard_data['seed_extra_words'], wizard_data['derivation_path'])
-        }
-    }
 }

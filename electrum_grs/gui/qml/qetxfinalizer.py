@@ -12,6 +12,7 @@ from electrum_grs.network import NetworkException
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .util import QtEventListener, event_listener
 
 class FeeSlider(QObject):
     _wallet = None
@@ -372,18 +373,30 @@ class QETxFinalizer(TxFeeSlider):
         else:
             return str(self._tx)
 
-
-class QETxRbfFeeBumper(TxFeeSlider):
-    _logger = get_logger(__name__)
-
-    _oldfee = QEAmount()
-    _oldfee_rate = 0
-    _orig_tx = None
+# mixin for watching an existing TX based on its txid for verified event
+# requires self._wallet to contain a QEWallet instance
+# exposes txid qt property
+# calls get_tx() once txid is set
+# calls tx_verified and emits txMined signal once tx is verified
+class TxMonMixin(QtEventListener):
     _txid = ''
-    _rbf = True
+
+    txMined = pyqtSignal()
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        self._logger.debug('TxMonMixin.__init__')
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_verified(self, wallet, txid, info):
+        if wallet == self._wallet.wallet and txid == self._txid:
+            self._logger.debug('verified event for our txid %s' % txid)
+            self.tx_verified()
+            self.txMined.emit()
 
     txidChanged = pyqtSignal()
     @pyqtProperty(str, notify=txidChanged)
@@ -396,6 +409,25 @@ class QETxRbfFeeBumper(TxFeeSlider):
             self._txid = txid
             self.get_tx()
             self.txidChanged.emit()
+
+    # override
+    def get_tx(self):
+        pass
+
+    # override
+    def tx_verified(self):
+        pass
+
+class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
+    _logger = get_logger(__name__)
+
+    _oldfee = QEAmount()
+    _oldfee_rate = 0
+    _orig_tx = None
+    _rbf = True
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -502,7 +534,7 @@ class QETxRbfFeeBumper(TxFeeSlider):
     def getNewTx(self):
         return str(self._tx)
 
-class QETxCanceller(TxFeeSlider):
+class QETxCanceller(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
     _oldfee = QEAmount()
@@ -513,18 +545,6 @@ class QETxCanceller(TxFeeSlider):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
-    txidChanged = pyqtSignal()
-    @pyqtProperty(str, notify=txidChanged)
-    def txid(self):
-        return self._txid
-
-    @txid.setter
-    def txid(self, txid):
-        if self._txid != txid:
-            self._txid = txid
-            self.get_tx()
-            self.txidChanged.emit()
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -620,7 +640,7 @@ class QETxCanceller(TxFeeSlider):
     def getNewTx(self):
         return str(self._tx)
 
-class QETxCpfpFeeBumper(TxFeeSlider):
+class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
     _input_amount = QEAmount()
@@ -640,18 +660,6 @@ class QETxCpfpFeeBumper(TxFeeSlider):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
-    txidChanged = pyqtSignal()
-    @pyqtProperty(str, notify=txidChanged)
-    def txid(self):
-        return self._txid
-
-    @txid.setter
-    def txid(self, txid):
-        if self._txid != txid:
-            self._txid = txid
-            self.get_tx()
-            self.txidChanged.emit()
 
     totalFeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=totalFeeChanged)

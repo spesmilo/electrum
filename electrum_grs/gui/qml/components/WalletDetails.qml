@@ -295,6 +295,11 @@ Pane {
                                     text: '#' + index
                                     visible: keystores.count > 1
                                 }
+                                Image {
+                                    Layout.preferredWidth: constants.iconSizeXSmall
+                                    Layout.preferredHeight: constants.iconSizeXSmall
+                                    source: modelData.watch_only ? '../../icons/eye1.png' : '../../icons/key.png'
+                                }
                             }
                             TextHighlightPane {
                                 Layout.fillWidth: true

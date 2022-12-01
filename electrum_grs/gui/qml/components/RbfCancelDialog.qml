@@ -227,4 +227,10 @@ ElDialog {
         }
     }
 
+    Connections {
+        target: txcanceller
+        function onTxMined() {
+            dialog.close()
+        }
+    }
 }
