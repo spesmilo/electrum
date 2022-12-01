@@ -58,12 +58,14 @@ ElDialog {
             Layout.topMargin: constants.paddingSmall
             Layout.bottomMargin: constants.paddingSmall
 
-            Layout.preferredWidth: qrloader.width
-            Layout.preferredHeight: qrloader.height
+            // Layout.preferredWidth: qrloader.width
+            // Layout.preferredHeight: qrloader.height
+            Layout.preferredWidth: dialog.width * 7/8
+            Layout.preferredHeight: dialog.width * 7/8
 
             Loader {
                 id: qrloader
-
+                anchors.centerIn: parent
                 Component {
                     id: qri_bolt11
                     QRImage {
