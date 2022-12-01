@@ -8,8 +8,9 @@ from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_IN
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
+from .util import QtEventListener, event_listener
 
-class QERequestDetails(QObject):
+class QERequestDetails(QObject, QtEventListener):
 
     class Status:
         Unpaid = PR_UNPAID
@@ -32,16 +33,24 @@ class QERequestDetails(QObject):
     _amount = None
 
     detailsChanged = pyqtSignal() # generic request properties changed signal
+    statusChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
 
-    def __del__(self):
-        if self._wallet:
-            self._wallet.requestStatusChanged.disconnect(self.updateRequestStatus)
+    def on_destroy(self):
+        self.unregister_callbacks()
         if self._timer:
             self._timer.stop()
             self._timer = None
+
+    @event_listener
+    def on_event_request_status(self, wallet, key, status):
+        if wallet == self._wallet.wallet and key == self._key:
+            self._logger.debug('request status %d for key %s' % (status, key))
+            self.statusChanged.emit()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -51,13 +60,8 @@ class QERequestDetails(QObject):
     @wallet.setter
     def wallet(self, wallet: QEWallet):
         if self._wallet != wallet:
-            if self._wallet:
-                self._wallet.requestStatusChanged.disconnect(self.updateRequestStatus)
             self._wallet = wallet
             self.walletChanged.emit()
-
-            wallet.requestStatusChanged.connect(self.updateRequestStatus)
-
             self.initRequest()
 
     keyChanged = pyqtSignal()
@@ -114,13 +118,6 @@ class QERequestDetails(QObject):
     @pyqtProperty(str, notify=detailsChanged)
     def bip21(self):
         return self._req.get_bip21_URI() if self._req else ''
-
-
-    @pyqtSlot(str, int)
-    def updateRequestStatus(self, key, status):
-        if key == self._key:
-            self._logger.debug(f'request with key {key} updated status ({status})')
-            self.statusChanged.emit()
 
 
     def initRequest(self):
