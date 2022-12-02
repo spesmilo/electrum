@@ -107,6 +107,24 @@ ElDialog {
             }
 
             Label {
+                visible: !finalizer.extraFee.isEmpty
+                text: qsTr('Extra fee')
+                color: Material.accentColor
+            }
+
+            RowLayout {
+                visible: !finalizer.extraFee.isEmpty
+                Label {
+                    text: Config.formatSats(finalizer.extraFee)
+                }
+
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
+                }
+            }
+
+            Label {
                 text: qsTr('Fee rate')
                 color: Material.accentColor
             }

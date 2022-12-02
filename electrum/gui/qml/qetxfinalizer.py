@@ -9,6 +9,7 @@ from electrum.transaction import PartialTxOutput, PartialTransaction
 from electrum.util import NotEnoughFunds, profiler
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP
 from electrum.network import NetworkException
+from electrum.plugin import run_hook
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -227,6 +228,7 @@ class QETxFinalizer(TxFeeSlider):
     _address = ''
     _amount = QEAmount()
     _effectiveAmount = QEAmount()
+    _extraFee = QEAmount()
     _canRbf = False
 
     addressChanged = pyqtSignal()
@@ -256,6 +258,17 @@ class QETxFinalizer(TxFeeSlider):
     @pyqtProperty(QEAmount, notify=effectiveAmountChanged)
     def effectiveAmount(self):
         return self._effectiveAmount
+
+    extraFeeChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=extraFeeChanged)
+    def extraFee(self):
+        return self._extraFee
+
+    @extraFee.setter
+    def extraFee(self, extrafee):
+        if self._extraFee != extrafee:
+            self._extraFee.copyFrom(extrafee)
+            self.extraFeeChanged.emit()
 
     canRbfChanged = pyqtSignal()
     @pyqtProperty(bool, notify=canRbfChanged)
@@ -311,8 +324,11 @@ class QETxFinalizer(TxFeeSlider):
 
         self.update_from_tx(tx)
 
-        #TODO
-        #x_fee = run_hook('get_tx_extra_fee', self._wallet.wallet, tx)
+        x_fee = run_hook('get_tx_extra_fee', self._wallet.wallet, tx)
+        if x_fee:
+            x_fee_address, x_fee_amount = x_fee
+            self.extraFee = QEAmount(amount_sat=x_fee_amount)
+
         fee_warning_tuple = self._wallet.wallet.get_tx_fee_warning(
             invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
         if fee_warning_tuple:
