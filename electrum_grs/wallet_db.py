@@ -966,9 +966,9 @@ class WalletDB(JsonDB):
         if legacy_chans:
             raise WalletFileException(
                 f"This wallet contains {len(legacy_chans)} lightning channels of type 'LEGACY'. "
-                f"These channels were created using unreleased development versions of Electrum-GRS "
+                f"These channels were created using unreleased development versions of Electrum "
                 f"before the first lightning-capable release of 4.0, and are not supported anymore. "
-                f"Please use Electrum-GRS 4.3.0 to open this wallet, close the channels, "
+                f"Please use Electrum 4.3.0 to open this wallet, close the channels, "
                 f"and delete them from the wallet."
             )
         self.data['seed_version'] = 49
@@ -1055,7 +1055,7 @@ class WalletDB(JsonDB):
                 msg += "\nIt does not contain any keys, and can safely be removed."
             else:
                 # creation was complete if electrum-grs was run from source
-                msg += "\nPlease open this file with Electrum-GRS 1.9.8, and move your coins to a new wallet."
+                msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)
 
     @locked

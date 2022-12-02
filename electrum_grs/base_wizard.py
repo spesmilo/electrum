@@ -337,7 +337,7 @@ class BaseWizard(Logger):
             if sys.platform == 'win32':
                 msg += _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", '
                          'and do "Remove device". Then, plug your device again.') + '\n'
-                msg += _('While this is less than ideal, it might help if you run Electrum-GRS as Administrator.') + '\n'
+                msg += _('While this is less than ideal, it might help if you run Electrum as Administrator.') + '\n'
             else:
                 msg += _('On Linux, you might have to add a new permission to your udev rules.') + '\n'
             msg += '\n\n'
