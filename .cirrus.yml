@@ -258,7 +258,7 @@ task:
   container:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
-    memory: 1G
+    memory: 2G
   pip_cache:
     folder: contrib/build-linux/appimage/.cache/pip_cache
     fingerprint_script:
