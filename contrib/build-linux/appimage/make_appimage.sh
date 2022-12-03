@@ -61,7 +61,7 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
         --enable-ipv6 \
         --enable-shared \
         -q
-    make -j4 -s || fail "Could not build Python"
+    make "-j$CPU_COUNT" -s || fail "Could not build Python"
 )
 info "installing python."
 (
@@ -111,7 +111,7 @@ XCB_UTIL_VERSION="acf790d7752f36e450d476ad79807d4012ec863b"
     git checkout "${XCB_UTIL_VERSION}^{commit}"
     ./autogen.sh
     ./configure --enable-shared
-    make -j4 -s || fail "Could not build libxcb-util1"
+    make "-j$CPU_COUNT" -s || fail "Could not build libxcb-util1"
 ) || fail "Could build libxcb-util1"
 cp "$CACHEDIR/libxcb-util1/util/src/.libs/libxcb-util.so.1" "$APPDIR/usr/lib/libxcb-util.so.1"
 
