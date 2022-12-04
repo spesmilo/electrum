@@ -129,6 +129,8 @@ if [ -n "$GCC_TRIPLET_BUILD" ] ; then
 fi
 
 export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
+export CPU_COUNT="$(nproc 2> /dev/null || sysctl -n hw.ncpu)"
+info "Found $CPU_COUNT CPUs, which we might use for building."
 
 
 function break_legacy_easy_install() {

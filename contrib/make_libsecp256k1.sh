@@ -59,7 +59,7 @@ info "Building $pkgname..."
             --disable-static \
             --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
-    make -j4 || fail "Could not build $pkgname"
+    make "-j$CPU_COUNT" || fail "Could not build $pkgname"
     make install || fail "Could not install $pkgname"
     . "$here/$pkgname/dist/lib/libsecp256k1.la"
     host_strip "$here/$pkgname/dist/lib/$dlname"

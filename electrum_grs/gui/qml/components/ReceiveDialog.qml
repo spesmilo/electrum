@@ -32,6 +32,7 @@ ElDialog {
     padding: 0
 
     ColumnLayout {
+        visible: !_ispaid
         anchors.fill: parent
         spacing: 0
 
@@ -50,7 +51,6 @@ ElDialog {
                 id: rootLayout
                 width: parent.width
                 spacing: constants.paddingMedium
-                visible: !_ispaid
 
                 states: [
                     State {
@@ -361,7 +361,6 @@ ElDialog {
     RequestDetails {
         id: request
         wallet: Daemon.currentWallet
-        key: dialog.key
         onDetailsChanged: {
             if (bolt11) {
                 rootLayout.state = 'bolt11'
