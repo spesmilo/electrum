@@ -554,8 +554,8 @@ class FxThread(ThreadJob, EventListener):
     def remove_thousands_separator(text):
         return text.replace(',', '') # FIXME use THOUSAND_SEPARATOR in util
 
-    def ccy_amount_str(self, amount, commas):
-        prec = CCY_PRECISIONS.get(self.ccy, 2)
+    def ccy_amount_str(self, amount, commas, ccy=None):
+        prec = CCY_PRECISIONS.get(self.ccy if ccy is None else ccy, 2)
         fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec)) # FIXME use util.THOUSAND_SEPARATOR and util.DECIMAL_POINT
         try:
             rounded_amount = round(amount, prec)
