@@ -36,7 +36,7 @@ import inspect
 from collections import defaultdict
 from functools import wraps, partial
 from itertools import repeat
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
@@ -1322,6 +1322,34 @@ class Commands:
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }
 
+    @command('n')
+    async def convert_currency(self, from_amount, from_ccy = None, to_ccy = 'BTC'):
+        """Converts the given amount of currency to another using the
+        configured exchange rate source.
+        """
+        # Currency codes are uppercase
+        from_ccy = self.daemon.fx.ccy if from_ccy is None else from_ccy.upper()
+        to_ccy = to_ccy.upper()
+        # Get current rates
+        rate_from = self.daemon.fx.exchange.get_cached_spot_quote(from_ccy)
+        rate_to = self.daemon.fx.exchange.get_cached_spot_quote(to_ccy)
+        # Test if currencies exist
+        if rate_from.is_nan():
+              raise Exception('Currency to convert from is unknown')
+        if rate_to.is_nan():
+              raise Exception('Currency to convert to is unknown')
+        # Conversion
+        try:
+            amount = Decimal(from_amount) / rate_from * rate_to
+        except InvalidOperation:
+            raise Exception("from_amount is not a number")
+        return {
+            "amount": self.daemon.fx.ccy_amount_str(amount, False, to_ccy),
+            "from_ccy": from_ccy,
+            "to_ccy": to_ccy,
+            "source": self.daemon.fx.exchange.name(),
+        }
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1350,6 +1378,7 @@ param_descriptions = {
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
     'onchain_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
+    'from_amount': 'Amount to convert',
 }
 
 command_options = {
@@ -1401,6 +1430,8 @@ command_options = {
     'connection_string':      (None, "Lightning network node ID or network address"),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in sat/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
+    'from_ccy':    (None, "Currency to convert from"),
+    'to_ccy':      (None, "Currency to convert to (default: BTC)"),
 }
 
 
