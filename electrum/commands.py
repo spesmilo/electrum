@@ -1248,7 +1248,7 @@ class Commands:
     async def rebalance_channels(self, from_scid, dest_scid, amount, wallet: Abstract_Wallet = None):
         """
         Rebalance channels.
-        If trampoline is used, channels must be with diferent trampolines.
+        If trampoline is used, channels must be with different trampolines.
         """
         from .lnutil import ShortChannelID
         from_scid = ShortChannelID.from_str(from_scid)
@@ -1345,7 +1345,6 @@ param_descriptions = {
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
     'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
-    'requested_amount': 'Requested amount (in BTC).',
     'outputs': 'list of ["address", amount]',
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
