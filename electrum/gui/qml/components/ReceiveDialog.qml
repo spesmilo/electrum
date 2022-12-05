@@ -56,21 +56,21 @@ ElDialog {
                     State {
                         name: 'bolt11'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                        PropertyChanges { target: bolt11label; font.bold: true; color: Material.accentColor }
+                        PropertyChanges { target: bolt11label; color: Material.accentColor }
                     },
                     State {
                         name: 'bip21uri'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                        PropertyChanges { target: bip21label; font.bold: true; color: Material.accentColor }
+                        PropertyChanges { target: bip21label; color: Material.accentColor }
                     },
                     State {
                         name: 'address'
                         PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                        PropertyChanges { target: addresslabel; font.bold: true; color: Material.accentColor }
+                        PropertyChanges { target: addresslabel; color: Material.accentColor }
                     }
                 ]
 
-                Item {
+                Rectangle {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: constants.paddingSmall
                     Layout.bottomMargin: constants.paddingSmall
@@ -79,6 +79,8 @@ ElDialog {
                     // Layout.preferredHeight: qrloader.height
                     Layout.preferredWidth: dialog.width * 7/8
                     Layout.preferredHeight: dialog.width * 7/8
+
+                    color: 'white'
 
                     Loader {
                         id: qrloader
@@ -179,7 +181,7 @@ ElDialog {
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: qrloader.width
+                    Layout.preferredWidth: buttons.width
                     color: Material.accentColor
                 }
 
@@ -230,11 +232,12 @@ ElDialog {
                     visible: request.message || !request.amount.isEmpty
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: qrloader.width
+                    Layout.preferredWidth: buttons.width
                     color: Material.accentColor
                 }
 
                 RowLayout {
+                    id: buttons
                     Layout.alignment: Qt.AlignHCenter
                     FlatButton {
                         icon.source: '../../icons/copy_bw.png'
