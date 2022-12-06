@@ -34,7 +34,10 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'JOD': 3, 'JPY': 0, 'KMF': 0, 'KRW': 0, 'KWD': 3,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
-                  'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
+                  'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0,
+                  # Cryptocurrencies
+                  'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,
+                  }
 
 
 def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
@@ -173,6 +176,8 @@ class ExchangeBase(Logger):
 
     def get_cached_spot_quote(self, ccy: str) -> Decimal:
         """Returns the cached exchange rate as a Decimal"""
+        if ccy == 'BTC':
+            return Decimal(1)
         rate = self._quotes.get(ccy)
         if rate is None:
             return Decimal('NaN')
@@ -554,8 +559,8 @@ class FxThread(ThreadJob, EventListener):
     def remove_thousands_separator(text):
         return text.replace(',', '') # FIXME use THOUSAND_SEPARATOR in util
 
-    def ccy_amount_str(self, amount, commas):
-        prec = CCY_PRECISIONS.get(self.ccy, 2)
+    def ccy_amount_str(self, amount, commas, ccy=None):
+        prec = CCY_PRECISIONS.get(self.ccy if ccy is None else ccy, 2)
         fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec)) # FIXME use util.THOUSAND_SEPARATOR and util.DECIMAL_POINT
         try:
             rounded_amount = round(amount, prec)
