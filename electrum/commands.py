@@ -1323,14 +1323,22 @@ class Commands:
         }
 
     @command('n')
-    async def convert_currency(self, from_amount, from_ccy = None, to_ccy = 'BTC'):
+    async def convert_currency(self, from_amount=1, from_ccy = None, to_ccy = None):
         """Converts the given amount of currency to another using the
         configured exchange rate source.
         """
         if not self.daemon.fx.is_enabled():
             raise Exception("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
+        # Default currencies
+        if from_ccy is None and to_ccy is None:
+            from_ccy = 'BTC'
+            to_ccy = self.daemon.fx.ccy
+        elif from_ccy is None:
+            from_ccy = 'BTC'
+        elif to_ccy is None:
+            to_ccy = 'BTC'
         # Currency codes are uppercase
-        from_ccy = self.daemon.fx.ccy if from_ccy is None else from_ccy.upper()
+        from_ccy = from_ccy.upper()
         to_ccy = to_ccy.upper()
         # Get current rates
         rate_from = self.daemon.fx.exchange.get_cached_spot_quote(from_ccy)
@@ -1342,11 +1350,13 @@ class Commands:
             raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
         # Conversion
         try:
-            amount = Decimal(from_amount) / rate_from * rate_to
+            from_amount = Decimal(from_amount)
+            to_amount = from_amount / rate_from * rate_to
         except InvalidOperation:
             raise Exception("from_amount is not a number")
         return {
-            "amount": self.daemon.fx.ccy_amount_str(amount, False, to_ccy),
+            "from_amount": self.daemon.fx.ccy_amount_str(from_amount, False, from_ccy),
+            "to_amount": self.daemon.fx.ccy_amount_str(to_amount, False, to_ccy),
             "from_ccy": from_ccy,
             "to_ccy": to_ccy,
             "source": self.daemon.fx.exchange.name(),
@@ -1380,7 +1390,6 @@ param_descriptions = {
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
     'onchain_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
-    'from_amount': 'Amount to convert',
 }
 
 command_options = {
@@ -1432,8 +1441,9 @@ command_options = {
     'connection_string':      (None, "Lightning network node ID or network address"),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in sat/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
+    'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
-    'to_ccy':      (None, "Currency to convert to (default: BTC)"),
+    'to_ccy':      (None, "Currency to convert to"),
 }
 
 
