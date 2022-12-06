@@ -1327,6 +1327,8 @@ class Commands:
         """Converts the given amount of currency to another using the
         configured exchange rate source.
         """
+        if not self.daemon.fx.is_enabled():
+            raise Exception("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
         # Currency codes are uppercase
         from_ccy = self.daemon.fx.ccy if from_ccy is None else from_ccy.upper()
         to_ccy = to_ccy.upper()
@@ -1335,9 +1337,9 @@ class Commands:
         rate_to = self.daemon.fx.exchange.get_cached_spot_quote(to_ccy)
         # Test if currencies exist
         if rate_from.is_nan():
-              raise Exception('Currency to convert from is unknown')
+            raise Exception(f'Currency to convert from ({from_ccy}) is unknown or rate is unavailable')
         if rate_to.is_nan():
-              raise Exception('Currency to convert to is unknown')
+            raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
         # Conversion
         try:
             amount = Decimal(from_amount) / rate_from * rate_to
