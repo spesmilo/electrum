@@ -176,6 +176,8 @@ class ExchangeBase(Logger):
 
     def get_cached_spot_quote(self, ccy: str) -> Decimal:
         """Returns the cached exchange rate as a Decimal"""
+        if ccy == 'BTC':
+            return Decimal(1)
         rate = self._quotes.get(ccy)
         if rate is None:
             return Decimal('NaN')
