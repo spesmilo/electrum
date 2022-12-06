@@ -1323,23 +1323,20 @@ class Commands:
         }
 
     @command('n')
-    async def convert_currency(self, from_amount=1, from_ccy = None, to_ccy = None):
+    async def convert_currency(self, from_amount=1, from_ccy = '', to_ccy = ''):
         """Converts the given amount of currency to another using the
         configured exchange rate source.
         """
         if not self.daemon.fx.is_enabled():
             raise Exception("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
-        # Default currencies
-        if from_ccy is None and to_ccy is None:
-            from_ccy = 'BTC'
-            to_ccy = self.daemon.fx.ccy
-        elif from_ccy is None:
-            from_ccy = 'BTC'
-        elif to_ccy is None:
-            to_ccy = 'BTC'
         # Currency codes are uppercase
         from_ccy = from_ccy.upper()
         to_ccy = to_ccy.upper()
+        # Default currencies
+        if from_ccy == '':
+            from_ccy = "BTC" if to_ccy != "BTC" else self.daemon.fx.ccy
+        if to_ccy == '':
+            to_ccy = "BTC" if from_ccy != "BTC" else self.daemon.fx.ccy
         # Get current rates
         rate_from = self.daemon.fx.exchange.get_cached_spot_quote(from_ccy)
         rate_to = self.daemon.fx.exchange.get_cached_spot_quote(to_ccy)
