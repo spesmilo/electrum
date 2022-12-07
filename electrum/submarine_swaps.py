@@ -323,14 +323,16 @@ class SwapManager(Logger):
         if locktime - self.network.get_local_height() >= 144:
             raise Exception("fswap check failed: locktime too far in future")
         # create funding tx
+        # note: rbf must not decrease payment
+        # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
         funding_output = PartialTxOutput.from_address_and_value(lockup_address, onchain_amount)
         if tx is None:
-            tx = self.wallet.create_transaction(outputs=[funding_output], rbf=False, password=password)
+            tx = self.wallet.create_transaction(outputs=[funding_output], rbf=True, password=password)
         else:
             dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), expected_onchain_amount_sat)
             tx.outputs().remove(dummy_output)
             tx.add_outputs([funding_output])
-            tx.set_rbf(True)  # note: rbf must not decrease payment
+            tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
         # save swap data in wallet in case we need a refund
         receive_address = self.wallet.get_receiving_address()
