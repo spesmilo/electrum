@@ -204,8 +204,7 @@ async def sweep(
         locktime = get_locktime_for_new_transaction(network)
 
     tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime, version=tx_version)
-    rbf = bool(config.get('use_rbf', True))
-    tx.set_rbf(rbf)
+    tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
 
@@ -1420,8 +1419,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if not tx:
                 return 2, 'unknown'
             is_final = tx and tx.is_final()
-            if not is_final:
-                extra.append('rbf')
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:
                 size = tx.estimated_size()
@@ -1569,7 +1566,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee=None,
             change_addr: str = None,
             is_sweep=False,
-            rbf=False) -> PartialTransaction:
+            rbf=True) -> PartialTransaction:
         """Can raise NotEnoughFunds or NoDynamicFeeEstimates."""
 
         if not coins:  # any bitcoin tx must have at least 1 input by consensus
@@ -1668,7 +1665,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
-
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)
@@ -1677,7 +1673,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def mktx(self, *,
              outputs: List[PartialTxOutput],
              password=None, fee=None, change_addr=None,
-             domain=None, rbf=False, nonlocal_only=False,
+             domain=None, rbf=True, nonlocal_only=False,
              tx_version=None, sign=True) -> PartialTransaction:
         coins = self.get_spendable_coins(domain, nonlocal_only=nonlocal_only)
         tx = self.make_unsigned_transaction(
@@ -2726,7 +2722,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def create_transaction(self, outputs, *, fee=None, feerate=None, change_addr=None, domain_addr=None, domain_coins=None,
-              unsigned=False, rbf=None, password=None, locktime=None):
+                           unsigned=False, rbf=True, password=None, locktime=None):
         if fee is not None and feerate is not None:
             raise Exception("Cannot specify both 'fee' and 'feerate' at the same time!")
         coins = self.get_spendable_coins(domain_addr)
@@ -2744,8 +2740,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             change_addr=change_addr)
         if locktime is not None:
             tx.locktime = locktime
-        if rbf is None:
-            rbf = bool(self.config.get('use_rbf', True))
         tx.set_rbf(rbf)
         if not unsigned:
             self.sign_transaction(tx, password)

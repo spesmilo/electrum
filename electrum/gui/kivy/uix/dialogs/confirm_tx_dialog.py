@@ -26,7 +26,6 @@ Builder.load_string('''
     message: ''
     warning: ''
     extra_fee: ''
-    show_final: False
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
     method: 0
@@ -82,17 +81,6 @@ Builder.load_string('''
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint: 1, 0.2
-            Label:
-                text: _('Final')
-                opacity: int(root.show_final)
-            CheckBox:
-                id: final_cb
-                opacity: int(root.show_final)
-                disabled: not root.show_final
-                on_release: root.update_tx()
         Label:
             text: root.warning
             text_size: self.width, None
@@ -122,7 +110,7 @@ Builder.load_string('''
 
 class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
 
-    def __init__(self, app: 'ElectrumWindow', amount, make_tx, on_pay, *, show_final=True):
+    def __init__(self, app: 'ElectrumWindow', amount, make_tx, on_pay):
 
         Factory.Popup.__init__(self)
         FeeSliderDialog.__init__(self, app.electrum_config, self.ids.slider)
@@ -130,16 +118,14 @@ class ConfirmTxDialog(FeeSliderDialog, Factory.Popup):
         self.amount = amount
         self.make_tx = make_tx
         self.on_pay = on_pay
-        self.show_final = show_final
         self.update_slider()
         self.update_text()
         self.update_tx()
 
     def update_tx(self):
-        rbf = not bool(self.ids.final_cb.active) if self.show_final else False
         try:
             # make unsigned transaction
-            tx = self.make_tx(rbf)
+            tx = self.make_tx()
         except NotEnoughFunds:
             self.warning = _("Not enough funds")
             self.ids.ok_button.disabled = True

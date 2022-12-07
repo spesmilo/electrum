@@ -455,9 +455,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         # see qt/confirm_tx_dialog qt/main_window
         tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
         self._logger.info(str(tx.to_json()))
-
-        use_rbf = bool(self.wallet.config.get('use_rbf', True))
-        tx.set_rbf(use_rbf)
+        tx.set_rbf(True)
         self.sign(tx, broadcast=True)
 
     @auth_protect
