@@ -194,10 +194,6 @@ class ElectrumWindow(App, Logger, EventListener):
             cur_chain = self.network.blockchain().get_name()
             ChoiceDialog(_('Choose your chain'), names, cur_chain, cb).open()
 
-    use_rbf = BooleanProperty(False)
-    def on_use_rbf(self, instance, x):
-        self.electrum_config.set_key('use_rbf', self.use_rbf, True)
-
     use_gossip = BooleanProperty(False)
     def on_use_gossip(self, instance, x):
         self.electrum_config.set_key('use_gossip', self.use_gossip, True)
@@ -435,7 +431,6 @@ class ElectrumWindow(App, Logger, EventListener):
         self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
-        self.use_rbf = config.get('use_rbf', True)
         self.use_gossip = config.get('use_gossip', False)
         self.use_unconfirmed = not config.get('confirmed_only', False)
         self.enable_debug_logs = config.get('gui_enable_debug_logs', False)
