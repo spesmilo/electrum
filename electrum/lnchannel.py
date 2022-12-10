@@ -198,6 +198,9 @@ class AbstractChannel(Logger, ABC):
     def short_id_for_GUI(self) -> str:
         return format_short_channel_id(self.short_channel_id)
 
+    def diagnostic_name(self):
+        return self.get_id_for_log()
+
     def set_state(self, state: ChannelState, *, force: bool = False) -> None:
         """Set on-chain state.
         `force` can be set while debugging from the console to allow illegal transitions.
@@ -440,7 +443,6 @@ class ChannelBackup(AbstractChannel):
 
     def __init__(self, cb: ChannelBackupStorage, *, lnworker=None):
         self.name = None
-        Logger.__init__(self)
         self.cb = cb
         self.is_imported = isinstance(self.cb, ImportedChannelBackupStorage)
         self._sweep_info = {}
@@ -451,6 +453,7 @@ class ChannelBackup(AbstractChannel):
         self.funding_outpoint = cb.funding_outpoint()
         self.lnworker = lnworker
         self.short_channel_id = None
+        Logger.__init__(self)
         self.config = {}
         if self.is_imported:
             self.init_config(cb)
@@ -632,7 +635,7 @@ class Channel(AbstractChannel):
     def diagnostic_name(self):
         if self.name:
             return str(self.name)
-        return self.get_id_for_log()
+        return super().diagnostic_name()
 
     def set_onion_key(self, key: int, value: bytes):
         self.onion_keys[key] = value
