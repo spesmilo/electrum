@@ -36,7 +36,7 @@ import inspect
 from collections import defaultdict
 from functools import wraps, partial
 from itertools import repeat
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
@@ -1248,7 +1248,7 @@ class Commands:
     async def rebalance_channels(self, from_scid, dest_scid, amount, wallet: Abstract_Wallet = None):
         """
         Rebalance channels.
-        If trampoline is used, channels must be with diferent trampolines.
+        If trampoline is used, channels must be with different trampolines.
         """
         from .lnutil import ShortChannelID
         from_scid = ShortChannelID.from_str(from_scid)
@@ -1322,6 +1322,43 @@ class Commands:
             'onchain_amount': format_satoshis(onchain_amount_sat),
         }
 
+    @command('n')
+    async def convert_currency(self, from_amount=1, from_ccy = '', to_ccy = ''):
+        """Converts the given amount of currency to another using the
+        configured exchange rate source.
+        """
+        if not self.daemon.fx.is_enabled():
+            raise Exception("FX is disabled. To enable, run: 'electrum setconfig use_exchange_rate true'")
+        # Currency codes are uppercase
+        from_ccy = from_ccy.upper()
+        to_ccy = to_ccy.upper()
+        # Default currencies
+        if from_ccy == '':
+            from_ccy = "GRS" if to_ccy != "GRS" else self.daemon.fx.ccy
+        if to_ccy == '':
+            to_ccy = "GRS" if from_ccy != "GRS" else self.daemon.fx.ccy
+        # Get current rates
+        rate_from = self.daemon.fx.exchange.get_cached_spot_quote(from_ccy)
+        rate_to = self.daemon.fx.exchange.get_cached_spot_quote(to_ccy)
+        # Test if currencies exist
+        if rate_from.is_nan():
+            raise Exception(f'Currency to convert from ({from_ccy}) is unknown or rate is unavailable')
+        if rate_to.is_nan():
+            raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
+        # Conversion
+        try:
+            from_amount = Decimal(from_amount)
+            to_amount = from_amount / rate_from * rate_to
+        except InvalidOperation:
+            raise Exception("from_amount is not a number")
+        return {
+            "from_amount": self.daemon.fx.ccy_amount_str(from_amount, False, from_ccy),
+            "to_amount": self.daemon.fx.ccy_amount_str(to_amount, False, to_ccy),
+            "from_ccy": from_ccy,
+            "to_ccy": to_ccy,
+            "source": self.daemon.fx.exchange.name(),
+        }
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -1345,7 +1382,6 @@ param_descriptions = {
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
     'amount': 'Amount to be sent (in GRS). Type \'!\' to send the maximum available.',
-    'requested_amount': 'Requested amount (in GRS).',
     'outputs': 'list of ["address", amount]',
     'redeem_script': 'redeem script (hexadecimal)',
     'lightning_amount': "Amount sent or received in a submarine swap. Set it to 'dryrun' to receive a value",
@@ -1401,6 +1437,9 @@ command_options = {
     'connection_string':      (None, "Lightning network node ID or network address"),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in gro/byte)"),
     'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
+    'from_amount': (None, "Amount to convert (default: 1)"),
+    'from_ccy':    (None, "Currency to convert from"),
+    'to_ccy':      (None, "Currency to convert to"),
 }
 
 

@@ -538,6 +538,7 @@ class AddressSynchronizer(Logger, EventListener):
         # sanity check
         c, u, x = self.get_balance(domain)
         if balance != c + u + x:
+            self.logger.error(f'sanity check failed! c={c},u={u},x={x} while history balance={balance}')
             raise Exception("wallet.get_history() failed balance sanity-check")
         return h2
 
