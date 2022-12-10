@@ -41,9 +41,11 @@ class ChannelsList(MyTreeView):
         LOCAL_BALANCE = 4
         REMOTE_BALANCE = 5
         CHANNEL_STATUS = 6
+        LONG_CHANID = 7
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),
+        Columns.LONG_CHANID: _('Channel ID'),
         Columns.NODE_ALIAS: _('Node alias'),
         Columns.FEATURES: "",
         Columns.CAPACITY: _('Capacity'),
@@ -54,6 +56,7 @@ class ChannelsList(MyTreeView):
 
     filter_columns = [
         Columns.SHORT_CHANID,
+        Columns.LONG_CHANID,
         Columns.NODE_ALIAS,
         Columns.CHANNEL_STATUS,
     ]
@@ -99,6 +102,7 @@ class ChannelsList(MyTreeView):
         capacity_str = self.parent.format_amount(chan.get_capacity(), whitespaces=True)
         return {
             self.Columns.SHORT_CHANID: chan.short_id_for_GUI(),
+            self.Columns.LONG_CHANID: chan.channel_id.hex(),
             self.Columns.NODE_ALIAS: node_alias,
             self.Columns.FEATURES: '',
             self.Columns.CAPACITY: capacity_str,
@@ -294,6 +298,7 @@ class ChannelsList(MyTreeView):
             return
         self.model().clear()
         self.update_headers(self.headers)
+        self.set_visibility_of_columns()
         if not wallet.lnworker:
             return
         self.update_can_send(wallet.lnworker)
@@ -398,6 +403,11 @@ class ChannelsList(MyTreeView):
         from .new_channel_dialog import NewChannelDialog
         d = NewChannelDialog(self.parent, amount_sat, min_amount_sat)
         return d.run()
+
+    def set_visibility_of_columns(self):
+        def set_visible(col: int, b: bool):
+            self.showColumn(col) if b else self.hideColumn(col)
+        set_visible(self.Columns.LONG_CHANID, False)
 
 
 class ChannelFeature(ABC):
