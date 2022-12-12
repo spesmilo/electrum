@@ -47,6 +47,8 @@ class _BaseRBFDialog(WindowModalDialog):
 
         ok_button = OkButton(self)
         self.adv_button = QPushButton(_("Show advanced settings"))
+        self.adv_button.setEnabled(False)
+        self.adv_button.setVisible(False)
         warning_label = WWLabel('\n')
         warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
         self.feerate_e = FeerateEdit(lambda: 0)
@@ -115,21 +117,18 @@ class _BaseRBFDialog(WindowModalDialog):
         vbox.addWidget(adv_widget)
 
     def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
-        self.cb_rbf = QCheckBox(_('Keep Replace-By-Fee enabled'))
-        self.cb_rbf.setChecked(True)
-        adv_vbox.addWidget(self.cb_rbf)
+        pass
 
     def run(self) -> None:
         if not self.exec_():
             return
-        is_rbf = self.cb_rbf.isChecked()
         new_fee_rate = self.feerate_e.get_amount()
         try:
             new_tx = self.rbf_func(new_fee_rate)
         except Exception as e:
             self.window.show_error(str(e))
             return
-        new_tx.set_rbf(is_rbf)
+        new_tx.set_rbf(True)
         tx_label = self.wallet.get_label_for_txid(self.txid)
         self.window.show_transaction(new_tx, tx_desc=tx_label)
         # TODO maybe save tx_label as label for new tx??
@@ -164,10 +163,8 @@ class BumpFeeDialog(_BaseRBFDialog):
         )
 
     def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
-        self.cb_rbf = QCheckBox(_('Keep Replace-By-Fee enabled'))
-        self.cb_rbf.setChecked(True)
-        adv_vbox.addWidget(self.cb_rbf)
-
+        self.adv_button.setVisible(True)
+        self.adv_button.setEnabled(True)
         self.strat_combo = QComboBox()
         options = [
             _("decrease change, or add new inputs, or decrease any outputs"),

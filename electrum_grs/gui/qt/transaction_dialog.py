@@ -680,9 +680,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox_right.addWidget(self.size_label)
         self.rbf_label = TxDetailLabel()
         vbox_right.addWidget(self.rbf_label)
-        self.rbf_cb = QCheckBox(_('Replace by fee'))
-        self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
-        vbox_right.addWidget(self.rbf_cb)
 
         self.locktime_final_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_final_label)
@@ -713,7 +710,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
-        self.rbf_cb.setVisible(not self.finalized)
         self.locktime_final_label.setVisible(self.finalized)
         self.locktime_setter_widget.setVisible(not self.finalized)
 
@@ -982,11 +978,11 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
         assert self.tx
         self.finalized = True
         self.stop_editor_updates()
-        self.tx.set_rbf(self.rbf_cb.isChecked())
+        self.tx.set_rbf(True)
         locktime = self.locktime_e.get_locktime()
         if locktime is not None:
             self.tx.locktime = locktime
-        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
+        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
             widget.setVisible(False)

@@ -401,12 +401,10 @@ class DeviceMgr(ThreadJob):
 
     def __init__(self, config: SimpleConfig):
         ThreadJob.__init__(self)
-        # Keyed by xpub.  The value is the device id
-        # has been paired, and None otherwise. Needs self.lock.
+        # An xpub->id_ map. Item only present if we have active pairing. Needs self.lock.
         self.xpub_ids = {}  # type: Dict[str, str]
-        # A list of clients.  The key is the client, the value is
-        # a (path, id_) pair. Needs self.lock.
-        self.clients = {}  # type: Dict[HardwareClientBase, Tuple[Union[str, bytes], str]]
+        # A client->id_ map. Needs self.lock.
+        self.clients = {}  # type: Dict[HardwareClientBase, str]
         # What we recognise.  (vendor_id, product_id) -> Plugin
         self._recognised_hardware = {}  # type: Dict[Tuple[int, int], HW_PluginBase]
         self._recognised_vendor = {}  # type: Dict[int, HW_PluginBase]  # vendor_id -> Plugin
@@ -453,7 +451,7 @@ class DeviceMgr(ThreadJob):
         if client:
             self.logger.info(f"Registering {client}")
             with self.lock:
-                self.clients[client] = (device.path, device.id_)
+                self.clients[client] = device.id_
         return client
 
     def xpub_id(self, xpub):
@@ -494,7 +492,7 @@ class DeviceMgr(ThreadJob):
 
     def _client_by_id(self, id_) -> Optional['HardwareClientBase']:
         with self.lock:
-            for client, (path, client_id) in self.clients.items():
+            for client, client_id in self.clients.items():
                 if client_id == id_:
                     return client
         return None
@@ -738,15 +736,15 @@ class DeviceMgr(ThreadJob):
                 devices.extend(new_devices)
 
         # find out what was disconnected
-        pairs = [(dev.path, dev.id_) for dev in devices]
+        client_ids = [dev.id_ for dev in devices]
         disconnected_clients = []
         with self.lock:
             connected = {}
-            for client, pair in self.clients.items():
-                if pair in pairs and client.has_usable_connection_with_device():
-                    connected[client] = pair
+            for client, id_ in self.clients.items():
+                if id_ in client_ids and client.has_usable_connection_with_device():
+                    connected[client] = id_
                 else:
-                    disconnected_clients.append((client, pair[1]))
+                    disconnected_clients.append((client, id_))
             self.clients = connected
 
         # Unpair disconnected devices

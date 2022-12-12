@@ -146,16 +146,6 @@ class QEConfig(AuthMixin, QObject):
         self.config.set_key('gui_enable_debug_logs', enable)
         self.enableDebugLogsChanged.emit()
 
-    useRbfChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=useRbfChanged)
-    def useRbf(self):
-        return self.config.get('use_rbf', True)
-
-    @useRbf.setter
-    def useRbf(self, useRbf):
-        self.config.set_key('use_rbf', useRbf)
-        self.useRbfChanged.emit()
-
     useRecoverableChannelsChanged = pyqtSignal()
     @pyqtProperty(bool, notify=useRecoverableChannelsChanged)
     def useRecoverableChannels(self):

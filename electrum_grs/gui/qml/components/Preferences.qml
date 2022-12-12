@@ -130,16 +130,6 @@ Pane {
                         }
                     }
 
-                    Switch {
-                        id: useRbf
-                        text: qsTr('Use Replace-By-Fee')
-                        Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.useRbf = checked
-                        }
-                    }
-
                     Label {
                         text: qsTr('Default request expiry')
                         Layout.fillWidth: false
@@ -269,7 +259,6 @@ Pane {
         lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
-        useRbf.checked = Config.useRbf
         useRecoverableChannels.checked = Config.useRecoverableChannels
     }
 }
