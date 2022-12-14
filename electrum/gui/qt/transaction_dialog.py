@@ -43,6 +43,7 @@ from qrcode import exceptions
 from electrum.simple_config import SimpleConfig
 from electrum.util import quantize_feerate
 from electrum import bitcoin
+
 from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
@@ -59,10 +60,6 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
                    get_iconname_qrcode)
 
-from .fee_slider import FeeSlider, FeeComboBox
-from .confirm_tx_dialog import TxEditor
-from .amountedit import FeerateEdit, BTCAmountEdit
-from .locktimeedit import LockTimeEdit
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -353,6 +350,7 @@ class TxInOutWidget(QWidget):
         menu.exec_(global_pos)
 
 
+
 def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, prompt_if_unsaved=False):
     try:
         d = TxDialog(tx, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved)
@@ -428,9 +426,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.export_actions_button.setMenu(export_actions_menu)
         self.export_actions_button.setPopupMode(QToolButton.InstantPopup)
 
-        self.finalize_button = QPushButton(_('Finalize'))
-        self.finalize_button.clicked.connect(self.on_finalize)
-
         partial_tx_actions_menu = QMenu()
         ptx_merge_sigs_action = QAction(_("Merge signatures from"), self)
         ptx_merge_sigs_action.triggered.connect(self.merge_sigs)
@@ -447,11 +442,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # Action buttons
         self.buttons = [self.partial_tx_actions_button, self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.finalize_button, self.export_actions_button, self.save_button]
+        self.sharing_buttons = [self.export_actions_button, self.save_button]
         run_hook('transaction_dialog', self)
-        if not self.finalized:
-            self.create_fee_controls()
-            vbox.addWidget(self.feecontrol_fields)
+        #if not self.finalized:
+        #    self.create_fee_controls()
+        #    vbox.addWidget(self.feecontrol_fields)
         self.hbox = hbox = QHBoxLayout()
         hbox.addLayout(Buttons(*self.sharing_buttons))
         hbox.addStretch(1)
@@ -464,8 +459,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
     def set_buttons_visibility(self):
         for b in [self.export_actions_button, self.save_button, self.sign_button, self.broadcast_button, self.partial_tx_actions_button]:
             b.setVisible(self.finalized)
-        for b in [self.finalize_button]:
-            b.setVisible(not self.finalized)
 
     def set_tx(self, tx: 'Transaction'):
         # Take a copy; it might get updated in the main window by
@@ -659,9 +652,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.update()
 
     def update(self):
-        if not self.finalized:
-            self.update_fee_fields()
-            self.finalize_button.setEnabled(self.can_finalize())
         if self.tx is None:
             return
         self.io_widget.update(self.tx)
@@ -723,8 +713,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         else:
             locktime_final_str = f"LockTime: {self.tx.locktime} ({datetime.datetime.fromtimestamp(self.tx.locktime)})"
         self.locktime_final_label.setText(locktime_final_str)
-        if self.locktime_e.get_locktime() is None:
-            self.locktime_e.set_locktime(self.tx.locktime)
+
         self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
 
         if tx_mined_status.header_hash:
@@ -768,10 +757,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             fee_rate = Decimal(fee) / size  # sat/byte
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
             if isinstance(self.tx, PartialTransaction):
-                if isinstance(self, PreviewTxDialog):
-                    invoice_amt = self.tx.output_value() if self.output_value == '!' else self.output_value
-                else:
-                    invoice_amt = amount
+                invoice_amt = amount
                 fee_warning_tuple = self.wallet.get_tx_fee_warning(
                     invoice_amt=invoice_amt, tx_size=size, fee=fee)
                 if fee_warning_tuple:
@@ -865,19 +851,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.locktime_final_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_final_label)
 
-        locktime_setter_hbox = QHBoxLayout()
-        locktime_setter_hbox.setContentsMargins(0, 0, 0, 0)
-        locktime_setter_hbox.setSpacing(0)
-        locktime_setter_label = TxDetailLabel()
-        locktime_setter_label.setText("LockTime: ")
-        self.locktime_e = LockTimeEdit(self)
-        locktime_setter_hbox.addWidget(locktime_setter_label)
-        locktime_setter_hbox.addWidget(self.locktime_e)
-        locktime_setter_hbox.addStretch(1)
-        self.locktime_setter_widget = QWidget()
-        self.locktime_setter_widget.setLayout(locktime_setter_hbox)
-        vbox_right.addWidget(self.locktime_setter_widget)
-
         self.block_height_label = TxDetailLabel()
         vbox_right.addWidget(self.block_height_label)
         vbox_right.addStretch(1)
@@ -892,7 +865,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
         self.locktime_final_label.setVisible(self.finalized)
-        self.locktime_setter_widget.setVisible(not self.finalized)
 
     def set_title(self):
         self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
@@ -947,228 +919,3 @@ class TxDialog(BaseTxDialog):
         self.update()
 
 
-class PreviewTxDialog(BaseTxDialog, TxEditor):
-
-    def __init__(
-            self,
-            *,
-            make_tx,
-            external_keypairs,
-            window: 'ElectrumWindow',
-            output_value: Union[int, str],
-    ):
-        TxEditor.__init__(
-            self,
-            window=window,
-            make_tx=make_tx,
-            is_sweep=bool(external_keypairs),
-            output_value=output_value,
-        )
-        BaseTxDialog.__init__(self, parent=window, desc='', prompt_if_unsaved=False,
-                              finalized=False, external_keypairs=external_keypairs)
-        BlockingWaitingDialog(window, _("Preparing transaction..."),
-                              lambda: self.update_tx(fallback_to_zero_fee=True))
-        self.update()
-
-    def create_fee_controls(self):
-
-        self.size_e = TxSizeLabel()
-        self.size_e.setAlignment(Qt.AlignCenter)
-        self.size_e.setAmount(0)
-        self.size_e.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-
-        self.fiat_fee_label = TxFiatLabel()
-        self.fiat_fee_label.setAlignment(Qt.AlignCenter)
-        self.fiat_fee_label.setAmount(0)
-        self.fiat_fee_label.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
-
-        self.feerate_e = FeerateEdit(lambda: 0)
-        self.feerate_e.setAmount(self.config.fee_per_byte())
-        self.feerate_e.textEdited.connect(partial(self.on_fee_or_feerate, self.feerate_e, False))
-        self.feerate_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.feerate_e, True))
-
-        self.fee_e = BTCAmountEdit(self.main_window.get_decimal_point)
-        self.fee_e.textEdited.connect(partial(self.on_fee_or_feerate, self.fee_e, False))
-        self.fee_e.editingFinished.connect(partial(self.on_fee_or_feerate, self.fee_e, True))
-
-        self.fee_e.textChanged.connect(self.entry_changed)
-        self.feerate_e.textChanged.connect(self.entry_changed)
-
-        self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
-        self.fee_combo = FeeComboBox(self.fee_slider)
-        self.fee_slider.setFixedWidth(self.fee_e.width())
-
-        def feerounding_onclick():
-            text = (self.feerounding_text + '\n\n' +
-                    _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
-                    _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
-                    _('Also, dust is not kept as change, but added to the fee.')  + '\n' +
-                    _('Also, when batching RBF transactions, BIP 125 imposes a lower bound on the fee.'))
-            self.show_message(title=_('Fee rounding'), msg=text)
-
-        self.feerounding_icon = QToolButton()
-        self.feerounding_icon.setIcon(read_QIcon('info.png'))
-        self.feerounding_icon.setAutoRaise(True)
-        self.feerounding_icon.clicked.connect(feerounding_onclick)
-        self.feerounding_icon.setVisible(False)
-
-        self.feecontrol_fields = QWidget()
-        hbox = QHBoxLayout(self.feecontrol_fields)
-        hbox.setContentsMargins(0, 0, 0, 0)
-        grid = QGridLayout()
-        grid.addWidget(QLabel(_("Target fee:")), 0, 0)
-        grid.addWidget(self.feerate_e, 0, 1)
-        grid.addWidget(self.size_e, 0, 2)
-        grid.addWidget(self.fee_e, 0, 3)
-        grid.addWidget(self.feerounding_icon, 0, 4)
-        grid.addWidget(self.fiat_fee_label, 0, 5)
-        grid.addWidget(self.fee_slider, 1, 1)
-        grid.addWidget(self.fee_combo, 1, 2)
-        hbox.addLayout(grid)
-        hbox.addStretch(1)
-
-    def fee_slider_callback(self, dyn, pos, fee_rate):
-        super().fee_slider_callback(dyn, pos, fee_rate)
-        self.fee_slider.activate()
-        if fee_rate:
-            fee_rate = Decimal(fee_rate)
-            self.feerate_e.setAmount(quantize_feerate(fee_rate / 1000))
-        else:
-            self.feerate_e.setAmount(None)
-        self.fee_e.setModified(False)
-
-    def on_fee_or_feerate(self, edit_changed, editing_finished):
-        edit_other = self.feerate_e if edit_changed == self.fee_e else self.fee_e
-        if editing_finished:
-            if edit_changed.get_amount() is None:
-                # This is so that when the user blanks the fee and moves on,
-                # we go back to auto-calculate mode and put a fee back.
-                edit_changed.setModified(False)
-        else:
-            # edit_changed was edited just now, so make sure we will
-            # freeze the correct fee setting (this)
-            edit_other.setModified(False)
-        self.fee_slider.deactivate()
-        self.update()
-
-    def is_send_fee_frozen(self):
-        return self.fee_e.isVisible() and self.fee_e.isModified() \
-               and (self.fee_e.text() or self.fee_e.hasFocus())
-
-    def is_send_feerate_frozen(self):
-        return self.feerate_e.isVisible() and self.feerate_e.isModified() \
-               and (self.feerate_e.text() or self.feerate_e.hasFocus())
-
-    def set_feerounding_text(self, num_satoshis_added):
-        self.feerounding_text = (_('Additional {} satoshis are going to be added.')
-                                 .format(num_satoshis_added))
-
-    def get_fee_estimator(self):
-        if self.is_send_fee_frozen() and self.fee_e.get_amount() is not None:
-            fee_estimator = self.fee_e.get_amount()
-        elif self.is_send_feerate_frozen() and self.feerate_e.get_amount() is not None:
-            amount = self.feerate_e.get_amount()  # sat/byte feerate
-            amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
-            fee_estimator = partial(
-                SimpleConfig.estimate_fee_for_feerate, amount)
-        else:
-            fee_estimator = None
-        return fee_estimator
-
-    def entry_changed(self):
-        # blue color denotes auto-filled values
-        text = ""
-        fee_color = ColorScheme.DEFAULT
-        feerate_color = ColorScheme.DEFAULT
-        if self.not_enough_funds:
-            fee_color = ColorScheme.RED
-            feerate_color = ColorScheme.RED
-        elif self.fee_e.isModified():
-            feerate_color = ColorScheme.BLUE
-        elif self.feerate_e.isModified():
-            fee_color = ColorScheme.BLUE
-        else:
-            fee_color = ColorScheme.BLUE
-            feerate_color = ColorScheme.BLUE
-        self.fee_e.setStyleSheet(fee_color.as_stylesheet())
-        self.feerate_e.setStyleSheet(feerate_color.as_stylesheet())
-        #
-        self.needs_update = True
-
-    def update_fee_fields(self):
-        freeze_fee = self.is_send_fee_frozen()
-        freeze_feerate = self.is_send_feerate_frozen()
-        tx = self.tx
-        if self.no_dynfee_estimates and tx:
-            size = tx.estimated_size()
-            self.size_e.setAmount(size)
-        if self.not_enough_funds or self.no_dynfee_estimates:
-            if not freeze_fee:
-                self.fee_e.setAmount(None)
-            if not freeze_feerate:
-                self.feerate_e.setAmount(None)
-            self.feerounding_icon.setVisible(False)
-            return
-
-        assert tx is not None
-        size = tx.estimated_size()
-        fee = tx.get_fee()
-
-        self.size_e.setAmount(size)
-        fiat_fee = self.main_window.format_fiat_and_units(fee)
-        self.fiat_fee_label.setAmount(fiat_fee)
-
-        # Displayed fee/fee_rate values are set according to user input.
-        # Due to rounding or dropping dust in CoinChooser,
-        # actual fees often differ somewhat.
-        if freeze_feerate or self.fee_slider.is_active():
-            displayed_feerate = self.feerate_e.get_amount()
-            if displayed_feerate is not None:
-                displayed_feerate = quantize_feerate(displayed_feerate)
-            elif self.fee_slider.is_active():
-                # fallback to actual fee
-                displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
-                self.feerate_e.setAmount(displayed_feerate)
-            displayed_fee = round(displayed_feerate * size) if displayed_feerate is not None else None
-            self.fee_e.setAmount(displayed_fee)
-        else:
-            if freeze_fee:
-                displayed_fee = self.fee_e.get_amount()
-            else:
-                # fallback to actual fee if nothing is frozen
-                displayed_fee = fee
-                self.fee_e.setAmount(displayed_fee)
-            displayed_fee = displayed_fee if displayed_fee else 0
-            displayed_feerate = quantize_feerate(displayed_fee / size) if displayed_fee is not None else None
-            self.feerate_e.setAmount(displayed_feerate)
-
-        # show/hide fee rounding icon
-        feerounding = (fee - displayed_fee) if (fee and displayed_fee is not None) else 0
-        self.set_feerounding_text(int(feerounding))
-        self.feerounding_icon.setToolTip(self.feerounding_text)
-        self.feerounding_icon.setVisible(abs(feerounding) >= 1)
-
-    def can_finalize(self):
-        return (self.tx is not None
-                and not self.not_enough_funds)
-
-    def on_finalize(self):
-        if not self.can_finalize():
-            return
-        assert self.tx
-        self.finalized = True
-        self.stop_editor_updates()
-        self.tx.set_rbf(True)
-        locktime = self.locktime_e.get_locktime()
-        if locktime is not None:
-            self.tx.locktime = locktime
-        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields,
-                       self.locktime_setter_widget, self.locktime_e]:
-            widget.setEnabled(False)
-            widget.setVisible(False)
-        for widget in [self.rbf_label, self.locktime_final_label]:
-            widget.setVisible(True)
-        self.set_title()
-        self.set_buttons_visibility()
-        self.update()
