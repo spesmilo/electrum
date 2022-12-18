@@ -32,7 +32,7 @@ from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Seque
 import binascii
 
 from . import util, bitcoin
-from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
+from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh, is_hex_str
 from .invoices import Invoice
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
@@ -1059,60 +1059,60 @@ class WalletDB(JsonDB):
         raise WalletFileException(msg)
 
     @locked
-    def get_txi_addresses(self, tx_hash: str) -> List[str]:
-        """Returns list of is_mine addresses that appear as inputs in tx."""
+    def get_txi_scriptpubkeys(self, tx_hash: str) -> List[str]:
+        """Returns list of is_mine scriptPubKeys that appear as inputs in tx."""
         assert isinstance(tx_hash, str)
         return list(self.txi.get(tx_hash, {}).keys())
 
     @locked
-    def get_txo_addresses(self, tx_hash: str) -> List[str]:
-        """Returns list of is_mine addresses that appear as outputs in tx."""
+    def get_txo_scriptpubkeys(self, tx_hash: str) -> List[str]:
+        """Returns list of is_mine scriptPubKeys that appear as outputs in tx."""
         assert isinstance(tx_hash, str)
         return list(self.txo.get(tx_hash, {}).keys())
 
     @locked
-    def get_txi_addr(self, tx_hash: str, address: str) -> Iterable[Tuple[str, int]]:
+    def get_txi_spk(self, tx_hash: str, spk: str) -> Iterable[Tuple[str, int]]:
         """Returns an iterable of (prev_outpoint, value)."""
         assert isinstance(tx_hash, str)
-        assert isinstance(address, str)
-        d = self.txi.get(tx_hash, {}).get(address, {})
+        assert is_hex_str(spk)
+        d = self.txi.get(tx_hash, {}).get(spk, {})
         return list(d.items())
 
     @locked
-    def get_txo_addr(self, tx_hash: str, address: str) -> Dict[int, Tuple[int, bool]]:
+    def get_txo_spk(self, tx_hash: str, spk: str) -> Dict[int, Tuple[int, bool]]:
         """Returns a dict: output_index -> (value, is_coinbase)."""
         assert isinstance(tx_hash, str)
-        assert isinstance(address, str)
-        d = self.txo.get(tx_hash, {}).get(address, {})
+        assert is_hex_str(spk)
+        d = self.txo.get(tx_hash, {}).get(spk, {})
         return {int(n): (v, cb) for (n, (v, cb)) in d.items()}
 
     @modifier
-    def add_txi_addr(self, tx_hash: str, addr: str, ser: str, v: int) -> None:
+    def add_txi_spk(self, tx_hash: str, spk: str, ser: str, v: int) -> None:
         assert isinstance(tx_hash, str)
-        assert isinstance(addr, str)
+        assert is_hex_str(spk)
         assert isinstance(ser, str)
         assert isinstance(v, int)
         if tx_hash not in self.txi:
             self.txi[tx_hash] = {}
         d = self.txi[tx_hash]
-        if addr not in d:
-            d[addr] = {}
-        d[addr][ser] = v
+        if spk not in d:
+            d[spk] = {}
+        d[spk][ser] = v
 
     @modifier
-    def add_txo_addr(self, tx_hash: str, addr: str, n: Union[int, str], v: int, is_coinbase: bool) -> None:
+    def add_txo_spk(self, tx_hash: str, spk: str, n: Union[int, str], v: int, is_coinbase: bool) -> None:
         n = str(n)
         assert isinstance(tx_hash, str)
-        assert isinstance(addr, str)
+        assert is_hex_str(spk)
         assert isinstance(n, str)
         assert isinstance(v, int)
         assert isinstance(is_coinbase, bool)
         if tx_hash not in self.txo:
             self.txo[tx_hash] = {}
         d = self.txo[tx_hash]
-        if addr not in d:
-            d[addr] = {}
-        d[addr][n] = (v, is_coinbase)
+        if spk not in d:
+            d[spk] = {}
+        d[spk][n] = (v, is_coinbase)
 
     @locked
     def list_txi(self) -> Sequence[str]:
@@ -1224,28 +1224,28 @@ class WalletDB(JsonDB):
         return list(self.transactions.keys())
 
     @locked
-    def get_history(self) -> Sequence[str]:
+    def get_scriptpubkeys(self) -> Sequence[str]:
         return list(self.history.keys())
 
-    def is_addr_in_history(self, addr: str) -> bool:
+    def is_spk_in_history(self, spk: str) -> bool:
         # does not mean history is non-empty!
-        assert isinstance(addr, str)
-        return addr in self.history
+        assert is_hex_str(spk)
+        return spk in self.history
 
     @locked
-    def get_addr_history(self, addr: str) -> Sequence[Tuple[str, int]]:
-        assert isinstance(addr, str)
-        return self.history.get(addr, [])
+    def get_spk_history(self, spk: str) -> Sequence[Tuple[str, int]]:
+        assert is_hex_str(spk)
+        return self.history.get(spk, [])
 
     @modifier
-    def set_addr_history(self, addr: str, hist) -> None:
-        assert isinstance(addr, str)
-        self.history[addr] = hist
+    def set_spk_history(self, spk: str, hist) -> None:
+        assert is_hex_str(spk)
+        self.history[spk] = hist
 
     @modifier
-    def remove_addr_history(self, addr: str) -> None:
-        assert isinstance(addr, str)
-        self.history.pop(addr, None)
+    def remove_spk_history(self, spk: str) -> None:
+        assert is_hex_str(spk)
+        self.history.pop(spk, None)
 
     @locked
     def list_verified_tx(self) -> Sequence[str]:
@@ -1418,20 +1418,20 @@ class WalletDB(JsonDB):
         self.data = StoredDict(self.data, self, [])
         # references in self.data
         # TODO make all these private
-        # txid -> address -> prev_outpoint -> value
+        # txid -> spk -> prev_outpoint -> value
         self.txi = self.get_dict('txi')                          # type: Dict[str, Dict[str, Dict[str, int]]]
-        # txid -> address -> output_index -> (value, is_coinbase)
+        # txid -> spk -> output_index -> (value, is_coinbase)
         self.txo = self.get_dict('txo')                          # type: Dict[str, Dict[str, Dict[str, Tuple[int, bool]]]]
         self.transactions = self.get_dict('transactions')        # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_dict('spent_outpoints')  # txid -> output_index -> next_txid
-        self.history = self.get_dict('addr_history')             # address -> list of (txid, height)
+        self.history = self.get_dict('addr_history')             # spk -> list of (txid, height)
         self.verified_tx = self.get_dict('verified_tx3')         # txid -> (height, timestamp, txpos, header_hash)
         self.tx_fees = self.get_dict('tx_fees')                  # type: Dict[str, TxFeesValue]
         # scripthash -> set of (outpoint, value)
         self._prevouts_by_scripthash = self.get_dict('prevouts_by_scripthash')  # type: Dict[str, Set[Tuple[str, int]]]
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
-            if not self.get_txi_addresses(tx_hash) and not self.get_txo_addresses(tx_hash):
+            if not self.get_txi_scriptpubkeys(tx_hash) and not self.get_txo_scriptpubkeys(tx_hash):
                 self.logger.info(f"removing unreferenced tx: {tx_hash}")
                 self.transactions.pop(tx_hash)
         # remove unreferenced outpoints

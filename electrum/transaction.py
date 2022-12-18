@@ -1259,7 +1259,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self.num_sig = 0  # type: int  # num req sigs for multisig
         self.pubkeys = []  # type: List[bytes]  # note: order matters
         self._trusted_value_sats = None  # type: Optional[int]
-        self._trusted_address = None  # type: Optional[str]
+        self._trusted_scriptpubkey = None  # type: Optional[bytes]
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
         self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
@@ -1450,17 +1450,14 @@ class PartialTxInput(TxInput, PSBTSection):
 
     @property
     def address(self) -> Optional[str]:
-        if self._trusted_address is not None:
-            return self._trusted_address
-        scriptpubkey = self.scriptpubkey
-        if scriptpubkey:
+        if scriptpubkey := self.scriptpubkey:
             return get_address_from_output_script(scriptpubkey)
         return None
 
     @property
     def scriptpubkey(self) -> Optional[bytes]:
-        if self._trusted_address is not None:
-            return bfh(bitcoin.address_to_script(self._trusted_address))
+        if self._trusted_scriptpubkey is not None:
+            return self._trusted_scriptpubkey
         if self.utxo:
             out_idx = self.prevout.out_idx
             return self.utxo.outputs()[out_idx].scriptpubkey

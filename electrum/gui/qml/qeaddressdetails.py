@@ -1,5 +1,6 @@
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
+from electrum import bitcoin
 from electrum.logging import get_logger
 
 from .qetransactionlistmodel import QETransactionListModel
@@ -112,6 +113,7 @@ class QEAddressDetails(QObject):
         if self._wallet is None:
             self._logger.error('wallet undefined')
             return
+        spk = bitcoin.address_to_script(self._address)
 
         self._frozen = self._wallet.wallet.is_frozen_address(self._address)
         self.frozenChanged.emit()
@@ -124,6 +126,6 @@ class QEAddressDetails(QObject):
         self._derivationPath = self._wallet.wallet.get_address_path_str(self._address)
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
-        self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
+        self._numtx = self._wallet.wallet.adb.get_spk_history_len(spk)
         assert self._numtx == self.historyModel.rowCount(0)
         self.detailsChanged.emit()

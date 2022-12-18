@@ -9,7 +9,7 @@ from decimal import Decimal
 from kivy.uix.popup import Popup
 
 from electrum.gui.kivy.i18n import _
-from ...util import address_colors
+from electrum.gui.kivy.util import address_colors
 
 if TYPE_CHECKING:
     from ...main_window import ElectrumWindow

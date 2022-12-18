@@ -32,8 +32,8 @@ from aiorpcx import run_in_thread, RPCError
 
 from . import util
 from .transaction import Transaction, PartialTransaction
-from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
-from .bitcoin import address_to_scripthash, is_address
+from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup, is_hex_str
+from .bitcoin import script_to_scripthash, address_to_script
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
 
@@ -65,10 +65,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
     def _reset(self):
         super()._reset()
-        self._adding_addrs = set()
-        self.requested_addrs = set()
-        self._handling_addr_statuses = set()
-        self.scripthash_to_address = {}
+        self._adding_spks = set()
+        self.requested_scriptpubkeys = set()
+        self._handling_spk_statuses = set()
+        self.scripthash_to_spk = {}
         self._processed_some_notifications = False  # so that we don't miss them
         # Queues
         self.status_queue = asyncio.Queue()
@@ -83,28 +83,26 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
             # we are being cancelled now
             self.session.unsubscribe(self.status_queue)
 
-    def add(self, addr):
-        if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
-        self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
+    def add_spk(self, spk: str) -> None:
+        assert is_hex_str(spk)
+        self._adding_spks.add(spk)  # this lets is_up_to_date already know about spk
 
-    async def _add_address(self, addr: str):
+    async def _add_spk(self, spk: str):
         try:
-            if not is_address(addr): raise ValueError(f"invalid bitcoin address {addr}")
-            if addr in self.requested_addrs: return
-            self.requested_addrs.add(addr)
-            await self.taskgroup.spawn(self._subscribe_to_address, addr)
+            assert is_hex_str(spk)
+            if spk in self.requested_scriptpubkeys: return
+            self.requested_scriptpubkeys.add(spk)
+            await self.taskgroup.spawn(self._subscribe_to_address, spk)
         finally:
-            self._adding_addrs.discard(addr)  # ok for addr not to be present
+            self._adding_spks.discard(spk)  # ok for addr not to be present
 
-    async def _on_address_status(self, addr, status):
-        """Handle the change of the status of an address.
-        Should remove addr from self._handling_addr_statuses when done.
-        """
+    async def _on_spk_status(self, spk, status):
+        """Handle the change of the status of a scriptPubKey."""
         raise NotImplementedError()  # implemented by subclasses
 
-    async def _subscribe_to_address(self, addr):
-        h = address_to_scripthash(addr)
-        self.scripthash_to_address[h] = addr
+    async def _subscribe_to_address(self, spk):
+        h = script_to_scripthash(spk)
+        self.scripthash_to_spk[h] = spk
         self._requests_sent += 1
         try:
             async with self._network_request_semaphore:
@@ -118,10 +116,10 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     async def handle_status(self):
         while True:
             h, status = await self.status_queue.get()
-            addr = self.scripthash_to_address[h]
-            self._handling_addr_statuses.add(addr)
-            self.requested_addrs.discard(addr)  # ok for addr not to be present
-            await self.taskgroup.spawn(self._on_address_status, addr, status)
+            spk = self.scripthash_to_spk[h]
+            self._handling_spk_statuses.add(spk)
+            self.requested_scriptpubkeys.discard(spk)  # ok for addr not to be present
+            await self.taskgroup.spawn(self._on_spk_status, spk, status)
             self._processed_some_notifications = True
 
     async def main(self):
@@ -130,7 +128,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
 
 class Synchronizer(SynchronizerBase):
     '''The synchronizer keeps the wallet up-to-date with its set of
-    addresses and their transactions.  It subscribes over the network
+    scriptPubKeys and their transactions.  It subscribes over the network
     to wallet addresses, gets the wallet to generate new addresses
     when necessary, requests the transaction history of any addresses
     we don't have the full history of, and requests binary transaction
@@ -152,34 +150,34 @@ class Synchronizer(SynchronizerBase):
 
     def is_up_to_date(self):
         return (self._init_done
-                and not self._adding_addrs
-                and not self.requested_addrs
-                and not self._handling_addr_statuses
+                and not self._adding_spks
+                and not self.requested_scriptpubkeys
+                and not self._handling_spk_statuses
                 and not self.requested_histories
                 and not self.requested_tx
                 and not self._stale_histories
                 and self.status_queue.empty())
 
-    async def _on_address_status(self, addr, status):
+    async def _on_spk_status(self, spk, status):
         try:
-            history = self.adb.db.get_addr_history(addr)
+            history = self.adb.db.get_spk_history(spk)
             if history_status(history) == status:
                 return
             # No point in requesting history twice for the same announced status.
             # However if we got announced a new status, we should request history again:
-            if (addr, status) in self.requested_histories:
+            if (spk, status) in self.requested_histories:
                 return
             # request address history
-            self.requested_histories.add((addr, status))
-            self._stale_histories.pop(addr, asyncio.Future()).cancel()
+            self.requested_histories.add((spk, status))
+            self._stale_histories.pop(spk, asyncio.Future()).cancel()
         finally:
-            self._handling_addr_statuses.discard(addr)
-        h = address_to_scripthash(addr)
+            self._handling_spk_statuses.discard(spk)
+        h = script_to_scripthash(spk)
         self._requests_sent += 1
         async with self._network_request_semaphore:
             result = await self.interface.get_history_for_scripthash(h)
         self._requests_answered += 1
-        self.logger.info(f"receiving history {addr} {len(result)}")
+        self.logger.info(f"receiving history {spk} {len(result)}")
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
@@ -187,23 +185,23 @@ class Synchronizer(SynchronizerBase):
         # Check that the status corresponds to what was announced
         if history_status(hist) != status:
             # could happen naturally if history changed between getting status and history (race)
-            self.logger.info(f"error: status mismatch: {addr}. we'll wait a bit for status update.")
+            self.logger.info(f"error: status mismatch: {spk}. we'll wait a bit for status update.")
             # The server is supposed to send a new status notification, which will trigger a new
             # get_history. We shall wait a bit for this to happen, otherwise we disconnect.
             async def disconnect_if_still_stale():
                 timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
                 await asyncio.sleep(timeout)
-                raise SynchronizerFailure(f"timeout reached waiting for addr {addr}: history still stale")
-            self._stale_histories[addr] = await self.taskgroup.spawn(disconnect_if_still_stale)
+                raise SynchronizerFailure(f"timeout reached waiting for spk {spk}: history still stale")
+            self._stale_histories[spk] = await self.taskgroup.spawn(disconnect_if_still_stale)
         else:
-            self._stale_histories.pop(addr, asyncio.Future()).cancel()
+            self._stale_histories.pop(spk, asyncio.Future()).cancel()
             # Store received history
-            self.adb.receive_history_callback(addr, hist, tx_fees)
+            self.adb.receive_history_callback(spk, hist, tx_fees)
             # Request transactions we don't have
             await self._request_missing_txs(hist)
 
         # Remove request; this allows up_to_date to be True
-        self.requested_histories.discard((addr, status))
+        self.requested_histories.discard((spk, status))
 
     async def _request_missing_txs(self, hist, *, allow_server_not_finding_tx=False):
         # "hist" is a list of [tx_hash, tx_height] lists
@@ -246,22 +244,22 @@ class Synchronizer(SynchronizerBase):
     async def main(self):
         self.adb.up_to_date_changed()
         # request missing txns, if any
-        for addr in random_shuffled_copy(self.adb.db.get_history()):
-            history = self.adb.db.get_addr_history(addr)
+        for spk in random_shuffled_copy(self.adb.db.get_scriptpubkeys()):
+            history = self.adb.db.get_spk_history(spk)
             # Old electrum servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue
             await self._request_missing_txs(history, allow_server_not_finding_tx=True)
         # add addresses to bootstrap
-        for addr in random_shuffled_copy(self.adb.get_addresses()):
-            await self._add_address(addr)
+        for spk in random_shuffled_copy(self.adb.get_scriptpubkeys()):
+            await self._add_spk(spk)
         # main loop
         self._init_done = True
         prev_uptodate = False
         while True:
             await asyncio.sleep(0.1)
-            for addr in self._adding_addrs.copy(): # copy set to ensure iterator stability
-                await self._add_address(addr)
+            for spk in self._adding_spks.copy():  # copy set to ensure iterator stability
+                await self._add_spk(spk)
             up_to_date = self.adb.is_up_to_date()
             # see if status changed
             if (up_to_date != prev_uptodate
@@ -277,33 +275,46 @@ class Notifier(SynchronizerBase):
     """
     def __init__(self, network):
         SynchronizerBase.__init__(self, network)
-        self.watched_addresses = defaultdict(list)  # type: Dict[str, List[str]]
+        self.watched_scriptpubkeys = defaultdict(list)  # type: Dict[str, List[str]]
         self._start_watching_queue = asyncio.Queue()  # type: asyncio.Queue[Tuple[str, str]]
+        self._spk_to_addr = {}  # type: Dict[str, str]
 
     async def main(self):
         # resend existing subscriptions if we were restarted
-        for addr in self.watched_addresses:
-            await self._add_address(addr)
+        for spk in self.watched_scriptpubkeys:
+            await self._add_spk(spk)
         # main loop
         while True:
-            addr, url = await self._start_watching_queue.get()
-            self.watched_addresses[addr].append(url)
-            await self._add_address(addr)
+            spk, url = await self._start_watching_queue.get()
+            self.watched_scriptpubkeys[spk].append(url)
+            await self._add_spk(spk)
 
     async def start_watching_addr(self, addr: str, url: str):
-        await self._start_watching_queue.put((addr, url))
+        spk = address_to_script(addr)
+        self._spk_to_addr[spk] = addr
+        await self.start_watching_spk(spk=spk, url=url)
 
-    async def stop_watching_addr(self, addr: str):
-        self.watched_addresses.pop(addr, None)
+    async def stop_watching_spk(self, spk: str):
+        self.watched_scriptpubkeys.pop(spk, None)
         # TODO blockchain.scripthash.unsubscribe
 
-    async def _on_address_status(self, addr, status):
-        if addr not in self.watched_addresses:
+    async def stop_watching_addr(self, addr: str):
+        spk = address_to_script(addr)
+        await self.stop_watching_spk(spk=spk)
+        self._spk_to_addr.pop(spk, None)
+
+    async def _on_spk_status(self, spk, status):
+        if spk not in self.watched_scriptpubkeys:
             return
-        self.logger.info(f'new status for addr {addr}')
+        addr = self._spk_to_addr.get(spk, None)
+        self.logger.info(f'new status for spk {spk}. (addr={addr})')
         headers = {'content-type': 'application/json'}
-        data = {'address': addr, 'status': status}
-        for url in self.watched_addresses[addr]:
+        data = {'spk': spk, 'status': status}
+        if addr:
+            data['address'] = addr
+        for url in self.watched_scriptpubkeys[spk]:
+            if not url:
+                continue
             try:
                 async with make_aiohttp_session(proxy=self.network.proxy, headers=headers) as session:
                     async with session.post(url, json=data, headers=headers) as resp:
@@ -311,4 +322,4 @@ class Notifier(SynchronizerBase):
             except Exception as e:
                 self.logger.info(repr(e))
             else:
-                self.logger.info(f'Got Response for {addr}')
+                self.logger.info(f'Got Response for spk {spk}. (addr={addr})')

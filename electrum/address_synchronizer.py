@@ -25,7 +25,7 @@ import asyncio
 import threading
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple, NamedTuple, Sequence, List, Iterable
 
 from .crypto import sha256
 from . import bitcoin, util
@@ -37,7 +37,7 @@ from .verifier import SPV
 from .blockchain import hash_header, Blockchain
 from .i18n import _
 from .logging import Logger
-from .util import EventListener, event_listener
+from .util import EventListener, event_listener, is_hex_str
 
 if TYPE_CHECKING:
     from .network import Network
@@ -106,61 +106,67 @@ class AddressSynchronizer(Logger, EventListener):
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
-    def is_mine(self, address: Optional[str]) -> bool:
-        """Returns whether an address is in our set
-        Note: This class has a larget set of addresses than the wallet
+    def is_mine(self, addr_or_spk: Optional[str]) -> bool:
+        """Returns whether a scriptPubKey is in our set
+        Note: This class has a larger set of addresses than the wallet
         """
-        if not address: return False
-        return self.db.is_addr_in_history(address)
+        if not addr_or_spk: return False
+        if bitcoin.is_address(addr_or_spk):  # convert to spk
+            addr_or_spk = bitcoin.address_to_script(addr_or_spk)
+        return self.db.is_spk_in_history(addr_or_spk)
 
-    def get_addresses(self):
-        return sorted(self.db.get_history())
+    def get_scriptpubkeys(self):
+        return self.db.get_scriptpubkeys()
 
-    def get_address_history(self, addr: str) -> Sequence[Tuple[str, int]]:
-        """Returns the history for the address, in the format that would be returned by a server.
+    def get_spk_history(self, spk: str) -> Sequence[Tuple[str, int]]:
+        """Returns the history for the scriptPubKey, in the format that would be returned by a server.
 
-        Note: The difference between db.get_addr_history and this method is that
-        db.get_addr_history stores the response from a server, so it only includes txns
+        Note: The difference between db.get_spk_history and this method is that
+        db.get_spk_history stores the response from a server, so it only includes txns
         a server sees, i.e. that does not contain local and future txns.
         """
         h = []
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
-            related_txns = self._history_local.get(addr, set())
+            related_txns = self._history_local.get(spk, set())
             for tx_hash in related_txns:
                 tx_height = self.get_tx_height(tx_hash).height
                 h.append((tx_hash, tx_height))
         return h
 
-    def get_address_history_len(self, addr: str) -> int:
-        """Return number of transactions where address is involved."""
-        return len(self._history_local.get(addr, ()))
+    def get_spk_history_len(self, spk: str) -> int:
+        """Return number of transactions where scriptPubKey is involved."""
+        return len(self._history_local.get(spk, ()))
 
-    def get_txin_address(self, txin: TxInput) -> Optional[str]:
+    def get_txin_spk(self, txin: TxInput) -> Optional[str]:
         if isinstance(txin, PartialTxInput):
-            if txin.address:
-                return txin.address
+            if txin.scriptpubkey:
+                return txin.scriptpubkey.hex()
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
-        for addr in self.db.get_txo_addresses(prevout_hash):
-            d = self.db.get_txo_addr(prevout_hash, addr)
+        for spk in self.db.get_txo_scriptpubkeys(prevout_hash):
+            d = self.db.get_txo_spk(prevout_hash, spk)
             if prevout_n in d:
-                return addr
+                return spk
         tx = self.db.get_transaction(prevout_hash)
         if tx:
-            return tx.outputs()[prevout_n].address
+            return tx.outputs()[prevout_n].scriptpubkey.hex()
         return None
 
-    def get_txin_value(self, txin: TxInput, *, address: str = None) -> Optional[int]:
+    def get_txin_address(self, txin: TxInput) -> Optional[str]:
+        if spk := self.get_txin_spk(txin):
+            return bitcoin.script_to_address(spk)
+
+    def get_txin_value(self, txin: TxInput, *, spk: str = None) -> Optional[int]:
         if txin.value_sats() is not None:
             return txin.value_sats()
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
-        if address is None:
-            address = self.get_txin_address(txin)
-        if address:
-            d = self.db.get_txo_addr(prevout_hash, address)
+        if spk is None:
+            spk = self.get_txin_spk(txin)
+        if spk:
+            d = self.db.get_txo_spk(prevout_hash, spk)
             try:
                 v, cb = d[prevout_n]
                 return v
@@ -173,8 +179,8 @@ class AddressSynchronizer(Logger, EventListener):
 
     def load_unverified_transactions(self):
         # review transactions that are in the history
-        for addr in self.db.get_history():
-            hist = self.db.get_addr_history(addr)
+        for spk in self.db.get_scriptpubkeys():
+            hist = self.db.get_spk_history(spk)
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
@@ -205,12 +211,16 @@ class AddressSynchronizer(Logger, EventListener):
                 self.unregister_callbacks()
                 self.db.put('stored_height', self.get_local_height())
 
-    def add_address(self, address):
-        if address not in self.db.history:
-            self.db.history[address] = []
+    def add_spk(self, spk: str) -> None:
+        if spk not in self.db.history:
+            self.db.history[spk] = []
         if self.synchronizer:
-            self.synchronizer.add(address)
+            self.synchronizer.add_spk(spk)
         self.up_to_date_changed()
+
+    def add_address(self, address: str) -> None:
+        spk = bitcoin.address_to_script(address)
+        self.add_spk(spk)
 
     def get_conflicting_transactions(self, tx_hash, tx: Transaction, include_self=False):
         """Returns a set of transaction hashes from the wallet history that are
@@ -279,8 +289,8 @@ class AddressSynchronizer(Logger, EventListener):
                 # note that during sync, if the transactions are not properly sorted,
                 # it could happen that we think tx is unrelated but actually one of the inputs is is_mine.
                 # this is the main motivation for allow_unrelated
-                is_mine = any([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()])
-                is_for_me = any([self.is_mine(txo.address) for txo in tx.outputs()])
+                is_mine = any([self.is_mine(self.get_txin_spk(txin)) for txin in tx.inputs()])
+                is_for_me = any([self.is_mine(txo.scriptpubkey.hex()) for txo in tx.outputs()])
                 if not is_mine and not is_for_me:
                     raise UnrelatedTransactionException()
             # Find all conflicting transactions.
@@ -310,15 +320,15 @@ class AddressSynchronizer(Logger, EventListener):
             # add inputs
             def add_value_from_prev_output():
                 # note: this takes linear time in num is_mine outputs of prev_tx
-                addr = self.get_txin_address(txi)
-                if addr and self.is_mine(addr):
-                    outputs = self.db.get_txo_addr(prevout_hash, addr)
+                spk = self.get_txin_spk(txi)
+                if spk and self.is_mine(spk):
+                    outputs = self.db.get_txo_spk(prevout_hash, spk)
                     try:
                         v, is_cb = outputs[prevout_n]
                     except KeyError:
                         pass
                     else:
-                        self.db.add_txi_addr(tx_hash, addr, ser, v)
+                        self.db.add_txi_spk(tx_hash, spk, ser, v)
                         self._get_balance_cache.clear()  # invalidate cache
             for txi in tx.inputs():
                 if txi.is_coinbase_input():
@@ -334,14 +344,14 @@ class AddressSynchronizer(Logger, EventListener):
                 ser = tx_hash + ':%d'%n
                 scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
                 self.db.add_prevout_by_scripthash(scripthash, prevout=TxOutpoint.from_str(ser), value=v)
-                addr = txo.address
-                if addr and self.is_mine(addr):
-                    self.db.add_txo_addr(tx_hash, addr, n, v, is_coinbase)
+                spk = txo.scriptpubkey.hex()
+                if spk and self.is_mine(spk):
+                    self.db.add_txo_spk(tx_hash, spk, n, v, is_coinbase)
                     self._get_balance_cache.clear()  # invalidate cache
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
-                        self.db.add_txi_addr(next_tx, addr, ser, v)
+                        self.db.add_txi_spk(next_tx, spk, ser, v)
                         self._add_tx_to_local_history(next_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
@@ -388,7 +398,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
-            for addr in itertools.chain(self.db.get_txi_addresses(tx_hash), self.db.get_txo_addresses(tx_hash)):
+            for spk in itertools.chain(self.db.get_txi_scriptpubkeys(tx_hash), self.db.get_txo_scriptpubkeys(tx_hash)):
                 self._get_balance_cache.clear()  # invalidate cache
             self.db.remove_txi(tx_hash)
             self.db.remove_txo(tx_hash)
@@ -416,9 +426,10 @@ class AddressSynchronizer(Logger, EventListener):
         self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
         self.add_transaction(tx, allow_unrelated=True)
 
-    def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
+    def receive_history_callback(self, spk: str, hist, tx_fees: Dict[str, int]):
+        assert is_hex_str(spk)
         with self.lock:
-            old_hist = self.get_address_history(addr)
+            old_hist = self.get_spk_history(spk)
             for tx_hash, height in old_hist:
                 if (tx_hash, height) not in hist:
                     # make tx local
@@ -427,12 +438,12 @@ class AddressSynchronizer(Logger, EventListener):
                     self.db.remove_verified_tx(tx_hash)
                     if self.verifier:
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
-            self.db.set_addr_history(addr, hist)
+            self.db.set_spk_history(spk, hist)
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
             self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
-            # if addr is new, we have to recompute txi and txo
+            # if spk is new, we have to recompute txi and txo
             tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
@@ -444,21 +455,21 @@ class AddressSynchronizer(Logger, EventListener):
 
     @profiler
     def load_local_history(self):
-        self._history_local = {}  # type: Dict[str, Set[str]]  # address -> set(txid)
-        self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
+        self._history_local = {}  # type: Dict[str, Set[str]]  # spk -> set(txid)
+        self._spk_history_changed_events = defaultdict(asyncio.Event)  # spk -> Event
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             self._add_tx_to_local_history(txid)
 
     @profiler
     def check_history(self):
-        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.db.get_history()))
-        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.db.get_history()))
-        for addr in hist_addrs_not_mine:
-            self.db.remove_addr_history(addr)
-        for addr in hist_addrs_mine:
-            hist = self.db.get_addr_history(addr)
+        hist_spks_mine = list(filter(lambda k: self.is_mine(k), self.db.get_scriptpubkeys()))
+        hist_spks_not_mine = list(filter(lambda k: not self.is_mine(k), self.db.get_scriptpubkeys()))
+        for spk in hist_spks_not_mine:
+            self.db.remove_spk_history(spk)
+        for spk in hist_spks_mine:
+            hist = self.db.get_spk_history(spk)
             for tx_hash, tx_height in hist:
-                if self.db.get_txi_addresses(tx_hash) or self.db.get_txo_addresses(tx_hash):
+                if self.db.get_txi_scriptpubkeys(tx_hash) or self.db.get_txo_scriptpubkeys(tx_hash):
                     continue
                 tx = self.db.get_transaction(tx_hash)
                 if tx is not None:
@@ -513,15 +524,15 @@ class AddressSynchronizer(Logger, EventListener):
     @with_lock
     @with_transaction_lock
     @with_local_height_cached
-    def get_history(self, domain) -> Sequence[HistoryItem]:
+    def _get_history(self, *, domain) -> Sequence[HistoryItem]:
         domain = set(domain)
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)  # type: Dict[str, int]
-        for addr in domain:
-            h = self.get_address_history(addr)
+        for spk in domain:
+            h = self.get_spk_history(spk)
             for tx_hash, height in h:
-                tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, addr)
+                tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, spk)
         # 2. create sorted history
         history = []
         for tx_hash in tx_deltas:
@@ -542,50 +553,54 @@ class AddressSynchronizer(Logger, EventListener):
                 fee=fee,
                 balance=balance))
         # sanity check
-        c, u, x = self.get_balance(domain)
+        c, u, x = self._get_balance(domain=domain)
         if balance != c + u + x:
             self.logger.error(f'sanity check failed! c={c},u={u},x={x} while history balance={balance}')
             raise Exception("wallet.get_history() failed balance sanity-check")
         return h2
 
+    def get_history(self, *, domain_addrs) -> Sequence[HistoryItem]:
+        domain = set(bitcoin.address_to_script(addr) for addr in domain_addrs)
+        return self._get_history(domain=domain)
+
     def _add_tx_to_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.db.get_txi_addresses(txid), self.db.get_txo_addresses(txid)):
-                cur_hist = self._history_local.get(addr, set())
+            for spk in itertools.chain(self.db.get_txi_scriptpubkeys(txid), self.db.get_txo_scriptpubkeys(txid)):
+                cur_hist = self._history_local.get(spk, set())
                 cur_hist.add(txid)
-                self._history_local[addr] = cur_hist
-                self._mark_address_history_changed(addr)
+                self._history_local[spk] = cur_hist
+                self._mark_spk_history_changed(spk)
 
     def _remove_tx_from_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.db.get_txi_addresses(txid), self.db.get_txo_addresses(txid)):
-                cur_hist = self._history_local.get(addr, set())
+            for spk in itertools.chain(self.db.get_txi_scriptpubkeys(txid), self.db.get_txo_scriptpubkeys(txid)):
+                cur_hist = self._history_local.get(spk, set())
                 try:
                     cur_hist.remove(txid)
                 except KeyError:
                     pass
                 else:
-                    self._history_local[addr] = cur_hist
-                    self._mark_address_history_changed(addr)
+                    self._history_local[spk] = cur_hist
+                    self._mark_spk_history_changed(spk)
 
-    def _mark_address_history_changed(self, addr: str) -> None:
+    def _mark_spk_history_changed(self, spk: str) -> None:
         def set_and_clear():
-            event = self._address_history_changed_events[addr]
-            # history for this address changed, wake up coroutines:
+            event = self._spk_history_changed_events[spk]
+            # history for this spk changed, wake up coroutines:
             event.set()
             # clear event immediately so that coroutines can wait() for the next change:
             event.clear()
         if self.asyncio_loop:
             self.asyncio_loop.call_soon_threadsafe(set_and_clear)
 
-    async def wait_for_address_history_to_change(self, addr: str) -> None:
-        """Wait until the server tells us about a new transaction related to addr.
+    async def wait_for_spk_history_to_change(self, spk: str) -> None:
+        """Wait until the server tells us about a new transaction related to spk.
 
         Unconfirmed and confirmed transactions are not distinguished, and so e.g. SPV
         is not taken into account.
         """
-        assert self.is_mine(addr), "address needs to be is_mine to be watched"
-        await self._address_history_changed_events[addr].wait()
+        assert self.is_mine(spk), "spk needs to be is_mine to be watched"
+        await self._spk_history_changed_events[spk].wait()
 
     def add_unverified_or_unconfirmed_tx(self, tx_hash, tx_height):
         if self.db.is_in_verified_tx(tx_hash):
@@ -711,15 +726,15 @@ class AddressSynchronizer(Logger, EventListener):
         return nsent, nans
 
     @with_transaction_lock
-    def get_tx_delta(self, tx_hash: str, address: str) -> int:
-        """effect of tx on address"""
+    def get_tx_delta(self, tx_hash: str, spk: str) -> int:
+        """effect of tx on scriptPubKey"""
         delta = 0
-        # subtract the value of coins sent from address
-        d = self.db.get_txi_addr(tx_hash, address)
+        # subtract the value of coins sent from spk
+        d = self.db.get_txi_spk(tx_hash, spk)
         for n, v in d:
             delta -= v
-        # add the value of the coins received at address
-        d = self.db.get_txo_addr(tx_hash, address)
+        # add the value of the coins received at spk
+        d = self.db.get_txo_spk(tx_hash, spk)
         for n, (v, cb) in d.items():
             delta += v
         return delta
@@ -753,8 +768,8 @@ class AddressSynchronizer(Logger, EventListener):
         v_in = v_out = 0
         with self.lock, self.transaction_lock:
             for txin in tx.inputs():
-                addr = self.get_txin_address(txin)
-                value = self.get_txin_value(txin, address=addr)
+                spk = self.get_txin_spk(txin)
+                value = self.get_txin_value(txin, spk=spk)
                 if value is None:
                     v_in = None
                 elif v_in is not None:
@@ -770,30 +785,30 @@ class AddressSynchronizer(Logger, EventListener):
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))
         return fee
 
-    def get_addr_io(self, address):
+    def get_spk_io(self, spk: str):
         with self.lock, self.transaction_lock:
-            h = self.get_address_history(address)
+            h = self.get_spk_history(spk)
             received = {}
             sent = {}
             for tx_hash, height in h:
                 hh, pos = self.get_txpos(tx_hash)
-                d = self.db.get_txo_addr(tx_hash, address)
+                d = self.db.get_txo_spk(tx_hash, spk)
                 for n, (v, is_cb) in d.items():
                     received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
             for tx_hash, height in h:
-                l = self.db.get_txi_addr(tx_hash, address)
+                l = self.db.get_txi_spk(tx_hash, spk)
                 for txi, v in l:
                     sent[txi] = tx_hash, height
         return received, sent
 
-    def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
-        received, sent = self.get_addr_io(address)
+    def get_spk_outputs(self, spk: str) -> Dict[TxOutpoint, PartialTxInput]:
+        received, sent = self.get_spk_io(spk)
         out = {}
         for prevout_str, v in received.items():
             tx_height, tx_pos, value, is_cb = v
             prevout = TxOutpoint.from_str(prevout_str)
             utxo = PartialTxInput(prevout=prevout, is_coinbase_output=is_cb)
-            utxo._trusted_address = address
+            utxo._trusted_scriptpubkey = bytes.fromhex(spk)
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
             utxo.block_txpos = tx_pos
@@ -807,31 +822,36 @@ class AddressSynchronizer(Logger, EventListener):
             out[prevout] = utxo
         return out
 
-    def get_addr_utxo(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
-        out = self.get_addr_outputs(address)
+    def get_spk_utxo(self, spk: str) -> Dict[TxOutpoint, PartialTxInput]:
+        out = self.get_spk_outputs(spk)
         for k, v in list(out.items()):
             if v.spent_height is not None:
                 out.pop(k)
         return out
 
-    # return the total amount ever received by an address
-    def get_addr_received(self, address):
-        received, sent = self.get_addr_io(address)
+    def get_spk_received(self, spk: str) -> int:
+        """Return the total amount ever received by a spk."""
+        received, sent = self.get_spk_io(spk)
         return sum([value for height, pos, value, is_cb in received.values()])
 
     @with_local_height_cached
-    def get_balance(self, domain, *, excluded_addresses: Set[str] = None,
-                    excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
-        """Return the balance of a set of addresses:
+    def _get_balance(
+        self,
+        *,
+        domain: Iterable[str],
+        excluded_spks: Set[str] = None,
+        excluded_coins: Set[str] = None,
+    ) -> Tuple[int, int, int]:
+        """Return the balance of a set of scriptPubKeys:
         confirmed and matured, unconfirmed, unmatured
         """
-        if excluded_addresses is None:
-            excluded_addresses = set()
-        assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"
-        domain = set(domain) - excluded_addresses
+        if excluded_spks is None:
+            excluded_spks = set()
+        assert isinstance(excluded_spks, set), f"excluded_spks should be a set, not {type(excluded_spks)}"
+        domain = set(domain) - excluded_spks
         if excluded_coins is None:
             excluded_coins = set()
-        assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
+        assert isinstance(excluded_coins, set), f"excluded_coins should be a set, not {type(excluded_coins)}"
 
         cache_key = sha256(','.join(sorted(domain)) + ';'
                            + ','.join(sorted(excluded_coins)))
@@ -840,8 +860,8 @@ class AddressSynchronizer(Logger, EventListener):
             return cached_value
 
         coins = {}
-        for address in domain:
-            coins.update(self.get_addr_outputs(address))
+        for spk in domain:
+            coins.update(self.get_spk_outputs(spk))
 
         c = u = x = 0
         mempool_height = self.get_local_height() + 1  # height of next block
@@ -860,7 +880,7 @@ class AddressSynchronizer(Logger, EventListener):
             else:
                 txid = utxo.prevout.txid.hex()
                 tx = self.db.get_transaction(txid)
-                assert tx is not None # txid comes from get_addr_io
+                assert tx is not None  # txid comes from get_spk_io
                 # we look at the outputs that are spent by this transaction
                 # if those outputs are ours and confirmed, we count this coin as confirmed
                 confirmed_spent_amount = 0
@@ -883,17 +903,28 @@ class AddressSynchronizer(Logger, EventListener):
         self._get_balance_cache[cache_key] = result
         return result
 
+    def get_balance(
+        self,
+        *,
+        domain_addrs: Iterable[str],
+        excluded_addresses: Set[str] = None,
+        **kwargs,
+    ) -> Tuple[int, int, int]:
+        domain = set(bitcoin.address_to_script(addr) for addr in domain_addrs)
+        excluded_spks = set(bitcoin.address_to_script(addr) for addr in (excluded_addresses or set()))
+        return self._get_balance(domain=domain, excluded_spks=excluded_spks, **kwargs)
+
     @with_local_height_cached
-    def get_utxos(
-            self,
-            domain,
-            *,
-            excluded_addresses=None,
-            mature_only: bool = False,
-            confirmed_funding_only: bool = False,
-            confirmed_spending_only: bool = False,
-            nonlocal_only: bool = False,
-            block_height: int = None,
+    def _get_utxos(
+        self,
+        *,
+        domain: Iterable[str],
+        excluded_spks: Set[str] = None,
+        mature_only: bool = False,
+        confirmed_funding_only: bool = False,
+        confirmed_spending_only: bool = False,
+        nonlocal_only: bool = False,
+        block_height: int = None,
     ) -> Sequence[PartialTxInput]:
         if block_height is not None:
             # caller wants the UTXOs we had at a given height; check other parameters
@@ -904,11 +935,11 @@ class AddressSynchronizer(Logger, EventListener):
             block_height = self.get_local_height()
         coins = []
         domain = set(domain)
-        if excluded_addresses:
-            domain = set(domain) - set(excluded_addresses)
+        if excluded_spks:
+            domain = set(domain) - set(excluded_spks)
         mempool_height = block_height + 1  # height of next block
-        for addr in domain:
-            txos = self.get_addr_outputs(addr)
+        for spk in domain:
+            txos = self.get_spk_outputs(spk)
             for txo in txos.values():
                 if txo.spent_height is not None:
                     if not confirmed_spending_only:
@@ -926,20 +957,35 @@ class AddressSynchronizer(Logger, EventListener):
                 continue
         return coins
 
-    def is_used(self, address: str) -> bool:
-        return self.get_address_history_len(address) != 0
+    def get_utxos(
+        self,
+        *,
+        domain_addrs: Iterable[str],
+        excluded_addresses: Set[str] = None,
+        **kwargs,
+    ) -> Sequence[PartialTxInput]:
+        domain = set(bitcoin.address_to_script(addr) for addr in domain_addrs)
+        excluded_spks = set(bitcoin.address_to_script(addr) for addr in (excluded_addresses or set()))
+        return self._get_utxos(domain=domain, excluded_spks=excluded_spks, **kwargs)
 
-    def is_empty(self, address: str) -> bool:
-        coins = self.get_addr_utxo(address)
+    def is_used(self, addr_or_spk: str) -> bool:
+        if bitcoin.is_address(addr_or_spk):  # convert to spk
+            addr_or_spk = bitcoin.address_to_script(addr_or_spk)
+        return self.get_spk_history_len(addr_or_spk) != 0
+
+    def is_empty(self, addr_or_spk: str) -> bool:
+        if bitcoin.is_address(addr_or_spk):  # convert to spk
+            addr_or_spk = bitcoin.address_to_script(addr_or_spk)
+        coins = self.get_spk_utxo(addr_or_spk)
         return not bool(coins)
 
     @with_local_height_cached
-    def address_is_old(self, address: str, *, req_conf: int = 3) -> bool:
-        """Returns whether address has any history that is deeply confirmed.
+    def is_spk_old(self, *, spk: str, req_conf: int = 3) -> bool:
+        """Returns whether spk has any history that is deeply confirmed.
         Used for reorg-safe(ish) gap limit roll-forward.
         """
         max_conf = -1
-        h = self.db.get_addr_history(address)
+        h = self.db.get_spk_history(spk)
         needs_spv_check = not self.config.get("skipmerklecheck", False)
         for tx_hash, tx_height in h:
             if needs_spv_check:
@@ -951,3 +997,7 @@ class AddressSynchronizer(Logger, EventListener):
                     tx_age = self.get_local_height() - tx_height + 1
             max_conf = max(max_conf, tx_age)
         return max_conf >= req_conf
+
+    def is_address_old(self, address: str, **kwargs) -> bool:
+        spk = bitcoin.address_to_script(address)
+        return self.is_spk_old(spk=spk, **kwargs)

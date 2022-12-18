@@ -8,6 +8,7 @@ import asyncio
 from enum import IntEnum, auto
 from typing import NamedTuple, Dict
 
+from . import bitcoin
 from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
@@ -209,7 +210,8 @@ class LNWatcher(Logger, EventListener):
 
     async def check_onchain_situation(self, address, funding_outpoint):
         # early return if address has not been added yet
-        if not self.adb.is_mine(address):
+        spk = bitcoin.address_to_script(address)
+        if not self.adb.is_mine(spk):
             return
         spenders = self.inspect_tx_candidate(funding_outpoint, 0)
         # inspect_tx_candidate might have added new addresses, in which case we return ealy
@@ -290,7 +292,7 @@ class LNWatcher(Logger, EventListener):
         for i, o in enumerate(spender_tx.outputs()):
             if o.address is None:
                 continue
-            if not self.adb.is_mine(o.address):
+            if not self.adb.is_mine(o.scriptpubkey.hex()):
                 self.adb.add_address(o.address)
             elif n < 2:
                 r = self.inspect_tx_candidate(spender_txid+':%d'%i, n+1)

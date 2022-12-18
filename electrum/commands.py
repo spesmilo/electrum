@@ -808,15 +808,16 @@ class Commands:
         """List wallet addresses. Returns the list of all addresses in your wallet. Use optional arguments to filter the results."""
         out = []
         for addr in wallet.get_addresses():
+            spk = bitcoin.address_to_script(addr)
             if frozen and not wallet.is_frozen_address(addr):
                 continue
             if receiving and wallet.is_change(addr):
                 continue
             if change and not wallet.is_change(addr):
                 continue
-            if unused and wallet.adb.is_used(addr):
+            if unused and wallet.adb.is_used(spk):
                 continue
-            if funded and wallet.adb.is_empty(addr):
+            if funded and wallet.adb.is_empty(spk):
                 continue
             item = addr
             if labels or balance:
@@ -1006,9 +1007,9 @@ class Commands:
         if not hasattr(self, "_notifier"):
             self._notifier = Notifier(self.network)
         if URL:
-            await self._notifier.start_watching_addr(address, URL)
+            await self._notifier.start_watching_spk(address, URL)
         else:
-            await self._notifier.stop_watching_addr(address)
+            await self._notifier.stop_watching_spk(address)
         return True
 
     @command('wn')
