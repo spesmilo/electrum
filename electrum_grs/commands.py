@@ -51,7 +51,7 @@ from .transaction import (Transaction, multisig_script, TxOutput, PartialTransac
                           tx_from_any, PartialTxInput, TxOutpoint)
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
-from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet, BumpFeeStrategy
+from .wallet import Abstract_Wallet, create_new_wallet, restore_wallet_from_text, Deterministic_Wallet
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
@@ -755,31 +755,18 @@ class Commands:
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
     @command('wp')
-    async def bumpfee(self, tx, new_fee_rate, from_coins=None, strategies=None, password=None, unsigned=False, wallet: Abstract_Wallet = None):
+    async def bumpfee(self, tx, new_fee_rate, from_coins=None, decrease_payment=False, password=None, unsigned=False, wallet: Abstract_Wallet = None):
         """ Bump the Fee for an unconfirmed Transaction """
         tx = Transaction(tx)
         domain_coins = from_coins.split(',') if from_coins else None
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
-        strategies = strategies.split(',') if strategies else None
-        bumpfee_strategies = None
-        if strategies is not None:
-            bumpfee_strategies = []
-            for strategy in strategies:
-                if strategy == 'CoinChooser':
-                    bumpfee_strategies.append(BumpFeeStrategy.COINCHOOSER)
-                elif strategy == 'DecreaseChange':
-                    bumpfee_strategies.append(BumpFeeStrategy.DECREASE_CHANGE)
-                elif strategy == 'DecreasePayment':
-                    bumpfee_strategies.append(BumpFeeStrategy.DECREASE_PAYMENT)
-                else:
-                    raise Exception("Invalid Choice of Strategies")
         new_tx = wallet.bump_fee(
             tx=tx,
             txid=tx.txid(),
             coins=coins,
-            strategies=bumpfee_strategies,
+            decrease_payment=decrease_payment,
             new_fee_rate=new_fee_rate)
         if not unsigned:
             wallet.sign_transaction(new_tx, password)
@@ -1413,6 +1400,7 @@ command_options = {
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
     'rbf':         (None, "Whether to signal opt-in Replace-By-Fee in the transaction (true/false)"),
+    'decrease_payment': (None, "Whether payment amount will be decreased (true/false)"),
     'locktime':    (None, "Set locktime block number"),
     'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
@@ -1436,7 +1424,6 @@ command_options = {
     'gossip':      (None, "Apply command to gossip node instead of wallet"),
     'connection_string':      (None, "Lightning network node ID or network address"),
     'new_fee_rate': (None, "The Updated/Increased Transaction fee rate (in gro/byte)"),
-    'strategies': (None, "Select RBF any one or multiple RBF strategies in any order, separated by ','; Options : 'CoinChooser','DecreaseChange','DecreasePayment' "),
     'from_amount': (None, "Amount to convert (default: 1)"),
     'from_ccy':    (None, "Currency to convert from"),
     'to_ccy':      (None, "Currency to convert to"),

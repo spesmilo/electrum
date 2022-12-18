@@ -12,7 +12,7 @@ from electrum_grs import SimpleConfig
 from electrum_grs import util
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum_grs.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
-                             restore_wallet_from_text, Abstract_Wallet, BumpFeeStrategy)
+                             restore_wallet_from_text, Abstract_Wallet)
 from electrum_grs.util import (
     bfh, bh2u, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
@@ -1199,7 +1199,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx = wallet.bump_fee(
             tx=tx_from_any(orig_rbf_tx.serialize()),
             new_fee_rate=60,
-            strategies=[BumpFeeStrategy.DECREASE_PAYMENT],
+            decrease_payment=True,
         )
         tx.locktime = 1936085
         tx.version = 2
@@ -1241,7 +1241,7 @@ class TestWalletSending(TestCaseForTestnet):
         tx = wallet.bump_fee(
             tx=tx_from_any(orig_rbf_tx.serialize()),
             new_fee_rate=60,
-            strategies=[BumpFeeStrategy.DECREASE_PAYMENT],
+            decrease_payment=True,
         )
         tx.locktime = 1936095
         tx.version = 2
@@ -1574,7 +1574,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, 0, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=tx_from_any(tx.serialize()), new_fee_rate=70.0)
+        tx = wallet.bump_fee(tx=tx_from_any(tx.serialize()), new_fee_rate=70.0, decrease_payment=True)
         tx.locktime = 1325500
         tx.version = 1
         if simulate_moving_txs:

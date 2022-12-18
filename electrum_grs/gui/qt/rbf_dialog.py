@@ -14,7 +14,7 @@ from .util import (ColorScheme, WindowModalDialog, Buttons,
 
 from electrum_grs.i18n import _
 from electrum_grs.transaction import PartialTransaction
-from electrum_grs.wallet import BumpFeeStrategy
+from electrum_grs.wallet import CannotBumpFee
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -28,47 +28,30 @@ class _BaseRBFDialog(WindowModalDialog):
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
             txid: str,
-            title: str,
-            help_text: str,
-    ):
+            title: str):
+
         WindowModalDialog.__init__(self, main_window, title=title)
         self.window = main_window
         self.wallet = main_window.wallet
         self.tx = tx
+        self.new_tx = None
         assert txid
         self.txid = txid
+        self.message = ''
 
         fee = tx.get_fee()
         assert fee is not None
         tx_size = tx.estimated_size()
-        old_fee_rate = fee / tx_size  # sat/vbyte
+        self.old_fee_rate = old_fee_rate = fee / tx_size  # sat/vbyte
         vbox = QVBoxLayout(self)
-        vbox.addWidget(WWLabel(help_text))
+        vbox.addWidget(WWLabel(self.help_text))
+        vbox.addStretch(1)
 
-        ok_button = OkButton(self)
-        self.adv_button = QPushButton(_("Show advanced settings"))
-        self.adv_button.setEnabled(False)
-        self.adv_button.setVisible(False)
-        warning_label = WWLabel('\n')
-        warning_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
+        self.ok_button = OkButton(self)
+        self.message_label = QLabel('')
         self.feerate_e = FeerateEdit(lambda: 0)
         self.feerate_e.setAmount(max(old_fee_rate * 1.5, old_fee_rate + 1))
-
-        def on_feerate():
-            fee_rate = self.feerate_e.get_amount()
-            warning_text = '\n'
-            if fee_rate is not None:
-                try:
-                    new_tx = self.rbf_func(fee_rate)
-                except Exception as e:
-                    new_tx = None
-                    warning_text = str(e).replace('\n', ' ')
-            else:
-                new_tx = None
-            ok_button.setEnabled(new_tx is not None)
-            warning_label.setText(warning_text)
-
-        self.feerate_e.textChanged.connect(on_feerate)
+        self.feerate_e.textChanged.connect(self.update)
 
         def on_slider(dyn, pos, fee_rate):
             fee_slider.activate()
@@ -81,77 +64,116 @@ class _BaseRBFDialog(WindowModalDialog):
         self.feerate_e.textEdited.connect(fee_slider.deactivate)
 
         grid = QGridLayout()
-        grid.addWidget(QLabel(_('Current Fee') + ':'), 0, 0)
-        grid.addWidget(QLabel(self.window.format_amount(fee) + ' ' + self.window.base_unit()), 0, 1)
-        grid.addWidget(QLabel(_('Current Fee rate') + ':'), 1, 0)
-        grid.addWidget(QLabel(self.window.format_fee_rate(1000 * old_fee_rate)), 1, 1)
-        grid.addWidget(QLabel(_('New Fee rate') + ':'), 2, 0)
-        grid.addWidget(self.feerate_e, 2, 1)
-        grid.addWidget(fee_slider, 3, 1)
-        grid.addWidget(fee_combo, 3, 2)
-        vbox.addLayout(grid)
-        self._add_advanced_options_cont(vbox)
-        vbox.addWidget(warning_label)
 
+        self.method_label = QLabel(_('Method') + ':')
+        self.method_combo = QComboBox()
+        self.method_combo.addItems([_('Preserve payment'), _('Decrease payment')])
+        self.method_combo.currentIndexChanged.connect(self.update)
+        grid.addWidget(self.method_label, 0, 0)
+        grid.addWidget(self.method_combo, 0, 1)
+
+        grid.addWidget(QLabel(_('Current fee') + ':'), 1, 0)
+        grid.addWidget(QLabel(self.window.format_amount_and_units(fee)), 1, 1)
+        grid.addWidget(QLabel(_('Current fee rate') + ':'), 2, 0)
+        grid.addWidget(QLabel(self.window.format_fee_rate(1000 * old_fee_rate)), 2, 1)
+
+        grid.addWidget(QLabel(_('New fee rate') + ':'), 3, 0)
+        grid.addWidget(self.feerate_e, 3, 1)
+        grid.addWidget(fee_slider, 3, 2)
+        grid.addWidget(fee_combo, 3, 3)
+        grid.addWidget(self.message_label, 5, 0, 1, 3)
+
+        vbox.addLayout(grid)
+        vbox.addStretch(1)
         btns_hbox = QHBoxLayout()
-        btns_hbox.addWidget(self.adv_button)
         btns_hbox.addStretch(1)
         btns_hbox.addWidget(CancelButton(self))
-        btns_hbox.addWidget(ok_button)
+        btns_hbox.addWidget(self.ok_button)
         vbox.addLayout(btns_hbox)
+
+        new_fee_rate = old_fee_rate + max(1, old_fee_rate // 20)
+        self.feerate_e.setAmount(new_fee_rate)
+        self._update_tx(new_fee_rate)
+        self._update_message()
+        # give focus to fee slider
+        fee_slider.activate()
+        fee_slider.setFocus()
+        # are we paying max?
+        invoices = self.wallet.get_relevant_invoices_for_tx(txid)
+        if len(invoices) == 1 and len(invoices[0].outputs) == 1:
+            if invoices[0].outputs[0].value == '!':
+                self.set_decrease_payment()
+
+    def is_decrease_payment(self):
+        return self.method_combo.currentIndex() == 1
+
+    def set_decrease_payment(self):
+        self.method_combo.setCurrentIndex(1)
 
     def rbf_func(self, fee_rate) -> PartialTransaction:
         raise NotImplementedError()  # implemented by subclasses
 
-    def _add_advanced_options_cont(self, vbox: QVBoxLayout) -> None:
-        adv_vbox = QVBoxLayout()
-        adv_vbox.setContentsMargins(0, 0, 0, 0)
-        adv_widget = QWidget()
-        adv_widget.setLayout(adv_vbox)
-        adv_widget.setVisible(False)
-        def show_adv_settings():
-            self.adv_button.setEnabled(False)
-            adv_widget.setVisible(True)
-        self.adv_button.clicked.connect(show_adv_settings)
-        self._add_advanced_options(adv_vbox)
-        vbox.addWidget(adv_widget)
-
-    def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
-        pass
-
     def run(self) -> None:
         if not self.exec_():
             return
-        new_fee_rate = self.feerate_e.get_amount()
-        try:
-            new_tx = self.rbf_func(new_fee_rate)
-        except Exception as e:
-            self.window.show_error(str(e))
-            return
-        new_tx.set_rbf(True)
+        self.new_tx.set_rbf(True)
         tx_label = self.wallet.get_label_for_txid(self.txid)
-        self.window.show_transaction(new_tx, tx_desc=tx_label)
+        self.window.show_transaction(self.new_tx, tx_desc=tx_label)
         # TODO maybe save tx_label as label for new tx??
+
+    def update(self):
+        fee_rate = self.feerate_e.get_amount()
+        self._update_tx(fee_rate)
+        self._update_message()
+
+    def _update_tx(self, fee_rate):
+        if fee_rate is None:
+            self.new_tx = None
+            self.message = ''
+        elif fee_rate <= self.old_fee_rate:
+            self.new_tx = None
+            self.message = _("The new fee rate needs to be higher than the old fee rate.")
+        else:
+            try:
+                self.new_tx = self.rbf_func(fee_rate)
+            except CannotBumpFee as e:
+                self.new_tx = None
+                self.message = str(e)
+        if not self.new_tx:
+            return
+        delta = self.new_tx.get_fee() - self.tx.get_fee()
+        if not self.is_decrease_payment():
+            self.message = _("You will pay {} more.").format(self.window.format_amount_and_units(delta))
+        else:
+            self.message = _("The recipient will receive {} less.").format(self.window.format_amount_and_units(delta))
+
+    def _update_message(self):
+        enabled = bool(self.new_tx)
+        self.ok_button.setEnabled(enabled)
+        if enabled:
+            style = ColorScheme.BLUE.as_stylesheet()
+        else:
+            style = ColorScheme.RED.as_stylesheet()
+        self.message_label.setStyleSheet(style)
+        self.message_label.setText(self.message)
 
 
 class BumpFeeDialog(_BaseRBFDialog):
+
+    help_text = _("Increase your transaction's fee to improve its position in mempool.")
 
     def __init__(
             self,
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
-            txid: str,
-    ):
-        help_text = _("Increase your transaction's fee to improve its position in mempool.")
+            txid: str):
         _BaseRBFDialog.__init__(
             self,
             main_window=main_window,
             tx=tx,
             txid=txid,
-            title=_('Bump Fee'),
-            help_text=help_text,
-        )
+            title=_('Bump Fee'))
 
     def rbf_func(self, fee_rate):
         return self.wallet.bump_fee(
@@ -159,52 +181,29 @@ class BumpFeeDialog(_BaseRBFDialog):
             txid=self.txid,
             new_fee_rate=fee_rate,
             coins=self.window.get_coins(),
-            strategies=self.option_index_to_strats[self.strat_combo.currentIndex()],
-        )
-
-    def _add_advanced_options(self, adv_vbox: QVBoxLayout) -> None:
-        self.adv_button.setVisible(True)
-        self.adv_button.setEnabled(True)
-        self.strat_combo = QComboBox()
-        options = [
-            _("decrease change, or add new inputs, or decrease any outputs"),
-            _("decrease change, or decrease any outputs"),
-            _("decrease payment"),
-        ]
-        self.option_index_to_strats = {
-            0: [BumpFeeStrategy.COINCHOOSER, BumpFeeStrategy.DECREASE_CHANGE],
-            1: [BumpFeeStrategy.DECREASE_CHANGE],
-            2: [BumpFeeStrategy.DECREASE_PAYMENT],
-        }
-        self.strat_combo.addItems(options)
-        self.strat_combo.setCurrentIndex(0)
-        strat_hbox = QHBoxLayout()
-        strat_hbox.addWidget(QLabel(_("Strategy") + ":"))
-        strat_hbox.addWidget(self.strat_combo)
-        strat_hbox.addStretch(1)
-        adv_vbox.addLayout(strat_hbox)
+            decrease_payment=self.is_decrease_payment())
 
 
 class DSCancelDialog(_BaseRBFDialog):
+
+    help_text = _(
+        "Cancel an unconfirmed transaction by replacing it with "
+        "a higher-fee transaction that spends back to your wallet.")
 
     def __init__(
             self,
             *,
             main_window: 'ElectrumWindow',
             tx: PartialTransaction,
-            txid: str,
-    ):
-        help_text = _(
-            "Cancel an unconfirmed RBF transaction by double-spending "
-            "its inputs back to your wallet with a higher fee.")
+            txid: str):
         _BaseRBFDialog.__init__(
             self,
             main_window=main_window,
             tx=tx,
             txid=txid,
-            title=_('Cancel transaction'),
-            help_text=help_text,
-        )
+            title=_('Cancel transaction'))
+        self.method_label.setVisible(False)
+        self.method_combo.setVisible(False)
 
     def rbf_func(self, fee_rate):
         return self.wallet.dscancel(tx=self.tx, new_fee_rate=fee_rate)
