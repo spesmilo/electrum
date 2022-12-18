@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 50     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 51     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -199,6 +199,7 @@ class WalletDB(JsonDB):
         self._convert_version_48()
         self._convert_version_49()
         self._convert_version_50()
+        self._convert_version_51()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -979,6 +980,26 @@ class WalletDB(JsonDB):
         requests = self.data.get('payment_requests', {})
         self._convert_invoices_keys(requests)
         self.data['seed_version'] = 50
+
+    def _convert_version_51(self):
+        # convert addr->spk in txi/txo/addr_history
+        if not self._is_upgrade_method_needed(50, 50):
+            return
+        from .bitcoin import address_to_script
+        # txid -> addr -> prev_outpoint -> value
+        txi = self.get('txi', {})
+        for tx_hash, d in list(txi.items()):
+            txi[tx_hash] = {address_to_script(addr): x for addr, x in d.items()}
+        self.data['txi'] = txi
+        # txid -> addr -> output_index -> (value, is_coinbase)
+        txo = self.get('txo', {})
+        for tx_hash, d in list(txo.items()):
+            txo[tx_hash] = {address_to_script(addr): x for addr, x in d.items()}
+        self.data['txo'] = txo
+        # addr -> list of (txid, height)
+        history = self.get('addr_history', {})
+        self.data['addr_history'] = {address_to_script(addr): x for addr, x in history.items()}
+        self.data['seed_version'] = 51
 
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
