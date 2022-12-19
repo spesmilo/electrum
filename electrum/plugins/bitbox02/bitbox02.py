@@ -577,6 +577,10 @@ class BitBox02_KeyStore(Hardware_KeyStore):
         )
 
     def sign_message(self, sequence, message, password, *, script_type=None):
+        if constants.net.TESTNET:
+            raise UserFacingException(
+                _("The {} only supports message signing on mainnet.").format(self.device)
+            )
         if password:
             raise Exception("BitBox02 does not accept a password from the host")
         client = self.get_client()
