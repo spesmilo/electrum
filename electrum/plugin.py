@@ -585,17 +585,22 @@ class DeviceMgr(ThreadJob):
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
               'receive will be unspendable.').format(plugin.device))
 
-    def unpaired_device_infos(self, handler: Optional['HardwareHandlerBase'], plugin: 'HW_PluginBase',
-                              devices: Sequence['Device'] = None,
-                              include_failing_clients=False) -> List['DeviceInfo']:
-        '''Returns a list of DeviceInfo objects: one for each connected,
-        unpaired device accepted by the plugin.'''
+    def list_pairable_device_infos(
+        self,
+        *,
+        handler: Optional['HardwareHandlerBase'],
+        plugin: 'HW_PluginBase',
+        devices: Sequence['Device'] = None,
+        include_failing_clients: bool = False,
+    ) -> List['DeviceInfo']:
+        """Returns a list of DeviceInfo objects: one for each connected device accepted by the plugin.
+        Already paired devices are also included, as it is okay to reuse them.
+        """
         if not plugin.libraries_available:
             message = plugin.get_library_not_available_message()
             raise HardwarePluginLibraryUnavailable(message)
         if devices is None:
             devices = self.scan_devices()
-        devices = [dev for dev in devices if not self.pairing_code_by_id(dev.id_)]
         infos = []
         for device in devices:
             if not plugin.can_recognize_device(device):
@@ -629,7 +634,7 @@ class DeviceMgr(ThreadJob):
         # ideally this should not be called from the GUI thread...
         # assert handler.get_gui_thread() != threading.current_thread(), 'must not be called from GUI thread'
         while True:
-            infos = self.unpaired_device_infos(handler, plugin, devices)
+            infos = self.list_pairable_device_infos(handler=handler, plugin=plugin, devices=devices)
             if infos:
                 break
             if not allow_user_interaction:

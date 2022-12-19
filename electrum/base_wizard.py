@@ -313,9 +313,9 @@ class BaseWizard(Logger):
                     continue
                 # see if plugin recognizes 'scanned_devices'
                 try:
-                    # FIXME: side-effect: unpaired_device_info sets client.handler
-                    device_infos = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices,
-                                                                include_failing_clients=True)
+                    # FIXME: side-effect: this sets client.handler
+                    device_infos = devmgr.list_pairable_device_infos(
+                        handler=None, plugin=plugin, devices=scanned_devices, include_failing_clients=True)
                 except HardwarePluginLibraryUnavailable as e:
                     failed_getting_device_infos(name, e)
                     continue

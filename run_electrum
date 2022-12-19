@@ -193,7 +193,7 @@ def get_connected_hw_devices(plugins: 'Plugins'):
             _logger.error(f"{name}: error during plugin init: {repr(e)}")
             continue
         try:
-            u = devmgr.unpaired_device_infos(None, plugin)
+            u = devmgr.list_pairable_device_infos(handler=None, plugin=plugin)
         except Exception as e:
             _logger.error(f'error getting device infos for {name}: {repr(e)}')
             continue
