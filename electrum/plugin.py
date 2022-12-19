@@ -511,10 +511,16 @@ class DeviceMgr(ThreadJob):
         if handler is None:
             raise Exception(_("Handler not found for") + ' ' + plugin.name + '\n' + _("A library is probably missing."))
         handler.update_status(False)
-        if devices is None:
-            devices = self.scan_devices()
-        client = self.client_by_pairing_code(
-            plugin=plugin, pairing_code=keystore.pairing_code(), handler=handler, devices=devices)
+        pcode = keystore.pairing_code()
+        client = None
+        # search existing clients first (fast-path)
+        if not devices:
+            client = self.client_by_pairing_code(plugin=plugin, pairing_code=pcode, handler=handler, devices=[])
+        # search clients again, now allowing a (slow) scan
+        if client is None:
+            if devices is None:
+                devices = self.scan_devices()
+            client = self.client_by_pairing_code(plugin=plugin, pairing_code=pcode, handler=handler, devices=devices)
         if client is None and force_pair:
             try:
                 info = self.select_device(plugin, handler, keystore, devices,
