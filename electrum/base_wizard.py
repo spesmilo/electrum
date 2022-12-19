@@ -622,7 +622,7 @@ class BaseWizard(Logger):
                 password = k.get_password_for_storage_encryption()
             except UserCancelled:
                 devmgr = self.plugins.device_manager
-                devmgr.unpair_xpub(k.xpub)
+                devmgr.unpair_pairing_code(k.pairing_code())
                 raise ChooseHwDeviceAgain()
             except BaseException as e:
                 self.logger.exception('')

@@ -86,7 +86,7 @@ class HW_PluginBase(BasePlugin):
     def close_wallet(self, wallet: 'Abstract_Wallet'):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
-                self.device_manager().unpair_xpub(keystore.xpub)
+                self.device_manager().unpair_pairing_code(keystore.pairing_code())
                 if keystore.thread:
                     keystore.thread.stop()
 
@@ -248,8 +248,8 @@ class HardwareClientBase:
         during USB device enumeration (called for each unpaired device).
         Stored in the wallet file.
         """
-        # This functionality is optional. If not implemented just return None:
-        return None
+        root_fp = self.request_root_fingerprint_from_device()
+        return root_fp
 
     def has_usable_connection_with_device(self) -> bool:
         raise NotImplementedError()

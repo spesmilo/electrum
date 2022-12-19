@@ -401,8 +401,8 @@ class DeviceMgr(ThreadJob):
 
     def __init__(self, config: SimpleConfig):
         ThreadJob.__init__(self)
-        # An xpub->id_ map. Item only present if we have active pairing. Needs self.lock.
-        self.xpub_ids = {}  # type: Dict[str, str]
+        # A pairing_code->id_ map. Item only present if we have active pairing. Needs self.lock.
+        self.pairing_code_to_id = {}  # type: Dict[str, str]
         # A client->id_ map. Needs self.lock.
         self.clients = {}  # type: Dict[HardwareClientBase, str]
         # What we recognise.  (vendor_id, product_id) -> Plugin
@@ -454,28 +454,28 @@ class DeviceMgr(ThreadJob):
                 self.clients[client] = device.id_
         return client
 
-    def xpub_id(self, xpub):
+    def id_by_pairing_code(self, pairing_code):
         with self.lock:
-            return self.xpub_ids.get(xpub)
+            return self.pairing_code_to_id.get(pairing_code)
 
-    def xpub_by_id(self, id_):
+    def pairing_code_by_id(self, id_):
         with self.lock:
-            for xpub, xpub_id in self.xpub_ids.items():
-                if xpub_id == id_:
-                    return xpub
+            for pairing_code, id2 in self.pairing_code_to_id.items():
+                if id2 == id_:
+                    return pairing_code
             return None
 
-    def unpair_xpub(self, xpub):
+    def unpair_pairing_code(self, pairing_code):
         with self.lock:
-            if xpub not in self.xpub_ids:
+            if pairing_code not in self.pairing_code_to_id:
                 return
-            _id = self.xpub_ids.pop(xpub)
+            _id = self.pairing_code_to_id.pop(pairing_code)
         self._close_client(_id)
 
     def unpair_id(self, id_):
-        xpub = self.xpub_by_id(id_)
-        if xpub:
-            self.unpair_xpub(xpub)
+        pairing_code = self.pairing_code_by_id(id_)
+        if pairing_code:
+            self.unpair_pairing_code(pairing_code)
         else:
             self._close_client(id_)
 
@@ -485,10 +485,6 @@ class DeviceMgr(ThreadJob):
             self.clients.pop(client, None)
         if client:
             client.close()
-
-    def pair_xpub(self, xpub, id_):
-        with self.lock:
-            self.xpub_ids[xpub] = id_
 
     def _client_by_id(self, id_) -> Optional['HardwareClientBase']:
         with self.lock:
@@ -517,10 +513,8 @@ class DeviceMgr(ThreadJob):
         handler.update_status(False)
         if devices is None:
             devices = self.scan_devices()
-        xpub = keystore.xpub
-        derivation = keystore.get_derivation_prefix()
-        assert derivation is not None
-        client = self.client_by_xpub(plugin, xpub, handler, devices)
+        client = self.client_by_pairing_code(
+            plugin=plugin, pairing_code=keystore.pairing_code(), handler=handler, devices=devices)
         if client is None and force_pair:
             try:
                 info = self.select_device(plugin, handler, keystore, devices,
@@ -528,7 +522,7 @@ class DeviceMgr(ThreadJob):
             except CannotAutoSelectDevice:
                 pass
             else:
-                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
+                client = self.force_pair_keystore(plugin=plugin, handler=handler, info=info, keystore=keystore)
         if client:
             handler.update_status(True)
             # note: if select_device was called, we might also update label etc here:
@@ -536,9 +530,11 @@ class DeviceMgr(ThreadJob):
         self.logger.info("end client for keystore")
         return client
 
-    def client_by_xpub(self, plugin: 'HW_PluginBase', xpub, handler: 'HardwareHandlerBase',
-                       devices: Sequence['Device']) -> Optional['HardwareClientBase']:
-        _id = self.xpub_id(xpub)
+    def client_by_pairing_code(
+        self, *, plugin: 'HW_PluginBase', pairing_code: str, handler: 'HardwareHandlerBase',
+        devices: Sequence['Device'],
+    ) -> Optional['HardwareClientBase']:
+        _id = self.id_by_pairing_code(pairing_code)
         client = self._client_by_id(_id)
         if client:
             if type(client.plugin) != type(plugin):
@@ -552,10 +548,17 @@ class DeviceMgr(ThreadJob):
             if device.id_ == _id:
                 return self.create_client(device, handler, plugin)
 
-    def force_pair_xpub(self, plugin: 'HW_PluginBase', handler: 'HardwareHandlerBase',
-                        info: 'DeviceInfo', xpub, derivation) -> Optional['HardwareClientBase']:
-        # The wallet has not been previously paired, so let the user
-        # choose an unpaired device and compare its first address.
+    def force_pair_keystore(
+        self,
+        *,
+        plugin: 'HW_PluginBase',
+        handler: 'HardwareHandlerBase',
+        info: 'DeviceInfo',
+        keystore: 'Hardware_KeyStore',
+    ) -> 'HardwareClientBase':
+        xpub = keystore.xpub
+        derivation = keystore.get_derivation_prefix()
+        assert derivation is not None
         xtype = bip32.xpub_type(xpub)
         client = self._client_by_id(info.device.id_)
         if client and client.is_pairable() and type(client.plugin) == type(plugin):
@@ -568,7 +571,9 @@ class DeviceMgr(ThreadJob):
                  # Bad / cancelled PIN / passphrase
                 client_xpub = None
             if client_xpub == xpub:
-                self.pair_xpub(xpub, info.device.id_)
+                keystore.opportunistically_fill_in_missing_info_from_device(client)
+                with self.lock:
+                    self.pairing_code_to_id[keystore.pairing_code()] = info.device.id_
                 return client
 
         # The user input has wrong PIN or passphrase, or cancelled input,
@@ -590,7 +595,7 @@ class DeviceMgr(ThreadJob):
             raise HardwarePluginLibraryUnavailable(message)
         if devices is None:
             devices = self.scan_devices()
-        devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
+        devices = [dev for dev in devices if not self.pairing_code_by_id(dev.id_)]
         infos = []
         for device in devices:
             if not plugin.can_recognize_device(device):
