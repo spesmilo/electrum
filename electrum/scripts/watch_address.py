@@ -32,12 +32,12 @@ class Notifier(SynchronizerBase):
     async def main(self):
         # resend existing subscriptions if we were restarted
         for addr in self.watched_addresses:
-            await self._add_address(addr)
+            self.add_address(addr)
         # main loop
         while True:
             addr = await self.watch_queue.get()
             self.watched_addresses.add(addr)
-            await self._add_address(addr)
+            self.add_address(addr)
 
     async def _on_address_status(self, addr, status):
         print_msg(f"addr {addr}, status {status}")

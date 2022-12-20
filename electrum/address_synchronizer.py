@@ -212,7 +212,7 @@ class AddressSynchronizer(Logger, EventListener):
             self.db.history[address] = []
             self.set_up_to_date(False)
         if self.synchronizer:
-            self.synchronizer.add(address)
+            self.synchronizer.add_address(address)
 
     def get_conflicting_transactions(self, tx_hash, tx: Transaction, include_self=False):
         """Returns a set of transaction hashes from the wallet history that are
