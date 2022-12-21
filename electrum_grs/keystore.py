@@ -915,6 +915,12 @@ class Hardware_KeyStore(Xpub, KeyStore):
             self.soft_device_id = client.get_soft_device_id()
             self.is_requesting_to_be_rewritten_to_wallet_file = True
 
+    def pairing_code(self) -> Optional[str]:
+        """Used by the DeviceMgr to keep track of paired hw devices."""
+        if not self.soft_device_id:
+            return None
+        return f"{self.plugin.name}/{self.soft_device_id}"
+
 
 KeyStoreWithMPK = Union[KeyStore, MasterPublicKeyMixin]  # intersection really...
 AddressIndexGeneric = Union[Sequence[int], str]  # can be hex pubkey str

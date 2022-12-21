@@ -264,7 +264,7 @@ class QtPluginBase(object):
         '''This dialog box should be usable even if the user has
         forgotten their PIN or it is in bootloader mode.'''
         assert window.gui_thread != threading.current_thread(), 'must not be called from GUI thread'
-        device_id = self.device_manager().xpub_id(keystore.xpub)
+        device_id = self.device_manager().id_by_pairing_code(keystore.pairing_code())
         if not device_id:
             try:
                 info = self.device_manager().select_device(self, keystore.handler, keystore)
