@@ -84,8 +84,6 @@ class AddressSynchronizer(Logger, EventListener):
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # Txs the server claims are in the mempool:
         self.unconfirmed_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
-        # true when synchronized
-        self._up_to_date = False  # considers both Synchronizer and Verifier
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
@@ -210,9 +208,9 @@ class AddressSynchronizer(Logger, EventListener):
     def add_address(self, address):
         if address not in self.db.history:
             self.db.history[address] = []
-            self.set_up_to_date(False)
         if self.synchronizer:
             self.synchronizer.add(address)
+        self.up_to_date_changed()
 
     def get_conflicting_transactions(self, tx_hash, tx: Transaction, include_self=False):
         """Returns a set of transaction hashes from the wallet history that are
@@ -677,17 +675,14 @@ class AddressSynchronizer(Logger, EventListener):
                 # local transaction
                 return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
 
-    def set_up_to_date(self, up_to_date):
-        with self.lock:
-            status_changed = self._up_to_date != up_to_date
-            self._up_to_date = up_to_date
+    def up_to_date_changed(self) -> None:
         # fire triggers
         util.trigger_callback('adb_set_up_to_date', self)
-        if status_changed:
-            self.logger.info(f'set_up_to_date: {up_to_date}')
 
     def is_up_to_date(self):
-        return self._up_to_date
+        if not self.synchronizer or not self.verifier:
+            return False
+        return self.synchronizer.is_up_to_date() and self.verifier.is_up_to_date()
 
     def reset_netrequest_counters(self) -> None:
         if self.synchronizer:
