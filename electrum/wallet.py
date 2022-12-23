@@ -465,8 +465,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.adb.reset_netrequest_counters()  # sync progress indicator
             self.save_db()
         # fire triggers
-        util.trigger_callback('wallet_updated', self)
-        util.trigger_callback('status')
+        if status_changed or up_to_date:  # suppress False->False transition, as it is spammy
+            util.trigger_callback('wallet_updated', self)
+            util.trigger_callback('status')
         if status_changed:
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
