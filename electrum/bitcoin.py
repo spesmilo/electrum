@@ -541,9 +541,11 @@ def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58
+__b58chars_inv = inv_dict(dict(enumerate(__b58chars)))
 
 __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
+__b43chars_inv = inv_dict(dict(enumerate(__b43chars)))
 
 
 class BaseDecodeError(BitcoinException): pass
@@ -589,13 +591,16 @@ def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optio
     if base not in (58, 43):
         raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
+    chars_inv = __b58chars_inv
     if base == 43:
         chars = __b43chars
+        chars_inv = __b43chars_inv
     long_value = 0
     power_of_base = 1
     for c in v[::-1]:
-        digit = chars.find(bytes([c]))
-        if digit == -1:
+        try:
+            digit = chars_inv[c]
+        except KeyError:
             raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
         # naive but slow variant:   long_value += digit * (base**i)
         long_value += digit * power_of_base
