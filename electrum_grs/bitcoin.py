@@ -541,9 +541,11 @@ def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58
+__b58chars_inv = inv_dict(dict(enumerate(__b58chars)))
 
 __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
+__b43chars_inv = inv_dict(dict(enumerate(__b43chars)))
 
 
 class BaseDecodeError(BitcoinException): pass
@@ -557,66 +559,48 @@ def base_encode(v: bytes, *, base: int) -> str:
     chars = __b58chars
     if base == 43:
         chars = __b43chars
-    long_value = 0
-    power_of_base = 1
-    for c in v[::-1]:
-        # naive but slow variant:   long_value += (256**i) * c
-        long_value += power_of_base * c
-        power_of_base <<= 8
-    result = bytearray()
-    while long_value >= base:
-        div, mod = divmod(long_value, base)
-        result.append(chars[mod])
-        long_value = div
-    result.append(chars[long_value])
-    # Groestlcoin does a little leading-zero-compression:
-    # leading 0-bytes in the input become leading-1s
-    nPad = 0
-    for c in v:
-        if c == 0x00:
-            nPad += 1
-        else:
-            break
-    result.extend([chars[0]] * nPad)
-    result.reverse()
+
+    origlen = len(v)
+    v = v.lstrip(b'\x00')
+    newlen = len(v)
+
+    num = int.from_bytes(v, byteorder='big')
+    string = b""
+    while num:
+        num, idx = divmod(num, base)
+        string = chars[idx:idx + 1] + string
+
+    result = chars[0:1] * (origlen - newlen) + string
     return result.decode('ascii')
 
 
-def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optional[bytes]:
-    """ decode v into a string of len bytes."""
+def base_decode(v: Union[bytes, str], *, base: int) -> Optional[bytes]:
+    """ decode v into a string of len bytes.
+
+    based on the work of David Keijser in https://github.com/keis/base58
+    """
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
     if base not in (58, 43):
         raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
+    chars_inv = __b58chars_inv
     if base == 43:
         chars = __b43chars
-    long_value = 0
-    power_of_base = 1
-    for c in v[::-1]:
-        digit = chars.find(bytes([c]))
-        if digit == -1:
-            raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
-        # naive but slow variant:   long_value += digit * (base**i)
-        long_value += digit * power_of_base
-        power_of_base *= base
-    result = bytearray()
-    while long_value >= 256:
-        div, mod = divmod(long_value, 256)
-        result.append(mod)
-        long_value = div
-    result.append(long_value)
-    nPad = 0
-    for c in v:
-        if c == chars[0]:
-            nPad += 1
-        else:
-            break
-    result.extend(b'\x00' * nPad)
-    if length is not None and len(result) != length:
-        return None
-    result.reverse()
-    return bytes(result)
+        chars_inv = __b43chars_inv
+
+    origlen = len(v)
+    v = v.lstrip(chars[0:1])
+    newlen = len(v)
+
+    num = 0
+    try:
+        for char in v:
+            num = num * base + chars_inv[char]
+    except KeyError:
+        raise BaseDecodeError('Forbidden character {} for base {}'.format(char, base))
+
+    return num.to_bytes(origlen - newlen + (num.bit_length() + 7) // 8, 'big')
 
 
 class InvalidChecksum(BaseDecodeError):
