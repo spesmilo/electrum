@@ -184,6 +184,7 @@ class QESwapHelper(AuthMixin, QObject):
             asyncio.run(swap_manager.get_pairs())
             self._service_available = True
         except Exception as e:
+            self.error.emit(_('Swap service unavailable'))
             self._logger.error(f'could not get pairs for swap: {repr(e)}')
             return
 
