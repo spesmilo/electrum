@@ -38,10 +38,6 @@ Item {
         width: parent.width
         spacing: constants.paddingLarge
 
-        Label {
-            text: qsTr('Proxy settings')
-        }
-
         CheckBox {
             id: proxy_enabled_cb
             text: qsTr('Enable Proxy')
@@ -60,7 +56,7 @@ Item {
         }
 
         GridLayout {
-            columns: 4
+            columns: 2
             Layout.fillWidth: true
 
             Label {

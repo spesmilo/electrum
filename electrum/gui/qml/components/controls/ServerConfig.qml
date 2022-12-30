@@ -14,10 +14,6 @@ Item {
         width: parent.width
         spacing: constants.paddingLarge
 
-        Label {
-            text: qsTr('Server settings')
-        }
-
         CheckBox {
             id: auto_server_cb
             text: qsTr('Select server automatically')
