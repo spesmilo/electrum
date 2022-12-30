@@ -23,30 +23,38 @@ ElDialog {
         color: "#aa000000"
     }
 
+    padding: 0
+
     ColumnLayout {
-        id: layout
         width: parent.width
+        height: parent.height
+        spacing: 0
 
         ProxyConfig {
+            Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
             id: proxyconfig
         }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Button {
-                text: qsTr('Ok')
-                onClicked: {
-                    var proxy = proxyconfig.toProxyDict()
-                    if (proxy && proxy['enabled'] == true) {
-                        Network.proxy = proxy
-                    } else {
-                        Network.proxy = {'enabled': false}
-                    }
-                    rootItem.close()
+        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Ok')
+            icon.source: '../../icons/confirmed.png'
+            onClicked: {
+                var proxy = proxyconfig.toProxyDict()
+                if (proxy && proxy['enabled'] == true) {
+                    Network.proxy = proxy
+                } else {
+                    Network.proxy = {'enabled': false}
                 }
+                rootItem.close()
             }
         }
     }
+
 
     Component.onCompleted: {
         var p = Network.proxy
