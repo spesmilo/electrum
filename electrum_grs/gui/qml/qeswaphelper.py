@@ -32,6 +32,7 @@ class QESwapHelper(AuthMixin, QObject):
     _miningfee = QEAmount()
     _isReverse = False
 
+    _service_available = False
     _send_amount = 0
     _receive_amount = 0
 
@@ -179,7 +180,14 @@ class QESwapHelper(AuthMixin, QObject):
     def init_swap_slider_range(self):
         lnworker = self._wallet.wallet.lnworker
         swap_manager = lnworker.swap_manager
-        asyncio.run(swap_manager.get_pairs())
+        try:
+            asyncio.run(swap_manager.get_pairs())
+            self._service_available = True
+        except Exception as e:
+            self.error.emit(_('Swap service unavailable'))
+            self._logger.error(f'could not get pairs for swap: {repr(e)}')
+            return
+
         """Sets the minimal and maximal amount that can be swapped for the swap
         slider."""
         # tx is updated again afterwards with send_amount in case of normal swap
@@ -223,6 +231,9 @@ class QESwapHelper(AuthMixin, QObject):
             self.valid = False
 
     def swap_slider_moved(self):
+        if not self._service_available:
+            return
+
         position = int(self._sliderPos)
 
         swap_manager = self._wallet.wallet.lnworker.swap_manager

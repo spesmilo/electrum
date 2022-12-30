@@ -17,6 +17,7 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
+    z: 1 // raise z so it also covers dialogs using overlay as parent
 
     anchors.centerIn: parent
 
