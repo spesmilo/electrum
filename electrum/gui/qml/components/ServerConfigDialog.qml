@@ -30,14 +30,44 @@ ElDialog {
         height: parent.height
         spacing: 0
 
-        ServerConfig {
-            id: serverconfig
+        ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
-        }
 
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
+            ServerConfig {
+                id: serverconfig
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: qsTr('Servers')
+                font.pixelSize: constants.fontSizeLarge
+                color: Material.accentColor
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Material.accentColor
+            }
+
+            Frame {
+                background: PaneInsetBackground { baseColor: Material.dialogColor }
+
+                verticalPadding: 0
+                horizontalPadding: 0
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+
+                ListView {
+                    anchors.fill: parent
+                    model: Network.serverListModel
+                    delegate: ServerDelegate { }
+                }
+            }
+        }
 
         FlatButton {
             Layout.fillWidth: true

@@ -5,12 +5,14 @@ from electrum import constants
 from electrum.interface import ServerAddr
 
 from .util import QtEventListener, event_listener
+from .qeserverlistmodel import QEServerListModel
 
 class QENetwork(QObject, QtEventListener):
     def __init__(self, network, qeconfig, parent=None):
         super().__init__(parent)
         self.network = network
         self._qeconfig = qeconfig
+        self._serverListModel = None
         self._height = network.get_local_height() # init here, update event can take a while
         self.register_callbacks()
 
@@ -186,3 +188,10 @@ class QENetwork(QObject, QtEventListener):
             'db_channels': self._gossipDbChannels ,
             'db_policies': self._gossipDbPolicies
         }
+
+    serverListModelChanged = pyqtSignal()
+    @pyqtProperty(QEServerListModel, notify=serverListModelChanged)
+    def serverListModel(self):
+        if self._serverListModel is None:
+            self._serverListModel = QEServerListModel(self.network)
+        return self._serverListModel

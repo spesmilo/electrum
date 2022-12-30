@@ -154,6 +154,7 @@ Pane {
                     text: qsTr('disabled');
                     visible: !Config.useGossip
                 }
+
             }
 
         }
