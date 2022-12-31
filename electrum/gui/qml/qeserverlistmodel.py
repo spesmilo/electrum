@@ -28,17 +28,17 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
-    @event_listener
+    @qt_event_listener
     def on_event_network_updated(self):
         self._logger.info(f'network updated')
         self.init_model()
 
-    @event_listener
+    @qt_event_listener
     def on_event_blockchain_updated(self):
         self._logger.info(f'blockchain updated')
         self.init_model()
 
-    @event_listener
+    @qt_event_listener
     def on_event_default_server_changed(self):
         self._logger.info(f'default server changed')
         self.init_model()
@@ -82,6 +82,8 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
     def init_model(self):
         self.clear()
 
+        servers = []
+
         chains = self.get_chains()
 
         for chain_id, interfaces in chains.items():
@@ -105,7 +107,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['height'] = i.tip
 
                 self._logger.debug(f'adding server: {repr(server)}')
-                self.servers.append(server)
+                servers.append(server)
 
         # disconnected servers
         all_servers = self.network.get_servers()
@@ -129,5 +131,9 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['name'] = s.net_addr_str()
                 server['address'] = server['name']
 
-                self.servers.append(server)
+                self._logger.debug(f'adding server: {repr(server)}')
+                servers.append(server)
 
+        self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)
+        self.servers = servers
+        self.endInsertRows()

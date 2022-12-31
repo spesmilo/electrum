@@ -55,16 +55,37 @@ ElDialog {
 
             Frame {
                 background: PaneInsetBackground { baseColor: Material.dialogColor }
-
+                clip: true
                 verticalPadding: 0
                 horizontalPadding: 0
                 Layout.fillHeight: true
                 Layout.fillWidth: true
 
                 ListView {
+                    id: serversListView
                     anchors.fill: parent
                     model: Network.serverListModel
-                    delegate: ServerDelegate { }
+                    delegate: ServerDelegate {}
+
+                    section.property: 'chain'
+                    section.criteria: ViewSection.FullString
+                    section.delegate: RowLayout {
+                        width: ListView.view.width
+                        required property string section
+                        Label {
+                            text: section
+                                ? serversListView.model.chaintips > 1
+                                    ? qsTr('Connected @%1').arg(section)
+                                    : qsTr('Connected')
+                                : qsTr('Disconnected')
+                            Layout.alignment: Qt.AlignLeft
+                            Layout.topMargin: constants.paddingXSmall
+                            Layout.leftMargin: constants.paddingSmall
+                            font.pixelSize: constants.fontSizeMedium
+                            color: Material.accentColor
+                        }
+                    }
+
                 }
             }
         }

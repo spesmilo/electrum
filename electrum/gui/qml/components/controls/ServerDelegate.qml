@@ -15,15 +15,48 @@ ItemDelegate {
         anchors {
             left: parent.left
             right: parent.right
-            leftMargin: constants.paddingSmall
+            leftMargin: constants.paddingXLarge
             rightMargin: constants.paddingSmall
         }
-        columns: 2
-        Label {
-            text: model.address
+
+        columns: 3
+
+        // topmargin
+        Rectangle {
+            Layout.columnSpan: 3
+            Layout.preferredHeight: constants.paddingSmall
+            color: 'transparent'
+        }
+
+        Item {
+            Layout.preferredWidth: constants.iconSizeSmall
+            Layout.preferredHeight: constants.iconSizeSmall
+            Label {
+                text: '❤'
+                anchors.centerIn: parent
+                visible: model.is_primary
+            }
+        }
+        Item {
+            Layout.preferredWidth: constants.iconSizeMedium
+            Layout.preferredHeight: constants.iconSizeMedium
+            Image {
+                source: '../../../icons/status_connected.png'
+                width: constants.iconSizeMedium
+                height: constants.iconSizeMedium
+                visible: model.is_connected
+            }
         }
         Label {
-            text: model.chain
+            Layout.fillWidth: true
+            text: model.address
+        }
+
+        // bottommargin
+        Rectangle {
+            Layout.columnSpan: 3
+            Layout.preferredHeight: constants.paddingSmall
+            color: 'transparent'
         }
     }
 }
