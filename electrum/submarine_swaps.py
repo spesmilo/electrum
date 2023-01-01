@@ -6,6 +6,7 @@ from decimal import Decimal
 import math
 
 import attr
+import aiohttp
 
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
@@ -21,6 +22,7 @@ from .lnutil import hex_to_bytes
 from .json_db import StoredObject
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .i18n import _
 
 if TYPE_CHECKING:
     from .network import Network
@@ -77,6 +79,11 @@ WITNESS_TEMPLATE_REVERSE_SWAP = [
     opcodes.OP_ENDIF,
     opcodes.OP_CHECKSIG
 ]
+
+
+class SwapServerError(Exception):
+    def __str__(self):
+        return _("The swap server errored or is unreachable.")
 
 
 @attr.s
@@ -472,11 +479,17 @@ class SwapManager(Logger):
         self._swaps_by_lockup_address[swap.lockup_address] = swap
 
     async def get_pairs(self) -> None:
+        """Might raise SwapServerError."""
         from .network import Network
-        response = await Network.async_send_http_on_proxy(
-            'get',
-            self.api_url + '/getpairs',
-            timeout=30)
+        try:
+            response = await Network.async_send_http_on_proxy(
+                'get',
+                self.api_url + '/getpairs',
+                timeout=30)
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Swap server errored: {e!r}")
+            raise SwapServerError() from e
+        # we assume server response is well-formed; otherwise let an exception propagate to the crash reporter
         pairs = json.loads(response)
         fees = pairs['pairs']['BTC/BTC']['fees']
         self.percentage = fees['percentage']
