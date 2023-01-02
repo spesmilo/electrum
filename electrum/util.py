@@ -47,6 +47,7 @@ import random
 import secrets
 import functools
 from abc import abstractmethod, ABC
+import socket
 
 import attr
 import aiohttp
@@ -1470,6 +1471,32 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         s = self.interface.session
         assert s is not None
         return s
+
+
+def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
+    # Probable ports for Tor to listen at
+    candidates = [
+        ("127.0.0.1", 9050),
+        ("127.0.0.1", 9150),
+    ]
+    for net_addr in candidates:
+        if is_tor_socks_port(*net_addr):
+            return net_addr
+    return None
+
+
+def is_tor_socks_port(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            s.connect((host, port))
+            # Tor responds uniquely to HTTP-like requests
+            s.send(b"GET\n")
+            if b"Tor is not an HTTP Proxy" in s.recv(1024):
+                return True
+    except socket.error:
+        pass
+    return False
 
 
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
