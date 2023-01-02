@@ -114,7 +114,6 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.minimumHeight: 80
                 font.family: FixedFont
-                focus: true
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: {
                     if (activeFocus)
@@ -194,5 +193,6 @@ WizardComponent {
                 cosigner = wizard_data['multisig_current_cosigner']
             participants = wizard_data['multisig_participants']
         }
+        Qt.callLater(masterkey_ta.forceActiveFocus)
     }
 }

@@ -241,6 +241,7 @@ WizardComponent {
                 cosigner = wizard_data['multisig_current_cosigner']
         }
         setSeedTypeHelpText()
+        Qt.callLater(seedtext.forceActiveFocus)
     }
 
 }
