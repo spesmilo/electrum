@@ -1,6 +1,7 @@
 from typing import Optional
 
 import qrcode
+import qrcode.exceptions
 
 from PyQt5.QtGui import QColor, QPen
 import PyQt5.QtGui as QtGui
@@ -16,6 +17,10 @@ from electrum.simple_config import SimpleConfig
 from .util import WindowModalDialog, WWLabel, getSaveFileName
 
 
+class QrCodeDataOverflow(qrcode.exceptions.DataOverflowError):
+    pass
+
+
 class QRCodeWidget(QWidget):
 
     def __init__(self, data=None, *, manual_size: bool = False):
@@ -27,20 +32,25 @@ class QRCodeWidget(QWidget):
         self.setData(data)
 
     def setData(self, data):
-        if self.data != data:
-            self.data = data
-        if self.data:
-            self.qr = qrcode.QRCode(
+        if data:
+            qr = qrcode.QRCode(
                 error_correction=qrcode.constants.ERROR_CORRECT_L,
                 box_size=10,
                 border=0,
             )
-            self.qr.add_data(self.data)
+            try:
+                qr.add_data(data)
+                qr_matrix = qr.get_matrix()  # test that data fits in QR code
+            except (ValueError, qrcode.exceptions.DataOverflowError) as e:
+                raise QrCodeDataOverflow() from e
+            self.qr = qr
+            self.data = data
             if not self._manual_size:
-                k = len(self.qr.get_matrix())
+                k = len(qr_matrix)
                 self.setMinimumSize(k * 5, k * 5)
         else:
             self.qr = None
+            self.data = None
 
         self.update()
 
