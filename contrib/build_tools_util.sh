@@ -129,7 +129,13 @@ if [ -n "$GCC_TRIPLET_BUILD" ] ; then
 fi
 
 export GCC_STRIP_BINARIES="${GCC_STRIP_BINARIES:-0}"
-export CPU_COUNT="$(nproc 2> /dev/null || sysctl -n hw.ncpu)"
+
+if [ -n "$CIRRUS_CPU" ] ; then
+    # special-case for CI. see https://github.com/cirruslabs/cirrus-ci-docs/issues/1115
+    export CPU_COUNT="$CIRRUS_CPU"
+else
+    export CPU_COUNT="$(nproc 2> /dev/null || sysctl -n hw.ncpu)"
+fi
 info "Found $CPU_COUNT CPUs, which we might use for building."
 
 
