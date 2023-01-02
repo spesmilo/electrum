@@ -1,3 +1,37 @@
+# Release 4.3.3 - (January 3, 2023)
+ * Lightning:
+   - fix handling failed HTLCs in gossip-based routing (#7995)
+   - fix LN cooperative-chan-close to witness v1 addr (#8012)
+ * PSBTs:
+   - never put ypub/zpub in psbts, only plain xpubs (#8036)
+   - for witness v0 txins, put both UTXO and WIT_UTXO in psbt (#8039)
+ * Hardware wallets:
+   - Trezor: optimize signing speed by not serializing tx (#8058)
+   - Ledger:
+     - modify plugin to support new bitcoin app v2.1.0 (#8041),
+     - added a deprecation warning when using Ledger HW.1 devices.
+       Ledger itself stopped supporting HW.1 some years ago, and it is
+       becoming a maintenance burden for us to keep supporting it.
+       Please migrate away from these devices. Support will be removed
+       in a future release.
+ * Binaries:
+   - tighten build system to only use source pkgs in more places
+     (#7999, #8000)
+   - Windows:
+     - use debian makensis instead of upstream windows exe (#8057)
+     - stop using debian sid, build missing dep instead (98d29cba)
+   - AppImage: fix failing to run on certain systems (#8011)
+ * commands:
+   - getinfo() to show if running in testnet mode (#8044)
+   - add a "convert_currency" command (for fiat FX rate) (#8091)
+ * Qt wizard: fix QR code not shown during 2fa wallet creation (#8071)
+ * rework Tor-socks-proxy detection to reduce Tor-log-spam (#7317)
+ * Android: add setting to enable debug logs (#7409)
+ * fix payserver (merchant) js for electrum 4.3 invoice api (0fc90e07)
+ * bip21: more robust handling of URIs that include a "lightning" key
+   (ac1d53f0, 2fd762c3, #8047)
+
+
 # Release 4.3.2 - (September 26, 2022)
  * When creating new requests, reuse addresses of expired requests
    (fixes #7927).
