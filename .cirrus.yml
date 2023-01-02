@@ -223,35 +223,36 @@ task:
   binaries_artifacts:
     path: "dist/*"
 
-task:
-  name: MacOS build
-  macos_instance:
-    image: catalina-xcode-11.3.1
-  env:
-    TARGET_OS: macOS
-  pip_cache:
-    folder: ~/Library/Caches/pip
-    fingerprint_script:
-      - echo $CIRRUS_TASK_NAME
-      - git ls-files -s contrib/deterministic-build/*.txt
-      - git ls-files -s contrib/osx/
-  build2_cache:
-    folder: contrib/osx/.cache
-    fingerprint_script:
-      - echo $CIRRUS_TASK_NAME
-      - cat contrib/make_libsecp256k1.sh | shasum -a 256
-      - cat contrib/make_libusb.sh | shasum -a 256
-      - cat contrib/make_zbar.sh | shasum -a 256
-      - git ls-files -s contrib/osx/
-  install_script:
-    - git fetch --all --tags
-  build_script:
-    - ./contrib/osx/make_osx.sh
-  sum_script:
-    - ls -lah dist
-    - shasum -a 256 dist/*.dmg
-  binaries_artifacts:
-    path: "dist/*"
+## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
+#task:
+#  name: MacOS build
+#  macos_instance:
+#    image: catalina-xcode-11.3.1
+#  env:
+#    TARGET_OS: macOS
+#  pip_cache:
+#    folder: ~/Library/Caches/pip
+#    fingerprint_script:
+#      - echo $CIRRUS_TASK_NAME
+#      - git ls-files -s contrib/deterministic-build/*.txt
+#      - git ls-files -s contrib/osx/
+#  build2_cache:
+#    folder: contrib/osx/.cache
+#    fingerprint_script:
+#      - echo $CIRRUS_TASK_NAME
+#      - cat contrib/make_libsecp256k1.sh | shasum -a 256
+#      - cat contrib/make_libusb.sh | shasum -a 256
+#      - cat contrib/make_zbar.sh | shasum -a 256
+#      - git ls-files -s contrib/osx/
+#  install_script:
+#    - git fetch --all --tags
+#  build_script:
+#    - ./contrib/osx/make_osx.sh
+#  sum_script:
+#    - ls -lah dist
+#    - shasum -a 256 dist/*.dmg
+#  binaries_artifacts:
+#    path: "dist/*"
 
 task:
   name: AppImage build
