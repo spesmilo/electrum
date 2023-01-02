@@ -18,6 +18,7 @@ ElDialog {
 
     title: qsTr('Invoice')
     standardButtons: invoice_key != '' ? Dialog.Close : Dialog.Cancel
+    iconSource: Qt.resolvedUrl('../../icons/tab_send.png')
 
     padding: 0
 

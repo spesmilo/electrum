@@ -60,6 +60,7 @@ ElDialog {
                 horizontalPadding: 0
                 Layout.fillHeight: true
                 Layout.fillWidth: true
+                Layout.bottomMargin: constants.paddingLarge
 
                 ListView {
                     id: serversListView
