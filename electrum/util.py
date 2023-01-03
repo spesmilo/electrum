@@ -1490,9 +1490,13 @@ def is_tor_socks_port(host: str, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.1)
             s.connect((host, port))
-            # Tor responds uniquely to HTTP-like requests
-            s.send(b"GET\n")
-            if b"Tor is not an HTTP Proxy" in s.recv(1024):
+            # mimic "tor-resolve 0.0.0.0".
+            # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
+            # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in
+            # > [tor's socks extension spec](https://github.com/torproject/torspec/blob/7116c9cdaba248aae07a3f1d0e15d9dd102f62c5/socks-extensions.txt#L63),
+            # > resolving 0.0.0.0, which being an IP, tor resolves itself without needing to ask a relay.
+            s.send(b'\x05\x01\x00\x05\xf0\x00\x03\x070.0.0.0\x00\x00')
+            if s.recv(1024) == b'\x05\x00\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00':
                 return True
     except socket.error:
         pass
