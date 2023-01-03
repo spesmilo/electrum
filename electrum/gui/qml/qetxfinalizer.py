@@ -280,8 +280,7 @@ class QETxFinalizer(TxFeeSlider):
         if self._canRbf != canRbf:
             self._canRbf = canRbf
             self.canRbfChanged.emit()
-            if not canRbf and self.rbf:
-                self.rbf = False
+        self.rbf = self._canRbf # if we can RbF, we do RbF
 
     @profiler
     def make_tx(self, amount):

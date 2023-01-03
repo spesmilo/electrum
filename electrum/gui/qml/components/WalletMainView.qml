@@ -308,7 +308,7 @@ Item {
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
-                canRbf: Config.useRbf
+                canRbf: true
             }
             onClosed: destroy()
         }
