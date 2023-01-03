@@ -44,6 +44,7 @@ ElDialog {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: passwordLayout.width
             Layout.preferredHeight: notice.height
+
             InfoTextArea {
                 id: notice
                 text: qsTr("Wallet requires password to unlock")
@@ -56,7 +57,6 @@ ElDialog {
         RowLayout {
             id: passwordLayout
             Layout.alignment: Qt.AlignHCenter
-            Layout.maximumWidth: parent.width * 2/3
             Label {
                 text: qsTr('Password')
                 visible: wallet_db.needsPassword

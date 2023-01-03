@@ -76,8 +76,6 @@ ElDialog {
                     Layout.topMargin: constants.paddingSmall
                     Layout.bottomMargin: constants.paddingSmall
 
-                    // Layout.preferredWidth: qrloader.width
-                    // Layout.preferredHeight: qrloader.height
                     Layout.preferredWidth: dialog.width * 7/8
                     Layout.preferredHeight: dialog.width * 7/8
 
@@ -189,7 +187,7 @@ ElDialog {
                 GridLayout {
                     columns: 2
                     visible: request.message || !request.amount.isEmpty
-                    Layout.maximumWidth: qrloader.width
+                    Layout.maximumWidth: buttons.width
                     Layout.alignment: Qt.AlignHCenter
 
                     Label {

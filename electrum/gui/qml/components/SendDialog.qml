@@ -95,6 +95,7 @@ ElDialog {
                 Label {
                     text: 'Enter a bitcoin address or a Lightning invoice'
                     wrapMode: Text.Wrap
+                    Layout.maximumWidth: parent.width
                 }
 
                 TextField {
