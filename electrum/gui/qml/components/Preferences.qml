@@ -29,9 +29,16 @@ Pane {
 
             Pane {
                 id: prefsPane
+                width: parent.width
+
                 GridLayout {
                     columns: 2
                     width: parent.width
+
+                    PrefsHeading {
+                        Layout.columnSpan: 2
+                        text: qsTr('User Interface')
+                    }
 
                     Label {
                         text: qsTr('Language')
@@ -55,29 +62,55 @@ Pane {
                         }
                     }
 
-                    Switch {
-                        id: thousands
+                    RowLayout {
                         Layout.columnSpan: 2
-                        text: qsTr('Add thousands separators to bitcoin amounts')
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.thousandsSeparator = checked
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: thousands
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.thousandsSeparator = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Add thousands separators to bitcoin amounts')
+                            wrapMode: Text.Wrap
                         }
                     }
 
-                    Switch {
-                        id: checkSoftware
+                    RowLayout {
                         Layout.columnSpan: 2
-                        text: qsTr('Automatically check for software updates')
-                        enabled: false
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: checkSoftware
+                            enabled: false
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Automatically check for software updates')
+                            wrapMode: Text.Wrap
+                        }
                     }
 
-                    Switch {
-                        id: fiatEnable
-                        text: qsTr('Fiat Currency')
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Daemon.fx.enabled = checked
+                    RowLayout {
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: fiatEnable
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Daemon.fx.enabled = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Fiat Currency')
+                            wrapMode: Text.Wrap
                         }
                     }
 
@@ -91,19 +124,28 @@ Pane {
                         }
                     }
 
-                    Switch {
-                        id: historicRates
-                        text: qsTr('Historic rates')
-                        enabled: Daemon.fx.enabled
+                    RowLayout {
                         Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Daemon.fx.historicRates = checked
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: historicRates
+                            enabled: Daemon.fx.enabled
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Daemon.fx.historicRates = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Historic rates')
+                            wrapMode: Text.Wrap
                         }
                     }
 
                     Label {
-                        text: qsTr('Source')
+                        text: qsTr('Exchange rate provider')
                         enabled: Daemon.fx.enabled
                     }
 
@@ -120,26 +162,9 @@ Pane {
                         }
                     }
 
-                    Switch {
-                        id: spendUnconfirmed
-                        text: qsTr('Spend unconfirmed')
+                    PrefsHeading {
                         Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.spendUnconfirmed = checked
-                        }
-                    }
-
-                    Label {
-                        text: qsTr('Default request expiry')
-                        Layout.fillWidth: false
-                    }
-
-                    RequestExpiryComboBox {
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.requestExpiry = currentValue
-                        }
+                        text: qsTr('Wallet behavior')
                     }
 
                     Label {
@@ -185,6 +210,41 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: spendUnconfirmed
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.spendUnconfirmed = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Spend unconfirmed')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Label {
+                        text: qsTr('Default request expiry')
+                        Layout.fillWidth: false
+                    }
+
+                    RequestExpiryComboBox {
+                        onCurrentValueChanged: {
+                            if (activeFocus)
+                                Config.requestExpiry = currentValue
+                        }
+                    }
+
+                    PrefsHeading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Lightning')
+                    }
+
                     Label {
                         text: qsTr('Lightning Routing')
                     }
@@ -205,37 +265,68 @@ Pane {
                         }
                     }
 
-                    Switch {
-                        id: useRecoverableChannels
-                        text: qsTr('Create recoverable channels')
+                    RowLayout {
                         Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.useRecoverableChannels = checked
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: useRecoverableChannels
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.useRecoverableChannels = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Create recoverable channels')
+                            wrapMode: Text.Wrap
                         }
                     }
 
-                    Switch {
-                        id: useFallbackAddress
-                        text: qsTr('Use onchain fallback address for Lightning invoices')
+                    RowLayout {
                         Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.useFallbackAddress = checked
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: useFallbackAddress
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.useFallbackAddress = checked
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Use onchain fallback address for Lightning invoices')
+                            wrapMode: Text.Wrap
                         }
                     }
 
-                    Switch {
-                        id: enableDebugLogs
-                        text: qsTr('Enable debug logs (for developers)')
+                    PrefsHeading {
                         Layout.columnSpan: 2
-                        onCheckedChanged: {
-                            if (activeFocus)
-                                Config.enableDebugLogs = checked
-                        }
-                        enabled: Config.canToggleDebugLogs
+                        text: qsTr('Advanced')
                     }
 
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: enableDebugLogs
+                            onCheckedChanged: {
+                                if (activeFocus)
+                                    Config.enableDebugLogs = checked
+                            }
+                            enabled: Config.canToggleDebugLogs
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Enable debug logs (for developers)')
+                            wrapMode: Text.Wrap
+                        }
+                    }
                 }
 
             }
