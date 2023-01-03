@@ -154,7 +154,7 @@ Pane {
                     id: piechart
                     visible: Daemon.currentWallet.totalBalance.satsInt > 0
                     Layout.preferredWidth: parent.width
-                    implicitHeight: 200 // TODO: sane value dependent on screen
+                    implicitHeight: 220 // TODO: sane value dependent on screen
                     innerOffset: 6
                     function updateSlices() {
                         var totalB = Daemon.currentWallet.totalBalance.satsInt
@@ -162,9 +162,9 @@ Pane {
                         var frozenB = Daemon.currentWallet.frozenBalance.satsInt
                         var lnB = Daemon.currentWallet.lightningBalance.satsInt
                         piechart.slices = [
+                            { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' },
                             { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
                             { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
-                            { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' }
                         ]
                     }
                 }
