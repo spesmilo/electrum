@@ -121,6 +121,17 @@ Pane {
                     }
 
                     ScrollIndicator.vertical: ScrollIndicator { }
+
+                    Label {
+                        visible: Daemon.currentWallet.channelModel.rowCount() == 0
+                        anchors.centerIn: parent
+                        width: listview.width * 4/5
+                        font.pixelSize: constants.fontSizeXXLarge
+                        color: constants.mutedForeground
+                        text: qsTr('You have no Lightning channels yet in this wallet')
+                        wrapMode: Text.Wrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
                 }
             }
         }
