@@ -9,12 +9,12 @@ WizardComponent {
     last: true
 
     function apply() {
-        wizard_data['oneserver'] = !sc.auto_server
+        wizard_data['autoconnect'] = !sc.auto_connect
         wizard_data['server'] = sc.address
     }
 
     ColumnLayout {
-        width: parent.width
+        anchors.fill: parent
         spacing: constants.paddingLarge
 
         Label {
@@ -24,6 +24,7 @@ WizardComponent {
         ServerConfig {
             id: sc
             width: parent.width
+            Layout.fillHeight: true
         }
     }
 }

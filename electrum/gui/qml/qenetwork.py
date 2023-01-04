@@ -138,7 +138,7 @@ class QENetwork(QObject, QtEventListener):
             if not server: raise Exception("failed to parse")
         except Exception:
             return
-        net_params = net_params._replace(server=server)
+        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect, oneserver=not self._qeconfig.autoConnect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)

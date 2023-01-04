@@ -39,56 +39,9 @@ ElDialog {
             ServerConfig {
                 id: serverconfig
                 Layout.fillWidth: true
-            }
-
-            Label {
-                text: qsTr('Servers')
-                font.pixelSize: constants.fontSizeLarge
-                color: Material.accentColor
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Material.accentColor
-            }
-
-            Frame {
-                background: PaneInsetBackground { baseColor: Material.dialogColor }
-                clip: true
-                verticalPadding: 0
-                horizontalPadding: 0
                 Layout.fillHeight: true
-                Layout.fillWidth: true
-                Layout.bottomMargin: constants.paddingLarge
-
-                ListView {
-                    id: serversListView
-                    anchors.fill: parent
-                    model: Network.serverListModel
-                    delegate: ServerDelegate {}
-
-                    section.property: 'chain'
-                    section.criteria: ViewSection.FullString
-                    section.delegate: RowLayout {
-                        width: ListView.view.width
-                        required property string section
-                        Label {
-                            text: section
-                                ? serversListView.model.chaintips > 1
-                                    ? qsTr('Connected @%1').arg(section)
-                                    : qsTr('Connected')
-                                : qsTr('Disconnected')
-                            Layout.alignment: Qt.AlignLeft
-                            Layout.topMargin: constants.paddingXSmall
-                            Layout.leftMargin: constants.paddingSmall
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
-                        }
-                    }
-
-                }
             }
+
         }
 
         FlatButton {
@@ -96,17 +49,12 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             onClicked: {
-                Config.autoConnect = serverconfig.auto_server
-                if (!serverconfig.auto_server) {
-                    Network.server = serverconfig.address
-                }
+                Config.autoConnect = serverconfig.auto_connect
+                Config.serverString = serverconfig.address
+                Network.server = serverconfig.address
                 rootItem.close()
             }
         }
     }
 
-    Component.onCompleted: {
-        serverconfig.auto_server = Config.autoConnect
-        serverconfig.address = Network.server
-    }
 }
