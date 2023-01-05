@@ -179,7 +179,7 @@ RUN cd /opt \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
     # commit: from branch accumulator/electrum_20210421d
-    && git checkout "a16a3dd5cf8fe0f846663bce9e248e5432dbbf2d^{commit}" \
+    && git checkout "fb8f6fc44ef7465500c534186b0aba2a5e4ddc15^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars
