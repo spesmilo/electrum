@@ -11,7 +11,8 @@ import "controls"
 ApplicationWindow
 {
     id: app
-    visible: true
+
+    visible: false // initial value
 
     // dimensions ignored on android
     width: 480
@@ -148,22 +149,27 @@ ApplicationWindow
     }
 
     Timer {
-        id: splashTimer
+        id: coverTimer
         interval: 10
         onTriggered: {
-            splash.opacity = 0
+            app.visible = true
+            cover.opacity = 0
         }
     }
 
-    Splash {
-        id: splash
-        anchors.top: header.top
-        anchors.bottom: app.contentItem.bottom
-        width: app.width
+    Rectangle {
+        id: cover
+        parent: Overlay.overlay
+        anchors.fill: parent
+
         z: 1000
+        color: 'black'
 
         Behavior on opacity {
-            NumberAnimation { duration: 300 }
+            NumberAnimation {
+                duration: 2000
+                easing.type: Easing.OutQuad;
+            }
         }
     }
 
@@ -239,7 +245,7 @@ ApplicationWindow
     }
 
     Component.onCompleted: {
-        splashTimer.start()
+        coverTimer.start()
 
         if (!Config.autoConnectDefined) {
             var dialog = serverConnectWizard.createObject(app)
