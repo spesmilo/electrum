@@ -1065,6 +1065,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d = address_dialog.AddressDialog(self, addr, parent=parent)
         d.exec_()
 
+    def show_utxo(self, utxo):
+        from . import utxo_dialog
+        d = utxo_dialog.UTXODialog(self, utxo)
+        d.exec_()
+
     def show_channel_details(self, chan):
         from .channel_details import ChannelDetailsDialog
         ChannelDetailsDialog(self, chan).show()
