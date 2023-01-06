@@ -66,14 +66,6 @@ Item {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
-                text: qsTr('Wallets');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
-                icon.source: '../../icons/wallet.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
                 text: qsTr('Network');
                 onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
                 icon.source: '../../icons/network.png'
