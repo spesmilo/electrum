@@ -41,7 +41,8 @@ Item {
     property QtObject menu: Menu {
         parent: Overlay.overlay
         dim: true
-        Overlay.modeless: Rectangle {
+        modal: true
+        Overlay.modal: Rectangle {
             color: "#44000000"
         }
 
