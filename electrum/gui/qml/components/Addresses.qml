@@ -76,14 +76,14 @@ Pane {
                                 Layout.preferredWidth: constants.iconSizeMedium
                                 Layout.preferredHeight: constants.iconSizeMedium
                                 color: model.held
-                                        ? Qt.rgba(1,0,0,0.75)
+                                        ? constants.colorAddressFrozen
                                         : model.numtx > 0
                                             ? model.balance.satsInt == 0
-                                                ? Qt.rgba(0.5,0.5,0.5,1)
-                                                : Qt.rgba(0.75,0.75,0.75,1)
+                                                ? constants.colorAddressUsed
+                                                : constants.colorAddressUsedWithBalance
                                             : model.type == 'receive'
-                                                ? Qt.rgba(0,1,0,0.5)
-                                                : Qt.rgba(1,0.93,0,0.75)
+                                                ? constants.colorAddressExternal
+                                                : constants.colorAddressInternal
                             }
 
                             RowLayout {

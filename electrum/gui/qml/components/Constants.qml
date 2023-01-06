@@ -43,6 +43,12 @@ Item {
     property color colorPiechartParticipant: 'gray'
     property color colorPiechartSignature: 'yellow'
 
+    property color colorAddressExternal: Qt.rgba(0,1,0,0.5)
+    property color colorAddressInternal: Qt.rgba(1,0.93,0,0.75)
+    property color colorAddressUsed: Qt.rgba(0.5,0.5,0.5,1)
+    property color colorAddressUsedWithBalance: Qt.rgba(0.75,0.75,0.75,1)
+    property color colorAddressFrozen: Qt.rgba(0.5,0.5,1,0.75)
+
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)
     }
