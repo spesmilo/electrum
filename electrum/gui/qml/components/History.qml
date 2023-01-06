@@ -83,7 +83,7 @@ Pane {
         ScrollIndicator.vertical: ScrollIndicator { }
 
         Label {
-            visible: Daemon.currentWallet.historyModel.rowCount() == 0
+            visible: Daemon.currentWallet.historyModel.count == 0
             anchors.centerIn: parent
             width: listview.width * 4/5
             font.pixelSize: constants.fontSizeXXLarge
