@@ -8,6 +8,9 @@ import "controls"
 ElDialog {
     id: dialog
     title: qsTr("Message")
+    iconSource: yesno
+        ? Qt.resolvedUrl('../../icons/question.png')
+        : Qt.resolvedUrl('../../icons/info.png')
 
     property bool yesno: false
     property alias text: message.text

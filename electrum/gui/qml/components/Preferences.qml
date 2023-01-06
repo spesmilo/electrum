@@ -245,10 +245,6 @@ Pane {
                         text: qsTr('Lightning')
                     }
 
-                    Label {
-                        text: qsTr('Lightning Routing')
-                    }
-
                     RowLayout {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
@@ -260,7 +256,7 @@ Pane {
                                 if (activeFocus) {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
-                                            text: qsTr('Using plain gossip mode is not recommended. Are you sure?'),
+                                            text: qsTr('Using plain gossip mode is not recommended on mobile. Are you sure?'),
                                             yesno: true
                                         })
                                         dialog.yesClicked.connect(function() {
