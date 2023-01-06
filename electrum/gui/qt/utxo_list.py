@@ -170,7 +170,7 @@ class UTXOList(MyTreeView):
         self.selectionModel().clearSelection()
 
     def get_spend_list(self) -> Optional[Sequence[PartialTxInput]]:
-        if bool(self._spend_set):
+        if not bool(self._spend_set):
             return None
         utxos = [self._utxo_dict[x] for x in self._spend_set]
         return copy.deepcopy(utxos)  # copy so that side-effects don't affect utxo_dict
