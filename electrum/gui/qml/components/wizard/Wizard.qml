@@ -35,7 +35,7 @@ ElDialog {
     function _setWizardData(wdata) {
         wizard_data = {}
         Object.assign(wizard_data, wdata) // deep copy
-        console.log('wizard data is now :' + JSON.stringify(wizard_data))
+        // console.log('wizard data is now :' + JSON.stringify(wizard_data))
     }
 
     // helper function to dynamically load wizard page components
@@ -77,7 +77,7 @@ ElDialog {
         })
         page.prev.connect(function() {
             var wdata = wiz.prev()
-            console.log('prev view data: ' + JSON.stringify(wdata))
+            // console.log('prev view data: ' + JSON.stringify(wdata))
         })
 
         pages.pagevalid = page.valid

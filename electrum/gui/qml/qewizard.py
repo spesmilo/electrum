@@ -24,7 +24,7 @@ class QEAbstractWizard(QObject):
     @pyqtSlot('QJSValue', result='QVariant')
     def submit(self, wizard_data):
         wdata = wizard_data.toVariant()
-        self._logger.debug(str(wdata))
+        self.log_state(wdata)
         view = self.resolve_next(self._current.view, wdata)
         return { 'view': view.view, 'wizard_data': view.wizard_data }
 
