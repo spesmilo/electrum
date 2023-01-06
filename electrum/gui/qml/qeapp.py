@@ -188,6 +188,9 @@ class QEAppController(QObject):
         else:
             self._plugins.disable(plugin)
 
+    @pyqtSlot(result=bool)
+    def isAndroid(self):
+        return 'ANDROID_DATA' in os.environ
 
 class ElectrumQmlApplication(QGuiApplication):
 

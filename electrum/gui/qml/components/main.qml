@@ -35,15 +35,26 @@ ApplicationWindow
 
         ColumnLayout {
             spacing: 0
+            width: parent.width
 
             RowLayout {
                 id: toolbarTopLayout
-                Layout.preferredWidth: app.width
+
+                Layout.fillWidth: true
+                Layout.rightMargin: constants.paddingMedium
 
                 ToolButton {
-                    text: qsTr("‹")
-                    enabled: stack.depth > 1
-                    onClicked: stack.pop()
+                    id: menuButton
+                    enabled: stack.currentItem && stack.currentItem.menu
+                        ? stack.currentItem.menu.count > 0
+                        : false
+
+                    text: enabled ? qsTr("≡") : ''
+                    font.pixelSize: constants.fontSizeXLarge
+                    onClicked: {
+                        stack.currentItem.menu.open()
+                        stack.currentItem.menu.y = toolbarTopLayout.height
+                    }
                 }
 
                 Image {
@@ -54,6 +65,7 @@ ApplicationWindow
                 }
 
                 Label {
+                    Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
                     elide: Label.ElideRight
                     horizontalAlignment: Qt.AlignHCenter
@@ -62,9 +74,12 @@ ApplicationWindow
                     font.pixelSize: constants.fontSizeMedium
                     font.bold: true
                     MouseArea {
+                        height: toolbarTopLayout.height
                         anchors.fill: parent
-                        // TODO: disable for now
-                        // onClicked: walletSummary.toggle()
+                        onClicked: {
+                            if (stack.currentItem.objectName != 'Wallets')
+                                stack.pushOnRoot(Qt.resolvedUrl('Wallets.qml'))
+                        }
                     }
                 }
 
@@ -109,18 +124,6 @@ ApplicationWindow
                     visible: !menuButton.visible
                 }
 
-                ToolButton {
-                    id: menuButton
-                    enabled: stack.currentItem && stack.currentItem.menu ? stack.currentItem.menu.count > 0 : false
-                    text: enabled ? qsTr("≡") : ''
-                    font.pixelSize: constants.fontSizeXLarge
-                    onClicked: {
-                        stack.currentItem.menu.open()
-                        // position the menu to the right
-                        stack.currentItem.menu.x = toolbar.width - stack.currentItem.menu.width
-                        stack.currentItem.menu.y = toolbarTopLayout.height
-                    }
-                }
             }
 
             WalletSummary {
@@ -166,8 +169,9 @@ ApplicationWindow
         color: 'black'
 
         Behavior on opacity {
+            enabled: AppController ? AppController.isAndroid() : false
             NumberAnimation {
-                duration: 2000
+                duration: 1000
                 easing.type: Easing.OutQuad;
             }
         }
