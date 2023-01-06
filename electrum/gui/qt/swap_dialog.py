@@ -95,8 +95,12 @@ class SwapDialog(WindowModalDialog):
         self.update()
 
     def init_recv_amount(self, recv_amount_sat):
-        recv_amount_sat = max(recv_amount_sat, self.swap_manager.min_amount)
-        self.recv_amount_e.setAmount(recv_amount_sat)
+        if recv_amount_sat == '!':
+            self.max_button.setChecked(True)
+            self.spend_max()
+        else:
+            recv_amount_sat = max(recv_amount_sat, self.swap_manager.min_amount)
+            self.recv_amount_e.setAmount(recv_amount_sat)
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:
