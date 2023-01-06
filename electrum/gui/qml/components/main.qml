@@ -115,7 +115,7 @@ ApplicationWindow
                     scale: 1.5
                 }
 
-                NetworkStatusIndicator { }
+                OnchainNetworkStatusIndicator { }
 
                 Rectangle {
                     color: 'transparent'

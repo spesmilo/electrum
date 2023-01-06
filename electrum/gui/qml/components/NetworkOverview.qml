@@ -105,7 +105,7 @@ Pane {
                 }
 
                 RowLayout {
-                    NetworkStatusIndicator {}
+                    OnchainNetworkStatusIndicator {}
 
                     Label {
                         text: Network.status
