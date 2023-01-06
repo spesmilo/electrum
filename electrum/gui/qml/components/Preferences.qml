@@ -249,19 +249,38 @@ Pane {
                         text: qsTr('Lightning Routing')
                     }
 
-                    ElComboBox {
-                        id: lnRoutingType
-                        enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                    RowLayout {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: useTrampolineRouting
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    if (!checked) {
+                                        var dialog = app.messageDialog.createObject(app, {
+                                            text: qsTr('Using plain gossip mode is not recommended. Are you sure?'),
+                                            yesno: true
+                                        })
+                                        dialog.yesClicked.connect(function() {
+                                            Config.useGossip = true
+                                        })
+                                        dialog.noClicked.connect(function() {
+                                            checked = true // revert
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        Config.useGossip = !checked
+                                    }
+                                }
 
-                        valueRole: 'key'
-                        textRole: 'label'
-                        model: ListModel {
-                            ListElement { key: 'gossip'; label: qsTr('Gossip') }
-                            ListElement { key: 'trampoline'; label: qsTr('Trampoline') }
+                            }
                         }
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.useGossip = currentValue == 'gossip'
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('Trampoline routing')
+                            wrapMode: Text.Wrap
                         }
                     }
 
@@ -347,7 +366,7 @@ Pane {
         rateSources.currentIndex = rateSources.indexOfValue(Daemon.fx.rateSource)
         fiatEnable.checked = Daemon.fx.enabled
         spendUnconfirmed.checked = Config.spendUnconfirmed
-        lnRoutingType.currentIndex = Config.useGossip ? 0 : 1
+        useTrampolineRouting.checked = !Config.useGossip
         useFallbackAddress.checked = Config.useFallbackAddress
         enableDebugLogs.checked = Config.enableDebugLogs
         useRecoverableChannels.checked = Config.useRecoverableChannels
