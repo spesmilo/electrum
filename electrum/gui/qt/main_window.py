@@ -1593,7 +1593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.coincontrol_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
-        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list(None))
+        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.clear_coincontrol())
         clear_cc_button.setStyleSheet("margin-right: 5px;")
         sb.addPermanentWidget(clear_cc_button)
 
