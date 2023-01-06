@@ -89,14 +89,16 @@ class AbstractWizard:
         self._current = new_view
 
         self._logger.debug(f'resolve_next view is {self._current.view}')
-        self._logger.debug('stack:' + repr(self._stack))
+        self.log_stack(self._stack)
 
         return new_view
 
     def resolve_prev(self):
         prev_view = self._stack.pop()
+
         self._logger.debug(f'resolve_prev view is {prev_view}')
-        self._logger.debug('stack:' + repr(self._stack))
+        self.log_stack(self._stack)
+
         self._current = prev_view
         return prev_view
 
@@ -128,6 +130,33 @@ class AbstractWizard:
     def reset(self):
         self.stack = []
         self._current = WizardViewState(None, {}, {})
+
+    def log_stack(self, _stack):
+        logstr = 'wizard stack:'
+        stack = copy.deepcopy(_stack)
+        i = 0
+        for item in stack:
+            self.sanitize_stack_item(item.wizard_data)
+            logstr += f'\n{i}: {repr(item.wizard_data)}'
+            i += 1
+        self._logger.debug(logstr)
+
+    def log_state(self, _current):
+        current = copy.deepcopy(_current)
+        self.sanitize_stack_item(current)
+        self._logger.debug(f'wizard current: {repr(current)}')
+
+    def sanitize_stack_item(self, _stack_item):
+        sensitive_keys = ['seed', 'seed_extra_words', 'master_key', 'private_key_list', 'password']
+        def sanitize(_dict):
+            for item in _dict:
+                if isinstance(_dict[item], dict):
+                    sanitize(_dict[item])
+                else:
+                    if item in sensitive_keys:
+                        _dict[item] = '<sensitive value removed>'
+        sanitize(_stack_item)
+
 
 class NewWalletWizard(AbstractWizard):
 
@@ -170,9 +199,6 @@ class NewWalletWizard(AbstractWizard):
             'multisig': {
                 'next': 'keystore_type'
             },
-            # 'multisig_show_masterpubkey': {
-            #     'next': 'multisig_cosigner_keystore'
-            # },
             'multisig_cosigner_keystore': { # this view should set 'multisig_current_cosigner'
                 'next': self.on_cosigner_keystore_type
             },

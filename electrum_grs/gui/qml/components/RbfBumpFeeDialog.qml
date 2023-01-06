@@ -152,17 +152,6 @@ ElDialog {
                 feeslider: rbffeebumper
             }
 
-            CheckBox {
-                id: final_cb
-                text: qsTr('Replace-by-Fee')
-                Layout.columnSpan: 2
-                checked: rbffeebumper.rbf
-                onCheckedChanged: {
-                    if (activeFocus)
-                        rbffeebumper.rbf = checked
-                }
-            }
-
             InfoTextArea {
                 Layout.columnSpan: 2
                 Layout.preferredWidth: parent.width * 3/4

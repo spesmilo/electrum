@@ -199,7 +199,7 @@ class QEDaemon(AuthMixin, QObject):
     def checkThenDeleteWallet(self, wallet, confirm_requests=False, confirm_balance=False):
         if wallet.wallet.lnworker:
             lnchannels = wallet.wallet.lnworker.get_channel_objects()
-            if any([channel.get_state() != ChannelState.REDEEMED for channel in lnchannels.values()]):
+            if any([channel.get_state() != ChannelState.REDEEMED and not channel.is_backup() for channel in lnchannels.values()]):
                 self.walletDeleteError.emit('unclosed_channels', _('There are still channels that are not fully closed'))
                 return
 

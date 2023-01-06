@@ -46,6 +46,12 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def rowCount(self, index):
         return len(self.tx_history)
 
+    # also expose rowCount as a property
+    countChanged = pyqtSignal()
+    @pyqtProperty(int, notify=countChanged)
+    def count(self):
+        return len(self.tx_history)
+
     def roleNames(self):
         return self._ROLE_MAP
 
@@ -146,6 +152,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.tx_history = txs
         self.tx_history.reverse()
         self.endInsertRows()
+
+        self.countChanged.emit()
 
     def on_tx_verified(self, txid, info):
         i = 0

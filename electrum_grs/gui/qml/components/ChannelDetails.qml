@@ -223,7 +223,8 @@ Pane {
                     {
                         title: qsTr('Channel Backup for %1').arg(channeldetails.short_cid),
                         text: channeldetails.channelBackup(),
-                        text_help: channeldetails.channelBackupHelpText()
+                        text_help: channeldetails.channelBackupHelpText(),
+                        iconSource: Qt.resolvedUrl('../../icons/file.png')
                     }
                 )
                 dialog.open()

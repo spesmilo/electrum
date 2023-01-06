@@ -23,31 +23,38 @@ ElDialog {
         color: "#aa000000"
     }
 
-    ColumnLayout {
-        id: layout
-        width: parent.width
+    padding: 0
 
-        ServerConfig {
-            id: serverconfig
+    ColumnLayout {
+        width: parent.width
+        height: parent.height
+        spacing: 0
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: constants.paddingLarge
+            Layout.rightMargin: constants.paddingLarge
+
+            ServerConfig {
+                id: serverconfig
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
         }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Button {
-                text: qsTr('Ok')
-                onClicked: {
-                    Config.autoConnect = serverconfig.auto_server
-                    if (!serverconfig.auto_server) {
-                        Network.server = serverconfig.address
-                    }
-                    rootItem.close()
-                }
+        FlatButton {
+            Layout.fillWidth: true
+            text: qsTr('Ok')
+            icon.source: '../../icons/confirmed.png'
+            onClicked: {
+                Config.autoConnect = serverconfig.auto_connect
+                Config.serverString = serverconfig.address
+                Network.server = serverconfig.address
+                rootItem.close()
             }
         }
     }
 
-    Component.onCompleted: {
-        serverconfig.auto_server = Config.autoConnect
-        serverconfig.address = Network.server
-    }
 }

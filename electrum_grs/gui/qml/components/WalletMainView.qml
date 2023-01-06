@@ -41,7 +41,8 @@ Item {
     property QtObject menu: Menu {
         parent: Overlay.overlay
         dim: true
-        Overlay.modeless: Rectangle {
+        modal: true
+        Overlay.modal: Rectangle {
             color: "#44000000"
         }
 
@@ -61,14 +62,6 @@ Item {
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
                 enabled: Daemon.currentWallet
                 icon.source: '../../icons/tab_addresses.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Wallets');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
-                icon.source: '../../icons/wallet.png'
             }
         }
         MenuItem {
@@ -308,7 +301,7 @@ Item {
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
-                canRbf: Config.useRbf
+                canRbf: true
             }
             onClosed: destroy()
         }

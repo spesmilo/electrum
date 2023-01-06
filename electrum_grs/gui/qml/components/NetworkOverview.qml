@@ -105,7 +105,7 @@ Pane {
                 }
 
                 RowLayout {
-                    NetworkStatusIndicator {}
+                    OnchainNetworkStatusIndicator {}
 
                     Label {
                         text: Network.status
@@ -154,6 +154,7 @@ Pane {
                     text: qsTr('disabled');
                     visible: !Config.useGossip
                 }
+
             }
 
         }

@@ -1,6 +1,7 @@
 import QtQuick 2.0
 
 Item {
+    id: root
     signal next
     signal prev
     signal accept
@@ -28,6 +29,10 @@ Item {
         // wizard_data keys if apply() depends on variables set in descendant
         // Component.onCompleted handler.
         Qt.callLater(checkIsLast)
+
+        // move focus to root of WizardComponent, otherwise Android back button
+        // might be missed in Wizard root Item.
+        root.forceActiveFocus()
     }
 
 }

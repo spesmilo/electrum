@@ -16,6 +16,7 @@ ElDialog {
 
     title: qsTr('Close Channel')
     standardButtons: closing ? 0 : Dialog.Cancel
+    iconSource: Qt.resolvedUrl('../../icons/lightning_disconnected.png')
 
     modal: true
     parent: Overlay.overlay

@@ -178,18 +178,6 @@ ElDialog {
                 feeslider: finalizer
             }
 
-            CheckBox {
-                id: final_cb
-                text: qsTr('Replace-by-Fee')
-                Layout.columnSpan: 2
-                checked: finalizer.rbf
-                visible: finalizer.canRbf
-                onCheckedChanged: {
-                    if (activeFocus)
-                        finalizer.rbf = checked
-                }
-            }
-
             InfoTextArea {
                 Layout.columnSpan: 2
                 Layout.preferredWidth: parent.width * 3/4

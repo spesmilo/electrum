@@ -24,6 +24,7 @@ ElDialog {
     parent: Overlay.overlay
     modal: true
     standardButtons: Dialog.Close
+    iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -56,17 +57,17 @@ ElDialog {
                     State {
                         name: 'bolt11'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bolt11 }
-                        PropertyChanges { target: bolt11label; color: Material.accentColor }
+                        PropertyChanges { target: bolt11label; color: Material.accentColor; font.underline: true }
                     },
                     State {
                         name: 'bip21uri'
                         PropertyChanges { target: qrloader; sourceComponent: qri_bip21uri }
-                        PropertyChanges { target: bip21label; color: Material.accentColor }
+                        PropertyChanges { target: bip21label; color: Material.accentColor; font.underline: true }
                     },
                     State {
                         name: 'address'
                         PropertyChanges { target: qrloader; sourceComponent: qri_address }
-                        PropertyChanges { target: addresslabel; color: Material.accentColor }
+                        PropertyChanges { target: addresslabel; color: Material.accentColor; font.underline: true }
                     }
                 ]
 
@@ -75,8 +76,6 @@ ElDialog {
                     Layout.topMargin: constants.paddingSmall
                     Layout.bottomMargin: constants.paddingSmall
 
-                    // Layout.preferredWidth: qrloader.width
-                    // Layout.preferredHeight: qrloader.height
                     Layout.preferredWidth: dialog.width * 7/8
                     Layout.preferredHeight: dialog.width * 7/8
 
@@ -188,7 +187,7 @@ ElDialog {
                 GridLayout {
                     columns: 2
                     visible: request.message || !request.amount.isEmpty
-                    Layout.maximumWidth: qrloader.width
+                    Layout.maximumWidth: buttons.width
                     Layout.alignment: Qt.AlignHCenter
 
                     Label {

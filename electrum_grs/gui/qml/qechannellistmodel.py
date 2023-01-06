@@ -46,6 +46,12 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     def rowCount(self, index):
         return len(self.channels)
 
+    # also expose rowCount as a property
+    countChanged = pyqtSignal()
+    @pyqtProperty(int, notify=countChanged)
+    def count(self):
+        return len(self.channels)
+
     def roleNames(self):
         return self._ROLE_MAP
 
@@ -113,6 +119,8 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         self.channels = channels
         self.endInsertRows()
 
+        self.countChanged.emit()
+
     def on_channel_updated(self, channel):
         i = 0
         for c in self.channels:
@@ -141,6 +149,8 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 self.beginInsertRows(QModelIndex(), 0, 0)
                 self.channels.insert(0,item)
                 self.endInsertRows()
+                self.countChanged.emit()
+                return
 
     @pyqtSlot(str)
     def remove_channel(self, cid):
@@ -152,5 +162,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 self.beginRemoveRows(QModelIndex(), i, i)
                 self.channels.remove(channel)
                 self.endRemoveRows()
+                self.countChanged.emit()
                 return
             i = i + 1

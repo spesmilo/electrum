@@ -5,12 +5,14 @@ from electrum_grs import constants
 from electrum_grs.interface import ServerAddr
 
 from .util import QtEventListener, event_listener
+from .qeserverlistmodel import QEServerListModel
 
 class QENetwork(QObject, QtEventListener):
     def __init__(self, network, qeconfig, parent=None):
         super().__init__(parent)
         self.network = network
         self._qeconfig = qeconfig
+        self._serverListModel = None
         self._height = network.get_local_height() # init here, update event can take a while
         self.register_callbacks()
 
@@ -136,7 +138,7 @@ class QENetwork(QObject, QtEventListener):
             if not server: raise Exception("failed to parse")
         except Exception:
             return
-        net_params = net_params._replace(server=server)
+        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect, oneserver=not self._qeconfig.autoConnect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)
@@ -186,3 +188,10 @@ class QENetwork(QObject, QtEventListener):
             'db_channels': self._gossipDbChannels ,
             'db_policies': self._gossipDbPolicies
         }
+
+    serverListModelChanged = pyqtSignal()
+    @pyqtProperty(QEServerListModel, notify=serverListModelChanged)
+    def serverListModel(self):
+        if self._serverListModel is None:
+            self._serverListModel = QEServerListModel(self.network)
+        return self._serverListModel

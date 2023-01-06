@@ -74,6 +74,7 @@ from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.logging import Logger
 from electrum_grs.lnutil import ln_dummy_address, extract_nodeid, ConnStringFormatError
 from electrum_grs.lnaddr import lndecode
+from electrum_grs.submarine_swaps import SwapServerError
 
 from .exception_window import Exception_Hook
 from .amountedit import BTCAmountEdit
@@ -1131,7 +1132,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         def get_pairs_thread():
             self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
-        BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
+        try:
+            BlockingWaitingDialog(self, _('Please wait...'), get_pairs_thread)
+        except SwapServerError as e:
+            self.show_error(str(e))
+            return
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
         return d.run()
 
@@ -1588,7 +1593,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.coincontrol_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         sb.addWidget(self.coincontrol_label)
 
-        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.set_spend_list(None))
+        clear_cc_button = EnterButton(_('Reset'), lambda: self.utxo_list.clear_coincontrol())
         clear_cc_button.setStyleSheet("margin-right: 5px;")
         sb.addPermanentWidget(clear_cc_button)
 

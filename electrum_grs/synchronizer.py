@@ -86,7 +86,6 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     def add(self, addr):
         if not is_address(addr): raise ValueError(f"invalid groestlcoin address {addr}")
         self._adding_addrs.add(addr)  # this lets is_up_to_date already know about addr
-        asyncio.run_coroutine_threadsafe(self._add_address(addr), self.asyncio_loop)
 
     async def _add_address(self, addr: str):
         try:
@@ -261,6 +260,8 @@ class Synchronizer(SynchronizerBase):
         prev_uptodate = False
         while True:
             await asyncio.sleep(0.1)
+            for addr in self._adding_addrs.copy(): # copy set to ensure iterator stability
+                await self._add_address(addr)
             up_to_date = self.adb.is_up_to_date()
             # see if status changed
             if (up_to_date != prev_uptodate

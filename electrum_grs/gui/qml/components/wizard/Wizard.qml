@@ -15,6 +15,10 @@ ElDialog {
     title: wizardTitle + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
     iconSource: '../../../icons/electrum.png'
 
+    // android back button triggers close() on Popups. Disabling close here,
+    // we handle that via Keys.onReleased event handler in the root layout.
+    closePolicy: Popup.NoAutoClose
+
     property string wizardTitle
 
     property var wizard_data
@@ -31,7 +35,7 @@ ElDialog {
     function _setWizardData(wdata) {
         wizard_data = {}
         Object.assign(wizard_data, wdata) // deep copy
-        console.log('wizard data is now :' + JSON.stringify(wizard_data))
+        // console.log('wizard data is now :' + JSON.stringify(wizard_data))
     }
 
     // helper function to dynamically load wizard page components
@@ -73,7 +77,7 @@ ElDialog {
         })
         page.prev.connect(function() {
             var wdata = wiz.prev()
-            console.log('prev view data: ' + JSON.stringify(wdata))
+            // console.log('prev view data: ' + JSON.stringify(wdata))
         })
 
         pages.pagevalid = page.valid
@@ -85,6 +89,14 @@ ElDialog {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+
+        // root Item in Wizard, capture back button here and delegate to main
+        Keys.onReleased: {
+            if (event.key == Qt.Key_Back) {
+                console.log("Back button within wizard")
+                app.close() // this handles unwind of dialogs/stack
+            }
+        }
 
         SwipeView {
             id: pages

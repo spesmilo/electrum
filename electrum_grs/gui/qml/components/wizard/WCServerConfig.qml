@@ -1,3 +1,7 @@
+import QtQuick 2.6
+import QtQuick.Layouts 1.0
+import QtQuick.Controls 2.1
+
 import "../controls"
 
 WizardComponent {
@@ -5,12 +9,22 @@ WizardComponent {
     last: true
 
     function apply() {
-        wizard_data['oneserver'] = !sc.auto_server
+        wizard_data['autoconnect'] = !sc.auto_connect
         wizard_data['server'] = sc.address
     }
 
-    ServerConfig {
-        id: sc
-        width: parent.width
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: constants.paddingLarge
+
+        Label {
+            text: qsTr('Server settings')
+        }
+
+        ServerConfig {
+            id: sc
+            width: parent.width
+            Layout.fillHeight: true
+        }
     }
 }
