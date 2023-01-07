@@ -122,7 +122,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
         else:  # tlv
             payload_fd = io.BytesIO()
             OnionWireSerializer.write_tlv_stream(fd=payload_fd,
-                                                 tlv_stream_name="tlv_payload",
+                                                 tlv_stream_name="payload",
                                                  **self.payload)
             payload_bytes = payload_fd.getvalue()
             with io.BytesIO() as fd:
@@ -157,7 +157,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
                 raise Exception(f"unexpected EOF")
             ret = OnionHopsDataSingle(is_tlv_payload=True)
             ret.payload = OnionWireSerializer.read_tlv_stream(fd=io.BytesIO(hop_payload),
-                                                              tlv_stream_name="tlv_payload")
+                                                              tlv_stream_name="payload")
             ret.hmac = fd.read(PER_HOP_HMAC_SIZE)
             assert len(ret.hmac) == PER_HOP_HMAC_SIZE
             return ret
