@@ -123,6 +123,9 @@ class MockWallet:
     def is_mine(self, addr):
         return True
 
+    def get_fingerprint(self):
+        return ''
+
 
 class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
@@ -152,6 +155,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
         self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
+        self.features |= LnFeatures.OPTION_SCID_ALIAS_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self

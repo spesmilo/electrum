@@ -1116,6 +1116,12 @@ class LnFeatures(IntFlag):
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
     _ln_feature_contexts[OPTION_CHANNEL_TYPE_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
 
+    OPTION_SCID_ALIAS_REQ = 1 << 46
+    OPTION_SCID_ALIAS_OPT = 1 << 47
+
+    _ln_feature_contexts[OPTION_SCID_ALIAS_REQ] = (LNFC.INIT | LNFC.NODE_ANN)
+    _ln_feature_contexts[OPTION_SCID_ALIAS_OPT] = (LNFC.INIT | LNFC.NODE_ANN)
+
     def validate_transitive_dependencies(self) -> bool:
         # for all even bit set, set corresponding odd bit:
         features = self  # copy
@@ -1198,6 +1204,8 @@ class ChannelType(IntFlag):
     OPTION_STATIC_REMOTEKEY = 1 << 12
     OPTION_ANCHOR_OUTPUTS = 1 << 20
     OPTION_ANCHORS_ZERO_FEE_HTLC_TX = 1 << 22
+    OPTION_SCID_ALIAS = 1 << 46
+    OPTION_ZEROCONF = 1 << 50
 
     def discard_unknown_and_check(self):
         """Discards unknown flags and checks flag combination."""
@@ -1215,13 +1223,12 @@ class ChannelType(IntFlag):
         return final_channel_type
 
     def check_combinations(self):
-        if self == ChannelType.OPTION_STATIC_REMOTEKEY:
-            pass
-        elif self == ChannelType.OPTION_ANCHOR_OUTPUTS | ChannelType.OPTION_STATIC_REMOTEKEY:
-            pass
-        elif self == ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY:
-            pass
-        else:
+        basic_type = self & ~(ChannelType.OPTION_SCID_ALIAS | ChannelType.OPTION_ZEROCONF)
+        if basic_type not in [
+                ChannelType.OPTION_STATIC_REMOTEKEY,
+                ChannelType.OPTION_ANCHOR_OUTPUTS | ChannelType.OPTION_STATIC_REMOTEKEY,
+                ChannelType.OPTION_ANCHORS_ZERO_FEE_HTLC_TX | ChannelType.OPTION_STATIC_REMOTEKEY
+        ]:
             raise ValueError("Channel type is not a valid flag combination.")
 
     def complies_with_features(self, features: LnFeatures) -> bool:
@@ -1240,7 +1247,10 @@ class ChannelType(IntFlag):
 
     @property
     def name_minimal(self):
-        return self.name.replace('OPTION_', '')
+        if self.name:
+            return self.name.replace('OPTION_', '')
+        else:
+            return str(self)
 
 
 del LNFC  # name is ambiguous without context
@@ -1259,6 +1269,7 @@ LN_FEATURES_IMPLEMENTED = (
         | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM | LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM
         | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_REQ
         | LnFeatures.OPTION_CHANNEL_TYPE_OPT | LnFeatures.OPTION_CHANNEL_TYPE_REQ
+        | LnFeatures.OPTION_SCID_ALIAS_OPT | LnFeatures.OPTION_SCID_ALIAS_REQ
 )
 
 

@@ -180,10 +180,11 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         form.addRow(QLabel(_('Remote Node') + ':'), remote_id_e)
         channel_id_e = ShowQRLineEdit(chan.channel_id.hex(), self.window.config, title=_("Channel ID"))
         form.addRow(QLabel(_('Channel ID') + ':'), channel_id_e)
-
         form.addRow(QLabel(_('Short Channel ID') + ':'), QLabel(str(chan.short_channel_id)))
+        alias = chan.get_remote_alias()
+        if alias:
+            form.addRow(QLabel(_('Alias') + ':'), QLabel('0x'+alias.hex()))
         form.addRow(QLabel(_('State') + ':'), SelectableLabel(chan.get_state_for_GUI()))
-
         self.capacity = self.format_sat(chan.get_capacity())
         form.addRow(QLabel(_('Capacity') + ':'), SelectableLabel(self.capacity))
         if not chan.is_backup():

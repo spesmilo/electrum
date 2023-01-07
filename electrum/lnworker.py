@@ -187,6 +187,7 @@ LNWALLET_FEATURES = BASE_FEATURES\
     | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM\
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
     | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
+    | LnFeatures.OPTION_SCID_ALIAS_OPT\
 
 LNGOSSIP_FEATURES = BASE_FEATURES\
     | LnFeatures.GOSSIP_QUERIES_OPT\
@@ -1361,6 +1362,7 @@ class LNWallet(LNWorker):
         # send a single htlc
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
+        assert chan, ShortChannelID(short_channel_id)
         peer = self._peers.get(route[0].node_id)
         if not peer:
             raise PaymentFailure('Dropped peer')
@@ -1708,6 +1710,7 @@ class LNWallet(LNWorker):
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath]) -> LNPaymentRoute:
 
+        my_sending_aliases = set(chan.get_local_alias() for chan in my_sending_channels)
         my_sending_channels = {chan.short_channel_id: chan for chan in my_sending_channels
             if chan.short_channel_id is not None}
         # Collect all private edges from route hints.
@@ -1719,6 +1722,10 @@ class LNWallet(LNWorker):
             private_path_nodes = [edge[0] for edge in private_path][1:] + [invoice_pubkey]
             private_path_rest = [edge[1:] for edge in private_path]
             start_node = private_path[0][0]
+            # remove aliases from direct routes
+            if len(private_path) == 1 and private_path[0][1] in my_sending_aliases:
+                self.logger.info(f'create_route: skipping alias {ShortChannelID(private_path[0][1])}')
+                continue
             for end_node, edge_rest in zip(private_path_nodes, private_path_rest):
                 short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
                 short_channel_id = ShortChannelID(short_channel_id)
@@ -2024,9 +2031,9 @@ class LNWallet(LNWorker):
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
         for chan in channels:
-            chan_id = chan.short_channel_id
-            assert isinstance(chan_id, bytes), chan_id
-            channel_info = get_mychannel_info(chan_id, scid_to_my_channels)
+            alias_or_scid = chan.get_remote_alias() or chan.short_channel_id
+            assert isinstance(alias_or_scid, bytes), alias_or_scid
+            channel_info = get_mychannel_info(chan.short_channel_id, scid_to_my_channels)
             # note: as a fallback, if we don't have a channel update for the
             # incoming direction of our private channel, we fill the invoice with garbage.
             # the sender should still be able to pay us, but will incur an extra round trip
@@ -2044,11 +2051,11 @@ class LNWallet(LNWorker):
                     missing_info = False
             if missing_info:
                 self.logger.info(
-                    f"Warning. Missing channel update for our channel {chan_id}; "
+                    f"Warning. Missing channel update for our channel {chan.short_channel_id}; "
                     f"filling invoice with incorrect data.")
             routing_hints.append(('r', [(
                 chan.node_id,
-                chan_id,
+                alias_or_scid,
                 fee_base_msat,
                 fee_proportional_millionths,
                 cltv_expiry_delta)]))
