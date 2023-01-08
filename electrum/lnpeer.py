@@ -194,7 +194,7 @@ class Peer(Logger):
             self.pong_event.clear()
             await self.pong_event.wait()
 
-    def process_message(self, message):
+    async def process_message(self, message: bytes) -> None:
         try:
             message_type, payload = decode_msg(message)
         except UnknownOptionalMsgType as e:
@@ -226,9 +226,19 @@ class Peer(Logger):
             # raw message is needed to check signature
             if message_type in ['node_announcement', 'channel_announcement', 'channel_update']:
                 payload['raw'] = message
-            execution_result = f(*args)
+            # note: the message handler might be async or non-async. In either case, by default,
+            #       we wait for it to complete before we return, i.e. before the next message is processed.
             if asyncio.iscoroutinefunction(f):
-                asyncio.ensure_future(self.taskgroup.spawn(execution_result))
+                await f(*args)
+            else:
+                f(*args)
+
+    def runs_in_taskgroup(func):
+        assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+        @functools.wraps(func)
+        async def wrapper(self: 'Peer', *args, **kwargs):
+            return await self.taskgroup.spawn(func(self, *args, **kwargs))
+        return wrapper
 
     def on_warning(self, payload):
         chan_id = payload.get("channel_id")
@@ -576,7 +586,7 @@ class Peer(Logger):
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             raise GracefulDisconnect(f'initialize failed: {repr(e)}') from e
         async for msg in self.transport.read_messages():
-            self.process_message(msg)
+            await self.process_message(msg)
             if self.DELAY_INC_MSG_PROCESSING_SLEEP:
                 # rate-limit message-processing a bit, to make it harder
                 # for a single peer to bog down the event loop / cpu:
@@ -893,6 +903,7 @@ class Peer(Logger):
         }
         return StoredDict(chan_dict, self.lnworker.db if self.lnworker else None, [])
 
+    @runs_in_taskgroup
     async def on_open_channel(self, payload):
         """Implements the channel acceptance flow.
 
@@ -1388,14 +1399,15 @@ class Peer(Logger):
         )
         return msg_hash, node_signature, bitcoin_signature
 
-    def on_update_fail_htlc(self, chan: Channel, payload):
+    async def on_update_fail_htlc(self, chan: Channel, payload):
         htlc_id = payload["id"]
         reason = payload["reason"]
         self.logger.info(f"on_update_fail_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_fail_htlc(htlc_id, error_bytes=reason)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
 
-    def maybe_send_commitment(self, chan: Channel) -> bool:
+    async def maybe_send_commitment(self, chan: Channel) -> bool:
+        await self.ping_if_required()
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
             return False
@@ -1407,7 +1419,8 @@ class Peer(Logger):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         return True
 
-    def pay(self, *,
+    async def pay(
+            self, *,
             route: 'LNPaymentRoute',
             chan: Channel,
             amount_msat: int,
@@ -1466,10 +1479,10 @@ class Peer(Logger):
             amount_msat=htlc.amount_msat,
             payment_hash=htlc.payment_hash,
             onion_routing_packet=onion.to_bytes())
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
         return htlc
 
-    def send_revoke_and_ack(self, chan: Channel):
+    async def send_revoke_and_ack(self, chan: Channel):
         self.logger.info(f'send_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(LOCAL)}')
         rev = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
@@ -1477,9 +1490,9 @@ class Peer(Logger):
             channel_id=chan.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
             next_per_commitment_point=rev.next_per_commitment_point)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
 
-    def on_commitment_signed(self, chan: Channel, payload):
+    async def on_commitment_signed(self, chan: Channel, payload):
         if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_commitment_signed. chan {chan.short_channel_id}. ctn: {chan.get_next_ctn(LOCAL)}.')
@@ -1495,20 +1508,20 @@ class Peer(Logger):
         data = payload["htlc_signature"]
         htlc_sigs = list(chunks(data, 64))
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
-        self.send_revoke_and_ack(chan)
+        await self.send_revoke_and_ack(chan)
         self.received_commitsig_event.set()
         self.received_commitsig_event.clear()
 
-    def on_update_fulfill_htlc(self, chan: Channel, payload):
+    async def on_update_fulfill_htlc(self, chan: Channel, payload):
         preimage = payload["payment_preimage"]
         payment_hash = sha256(preimage)
         htlc_id = payload["id"]
         self.logger.info(f"on_update_fulfill_htlc. chan {chan.short_channel_id}. htlc_id {htlc_id}")
         chan.receive_htlc_settle(preimage, htlc_id)  # TODO handle exc and maybe fail channel (e.g. bad htlc_id)
         self.lnworker.save_preimage(payment_hash, preimage)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
 
-    def on_update_fail_malformed_htlc(self, chan: Channel, payload):
+    async def on_update_fail_malformed_htlc(self, chan: Channel, payload):
         htlc_id = payload["id"]
         failure_code = payload["failure_code"]
         self.logger.info(f"on_update_fail_malformed_htlc. chan {chan.get_id_for_log()}. "
@@ -1518,7 +1531,7 @@ class Peer(Logger):
             raise RemoteMisbehaving(f"received update_fail_malformed_htlc with unexpected failure code: {failure_code}")
         reason = OnionRoutingFailure(code=failure_code, data=payload["sha256_of_onion"])
         chan.receive_fail_htlc(htlc_id, error_bytes=None, reason=reason)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
 
     def on_update_add_htlc(self, chan: Channel, payload):
         payment_hash = payload["payment_hash"]
@@ -1542,7 +1555,7 @@ class Peer(Logger):
         chan.receive_htlc(htlc, onion_packet)
         util.trigger_callback('htlc_added', chan, htlc, RECEIVED)
 
-    def maybe_forward_htlc(
+    async def maybe_forward_htlc(
             self, *,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket) -> Tuple[bytes, int]:
@@ -1627,7 +1640,7 @@ class Peer(Logger):
         except BaseException as e:
             self.logger.info(f"failed to forward htlc: error sending message. {e}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
-        next_peer.maybe_send_commitment(next_chan)
+        await next_peer.maybe_send_commitment(next_chan)
         return next_chan_scid, next_htlc.htlc_id
 
     def maybe_forward_trampoline(
@@ -1837,14 +1850,14 @@ class Peer(Logger):
             sha256_of_onion=reason.data,
             failure_code=reason.code)
 
-    def on_revoke_and_ack(self, chan: Channel, payload):
+    async def on_revoke_and_ack(self, chan: Channel, payload):
         if chan.peer_state == PeerState.BAD:
             return
         self.logger.info(f'on_revoke_and_ack. chan {chan.short_channel_id}. ctn: {chan.get_oldest_unrevoked_ctn(REMOTE)}')
         rev = RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"])
         chan.receive_revocation(rev)
         self.lnworker.save_channel(chan)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
         self._received_revack_event.set()
         self._received_revack_event.clear()
 
@@ -1890,7 +1903,7 @@ class Peer(Logger):
             "update_fee",
             channel_id=chan.channel_id,
             feerate_per_kw=feerate_per_kw)
-        self.maybe_send_commitment(chan)
+        await self.maybe_send_commitment(chan)
 
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
@@ -1908,6 +1921,7 @@ class Peer(Logger):
                 raise Exception('The remote peer did not send their final signature. The channel may not have been be closed')
         return txid
 
+    @runs_in_taskgroup
     async def on_shutdown(self, chan: Channel, payload):
         # TODO: A receiving node: if it hasn't received a funding_signed (if it is a
         #  funder) or a funding_created (if it is a fundee):
@@ -2191,7 +2205,7 @@ class Peer(Logger):
             for chan_id, chan in self.channels.items():
                 if not chan.can_send_ctx_updates():
                     continue
-                self.maybe_send_commitment(chan)
+                await self.maybe_send_commitment(chan)
                 done = set()
                 unfulfilled = chan.unfulfilled_htlcs
                 for htlc_id, (local_ctn, remote_ctn, onion_packet_hex, forwarding_info) in unfulfilled.items():
@@ -2212,7 +2226,7 @@ class Peer(Logger):
                         error_reason = e
                     else:
                         try:
-                            preimage, fw_info, error_bytes = self.process_unfulfilled_htlc(
+                            preimage, fw_info, error_bytes = await self.process_unfulfilled_htlc(
                                 chan=chan,
                                 htlc=htlc,
                                 forwarding_info=forwarding_info,
@@ -2244,7 +2258,7 @@ class Peer(Logger):
                     local_ctn, remote_ctn, onion_packet_hex, forwarding_info = unfulfilled.pop(htlc_id)
                     if forwarding_info:
                         self.lnworker.downstream_htlc_to_upstream_peer_map.pop(forwarding_info, None)
-                self.maybe_send_commitment(chan)
+                await self.maybe_send_commitment(chan)
 
     def _maybe_cleanup_received_htlcs_pending_removal(self) -> None:
         done = set()
@@ -2269,7 +2283,7 @@ class Peer(Logger):
             await group.spawn(htlc_switch_iteration())
             await group.spawn(self.got_disconnected.wait())
 
-    def process_unfulfilled_htlc(
+    async def process_unfulfilled_htlc(
             self, *,
             chan: Channel,
             htlc: UpdateAddHtlc,
@@ -2328,7 +2342,7 @@ class Peer(Logger):
             # HTLC we are supposed to forward, but haven't forwarded yet
             if not self.lnworker.enable_htlc_forwarding:
                 return None, None, None
-            next_chan_id, next_htlc_id = self.maybe_forward_htlc(
+            next_chan_id, next_htlc_id = await self.maybe_forward_htlc(
                 htlc=htlc,
                 processed_onion=processed_onion)
             fw_info = (next_chan_id.hex(), next_htlc_id)

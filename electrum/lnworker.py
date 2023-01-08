@@ -1363,7 +1363,7 @@ class LNWallet(LNWorker):
         if not peer:
             raise PaymentFailure('Dropped peer')
         await peer.initialized
-        htlc = peer.pay(
+        htlc = await peer.pay(
             route=route,
             chan=chan,
             amount_msat=amount_msat,
