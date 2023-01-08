@@ -705,6 +705,14 @@ class SimpleConfig(Logger):
     def get_decimal_point(self):
         return self.decimal_point
 
+    def get_bolt8_privkey_for_server(self, server_pubkey):
+        return self.get('bolt8_privkeys', {}).get(server_pubkey)
+
+    def set_bolt8_privkey_for_server(self, server_pubkey:str, privkey:str):
+        d = self.get('bolt8_privkeys', {})
+        d[server_pubkey] = privkey
+        self.set_key('bolt8_privkeys', d)
+
 
 def read_user_config(path):
     """Parse and store the user config settings in electrum.conf into user_config[]."""

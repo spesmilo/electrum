@@ -69,7 +69,6 @@ if TYPE_CHECKING:
     from .channel_db import ChannelDB
     from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
-    from .lnwatcher import WatchTower
     from .daemon import Daemon
 
 
@@ -260,7 +259,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     channel_db: Optional['ChannelDB'] = None
     lngossip: Optional['LNGossip'] = None
-    local_watchtower: Optional['WatchTower'] = None
     path_finder: Optional['LNPathFinder'] = None
 
     def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
@@ -347,13 +345,6 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._set_status('disconnected')
         self._has_ever_managed_to_connect_to_server = False
-
-        # lightning network
-        if self.config.get('run_watchtower', False):
-            from . import lnwatcher
-            self.local_watchtower = lnwatcher.WatchTower(self)
-            self.local_watchtower.adb.start_network(self)
-            asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def has_internet_connection(self) -> bool:
         """Our guess whether the device has Internet-connectivity."""
@@ -481,6 +472,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.config.mempool_fees = histogram
         self.logger.info(f'fee_histogram {histogram}')
         self.notify('fee_histogram')
+
+    async def watchtower_get_ctn(self, *args):
+        return await self.interface.session.send_request('watchtower.get_ctn', args)
+
+    async def watchtower_add_sweep_tx(self, *args):
+        return await self.interface.session.send_request('watchtower.add_sweep_tx', args)
 
     def get_status_value(self, key):
         if key == 'status':

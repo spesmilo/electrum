@@ -46,7 +46,7 @@ from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
 from .util import MyEncoder, is_private_netaddress, UnrelatedTransactionException
 from .logging import Logger
-from .lntransport import LNTransport, LNResponderTransport, LNTransportBase
+from .lntransport import LNClient, LNTransport, LNSession, create_bolt8_server
 from .lnpeer import Peer, LN_P2P_NETWORK_TIMEOUT
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
@@ -259,17 +259,14 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             except Exception as e:
                 self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
                 return
-            addr = str(netaddr.host)
-            async def cb(reader, writer):
-                transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
-                try:
-                    node_id = await transport.handshake()
-                except Exception as e:
-                    self.logger.info(f'handshake failure from incoming connection: {e!r}')
-                    return
-                await self._add_peer_from_transport(node_id=node_id, transport=transport)
+            def session_factory(transport):
+                async def coro():
+                    await transport.handshake_done.wait()
+                    await self._add_peer_from_transport(node_id=transport._remote_pubkey, transport=transport)
+                asyncio.run_coroutine_threadsafe(coro(), self.network.asyncio_loop)
+                return LNSession(transport)
             try:
-                self.listen_server = await asyncio.start_server(cb, addr, netaddr.port)
+                self.listen_server = await create_bolt8_server(b'lightning', self.node_keypair.privkey, None, session_factory, str(netaddr.host), netaddr.port)
             except OSError as e:
                 self.logger.error(f"cannot listen for lightning p2p. error: {e!r}")
 
@@ -309,12 +306,14 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.logger.info(f"adding peer {peer_addr}")
         if node_id == self.node_keypair.pubkey:
             raise ErrorAddingPeer("cannot connect to self")
-        transport = LNTransport(self.node_keypair.privkey, peer_addr,
-                                proxy=self.network.proxy)
-        peer = await self._add_peer_from_transport(node_id=node_id, transport=transport)
+        connector = self.network.proxy or self.network.asyncio_loop
+        protocol_factory = partial(LNTransport, b'lightning', LNSession, self.node_keypair.privkey, peer_addr=peer_addr)
+        asyncio_transport, protocol = await connector.create_connection(protocol_factory, peer_addr.host, peer_addr.port)
+        await protocol.handshake_done.wait()
+        peer = await self._add_peer_from_transport(node_id=node_id, transport=protocol)
         return peer
 
-    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransportBase) -> Peer:
+    async def _add_peer_from_transport(self, *, node_id: bytes, transport: LNTransport) -> Peer:
         peer = Peer(self, node_id, transport)
         with self.lock:
             existing_peer = self._peers.get(node_id)
@@ -370,7 +369,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         return True
 
     def on_peer_successfully_established(self, peer: Peer) -> None:
-        if isinstance(peer.transport, LNTransport):
+        if not peer.transport.is_listener():
             peer_addr = peer.transport.peer_addr
             # reset connection attempt count
             self._on_connection_successfully_established(peer_addr)
@@ -710,48 +709,29 @@ class LNWallet(LNWorker):
 
     @ignore_exceptions
     @log_exceptions
-    async def sync_with_local_watchtower(self):
-        watchtower = self.network.local_watchtower
-        if watchtower:
-            while True:
-                for chan in self.channels.values():
-                    await self.sync_channel_with_watchtower(chan, watchtower.sweepstore)
-                await asyncio.sleep(5)
-
-    @ignore_exceptions
-    @log_exceptions
-    async def sync_with_remote_watchtower(self):
+    async def sync_with_watchtower(self):
         while True:
             # periodically poll if the user updated 'watchtower_url'
             await asyncio.sleep(5)
             watchtower_url = self.config.get('watchtower_url')
             if not watchtower_url:
                 continue
-            parsed_url = urllib.parse.urlparse(watchtower_url)
-            if not (parsed_url.scheme == 'https' or is_private_netaddress(parsed_url.hostname)):
-                self.logger.warning(f"got watchtower URL for remote tower but we won't use it! "
-                                    f"can only use HTTPS (except if private IP): not using {watchtower_url!r}")
-                continue
             # try to sync with the remote watchtower
             try:
-                async with make_aiohttp_session(proxy=self.network.proxy) as session:
-                    watchtower = JsonRPCClient(session, watchtower_url)
-                    watchtower.add_method('get_ctn')
-                    watchtower.add_method('add_sweep_tx')
-                    for chan in self.channels.values():
-                        await self.sync_channel_with_watchtower(chan, watchtower)
+                for chan in self.channels.values():
+                    await self.sync_channel_with_watchtower(chan)
             except aiohttp.client_exceptions.ClientConnectorError:
                 self.logger.info(f'could not contact remote watchtower {watchtower_url}')
 
-    async def sync_channel_with_watchtower(self, chan: Channel, watchtower):
+    async def sync_channel_with_watchtower(self, chan: Channel):
         outpoint = chan.funding_outpoint.to_str()
         addr = chan.get_funding_address()
         current_ctn = chan.get_oldest_unrevoked_ctn(REMOTE)
-        watchtower_ctn = await watchtower.get_ctn(outpoint, addr)
+        watchtower_ctn = await self.network.watchtower_get_ctn(outpoint, addr)
         for ctn in range(watchtower_ctn + 1, current_ctn):
             sweeptxs = chan.create_sweeptxs(ctn)
             for tx in sweeptxs:
-                await watchtower.add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
+                await self.network.watchtower_add_sweep_tx(outpoint, ctn, tx.inputs()[0].prevout.to_str(), tx.serialize())
 
     def start_network(self, network: 'Network'):
         super().start_network(network)
@@ -770,8 +750,7 @@ class LNWallet(LNWorker):
                 self.maybe_listen(),
                 self.lnwatcher.trigger_callbacks(), # shortcut (don't block) if funding tx locked and verified
                 self.reestablish_peers_and_channels(),
-                self.sync_with_local_watchtower(),
-                self.sync_with_remote_watchtower(),
+                self.sync_with_watchtower(),
         ]:
             tg_coro = self.taskgroup.spawn(coro)
             asyncio.run_coroutine_threadsafe(tg_coro, self.network.asyncio_loop)
@@ -2515,8 +2494,11 @@ class LNWallet(LNWorker):
         async def _request_fclose(addresses):
             for host, port, timestamp in addresses:
                 peer_addr = LNPeerAddr(host, port, node_id)
-                transport = LNTransport(privkey, peer_addr, proxy=self.network.proxy)
-                peer = Peer(self, node_id, transport, is_channel_backup=True)
+                connector = self.proxy or self.loop
+                protocol_factory = partial(LNTransport, LNSession, privkey, peer_addr=peer_addr)
+                asyncio_transport, protocol = await connector.create_connection(protocol_factory, peer_addr.host, peer_addr.port)
+                await protocol.handshake_done.wait()
+                peer = Peer(self, node_id, transport=client._protocol, is_channel_backup=True)
                 try:
                     async with OldTaskGroup(wait=any) as group:
                         await group.spawn(peer._message_loop())
