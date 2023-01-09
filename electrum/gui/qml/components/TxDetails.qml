@@ -74,7 +74,6 @@ Pane {
                 }
 
                 Label {
-                    Layout.fillWidth: true
                     visible: !txdetails.isUnrelated && txdetails.lnAmount.satsInt == 0
                     text: txdetails.amount.satsInt > 0
                             ? qsTr('Amount received')
@@ -92,23 +91,11 @@ Pane {
                     wrapMode: Text.Wrap
                 }
 
-                RowLayout {
+                FormattedAmount {
                     visible: !txdetails.isUnrelated
                     Layout.fillWidth: true
-                    Label {
-                        visible: txdetails.lnAmount.satsInt == 0
-                        text: Config.formatSats(txdetails.amount)
-                        font.family: FixedFont
-                    }
-                    Label {
-                        visible: txdetails.lnAmount.satsInt != 0
-                        text: Config.formatSats(txdetails.lnAmount)
-                        font.family: FixedFont
-                    }
-                    Label {
-                        text: Config.baseUnit
-                        color: Material.accentColor
-                    }
+                    showAlt: false
+                    amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount
                 }
 
                 Item {
@@ -127,25 +114,22 @@ Pane {
 
 
                 Label {
-                    Layout.fillWidth: true
-                    visible: txdetails.fee.satsInt != 0
+                    visible: !txdetails.fee.isEmpty
                     text: qsTr('Transaction fee')
                     color: Material.accentColor
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    visible: txdetails.fee.satsInt != 0
-                    Label {
-                        text: Config.formatSats(txdetails.fee)
-                        font.family: FixedFont
-                    }
-                    Label {
+                    visible: !txdetails.fee.isEmpty
+                    FormattedAmount {
                         Layout.fillWidth: true
-                        text: Config.baseUnit
-                        color: Material.accentColor
+                        amount: txdetails.fee
+                        showAlt: false
                     }
                     FlatButton {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: implicitWidth
                         icon.source: '../../icons/warning.png'
                         icon.color: 'transparent'
                         text: qsTr('Bump fee')
@@ -162,6 +146,7 @@ Pane {
                 }
 
                 Label {
+                    Layout.fillWidth: true
                     text: qsTr('Status')
                     color: Material.accentColor
                 }
