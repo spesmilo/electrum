@@ -176,6 +176,46 @@ Pane {
 
                     Label {
                         Layout.columnSpan: 2
+                        visible: Daemon.currentWallet.hasSeed
+                        text: qsTr('Seed')
+                        color: Material.accentColor
+                    }
+
+                    TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        visible: Daemon.currentWallet.hasSeed
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                id: seedText
+                                visible: false
+                                Layout.fillWidth: true
+                                text: Daemon.currentWallet.seed
+                                wrapMode: Text.Wrap
+                                font.family: FixedFont
+                                font.pixelSize: constants.fontSizeMedium
+                            }
+                            Label {
+                                id: showSeedText
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignHCenter
+                                text: qsTr('Tap to show seed')
+                                wrapMode: Text.Wrap
+                                font.pixelSize: constants.fontSizeLarge
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    seedText.visible = true
+                                    showSeedText.visible = false
+                                }
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.columnSpan: 2
                         visible: Daemon.currentWallet.isLightning
                         text: qsTr('Lightning Node ID')
                         color: Material.accentColor

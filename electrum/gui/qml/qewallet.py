@@ -317,6 +317,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return self.wallet.has_seed()
 
     @pyqtProperty(str, notify=dataChanged)
+    def seed(self):
+        try:
+            return self.wallet.get_seed(self.password)
+        except:
+            return ''
+
+    @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
         if self.wallet.wallet_type == 'imported':
             return self.wallet.txin_type
