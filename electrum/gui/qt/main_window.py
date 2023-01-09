@@ -717,7 +717,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         def add_toggle_action(view_menu, tab):
             is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
-            item_name = (_("Hide") if is_shown else _("Show")) + " " + tab.tab_description
+            item_name = (_("Hide {}") if is_shown else _("Show {}")).format(tab.tab_description)
             tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
 
         view_menu = menubar.addMenu(_("&View"))
