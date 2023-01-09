@@ -251,7 +251,7 @@ ElDialog {
                         }
 
                         ToolButton {
-                            visible: !amountContainer.editmode
+                            visible: !amountContainer.editmode && invoice.canPay
                             icon.source: '../../icons/pen.png'
                             icon.color: 'transparent'
                             onClicked: {
