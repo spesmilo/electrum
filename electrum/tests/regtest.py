@@ -130,7 +130,10 @@ class TestPaymentRequests(TestLightning):
         self.daemon.add_wallet(wallet)
 
         async def main_test():
-            req = await commands.add_request(0.01, wallet=wallet)
+            await commands.add_request(
+                self.INVOICE_AMOUNT, wallet=wallet
+            )  # skip first one as it gets paid via init function
+            req = await commands.add_request(self.INVOICE_AMOUNT, wallet=wallet)
             address = req['address']
             tx_hash = self.run_shell(['sendtoaddress', address, self.INVOICE_AMOUNT])
             while True:
@@ -140,8 +143,15 @@ class TestPaymentRequests(TestLightning):
                 await asyncio.sleep(1)
             # wait a bit more for electrum to sync state
             await asyncio.sleep(1)
-            assert self.queue.qsize() == 1
-            assert self.queue.get() == (wallet, req['request_id'], 7)
+            assert self.queue.qsize() > 0
+            matched_data = None
+            while not self.queue.empty():
+                data = self.queue.get()
+                if data[1] == req['request_id']:
+                    matched_data = data
+                    break
+            assert matched_data is not None
+            assert matched_data == (wallet, req['request_id'], 7)
             req = await commands.get_request(req['request_id'], wallet=wallet)
             assert req['status'] == 7
             assert req['tx_hashes'] == [tx_hash]
