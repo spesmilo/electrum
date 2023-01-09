@@ -15,6 +15,11 @@ function new_blocks()
     $bitcoin_cli generatetoaddress $1 $($bitcoin_cli getnewaddress) > /dev/null
 }
 
+function send_to()
+{
+    $bitcoin_cli sendtoaddress $1 $2
+}
+
 function wait_for_balance()
 {
     msg="wait until $1's balance reaches $2"
@@ -63,7 +68,7 @@ function wait_until_spent()
 }
 
 if [[ $# -eq 0 ]]; then
-    echo "syntax: init|start|open|status|pay|close|stop"
+    echo "syntax: init|start|open|status|pay|close|stop|sendtoaddress"
     exit 1
 fi
 
@@ -85,8 +90,13 @@ if [[ $1 == "init" ]]; then
         $bob setconfig --offline lightning_listen localhost:9735
     else
         echo "funding $2"
-        $bitcoin_cli sendtoaddress $($agent getunusedaddress -o) 1
+        send_to $($agent getunusedaddress -o) 1
     fi
+fi
+
+
+if [[ $1 == "sendtoaddress" ]]; then
+    send_to $2 $3
 fi
 
 
