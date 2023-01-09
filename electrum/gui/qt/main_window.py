@@ -541,13 +541,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.export_menu.setEnabled(self.wallet.can_export())
 
     def warn_if_watching_only(self):
-        if self.wallet.is_watching_only():
+        if self.wallet.is_watching_only() and not self.config.get('disable_watch-only_warning', False):
             msg = ' '.join([
                 _("This wallet is watching-only."),
                 _("This means you will not be able to spend Bitcoins with it."),
                 _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
             ])
-            self.show_warning(msg, title=_('Watch-only wallet'))
+            checkbox = QCheckBox(_("Don't show again"))
+            class DontShowAgainCheckboxResult:
+                isChecked = False
+            result = DontShowAgainCheckboxResult()
+            def checkboxStateChanged(isChecked, result):
+                result.isChecked = isChecked
+            checkbox.stateChanged.connect(partial(checkboxStateChanged, result=result))
+            self.show_warning(msg, title=_('Watch-only wallet'), checkbox=checkbox)
+            if result.isChecked == Qt.Checked:
+                self.config.set_key('disable_watch-only_warning', True, save=True)
 
     def warn_if_testnet(self):
         if not constants.net.TESTNET:

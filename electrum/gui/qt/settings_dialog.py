@@ -267,6 +267,12 @@ class SettingsDialog(QDialog, QtEventListener):
             self.config.set_key('check_updates', v == Qt.Checked, save=True)
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
+        show_watchonly_warning_cb = QCheckBox(_("Warn when opening watch-only wallets"))
+        show_watchonly_warning_cb.setChecked(not bool(self.config.get('disable_watch-only_warning', False)))
+        def on_set_show_watchonly_warning(v):
+            self.config.set_key('disable_watch-only_warning', v != Qt.Checked, save=True)
+        show_watchonly_warning_cb.stateChanged.connect(on_set_show_watchonly_warning)        
+
         filelogging_cb = QCheckBox(_("Write logs to file"))
         filelogging_cb.setChecked(bool(self.config.get('log_to_file', False)))
         def on_set_filelogging(v):
@@ -513,6 +519,7 @@ class SettingsDialog(QDialog, QtEventListener):
         fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
+        misc_widgets.append((show_watchonly_warning_cb, None))
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
