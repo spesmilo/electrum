@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import QtQuick.Controls 2.3
 import QtQuick.Layouts 1.0
+import QtQuick.Controls.Material 2.0
 import QtQml 2.6
 
 import org.electrum 1.0
@@ -118,20 +119,27 @@ Item {
             Layout.alignment: Qt.AlignHCenter
         }
 
-        Button {
-            text: qsTr('Open/Create Wallet')
+        Pane {
             Layout.alignment: Qt.AlignHCenter
-            onClicked: {
-                if (Daemon.availableWallets.rowCount() > 0) {
-                    stack.push(Qt.resolvedUrl('Wallets.qml'))
-                } else {
-                    var newww = app.newWalletWizard.createObject(app)
-                    newww.walletCreated.connect(function() {
-                        Daemon.availableWallets.reload()
-                        // and load the new wallet
-                        Daemon.load_wallet(newww.path, newww.wizard_data['password'])
-                    })
-                    newww.open()
+            padding: 0
+            background: Rectangle {
+                color: Material.dialogColor
+            }
+            FlatButton {
+                text: qsTr('Open/Create Wallet')
+                icon.source: '../../icons/wallet.png'
+                onClicked: {
+                    if (Daemon.availableWallets.rowCount() > 0) {
+                        stack.push(Qt.resolvedUrl('Wallets.qml'))
+                    } else {
+                        var newww = app.newWalletWizard.createObject(app)
+                        newww.walletCreated.connect(function() {
+                            Daemon.availableWallets.reload()
+                            // and load the new wallet
+                            Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                        })
+                        newww.open()
+                    }
                 }
             }
         }
