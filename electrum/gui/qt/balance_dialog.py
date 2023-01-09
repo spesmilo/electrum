@@ -107,7 +107,7 @@ class BalanceToolButton(QToolButton, PieChartObject):
 
     def setText(self, text):
         # this is a hack
-        QToolButton.setText(self, '      ' + text)
+        QToolButton.setText(self, '       ' + text)
 
     def paintEvent(self, event):
         QToolButton.paintEvent(self, event)
