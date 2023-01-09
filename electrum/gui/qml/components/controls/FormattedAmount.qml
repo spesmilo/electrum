@@ -9,7 +9,7 @@ RowLayout {
     required property Amount amount
     property bool showAlt: true
     Label {
-        text: Config.formatSats(amount)
+        text: amount.msatsInt > 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
         font.family: FixedFont
     }
     Label {
