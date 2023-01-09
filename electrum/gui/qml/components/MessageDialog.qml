@@ -16,7 +16,6 @@ ElDialog {
     property alias text: message.text
 
     signal yesClicked
-    signal noClicked
 
     parent: Overlay.overlay
     modal: true
@@ -59,7 +58,7 @@ ElDialog {
                 text: qsTr('No')
                 visible: yesno
                 onClicked: {
-                    noClicked()
+                    reject()
                     dialog.close()
                 }
             }
