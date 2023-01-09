@@ -57,13 +57,6 @@ ApplicationWindow
                     }
                 }
 
-                Image {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: constants.iconSizeLarge
-                    Layout.preferredHeight: constants.iconSizeLarge
-                    source: "../../icons/electrum.png"
-                }
-
                 Label {
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
