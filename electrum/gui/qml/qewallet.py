@@ -78,6 +78,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     _synchronizing = False
     _synchronizing_progress = ''
 
+    _lightningbalance = QEAmount()
+    _confirmedbalance = QEAmount()
+    _unconfirmedbalance = QEAmount()
+    _frozenbalance = QEAmount()
+    _totalbalance = QEAmount()
+    _lightningcanreceive = QEAmount()
+    _lightningcansend = QEAmount()
+
     def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
@@ -394,48 +402,42 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
-        self._frozenbalance = QEAmount(amount_sat=c+x)
+        self._frozenbalance.satsInt = c+x
         return self._frozenbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def unconfirmedBalance(self):
-        self._unconfirmedbalance = QEAmount(amount_sat=self.wallet.get_balance()[1])
+        self._unconfirmedbalance.satsInt = self.wallet.get_balance()[1]
         return self._unconfirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def confirmedBalance(self):
         c, u, x = self.wallet.get_balance()
-        self._confirmedbalance = QEAmount(amount_sat=c+x)
+        self._confirmedbalance.satsInt = c+x
         return self._confirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalance(self):
-        if not self.isLightning:
-            self._lightningbalance = QEAmount()
-        else:
-            self._lightningbalance = QEAmount(amount_sat=int(self.wallet.lnworker.get_balance()))
+        if self.isLightning:
+            self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def totalBalance(self):
         total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
-        self._totalBalance = QEAmount(amount_sat=total)
-        return self._totalBalance
+        self._totalbalance.satsInt = total
+        return self._totalbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
-        if not self.isLightning:
-            self._lightningcansend = QEAmount()
-        else:
-            self._lightningcansend = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_send()))
+        if self.isLightning:
+            self._lightningcansend.satsInt = int(self.wallet.lnworker.num_sats_can_send())
         return self._lightningcansend
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanReceive(self):
-        if not self.isLightning:
-            self._lightningcanreceive = QEAmount()
-        else:
-            self._lightningcanreceive = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_receive()))
+        if self.isLightning:
+            self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
     @pyqtSlot()
