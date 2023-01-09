@@ -271,7 +271,7 @@ class SettingsDialog(QDialog, QtEventListener):
         show_watchonly_warning_cb.setChecked(not bool(self.config.get('disable_watch-only_warning', False)))
         def on_set_show_watchonly_warning(v):
             self.config.set_key('disable_watch-only_warning', v != Qt.Checked, save=True)
-        show_watchonly_warning_cb.stateChanged.connect(on_set_show_watchonly_warning)        
+        show_watchonly_warning_cb.stateChanged.connect(on_set_show_watchonly_warning)
 
         filelogging_cb = QCheckBox(_("Write logs to file"))
         filelogging_cb.setChecked(bool(self.config.get('log_to_file', False)))
