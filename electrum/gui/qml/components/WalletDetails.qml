@@ -170,6 +170,72 @@ Pane {
                 }
 
                 GridLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: Daemon.currentWallet
+                    columns: 3
+
+                    Item {
+                        visible: !Daemon.currentWallet.totalBalance.isEmpty
+                        Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                    }
+                    Label {
+                        visible: !Daemon.currentWallet.totalBalance.isEmpty
+                        text: qsTr('Total')
+                    }
+                    FormattedAmount {
+                        visible: !Daemon.currentWallet.totalBalance.isEmpty
+                        amount: Daemon.currentWallet.totalBalance
+                    }
+
+                    Rectangle {
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                        Layout.preferredWidth: constants.iconSizeXSmall
+                        Layout.preferredHeight: constants.iconSizeXSmall
+                        color: constants.colorPiechartLightning
+                    }
+                    Label {
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                        text: qsTr('Lightning')
+
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.lightningBalance
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                    }
+
+                    Rectangle {
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                        Layout.preferredWidth: constants.iconSizeXSmall
+                        Layout.preferredHeight: constants.iconSizeXSmall
+                        color: constants.colorPiechartOnchain
+                    }
+                    Label {
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                        text: qsTr('On-chain')
+
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.confirmedBalance
+                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                    }
+
+                    Rectangle {
+                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                        Layout.preferredWidth: constants.iconSizeXSmall
+                        Layout.preferredHeight: constants.iconSizeXSmall
+                        color: constants.colorPiechartFrozen
+                    }
+                    Label {
+                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                        text: qsTr('Frozen')
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.frozenBalance
+                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                    }
+                }
+
+                GridLayout {
                     Layout.preferredWidth: parent.width
                     visible: Daemon.currentWallet
                     columns: 2
