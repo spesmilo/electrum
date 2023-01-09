@@ -10,8 +10,9 @@ import "controls"
 ElDialog {
     id: openwalletdialog
 
-    width: parent.width
-    height: parent.height
+    width: parent.width * 4/5
+
+    anchors.centerIn: parent
 
     title: qsTr("Open Wallet")
     iconSource: '../../../icons/wallet.png'
@@ -32,6 +33,7 @@ ElDialog {
     property bool _unlockClicked: false
 
     ColumnLayout {
+        id: rootLayout
         width: parent.width
         spacing: constants.paddingLarge
 
@@ -78,18 +80,17 @@ ElDialog {
         }
 
         Label {
-            Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
             text: !wallet_db.validPassword && _unlockClicked ? qsTr("Invalid Password") : ''
             color: constants.colorError
             font.pixelSize: constants.fontSizeLarge
         }
 
-        Button {
+        FlatButton {
             id: unlockButton
-            Layout.columnSpan: 2
             Layout.alignment: Qt.AlignHCenter
             visible: wallet_db.needsPassword
+            icon.source: '../../icons/unlock.png'
             text: qsTr("Unlock")
             onClicked: {
                 unlock()
@@ -97,33 +98,19 @@ ElDialog {
         }
 
         Label {
-            text: qsTr('Select HW device')
-            visible: wallet_db.needsHWDevice
-        }
-
-        ComboBox {
-            id: hw_device
-            model: ['','Not implemented']
-            visible: wallet_db.needsHWDevice
-        }
-
-        Label {
-            text: qsTr('Wallet requires splitting')
+            Layout.alignment: Qt.AlignHCenter
             visible: wallet_db.requiresSplit
+            text: qsTr('Wallet requires splitting')
+            font.pixelSize: constants.fontSizeLarge
         }
 
-        Button {
+        FlatButton {
+            Layout.alignment: Qt.AlignHCenter
             visible: wallet_db.requiresSplit
             text: qsTr('Split wallet')
             onClicked: wallet_db.doSplit()
         }
 
-        BusyIndicator {
-            id: busy
-            running: false
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-        }
     }
 
     function unlock() {
@@ -143,7 +130,6 @@ ElDialog {
         }
         onReadyChanged: {
             if (ready) {
-                busy.running = true
                 Daemon.load_wallet(openwalletdialog.path, password.text)
                 openwalletdialog.close()
             }
