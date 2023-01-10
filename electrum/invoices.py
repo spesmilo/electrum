@@ -266,7 +266,8 @@ class Invoice(StoredObject):
             'description': self._lnaddr.get_description(),
             'exp': self._lnaddr.get_expiry(),
             'time': self._lnaddr.date,
-            # 'tags': str(lnaddr.tags),
+            # show the last hop of routing hints. (our invoices only have one hop)
+            'r_tags': [ str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in self._lnaddr.get_routing_info('r')[-1]]
         })
         return d
 
