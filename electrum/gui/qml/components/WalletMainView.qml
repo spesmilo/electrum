@@ -53,6 +53,7 @@ Item {
             action: Action {
                 text: qsTr('Invoices');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
+                enabled: Daemon.currentWallet
                 icon.source: '../../icons/tab_receive.png'
             }
         }
