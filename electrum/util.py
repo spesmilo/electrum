@@ -787,14 +787,14 @@ def format_time(timestamp):
 # Takes a timestamp and returns a string with the approximation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if from_date is None:
-        return "Unknown"
+        return _("Unknown")
 
     from_date = datetime.fromtimestamp(from_date)
     if since_date is None:
         since_date = datetime.now(target_tz)
 
     td = time_difference(from_date - since_date, include_seconds)
-    return td + " ago" if from_date < since_date else "in " + td
+    return _("%s ago") % td if from_date < since_date else _("in %s") % td
 
 
 def time_difference(distance_in_time, include_seconds):
@@ -804,27 +804,27 @@ def time_difference(distance_in_time, include_seconds):
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return "%s seconds" % distance_in_seconds
+            return _("%s seconds") % distance_in_seconds
         else:
-            return "less than a minute"
+            return _("less than a minute")
     elif distance_in_minutes < 45:
-        return "%s minutes" % distance_in_minutes
+        return _("about %s minutes") % distance_in_minutes
     elif distance_in_minutes < 90:
-        return "about 1 hour"
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        return "about %d hours" % (round(distance_in_minutes / 60.0))
+        return _("about %d hours") % (round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return "1 day"
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        return "%d days" % (round(distance_in_minutes / 1440))
+        return _("about %d days") % (round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return "about 1 month"
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        return "%d months" % (round(distance_in_minutes / 43200))
+        return _("about %d months") % (round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 year"
+        return _("about 1 year")
     else:
-        return "over %d years" % (round(distance_in_minutes / 525600))
+        return _("over %d years") % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
