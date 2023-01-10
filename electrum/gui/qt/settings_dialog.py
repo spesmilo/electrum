@@ -101,6 +101,7 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.config.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
                 self.app.refresh_tabs_signal.emit()
+                self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
 
         # invoices
