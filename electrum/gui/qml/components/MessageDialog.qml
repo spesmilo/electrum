@@ -14,6 +14,7 @@ ElDialog {
 
     property bool yesno: false
     property alias text: message.text
+    property bool richText: false
 
     signal yesClicked
 
@@ -33,7 +34,7 @@ ElDialog {
             Layout.preferredWidth: Overlay.overlay.width *2/3
             readOnly: true
             wrapMode: TextInput.WordWrap
-            //textFormat: TextEdit.RichText // existing translations not richtext yet
+            textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
             background: Rectangle {
                 color: 'transparent'
             }
