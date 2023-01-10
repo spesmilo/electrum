@@ -23,14 +23,14 @@ from electrum.i18n import set_language, languages
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
-from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
+    from electrum.wallet import Abstract_Wallet
 
-from .qeapp import ElectrumQmlApplication
+from .qeapp import ElectrumQmlApplication, Exception_Hook
 
 class ElectrumGui(Logger):
 
@@ -95,37 +95,3 @@ class ElectrumGui(Logger):
     def get_default_language(self):
         name = QLocale.system().name()
         return name if name in languages else 'en_UK'
-
-
-
-class Exception_Hook(QObject, Logger):
-    _report_exception = pyqtSignal(object, object, object, object)
-
-    _INSTANCE = None  # type: Optional[Exception_Hook]  # singleton
-
-    def __init__(self, *, config: 'SimpleConfig', slot):
-        QObject.__init__(self)
-        Logger.__init__(self)
-        assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
-        self.config = config
-        self.wallet_types_seen = set()  # type: Set[str]
-
-        sys.excepthook = self.handler
-        threading.excepthook = self.handler
-
-        self._report_exception.connect(slot)
-        EarlyExceptionsQueue.set_hook_as_ready()
-
-    @classmethod
-    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None, slot = None) -> None:
-        if not config.get(BaseCrashReporter.config_key, default=True):
-            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
-            return
-        if not cls._INSTANCE:
-            cls._INSTANCE = Exception_Hook(config=config, slot=slot)
-        if wallet:
-            cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
-
-    def handler(self, *exc_info):
-        self.logger.error('exception caught by crash reporter', exc_info=exc_info)
-        self._report_exception.emit(self.config, *exc_info)

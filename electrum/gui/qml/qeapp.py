@@ -15,7 +15,7 @@ from electrum import version, constants
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
 from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
-from electrum.base_crash_reporter import BaseCrashReporter
+from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
 
 from .qeconfig import QEConfig
@@ -348,3 +348,35 @@ class ElectrumQmlApplication(QGuiApplication):
         if re.search('file:///.*TypeError: Cannot read property.*null$', file):
             return
         self.logger.warning(file)
+
+class Exception_Hook(QObject, Logger):
+    _report_exception = pyqtSignal(object, object, object, object)
+
+    _INSTANCE = None  # type: Optional[Exception_Hook]  # singleton
+
+    def __init__(self, *, config: 'SimpleConfig', slot):
+        QObject.__init__(self)
+        Logger.__init__(self)
+        assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
+        self.config = config
+        self.wallet_types_seen = set()  # type: Set[str]
+
+        sys.excepthook = self.handler
+        threading.excepthook = self.handler
+
+        self._report_exception.connect(slot)
+        EarlyExceptionsQueue.set_hook_as_ready()
+
+    @classmethod
+    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None, slot = None) -> None:
+        if not config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
+            return
+        if not cls._INSTANCE:
+            cls._INSTANCE = Exception_Hook(config=config, slot=slot)
+        if wallet:
+            cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
+
+    def handler(self, *exc_info):
+        self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        self._report_exception.emit(self.config, *exc_info)
