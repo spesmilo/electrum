@@ -2,14 +2,21 @@ import re
 import queue
 import time
 import os
+import sys
+import html
+import threading
+import asyncio
 
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLocale, qInstallMessageHandler, QTimer
 from PyQt5.QtGui import QGuiApplication, QFontDatabase
 from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplicationEngine
 
-from electrum import version
+from electrum import version, constants
+from electrum.i18n import _
 from electrum.logging import Logger, get_logger
 from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
+from electrum.base_crash_reporter import BaseCrashReporter
+from electrum.network import Network
 
 from .qeconfig import QEConfig
 from .qedaemon import QEDaemon
@@ -33,15 +40,20 @@ from .qewizard import QENewWalletWizard, QEServerConnectWizard
 
 notification = None
 
-class QEAppController(QObject):
+class QEAppController(BaseCrashReporter, QObject):
+    _dummy = pyqtSignal()
     userNotify = pyqtSignal(str)
     uriReceived = pyqtSignal(str)
+    showException = pyqtSignal()
+    sendingBugreport = pyqtSignal()
+    sendingBugreportSuccess = pyqtSignal(str)
+    sendingBugreportFailure = pyqtSignal(str)
 
-    _dummy = pyqtSignal()
+    _crash_user_text = ''
 
     def __init__(self, qedaemon, plugins):
-        super().__init__()
-        self.logger = get_logger(__name__)
+        BaseCrashReporter.__init__(self, None, None, None)
+        QObject.__init__(self)
 
         self._qedaemon = qedaemon
         self._plugins = plugins
@@ -191,6 +203,60 @@ class QEAppController(QObject):
     @pyqtSlot(result=bool)
     def isAndroid(self):
         return 'ANDROID_DATA' in os.environ
+
+    @pyqtSlot(result='QVariantMap')
+    def crashData(self):
+        return {
+            'traceback': self.get_traceback_info(),
+            'extra': self.get_additional_info(),
+            'reportstring': self.get_report_string()
+        }
+
+    @pyqtSlot(object,object,object,object)
+    def crash(self, config, e, text, tb):
+        self.exc_args = (e, text, tb) # for BaseCrashReporter
+        self.showException.emit()
+
+    @pyqtSlot()
+    def sendReport(self):
+        network = Network.get_instance()
+        proxy = network.proxy
+
+        def report_task():
+            try:
+                response = BaseCrashReporter.send_report(self, network.asyncio_loop, proxy)
+                self.sendingBugreportSuccess.emit(response)
+            except Exception as e:
+                self.logger.error('There was a problem with the automatic reporting', exc_info=e)
+                self.sendingBugreportFailure.emit(_('There was a problem with the automatic reporting:') + '<br/>' +
+                                        repr(e)[:120] + '<br/><br/>' +
+                                        _("Please report this issue manually") +
+                                        f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.')
+
+        self.sendingBugreport.emit()
+        threading.Thread(target=report_task).start()
+
+    @pyqtSlot()
+    def showNever(self):
+        self.config.set_key(BaseCrashReporter.config_key, False)
+
+    @pyqtSlot(str)
+    def setCrashUserText(self, text):
+        self._crash_user_text = text
+
+    def _get_traceback_str_to_display(self) -> str:
+        # The msg_box that shows the report uses rich_text=True, so
+        # if traceback contains special HTML characters, e.g. '<',
+        # they need to be escaped to avoid formatting issues.
+        traceback_str = super()._get_traceback_str_to_display()
+        return html.escape(traceback_str).replace('&#x27;','&apos;')
+
+    def get_user_description(self):
+        return self._crash_user_text
+
+    def get_wallet_type(self):
+        wallet_types = Exception_Hook._INSTANCE.wallet_types_seen
+        return ",".join(wallet_types)
 
 class ElectrumQmlApplication(QGuiApplication):
 

@@ -15,14 +15,15 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import QLocale, QTimer
+from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTimer, pyqtSignal,
+                          QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt5.QtGui import QGuiApplication
-import PyQt5.QtCore as QtCore
 
 from electrum.i18n import set_language, languages
 from electrum.plugin import run_hook
-from electrum.util import (profiler)
+from electrum.util import profiler
 from electrum.logging import Logger
+from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -40,19 +41,19 @@ class ElectrumGui(Logger):
         #os.environ['QML_IMPORT_TRACE'] = '1'
         #os.environ['QT_DEBUG_PLUGINS'] = '1'
 
-        self.logger.info(f"Qml GUI starting up... Qt={QtCore.QT_VERSION_STR}, PyQt={QtCore.PYQT_VERSION_STR}")
+        self.logger.info(f"Qml GUI starting up... Qt={QT_VERSION_STR}, PyQt={PYQT_VERSION_STR}")
         self.logger.info("CWD=%s" % os.getcwd())
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                            ElectrumWindow], interval=5)])
-        QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
-        if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
-            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
+        QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
+        if hasattr(Qt, "AA_ShareOpenGLContexts"):
+            QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electrum.desktop')
-        if hasattr(QtCore.Qt, "AA_EnableHighDpiScaling"):
-            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
+        if hasattr(Qt, "AA_EnableHighDpiScaling"):
+            QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
 
         if "QT_QUICK_CONTROLS_STYLE" not in os.environ:
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
@@ -60,14 +61,15 @@ class ElectrumGui(Logger):
         self.gui_thread = threading.current_thread()
         self.plugins = plugins
         self.app = ElectrumQmlApplication(sys.argv, config, daemon, plugins)
+
         # timer
         self.timer = QTimer(self.app)
         self.timer.setSingleShot(False)
         self.timer.setInterval(500)  # msec
         self.timer.timeout.connect(lambda: None) # periodically enter python scope
 
-        sys.excepthook = self.excepthook
-        threading.excepthook = self.texcepthook
+        # hook for crash reporter
+        Exception_Hook.maybe_setup(config=config, slot=self.app.appController.crash)
 
         # Initialize any QML plugins
         run_hook('init_qml', self)
@@ -75,18 +77,6 @@ class ElectrumGui(Logger):
 
     def close(self):
         self.app.quit()
-
-    def excepthook(self, exc_type, exc_value, exc_tb):
-        tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-        self.logger.exception(tb)
-        self.app._valid = False
-        self.close()
-
-    def texcepthook(self, arg):
-        tb = "".join(traceback.format_exception(arg.exc_type, arg.exc_value, arg.exc_tb))
-        self.logger.exception(tb)
-        self.app._valid = False
-        self.close()
 
     def main(self):
         if not self.app._valid:
@@ -106,3 +96,36 @@ class ElectrumGui(Logger):
         name = QLocale.system().name()
         return name if name in languages else 'en_UK'
 
+
+
+class Exception_Hook(QObject, Logger):
+    _report_exception = pyqtSignal(object, object, object, object)
+
+    _INSTANCE = None  # type: Optional[Exception_Hook]  # singleton
+
+    def __init__(self, *, config: 'SimpleConfig', slot):
+        QObject.__init__(self)
+        Logger.__init__(self)
+        assert self._INSTANCE is None, "Exception_Hook is supposed to be a singleton"
+        self.config = config
+        self.wallet_types_seen = set()  # type: Set[str]
+
+        sys.excepthook = self.handler
+        threading.excepthook = self.handler
+
+        self._report_exception.connect(slot)
+        EarlyExceptionsQueue.set_hook_as_ready()
+
+    @classmethod
+    def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None, slot = None) -> None:
+        if not config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
+            return
+        if not cls._INSTANCE:
+            cls._INSTANCE = Exception_Hook(config=config, slot=slot)
+        if wallet:
+            cls._INSTANCE.wallet_types_seen.add(wallet.wallet_type)
+
+    def handler(self, *exc_info):
+        self.logger.error('exception caught by crash reporter', exc_info=exc_info)
+        self._report_exception.emit(self.config, *exc_info)
