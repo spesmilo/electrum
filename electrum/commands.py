@@ -1339,8 +1339,8 @@ class Commands:
         except InvalidOperation:
             raise Exception("from_amount is not a number")
         return {
-            "from_amount": self.daemon.fx.ccy_amount_str(from_amount, False, from_ccy),
-            "to_amount": self.daemon.fx.ccy_amount_str(to_amount, False, to_ccy),
+            "from_amount": self.daemon.fx.ccy_amount_str(from_amount, add_thousands_sep=False, ccy=from_ccy),
+            "to_amount": self.daemon.fx.ccy_amount_str(to_amount, add_thousands_sep=False, ccy=to_ccy),
             "from_ccy": from_ccy,
             "to_ccy": to_ccy,
             "source": self.daemon.fx.exchange.name(),

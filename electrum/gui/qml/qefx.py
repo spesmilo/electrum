@@ -108,7 +108,7 @@ class QEFX(QObject, QtEventListener):
             except:
                 return ''
         if plain:
-            return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), False)
+            return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), add_thousands_sep=False)
         else:
             return self.fx.value_str(satoshis, rate)
 
@@ -133,7 +133,7 @@ class QEFX(QObject, QtEventListener):
             return ''
         dt = datetime.fromtimestamp(int(td))
         if plain:
-            return self.fx.ccy_amount_str(self.fx.historical_value(satoshis, dt), False)
+            return self.fx.ccy_amount_str(self.fx.historical_value(satoshis, dt), add_thousands_sep=False)
         else:
             return self.fx.historical_value_str(satoshis, dt)
 

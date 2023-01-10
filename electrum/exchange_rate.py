@@ -556,17 +556,24 @@ class FxThread(ThreadJob, EventListener):
         return d.get(ccy, [])
 
     @staticmethod
-    def remove_thousands_separator(text):
-        return text.replace(',', '') # FIXME use THOUSAND_SEPARATOR in util
+    def remove_thousands_separator(text: str) -> str:
+        return text.replace(util.THOUSANDS_SEP, "")
 
-    def ccy_amount_str(self, amount, commas, ccy=None):
+    def ccy_amount_str(self, amount, *, add_thousands_sep: bool = False, ccy=None) -> str:
         prec = CCY_PRECISIONS.get(self.ccy if ccy is None else ccy, 2)
-        fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec)) # FIXME use util.THOUSAND_SEPARATOR and util.DECIMAL_POINT
+        fmt_str = "{:%s.%df}" % ("," if add_thousands_sep else "", max(0, prec))
         try:
             rounded_amount = round(amount, prec)
         except decimal.InvalidOperation:
             rounded_amount = amount
-        return fmt_str.format(rounded_amount)
+        text = fmt_str.format(rounded_amount)
+        # replace "," -> THOUSANDS_SEP
+        # replace "." -> DECIMAL_POINT
+        dp_loc = text.find(".")
+        text = text.replace(",", util.THOUSANDS_SEP)
+        if dp_loc == -1:
+            return text
+        return text[:dp_loc] + util.DECIMAL_POINT + text[dp_loc+1:]
 
     async def run(self):
         while True:
@@ -683,7 +690,7 @@ class FxThread(ThreadJob, EventListener):
     def format_fiat(self, value: Decimal) -> str:
         if value.is_nan():
             return _("No data")
-        return "%s" % (self.ccy_amount_str(value, True))
+        return self.ccy_amount_str(value, add_thousands_sep=True)
 
     def history_rate(self, d_t: Optional[datetime]) -> Decimal:
         if d_t is None:
