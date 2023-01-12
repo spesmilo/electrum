@@ -148,9 +148,13 @@ class Invoice(StoredObject):
         # 0 means never
         return self.exp + self.time if self.exp else 0
 
+    @staticmethod
+    def _get_cur_time():  # for unit tests
+        return time.time()
+
     def has_expired(self) -> bool:
         exp = self.get_expiration_date()
-        return bool(exp) and exp < time.time()
+        return bool(exp) and exp < self._get_cur_time()
 
     def get_amount_msat(self) -> Union[int, str, None]:
         return self.amount_msat

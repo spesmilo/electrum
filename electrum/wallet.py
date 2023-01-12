@@ -968,7 +968,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if URI:
             timestamp = URI.get('time')
             exp = URI.get('exp')
-        timestamp = timestamp or int(time.time())
+        timestamp = timestamp or int(Invoice._get_cur_time())
         exp = exp or 0
         invoice = Invoice(
             amount_msat=amount_msat,
@@ -2457,7 +2457,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
-        timestamp = int(time.time())
+        timestamp = int(Invoice._get_cur_time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
         lightning = self.has_lightning()
         if lightning:
