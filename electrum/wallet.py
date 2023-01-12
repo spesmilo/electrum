@@ -2467,7 +2467,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if tx is None:
             return
         relevant_invoice_keys = set()
-        with self.transaction_lock:
+        with self.lock, self.transaction_lock:
             for txo in tx.outputs():
                 addr = txo.address
                 if request:=self.get_request_by_addr(addr):
