@@ -10,11 +10,11 @@ from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
 
 class QEConfig(AuthMixin, QObject):
+    _logger = get_logger(__name__)
+
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
-
-    _logger = get_logger(__name__)
 
     autoConnectChanged = pyqtSignal()
     @pyqtProperty(bool, notify=autoConnectChanged)

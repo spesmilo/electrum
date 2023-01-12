@@ -13,18 +13,18 @@ if TYPE_CHECKING:
 
 
 class QEAddressListModel(QAbstractListModel):
-    def __init__(self, wallet: 'Abstract_Wallet', parent=None):
-        super().__init__(parent)
-        self.wallet = wallet
-        self.setDirty()
-        self.init_model()
-
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
     _ROLE_NAMES=('type','iaddr','address','label','balance','numtx', 'held')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
+
+    def __init__(self, wallet: 'Abstract_Wallet', parent=None):
+        super().__init__(parent)
+        self.wallet = wallet
+        self.setDirty()
+        self.init_model()
 
     def rowCount(self, index):
         return len(self.receive_addresses) + len(self.change_addresses)

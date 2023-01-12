@@ -16,15 +16,15 @@ from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
 
 class FeeSlider(QObject):
-    _wallet = None
-    _sliderSteps = 0
-    _sliderPos = 0
-    _method = -1
-    _target = ''
-    _config = None
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._wallet = None
+        self._sliderSteps = 0
+        self._sliderPos = 0
+        self._method = -1
+        self._target = ''
+        self._config = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -125,16 +125,16 @@ class FeeSlider(QObject):
         raise NotImplementedError()
 
 class TxFeeSlider(FeeSlider):
-    _fee = QEAmount()
-    _feeRate = ''
-    _rbf = False
-    _tx = None
-    _outputs = []
-    _valid = False
-    _warning = ''
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._fee = QEAmount()
+        self._feeRate = ''
+        self._rbf = False
+        self._tx = None
+        self._outputs = []
+        self._valid = False
+        self._warning = ''
 
     feeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=feeChanged)
@@ -223,13 +223,13 @@ class QETxFinalizer(TxFeeSlider):
         self.f_make_tx = make_tx
         self.f_accept = accept
 
-    _logger = get_logger(__name__)
+        self._address = ''
+        self._amount = QEAmount()
+        self._effectiveAmount = QEAmount()
+        self._extraFee = QEAmount()
+        self._canRbf = False
 
-    _address = ''
-    _amount = QEAmount()
-    _effectiveAmount = QEAmount()
-    _extraFee = QEAmount()
-    _canRbf = False
+    _logger = get_logger(__name__)
 
     addressChanged = pyqtSignal()
     @pyqtProperty(str, notify=addressChanged)
@@ -394,12 +394,13 @@ class QETxFinalizer(TxFeeSlider):
 # calls get_tx() once txid is set
 # calls tx_verified and emits txMined signal once tx is verified
 class TxMonMixin(QtEventListener):
-    _txid = ''
-
     txMined = pyqtSignal()
 
     def __init__(self, parent=None):
         self._logger.debug('TxMonMixin.__init__')
+
+        self._txid = ''
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
@@ -436,13 +437,13 @@ class TxMonMixin(QtEventListener):
 class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
-    _oldfee = QEAmount()
-    _oldfee_rate = 0
-    _orig_tx = None
-    _rbf = True
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._oldfee = QEAmount()
+        self._oldfee_rate = 0
+        self._orig_tx = None
+        self._rbf = True
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -552,14 +553,14 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
 class QETxCanceller(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
-    _oldfee = QEAmount()
-    _oldfee_rate = 0
-    _orig_tx = None
-    _txid = ''
-    _rbf = True
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._oldfee = QEAmount()
+        self._oldfee_rate = 0
+        self._orig_tx = None
+        self._txid = ''
+        self._rbf = True
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -658,23 +659,23 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
 class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
-    _input_amount = QEAmount()
-    _output_amount = QEAmount()
-    _fee_for_child = QEAmount()
-    _total_fee = QEAmount()
-    _total_fee_rate = 0
-    _total_size = 0
-
-    _parent_tx = None
-    _new_tx = None
-    _parent_tx_size = 0
-    _parent_fee = 0
-    _max_fee = 0
-    _txid = ''
-    _rbf = True
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._input_amount = QEAmount()
+        self._output_amount = QEAmount()
+        self._fee_for_child = QEAmount()
+        self._total_fee = QEAmount()
+        self._total_fee_rate = 0
+        self._total_size = 0
+
+        self._parent_tx = None
+        self._new_tx = None
+        self._parent_tx_size = 0
+        self._parent_fee = 0
+        self._max_fee = 0
+        self._txid = ''
+        self._rbf = True
 
     totalFeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=totalFeeChanged)

@@ -74,19 +74,28 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     _network_signal = pyqtSignal(str, object)
 
-    _isUpToDate = False
-    _synchronizing = False
-    _synchronizing_progress = ''
-
     def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
+
+        self._isUpToDate = False
+        self._synchronizing = False
+        self._synchronizing_progress = ''
 
         self._historyModel = None
         self._addressModel = None
         self._requestModel = None
         self._invoiceModel = None
         self._channelModel = None
+
+        self._lightningbalance = QEAmount()
+        self._confirmedbalance = QEAmount()
+        self._unconfirmedbalance = QEAmount()
+        self._frozenbalance = QEAmount()
+        self._totalbalance = QEAmount()
+        self._lightningcanreceive = QEAmount()
+        self._lightningcansend = QEAmount()
+
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -317,6 +326,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return self.wallet.has_seed()
 
     @pyqtProperty(str, notify=dataChanged)
+    def seed(self):
+        try:
+            return self.wallet.get_seed(self.password)
+        except:
+            return ''
+
+    @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
         if self.wallet.wallet_type == 'imported':
             return self.wallet.txin_type
@@ -387,48 +403,44 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def frozenBalance(self):
         c, u, x = self.wallet.get_frozen_balance()
-        self._frozenbalance = QEAmount(amount_sat=c+x)
+        self._frozenbalance.satsInt = c+x
         return self._frozenbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def unconfirmedBalance(self):
-        self._unconfirmedbalance = QEAmount(amount_sat=self.wallet.get_balance()[1])
+        self._unconfirmedbalance.satsInt = self.wallet.get_balance()[1]
         return self._unconfirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def confirmedBalance(self):
         c, u, x = self.wallet.get_balance()
-        self._confirmedbalance = QEAmount(amount_sat=c+x)
+        self._confirmedbalance.satsInt = c+x
         return self._confirmedbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningBalance(self):
-        if not self.isLightning:
-            self._lightningbalance = QEAmount()
-        else:
-            self._lightningbalance = QEAmount(amount_sat=int(self.wallet.lnworker.get_balance()))
+        if self.isLightning:
+            self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
+        # else:
+        #     self._lightningbalance.satsInt = 0
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def totalBalance(self):
         total = self.confirmedBalance.satsInt + self.lightningBalance.satsInt
-        self._totalBalance = QEAmount(amount_sat=total)
-        return self._totalBalance
+        self._totalbalance.satsInt = total
+        return self._totalbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanSend(self):
-        if not self.isLightning:
-            self._lightningcansend = QEAmount()
-        else:
-            self._lightningcansend = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_send()))
+        if self.isLightning:
+            self._lightningcansend.satsInt = int(self.wallet.lnworker.num_sats_can_send())
         return self._lightningcansend
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
     def lightningCanReceive(self):
-        if not self.isLightning:
-            self._lightningcanreceive = QEAmount()
-        else:
-            self._lightningcanreceive = QEAmount(amount_sat=int(self.wallet.lnworker.num_sats_can_receive()))
+        if self.isLightning:
+            self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
 
     @pyqtSlot()

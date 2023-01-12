@@ -12,16 +12,16 @@ from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
 
 class QEFX(QObject, QtEventListener):
+    _logger = get_logger(__name__)
+
+    quotesUpdated = pyqtSignal()
+
     def __init__(self, fxthread: FxThread, config: SimpleConfig, parent=None):
         super().__init__(parent)
         self.fx = fxthread
         self.config = config
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
-
-    _logger = get_logger(__name__)
-
-    quotesUpdated = pyqtSignal()
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -101,7 +101,7 @@ class QEFX(QObject, QtEventListener):
     def fiatValue(self, satoshis, plain=True):
         rate = self.fx.exchange_rate()
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.satsInt
+            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt > 0 else satoshis.satsInt
         else:
             try:
                 sd = Decimal(satoshis)
@@ -118,7 +118,7 @@ class QEFX(QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, bool, result=str)
     def fiatValueHistoric(self, satoshis, timestamp, plain=True):
         if isinstance(satoshis, QEAmount):
-            satoshis = satoshis.satsInt
+            satoshis = satoshis.msatsInt / 1000 if satoshis.msatsInt > 0 else satoshis.satsInt
         else:
             try:
                 sd = Decimal(satoshis)

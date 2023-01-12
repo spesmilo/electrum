@@ -10,10 +10,11 @@ class PluginQObject(QObject):
     busyChanged = pyqtSignal()
     pluginEnabledChanged = pyqtSignal()
 
-    _busy = False
-
     def __init__(self, plugin, parent):
         super().__init__(parent)
+
+        self._busy = False
+
         self.plugin = plugin
         self.app = parent
 

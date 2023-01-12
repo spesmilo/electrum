@@ -19,17 +19,7 @@ from .qewallet import QEWallet
 
 
 class QEChannelOpener(QObject, AuthMixin):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
     _logger = get_logger(__name__)
-
-    _wallet = None
-    _nodeid = None
-    _amount = QEAmount()
-    _valid = False
-    _opentx = None
-    _txdetails = None
 
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     conflictingBackup = pyqtSignal([str], arguments=['message'])
@@ -38,6 +28,16 @@ class QEChannelOpener(QObject, AuthMixin):
     channelOpenSuccess = pyqtSignal([str,bool,int,bool], arguments=['cid','has_onchain_backup','min_depth','tx_complete'])
 
     dataChanged = pyqtSignal() # generic notify signal
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self._wallet = None
+        self._nodeid = None
+        self._amount = QEAmount()
+        self._valid = False
+        self._opentx = None
+        self._txdetails = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)

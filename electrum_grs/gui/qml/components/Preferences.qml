@@ -262,7 +262,7 @@ Pane {
                                         dialog.yesClicked.connect(function() {
                                             Config.useGossip = true
                                         })
-                                        dialog.noClicked.connect(function() {
+                                        dialog.rejected.connect(function() {
                                             checked = true // revert
                                         })
                                         dialog.open()

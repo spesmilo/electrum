@@ -525,7 +525,6 @@ class LNWalletWatcher(LNWatcher):
             self.logger.info(f'we can broadcast: {name}')
             tx_was_added = await self.network.try_broadcasting(new_tx, name)
         else:
-            self.logger.info(f'cannot broadcast: {name} {reason}')
             # we may have a tx with a different fee, in which case it will be replaced
             if not old_tx or (old_tx and old_tx.txid() != new_tx.txid()):
                 try:

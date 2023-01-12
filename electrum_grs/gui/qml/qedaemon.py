@@ -107,14 +107,8 @@ class QEWalletListModel(QAbstractListModel):
             i += 1
 
 class QEDaemon(AuthMixin, QObject):
-    def __init__(self, daemon, parent=None):
-        super().__init__(parent)
-        self.daemon = daemon
-        self.qefx = QEFX(daemon.fx, daemon.config)
-        self._walletdb = QEWalletDB()
-        self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
-
     _logger = get_logger(__name__)
+
     _available_wallets = None
     _current_wallet = None
     _new_wallet_wizard = None
@@ -132,6 +126,13 @@ class QEDaemon(AuthMixin, QObject):
     walletRequiresPassword = pyqtSignal()
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
+
+    def __init__(self, daemon, parent=None):
+        super().__init__(parent)
+        self.daemon = daemon
+        self.qefx = QEFX(daemon.fx, daemon.config)
+        self._walletdb = QEWalletDB()
+        self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
 
     @pyqtSlot()
     def passwordValidityCheck(self):

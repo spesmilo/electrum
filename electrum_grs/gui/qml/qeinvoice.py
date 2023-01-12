@@ -44,13 +44,13 @@ class QEInvoice(QObject):
 
     _logger = get_logger(__name__)
 
-    _wallet = None
-    _canSave = False
-    _canPay = False
-    _key = None
-
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._wallet = None
+        self._canSave = False
+        self._canPay = False
+        self._key = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -117,14 +117,7 @@ class QEInvoice(QObject):
         return self._wallet.wallet.lnworker.num_sats_can_send()
 
 class QEInvoiceParser(QEInvoice):
-
     _logger = get_logger(__name__)
-
-    _invoiceType = QEInvoice.Type.Invalid
-    _recipient = ''
-    _effectiveInvoice = None
-    _amount = QEAmount()
-    _userinfo = ''
 
     invoiceChanged = pyqtSignal()
     invoiceSaved = pyqtSignal([str], arguments=['key'])
@@ -140,6 +133,13 @@ class QEInvoiceParser(QEInvoice):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._invoiceType = QEInvoice.Type.Invalid
+        self._recipient = ''
+        self._effectiveInvoice = None
+        self._amount = QEAmount()
+        self._userinfo = ''
+
         self.clear()
 
     @pyqtProperty(int, notify=invoiceChanged)

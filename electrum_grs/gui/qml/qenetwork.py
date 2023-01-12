@@ -8,17 +8,6 @@ from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
 
 class QENetwork(QObject, QtEventListener):
-    def __init__(self, network, qeconfig, parent=None):
-        super().__init__(parent)
-        self.network = network
-        self._qeconfig = qeconfig
-        self._serverListModel = None
-        self._height = network.get_local_height() # init here, update event can take a while
-        self.register_callbacks()
-
-        self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
-
-
     _logger = get_logger(__name__)
 
     networkUpdated = pyqtSignal()
@@ -46,6 +35,16 @@ class QENetwork(QObject, QtEventListener):
     _gossipDbNodes = 0
     _gossipDbChannels = 0
     _gossipDbPolicies = 0
+
+    def __init__(self, network, qeconfig, parent=None):
+        super().__init__(parent)
+        self.network = network
+        self._qeconfig = qeconfig
+        self._serverListModel = None
+        self._height = network.get_local_height() # init here, update event can take a while
+        self.register_callbacks()
+
+        self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
 
     @event_listener
     def on_event_network_updated(self, *args):

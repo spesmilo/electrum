@@ -10,14 +10,6 @@ from electrum_grs.util import InvalidPassword
 from electrum_grs import keystore
 
 class QEWalletDB(QObject):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        from .qeapp import ElectrumQmlApplication
-        self.daemon = ElectrumQmlApplication._daemon
-
-        self.reset()
-
     _logger = get_logger(__name__)
 
     fileNotFound = pyqtSignal()
@@ -30,6 +22,14 @@ class QEWalletDB(QObject):
     splitFinished = pyqtSignal()
     readyChanged = pyqtSignal()
     invalidPassword = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        from .qeapp import ElectrumQmlApplication
+        self.daemon = ElectrumQmlApplication._daemon
+
+        self.reset()
 
     def reset(self):
         self._path = None

@@ -57,13 +57,6 @@ ApplicationWindow
                     }
                 }
 
-                Image {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: constants.iconSizeLarge
-                    Layout.preferredHeight: constants.iconSizeLarge
-                    source: "../../icons/electrum.png"
-                }
-
                 Label {
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
@@ -248,6 +241,11 @@ ApplicationWindow
         id: notificationPopup
     }
 
+    Component {
+        id: crashDialog
+        ExceptionDialog {}
+    }
+
     Component.onCompleted: {
         coverTimer.start()
 
@@ -337,6 +335,12 @@ ApplicationWindow
         target: AppController
         function onUserNotify(message) {
             notificationPopup.show(message)
+        }
+        function onShowException() {
+            var dialog = crashDialog.createObject(app, {
+                crashData: AppController.crashData()
+            })
+            dialog.open()
         }
     }
 

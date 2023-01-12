@@ -18,29 +18,29 @@ from .qewallet import QEWallet
 class QESwapHelper(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
-    _wallet = None
-    _sliderPos = 0
-    _rangeMin = 0
-    _rangeMax = 0
-    _tx = None
-    _valid = False
-    _userinfo = ''
-    _tosend = QEAmount()
-    _toreceive = QEAmount()
-    _serverfeeperc = ''
-    _serverfee = QEAmount()
-    _miningfee = QEAmount()
-    _isReverse = False
-
-    _service_available = False
-    _send_amount = 0
-    _receive_amount = 0
-
     error = pyqtSignal([str], arguments=['message'])
     confirm = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._wallet = None
+        self._sliderPos = 0
+        self._rangeMin = 0
+        self._rangeMax = 0
+        self._tx = None
+        self._valid = False
+        self._userinfo = ''
+        self._tosend = QEAmount()
+        self._toreceive = QEAmount()
+        self._serverfeeperc = ''
+        self._serverfee = QEAmount()
+        self._miningfee = QEAmount()
+        self._isReverse = False
+
+        self._service_available = False
+        self._send_amount = 0
+        self._receive_amount = 0
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
