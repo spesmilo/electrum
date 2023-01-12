@@ -7,16 +7,16 @@ from .qetypes import QEAmount
 from .qewallet import QEWallet
 
 class QELnPaymentDetails(QObject):
+    _logger = get_logger(__name__)
+
+    detailsChanged = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
-    _logger = get_logger(__name__)
-
-    _wallet = None
-    _key = None
-    _date = None
-
-    detailsChanged = pyqtSignal()
+        self._wallet = None
+        self._key = None
+        self._date = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)

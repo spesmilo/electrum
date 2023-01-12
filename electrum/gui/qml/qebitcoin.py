@@ -15,10 +15,6 @@ from electrum.mnemonic import is_any_2fa_seed_type
 from .qetypes import QEAmount
 
 class QEBitcoin(QObject):
-    def __init__(self, config, parent=None):
-        super().__init__(parent)
-        self.config = config
-
     _logger = get_logger(__name__)
 
     generatedSeedChanged = pyqtSignal()
@@ -29,6 +25,10 @@ class QEBitcoin(QObject):
 
     validationMessageChanged = pyqtSignal()
     _validationMessage = ''
+
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self.config = config
 
     @pyqtProperty('QString', notify=generatedSeedChanged)
     def generated_seed(self):

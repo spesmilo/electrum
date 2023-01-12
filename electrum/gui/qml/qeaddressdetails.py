@@ -8,27 +8,27 @@ from .qewallet import QEWallet
 
 
 class QEAddressDetails(QObject):
+    _logger = get_logger(__name__)
+
+    detailsChanged = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
-    _logger = get_logger(__name__)
+        self._wallet = None
+        self._address = None
 
-    _wallet = None
-    _address = None
+        self._label = None
+        self._frozen = False
+        self._scriptType = None
+        self._status = None
+        self._balance = QEAmount()
+        self._pubkeys = None
+        self._privkey = None
+        self._derivationPath = None
+        self._numtx = 0
 
-    _label = None
-    _frozen = False
-    _scriptType = None
-    _status = None
-    _balance = QEAmount()
-    _pubkeys = None
-    _privkey = None
-    _derivationPath = None
-    _numtx = 0
-
-    _historyModel = None
-
-    detailsChanged = pyqtSignal()
+        self._historyModel = None
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)

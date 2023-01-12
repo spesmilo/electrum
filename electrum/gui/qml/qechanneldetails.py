@@ -21,16 +21,17 @@ class QEChannelDetails(QObject, QtEventListener):
 
     Q_ENUMS(State)
 
-    _wallet = None
-    _channelid = None
-    _channel = None
-
     channelChanged = pyqtSignal()
     channelCloseSuccess = pyqtSignal()
     channelCloseFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._wallet = None
+        self._channelid = None
+        self._channel = None
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 

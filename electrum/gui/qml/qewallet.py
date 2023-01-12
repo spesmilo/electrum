@@ -74,27 +74,28 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     _network_signal = pyqtSignal(str, object)
 
-    _isUpToDate = False
-    _synchronizing = False
-    _synchronizing_progress = ''
-
-    _lightningbalance = QEAmount()
-    _confirmedbalance = QEAmount()
-    _unconfirmedbalance = QEAmount()
-    _frozenbalance = QEAmount()
-    _totalbalance = QEAmount()
-    _lightningcanreceive = QEAmount()
-    _lightningcansend = QEAmount()
-
     def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
+
+        self._isUpToDate = False
+        self._synchronizing = False
+        self._synchronizing_progress = ''
 
         self._historyModel = None
         self._addressModel = None
         self._requestModel = None
         self._invoiceModel = None
         self._channelModel = None
+
+        self._lightningbalance = QEAmount()
+        self._confirmedbalance = QEAmount()
+        self._unconfirmedbalance = QEAmount()
+        self._frozenbalance = QEAmount()
+        self._totalbalance = QEAmount()
+        self._lightningcanreceive = QEAmount()
+        self._lightningcansend = QEAmount()
+
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -420,6 +421,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def lightningBalance(self):
         if self.isLightning:
             self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
+        # else:
+        #     self._lightningbalance.satsInt = 0
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)

@@ -15,21 +15,22 @@ from electrum.i18n import _
 from electrum.util import profiler, get_asyncio_loop
 
 class QEQRParser(QObject):
-    def __init__(self, text=None, parent=None):
-        super().__init__(parent)
-        self._text = text
-        self.qrreader = get_qr_reader()
-        if not self.qrreader:
-            raise Exception(_("The platform QR detection library is not available."))
-
     _logger = get_logger(__name__)
 
     busyChanged = pyqtSignal()
     dataChanged = pyqtSignal()
     imageChanged = pyqtSignal()
 
-    _busy = False
-    _image = None
+    def __init__(self, text=None, parent=None):
+        super().__init__(parent)
+
+        self._busy = False
+        self._image = None
+
+        self._text = text
+        self.qrreader = get_qr_reader()
+        if not self.qrreader:
+            raise Exception(_("The platform QR detection library is not available."))
 
     @pyqtSlot('QImage')
     def scanImage(self, image=None):

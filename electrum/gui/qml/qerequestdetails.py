@@ -26,17 +26,18 @@ class QERequestDetails(QObject, QtEventListener):
 
     _logger = get_logger(__name__)
 
-    _wallet = None
-    _key = None
-    _req = None
-    _timer = None
-    _amount = None
-
     detailsChanged = pyqtSignal() # generic request properties changed signal
     statusChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._wallet = None
+        self._key = None
+        self._req = None
+        self._timer = None
+        self._amount = None
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 

@@ -10,18 +10,6 @@ from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
 
 class QETransactionListModel(QAbstractListModel, QtEventListener):
-    def __init__(self, wallet, parent=None, *, onchain_domain=None, include_lightning=True):
-        super().__init__(parent)
-        self.wallet = wallet
-        self.onchain_domain = onchain_domain
-        self.include_lightning = include_lightning
-
-        self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
-        self.requestRefresh.connect(lambda: self.init_model())
-
-        self.init_model()
-
     _logger = get_logger(__name__)
 
     # define listmodel rolemap
@@ -33,6 +21,18 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
     requestRefresh = pyqtSignal()
+
+    def __init__(self, wallet, parent=None, *, onchain_domain=None, include_lightning=True):
+        super().__init__(parent)
+        self.wallet = wallet
+        self.onchain_domain = onchain_domain
+        self.include_lightning = include_lightning
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+        self.requestRefresh.connect(lambda: self.init_model())
+
+        self.init_model()
 
     def on_destroy(self):
         self.unregister_callbacks()

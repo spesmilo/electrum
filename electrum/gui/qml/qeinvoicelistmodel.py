@@ -13,11 +13,6 @@ from .qetypes import QEAmount
 class QEAbstractInvoiceListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
-    def __init__(self, wallet, parent=None):
-        super().__init__(parent)
-        self.wallet = wallet
-        self.init_model()
-
     # define listmodel rolemap
     _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
                  'status', 'status_str', 'address', 'expiration', 'type', 'onchain_fallback',
@@ -25,6 +20,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
+
+    def __init__(self, wallet, parent=None):
+        super().__init__(parent)
+        self.wallet = wallet
+        self.init_model()
 
     def rowCount(self, index):
         return len(self.invoices)

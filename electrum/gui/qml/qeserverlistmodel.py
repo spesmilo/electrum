@@ -13,7 +13,6 @@ from .util import QtEventListener, qt_event_listener, event_listener
 
 class QEServerListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
-    _chaintips = 0
 
     # define listmodel rolemap
     _ROLE_NAMES=('name', 'address', 'is_connected', 'is_primary', 'is_tor', 'chain', 'height')
@@ -23,6 +22,9 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
 
     def __init__(self, network, parent=None):
         super().__init__(parent)
+
+        self._chaintips = 0
+
         self.network = network
         self.init_model()
         self.register_callbacks()
