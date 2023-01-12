@@ -2355,8 +2355,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     if not req.is_lightning() or self.lnworker.get_invoice_status(req) == PR_UNPAID]
         if not reqs:
             return None
-        # note: there typically should not be more than one relevant request for an address
-        return reqs[0]
+        # note: There typically should not be more than one relevant request for an address.
+        #       If there's multiple, return the one created last (see #8113). Consider:
+        #       - there is an old expired req1, and a newer unpaid req2, reusing the same addr (and same amount),
+        #       - now req2 gets paid. however, get_invoice_status will say both req1 and req2 are PAID. (see #8061)
+        #       - as a workaround, we return the request with the larger creation time.
+        reqs.sort(key=lambda req: req.get_time())
+        return reqs[-1]
 
     def get_request(self, request_id: str) -> Optional[Invoice]:
         return self._receive_requests.get(request_id)
