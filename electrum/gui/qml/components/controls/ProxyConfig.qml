@@ -5,6 +5,8 @@ import QtQuick.Controls 2.1
 Item {
     id: pc
 
+    implicitHeight: rootLayout.height
+
     property alias proxy_enabled: proxy_enabled_cb.checked
     property alias proxy_type: proxytype.currentIndex
     property alias proxy_address: address.text
@@ -12,17 +14,16 @@ Item {
     property alias username: username_tf.text
     property alias password: password_tf.text
 
-    property var proxy_types: ['TOR', 'SOCKS5', 'SOCKS4']
-
-    height: rootLayout.height
+    property var proxy_type_map:  [
+        { text: qsTr('SOCKS5/TOR'), value: 'socks5' },
+        { text: qsTr('SOCKS4'), value: 'socks4' }
+    ]
 
     function toProxyDict() {
         var p = {}
         p['enabled'] = pc.proxy_enabled
         if (pc.proxy_enabled) {
-            var type = pc.proxy_types[pc.proxy_type].toLowerCase()
-            if (type == 'tor')
-                type = 'socks5'
+            var type = proxy_type_map[pc.proxy_type]['value']
             p['mode'] = type
             p['host'] = pc.proxy_address
             p['port'] = pc.proxy_port
@@ -43,14 +44,20 @@ Item {
             text: qsTr('Enable Proxy')
         }
 
-        ComboBox {
+        ElComboBox {
             id: proxytype
             enabled: proxy_enabled_cb.checked
-            model: proxy_types
+
+            textRole: 'text'
+            valueRole: 'value'
+            model: proxy_type_map
+
             onCurrentIndexChanged: {
                 if (currentIndex == 0) {
-                    address.text = "127.0.0.1"
-                    port.text = "9050"
+                    if (address.text == '' || port.text == '') {
+                        address.text = "127.0.0.1"
+                        port.text = "9050"
+                    }
                 }
             }
         }
@@ -66,7 +73,7 @@ Item {
 
             TextField {
                 id: address
-                enabled: proxytype.enabled && proxytype.currentIndex > 0
+                enabled: proxy_enabled_cb.checked
             }
 
             Label {
@@ -76,7 +83,7 @@ Item {
 
             TextField {
                 id: port
-                enabled: proxytype.enabled && proxytype.currentIndex > 0
+                enabled: proxy_enabled_cb.checked
             }
 
             Label {
@@ -86,7 +93,7 @@ Item {
 
             TextField {
                 id: username_tf
-                enabled: proxytype.enabled && proxytype.currentIndex > 0
+                enabled: proxy_enabled_cb.checked
             }
 
             Label {
@@ -96,7 +103,7 @@ Item {
 
             PasswordField {
                 id: password_tf
-                enabled: proxytype.enabled && proxytype.currentIndex > 0
+                enabled: proxy_enabled_cb.checked
             }
         }
     }

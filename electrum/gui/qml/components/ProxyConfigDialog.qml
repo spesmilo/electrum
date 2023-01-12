@@ -58,7 +58,6 @@ ElDialog {
 
     Component.onCompleted: {
         var p = Network.proxy
-        console.log(JSON.stringify(p))
 
         if ('mode' in p) {
             proxyconfig.proxy_enabled = true
@@ -66,10 +65,9 @@ ElDialog {
             proxyconfig.proxy_port = p['port']
             proxyconfig.username = p['user']
             proxyconfig.password = p['password']
-            if (p['mode'] == 'socks5' && p['port'] == 9050)
-                p['mode'] = 'tor'
-            proxyconfig.proxy_type = proxyconfig.proxy_types.indexOf(p['mode'].toUpperCase())
-            console.log('proxy type: ' + proxyconfig.proxy_type)
+            proxyconfig.proxy_type = proxyconfig.proxy_types.map(function(x) {
+                return x.value
+            }).indexOf(p['mode'])
         } else {
             proxyconfig.proxy_enabled = false
         }
