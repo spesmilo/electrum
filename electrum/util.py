@@ -1556,13 +1556,21 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             _asyncio_event_loop = None
 
     loop.set_exception_handler(on_exception)
-    # loop.set_debug(1)
+    # loop.set_debug(True)
     stopping_fut = loop.create_future()
     loop_thread = threading.Thread(
         target=run_event_loop,
         name='EventLoop',
     )
     loop_thread.start()
+    # Wait until the loop actually starts.
+    # On a slow PC, or with a debugger attached, this can take a few dozens of ms,
+    # and if we returned without a running loop, weird things can happen...
+    t0 = time.monotonic()
+    while not loop.is_running():
+        time.sleep(0.01)
+        if time.monotonic() - t0 > 5:
+            raise Exception("been waiting for 5 seconds but asyncio loop would not start!")
     return loop, stopping_fut, loop_thread
 
 
