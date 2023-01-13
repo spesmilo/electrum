@@ -388,7 +388,7 @@ class Peer(Logger):
         if not self.channels:
             return
         for chan in self.channels.values():
-            if chan.short_channel_id == payload['short_channel_id']:
+            if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_alias()]:
                 chan.set_remote_update(payload)
                 self.logger.info(f"saved remote channel_update gossip msg for chan {chan.get_id_for_log()}")
                 break
@@ -552,7 +552,7 @@ class Peer(Logger):
     def on_reply_channel_range(self, payload):
         first = payload['first_blocknum']
         num = payload['number_of_blocks']
-        complete = bool(int.from_bytes(payload['complete'], 'big'))
+        complete = bool(int.from_bytes(payload['sync_complete'], 'big'))
         encoded = payload['encoded_short_ids']
         ids = self.decode_short_ids(encoded)
         #self.logger.info(f"on_reply_channel_range. >>> first_block {first}, num_blocks {num}, num_ids {len(ids)}, complete {repr(payload['complete'])}")
@@ -712,6 +712,8 @@ class Peer(Logger):
         open_channel_tlvs = {}
         assert self.their_features.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         our_channel_type = ChannelType(ChannelType.OPTION_STATIC_REMOTEKEY)
+        # We do not set the option_scid_alias bit in channel_type because LND rejects it.
+        # Eclair accepts channel_type with that bit, but does not require it.
 
         # if option_channel_type is negotiated: MUST set channel_type
         if self.is_channel_type():
@@ -1273,7 +1275,7 @@ class Peer(Logger):
 
         chan.peer_state = PeerState.GOOD
         if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
-            self.send_funding_locked(chan)
+            self.send_channel_ready(chan)
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
@@ -1282,20 +1284,37 @@ class Peer(Logger):
         if chan.get_state() == ChannelState.SHUTDOWN:
             await self.send_shutdown(chan)
 
-    def send_funding_locked(self, chan: Channel):
+    def send_channel_ready(self, chan: Channel):
         channel_id = chan.channel_id
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
-        per_commitment_point_second = secret_to_pubkey(int.from_bytes(
+        second_per_commitment_point = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
-        # note: if funding_locked was not yet received, we might send it multiple times
-        self.send_message("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)
+
+        channel_ready_tlvs = {}
+        if self.their_features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
+            # LND requires that we send an alias if the option has been negotiated in INIT.
+            # otherwise, the channel will not be marked as active.
+            # This does not apply if the channel was previously marked active without an alias.
+            channel_ready_tlvs['short_channel_id'] = {'alias':chan.get_local_alias()}
+
+        # note: if 'channel_ready' was not yet received, we might send it multiple times
+        self.send_message(
+            "channel_ready",
+            channel_id=channel_id,
+            second_per_commitment_point=second_per_commitment_point,
+            channel_ready_tlvs=channel_ready_tlvs)
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
 
-    def on_funding_locked(self, chan: Channel, payload):
-        self.logger.info(f"on_funding_locked. channel: {bh2u(chan.channel_id)}")
+    def on_channel_ready(self, chan: Channel, payload):
+        self.logger.info(f"on_channel_ready. channel: {bh2u(chan.channel_id)}")
+        # save remote alias for use in invoices
+        scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
+        if scid_alias:
+            chan.save_remote_alias(scid_alias)
+
         if not chan.config[LOCAL].funding_locked_received:
-            their_next_point = payload["next_per_commitment_point"]
+            their_next_point = payload["second_per_commitment_point"]
             chan.config[REMOTE].next_per_commitment_point = their_next_point
             chan.config[LOCAL].funding_locked_received = True
             self.lnworker.save_channel(chan)

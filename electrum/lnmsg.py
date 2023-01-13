@@ -129,7 +129,7 @@ def _read_field(*, fd: io.BytesIO, field_type: str, count: Union[int, str]) -> U
         if len(raw) > 0 and raw[0] == 0x00:
             raise FieldEncodingNotMinimal()
         return int.from_bytes(raw, byteorder="big", signed=False)
-    elif field_type == 'varint':
+    elif field_type == 'bigsize':
         assert count == 1, count
         val = read_bigsize_int(fd)
         if val is None:
@@ -203,7 +203,7 @@ def _write_field(*, fd: io.BytesIO, field_type: str, count: Union[int, str],
         if nbytes_written != len(value):
             raise Exception(f"tried to write {len(value)} bytes, but only wrote {nbytes_written}!?")
         return
-    elif field_type == 'varint':
+    elif field_type == 'bigsize':
         assert count == 1, count
         if isinstance(value, int):
             value = write_bigsize_int(value)
@@ -243,8 +243,8 @@ def _write_field(*, fd: io.BytesIO, field_type: str, count: Union[int, str],
 
 def _read_tlv_record(*, fd: io.BytesIO) -> Tuple[int, bytes]:
     if not fd: raise Exception()
-    tlv_type = _read_field(fd=fd, field_type="varint", count=1)
-    tlv_len = _read_field(fd=fd, field_type="varint", count=1)
+    tlv_type = _read_field(fd=fd, field_type="bigsize", count=1)
+    tlv_len = _read_field(fd=fd, field_type="bigsize", count=1)
     tlv_val = _read_field(fd=fd, field_type="byte", count=tlv_len)
     return tlv_type, tlv_val
 
@@ -252,8 +252,8 @@ def _read_tlv_record(*, fd: io.BytesIO) -> Tuple[int, bytes]:
 def _write_tlv_record(*, fd: io.BytesIO, tlv_type: int, tlv_val: bytes) -> None:
     if not fd: raise Exception()
     tlv_len = len(tlv_val)
-    _write_field(fd=fd, field_type="varint", count=1, value=tlv_type)
-    _write_field(fd=fd, field_type="varint", count=1, value=tlv_len)
+    _write_field(fd=fd, field_type="bigsize", count=1, value=tlv_type)
+    _write_field(fd=fd, field_type="bigsize", count=1, value=tlv_len)
     _write_field(fd=fd, field_type="byte", count=tlv_len, value=tlv_val)
 
 
@@ -454,10 +454,7 @@ class LNSerializer:
                     try:
                         field_value = kwargs[field_name]
                     except KeyError:
-                        if len(row) > 5:
-                            break  # optional feature field not present
-                        else:
-                            field_value = 0  # default mandatory fields to zero
+                        field_value = 0  # default mandatory fields to zero
                     #print(f">>> encode_msg. writing field: {field_name}. value={field_value!r}. field_type={field_type!r}. count={field_count!r}")
                     _write_field(fd=fd,
                                  field_type=field_type,
@@ -507,15 +504,10 @@ class LNSerializer:
                             parsed[tlv_stream_name] = d
                             continue
                         #print(f">> count={field_count}. parsed={parsed}")
-                        try:
-                            parsed[field_name] = _read_field(fd=fd,
-                                                             field_type=field_type,
-                                                             count=field_count)
-                        except UnexpectedEndOfStream as e:
-                            if len(row) > 5:
-                                break  # optional feature field not present
-                            else:
-                                raise
+                        parsed[field_name] = _read_field(
+                            fd=fd,
+                            field_type=field_type,
+                            count=field_count)
                     else:
                         raise Exception(f"unexpected row in scheme: {row!r}")
         except FailedToParseMsg as e:
