@@ -58,7 +58,7 @@ class PayServerPlugin(BasePlugin):
         if self.config.get('offline'):
             return
         self.server = PayServer(self.config, wallet)
-        asyncio.run_coroutine_threadsafe(daemon._run(jobs=[self.server.run()]), daemon.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.server.run()), daemon.asyncio_loop)
 
     @hook
     def wallet_export_request(self, d, key):
