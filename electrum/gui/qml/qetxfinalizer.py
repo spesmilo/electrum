@@ -218,6 +218,10 @@ class TxFeeSlider(FeeSlider):
         self.outputs = outputs
 
 class QETxFinalizer(TxFeeSlider):
+    _logger = get_logger(__name__)
+
+    finished = pyqtSignal()
+
     def __init__(self, parent=None, *, make_tx=None, accept=None):
         super().__init__(parent)
         self.f_make_tx = make_tx
@@ -228,8 +232,6 @@ class QETxFinalizer(TxFeeSlider):
         self._effectiveAmount = QEAmount()
         self._extraFee = QEAmount()
         self._canRbf = False
-
-    _logger = get_logger(__name__)
 
     addressChanged = pyqtSignal()
     @pyqtProperty(str, notify=addressChanged)
@@ -350,6 +352,7 @@ class QETxFinalizer(TxFeeSlider):
             return
 
         self._wallet.sign(self._tx, broadcast=True)
+        self.finished.emit()
 
     @pyqtSlot()
     def signAndSave(self):
@@ -379,6 +382,8 @@ class QETxFinalizer(TxFeeSlider):
 
         if not self._wallet.wallet.adb.add_transaction(self._tx):
             self._logger.error('Could not save tx')
+
+        self.finished.emit()
 
     @pyqtSlot(result=str)
     @pyqtSlot(bool, result=str)

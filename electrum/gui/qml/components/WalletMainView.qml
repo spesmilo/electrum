@@ -260,6 +260,7 @@ Item {
                 }
                 close()
             }
+
             onClosed: destroy()
         }
     }
@@ -307,12 +308,13 @@ Item {
     Component {
         id: confirmPaymentDialog
         ConfirmTxDialog {
+            id: _confirmPaymentDialog
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
+                onFinished: _confirmPaymentDialog.destroy()
             }
-            onClosed: destroy()
         }
     }
 
