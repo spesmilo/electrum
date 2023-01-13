@@ -454,10 +454,7 @@ class LNSerializer:
                     try:
                         field_value = kwargs[field_name]
                     except KeyError:
-                        if len(row) > 5:
-                            break  # optional feature field not present
-                        else:
-                            field_value = 0  # default mandatory fields to zero
+                        field_value = 0  # default mandatory fields to zero
                     #print(f">>> encode_msg. writing field: {field_name}. value={field_value!r}. field_type={field_type!r}. count={field_count!r}")
                     _write_field(fd=fd,
                                  field_type=field_type,
@@ -507,15 +504,10 @@ class LNSerializer:
                             parsed[tlv_stream_name] = d
                             continue
                         #print(f">> count={field_count}. parsed={parsed}")
-                        try:
-                            parsed[field_name] = _read_field(fd=fd,
-                                                             field_type=field_type,
-                                                             count=field_count)
-                        except UnexpectedEndOfStream as e:
-                            if len(row) > 5:
-                                break  # optional feature field not present
-                            else:
-                                raise
+                        parsed[field_name] = _read_field(
+                            fd=fd,
+                            field_type=field_type,
+                            count=field_count)
                     else:
                         raise Exception(f"unexpected row in scheme: {row!r}")
         except FailedToParseMsg as e:
