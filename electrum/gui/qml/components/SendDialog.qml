@@ -76,6 +76,8 @@ ElDialog {
         ElDialog {
             property alias recipient: recipientTextEdit.text
 
+            iconSource: Qt.resolvedUrl('../../icons/pen.png')
+
             anchors.centerIn: parent
             implicitWidth: parent.width * 0.9
 
