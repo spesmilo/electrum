@@ -184,7 +184,7 @@ LNWALLET_FEATURES = BASE_FEATURES\
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
     | LnFeatures.GOSSIP_QUERIES_REQ\
     | LnFeatures.BASIC_MPP_OPT\
-    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT\
+    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM\
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
     | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
 
@@ -1531,9 +1531,10 @@ class LNWallet(LNWorker):
         if is_hardcoded_trampoline(node_id):
             return True
         peer = self._peers.get(node_id)
-        if peer and peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
-            return True
-        return False
+        if not peer:
+            return False
+        return (peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)\
+                or peer.their_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM))
 
     def suggest_peer(self) -> Optional[bytes]:
         if not self.uses_trampoline():
