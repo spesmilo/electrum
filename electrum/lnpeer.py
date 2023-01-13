@@ -45,7 +45,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc, ChannelConf
                      ChannelType, LNProtocolWarning)
 from .lnutil import FeeUpdate, channel_id_from_funding_tx
 from .lntransport import LNTransport, LNTransportBase
-from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType
+from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
 from .lnutil import ln_dummy_address
@@ -194,12 +194,18 @@ class Peer(Logger):
             self.pong_event.clear()
             await self.pong_event.wait()
 
-    def process_message(self, message):
+    def process_message(self, message: bytes):
         try:
             message_type, payload = decode_msg(message)
         except UnknownOptionalMsgType as e:
             self.logger.info(f"received unknown message from peer. ignoring: {e!r}")
             return
+        except FailedToParseMsg as e:
+            self.logger.info(
+                f"failed to parse message from peer. disconnecting. "
+                f"msg_type={e.msg_type_name}({e.msg_type_int}). exc={e!r}")
+            #self.logger.info(f"failed to parse message: message(SECRET?)={message.hex()}")
+            raise GracefulDisconnect() from e
         self.last_message_time = time.time()
         if message_type not in self.SPAMMY_MESSAGES:
             self.logger.debug(f"Received {message_type.upper()}")

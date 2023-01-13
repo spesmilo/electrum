@@ -7,7 +7,9 @@ from collections import OrderedDict
 from .lnutil import OnionFailureCodeMetaFlag
 
 
-class FailedToParseMsg(Exception): pass
+class FailedToParseMsg(Exception):
+    msg_type_int: Optional[int] = None
+    msg_type_name: Optional[str] = None
 
 class UnknownMsgType(FailedToParseMsg): pass
 class UnknownOptionalMsgType(UnknownMsgType): pass
@@ -488,33 +490,38 @@ class LNSerializer:
         assert scheme[0][2] == msg_type_int
         msg_type_name = scheme[0][1]
         parsed = {}
-        with io.BytesIO(data[2:]) as fd:
-            for row in scheme:
-                #print(f"row: {row!r}")
-                if row[0] == "msgtype":
-                    pass
-                elif row[0] == "msgdata":
-                    field_name = row[2]
-                    field_type = row[3]
-                    field_count_str = row[4]
-                    field_count = _resolve_field_count(field_count_str, vars_dict=parsed)
-                    if field_name == "tlvs":
-                        tlv_stream_name = field_type
-                        d = self.read_tlv_stream(fd=fd, tlv_stream_name=tlv_stream_name)
-                        parsed[tlv_stream_name] = d
-                        continue
-                    #print(f">> count={field_count}. parsed={parsed}")
-                    try:
-                        parsed[field_name] = _read_field(fd=fd,
-                                                         field_type=field_type,
-                                                         count=field_count)
-                    except UnexpectedEndOfStream as e:
-                        if len(row) > 5:
-                            break  # optional feature field not present
-                        else:
-                            raise
-                else:
-                    raise Exception(f"unexpected row in scheme: {row!r}")
+        try:
+            with io.BytesIO(data[2:]) as fd:
+                for row in scheme:
+                    #print(f"row: {row!r}")
+                    if row[0] == "msgtype":
+                        pass
+                    elif row[0] == "msgdata":
+                        field_name = row[2]
+                        field_type = row[3]
+                        field_count_str = row[4]
+                        field_count = _resolve_field_count(field_count_str, vars_dict=parsed)
+                        if field_name == "tlvs":
+                            tlv_stream_name = field_type
+                            d = self.read_tlv_stream(fd=fd, tlv_stream_name=tlv_stream_name)
+                            parsed[tlv_stream_name] = d
+                            continue
+                        #print(f">> count={field_count}. parsed={parsed}")
+                        try:
+                            parsed[field_name] = _read_field(fd=fd,
+                                                             field_type=field_type,
+                                                             count=field_count)
+                        except UnexpectedEndOfStream as e:
+                            if len(row) > 5:
+                                break  # optional feature field not present
+                            else:
+                                raise
+                    else:
+                        raise Exception(f"unexpected row in scheme: {row!r}")
+        except FailedToParseMsg as e:
+            e.msg_type_int = msg_type_int
+            e.msg_type_name = msg_type_name
+            raise
         return msg_type_name, parsed
 
 
