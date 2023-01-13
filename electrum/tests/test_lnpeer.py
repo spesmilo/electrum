@@ -1532,9 +1532,9 @@ class TestPeer(TestCaseForTestnet):
                     await peer.initialized
                 await group.spawn(send_weird_messages())
 
-        with self.assertRaises(lnmsg.UnknownMandatoryMsgType):
+        with self.assertRaises(GracefulDisconnect):
             run(f())
-        self.assertTrue(isinstance(failing_task.exception(), lnmsg.UnknownMandatoryMsgType))
+        self.assertTrue(isinstance(failing_task.exception().__cause__, lnmsg.UnknownMandatoryMsgType))
 
     @needs_test_with_all_chacha20_implementations
     def test_sending_weird_messages__known_msg_with_insufficient_length(self):
@@ -1562,9 +1562,9 @@ class TestPeer(TestCaseForTestnet):
                     await peer.initialized
                 await group.spawn(send_weird_messages())
 
-        with self.assertRaises(lnmsg.UnexpectedEndOfStream):
+        with self.assertRaises(GracefulDisconnect):
             run(f())
-        self.assertTrue(isinstance(failing_task.exception(), lnmsg.UnexpectedEndOfStream))
+        self.assertTrue(isinstance(failing_task.exception().__cause__, lnmsg.UnexpectedEndOfStream))
 
 
 def run(coro):
