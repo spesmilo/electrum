@@ -133,19 +133,19 @@ class TestFiat(ElectrumTestCase):
         self.fx = FakeFxThread(FakeExchange(Decimal('1000.001')))
         default_fiat = Abstract_Wallet.default_fiat_value(self.wallet, txid, self.fx, self.value_sat)
         self.assertEqual(Decimal('1000.001'), default_fiat)
-        self.assertEqual('1,000.00', self.fx.ccy_amount_str(default_fiat, commas=True))
+        self.assertEqual('1 000.00', self.fx.ccy_amount_str(default_fiat, add_thousands_sep=True))
 
     def test_save_fiat_and_reset(self):
         self.assertEqual(False, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '1000.01', self.fx, self.value_sat))
         saved = self.fiat_value[ccy][txid]
-        self.assertEqual('1,000.01', self.fx.ccy_amount_str(Decimal(saved), commas=True))
+        self.assertEqual('1 000.01', self.fx.ccy_amount_str(Decimal(saved), add_thousands_sep=True))
         self.assertEqual(True,       Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '', self.fx, self.value_sat))
         self.assertNotIn(txid, self.fiat_value[ccy])
         # even though we are not setting it to the exact fiat value according to the exchange rate, precision is truncated away
-        self.assertEqual(True, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '1,000.002', self.fx, self.value_sat))
+        self.assertEqual(True, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '1 000.002', self.fx, self.value_sat))
 
     def test_too_high_precision_value_resets_with_no_saved_value(self):
-        self.assertEqual(True, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '1,000.001', self.fx, self.value_sat))
+        self.assertEqual(True, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '1 000.001', self.fx, self.value_sat))
 
     def test_empty_resets(self):
         self.assertEqual(True, Abstract_Wallet.set_fiat_value(self.wallet, txid, ccy, '', self.fx, self.value_sat))

@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame, QSizePolicy)
 from .util import char_width_in_lineedit, ColorScheme
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
-                           FEERATE_PRECISION, quantize_feerate)
+                           FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT)
 from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
 
@@ -66,13 +66,13 @@ class AmountEdit(SizedFreezableLineEdit):
             return
         pos = self.cursorPosition()
         chars = '0123456789'
-        if not self.is_int: chars +='.'
+        if not self.is_int: chars += DECIMAL_POINT
         s = ''.join([i for i in text if i in chars])
         if not self.is_int:
-            if '.' in s:
-                p = s.find('.')
-                s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+self.max_precision()]
+            if DECIMAL_POINT in s:
+                p = s.find(DECIMAL_POINT)
+                s = s.replace(DECIMAL_POINT, '')
+                s = s[:p] + DECIMAL_POINT + s[p:p+self.max_precision()]
         if self.max_amount:
             if (amt := self._get_amount_from_text(s)) and amt >= self.max_amount:
                 s = self._get_text_from_amount(self.max_amount)
@@ -95,6 +95,7 @@ class AmountEdit(SizedFreezableLineEdit):
 
     def _get_amount_from_text(self, text: str) -> Union[None, Decimal, int]:
         try:
+            text = text.replace(DECIMAL_POINT, '.')
             return (int if self.is_int else Decimal)(text)
         except:
             return None
@@ -127,6 +128,7 @@ class BTCAmountEdit(AmountEdit):
     def _get_amount_from_text(self, text):
         # returns amt in satoshis
         try:
+            text = text.replace(DECIMAL_POINT, '.')
             x = Decimal(text)
         except:
             return None
@@ -141,7 +143,9 @@ class BTCAmountEdit(AmountEdit):
         return Decimal(amount) if not self.is_int else int(amount)
 
     def _get_text_from_amount(self, amount_sat):
-        return format_satoshis_plain(amount_sat, decimal_point=self.decimal_point())
+        text = format_satoshis_plain(amount_sat, decimal_point=self.decimal_point())
+        text = text.replace('.', DECIMAL_POINT)
+        return text
 
     def setAmount(self, amount_sat):
         if amount_sat is None:

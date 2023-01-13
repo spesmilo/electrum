@@ -612,13 +612,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # and not util, also have fx remove it
         text = fx.remove_thousands_separator(text)
         def_fiat = self.default_fiat_value(txid, fx, value_sat)
-        formatted = fx.ccy_amount_str(def_fiat, commas=False)
+        formatted = fx.ccy_amount_str(def_fiat, add_thousands_sep=False)
         def_fiat_rounded = Decimal(formatted)
         reset = not text
         if not reset:
             try:
                 text_dec = Decimal(text)
-                text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, commas=False))
+                text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, add_thousands_sep=False))
                 reset = text_dec_rounded == def_fiat_rounded
             except:
                 # garbage. not resetting, but not saving either

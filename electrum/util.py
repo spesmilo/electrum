@@ -33,7 +33,7 @@ import urllib
 import threading
 import hmac
 import stat
-from locale import localeconv
+import locale
 import asyncio
 import urllib.request, urllib.parse, urllib.error
 import builtins
@@ -698,7 +698,11 @@ def format_satoshis_plain(
 # We enforce that we have at least that available.
 assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
 
-DECIMAL_POINT = localeconv()['decimal_point']  # type: str
+# DECIMAL_POINT = locale.localeconv()['decimal_point']  # type: str
+DECIMAL_POINT = "."
+THOUSANDS_SEP = " "
+assert len(DECIMAL_POINT) == 1, f"DECIMAL_POINT has unexpected len. {DECIMAL_POINT!r}"
+assert len(THOUSANDS_SEP) == 1, f"THOUSANDS_SEP has unexpected len. {THOUSANDS_SEP!r}"
 
 
 def format_satoshis(
@@ -737,9 +741,9 @@ def format_satoshis(
         sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
         if sign == "-":
             integer_part = integer_part[1:]
-        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = "{:,}".format(int(integer_part)).replace(',', THOUSANDS_SEP)
         integer_part = sign + integer_part
-        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
+        fract_part = THOUSANDS_SEP.join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
