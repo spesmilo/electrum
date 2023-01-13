@@ -102,7 +102,8 @@ def is_legacy_relay(invoice_features, r_tags) -> Tuple[bool, List[bytes]]:
     """
     invoice_features = LnFeatures(invoice_features)
     # trampoline-supporting wallets:
-    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT):
+    if invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ECLAIR)\
+       or invoice_features.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM):
         # If there are no r_tags (routing hints) included, the wallet doesn't have
         # private channels and is probably directly connected to a trampoline node.
         # Any trampoline node should be able to figure out a path to the receiver and
