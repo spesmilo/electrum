@@ -173,6 +173,15 @@ Pane {
                     visible: !Config.useGossip
                 }
 
+                Label {
+                    visible: Daemon.currentWallet.isLightning
+                    text: qsTr('Channel peers:');
+                    color: Material.accentColor
+                }
+                Label {
+                    visible: Daemon.currentWallet.isLightning
+                    text: Daemon.currentWallet.lightningNumPeers
+                }
             }
 
         }

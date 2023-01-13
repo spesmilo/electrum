@@ -108,6 +108,10 @@ ApplicationWindow
                     scale: 1.5
                 }
 
+                LightningNetworkStatusIndicator {
+                    visible: Daemon.currentWallet.isLightning
+                }
+
                 OnchainNetworkStatusIndicator { }
 
                 Rectangle {

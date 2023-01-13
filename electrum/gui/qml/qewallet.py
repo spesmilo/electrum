@@ -71,6 +71,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     otpRequested = pyqtSignal()
     otpSuccess = pyqtSignal()
     otpFailed = pyqtSignal([str,str], arguments=['code','message'])
+    peersUpdated = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -198,11 +199,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_channel(self, wallet, channel):
         if wallet == self.wallet:
             self.balanceChanged.emit()
+            self.peersUpdated.emit()
 
     @event_listener
     def on_event_channels_updated(self, wallet):
         if wallet == self.wallet:
             self.balanceChanged.emit()
+            self.peersUpdated.emit()
 
     @qt_event_listener
     def on_event_payment_succeeded(self, wallet, key):
@@ -421,8 +424,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def lightningBalance(self):
         if self.isLightning:
             self._lightningbalance.satsInt = int(self.wallet.lnworker.get_balance())
-        # else:
-        #     self._lightningbalance.satsInt = 0
         return self._lightningbalance
 
     @pyqtProperty(QEAmount, notify=balanceChanged)
@@ -442,6 +443,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if self.isLightning:
             self._lightningcanreceive.satsInt = int(self.wallet.lnworker.num_sats_can_receive())
         return self._lightningcanreceive
+
+    @pyqtProperty(int, notify=peersUpdated)
+    def lightningNumPeers(self):
+        if self.isLightning:
+            return self.wallet.lnworker.num_peers()
+        return 0
 
     @pyqtSlot()
     def enableLightning(self):
