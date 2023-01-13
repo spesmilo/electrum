@@ -26,34 +26,32 @@
 import os
 import asyncio
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-from aiohttp import ClientResponse
-from aiohttp import web, client_exceptions
-from aiorpcx import timeout_after, TaskTimeout, ignore_after
+from aiohttp import web
 from aiorpcx import NetAddress
 
-
 from electrum.util import log_exceptions, ignore_exceptions
-from electrum.crypto import sha256
 from electrum.plugin import BasePlugin, hook
-from electrum.logging import Logger
-
-
 from electrum.logging import Logger
 from electrum.util import EventListener, event_listener
 from electrum.invoices import PR_PAID, PR_EXPIRED
 
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+    from electrum.daemon import Daemon
+    from electrum.wallet import Abstract_Wallet
 
 
 class PayServerPlugin(BasePlugin):
 
-    def __init__(self, parent, config, name):
+    def __init__(self, parent, config: 'SimpleConfig', name):
         BasePlugin.__init__(self, parent, config, name)
         self.config = config
         self.server = None
 
     @hook
-    def daemon_wallet_loaded(self, daemon, wallet):
+    def daemon_wallet_loaded(self, daemon: 'Daemon', wallet: 'Abstract_Wallet'):
         # we use the first wallet loaded
         if self.server is not None:
             return
@@ -71,7 +69,7 @@ class PayServer(Logger, EventListener):
 
     WWW_DIR = os.path.join(os.path.dirname(__file__), 'www')
 
-    def __init__(self, config, wallet):
+    def __init__(self, config: 'SimpleConfig', wallet: 'Abstract_Wallet'):
         Logger.__init__(self)
         assert self.has_www_dir(), self.WWW_DIR
         self.config = config
