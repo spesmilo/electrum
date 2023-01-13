@@ -313,7 +313,12 @@ Item {
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
-                onFinished: _confirmPaymentDialog.destroy()
+                onFinishedSave: {
+                    // tx was (partially) signed and saved. Show QR for co-signers or online wallet
+                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
+                    page.showExport()
+                    _confirmPaymentDialog.destroy()
+                }
             }
         }
     }

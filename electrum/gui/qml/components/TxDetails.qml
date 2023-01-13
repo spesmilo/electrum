@@ -24,6 +24,11 @@ Pane {
         app.stack.pop()
     }
 
+    function showExport() {
+        var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+        dialog.open()
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

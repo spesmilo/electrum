@@ -69,8 +69,8 @@ Pane {
                 RowLayout {
                     Image {
                         visible: Network.isProxyTor
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
+                        Layout.preferredWidth: constants.iconSizeMedium
+                        Layout.preferredHeight: constants.iconSizeMedium
                         source: '../../icons/tor_logo.png'
                     }
                     Label {
