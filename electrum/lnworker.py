@@ -1317,9 +1317,12 @@ class LNWallet(LNWorker):
                 #       Some of the errors might depend on how we have chosen them.
                 #       Having more attempts is currently useful in part because of the randomness,
                 #       instead we should give feedback to create_routes_for_payment.
+                # Sometimes the trampoline node fails to send a payment and returns
+                # TEMPORARY_CHANNEL_FAILURE, while it succeeds with a higher trampoline fee.
                 if code in (
                         OnionFailureCode.TRAMPOLINE_FEE_INSUFFICIENT,
-                        OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON):
+                        OnionFailureCode.TRAMPOLINE_EXPIRY_TOO_SOON,
+                        OnionFailureCode.TEMPORARY_CHANNEL_FAILURE):
                     # TODO: parse the node policy here (not returned by eclair yet)
                     # TODO: erring node is always the first trampoline even if second
                     #  trampoline demands more fees, we can't influence this
@@ -1329,8 +1332,7 @@ class LNWallet(LNWorker):
                     use_two_trampolines = False
                 elif code in (
                         OnionFailureCode.UNKNOWN_NEXT_PEER,
-                        OnionFailureCode.TEMPORARY_NODE_FAILURE,
-                        OnionFailureCode.TEMPORARY_CHANNEL_FAILURE):
+                        OnionFailureCode.TEMPORARY_NODE_FAILURE):
                     trampoline_route = htlc_log.route
                     r = [hop.end_node.hex() for hop in trampoline_route]
                     self.logger.info(f'failed trampoline route: {r}')
