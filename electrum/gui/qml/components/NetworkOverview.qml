@@ -62,6 +62,24 @@ Pane {
                 }
 
                 Label {
+                    visible: 'mode' in Network.proxy
+                    text: qsTr('Proxy type:');
+                    color: Material.accentColor
+                }
+                RowLayout {
+                    Image {
+                        visible: Network.isProxyTor
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        source: '../../icons/tor_logo.png'
+                    }
+                    Label {
+                        visible: 'mode' in Network.proxy
+                        text: Network.isProxyTor ? 'TOR' : Network.proxy['mode']
+                    }
+                }
+
+                Label {
                     Layout.columnSpan: 2
                     text: qsTr('On-chain')
                     font.pixelSize: constants.fontSizeLarge
