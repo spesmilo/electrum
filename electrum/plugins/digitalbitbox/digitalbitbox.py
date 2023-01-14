@@ -132,6 +132,8 @@ class DigitalBitbox_Client(HardwareClientBase):
 
 
     def stretch_key(self, key: bytes):
+        # The 'hashlib.pbkdf2_hmac' method uses a non-random salt.
+        # Hash function without an unpredictable salt increases the likelihood that an attacker could successfully find the hash value in databases of precomputed hashes (called rainbow-tables).
         return to_hexstr(hashlib.pbkdf2_hmac('sha512', key, b'Digital Bitbox', iterations = 20480))
 
 
