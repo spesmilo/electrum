@@ -51,20 +51,8 @@ Pane {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Label {
-                    text: Config.formatSats(Daemon.currentWallet.lightningCanSend)
-                }
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
-                Label {
-                    text: Daemon.fx.enabled
-                        ? '(' + Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanSend) + ' ' + Daemon.fx.fiatCurrency + ')'
-                        : ''
-                }
+            FormattedAmount {
+                amount: Daemon.currentWallet.lightningCanSend
             }
 
             Label {
@@ -72,22 +60,9 @@ Pane {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Label {
-                    text: Config.formatSats(Daemon.currentWallet.lightningCanReceive)
-                }
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
-                Label {
-                    text: Daemon.fx.enabled
-                        ? '(' + Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanReceive) + ' ' + Daemon.fx.fiatCurrency + ')'
-                        : ''
-                }
+            FormattedAmount {
+                amount: Daemon.currentWallet.lightningCanReceive
             }
-
         }
 
         Frame {

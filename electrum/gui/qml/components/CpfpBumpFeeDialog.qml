@@ -72,15 +72,8 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    text: Config.formatSats(cpfpfeebumper.inputAmount)
-                }
-
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: cpfpfeebumper.inputAmount
             }
 
             Label {
@@ -88,16 +81,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    text: cpfpfeebumper.valid ? Config.formatSats(cpfpfeebumper.outputAmount) : ''
-                }
-
-                Label {
-                    visible: cpfpfeebumper.valid
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: cpfpfeebumper.outputAmount
+                valid: cpfpfeebumper.valid
             }
 
             Slider {
@@ -143,17 +129,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    id: fee
-                    text: cpfpfeebumper.valid ? Config.formatSats(cpfpfeebumper.feeForChild) : ''
-                }
-
-                Label {
-                    visible: cpfpfeebumper.valid
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: cpfpfeebumper.feeForChild
+                valid: cpfpfeebumper.valid
             }
 
             Label {
@@ -161,16 +139,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    text: cpfpfeebumper.valid ? Config.formatSats(cpfpfeebumper.totalFee) : ''
-                }
-
-                Label {
-                    visible: cpfpfeebumper.valid
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: cpfpfeebumper.totalFee
+                valid: cpfpfeebumper.valid
             }
 
             Label {
@@ -181,6 +152,7 @@ ElDialog {
             RowLayout {
                 Label {
                     text: cpfpfeebumper.valid ? cpfpfeebumper.totalFeeRate : ''
+                    font.family: FixedFont
                 }
 
                 Label {

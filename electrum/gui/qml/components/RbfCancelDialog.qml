@@ -51,16 +51,8 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    id: oldfee
-                    text: Config.formatSats(txcanceller.oldfee)
-                }
-
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: txcanceller.oldfee
             }
 
             Label {
@@ -72,6 +64,7 @@ ElDialog {
                 Label {
                     id: oldfeeRate
                     text: txcanceller.oldfeeRate
+                    font.family: FixedFont
                 }
 
                 Label {
@@ -85,17 +78,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    id: fee
-                    text: txcanceller.valid ? Config.formatSats(txcanceller.fee) : ''
-                }
-
-                Label {
-                    visible: txcanceller.valid
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: txcanceller.fee
+                valid: txcanceller.valid
             }
 
             Label {
@@ -107,6 +92,7 @@ ElDialog {
                 Label {
                     id: feeRate
                     text: txcanceller.valid ? txcanceller.feeRate : ''
+                    font.family: FixedFont
                 }
 
                 Label {

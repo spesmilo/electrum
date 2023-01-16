@@ -93,20 +93,8 @@ Pane {
                     color: Material.accentColor
                 }
 
-                RowLayout {
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.capacity)
-                    }
-                    Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.capacity) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
-                    }
+                FormattedAmount {
+                    amount: channeldetails.capacity
                 }
 
                 Label {
@@ -114,22 +102,11 @@ Pane {
                     color: Material.accentColor
                 }
 
-                RowLayout {
+                FormattedAmount {
                     visible: !channeldetails.frozenForSending && channeldetails.isOpen
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.canSend)
-                    }
-                    Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.canSend) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
-                    }
+                    amount: channeldetails.canSend
                 }
+
                 Label {
                     visible: channeldetails.frozenForSending && channeldetails.isOpen
                     text: qsTr('n/a (frozen)')
@@ -144,22 +121,11 @@ Pane {
                     color: Material.accentColor
                 }
 
-                RowLayout {
+                FormattedAmount {
                     visible: !channeldetails.frozenForReceiving && channeldetails.isOpen
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.canReceive)
-                    }
-                    Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.canReceive) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
-                    }
+                    amount: channeldetails.canReceive
                 }
+
                 Label {
                     visible: channeldetails.frozenForReceiving && channeldetails.isOpen
                     text: qsTr('n/a (frozen)')
