@@ -16,7 +16,7 @@ ElDialog {
     height: parent.height
 
     title: qsTr('Paying Lightning Invoice...')
-    standardButtons: Dialog.Cancel
+    standardButtons: Dialog.Close
 
     modal: true
     parent: Overlay.overlay
@@ -35,14 +35,14 @@ ElDialog {
                 name: 'success'
                 PropertyChanges { target: spinner; running: false }
                 PropertyChanges { target: helpText; text: qsTr('Paid!') }
-                PropertyChanges { target: dialog; standardButtons: Dialog.Ok }
+                // PropertyChanges { target: dialog; standardButtons: Dialog.Ok }
                 PropertyChanges { target: icon; source: '../../icons/confirmed.png' }
             },
             State {
                 name: 'failed'
                 PropertyChanges { target: spinner; running: false }
                 PropertyChanges { target: helpText; text: qsTr('Payment failed') }
-                PropertyChanges { target: dialog; standardButtons: Dialog.Ok }
+                // PropertyChanges { target: dialog; standardButtons: Dialog.Ok }
                 PropertyChanges { target: errorText; visible: true }
                 PropertyChanges { target: icon; source: '../../icons/warning.png' }
             }
