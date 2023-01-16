@@ -29,18 +29,9 @@ Pane {
                 width: parent.width
                 columns: 2
 
-                Label {
+                Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Network')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-
-                Rectangle {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
                 }
 
                 Label {
@@ -79,18 +70,9 @@ Pane {
                     }
                 }
 
-                Label {
+                Heading {
                     Layout.columnSpan: 2
                     text: qsTr('On-chain')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-
-                Rectangle {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
                 }
 
                 Label {
@@ -138,18 +120,9 @@ Pane {
                     id: feeHistogram
                 }
 
-                Label {
+                Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Lightning')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-
-                Rectangle {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
                 }
 
                 Label {
