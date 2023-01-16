@@ -207,12 +207,12 @@ ElDialog {
             dialog.yesClicked.connect(function() {
                 dialog.close()
                 swaphelper.executeSwap(true)
-                root.close()
             })
             dialog.open()
         }
         onAuthRequired: {
             app.handleAuthRequired(swaphelper, method)
         }
+        onSwapStarted: root.close() // TODO: show swap progress monitor
     }
 }
