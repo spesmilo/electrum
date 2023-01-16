@@ -127,9 +127,11 @@ class QEQRImageProvider(QQuickImageProvider):
     def requestImage(self, qstr, size):
         # Qt does a urldecode before passing the string here
         # but BIP21 (and likely other uri based specs) requires urlencoding,
-        # so we re-encode percent-quoted if a 'scheme' is found in the string
+        # so we re-encode percent-quoted if a known 'scheme' is found in the string
+        # (unknown schemes might be found when a colon is in a serialized TX, which
+        # leads to mangling of the tx, so we check for supported schemes.)
         uri = urllib.parse.urlparse(qstr)
-        if uri.scheme:
+        if uri.scheme and uri.scheme in ['bitcoin', 'lightning']:
             # urlencode request parameters
             query = urllib.parse.parse_qs(uri.query)
             query = urllib.parse.urlencode(query, doseq=True, quote_via=urllib.parse.quote)
