@@ -448,6 +448,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._oldfee_rate = 0
         self._orig_tx = None
         self._rbf = True
+        self._bump_method = 'preserve_payment'
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -470,6 +471,18 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         if self._oldfee_rate != oldfeerate:
             self._oldfee_rate = oldfeerate
             self.oldfeeRateChanged.emit()
+
+    bumpMethodChanged = pyqtSignal()
+    @pyqtProperty(str, notify=bumpMethodChanged)
+    def bumpMethod(self):
+        return self._bump_method
+
+    @bumpMethod.setter
+    def bumpMethod(self, bumpmethod):
+        if self._bump_method != bumpmethod:
+            self._bump_method = bumpmethod
+            self.bumpMethodChanged.emit()
+            self.update()
 
 
     def get_tx(self):
@@ -523,6 +536,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
                 tx=self._orig_tx,
                 txid=self._txid,
                 new_fee_rate=new_fee_rate,
+                decrease_payment=self._bump_method=='decrease_payment'
             )
         except CannotBumpFee as e:
             self._valid = False

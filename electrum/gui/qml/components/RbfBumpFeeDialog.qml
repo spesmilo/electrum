@@ -30,8 +30,7 @@ ElDialog {
     }
 
     ColumnLayout {
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
         spacing: 0
 
         GridLayout {
@@ -41,20 +40,52 @@ ElDialog {
             columns: 2
 
             Label {
-                text: qsTr('Old fee')
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                text: qsTr('Increase your transaction\'s fee to improve its position in the mempool')
+                wrapMode: Text.Wrap
+            }
+
+            Label {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
+                text: qsTr('Method')
                 color: Material.accentColor
             }
 
             RowLayout {
-                Label {
-                    id: oldfee
-                    text: Config.formatSats(rbffeebumper.oldfee)
-                }
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
+                ElComboBox {
+                    textRole: 'text'
+                    valueRole: 'value'
 
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
+                    model: [
+                        { text: qsTr('Preserve payment'), value: 'preserve_payment' },
+                        { text: qsTr('Decrease payment'), value: 'decrease_payment' }
+                    ]
+                    onCurrentValueChanged: {
+                        if (activeFocus)
+                            rbffeebumper.bumpMethod = currentValue
+                    }
+                    Component.onCompleted: {
+                        currentIndex = indexOfValue(rbffeebumper.bumpMethod)
+                    }
                 }
+                Item { Layout.fillWidth: true;  Layout.preferredHeight: 1 }
+            }
+
+            Label {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
+                text: qsTr('Old fee')
+                color: Material.accentColor
+            }
+
+            FormattedAmount {
+                Layout.preferredWidth: 1
+                Layout.fillWidth: true
+                amount: rbffeebumper.oldfee
             }
 
             Label {
@@ -66,6 +97,7 @@ ElDialog {
                 Label {
                     id: oldfeeRate
                     text: rbffeebumper.oldfeeRate
+                    font.family: FixedFont
                 }
 
                 Label {
@@ -79,17 +111,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    id: fee
-                    text: rbffeebumper.valid ? Config.formatSats(rbffeebumper.fee) : ''
-                }
-
-                Label {
-                    visible: rbffeebumper.valid
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: rbffeebumper.fee
+                valid: rbffeebumper.valid
             }
 
             Label {
@@ -101,6 +125,7 @@ ElDialog {
                 Label {
                     id: feeRate
                     text: rbffeebumper.valid ? rbffeebumper.feeRate : ''
+                    font.family: FixedFont
                 }
 
                 Label {
@@ -120,31 +145,36 @@ ElDialog {
                 text: rbffeebumper.target
             }
 
-            Slider {
-                id: feeslider
-                leftPadding: constants.paddingMedium
-                snapMode: Slider.SnapOnRelease
-                stepSize: 1
-                from: 0
-                to: rbffeebumper.sliderSteps
-                onValueChanged: {
-                    if (activeFocus)
-                        rbffeebumper.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = rbffeebumper.sliderPos
-                }
-                Connections {
-                    target: rbffeebumper
-                    function onSliderPosChanged() {
-                        feeslider.value = rbffeebumper.sliderPos
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Slider {
+                    id: feeslider
+                    Layout.fillWidth: true
+                    leftPadding: constants.paddingMedium
+                    snapMode: Slider.SnapOnRelease
+                    stepSize: 1
+                    from: 0
+                    to: rbffeebumper.sliderSteps
+                    onValueChanged: {
+                        if (activeFocus)
+                            rbffeebumper.sliderPos = value
+                    }
+                    Component.onCompleted: {
+                        value = rbffeebumper.sliderPos
+                    }
+                    Connections {
+                        target: rbffeebumper
+                        function onSliderPosChanged() {
+                            feeslider.value = rbffeebumper.sliderPos
+                        }
                     }
                 }
-            }
 
-            FeeMethodComboBox {
-                id: target
-                feeslider: rbffeebumper
+                FeeMethodComboBox {
+                    id: target
+                    feeslider: rbffeebumper
+                }
             }
 
             InfoTextArea {

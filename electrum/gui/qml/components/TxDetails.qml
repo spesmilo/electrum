@@ -99,17 +99,7 @@ Pane {
                 FormattedAmount {
                     visible: !txdetails.isUnrelated
                     Layout.fillWidth: true
-                    showAlt: false
                     amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount
-                }
-
-                Item {
-                    visible: !txdetails.isUnrelated && Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
-                }
-
-                Label {
-                    visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
-                    text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
                 }
 
                 Label {
@@ -130,7 +120,7 @@ Pane {
                     FormattedAmount {
                         Layout.fillWidth: true
                         amount: txdetails.fee
-                        showAlt: false
+                        singleLine: !(txdetails.canBump || txdetails.canCpfp)
                     }
                     FlatButton {
                         Layout.fillWidth: true
