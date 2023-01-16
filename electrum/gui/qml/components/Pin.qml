@@ -14,7 +14,6 @@ ElDialog {
     iconSource: '../../../icons/lock.png'
 
     width: parent.width * 2/3
-    height: parent.height * 1/3
 
     anchors.centerIn: parent
 
@@ -78,7 +77,6 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
-        height: parent.height
 
         Label {
             text: [qsTr('Enter PIN'), qsTr('Enter New PIN'), qsTr('Re-enter New PIN')][_phase]
@@ -109,8 +107,6 @@ ElDialog {
             color: constants.colorError
             Layout.alignment: Qt.AlignHCenter
         }
-
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
     }
 
     FontMetrics {
