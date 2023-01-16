@@ -175,11 +175,10 @@ class QEInvoiceParser(QEInvoice):
 
     @pyqtProperty(QEAmount, notify=invoiceChanged)
     def amount(self):
-        # store ref to QEAmount on instance, otherwise we get destroyed when going out of scope
-        self._amount = QEAmount()
         if not self._effectiveInvoice:
+            self._amount.clear()
             return self._amount
-        self._amount = QEAmount(from_invoice=self._effectiveInvoice)
+        self._amount.copyFrom(QEAmount(from_invoice=self._effectiveInvoice))
         return self._amount
 
     @amount.setter
@@ -508,16 +507,14 @@ class QEInvoiceParser(QEInvoice):
 class QEUserEnteredPayment(QEInvoice):
     _logger = get_logger(__name__)
 
-    _recipient = None
-    _message = None
-    _amount = QEAmount()
-
     validationError = pyqtSignal([str,str], arguments=['code','message'])
     invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
     invoiceSaved = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._amount = QEAmount()
         self.clear()
 
     recipientChanged = pyqtSignal()
@@ -551,7 +548,7 @@ class QEUserEnteredPayment(QEInvoice):
     @amount.setter
     def amount(self, amount):
         if self._amount != amount:
-            self._amount = amount
+            self._amount.copyFrom(amount)
             self.validate()
             self.amountChanged.emit()
 
@@ -604,7 +601,7 @@ class QEUserEnteredPayment(QEInvoice):
     @pyqtSlot()
     def clear(self):
         self._recipient = None
-        self._amount = QEAmount()
+        self._amount.clear()
         self._message = None
         self.canSave = False
         self.canPay = False
