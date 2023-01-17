@@ -102,7 +102,6 @@ ApplicationWindow
                 }
 
                 LightningNetworkStatusIndicator {
-                    visible: Daemon.currentWallet.isLightning
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
