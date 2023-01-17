@@ -25,6 +25,8 @@ Item {
     readonly property int iconSizeXLarge: 48
     readonly property int iconSizeXXLarge: 64
 
+    readonly property int fingerWidth: 64 // TODO: determine finger width from screen dimensions and resolution
+
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
     property color mutedForeground: 'gray' //Qt.lighter(Material.background, 2)
