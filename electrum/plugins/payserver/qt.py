@@ -26,7 +26,7 @@
 from functools import partial
 from PyQt5 import QtWidgets
 from electrum.i18n import _
-from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton
+from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton, webopen
 from .payserver import PayServerPlugin
 
 
@@ -45,8 +45,8 @@ class Plugin(PayServerPlugin):
         form = QtWidgets.QFormLayout(None)
         addr = self.config.get('payserver_address', 'localhost:8080')
         url = self.server.base_url + self.server.root + '/create_invoice.html'
-        self.help_label = QtWidgets.QLabel('create invoice: <a href="%s">%s</a>'%(url, url))
-        self.help_label.setOpenExternalLinks(True)
+        self.help_button = QtWidgets.QPushButton('View sample invoice creation form')
+        self.help_button.clicked.connect(lambda: webopen(url))
         address_e = QtWidgets.QLineEdit(addr)
         keyfile_e = QtWidgets.QLineEdit(self.config.get('ssl_keyfile', ''))
         certfile_e = QtWidgets.QLineEdit(self.config.get('ssl_certfile', ''))
@@ -56,7 +56,7 @@ class Plugin(PayServerPlugin):
         vbox = QtWidgets.QVBoxLayout(d)
         vbox.addLayout(form)
         vbox.addSpacing(20)
-        vbox.addWidget(self.help_label)
+        vbox.addWidget(self.help_button)
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(OkButton(d)))
         if d.exec_():
