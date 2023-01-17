@@ -15,8 +15,6 @@ ElDialog {
 
     property InvoiceParser invoiceParser
 
-    standardButtons: Dialog.Cancel
-
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {

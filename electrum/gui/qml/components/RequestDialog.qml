@@ -21,7 +21,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Close
 
     width: parent.width
     height: parent.height

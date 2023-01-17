@@ -15,7 +15,6 @@ ElDialog {
 
     title: qsTr('Lightning Swap')
     iconSource: Qt.resolvedUrl('../../icons/update.png')
-    standardButtons: Dialog.Cancel
 
     modal: true
     parent: Overlay.overlay

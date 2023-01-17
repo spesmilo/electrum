@@ -19,7 +19,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Cancel
     iconSource: Qt.resolvedUrl('../../icons/pen.png')
 
     Overlay.modal: Rectangle {

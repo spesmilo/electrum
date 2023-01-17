@@ -19,7 +19,7 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Cancel
+
     anchors.centerIn: parent
     padding: 0
 

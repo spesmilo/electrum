@@ -30,8 +30,6 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    standardButtons: Dialog.Cancel
-
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {

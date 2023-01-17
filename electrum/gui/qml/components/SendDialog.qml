@@ -16,7 +16,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Close
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -83,7 +82,6 @@ ElDialog {
 
             parent: Overlay.overlay
             modal: true
-            standardButtons: Dialog.Ok
 
             Overlay.modal: Rectangle {
                 color: "#aa000000"
