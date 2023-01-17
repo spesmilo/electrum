@@ -794,7 +794,7 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
         since_date = datetime.now(target_tz)
 
     td = time_difference(from_date - since_date, include_seconds)
-    return _("%s ago") % td if from_date < since_date else _("in %s") % td
+    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
 
 
 def time_difference(distance_in_time, include_seconds):
@@ -804,27 +804,27 @@ def time_difference(distance_in_time, include_seconds):
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return _("%s seconds") % distance_in_seconds
+            return _("{} seconds").format(distance_in_seconds)
         else:
             return _("less than a minute")
     elif distance_in_minutes < 45:
-        return _("about %s minutes") % distance_in_minutes
+        return _("about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
         return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        return _("about %d hours") % (round(distance_in_minutes / 60.0))
+        return _("about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
         return _("about 1 day")
     elif distance_in_minutes < 43220:
-        return _("about %d days") % (round(distance_in_minutes / 1440))
+        return _("about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
         return _("about 1 month")
     elif distance_in_minutes < 525600:
-        return _("about %d months") % (round(distance_in_minutes / 43200))
+        return _("about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
         return _("about 1 year")
     else:
-        return _("over %d years") % (round(distance_in_minutes / 525600))
+        return _("over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
