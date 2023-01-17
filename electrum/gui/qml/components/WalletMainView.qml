@@ -160,11 +160,13 @@ Item {
             spacing: 0
 
             FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                icon.source: '../../icons/tab_send.png'
-                text: qsTr('Send')
-                onClicked: openSendDialog()
+                Layout.fillWidth: false
+                Layout.preferredWidth: implicitHeight
+                text: qsTr('≡')
+                onClicked: {
+                    mainView.menu.open()
+                    mainView.menu.y = mainView.height - mainView.menu.height
+                }
             }
             Rectangle {
                 Layout.fillWidth: false
@@ -182,6 +184,20 @@ Item {
                     var dialog = receiveDialog.createObject(mainView)
                     dialog.open()
                 }
+            }
+            Rectangle {
+                Layout.fillWidth: false
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: parent.height * 2/3
+                Layout.alignment: Qt.AlignVCenter
+                color: constants.darkerBackground
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_send.png'
+                text: qsTr('Send')
+                onClicked: openSendDialog()
             }
         }
     }

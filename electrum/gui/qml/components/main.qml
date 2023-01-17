@@ -36,32 +36,25 @@ ApplicationWindow
         ColumnLayout {
             spacing: 0
             width: parent.width
+            height: toolbar.height
 
             RowLayout {
                 id: toolbarTopLayout
 
                 Layout.fillWidth: true
                 Layout.rightMargin: constants.paddingMedium
+                Layout.alignment: Qt.AlignVCenter
 
-                ToolButton {
-                    id: menuButton
-                    enabled: stack.currentItem && stack.currentItem.menu
-                        ? stack.currentItem.menu.count > 0
-                        : false
-
-                    text: enabled ? qsTr("≡") : ''
-                    font.pixelSize: constants.fontSizeXLarge
-                    onClicked: {
-                        stack.currentItem.menu.open()
-                        stack.currentItem.menu.y = toolbarTopLayout.height
-                    }
+                Item {
+                    Layout.preferredWidth: constants.paddingXLarge
+                    Layout.preferredHeight: 1
                 }
 
                 Label {
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
                     elide: Label.ElideRight
-                    horizontalAlignment: Qt.AlignHCenter
+                    // horizontalAlignment: Qt.AlignHCenter
                     verticalAlignment: Qt.AlignVCenter
                     Layout.fillWidth: true
                     font.pixelSize: constants.fontSizeMedium
