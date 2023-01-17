@@ -69,14 +69,6 @@ Item {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
-                text: qsTr('Network');
-                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
-                icon.source: '../../icons/network.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
                 text: qsTr('Channels');
                 enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
                 onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))

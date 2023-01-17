@@ -103,9 +103,24 @@ ApplicationWindow
 
                 LightningNetworkStatusIndicator {
                     visible: Daemon.currentWallet.isLightning
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (stack.currentItem.objectName != 'NetworkOverview')
+                                stack.push(Qt.resolvedUrl('NetworkOverview.qml'))
+                        }
+                    }
                 }
 
-                OnchainNetworkStatusIndicator { }
+                OnchainNetworkStatusIndicator {
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (stack.currentItem.objectName != 'NetworkOverview')
+                                stack.push(Qt.resolvedUrl('NetworkOverview.qml'))
+                        }
+                    }
+                }
 
                 Rectangle {
                     color: 'transparent'

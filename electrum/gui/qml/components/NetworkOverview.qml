@@ -7,6 +7,8 @@ import "controls"
 
 Pane {
     id: root
+    objectName: 'NetworkOverview'
+
     padding: 0
 
     ColumnLayout {
