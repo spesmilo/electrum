@@ -50,6 +50,9 @@ class PayServerPlugin(BasePlugin):
         self.config = config
         self.server = None
 
+    def view_url(self, key):
+        return self.server.base_url + self.server.root + '/pay?id=' + key
+
     @hook
     def daemon_wallet_loaded(self, daemon: 'Daemon', wallet: 'Abstract_Wallet'):
         # we use the first wallet loaded
@@ -62,7 +65,7 @@ class PayServerPlugin(BasePlugin):
 
     @hook
     def wallet_export_request(self, d, key):
-        d['view_url'] = self.server.base_url + self.server.root + '/pay?id=' + key
+        d['view_url'] = self.view_url(key)
 
 
 class PayServer(Logger, EventListener):

@@ -26,6 +26,7 @@
 from functools import partial
 from PyQt5 import QtWidgets
 from electrum.i18n import _
+from electrum.plugin import hook
 from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton, webopen
 from .payserver import PayServerPlugin
 
@@ -63,3 +64,7 @@ class Plugin(PayServerPlugin):
             self.config.set_key('payserver_address', str(address_e.text()))
             self.config.set_key('ssl_keyfile', str(keyfile_e.text()))
             self.config.set_key('ssl_certfile', str(certfile_e.text()))
+
+    @hook
+    def receive_list_menu(self, parent, menu, key):
+        menu.addAction(_("View in payserver"), lambda: webopen(self.view_url(key)))
