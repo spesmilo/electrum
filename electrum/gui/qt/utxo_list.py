@@ -149,6 +149,9 @@ class UTXOList(MyTreeView):
                      not self.wallet.is_frozen_coin(utxo))]
         return coins
 
+    def are_in_coincontrol(self, coins: List[PartialTxInput]) -> bool:
+        return all([utxo.prevout.to_str() in self._spend_set for utxo in coins])
+
     def add_to_coincontrol(self, coins: List[PartialTxInput]):
         coins = self._filter_frozen_coins(coins)
         for utxo in coins:
@@ -192,7 +195,7 @@ class UTXOList(MyTreeView):
         coins = [self._utxo_dict[name] for name in selected]
         # coin control
         if coins:
-            if all([utxo.prevout.to_str() in self._spend_set for utxo in coins]):
+            if self.are_in_coincontrol(coins):
                 menu.addAction(_("Remove from coin control"), lambda: self.remove_from_coincontrol(coins))
             else:
                 menu.addAction(_("Add to coin control"), lambda: self.add_to_coincontrol(coins))
