@@ -51,6 +51,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
+from .util import ShortID
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -212,6 +213,9 @@ class TxOutpoint(NamedTuple):
     def is_coinbase(self) -> bool:
         return self.txid == bytes(32)
 
+    def short_name(self):
+        return f"{self.txid.hex()[0:10]}:{self.out_idx}"
+
 
 class TxInput:
     prevout: TxOutpoint
@@ -231,6 +235,18 @@ class TxInput:
         self.nsequence = nsequence
         self.witness = witness
         self._is_coinbase_output = is_coinbase_output
+        # blockchain fields
+        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown
+        self.block_txpos = None
+        self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
+        self.spent_txid = None  # type: Optional[str]  # txid of the spender
+
+    @property
+    def short_id(self):
+        if self.block_txpos is not None and self.block_txpos >= 0:
+            return ShortID.from_components(self.block_height, self.block_txpos, self.prevout.out_idx)
+        else:
+            return self.prevout.short_name()
 
     def is_coinbase_input(self) -> bool:
         """Whether this is the input of a coinbase tx."""
@@ -1227,9 +1243,6 @@ class PartialTxInput(TxInput, PSBTSection):
         self.pubkeys = []  # type: List[bytes]  # note: order matters
         self._trusted_value_sats = None  # type: Optional[int]
         self._trusted_address = None  # type: Optional[str]
-        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown
-        self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
-        self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
         self._is_native_segwit = None  # type: Optional[bool]  # None means unknown
         self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est

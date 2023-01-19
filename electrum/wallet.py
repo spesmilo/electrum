@@ -2116,7 +2116,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             received, spent = self.adb.get_addr_io(address)
             item = received.get(txin.prevout.to_str())
             if item:
-                txin_value = item[1]
+                txin_value = item[2]
                 txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
         if txin.utxo is None:
             txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)

@@ -45,8 +45,9 @@ from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput
+from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput, TxOutpoint
 from electrum.logging import get_logger
+from electrum.util import ShortID
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
@@ -593,8 +594,17 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 return self.txo_color_2fa.text_char_format
             return ext
 
-        def format_amount(amt):
-            return self.main_window.format_amount(amt, whitespaces=True)
+        def insert_tx_io(cursor, is_coinbase, short_id, address, value):
+            if is_coinbase:
+                cursor.insertText('coinbase')
+            else:
+                address_str = address or '<address unknown>'
+                value_str = self.main_window.format_amount(value, whitespaces=True)
+                cursor.insertText("%-15s\t"%str(short_id), ext)
+                cursor.insertText("%-62s"%address_str, text_format(address))
+                cursor.insertText('\t', ext)
+                cursor.insertText(value_str, ext)
+            cursor.insertBlock()
 
         i_text = self.inputs_textedit
         i_text.clear()
@@ -602,34 +612,26 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         i_text.setReadOnly(True)
         cursor = i_text.textCursor()
         for txin in self.tx.inputs():
-            if txin.is_coinbase_input():
-                cursor.insertText('coinbase')
-            else:
-                prevout_hash = txin.prevout.txid.hex()
-                prevout_n = txin.prevout.out_idx
-                cursor.insertText(prevout_hash + ":%-4d " % prevout_n, ext)
-                addr = self.wallet.adb.get_txin_address(txin)
-                if addr is None:
-                    addr = ''
-                cursor.insertText(addr, text_format(addr))
-                txin_value = self.wallet.adb.get_txin_value(txin)
-                if txin_value is not None:
-                    cursor.insertText(format_amount(txin_value), ext)
-            cursor.insertBlock()
+            addr = self.wallet.adb.get_txin_address(txin)
+            txin_value = self.wallet.adb.get_txin_value(txin)
+            insert_tx_io(cursor, txin.is_coinbase_output(), txin.short_id, addr, txin_value)
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
         o_text.clear()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
+        tx_height, tx_pos = self.wallet.adb.get_txpos(self.tx.txid())
+        tx_hash = bytes.fromhex(self.tx.txid())
         cursor = o_text.textCursor()
-        for o in self.tx.outputs():
-            addr, v = o.get_ui_address_str(), o.value
-            cursor.insertText(addr, text_format(addr))
-            if v is not None:
-                cursor.insertText('\t', ext)
-                cursor.insertText(format_amount(v), ext)
-            cursor.insertBlock()
+        for index, o in enumerate(self.tx.outputs()):
+            if tx_pos is not None and tx_pos >= 0:
+                short_id = ShortID.from_components(tx_height, tx_pos, index)
+            else:
+                short_id = TxOutpoint(tx_hash, index).short_name()
+
+            addr, value = o.get_ui_address_str(), o.value
+            insert_tx_io(cursor, False, short_id, addr, value)
 
         self.txo_color_recv.legend_label.setVisible(tf_used_recv)
         self.txo_color_change.legend_label.setVisible(tf_used_change)
