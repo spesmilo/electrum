@@ -78,7 +78,7 @@ Pane {
                     Layout.preferredWidth: parent.width
                     Layout.fillHeight: true
                     clip: true
-                    model: Daemon.currentWallet.channelModel
+                    model: Daemon.currentWallet.channelModel.filterModel('is_backup', false)
 
                     delegate: ChannelDelegate {
                         onClicked: {
@@ -126,10 +126,9 @@ Pane {
 
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Import channel backup')
+            text: qsTr('Channel backups')
             onClicked: {
-                var dialog = importChannelBackupDialog.createObject(root)
-                dialog.open()
+                app.stack.push(Qt.resolvedUrl('ChannelBackups.qml'))
             }
             icon.source: '../../icons/file.png'
         }

@@ -8,6 +8,7 @@ from electrum.util import Satoshis
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+from .qemodelfilter import QEFilterProxyModel
 
 class QEChannelListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -165,3 +166,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 self.countChanged.emit()
                 return
             i = i + 1
+
+    @pyqtSlot(str, 'QVariant', result=QEFilterProxyModel)
+    def filterModel(self, role, match):
+        self._filterModel = QEFilterProxyModel(self, self)
+        self._filterModel.setFilterRole(QEChannelListModel._ROLE_RMAP[role])
+        self._filterModel.setFilterValue(match)
+        return self._filterModel
+
