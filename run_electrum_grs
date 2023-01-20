@@ -396,7 +396,7 @@ def main():
         lockfile = daemon.get_lockfile(config)
         if os.path.exists(lockfile):
             print_stderr("Daemon already running (lockfile detected).")
-            print_stderr("Run 'electrum stop' to stop the daemon.")
+            print_stderr("Run 'electrum-grs stop' to stop the daemon.")
             sys.exit(1)
         # fork before creating the asyncio event loop
         pid = os.fork()

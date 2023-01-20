@@ -131,7 +131,7 @@ class QEQRImageProvider(QQuickImageProvider):
         # (unknown schemes might be found when a colon is in a serialized TX, which
         # leads to mangling of the tx, so we check for supported schemes.)
         uri = urllib.parse.urlparse(qstr)
-        if uri.scheme and uri.scheme in ['bitcoin', 'lightning']:
+        if uri.scheme and uri.scheme in ['groestlcoin', 'lightning']:
             # urlencode request parameters
             query = urllib.parse.parse_qs(uri.query)
             query = urllib.parse.urlencode(query, doseq=True, quote_via=urllib.parse.quote)
