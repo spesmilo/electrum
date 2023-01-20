@@ -218,6 +218,10 @@ class TxFeeSlider(FeeSlider):
         self.outputs = outputs
 
 class QETxFinalizer(TxFeeSlider):
+    _logger = get_logger(__name__)
+
+    finishedSave = pyqtSignal([str], arguments=['txid'])
+
     def __init__(self, parent=None, *, make_tx=None, accept=None):
         super().__init__(parent)
         self.f_make_tx = make_tx
@@ -228,8 +232,6 @@ class QETxFinalizer(TxFeeSlider):
         self._effectiveAmount = QEAmount()
         self._extraFee = QEAmount()
         self._canRbf = False
-
-    _logger = get_logger(__name__)
 
     addressChanged = pyqtSignal()
     @pyqtProperty(str, notify=addressChanged)
@@ -380,6 +382,8 @@ class QETxFinalizer(TxFeeSlider):
         if not self._wallet.wallet.adb.add_transaction(self._tx):
             self._logger.error('Could not save tx')
 
+        self.finishedSave.emit(self._tx.txid())
+
     @pyqtSlot(result=str)
     @pyqtSlot(bool, result=str)
     def serializedTx(self, for_qr=False):
@@ -444,6 +448,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._oldfee_rate = 0
         self._orig_tx = None
         self._rbf = True
+        self._bump_method = 'preserve_payment'
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -466,6 +471,18 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         if self._oldfee_rate != oldfeerate:
             self._oldfee_rate = oldfeerate
             self.oldfeeRateChanged.emit()
+
+    bumpMethodChanged = pyqtSignal()
+    @pyqtProperty(str, notify=bumpMethodChanged)
+    def bumpMethod(self):
+        return self._bump_method
+
+    @bumpMethod.setter
+    def bumpMethod(self, bumpmethod):
+        if self._bump_method != bumpmethod:
+            self._bump_method = bumpmethod
+            self.bumpMethodChanged.emit()
+            self.update()
 
 
     def get_tx(self):
@@ -519,6 +536,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
                 tx=self._orig_tx,
                 txid=self._txid,
                 new_fee_rate=new_fee_rate,
+                decrease_payment=self._bump_method=='decrease_payment'
             )
         except CannotBumpFee as e:
             self._valid = False

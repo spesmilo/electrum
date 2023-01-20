@@ -66,6 +66,7 @@ class QENetwork(QObject, QtEventListener):
     def on_event_proxy_set(self, *args):
         self._logger.debug('proxy set')
         self.proxySet.emit()
+        self.proxyTorChanged.emit()
 
     @event_listener
     def on_event_status(self, *args):
@@ -173,6 +174,11 @@ class QENetwork(QObject, QtEventListener):
         net_params = net_params._replace(proxy=proxy_settings)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.proxyChanged.emit()
+
+    proxyTorChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=proxyTorChanged)
+    def isProxyTor(self):
+        return self.network.tor_proxy
 
     @pyqtProperty('QVariant', notify=feeHistogramUpdated)
     def feeHistogram(self):

@@ -24,6 +24,11 @@ Pane {
         app.stack.pop()
     }
 
+    function showExport() {
+        var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+        dialog.open()
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -44,18 +49,9 @@ Pane {
                 width: parent.width
                 columns: 2
 
-                Label {
+                Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Transaction Details')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-
-                Rectangle {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
                 }
 
                 RowLayout {
@@ -94,17 +90,7 @@ Pane {
                 FormattedAmount {
                     visible: !txdetails.isUnrelated
                     Layout.fillWidth: true
-                    showAlt: false
                     amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount
-                }
-
-                Item {
-                    visible: !txdetails.isUnrelated && Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1
-                }
-
-                Label {
-                    visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt == 0
-                    text: Daemon.fx.fiatValue(txdetails.amount, false) + ' ' + Daemon.fx.fiatCurrency
                 }
 
                 Label {
@@ -125,7 +111,7 @@ Pane {
                     FormattedAmount {
                         Layout.fillWidth: true
                         amount: txdetails.fee
-                        showAlt: false
+                        singleLine: !(txdetails.canBump || txdetails.canCpfp)
                     }
                     FlatButton {
                         Layout.fillWidth: true

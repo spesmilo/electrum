@@ -184,20 +184,8 @@ Pane {
                     color: Material.accentColor
                 }
 
-                RowLayout {
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(addressdetails.balance)
-                    }
-                    Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(addressdetails.balance) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
-                    }
+                FormattedAmount {
+                    amount: addressdetails.balance
                 }
 
                 Label {

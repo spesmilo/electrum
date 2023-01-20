@@ -30,8 +30,6 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    standardButtons: Dialog.Cancel
-
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {
@@ -61,7 +59,6 @@ ElDialog {
                 text: qsTr('Amount to send')
                 color: Material.accentColor
             }
-
             RowLayout {
                 Layout.fillWidth: true
                 Label {
@@ -94,16 +91,8 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
-                Label {
-                    id: fee
-                    text: Config.formatSats(finalizer.fee)
-                }
-
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+            FormattedAmount {
+                amount: finalizer.fee
             }
 
             Label {
@@ -112,16 +101,9 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            RowLayout {
+            FormattedAmount {
                 visible: !finalizer.extraFee.isEmpty
-                Label {
-                    text: Config.formatSats(finalizer.extraFee)
-                }
-
-                Label {
-                    text: Config.baseUnit
-                    color: Material.accentColor
-                }
+                amount: finalizer.extraFee
             }
 
             Label {
@@ -133,6 +115,7 @@ ElDialog {
                 Label {
                     id: feeRate
                     text: finalizer.feeRate
+                    font.family: FixedFont
                 }
 
                 Label {

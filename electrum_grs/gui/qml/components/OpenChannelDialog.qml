@@ -15,7 +15,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Cancel
     padding: 0
 
     width: parent.width

@@ -11,7 +11,6 @@ ElDialog {
 
     property bool valid: false
 
-    standardButtons: Dialog.Cancel
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {

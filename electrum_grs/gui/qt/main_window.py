@@ -926,7 +926,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 else:
                     fiat_e.follows = True
                     fiat_e.setText(self.fx.ccy_amount_str(
-                        amount * Decimal(rate) / COIN, False))
+                        amount * Decimal(rate) / COIN, add_thousands_sep=False))
                     fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 

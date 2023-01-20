@@ -614,6 +614,18 @@ class Channel(AbstractChannel):
         self.should_request_force_close = False
         self.unconfirmed_closing_txid = None # not a state, only for GUI
 
+    def get_local_alias(self) -> bytes:
+        # deterministic, same secrecy level as wallet master pubkey
+        wallet_fingerprint = bytes(self.lnworker.wallet.get_fingerprint(), "utf8")
+        return sha256(wallet_fingerprint + self.channel_id)[0:8]
+
+    def save_remote_alias(self, alias: bytes):
+        self.storage['alias'] = alias.hex()
+
+    def get_remote_alias(self) -> Optional[bytes]:
+        alias = self.storage.get('alias')
+        return bytes.fromhex(alias) if alias else None
+
     def has_onchain_backup(self):
         return self.storage.get('has_onchain_backup', False)
 

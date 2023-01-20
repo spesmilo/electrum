@@ -456,8 +456,7 @@ class Daemon(Logger):
         if wallet is None:
             return
         wallet.start_network(self.network)
-        self._wallets[path] = wallet
-        run_hook('daemon_wallet_loaded', self, wallet)
+        self.add_wallet(wallet)
         return wallet
 
     @staticmethod
@@ -492,6 +491,7 @@ class Daemon(Logger):
         path = wallet.storage.path
         path = standardize_path(path)
         self._wallets[path] = wallet
+        run_hook('daemon_wallet_loaded', self, wallet)
 
     def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)

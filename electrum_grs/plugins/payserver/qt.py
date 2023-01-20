@@ -26,7 +26,8 @@
 from functools import partial
 from PyQt5 import QtWidgets
 from electrum_grs.i18n import _
-from electrum_grs.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton
+from electrum_grs.plugin import hook
+from electrum_grs.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton, webopen
 from .payserver import PayServerPlugin
 
 
@@ -45,8 +46,8 @@ class Plugin(PayServerPlugin):
         form = QtWidgets.QFormLayout(None)
         addr = self.config.get('payserver_address', 'localhost:8080')
         url = self.server.base_url + self.server.root + '/create_invoice.html'
-        self.help_label = QtWidgets.QLabel('create invoice: <a href="%s">%s</a>'%(url, url))
-        self.help_label.setOpenExternalLinks(True)
+        self.help_button = QtWidgets.QPushButton('View sample invoice creation form')
+        self.help_button.clicked.connect(lambda: webopen(url))
         address_e = QtWidgets.QLineEdit(addr)
         keyfile_e = QtWidgets.QLineEdit(self.config.get('ssl_keyfile', ''))
         certfile_e = QtWidgets.QLineEdit(self.config.get('ssl_certfile', ''))
@@ -56,10 +57,14 @@ class Plugin(PayServerPlugin):
         vbox = QtWidgets.QVBoxLayout(d)
         vbox.addLayout(form)
         vbox.addSpacing(20)
-        vbox.addWidget(self.help_label)
+        vbox.addWidget(self.help_button)
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(OkButton(d)))
         if d.exec_():
             self.config.set_key('payserver_address', str(address_e.text()))
             self.config.set_key('ssl_keyfile', str(keyfile_e.text()))
             self.config.set_key('ssl_certfile', str(certfile_e.text()))
+
+    @hook
+    def receive_list_menu(self, parent, menu, key):
+        menu.addAction(_("View in payserver"), lambda: webopen(self.view_url(key)))

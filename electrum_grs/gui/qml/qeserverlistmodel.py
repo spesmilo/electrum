@@ -115,11 +115,10 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         all_servers = self.network.get_servers()
         connected_hosts = set([iface.host for ifaces in chains.values() for iface in ifaces])
         protocol = PREFERRED_NETWORK_PROTOCOL
-        use_tor = True
         for _host, d in sorted(all_servers.items()):
             if _host in connected_hosts:
                 continue
-            if _host.endswith('.onion') and not use_tor:
+            if _host.endswith('.onion') and not self.network.tor_proxy:
                 continue
             port = d.get(protocol)
             if port:

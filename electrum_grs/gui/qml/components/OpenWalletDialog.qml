@@ -20,8 +20,6 @@ ElDialog {
     property string name
     property string path
 
-    standardButtons: Dialog.Cancel
-
     modal: true
     parent: Overlay.overlay
     Overlay.modal: Rectangle {

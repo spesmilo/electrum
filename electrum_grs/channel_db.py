@@ -46,6 +46,7 @@ from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .lnmsg import decode_msg
 from . import ecc
 from .crypto import sha256d
+from .lnmsg import FailedToParseMsg
 
 if TYPE_CHECKING:
     from .network import Network
@@ -725,6 +726,8 @@ class ChannelDB(SqlDB):
                 ci = ChannelInfo.from_raw_msg(msg)
             except IncompatibleOrInsaneFeatures:
                 continue
+            except FailedToParseMsg:
+                continue
             self._channels[ShortChannelID.normalize(short_channel_id)] = ci
         c.execute("""SELECT * FROM node_info""")
         for node_id, msg in c:
@@ -732,11 +735,16 @@ class ChannelDB(SqlDB):
                 node_info, node_addresses = NodeInfo.from_raw_msg(msg)
             except IncompatibleOrInsaneFeatures:
                 continue
+            except FailedToParseMsg:
+                continue
             # don't load node_addresses because they dont have timestamps
             self._nodes[node_id] = node_info
         c.execute("""SELECT * FROM policy""")
         for key, msg in c:
-            p = Policy.from_raw_msg(key, msg)
+            try:
+                p = Policy.from_raw_msg(key, msg)
+            except FailedToParseMsg:
+                continue
             self._policies[(p.start_node, p.short_channel_id)] = p
         for channel_info in self._channels.values():
             self._channels_for_node[channel_info.node1_id].add(channel_info.short_channel_id)

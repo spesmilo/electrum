@@ -391,6 +391,13 @@ def main():
     cmdname = config.get('cmd')
 
     if cmdname == 'daemon' and config.get("detach"):
+        # detect lockfile.
+        # This is not as goog as get_file_descriptor, but that would require the asyncio loop
+        lockfile = daemon.get_lockfile(config)
+        if os.path.exists(lockfile):
+            print_stderr("Daemon already running (lockfile detected).")
+            print_stderr("Run 'electrum stop' to stop the daemon.")
+            sys.exit(1)
         # fork before creating the asyncio event loop
         pid = os.fork()
         if pid:

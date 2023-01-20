@@ -77,6 +77,11 @@ class QEAmount(QObject):
     def isEmpty(self):
         return not(self._is_max or self._amount_sat or self._amount_msat)
 
+    def clear(self):
+        self.satsInt = 0
+        self.msatsInt = 0
+        self.isMax = False
+
     def copyFrom(self, amount):
         if not amount:
             self._logger.warning('copyFrom with None argument. assuming 0') # TODO

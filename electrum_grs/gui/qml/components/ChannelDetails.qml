@@ -36,18 +36,9 @@ Pane {
                 width: parent.width
                 columns: 2
 
-                Label {
+                Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Channel details')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-
-                Rectangle {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
                 }
 
                 Label {
@@ -93,20 +84,8 @@ Pane {
                     color: Material.accentColor
                 }
 
-                RowLayout {
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.capacity)
-                    }
-                    Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
-                    }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.capacity) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
-                    }
+                FormattedAmount {
+                    amount: channeldetails.capacity
                 }
 
                 Label {
@@ -115,25 +94,29 @@ Pane {
                 }
 
                 RowLayout {
-                    visible: !channeldetails.frozenForSending && channeldetails.isOpen
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.canSend)
+                    visible: channeldetails.isOpen
+                    FormattedAmount {
+                        visible: !channeldetails.frozenForSending
+                        amount: channeldetails.canSend
+                        singleLine: false
                     }
                     Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
+                        visible: channeldetails.frozenForSending
+                        text: qsTr('n/a (frozen)')
                     }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.canSend) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                    }
+                    FlatButton {
+                        Layout.minimumWidth: implicitWidth
+                        // icon.source: '../../icons/warning.png'
+                        // icon.color: 'transparent'
+                        text: channeldetails.frozenForSending ? qsTr('Unfreeze') : qsTr('Freeze')
+                        onClicked: channeldetails.freezeForSending()
                     }
                 }
-                Label {
-                    visible: channeldetails.frozenForSending && channeldetails.isOpen
-                    text: qsTr('n/a (frozen)')
-                }
+
                 Label {
                     visible: !channeldetails.isOpen
                     text: qsTr('n/a (channel not open)')
@@ -145,25 +128,30 @@ Pane {
                 }
 
                 RowLayout {
-                    visible: !channeldetails.frozenForReceiving && channeldetails.isOpen
-                    Label {
-                        font.family: FixedFont
-                        text: Config.formatSats(channeldetails.canReceive)
+                    visible: channeldetails.isOpen
+                    FormattedAmount {
+                        visible: !channeldetails.frozenForReceiving
+                        amount: channeldetails.canReceive
+                        singleLine: false
                     }
+
                     Label {
-                        color: Material.accentColor
-                        text: Config.baseUnit
+                        visible: channeldetails.frozenForReceiving
+                        text: qsTr('n/a (frozen)')
                     }
-                    Label {
-                        text: Daemon.fx.enabled
-                            ? '(' + Daemon.fx.fiatValue(channeldetails.canReceive) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            : ''
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                    }
+                    FlatButton {
+                        Layout.minimumWidth: implicitWidth
+                        // icon.source: '../../icons/warning.png'
+                        // icon.color: 'transparent'
+                        text: channeldetails.frozenForReceiving ? qsTr('Unfreeze') : qsTr('Freeze')
+                        onClicked: channeldetails.freezeForReceiving()
                     }
                 }
-                Label {
-                    visible: channeldetails.frozenForReceiving && channeldetails.isOpen
-                    text: qsTr('n/a (frozen)')
-                }
+
                 Label {
                     visible: !channeldetails.isOpen
                     text: qsTr('n/a (channel not open)')
@@ -232,66 +220,40 @@ Pane {
             icon.source: '../../icons/file.png'
         }
 
-        RowLayout {
+        FlatButton {
             Layout.fillWidth: true
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Close channel');
-                enabled: channeldetails.canClose
-                onClicked: {
-                    var dialog = closechannel.createObject(root, { 'channelid': channelid })
-                    dialog.open()
-                }
-                icon.source: '../../icons/closebutton.png'
+            Layout.preferredWidth: 1
+            text: qsTr('Close channel');
+            visible: channeldetails.canClose
+            onClicked: {
+                var dialog = closechannel.createObject(root, { 'channelid': channelid })
+                dialog.open()
             }
-
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Delete channel');
-                enabled: channeldetails.canDelete
-                onClicked: {
-                    var dialog = app.messageDialog.createObject(root,
-                            {
-                                'text': qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
-                                'yesno': true
-                            }
-                    )
-                    dialog.yesClicked.connect(function() {
-                        channeldetails.deleteChannel()
-                        app.stack.pop()
-                        Daemon.currentWallet.historyModel.init_model() // needed here?
-                        Daemon.currentWallet.channelModel.remove_channel(channelid)
-                    })
-                    dialog.open()
-                }
-                icon.source: '../../icons/delete.png'
-            }
+            icon.source: '../../icons/closebutton.png'
         }
 
-        RowLayout {
+        FlatButton {
             Layout.fillWidth: true
-            visible: channeldetails.isOpen
-
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                enabled: channeldetails.isOpen
-                text: channeldetails.frozenForSending ? qsTr('Unfreeze (for sending)') : qsTr('Freeze (for sending)')
-                icon.source: '../../icons/seal.png'
-                onClicked: channeldetails.freezeForSending()
+            Layout.preferredWidth: 1
+            text: qsTr('Delete channel');
+            visible: channeldetails.canDelete
+            onClicked: {
+                var dialog = app.messageDialog.createObject(root,
+                        {
+                            'text': qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
+                            'yesno': true
+                        }
+                )
+                dialog.yesClicked.connect(function() {
+                    channeldetails.deleteChannel()
+                    app.stack.pop()
+                    Daemon.currentWallet.historyModel.init_model() // needed here?
+                    Daemon.currentWallet.channelModel.remove_channel(channelid)
+                })
+                dialog.open()
             }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                enabled: channeldetails.isOpen
-                text: channeldetails.frozenForReceiving ? qsTr('Unfreeze (for receiving)') : qsTr('Freeze (for receiving)')
-                icon.source: '../../icons/seal.png'
-                onClicked: channeldetails.freezeForReceiving()
-            }
+            icon.source: '../../icons/delete.png'
         }
-
     }
 
     ChannelDetails {

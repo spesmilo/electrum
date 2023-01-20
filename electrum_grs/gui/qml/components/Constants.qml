@@ -25,6 +25,8 @@ Item {
     readonly property int iconSizeXLarge: 48
     readonly property int iconSizeXXLarge: 64
 
+    readonly property int fingerWidth: 64 // TODO: determine finger width from screen dimensions and resolution
+
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
     property color mutedForeground: 'gray' //Qt.lighter(Material.background, 2)
@@ -47,7 +49,7 @@ Item {
     property color colorAddressInternal: Qt.rgba(1,0.93,0,0.75)
     property color colorAddressUsed: Qt.rgba(0.5,0.5,0.5,1)
     property color colorAddressUsedWithBalance: Qt.rgba(0.75,0.75,0.75,1)
-    property color colorAddressFrozen: Qt.rgba(0.5,0.5,1,0.75)
+    property color colorAddressFrozen: Qt.rgba(0.5,0.5,1,1)
 
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)

@@ -63,25 +63,8 @@ Pane {
                 width: parent.width
                 spacing: constants.paddingLarge
 
-                RowLayout {
-                    Label {
-                        text: qsTr('Wallet:')
-                        font.pixelSize: constants.fontSizeLarge
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        text: Daemon.currentWallet.name;
-                        font.bold: true
-                        font.pixelSize: constants.fontSizeLarge
-                        Layout.fillWidth: true
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 1
-                    color: Material.accentColor
+                Heading {
+                    text: qsTr('Wallet details')
                 }
 
                 GridLayout {

@@ -33,7 +33,7 @@ import urllib
 import threading
 import hmac
 import stat
-from locale import localeconv
+import locale
 import asyncio
 import urllib.request, urllib.parse, urllib.error
 import builtins
@@ -698,7 +698,11 @@ def format_satoshis_plain(
 # We enforce that we have at least that available.
 assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
 
-DECIMAL_POINT = localeconv()['decimal_point']  # type: str
+# DECIMAL_POINT = locale.localeconv()['decimal_point']  # type: str
+DECIMAL_POINT = "."
+THOUSANDS_SEP = " "
+assert len(DECIMAL_POINT) == 1, f"DECIMAL_POINT has unexpected len. {DECIMAL_POINT!r}"
+assert len(THOUSANDS_SEP) == 1, f"THOUSANDS_SEP has unexpected len. {THOUSANDS_SEP!r}"
 
 
 def format_satoshis(
@@ -737,9 +741,9 @@ def format_satoshis(
         sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
         if sign == "-":
             integer_part = integer_part[1:]
-        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = "{:,}".format(int(integer_part)).replace(',', THOUSANDS_SEP)
         integer_part = sign + integer_part
-        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
+        fract_part = THOUSANDS_SEP.join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
@@ -787,14 +791,14 @@ def format_time(timestamp):
 # Takes a timestamp and returns a string with the approximation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if from_date is None:
-        return "Unknown"
+        return _("Unknown")
 
     from_date = datetime.fromtimestamp(from_date)
     if since_date is None:
         since_date = datetime.now(target_tz)
 
     td = time_difference(from_date - since_date, include_seconds)
-    return td + " ago" if from_date < since_date else "in " + td
+    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
 
 
 def time_difference(distance_in_time, include_seconds):
@@ -804,27 +808,27 @@ def time_difference(distance_in_time, include_seconds):
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return "%s seconds" % distance_in_seconds
+            return _("{} seconds").format(distance_in_seconds)
         else:
-            return "less than a minute"
+            return _("less than a minute")
     elif distance_in_minutes < 45:
-        return "%s minutes" % distance_in_minutes
+        return _("about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        return "about 1 hour"
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        return "about %d hours" % (round(distance_in_minutes / 60.0))
+        return _("about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return "1 day"
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        return "%d days" % (round(distance_in_minutes / 1440))
+        return _("about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return "about 1 month"
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        return "%d months" % (round(distance_in_minutes / 43200))
+        return _("about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 year"
+        return _("about 1 year")
     else:
-        return "over %d years" % (round(distance_in_minutes / 525600))
+        return _("over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
@@ -1518,13 +1522,21 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             _asyncio_event_loop = None
 
     loop.set_exception_handler(on_exception)
-    # loop.set_debug(1)
+    # loop.set_debug(True)
     stopping_fut = loop.create_future()
     loop_thread = threading.Thread(
         target=run_event_loop,
         name='EventLoop',
     )
     loop_thread.start()
+    # Wait until the loop actually starts.
+    # On a slow PC, or with a debugger attached, this can take a few dozens of ms,
+    # and if we returned without a running loop, weird things can happen...
+    t0 = time.monotonic()
+    while not loop.is_running():
+        time.sleep(0.01)
+        if time.monotonic() - t0 > 5:
+            raise Exception("been waiting for 5 seconds but asyncio loop would not start!")
     return loop, stopping_fut, loop_thread
 
 

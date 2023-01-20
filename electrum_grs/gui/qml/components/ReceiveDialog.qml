@@ -23,7 +23,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Close
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     Overlay.modal: Rectangle {
@@ -206,24 +205,9 @@ ElDialog {
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
-                    RowLayout {
+                    FormattedAmount {
                         visible: !request.amount.isEmpty
-                        Label {
-                            text: Config.formatSats(request.amount)
-                            font.family: FixedFont
-                            font.pixelSize: constants.fontSizeMedium
-                            font.bold: true
-                        }
-                        Label {
-                            text: Config.baseUnit
-                            color: Material.accentColor
-                            font.pixelSize: constants.fontSizeMedium
-                        }
-                        Label {
-                            visible: Daemon.fx.enabled
-                            text: '(' + Daemon.fx.fiatValue(request.amount, false) + ' ' + Daemon.fx.fiatCurrency + ')'
-                            font.pixelSize: constants.fontSizeMedium
-                        }
+                        amount: request.amount
                     }
                 }
 

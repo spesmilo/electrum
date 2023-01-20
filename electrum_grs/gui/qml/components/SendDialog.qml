@@ -16,7 +16,6 @@ ElDialog {
 
     parent: Overlay.overlay
     modal: true
-    standardButtons: Dialog.Close
 
     Overlay.modal: Rectangle {
         color: "#aa000000"
@@ -76,12 +75,13 @@ ElDialog {
         ElDialog {
             property alias recipient: recipientTextEdit.text
 
+            iconSource: Qt.resolvedUrl('../../icons/pen.png')
+
             anchors.centerIn: parent
             implicitWidth: parent.width * 0.9
 
             parent: Overlay.overlay
             modal: true
-            standardButtons: Dialog.Ok
 
             Overlay.modal: Rectangle {
                 color: "#aa000000"

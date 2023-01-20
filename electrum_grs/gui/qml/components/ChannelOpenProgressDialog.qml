@@ -13,8 +13,7 @@ ElDialog {
     height: parent.height
 
     title: qsTr('Opening Channel...')
-    standardButtons: Dialog.Close
-    footer.visible: allowClose // work around standardButtons not really mutable to/from zero buttons
+
     allowClose: false
 
     modal: true

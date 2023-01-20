@@ -20,6 +20,7 @@ class QESwapHelper(AuthMixin, QObject):
 
     error = pyqtSignal([str], arguments=['message'])
     confirm = pyqtSignal([str], arguments=['message'])
+    swapStarted = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -355,3 +356,4 @@ class QESwapHelper(AuthMixin, QObject):
             lightning_amount = self._receive_amount
             onchain_amount = self._send_amount
             self.do_normal_swap(lightning_amount, onchain_amount)
+        self.swapStarted.emit()

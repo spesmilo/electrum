@@ -44,16 +44,8 @@ Item {
 
 
         ColumnLayout {
-            Label {
+            Heading {
                 text: qsTr('Servers')
-                font.pixelSize: constants.fontSizeLarge
-                color: Material.accentColor
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Material.accentColor
             }
 
             Frame {

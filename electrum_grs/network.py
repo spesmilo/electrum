@@ -340,6 +340,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.auto_connect = self.config.get('auto_connect', True)
         self.proxy = None
+        self.tor_proxy = False
         self._maybe_set_oneserver()
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
@@ -603,7 +604,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.proxy = proxy
         dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
         self.logger.info(f'setting proxy {proxy}')
-        util.trigger_callback('proxy_set', self.proxy)
+
+        self.tor_proxy = False
+        if bool(proxy) and proxy['mode'] == 'socks5':
+            # test for Tor
+            self.tor_proxy = util.is_tor_socks_port(proxy['host'], int(proxy['port']))
+            if self.tor_proxy:
+                self.logger.info(f'Proxy is TOR')
+
+        util.trigger_callback('proxy_set', self.proxy, self.tor_proxy)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):

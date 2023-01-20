@@ -5,6 +5,8 @@ import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
+import "controls"
+
 Pane {
     id: rootItem
     padding: 0
@@ -143,19 +145,10 @@ Pane {
 
             ColumnLayout {
                 width: parent.width
-                Label {
-                    Layout.topMargin: constants.paddingLarge
-                    Layout.leftMargin: constants.paddingLarge
-                    text: root.section + ' ' + qsTr('addresses')
-                    font.pixelSize: constants.fontSizeLarge
-                    color: Material.accentColor
-                }
-                Rectangle {
+                Heading {
                     Layout.leftMargin: constants.paddingLarge
                     Layout.rightMargin: constants.paddingLarge
-                    Layout.preferredHeight: 1
-                    Layout.fillWidth: true
-                    color: Material.accentColor
+                    text: root.section + ' ' + qsTr('addresses')
                 }
             }
         }

@@ -69,14 +69,6 @@ Item {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
-                text: qsTr('Network');
-                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
-                icon.source: '../../icons/network.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
                 text: qsTr('Channels');
                 enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
                 onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
@@ -160,11 +152,13 @@ Item {
             spacing: 0
 
             FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                icon.source: '../../icons/tab_send.png'
-                text: qsTr('Send')
-                onClicked: openSendDialog()
+                Layout.fillWidth: false
+                Layout.preferredWidth: implicitHeight
+                text: qsTr('≡')
+                onClicked: {
+                    mainView.menu.open()
+                    mainView.menu.y = mainView.height - mainView.menu.height
+                }
             }
             Rectangle {
                 Layout.fillWidth: false
@@ -182,6 +176,20 @@ Item {
                     var dialog = receiveDialog.createObject(mainView)
                     dialog.open()
                 }
+            }
+            Rectangle {
+                Layout.fillWidth: false
+                Layout.preferredWidth: 2
+                Layout.preferredHeight: parent.height * 2/3
+                Layout.alignment: Qt.AlignVCenter
+                color: constants.darkerBackground
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/tab_send.png'
+                text: qsTr('Send')
+                onClicked: openSendDialog()
             }
         }
     }
@@ -260,6 +268,7 @@ Item {
                 }
                 close()
             }
+
             onClosed: destroy()
         }
     }
@@ -307,12 +316,18 @@ Item {
     Component {
         id: confirmPaymentDialog
         ConfirmTxDialog {
+            id: _confirmPaymentDialog
             title: qsTr('Confirm Payment')
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
+                onFinishedSave: {
+                    // tx was (partially) signed and saved. Show QR for co-signers or online wallet
+                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
+                    page.showExport()
+                    _confirmPaymentDialog.destroy()
+                }
             }
-            onClosed: destroy()
         }
     }
 

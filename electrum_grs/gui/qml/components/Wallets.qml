@@ -33,16 +33,8 @@ Pane {
             Layout.preferredWidth: parent.width
             Layout.margins: constants.paddingLarge
 
-            Label {
+            Heading {
                 text: qsTr('Wallets')
-                font.pixelSize: constants.fontSizeLarge
-                color: Material.accentColor
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Material.accentColor
             }
 
             Frame {

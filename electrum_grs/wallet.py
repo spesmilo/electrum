@@ -612,13 +612,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # and not util, also have fx remove it
         text = fx.remove_thousands_separator(text)
         def_fiat = self.default_fiat_value(txid, fx, value_sat)
-        formatted = fx.ccy_amount_str(def_fiat, commas=False)
+        formatted = fx.ccy_amount_str(def_fiat, add_thousands_sep=False)
         def_fiat_rounded = Decimal(formatted)
         reset = not text
         if not reset:
             try:
                 text_dec = Decimal(text)
-                text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, commas=False))
+                text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, add_thousands_sep=False))
                 reset = text_dec_rounded == def_fiat_rounded
             except:
                 # garbage. not resetting, but not saving either
@@ -968,7 +968,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if URI:
             timestamp = URI.get('time')
             exp = URI.get('exp')
-        timestamp = timestamp or int(time.time())
+        timestamp = timestamp or int(Invoice._get_cur_time())
         exp = exp or 0
         invoice = Invoice(
             amount_msat=amount_msat,
@@ -2355,8 +2355,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     if not req.is_lightning() or self.lnworker.get_invoice_status(req) == PR_UNPAID]
         if not reqs:
             return None
-        # note: there typically should not be more than one relevant request for an address
-        return reqs[0]
+        # note: There typically should not be more than one relevant request for an address.
+        #       If there's multiple, return the one created last (see #8113). Consider:
+        #       - there is an old expired req1, and a newer unpaid req2, reusing the same addr (and same amount),
+        #       - now req2 gets paid. however, get_invoice_status will say both req1 and req2 are PAID. (see #8061)
+        #       - as a workaround, we return the request with the larger creation time.
+        reqs.sort(key=lambda req: req.get_time())
+        return reqs[-1]
 
     def get_request(self, request_id: str) -> Optional[Invoice]:
         return self._receive_requests.get(request_id)
@@ -2395,8 +2400,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             d['URI'] = self.get_request_URI(x)
             # if request was paid onchain, add relevant fields
             # note: addr is reused when getting paid on LN! so we check for that.
-            is_paid, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            if is_paid and (not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID):
+            _, conf, tx_hashes = self._is_onchain_invoice_paid(x)
+            if not is_lightning or not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID:
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
@@ -2440,7 +2445,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if tx is None:
             return
         relevant_invoice_keys = set()
-        with self.transaction_lock:
+        with self.lock, self.transaction_lock:
             for txo in tx.outputs():
                 addr = txo.address
                 if request:=self.get_request_by_addr(addr):
@@ -2457,7 +2462,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
-        timestamp = int(time.time())
+        timestamp = int(Invoice._get_cur_time())
         fallback_address = address if self.config.get('bolt11_fallback', True) else None
         lightning = self.has_lightning()
         if lightning:

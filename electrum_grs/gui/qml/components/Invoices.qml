@@ -13,16 +13,8 @@ Pane {
     ColumnLayout {
         anchors.fill: parent
 
-        Label {
+        Heading {
             text: qsTr('Invoices')
-            font.pixelSize: constants.fontSizeLarge
-            color: Material.accentColor
-        }
-
-        Rectangle {
-            height: 1
-            Layout.fillWidth: true
-            color: Material.accentColor
         }
 
         Frame {

@@ -177,22 +177,22 @@ class NewWalletWizard(AbstractWizard):
                 'next': 'confirm_seed'
             },
             'confirm_seed': {
-                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_seed': {
-                'next': self.on_have_seed,
+                'next': self.on_have_or_confirm_seed,
                 'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_bip39_seed(d) and not self.is_multisig(d)
             },
             'bip39_refine': {
-                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
             'have_master_key': {
-                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_show_masterpubkey',
+                'next': lambda d: 'wallet_password' if not self.is_multisig(d) else 'multisig_cosigner_keystore',
                 'accept': self.maybe_master_pubkey,
                 'last': lambda v,d: self.is_single_password() and not self.is_multisig(d)
             },
@@ -255,7 +255,7 @@ class NewWalletWizard(AbstractWizard):
             'masterkey': 'have_master_key'
         }.get(t)
 
-    def on_have_seed(self, wizard_data):
+    def on_have_or_confirm_seed(self, wizard_data):
         if self.is_bip39_seed(wizard_data):
             return 'bip39_refine'
         elif self.is_multisig(wizard_data):

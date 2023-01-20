@@ -123,6 +123,9 @@ class MockWallet:
     def is_mine(self, addr):
         return True
 
+    def get_fingerprint(self):
+        return ''
+
 
 class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     MPP_EXPIRY = 2  # HTLC timestamps are cast to int, so this cannot be 1
@@ -150,8 +153,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.features |= LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
         self.features |= LnFeatures.VAR_ONION_OPT
         self.features |= LnFeatures.PAYMENT_SECRET_OPT
-        self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+        self.features |= LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
         self.features |= LnFeatures.OPTION_CHANNEL_TYPE_OPT
+        self.features |= LnFeatures.OPTION_SCID_ALIAS_OPT
         self.pending_payments = defaultdict(asyncio.Future)
         for chan in chans:
             chan.lnworker = self
@@ -1071,7 +1075,7 @@ class TestPeer(TestCaseForTestnet):
             if mpp_invoice:
                 graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
             if disable_trampoline_receiving:
-                graph.workers['dave'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+                graph.workers['dave'].features &= ~LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
             if not bob_forwarding:
                 graph.workers['bob'].enable_htlc_forwarding = False
             if alice_uses_trampoline:
@@ -1165,7 +1169,7 @@ class TestPeer(TestCaseForTestnet):
         peers = graph.peers.values()
         if is_legacy:
             # turn off trampoline features in invoice
-            graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT
+            graph.workers['dave'].features = graph.workers['dave'].features ^ LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
 
         # declare routing nodes as trampoline nodes
         electrum_grs.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
@@ -1532,9 +1536,9 @@ class TestPeer(TestCaseForTestnet):
                     await peer.initialized
                 await group.spawn(send_weird_messages())
 
-        with self.assertRaises(lnmsg.UnknownMandatoryMsgType):
+        with self.assertRaises(GracefulDisconnect):
             run(f())
-        self.assertTrue(isinstance(failing_task.exception(), lnmsg.UnknownMandatoryMsgType))
+        self.assertTrue(isinstance(failing_task.exception().__cause__, lnmsg.UnknownMandatoryMsgType))
 
     @needs_test_with_all_chacha20_implementations
     def test_sending_weird_messages__known_msg_with_insufficient_length(self):
@@ -1562,9 +1566,9 @@ class TestPeer(TestCaseForTestnet):
                     await peer.initialized
                 await group.spawn(send_weird_messages())
 
-        with self.assertRaises(lnmsg.UnexpectedEndOfStream):
+        with self.assertRaises(GracefulDisconnect):
             run(f())
-        self.assertTrue(isinstance(failing_task.exception(), lnmsg.UnexpectedEndOfStream))
+        self.assertTrue(isinstance(failing_task.exception().__cause__, lnmsg.UnexpectedEndOfStream))
 
 
 def run(coro):

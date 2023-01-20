@@ -148,9 +148,13 @@ class Invoice(StoredObject):
         # 0 means never
         return self.exp + self.time if self.exp else 0
 
+    @staticmethod
+    def _get_cur_time():  # for unit tests
+        return time.time()
+
     def has_expired(self) -> bool:
         exp = self.get_expiration_date()
-        return bool(exp) and exp < time.time()
+        return bool(exp) and exp < self._get_cur_time()
 
     def get_amount_msat(self) -> Union[int, str, None]:
         return self.amount_msat
@@ -266,9 +270,10 @@ class Invoice(StoredObject):
             'description': self._lnaddr.get_description(),
             'exp': self._lnaddr.get_expiry(),
             'time': self._lnaddr.date,
-            # show the last hop of routing hints. (our invoices only have one hop)
-            'r_tags': [ str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in self._lnaddr.get_routing_info('r')[-1]]
         })
+        if ln_routing_info := self._lnaddr.get_routing_info('r'):
+            # show the last hop of routing hints. (our invoices only have one hop)
+            d['r_tags'] = [str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in ln_routing_info[-1]]
         return d
 
     def get_id(self) -> str:

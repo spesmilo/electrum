@@ -28,18 +28,9 @@ Pane {
             width: parent.width
             columns: 2
 
-            Label {
+            Heading {
                 Layout.columnSpan: 2
                 text: qsTr('Lightning payment details')
-                font.pixelSize: constants.fontSizeLarge
-                color: Material.accentColor
-            }
-
-            Rectangle {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                height: 1
-                color: Material.accentColor
             }
 
             Label {

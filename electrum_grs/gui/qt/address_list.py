@@ -288,7 +288,10 @@ class AddressList(MyTreeView):
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:
-            menu.addAction(_("Spend from"), lambda: self.parent.utxo_list.set_spend_list(coins))
+            if self.parent.utxo_list.are_in_coincontrol(coins):
+                menu.addAction(_("Remove from coin control"), lambda: self.parent.utxo_list.remove_from_coincontrol(coins))
+            else:
+                menu.addAction(_("Add to coin control"), lambda: self.parent.utxo_list.add_to_coincontrol(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))

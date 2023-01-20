@@ -869,7 +869,7 @@ class TestLNUtil(ElectrumTestCase):
         self.assertTrue(f1.supports(LnFeatures.PAYMENT_SECRET_OPT))
         self.assertTrue(f1.supports(LnFeatures.BASIC_MPP_REQ))
         self.assertFalse(f1.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT))
-        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM))
 
     def test_lnworker_decode_channel_update_msg(self):
         msg_without_prefix = bytes.fromhex("439b71c8ddeff63004e4ff1f9764a57dcf20232b79d9d669aef0e31c42be8e44208f7d868d0133acb334047f30e9399dece226ccd98e5df5330adf7f356290516fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d619000000000008762700054a00005ef2cf9c0101009000000000000003e80000000000000001000000002367b880")
@@ -896,7 +896,7 @@ class TestLNUtil(ElectrumTestCase):
         features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
         self.assertTrue(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
 
-        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT)
+        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM)
         self.assertFalse(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
 
         # ignore unknown channel types

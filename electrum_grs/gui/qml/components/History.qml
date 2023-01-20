@@ -101,7 +101,7 @@ Pane {
             right: listview.right
             bottom: listview.bottom
         }
-        width: constants.paddingXXLarge
+        width: constants.fingerWidth
         drag.target: dragb
         onPressedChanged: if (pressed) {
             dragb.y = mouseY + listview.y - dragb.height/2
