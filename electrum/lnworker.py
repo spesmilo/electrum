@@ -936,11 +936,12 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
-            if swap.is_reverse and tx_height.height <= 0:
-                label += ' (%s)' % _('waiting for funding tx confirmation')
-            if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
-                label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
+            if self.wallet.adb.is_mine(swap.funding_txid):
+                tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
+                if swap.is_reverse and tx_height.height <= 0:
+                    label += ' (%s)' % _('waiting for funding tx confirmation')
+                if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
+                    label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
             out[txid] = {
                 'txid': txid,
                 'group_id': txid,
