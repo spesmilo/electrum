@@ -1372,6 +1372,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return self._labels.get(tx_hash) or self._get_default_label_for_txid(tx_hash)
 
     def _get_default_label_for_txid(self, tx_hash: str) -> str:
+        if self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
+            return label
         # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
         if not self.db.get_txi_addresses(tx_hash):
             # no inputs are ismine -> likely incoming payment -> concat labels of output addresses

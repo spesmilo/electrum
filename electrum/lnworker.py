@@ -217,7 +217,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.network = None  # type: Optional[Network]
         self.config = None  # type: Optional[SimpleConfig]
         self.stopping_soon = False  # whether we are being shut down
-
+        self._labels_cache = {} # txid -> str
         self.register_callbacks()
 
     @property
@@ -876,6 +876,9 @@ class LNWallet(LNWorker):
             out[payment_hash] = item
         return out
 
+    def get_label_for_txid(self, txid: str) -> str:
+        return self._labels_cache.get(txid)
+
     def get_onchain_history(self):
         current_height = self.wallet.adb.get_local_height()
         out = {}
@@ -886,10 +889,11 @@ class LNWallet(LNWorker):
                 continue
             funding_txid, funding_height, funding_timestamp = item
             tx_height = self.wallet.adb.get_tx_height(funding_txid)
+            self._labels_cache[funding_txid] = _('Open channel') + ' ' + chan.get_id_for_log()
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': self.wallet.get_label_for_txid(funding_txid) or (_('Open channel') + ' ' + chan.get_id_for_log()),
+                'label': self.get_label_for_txid(funding_txid),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': PaymentDirection.RECEIVED,
@@ -906,10 +910,11 @@ class LNWallet(LNWorker):
                 continue
             closing_txid, closing_height, closing_timestamp = item
             tx_height = self.wallet.adb.get_tx_height(closing_txid)
+            self._labels_cache[closing_txid] = _('Close channel') + ' ' + chan.get_id_for_log()
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid': closing_txid,
-                'label': self.wallet.get_label_for_txid(closing_txid) or (_('Close channel') + ' ' + chan.get_id_for_log()),
+                'label': self.get_label_for_txid(closing_txid),
                 'type': 'channel_closure',
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': PaymentDirection.SENT,
@@ -942,13 +947,14 @@ class LNWallet(LNWorker):
                     label += ' (%s)' % _('waiting for funding tx confirmation')
                 if not swap.is_reverse and not swap.is_redeemed and swap.spending_txid is None and delta < 0:
                     label += f' (refundable in {-delta} blocks)' # fixme: only if unspent
+            self._labels_cache[txid] = label
             out[txid] = {
                 'txid': txid,
                 'group_id': txid,
                 'amount_msat': 0,
                 #'amount_msat': amount_msat, # must not be added
                 'type': 'swap',
-                'label': self.wallet.get_label_for_txid(txid) or label,
+                'label': self.get_label_for_txid(txid),
             }
         return out
 
