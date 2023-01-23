@@ -253,11 +253,11 @@ class Satochip_KeyStore(Hardware_KeyStore):
         return self.derivation
         
 
-    def get_client(self):
-        # called when user tries to do something like view address, sign something.
-        # - not called during probing/setup
-        rv = self.plugin.get_client(self)
-        return rv
+    # def get_client(self):
+        # # called when user tries to do something like view address, sign something.
+        # # - not called during probing/setup
+        # rv = self.plugin.get_client(self)
+        # return rv
         
     def give_error(self, message, clear_client=False):
         _logger.info(message)
@@ -271,7 +271,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
         
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         message_byte = message.encode('utf8')
         message_hash = hashlib.sha256(message_byte).hexdigest().upper()
         client = self.get_client()
