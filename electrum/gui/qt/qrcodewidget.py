@@ -192,3 +192,87 @@ class QRDialog(WindowModalDialog):
         #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
         #       workaround:
         self.setMinimumSize(self.sizeHint())
+
+class QRDialogCancellable(WindowModalDialog):
+
+    def __init__(
+            self,
+            *,
+            data,
+            parent=None,
+            title="",
+            show_text=False,
+            help_text=None,
+            show_copy_text_btn=False,
+            config: SimpleConfig,
+            show_cancel_btn=True
+    ):
+        WindowModalDialog.__init__(self, parent, title)
+        self.config = config
+
+        vbox = QVBoxLayout()
+
+        qrw = QRCodeWidget(data, manual_size=True)
+        qrw.setMinimumSize(250, 250)
+        vbox.addWidget(qrw, 1)
+
+        help_text = data if show_text else help_text
+        if help_text:
+            text_label = WWLabel()
+            text_label.setText(help_text)
+            vbox.addWidget(text_label)
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+
+        def print_qr():
+            filename = getSaveFileName(
+                parent=self,
+                title=_("Select where to save file"),
+                filename="qrcode.png",
+                config=self.config,
+            )
+            if not filename:
+                return
+            p = qrw.grab()
+            p.save(filename, 'png')
+            self.show_message(_("QR code saved to file") + " " + filename)
+
+        def copy_image_to_clipboard():
+            p = qrw.grab()
+            QApplication.clipboard().setPixmap(p)
+            self.show_message(_("QR code copied to clipboard"))
+
+        def copy_text_to_clipboard():
+            QApplication.clipboard().setText(data)
+            self.show_message(_("Text copied to clipboard"))
+
+        b = QPushButton(_("Copy Image"))
+        hbox.addWidget(b)
+        b.clicked.connect(copy_image_to_clipboard)
+
+        if show_copy_text_btn:
+            b = QPushButton(_("Copy Text"))
+            hbox.addWidget(b)
+            b.clicked.connect(copy_text_to_clipboard)
+
+        b = QPushButton(_("Save"))
+        hbox.addWidget(b)
+        b.clicked.connect(print_qr)
+
+        b = QPushButton(_("Ok"))
+        hbox.addWidget(b)
+        b.clicked.connect(self.accept)
+        b.setDefault(True)
+        
+        b = QPushButton(_("Cancel"))
+        hbox.addWidget(b)
+        b.clicked.connect(self.reject)
+        b.setDefault(True)
+        
+        vbox.addLayout(hbox)
+        self.setLayout(vbox)
+
+        # note: the word-wrap on the text_label is causing layout sizing issues.
+        #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
+        #       workaround:
+        self.setMinimumSize(self.sizeHint())

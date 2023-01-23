@@ -2,7 +2,7 @@ from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton, CancelButton, WindowModalDialog, WWLabel)
-from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
+from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog, QRDialogCancellable
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout, QLineEdit, QCheckBox)
 from functools import partial
@@ -108,12 +108,12 @@ class SatochipSettingsDialog(WindowModalDialog):
         y = 3
         
         rows = [
-            ('fw_version', _("Firmware Version")),
-            ('sw_version', _("Electrum Support")),
-            ('is_seeded', _("Wallet seeded")),
-            ('needs_2FA', _("Requires 2FA")),     
-            ('needs_SC', _("Secure Channel")),
-            ('card_label', _("Card label")),
+            ('fw_version', _("Firmware Version:")),
+            ('sw_version', _("Electrum Support:")),
+            ('is_seeded', _("Wallet seeded:")),
+            ('needs_2FA', _("Requires 2FA:")),     
+            ('needs_SC', _("Secure Channel:")),
+            ('card_label', _("Card label:")),
         ]
         for row_num, (member_name, label) in enumerate(rows):
             widget = QLabel('<tt>')
@@ -339,20 +339,27 @@ class SatochipSettingsDialog(WindowModalDialog):
                 try:
                     config = SimpleConfig()
                     help_txt="Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: "+ secret_2FA_hex
-                    d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, config=config)
-                    d.exec_()
+                    # QRDialogCancellable is like QRDialog but with an additional cancel button
+                    d = QRDialogCancellable(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, config=config)
+                    result=d.exec_() # result should be 0 or 1
+                    if (result==1):
+                        # further communications will require an id and an encryption key (for privacy). 
+                        # Both are derived from the secret_2FA using a one-way function inside the Satochip
+                        amount_limit= 0 # i.e. always use 
+                        (response, sw1, sw2)=client.cc.card_set_2FA_key(secret_2FA, amount_limit)
+                        if sw1!=0x90 or sw2!=0x00:                 
+                            _logger.info(f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")#debugSatochip
+                            #raise RuntimeError(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
+                            client.handler.show_error(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
+                        else:
+                            client.handler.show_message("2FA enabled successfully!") 
+                    else:
+                        client.handler.show_message("2FA cancelled by user!")  
+                        return
                 except Exception as e:
-                    _logger.info("SatochipPlugin: setup 2FA error: "+str(e))
+                    _logger.info(f"SatochipPlugin: setup 2FA error: {e}")
+                    client.handler.show_error(f'Unable to setup 2FA with error code: {e}')  
                     return
-                # further communications will require an id and an encryption key (for privacy). 
-                # Both are derived from the secret_2FA using a one-way function inside the Satochip
-                amount_limit= 0 # i.e. always use 
-                (response, sw1, sw2)=client.cc.card_set_2FA_key(secret_2FA, amount_limit)
-                if sw1!=0x90 or sw2!=0x00:                 
-                    _logger.info(f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")#debugSatochip
-                    raise RuntimeError(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
-                else:
-                    client.handler.show_message("2FA enabled successfully!") 
                     
     def reset_2FA(self, client):
         if client.cc.needs_2FA: 
