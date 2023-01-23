@@ -213,35 +213,6 @@ class TestLNMsg(TestCaseForTestnet):
                           ),
                          decode_msg(bfh("01020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000000d43100006f00025e6ed0830100009000000000000000c8000001f400000023000000003b9aca00")))
 
-    def test_encode_decode_msg__missing_optional_field_will_not_appear_in_decoded_dict(self):
-        # "channel_update": optional field "htlc_maximum_msat" missing -> does not get put into dict
-        self.assertEqual(bfh("01020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000000d43100006f00025e6ed0830100009000000000000000c8000001f400000023"),
-                         encode_msg(
-                             "channel_update",
-                             short_channel_id=ShortChannelID.from_components(54321, 111, 2),
-                             channel_flags=b'\x00',
-                             message_flags=b'\x01',
-                             cltv_expiry_delta=144,
-                             htlc_minimum_msat=200,
-                             fee_base_msat=500,
-                             fee_proportional_millionths=35,
-                             chain_hash=constants.net.rev_genesis_bytes(),
-                             timestamp=1584320643,
-                         ))
-        self.assertEqual(('channel_update',
-                         {'chain_hash': b'CI\x7f\xd7\xf8&\x95q\x08\xf4\xa3\x0f\xd9\xce\xc3\xae\xbay\x97 \x84\xe9\x0e\xad\x01\xea3\t\x00\x00\x00\x00',
-                          'channel_flags': b'\x00',
-                          'cltv_expiry_delta': 144,
-                          'fee_base_msat': 500,
-                          'fee_proportional_millionths': 35,
-                          'htlc_minimum_msat': 200,
-                          'message_flags': b'\x01',
-                          'short_channel_id': b'\x00\xd41\x00\x00o\x00\x02',
-                          'signature': bytes(64),
-                          'timestamp': 1584320643}
-                          ),
-                         decode_msg(bfh("01020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000000d43100006f00025e6ed0830100009000000000000000c8000001f400000023")))
-
     def test_encode_decode_msg__ints_can_be_passed_as_bytes(self):
         self.assertEqual(bfh("01020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000043497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea33090000000000d43100006f00025e6ed0830100009000000000000000c8000001f400000023000000003b9aca00"),
                          encode_msg(

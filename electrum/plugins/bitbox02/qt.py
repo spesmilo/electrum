@@ -66,19 +66,10 @@ class Plugin(BitBox02Plugin, QtPluginBase):
 
 
 class BitBox02_Handler(QtHandlerBase):
+    MESSAGE_DIALOG_TITLE = _("BitBox02 Status")
 
     def __init__(self, win):
         super(BitBox02_Handler, self).__init__(win, "BitBox02")
-
-    def message_dialog(self, msg):
-        self.clear_dialog()
-        self.dialog = dialog = WindowModalDialog(
-            self.top_level_window(), _("BitBox02 Status")
-        )
-        l = QLabel(msg)
-        vbox = QVBoxLayout(dialog)
-        vbox.addWidget(l)
-        dialog.show()
 
     def name_multisig_account(self):
         return QMetaObject.invokeMethod(

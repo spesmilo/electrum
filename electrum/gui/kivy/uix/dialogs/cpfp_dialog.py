@@ -11,8 +11,7 @@ if TYPE_CHECKING:
     from ...main_window import ElectrumWindow
 
 from .fee_dialog import FeeSliderDialog
-from electrum.gui.qt.amountedit import BTCAmountEdit
-from electrum.util import format_satoshis_plain
+
 
 Builder.load_string('''
 <CPFPDialog@Popup>

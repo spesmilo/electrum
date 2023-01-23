@@ -9,7 +9,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
-                             ln_compare_features, IncompatibleLightningFeatures)
+                             ln_compare_features, IncompatibleLightningFeatures, ChannelType)
 from electrum.util import bh2u, bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction
 from electrum.lnworker import LNWallet
@@ -504,10 +504,10 @@ class TestLNUtil(ElectrumTestCase):
 
         htlc_obj = {}
         for num, msat in [(0, 1000 * 1000),
-            (2, 2000 * 1000),
-            (1, 2000 * 1000),
-            (3, 3000 * 1000),
-            (4, 4000 * 1000)]:
+                          (2, 2000 * 1000),
+                          (1, 2000 * 1000),
+                          (3, 3000 * 1000),
+                          (4, 4000 * 1000)]:
             htlc_obj[num] = UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_expiry=0, htlc_id=None, timestamp=0)
         htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
@@ -869,7 +869,7 @@ class TestLNUtil(ElectrumTestCase):
         self.assertTrue(f1.supports(LnFeatures.PAYMENT_SECRET_OPT))
         self.assertTrue(f1.supports(LnFeatures.BASIC_MPP_REQ))
         self.assertFalse(f1.supports(LnFeatures.OPTION_STATIC_REMOTEKEY_OPT))
-        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ))
+        self.assertFalse(f1.supports(LnFeatures.OPTION_TRAMPOLINE_ROUTING_REQ_ELECTRUM))
 
     def test_lnworker_decode_channel_update_msg(self):
         msg_without_prefix = bytes.fromhex("439b71c8ddeff63004e4ff1f9764a57dcf20232b79d9d669aef0e31c42be8e44208f7d868d0133acb334047f30e9399dece226ccd98e5df5330adf7f356290516fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d619000000000008762700054a00005ef2cf9c0101009000000000000003e80000000000000001000000002367b880")
@@ -890,3 +890,15 @@ class TestLNUtil(ElectrumTestCase):
         self.assertEqual(
             None,
             LNWallet._decode_channel_update_msg(bytes.fromhex("0101") + msg_without_prefix))
+
+    def test_channel_type(self):
+        # test compliance and non compliance with LN features
+        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT)
+        self.assertTrue(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
+
+        features = LnFeatures(LnFeatures.BASIC_MPP_OPT | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM)
+        self.assertFalse(ChannelType.OPTION_STATIC_REMOTEKEY.complies_with_features(features))
+
+        # ignore unknown channel types
+        channel_type = ChannelType(0b10000000001000000000010).discard_unknown_and_check()
+        self.assertEqual(ChannelType(0b10000000001000000000000), channel_type)

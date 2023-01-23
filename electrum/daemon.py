@@ -33,16 +33,18 @@ from typing import Dict, Optional, Tuple, Iterable, Callable, Union, Sequence, M
 from base64 import b64decode, b64encode
 from collections import defaultdict
 import json
+import socket
 
 import aiohttp
 from aiohttp import web, client_exceptions
-from aiorpcx import TaskGroup, timeout_after, TaskTimeout, ignore_after
+from aiorpcx import timeout_after, TaskTimeout, ignore_after
 
 from . import util
 from .network import Network
 from .util import (json_decode, to_bytes, to_string, profiler, standardize_path, constant_time_compare)
 from .invoices import PR_PAID, PR_EXPIRED
-from .util import log_exceptions, ignore_exceptions, randrange
+from .util import log_exceptions, ignore_exceptions, randrange, OldTaskGroup
+from .util import EventListener, event_listener
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .wallet_db import WalletDB
@@ -50,6 +52,8 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
+from . import GuiImportError
+from .plugin import run_hook
 
 if TYPE_CHECKING:
     from electrum import gui
@@ -61,9 +65,21 @@ _logger = get_logger(__name__)
 class DaemonNotRunning(Exception):
     pass
 
+def get_rpcsock_defaultpath(config: SimpleConfig):
+    return os.path.join(config.path, 'daemon_rpc_socket')
+
+def get_rpcsock_default_type(config: SimpleConfig):
+    if config.get('rpcport'):
+        return 'tcp'
+    # Use unix domain sockets when available,
+    # with the extra paranoia that in case windows "implements" them,
+    # we want to test it before making it the default there.
+    if hasattr(socket, 'AF_UNIX') and sys.platform != 'win32':
+        return 'unix'
+    return 'tcp'
+
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
-
 
 def remove_lockfile(lockfile):
     os.unlink(lockfile)
@@ -71,9 +87,9 @@ def remove_lockfile(lockfile):
 
 def get_file_descriptor(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
-    prevent races.  If it succeeds it returns the FD.
-    Otherwise try and connect to the server specified in the lockfile.
-    If this succeeds, the server is returned.  Otherwise remove the
+    prevent races.  If it succeeds, it returns the FD.
+    Otherwise, try and connect to the server specified in the lockfile.
+    If this succeeds, the server is returned.  Otherwise, remove the
     lockfile and try again.'''
     lockfile = get_lockfile(config)
     while True:
@@ -96,15 +112,29 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         create_time = None
         try:
             with open(lockfile) as f:
-                (host, port), create_time = ast.literal_eval(f.read())
+                socktype, address, create_time = ast.literal_eval(f.read())
+                if socktype == 'unix':
+                    path = address
+                    (host, port) = "127.0.0.1", 0
+                    # We still need a host and port for e.g. HTTP Host header
+                elif socktype == 'tcp':
+                    (host, port) = address
+                else:
+                    raise Exception(f"corrupt lockfile; socktype={socktype!r}")
         except Exception:
             raise DaemonNotRunning()
         rpc_user, rpc_password = get_rpc_credentials(config)
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
-        loop = asyncio.get_event_loop()
+        loop = util.get_asyncio_loop()
         async def request_coroutine():
-            async with aiohttp.ClientSession(auth=auth) as session:
+            if socktype == 'unix':
+                connector = aiohttp.UnixConnector(path=path)
+            elif socktype == 'tcp':
+                connector = None # This will transform into TCP.
+            else:
+                raise Exception(f"impossible socktype ({socktype!r})")
+            async with aiohttp.ClientSession(auth=auth, connector=connector) as session:
                 c = util.JsonRPCClient(session, server_url)
                 return await c.request(endpoint, *args)
         try:
@@ -225,6 +255,9 @@ class CommandsServer(AuthenticatedServer):
         self.daemon = daemon
         self.fd = fd
         self.config = daemon.config
+        sockettype = self.config.get('rpcsock', 'auto')
+        self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
+        self.sockpath = self.config.get('rpcsockpath', get_rpcsock_defaultpath(self.config))
         self.host = self.config.get('rpchost', '127.0.0.1')
         self.port = self.config.get('rpcport', 0)
         self.app = web.Application()
@@ -236,14 +269,37 @@ class CommandsServer(AuthenticatedServer):
             self.register_method(getattr(self.cmd_runner, cmdname))
         self.register_method(self.run_cmdline)
 
+    def _socket_config_str(self) -> str:
+        if self.socktype == 'unix':
+            return f"<socket type={self.socktype}, path={self.sockpath}>"
+        elif self.socktype == 'tcp':
+            return f"<socket type={self.socktype}, host={self.host}, port={self.port}>"
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
+
     async def run(self):
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
-        await site.start()
+        if self.socktype == 'unix':
+            site = web.UnixSite(self.runner, self.sockpath)
+        elif self.socktype == 'tcp':
+            site = web.TCPSite(self.runner, self.host, self.port)
+        else:
+            raise Exception(f"unknown socktype '{self.socktype!r}'")
+        try:
+            await site.start()
+        except Exception as e:
+            raise Exception(f"failed to start CommandsServer at {self._socket_config_str()}. got exc: {e!r}") from None
         socket = site._server.sockets[0]
-        os.write(self.fd, bytes(repr((socket.getsockname(), time.time())), 'utf8'))
+        if self.socktype == 'unix':
+            addr = self.sockpath
+        elif self.socktype == 'tcp':
+            addr = socket.getsockname()
+        else:
+            raise Exception(f"impossible socktype ({self.socktype!r})")
+        os.write(self.fd, bytes(repr((self.socktype, addr, time.time())), 'utf8'))
         os.close(self.fd)
+        self.logger.info(f"now running and listening. socktype={self.socktype}, addr={addr}")
 
     async def ping(self):
         return True
@@ -304,111 +360,21 @@ class WatchTowerServer(AuthenticatedServer):
         await self.runner.setup()
         site = web.TCPSite(self.runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
         await site.start()
+        self.logger.info(f"now running and listening. addr={self.addr}")
 
     async def get_ctn(self, *args):
-        return await self.lnwatcher.sweepstore.get_ctn(*args)
+        return await self.lnwatcher.get_ctn(*args)
 
     async def add_sweep_tx(self, *args):
         return await self.lnwatcher.sweepstore.add_sweep_tx(*args)
 
-
-class PayServer(Logger):
-
-    def __init__(self, daemon: 'Daemon', netaddress):
-        Logger.__init__(self)
-        self.addr = netaddress
-        self.daemon = daemon
-        self.config = daemon.config
-        self.pending = defaultdict(asyncio.Event)
-        util.register_callback(self.on_payment, ['request_status'])
-
-    @property
-    def wallet(self):
-        # FIXME specify wallet somehow?
-        return list(self.daemon.get_wallets().values())[0]
-
-    async def on_payment(self, evt, wallet, key, status):
-        if status == PR_PAID:
-            self.pending[key].set()
-
-    @ignore_exceptions
-    @log_exceptions
-    async def run(self):
-        root = self.config.get('payserver_root', '/r')
-        app = web.Application()
-        app.add_routes([web.get('/api/get_invoice', self.get_request)])
-        app.add_routes([web.get('/api/get_status', self.get_status)])
-        app.add_routes([web.get('/bip70/{key}.bip70', self.get_bip70_request)])
-        app.add_routes([web.static(root, os.path.join(os.path.dirname(__file__), 'www'))])
-        if self.config.get('payserver_allow_create_invoice'):
-            app.add_routes([web.post('/api/create_invoice', self.create_request)])
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, host=str(self.addr.host), port=self.addr.port, ssl_context=self.config.get_ssl_context())
-        await site.start()
-
-    async def create_request(self, request):
-        params = await request.post()
-        wallet = self.wallet
-        if 'amount_sat' not in params or not params['amount_sat'].isdigit():
-            raise web.HTTPUnsupportedMediaType()
-        amount = int(params['amount_sat'])
-        message = params['message'] or "donation"
-        payment_hash = wallet.lnworker.add_request(
-            amount_sat=amount,
-            message=message,
-            expiry=3600)
-        key = payment_hash.hex()
-        raise web.HTTPFound(self.root + '/pay?id=' + key)
-
-    async def get_request(self, r):
-        key = r.query_string
-        request = self.wallet.get_formatted_request(key)
-        return web.json_response(request)
-
-    async def get_bip70_request(self, r):
-        from .paymentrequest import make_request
-        key = r.match_info['key']
-        request = self.wallet.get_request(key)
-        if not request:
-            return web.HTTPNotFound()
-        pr = make_request(self.config, request)
-        return web.Response(body=pr.SerializeToString(), content_type='application/bitcoin-paymentrequest')
-
-    async def get_status(self, request):
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
-        key = request.query_string
-        info = self.wallet.get_formatted_request(key)
-        if not info:
-            await ws.send_str('unknown invoice')
-            await ws.close()
-            return ws
-        if info.get('status') == PR_PAID:
-            await ws.send_str(f'paid')
-            await ws.close()
-            return ws
-        if info.get('status') == PR_EXPIRED:
-            await ws.send_str(f'expired')
-            await ws.close()
-            return ws
-        while True:
-            try:
-                await asyncio.wait_for(self.pending[key].wait(), 1)
-                break
-            except asyncio.TimeoutError:
-                # send data on the websocket, to keep it alive
-                await ws.send_str('waiting')
-        await ws.send_str('paid')
-        await ws.close()
-        return ws
 
 
 
 class Daemon(Logger):
 
     network: Optional[Network]
-    gui_object: Optional[Union['gui.qt.ElectrumGui', 'gui.kivy.ElectrumGui']]
+    gui_object: Optional['gui.BaseElectrumGui']
 
     @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
@@ -422,7 +388,7 @@ class Daemon(Logger):
         if 'wallet_path' in config.cmdline_options:
             self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
                                 "Use the load_wallet command instead.")
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         self.network = None
         if not config.get('offline'):
             self.network = Network(config, daemon=self)
@@ -430,18 +396,13 @@ class Daemon(Logger):
         self.gui_object = None
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
+        self._wallet_lock = threading.RLock()
         daemon_jobs = []
         # Setup commands server
         self.commands_server = None
         if listen_jsonrpc:
             self.commands_server = CommandsServer(self, fd)
             daemon_jobs.append(self.commands_server.run())
-        # pay server
-        self.pay_server = None
-        payserver_address = self.config.get_netaddress('payserver_address')
-        if not config.get('offline') and payserver_address:
-            self.pay_server = PayServer(self, payserver_address)
-            daemon_jobs.append(self.pay_server.run())
         # server-side watchtower
         self.watchtower = None
         watchtower_address = self.config.get_netaddress('watchtower_address')
@@ -454,9 +415,10 @@ class Daemon(Logger):
             if self.config.get('use_gossip', False):
                 self.network.start_gossip()
 
-        self.stopping_soon = threading.Event()
-        self.stopped_event = asyncio.Event()
-        self.taskgroup = TaskGroup()
+        self._stop_entered = False
+        self._stopping_soon_or_errored = threading.Event()
+        self._stopped_event = threading.Event()
+        self.taskgroup = OldTaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
 
     @log_exceptions
@@ -468,20 +430,44 @@ class Daemon(Logger):
             async with self.taskgroup as group:
                 [await group.spawn(job) for job in jobs]
                 await group.spawn(asyncio.Event().wait)  # run forever (until cancel)
-        except asyncio.CancelledError:
-            raise
         except Exception as e:
             self.logger.exception("taskgroup died.")
+            util.send_exception_to_crash_reporter(e)
         finally:
             self.logger.info("taskgroup stopped.")
-            self.stopping_soon.set()
+            # note: we could just "await self.stop()", but in that case GUI users would
+            #       not see the exception (especially if the GUI did not start yet).
+            self._stopping_soon_or_errored.set()
 
+    def with_wallet_lock(func):
+        def func_wrapper(self: 'Daemon', *args, **kwargs):
+            with self._wallet_lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
+
+    @with_wallet_lock
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         # wizard will be launched if we return
         if path in self._wallets:
             wallet = self._wallets[path]
             return wallet
+        wallet = self._load_wallet(path, password, manual_upgrades=manual_upgrades, config=self.config)
+        if wallet is None:
+            return
+        wallet.start_network(self.network)
+        self.add_wallet(wallet)
+        return wallet
+
+    @staticmethod
+    def _load_wallet(
+            path,
+            password,
+            *,
+            manual_upgrades: bool = True,
+            config: SimpleConfig,
+    ) -> Optional[Abstract_Wallet]:
+        path = standardize_path(path)
         storage = WalletStorage(path)
         if not storage.file_exists():
             return
@@ -497,20 +483,21 @@ class Daemon(Logger):
             return
         if db.get_action():
             return
-        wallet = Wallet(db, storage, config=self.config)
-        wallet.start_network(self.network)
-        self._wallets[path] = wallet
+        wallet = Wallet(db, storage, config=config)
         return wallet
 
+    @with_wallet_lock
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
         path = wallet.storage.path
         path = standardize_path(path)
         self._wallets[path] = wallet
+        run_hook('daemon_wallet_loaded', self, wallet)
 
     def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
         return self._wallets.get(path)
 
+    @with_wallet_lock
     def get_wallets(self) -> Dict[str, Abstract_Wallet]:
         return dict(self._wallets)  # copy
 
@@ -527,6 +514,7 @@ class Daemon(Logger):
         fut = asyncio.run_coroutine_threadsafe(self._stop_wallet(path), self.asyncio_loop)
         return fut.result()
 
+    @with_wallet_lock
     async def _stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
         path = standardize_path(path)
@@ -538,55 +526,125 @@ class Daemon(Logger):
 
     def run_daemon(self):
         try:
-            self.stopping_soon.wait()
+            self._stopping_soon_or_errored.wait()
         except KeyboardInterrupt:
-            self.stopping_soon.set()
-        self.on_stop()
+            self.logger.info("got KeyboardInterrupt")
+        # we either initiate shutdown now,
+        # or it has already been initiated (in which case this is a no-op):
+        self.logger.info("run_daemon is calling stop()")
+        asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+        # wait until "stop" finishes:
+        self._stopped_event.wait()
 
     async def stop(self):
-        self.stopping_soon.set()
-        await self.stopped_event.wait()
-
-    def on_stop(self):
+        if self._stop_entered:
+            return
+        self._stop_entered = True
+        self._stopping_soon_or_errored.set()
+        self.logger.info("stop() entered. initiating shutdown")
         try:
-            self.logger.info("on_stop() entered. initiating shutdown")
             if self.gui_object:
                 self.gui_object.stop()
-
-            async def stop_async():
-                self.logger.info("stopping all wallets")
-                async with TaskGroup() as group:
-                    for k, wallet in self._wallets.items():
-                        await group.spawn(wallet.stop())
-                self.logger.info("stopping network and taskgroup")
-                async with ignore_after(2):
-                    async with TaskGroup() as group:
-                        if self.network:
-                            await group.spawn(self.network.stop(full_shutdown=True))
-                        await group.spawn(self.taskgroup.cancel_remaining())
-
-            fut = asyncio.run_coroutine_threadsafe(stop_async(), self.asyncio_loop)
-            fut.result()
+            self.logger.info("stopping all wallets")
+            async with OldTaskGroup() as group:
+                for k, wallet in self._wallets.items():
+                    await group.spawn(wallet.stop())
+            self.logger.info("stopping network and taskgroup")
+            async with ignore_after(2):
+                async with OldTaskGroup() as group:
+                    if self.network:
+                        await group.spawn(self.network.stop(full_shutdown=True))
+                    await group.spawn(self.taskgroup.cancel_remaining())
         finally:
             if self.listen_jsonrpc:
                 self.logger.info("removing lockfile")
                 remove_lockfile(get_lockfile(self.config))
             self.logger.info("stopped")
-            self.asyncio_loop.call_soon_threadsafe(self.stopped_event.set)
+            self._stopped_event.set()
 
     def run_gui(self, config, plugins):
-        threading.current_thread().setName('GUI')
+        threading.current_thread().name = 'GUI'
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')
         try:
-            gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
-            self.gui_object = gui.ElectrumGui(config, self, plugins)
-            self.gui_object.main()
+            try:
+                gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
+            except GuiImportError as e:
+                sys.exit(str(e))
+            self.gui_object = gui.ElectrumGui(config=config, daemon=self, plugins=plugins)
+            if not self._stop_entered:
+                self.gui_object.main()
+            else:
+                # If daemon.stop() was called before gui_object got created, stop gui now.
+                self.gui_object.stop()
         except BaseException as e:
             self.logger.error(f'GUI raised exception: {repr(e)}. shutting down.')
             raise
         finally:
             # app will exit now
-            self.on_stop()
+            asyncio.run_coroutine_threadsafe(self.stop(), self.asyncio_loop).result()
+
+    @with_wallet_lock
+    def _check_password_for_directory(self, *, old_password, new_password=None, wallet_dir: str) -> Tuple[bool, bool]:
+        """Checks password against all wallets (in dir), returns whether they can be unified and whether they are already.
+        If new_password is not None, update all wallet passwords to new_password.
+        """
+        assert os.path.exists(wallet_dir), f"path {wallet_dir!r} does not exist"
+        failed = []
+        is_unified = True
+        for filename in os.listdir(wallet_dir):
+            path = os.path.join(wallet_dir, filename)
+            path = standardize_path(path)
+            if not os.path.isfile(path):
+                continue
+            wallet = self.get_wallet(path)
+            if wallet is None:
+                try:
+                    wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
+                except util.InvalidPassword:
+                    pass
+                except Exception:
+                    self.logger.exception(f'failed to load wallet at {path!r}:')
+                    pass
+            if wallet is None:
+                failed.append(path)
+                continue
+            if not wallet.storage.is_encrypted():
+                is_unified = False
+            try:
+                wallet.check_password(old_password)
+            except Exception:
+                failed.append(path)
+                continue
+            if new_password:
+                self.logger.info(f'updating password for wallet: {path!r}')
+                wallet.update_password(old_password, new_password, encrypt_storage=True)
+        can_be_unified = failed == []
+        is_unified = can_be_unified and is_unified
+        return can_be_unified, is_unified
+
+    @with_wallet_lock
+    def update_password_for_directory(
+            self,
+            *,
+            old_password,
+            new_password,
+            wallet_dir: Optional[str] = None,
+    ) -> bool:
+        """returns whether password is unified"""
+        if new_password is None:
+            # we opened a non-encrypted wallet
+            return False
+        if wallet_dir is None:
+            wallet_dir = os.path.dirname(self.config.get_wallet_path())
+        can_be_unified, is_unified = self._check_password_for_directory(
+            old_password=old_password, new_password=None, wallet_dir=wallet_dir)
+        if not can_be_unified:
+            return False
+        if is_unified and old_password == new_password:
+            return True
+        self._check_password_for_directory(
+            old_password=old_password, new_password=new_password, wallet_dir=wallet_dir)
+        return True

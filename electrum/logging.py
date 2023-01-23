@@ -9,9 +9,12 @@ import sys
 import pathlib
 import os
 import platform
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import copy
 import subprocess
+
+if TYPE_CHECKING:
+    from .simple_config import SimpleConfig
 
 
 class LogFormatterForFiles(logging.Formatter):
@@ -33,17 +36,21 @@ file_formatter = LogFormatterForFiles(fmt="%(asctime)22s | %(levelname)8s | %(na
 
 class LogFormatterForConsole(logging.Formatter):
 
+    def formatTime(self, record, datefmt=None):
+        t = record.relativeCreated / 1000
+        return f"{t:6.2f}"
+
     def format(self, record):
+        record = copy.copy(record)  # avoid mutating arg
         record = _shorten_name_of_logrecord(record)
+        if shortcut := getattr(record, 'custom_shortcut', None):
+            record.name = f"{shortcut}/{record.name}"
         text = super().format(record)
-        shortcut = getattr(record, 'custom_shortcut', None)
-        if shortcut:
-            text = text[:1] + f"/{shortcut}" + text[1:]
         return text
 
 
 # try to make console log lines short... no timestamp, short levelname, no "electrum."
-console_formatter = LogFormatterForConsole(fmt="%(levelname).1s | %(name)s | %(message)s")
+console_formatter = LogFormatterForConsole(fmt="%(asctime)s | %(levelname).1s | %(name)s | %(message)s")
 
 
 def _shorten_name_of_logrecord(record: logging.LogRecord) -> logging.LogRecord:
@@ -306,17 +313,18 @@ class Logger:
         return ''
 
 
-def configure_logging(config):
+def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = None) -> None:
+    from .util import is_android_debug_apk
+
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
+    if not verbosity and config.get('gui_enable_debug_logs'):
+        verbosity = '*'
     _configure_stderr_logging(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
-    log_to_file = config.get('log_to_file', False)
-    is_android = 'ANDROID_DATA' in os.environ
-    if is_android:
-        from jnius import autoclass
-        build_config = autoclass("org.electrum.electrum.BuildConfig")
-        log_to_file |= bool(build_config.DEBUG)
+    if log_to_file is None:
+        log_to_file = config.get('log_to_file', False)
+        log_to_file |= is_android_debug_apk()
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"
         _configure_file_logging(log_directory)
@@ -349,9 +357,9 @@ def get_logfile_path() -> Optional[pathlib.Path]:
 
 def describe_os_version() -> str:
     if 'ANDROID_DATA' in os.environ:
-        from kivy import utils
-        if utils.platform != "android":
-            return utils.platform
+        #from kivy import utils
+        #if utils.platform != "android":
+        #    return utils.platform
         import jnius
         bv = jnius.autoclass('android.os.Build$VERSION')
         b = jnius.autoclass('android.os.Build')

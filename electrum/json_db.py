@@ -98,7 +98,7 @@ class StoredDict(dict):
             if not self.db or self.db._should_convert_to_stored_dict(key):
                 v = StoredDict(v, self.db, self.path + [key])
         # convert_value is called depth-first
-        if isinstance(v, dict) or isinstance(v, str):
+        if isinstance(v, dict) or isinstance(v, str) or isinstance(v, int):
             if self.db:
                 v = self.db._convert_value(self.path, key, v)
         # set parent of StoredObject
@@ -166,6 +166,20 @@ class JsonDB(Logger):
             self.data.pop(key)
             return True
         return False
+
+    @locked
+    def get_dict(self, name) -> dict:
+        # Warning: interacts un-intuitively with 'put': certain parts
+        # of 'data' will have pointers saved as separate variables.
+        if name not in self.data:
+            self.data[name] = {}
+        return self.data[name]
+
+    def _convert_dict(self, path, key, v):
+        return v
+
+    def _convert_value(self, path, key, v):
+        return v
 
     @locked
     def dump(self, *, human_readable: bool = True) -> str:

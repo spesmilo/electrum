@@ -31,9 +31,9 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
 from electrum.i18n import _
-from electrum.invoices import LNInvoice
+from electrum.lnworker import PaymentDirection
 
-from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT
+from .util import WindowModalDialog, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, font_height
 from .qrtextedit import ShowQRTextEdit
 
 if TYPE_CHECKING:
@@ -46,7 +46,8 @@ class LightningTxDialog(WindowModalDialog):
     def __init__(self, parent: 'ElectrumWindow', tx_item: dict):
         WindowModalDialog.__init__(self, parent, _("Lightning Payment"))
         self.parent = parent
-        self.is_sent = bool(tx_item['direction'] == 'sent')
+        self.config = parent.config
+        self.is_sent = tx_item['direction'] == PaymentDirection.SENT
         self.label = tx_item['label']
         self.timestamp = tx_item['timestamp']
         self.amount = Decimal(tx_item['amount_msat']) / 1000
@@ -55,59 +56,31 @@ class LightningTxDialog(WindowModalDialog):
         invoice = (self.parent.wallet.get_invoice(self.payment_hash)
                    or self.parent.wallet.get_request(self.payment_hash))
         if invoice:
-            assert isinstance(invoice, LNInvoice), f"{self.invoice!r}"
-            self.invoice = invoice.invoice
+            assert invoice.is_lightning(), f"{self.invoice!r}"
+            self.invoice = invoice.lightning_invoice
         else:
             self.invoice = ''
-
         self.setMinimumWidth(700)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
-
         amount_str = self.parent.format_amount_and_units(self.amount, timestamp=self.timestamp)
         vbox.addWidget(QLabel(_("Amount") + f": {amount_str}"))
         if self.is_sent:
-            fee = Decimal(tx_item['fee_msat']) / 1000
-            fee_str = self.parent.format_amount_and_units(fee, timestamp=self.timestamp)
+            fee_msat = tx_item['fee_msat']
+            fee_sat = Decimal(fee_msat) / 1000 if fee_msat is not None else None
+            fee_str = self.parent.format_amount_and_units(fee_sat, timestamp=self.timestamp)
             vbox.addWidget(QLabel(_("Fee") + f": {fee_str}"))
         time_str = datetime.datetime.fromtimestamp(self.timestamp).isoformat(' ')[:-3]
         vbox.addWidget(QLabel(_("Date") + ": " + time_str))
-
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-
         vbox.addWidget(QLabel(_("Payment hash") + ":"))
-        self.hash_e = ButtonsLineEdit(self.payment_hash)
-        self.hash_e.addCopyButton(self.parent.app)
-        self.hash_e.addButton(qr_icon,
-                              self.show_qr(self.hash_e, _("Payment hash")),
-                              _("Show QR Code"))
-        self.hash_e.setReadOnly(True)
-        self.hash_e.setFont(QFont(MONOSPACE_FONT))
+        self.hash_e = ShowQRLineEdit(self.payment_hash, self.config, title=_("Payment hash"))
         vbox.addWidget(self.hash_e)
-
         vbox.addWidget(QLabel(_("Preimage") + ":"))
-        self.preimage_e = ButtonsLineEdit(self.preimage)
-        self.preimage_e.addCopyButton(self.parent.app)
-        self.preimage_e.addButton(qr_icon,
-                                  self.show_qr(self.preimage_e, _("Preimage")),
-                                  _("Show QR Code"))
-        self.preimage_e.setReadOnly(True)
-        self.preimage_e.setFont(QFont(MONOSPACE_FONT))
+        self.preimage_e = ShowQRLineEdit(self.preimage, self.config, title=_("Preimage"))
         vbox.addWidget(self.preimage_e)
-
         vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
-        self.invoice_e = ShowQRTextEdit(self.invoice, config=parent.config)
-        self.invoice_e.setMaximumHeight(150)
-        self.invoice_e.addCopyButton(self.parent.app)
+        self.invoice_e = ShowQRTextEdit(self.invoice, config=self.config)
+        self.invoice_e.setMaximumHeight(max(150, 10 * font_height()))
+        self.invoice_e.addCopyButton()
         vbox.addWidget(self.invoice_e)
-
         vbox.addLayout(Buttons(CloseButton(self)))
-
-    def show_qr(self, line_edit, title=''):
-        def f():
-            text = line_edit.text()
-            try:
-                self.parent.show_qrcode(text, title, parent=self)
-            except Exception as e:
-                self.show_message(repr(e))
-        return f

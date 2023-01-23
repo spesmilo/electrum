@@ -49,8 +49,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
                          local_amount, remote_amount, privkeys, other_pubkeys,
                          seed, cur, nex, other_node_id, l_dust, r_dust, l_csv,
                          r_csv):
-    assert local_amount > 0
-    assert remote_amount > 0
+    #assert local_amount > 0
+    #assert remote_amount > 0
     channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
     state = {
             "channel_id":channel_id.hex(),
@@ -107,6 +107,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, is_initiator,
             'fail_htlc_reasons': {},
             'unfulfilled_htlcs': {},
             'revocation_store': {},
+            'channel_type': lnutil.ChannelType.OPTION_STATIC_REMOTEKEY
     }
     return StoredDict(state, None, [])
 
@@ -532,7 +533,7 @@ class TestChannel(ElectrumTestCase):
         self.assertEqual(bob_channel.total_msat(SENT), 5 * one_bitcoin_in_msat, "bob satoshis sent incorrect")
 
 
-    def alice_to_bob_fee_update(self, fee=111):
+    def alice_to_bob_fee_update(self, fee=1111):
         aoldctx = self.alice_channel.get_next_commitment(REMOTE).outputs()
         self.alice_channel.update_fee(fee, True)
         anewctx = self.alice_channel.get_next_commitment(REMOTE).outputs()

@@ -29,14 +29,11 @@ class SafeTKeyStore(Hardware_KeyStore):
 
     plugin: 'SafeTPlugin'
 
-    def get_client(self, force_pair=True):
-        return self.plugin.get_client(self, force_pair)
-
     def decrypt_message(self, sequence, message, password):
         raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     @runs_in_hwd_thread
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         client = self.get_client()
         address_path = self.get_derivation_prefix() + "/%d/%d"%sequence
         address_n = client.expand_path(address_path)
@@ -180,7 +177,7 @@ class SafeTPlugin(HW_PluginBase):
             import threading
             settings = self.request_safe_t_init_settings(wizard, method, self.device)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
-            t.setDaemon(True)
+            t.daemon = True
             t.start()
             exit_code = wizard.loop.exec_()
             if exit_code != 0:

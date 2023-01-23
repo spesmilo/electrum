@@ -33,7 +33,7 @@ import urllib
 import threading
 import hmac
 import stat
-from locale import localeconv
+import locale
 import asyncio
 import urllib.request, urllib.parse, urllib.error
 import builtins
@@ -47,12 +47,12 @@ import random
 import secrets
 import functools
 from abc import abstractmethod, ABC
+import socket
 
 import attr
 import aiohttp
 from aiohttp_socks import ProxyConnector, ProxyType
 import aiorpcx
-from aiorpcx import TaskGroup
 import certifi
 import dns.resolver
 
@@ -145,8 +145,14 @@ class NoDynamicFeeEstimates(Exception):
 
 
 class InvalidPassword(Exception):
+    def __init__(self, message: Optional[str] = None):
+        self.message = message
+
     def __str__(self):
-        return _("Incorrect password")
+        if self.message is None:
+            return _("Incorrect password")
+        else:
+            return str(self.message)
 
 
 class AddTransactionException(Exception):
@@ -340,7 +346,7 @@ class DaemonThread(threading.Thread, Logger):
     def __init__(self):
         threading.Thread.__init__(self)
         Logger.__init__(self)
-        self.parent_thread = threading.currentThread()
+        self.parent_thread = threading.current_thread()
         self.running = False
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
@@ -435,7 +441,7 @@ def profiler(func):
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _profiler_logger.debug(f"{name} {t:,.4f}")
+        _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
@@ -445,7 +451,8 @@ def android_ext_dir():
     return primary_external_storage_path()
 
 def android_backup_dir():
-    d = os.path.join(android_ext_dir(), 'org.electrum.electrum')
+    pkgname = get_android_package_name()
+    d = os.path.join(android_ext_dir(), pkgname)
     if not os.path.exists(d):
         os.mkdir(d)
     return d
@@ -499,6 +506,9 @@ def standardize_path(path):
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:
+    """Returns a file basename for a new wallet to be used.
+    Can raise OSError.
+    """
     i = 1
     while True:
         filename = "wallet_%d" % i
@@ -507,6 +517,26 @@ def get_new_wallet_name(wallet_folder: str) -> str:
         else:
             break
     return filename
+
+
+def is_android_debug_apk() -> bool:
+    is_android = 'ANDROID_DATA' in os.environ
+    if not is_android:
+        return False
+    from jnius import autoclass
+    pkgname = get_android_package_name()
+    build_config = autoclass(f"{pkgname}.BuildConfig")
+    return bool(build_config.DEBUG)
+
+
+def get_android_package_name() -> str:
+    is_android = 'ANDROID_DATA' in os.environ
+    assert is_android
+    from jnius import autoclass
+    from android.config import ACTIVITY_CLASS_NAME
+    activity = autoclass(ACTIVITY_CLASS_NAME).mActivity
+    pkgname = str(activity.getPackageName())
+    return pkgname
 
 
 def assert_bytes(*args):
@@ -668,7 +698,11 @@ def format_satoshis_plain(
 # We enforce that we have at least that available.
 assert decimal.getcontext().prec >= 28, f"PyDecimal precision too low: {decimal.getcontext().prec}"
 
-DECIMAL_POINT = localeconv()['decimal_point']  # type: str
+# DECIMAL_POINT = locale.localeconv()['decimal_point']  # type: str
+DECIMAL_POINT = "."
+THOUSANDS_SEP = " "
+assert len(DECIMAL_POINT) == 1, f"DECIMAL_POINT has unexpected len. {DECIMAL_POINT!r}"
+assert len(THOUSANDS_SEP) == 1, f"THOUSANDS_SEP has unexpected len. {THOUSANDS_SEP!r}"
 
 
 def format_satoshis(
@@ -707,9 +741,9 @@ def format_satoshis(
         sign = integer_part[0] if integer_part[0] in ("+", "-") else ""
         if sign == "-":
             integer_part = integer_part[1:]
-        integer_part = "{:,}".format(int(integer_part)).replace(',', " ")
+        integer_part = "{:,}".format(int(integer_part)).replace(',', THOUSANDS_SEP)
         integer_part = sign + integer_part
-        fract_part = " ".join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
+        fract_part = THOUSANDS_SEP.join(fract_part[i:i+3] for i in range(0, len(fract_part), 3))
     result = integer_part + DECIMAL_POINT + fract_part
     # add leading/trailing whitespaces so that numbers can be aligned in a column
     if whitespaces:
@@ -757,14 +791,14 @@ def format_time(timestamp):
 # Takes a timestamp and returns a string with the approximation of the age
 def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if from_date is None:
-        return "Unknown"
+        return _("Unknown")
 
     from_date = datetime.fromtimestamp(from_date)
     if since_date is None:
         since_date = datetime.now(target_tz)
 
     td = time_difference(from_date - since_date, include_seconds)
-    return td + " ago" if from_date < since_date else "in " + td
+    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
 
 
 def time_difference(distance_in_time, include_seconds):
@@ -774,27 +808,27 @@ def time_difference(distance_in_time, include_seconds):
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return "%s seconds" % distance_in_seconds
+            return _("{} seconds").format(distance_in_seconds)
         else:
-            return "less than a minute"
+            return _("less than a minute")
     elif distance_in_minutes < 45:
-        return "%s minutes" % distance_in_minutes
+        return _("about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        return "about 1 hour"
+        return _("about 1 hour")
     elif distance_in_minutes < 1440:
-        return "about %d hours" % (round(distance_in_minutes / 60.0))
+        return _("about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return "1 day"
+        return _("about 1 day")
     elif distance_in_minutes < 43220:
-        return "%d days" % (round(distance_in_minutes / 1440))
+        return _("about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return "about 1 month"
+        return _("about 1 month")
     elif distance_in_minutes < 525600:
-        return "%d months" % (round(distance_in_minutes / 43200))
+        return _("about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return "about 1 year"
+        return _("about 1 year")
     else:
-        return "over %d years" % (round(distance_in_minutes / 525600))
+        return _("over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
@@ -940,6 +974,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+    from .lnaddr import lndecode, LnDecodeException
 
     if not isinstance(uri, str):
         raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
@@ -1002,6 +1037,21 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
+    if 'lightning' in out:
+        try:
+            lnaddr = lndecode(out['lightning'])
+        except LnDecodeException as e:
+            raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
+        amount_sat = out.get('amount')
+        if amount_sat:
+            # allow small leeway due to msat precision
+            if abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
+                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: amount")
+        address = out.get('address')
+        ln_fallback_addr = lnaddr.get_fallback_address()
+        if address and ln_fallback_addr:
+            if ln_fallback_addr != address:
+                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: address")
 
     r = out.get('r')
     sig = out.get('sig')
@@ -1017,7 +1067,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
                 request = await pr.get_payment_request(r)
             if on_pr:
                 on_pr(request)
-        loop = loop or asyncio.get_event_loop()
+        loop = loop or get_asyncio_loop()
         asyncio.run_coroutine_threadsafe(get_payment_request(), loop)
 
     return out
@@ -1051,14 +1101,27 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
     return str(urllib.parse.urlunparse(p))
 
 
-def maybe_extract_bolt11_invoice(data: str) -> Optional[str]:
+def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
     data = data.lower()
     if data.startswith(LIGHTNING_URI_SCHEME + ':ln'):
-        data = data[10:]
+        cut_prefix = LIGHTNING_URI_SCHEME + ':'
+        data = data[len(cut_prefix):]
     if data.startswith('ln'):
         return data
     return None
+
+
+def is_uri(data: str) -> bool:
+    data = data.lower()
+    if (data.startswith(LIGHTNING_URI_SCHEME + ":") or
+            data.startswith(BITCOIN_BIP21_URI_SCHEME + ':')):
+        return True
+    return False
+
+
+class FailedToParsePaymentIdentifier(Exception):
+    pass
 
 
 # Python bug (http://bugs.python.org/issue1927) causes raw_input
@@ -1112,7 +1175,8 @@ def setup_thread_excepthook():
 
 
 def send_exception_to_crash_reporter(e: BaseException):
-    sys.excepthook(type(e), e, e.__traceback__)
+    from .base_crash_reporter import send_exception_to_crash_reporter
+    send_exception_to_crash_reporter(e)
 
 
 def versiontuple(v):
@@ -1132,6 +1196,7 @@ def read_json_file(path):
         raise FileImportFailed(e)
     return data
 
+
 def write_json_file(path, data):
     try:
         with open(path, 'w+', encoding='utf-8') as f:
@@ -1141,13 +1206,36 @@ def write_json_file(path, data):
         raise FileExportFailed(e)
 
 
+def os_chmod(path, mode):
+    """os.chmod aware of tmpfs"""
+    try:
+        os.chmod(path, mode)
+    except OSError as e:
+        xdg_runtime_dir = os.environ.get("XDG_RUNTIME_DIR", None)
+        if xdg_runtime_dir and is_subpath(path, xdg_runtime_dir):
+            _logger.info(f"Tried to chmod in tmpfs. Skipping... {e!r}")
+        else:
+            raise
+
+
 def make_dir(path, allow_symlink=True):
     """Make directory if it does not yet exist."""
     if not os.path.exists(path):
         if not allow_symlink and os.path.islink(path):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        os_chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+
+def is_subpath(long_path: str, short_path: str) -> bool:
+    """Returns whether long_path is a sub-path of short_path."""
+    try:
+        common = os.path.commonpath([long_path, short_path])
+    except ValueError:
+        return False
+    short_path = standardize_path(short_path)
+    common     = standardize_path(common)
+    return short_path == common
 
 
 def log_exceptions(func):
@@ -1177,9 +1265,6 @@ def ignore_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except asyncio.CancelledError:
-            # note: with python 3.8, CancelledError no longer inherits Exception, so this catch is redundant
-            raise
         except Exception as e:
             pass
     return wrapper
@@ -1228,13 +1313,97 @@ def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
     return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
 
 
-class SilentTaskGroup(TaskGroup):
+class OldTaskGroup(aiorpcx.TaskGroup):
+    """Automatically raises exceptions on join; as in aiorpcx prior to version 0.20.
+    That is, when using TaskGroup as a context manager, if any task encounters an exception,
+    we would like that exception to be re-raised (propagated out). For the wait=all case,
+    the OldTaskGroup class is emulating the following code-snippet:
+    ```
+    async with TaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
 
-    def spawn(self, *args, **kwargs):
-        # don't complain if group is already closed.
-        if self._closed:
-            raise asyncio.CancelledError()
-        return super().spawn(*args, **kwargs)
+        async for task in group:
+            if not task.cancelled():
+                task.result()
+    ```
+    So instead of the above, one can just write:
+    ```
+    async with OldTaskGroup() as group:
+        await group.spawn(task1())
+        await group.spawn(task2())
+    ```
+    # TODO see if we can migrate to asyncio.timeout, introduced in python 3.11, and use stdlib instead of aiorpcx.curio...
+    """
+    async def join(self):
+        if self._wait is all:
+            exc = False
+            try:
+                async for task in self:
+                    if not task.cancelled():
+                        task.result()
+            except BaseException:  # including asyncio.CancelledError
+                exc = True
+                raise
+            finally:
+                if exc:
+                    await self.cancel_remaining()
+                await super().join()
+        else:
+            await super().join()
+            if self.completed:
+                self.completed.result()
+
+# We monkey-patch aiorpcx TimeoutAfter (used by timeout_after and ignore_after API),
+# to fix a timing issue present in asyncio as a whole re timing out tasks.
+# To see the issue we are trying to fix, consider example:
+#     async def outer_task():
+#         async with timeout_after(0.1):
+#             await inner_task()
+# When the 0.1 sec timeout expires, inner_task will get cancelled by timeout_after (=internal cancellation).
+# If around the same time (in terms of event loop iterations) another coroutine
+# cancels outer_task (=external cancellation), there will be a race.
+# Both cancellations work by propagating a CancelledError out to timeout_after, which then
+# needs to decide (in TimeoutAfter.__aexit__) whether it's due to an internal or external cancellation.
+# AFAICT asyncio provides no reliable way of distinguishing between the two.
+# This patch tries to always give priority to external cancellations.
+# see https://github.com/kyuupichan/aiorpcX/issues/44
+# see https://github.com/aio-libs/async-timeout/issues/229
+# see https://bugs.python.org/issue42130 and https://bugs.python.org/issue45098
+# TODO see if we can migrate to asyncio.timeout, introduced in python 3.11, and use stdlib instead of aiorpcx.curio...
+def _aiorpcx_monkeypatched_set_new_deadline(task, deadline):
+    def timeout_task():
+        task._orig_cancel()
+        task._timed_out = None if getattr(task, "_externally_cancelled", False) else deadline
+    def mycancel(*args, **kwargs):
+        task._orig_cancel(*args, **kwargs)
+        task._externally_cancelled = True
+        task._timed_out = None
+    if not hasattr(task, "_orig_cancel"):
+        task._orig_cancel = task.cancel
+        task.cancel = mycancel
+    task._deadline_handle = task._loop.call_at(deadline, timeout_task)
+
+
+def _aiorpcx_monkeypatched_set_task_deadline(task, deadline):
+    ret = _aiorpcx_orig_set_task_deadline(task, deadline)
+    task._externally_cancelled = None
+    return ret
+
+
+def _aiorpcx_monkeypatched_unset_task_deadline(task):
+    if hasattr(task, "_orig_cancel"):
+        task.cancel = task._orig_cancel
+        del task._orig_cancel
+    return _aiorpcx_orig_unset_task_deadline(task)
+
+
+_aiorpcx_orig_set_task_deadline    = aiorpcx.curio._set_task_deadline
+_aiorpcx_orig_unset_task_deadline  = aiorpcx.curio._unset_task_deadline
+
+aiorpcx.curio._set_new_deadline    = _aiorpcx_monkeypatched_set_new_deadline
+aiorpcx.curio._set_task_deadline   = _aiorpcx_monkeypatched_set_task_deadline
+aiorpcx.curio._unset_task_deadline = _aiorpcx_monkeypatched_unset_task_deadline
 
 
 class NetworkJobOnDefaultServer(Logger, ABC):
@@ -1244,7 +1413,6 @@ class NetworkJobOnDefaultServer(Logger, ABC):
     """
     def __init__(self, network: 'Network'):
         Logger.__init__(self)
-        asyncio.set_event_loop(network.asyncio_loop)
         self.network = network
         self.interface = None  # type: Interface
         self._restart_lock = asyncio.Lock()
@@ -1262,14 +1430,15 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         """Initialise fields. Called every time the underlying
         server connection changes.
         """
-        self.taskgroup = SilentTaskGroup()
+        self.taskgroup = OldTaskGroup()
+        self.reset_request_counters()
 
     async def _start(self, interface: 'Interface'):
         self.interface = interface
         await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
 
     @abstractmethod
-    async def _run_tasks(self, *, taskgroup: TaskGroup) -> None:
+    async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
         """Start tasks in taskgroup. Called every time the underlying
         server connection changes.
         """
@@ -1294,6 +1463,13 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             self._reset()
             await self._start(interface)
 
+    def reset_request_counters(self):
+        self._requests_sent = 0
+        self._requests_answered = 0
+
+    def num_requests_sent_and_answered(self) -> Tuple[int, int]:
+        return self._requests_sent, self._requests_answered
+
     @property
     def session(self):
         s = self.interface.session
@@ -1301,9 +1477,71 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         return s
 
 
+def detect_tor_socks_proxy() -> Optional[Tuple[str, int]]:
+    # Probable ports for Tor to listen at
+    candidates = [
+        ("127.0.0.1", 9050),
+        ("127.0.0.1", 9150),
+    ]
+    for net_addr in candidates:
+        if is_tor_socks_port(*net_addr):
+            return net_addr
+    return None
+
+
+def is_tor_socks_port(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            s.connect((host, port))
+            # mimic "tor-resolve 0.0.0.0".
+            # see https://github.com/spesmilo/electrum/issues/7317#issuecomment-1369281075
+            # > this is a socks5 handshake, followed by a socks RESOLVE request as defined in
+            # > [tor's socks extension spec](https://github.com/torproject/torspec/blob/7116c9cdaba248aae07a3f1d0e15d9dd102f62c5/socks-extensions.txt#L63),
+            # > resolving 0.0.0.0, which being an IP, tor resolves itself without needing to ask a relay.
+            s.send(b'\x05\x01\x00\x05\xf0\x00\x03\x070.0.0.0\x00\x00')
+            if s.recv(1024) == b'\x05\x00\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00':
+                return True
+    except socket.error:
+        pass
+    return False
+
+
+_asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
+def get_asyncio_loop() -> asyncio.AbstractEventLoop:
+    """Returns the global asyncio event loop we use."""
+    if _asyncio_event_loop is None:
+        raise Exception("event loop not created yet")
+    return _asyncio_event_loop
+
+
 def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
                                            asyncio.Future,
                                            threading.Thread]:
+    global _asyncio_event_loop
+    if _asyncio_event_loop is not None:
+        raise Exception("there is already a running event loop")
+
+    # asyncio.get_event_loop() became deprecated in python3.10. (see https://github.com/python/cpython/issues/83710)
+    # We set a custom event loop policy purely to be compatible with code that
+    # relies on asyncio.get_event_loop().
+    # - in python 3.8-3.9, asyncio.Event.__init__, asyncio.Lock.__init__,
+    #   and similar, calls get_event_loop. see https://github.com/python/cpython/pull/23420
+    class MyEventLoopPolicy(asyncio.DefaultEventLoopPolicy):
+        def get_event_loop(self):
+            # In case electrum is being used as a library, there might be other
+            # event loops in use besides ours. To minimise interfering with those,
+            # if there is a loop running in the current thread, return that:
+            running_loop = get_running_loop()
+            if running_loop is not None:
+                return running_loop
+            # Otherwise, return our global loop:
+            return get_asyncio_loop()
+    asyncio.set_event_loop_policy(MyEventLoopPolicy())
+
+    loop = asyncio.new_event_loop()
+    _asyncio_event_loop = loop
+
     def on_exception(loop, context):
         """Suppress spurious messages it appears we cannot control."""
         SUPPRESS_MESSAGE_REGEX = re.compile('SSL handshake|Fatal read error on|'
@@ -1313,14 +1551,30 @@ def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
             return
         loop.default_exception_handler(context)
 
-    loop = asyncio.get_event_loop()
+    def run_event_loop():
+        try:
+            loop.run_until_complete(stopping_fut)
+        finally:
+            # clean-up
+            global _asyncio_event_loop
+            _asyncio_event_loop = None
+
     loop.set_exception_handler(on_exception)
-    # loop.set_debug(1)
-    stopping_fut = asyncio.Future()
-    loop_thread = threading.Thread(target=loop.run_until_complete,
-                                         args=(stopping_fut,),
-                                         name='EventLoop')
+    # loop.set_debug(True)
+    stopping_fut = loop.create_future()
+    loop_thread = threading.Thread(
+        target=run_event_loop,
+        name='EventLoop',
+    )
     loop_thread.start()
+    # Wait until the loop actually starts.
+    # On a slow PC, or with a debugger attached, this can take a few dozens of ms,
+    # and if we returned without a running loop, weird things can happen...
+    t0 = time.monotonic()
+    while not loop.is_running():
+        time.sleep(0.01)
+        if time.monotonic() - t0 > 5:
+            raise Exception("been waiting for 5 seconds but asyncio loop would not start!")
     return loop, stopping_fut, loop_thread
 
 
@@ -1407,8 +1661,21 @@ def is_ip_address(x: Union[str, bytes]) -> bool:
         return False
 
 
-def is_private_netaddress(host: str) -> bool:
+def is_localhost(host: str) -> bool:
     if str(host) in ('localhost', 'localhost.',):
+        return True
+    if host[0] == '[' and host[-1] == ']':  # IPv6
+        host = host[1:-1]
+    try:
+        ip_addr = ipaddress.ip_address(host)  # type: Union[IPv4Address, IPv6Address]
+        return ip_addr.is_loopback
+    except ValueError:
+        pass  # not an IP
+    return False
+
+
+def is_private_netaddress(host: str) -> bool:
+    if is_localhost(host):
         return True
     if host[0] == '[' and host[-1] == ']':  # IPv6
         host = host[1:-1]
@@ -1458,10 +1725,10 @@ class CallbackManager:
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
         self.asyncio_loop = None
 
-    def register_callback(self, callback, events):
+    def register_callback(self, func, events):
         with self.callback_lock:
             for event in events:
-                self.callbacks[event].append(callback)
+                self.callbacks[event].append(func)
 
     def unregister_callback(self, callback):
         with self.callback_lock:
@@ -1475,22 +1742,57 @@ class CallbackManager:
         on the event loop.
         """
         if self.asyncio_loop is None:
-            self.asyncio_loop = asyncio.get_event_loop()
+            self.asyncio_loop = get_asyncio_loop()
             assert self.asyncio_loop.is_running(), "event loop not running"
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+                asyncio.run_coroutine_threadsafe(callback(*args), self.asyncio_loop)
+            elif get_running_loop() == self.asyncio_loop:
+                # run callback immediately, so that it is guaranteed
+                # to have been executed when this method returns
+                callback(*args)
             else:
-                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
+                self.asyncio_loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
 trigger_callback = callback_mgr.trigger_callback
 register_callback = callback_mgr.register_callback
 unregister_callback = callback_mgr.unregister_callback
+_event_listeners = defaultdict(set)  # type: Dict[str, Set[str]]
+
+
+class EventListener:
+
+    def _list_callbacks(self):
+        for c in self.__class__.__mro__:
+            classpath = f"{c.__module__}.{c.__name__}"
+            for method_name in _event_listeners[classpath]:
+                method = getattr(self, method_name)
+                assert callable(method)
+                assert method_name.startswith('on_event_')
+                yield method_name[len('on_event_'):], method
+
+    def register_callbacks(self):
+        for name, method in self._list_callbacks():
+            #_logger.debug(f'registering callback {method}')
+            register_callback(method, [name])
+
+    def unregister_callbacks(self):
+        for name, method in self._list_callbacks():
+            #_logger.debug(f'unregistering callback {method}')
+            unregister_callback(method)
+
+
+def event_listener(func):
+    classname, method_name = func.__qualname__.split('.')
+    assert method_name.startswith('on_event_')
+    classpath = f"{func.__module__}.{classname}"
+    _event_listeners[classpath].add(method_name)
+    return func
 
 
 _NetAddrType = TypeVar("_NetAddrType")
@@ -1560,7 +1862,7 @@ class NetworkRetryManager(Generic[_NetAddrType]):
 class MySocksProxy(aiorpcx.SOCKSProxy):
 
     async def open_connection(self, host=None, port=None, **kwargs):
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         reader = asyncio.StreamReader(loop=loop)
         protocol = asyncio.StreamReaderProtocol(reader, loop=loop)
         transport, _ = await self.create_connection(
@@ -1668,10 +1970,9 @@ class nullcontext:
     async def __aexit__(self, *excinfo):
         pass
 
-def get_running_loop():
-    """Mimics _get_running_loop convenient functionality for sanity checks on all python versions"""
-    if sys.version_info < (3, 7):
-        return asyncio._get_running_loop()
+
+def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
+    """Returns the asyncio event loop that is *running in this thread*, if any."""
     try:
         return asyncio.get_running_loop()
     except RuntimeError:

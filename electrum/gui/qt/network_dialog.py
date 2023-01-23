@@ -40,9 +40,11 @@ from electrum import constants, blockchain, util
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum.network import Network
 from electrum.logging import get_logger
+from electrum.util import detect_tor_socks_proxy
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
                    PasswordLineEdit)
+from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -53,27 +55,25 @@ _logger = get_logger(__name__)
 protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
-class NetworkDialog(QDialog):
-    def __init__(self, *, network: Network, config: 'SimpleConfig', network_updated_signal_obj):
+class NetworkDialog(QDialog, QtEventListener):
+    def __init__(self, *, network: Network, config: 'SimpleConfig'):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 500)
         self.nlayout = NetworkChoiceLayout(network, config)
-        self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.network_updated_signal_obj.network_updated_signal.connect(
-            self.on_update)
-        util.register_callback(self.on_network, ['network_updated'])
+        self.register_callbacks()
         self._cleaned_up = False
 
-    def on_network(self, event, *args):
-        signal_obj = self.network_updated_signal_obj
-        if signal_obj:
-            signal_obj.network_updated_signal.emit(event, args)
+    def show(self):
+        super().show()
+        if td := self.nlayout.td:
+            td.trigger_rescan()
 
-    def on_update(self):
+    @qt_event_listener
+    def on_event_network_updated(self):
         self.nlayout.update()
 
     def clean_up(self):
@@ -81,8 +81,7 @@ class NetworkDialog(QDialog):
             return
         self._cleaned_up = True
         self.nlayout.clean_up()
-        self.network_updated_signal_obj.network_updated_signal.disconnect()
-        self.network_updated_signal_obj = None
+        self.unregister_callbacks()
 
 
 class NodesListWidget(QTreeWidget):
@@ -210,10 +209,11 @@ class NetworkChoiceLayout(object):
         self.tor_proxy = None
 
         self.tabs = tabs = QTabWidget()
-        proxy_tab = QWidget()
+        self._proxy_tab = proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
         tabs.addTab(proxy_tab, _('Proxy'))
+        tabs.currentChanged.connect(self._on_tab_changed)
 
         fixed_width_hostname = 24 * char_width_in_lineedit()
         fixed_width_port = 6 * char_width_in_lineedit()
@@ -424,6 +424,10 @@ class NetworkChoiceLayout(object):
         net_params = net_params._replace(proxy=proxy)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
+    def _on_tab_changed(self):
+        if self.tabs.currentWidget() is self._proxy_tab:
+            self.td.trigger_rescan()
+
     def suggest_proxy(self, found_proxy):
         if found_proxy is None:
             self.tor_cb.hide()
@@ -464,38 +468,25 @@ class TorDetector(QThread):
 
     def __init__(self):
         QThread.__init__(self)
-        self._stop_event = threading.Event()
+        self._work_to_do_evt = threading.Event()
+        self._stopping = False
 
     def run(self):
-        # Probable ports for Tor to listen at
-        ports = [9050, 9150]
         while True:
-            for p in ports:
-                net_addr = ("127.0.0.1", p)
-                if TorDetector.is_tor_port(net_addr):
-                    self.found_proxy.emit(net_addr)
-                    break
-            else:
-                self.found_proxy.emit(None)
-            stopping = self._stop_event.wait(10)
-            if stopping:
+            # do rescan
+            net_addr = detect_tor_socks_proxy()
+            self.found_proxy.emit(net_addr)
+            # wait until triggered
+            self._work_to_do_evt.wait()
+            self._work_to_do_evt.clear()
+            if self._stopping:
                 return
 
+    def trigger_rescan(self) -> None:
+        self._work_to_do_evt.set()
+
     def stop(self):
-        self._stop_event.set()
+        self._stopping = True
+        self._work_to_do_evt.set()
         self.exit()
         self.wait()
-
-    @staticmethod
-    def is_tor_port(net_addr: Tuple[str, int]) -> bool:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.1)
-                s.connect(net_addr)
-                # Tor responds uniquely to HTTP-like requests
-                s.send(b"GET\n")
-                if b"Tor is not an HTTP Proxy" in s.recv(1024):
-                    return True
-        except socket.error:
-            pass
-        return False

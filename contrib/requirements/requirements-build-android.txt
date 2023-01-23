@@ -5,14 +5,17 @@ cython
 
 # needed by buildozer:
 pexpect
-virtualenv
 sh
 
 # needed by python-for-android:
 appdirs
-colorama>=0.3.3
+# colorama upper bound to avoid needing hatchling
+colorama>=0.3.3,<0.4.6
 jinja2
-six
 sh>=1.10
-pep517<0.7.0
+pep517
 toml
+
+# needed for the Qt/QML Android GUI:
+# TODO double-check this
+typing-extensions

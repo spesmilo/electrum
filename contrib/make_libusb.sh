@@ -7,7 +7,7 @@ set -e
 
 . $(dirname "$0")/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
 
-here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+here="$(dirname "$(realpath "$0" 2> /dev/null || grealpath "$0")")"
 CONTRIB="$here"
 PROJECT_ROOT="$CONTRIB/.."
 
@@ -15,7 +15,7 @@ pkgname="libusb"
 info "Building $pkgname..."
 
 (
-    cd $CONTRIB
+    cd "$CONTRIB"
     if [ ! -d libusb ]; then
         git clone https://github.com/libusb/libusb.git
     fi
@@ -47,8 +47,8 @@ info "Building $pkgname..."
             $AUTOCONF_FLAGS \
             || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
-    make -j4 || fail "Could not build $pkgname"
-    make install || fail "Could not install $pkgname"
+    make "-j$CPU_COUNT" || fail "Could not build $pkgname"
+    make install || warn "Could not install $pkgname"
     . "$here/$pkgname/libusb/.libs/libusb-1.0.la"
     host_strip "$here/$pkgname/libusb/.libs/$dlname"
     TARGET_NAME="$dlname"

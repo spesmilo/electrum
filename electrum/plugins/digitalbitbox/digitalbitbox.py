@@ -16,7 +16,7 @@ import sys
 import time
 import copy
 
-from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
 from electrum import ecc
@@ -32,7 +32,7 @@ from electrum.network import Network
 from electrum.logging import get_logger
 from electrum.plugin import runs_in_hwd_thread, run_in_hwd_thread
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
 
 _logger = get_logger(__name__)
@@ -350,8 +350,8 @@ class DigitalBitbox_Client(HardwareClientBase):
         HWW_CID = 0xFF000000
         HWW_CMD = 0x80 + 0x40 + 0x01
         data_len = len(data)
-        seq = 0;
-        idx = 0;
+        seq = 0
+        idx = 0
         write = []
         while idx < data_len:
             if idx == 0:
@@ -373,7 +373,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         cmd = read[4]
         data_len = read[5] * 256 + read[6]
         data = read[7:]
-        idx = len(read) - 7;
+        idx = len(read) - 7
         while idx < data_len:
             # CONT response
             read = bytearray(self.dbb_hid.read(self.usbReportSize))
@@ -442,12 +442,9 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
-        self.force_watching_only = False
         self.maxInputs = 14 # maximum inputs per single sign command
 
-    def give_error(self, message, clear_client = False):
-        if clear_client:
-            self.client = None
+    def give_error(self, message):
         raise Exception(message)
 
 
@@ -455,7 +452,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
 
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
         sig = None
         try:
             message = message.encode('utf8')
@@ -491,7 +488,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 sig_string = binascii.unhexlify(reply['sign'][0]['sig'])
                 recid = int(reply['sign'][0]['recid'], 16)
                 sig = ecc.construct_sig65(sig_string, recid, True)
-                pubkey, compressed = ecc.ECPubkey.from_signature65(sig, msg_hash)
+                pubkey, compressed, txin_type_guess = ecc.ECPubkey.from_signature65(sig, msg_hash)
                 addr = public_key_to_p2pkh(pubkey.get_public_key_bytes(compressed=compressed))
                 if ecc.verify_message_with_address(addr, sig, message) is False:
                     raise Exception(_("Could not sign message"))
@@ -598,7 +595,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
                 if self.plugin.is_mobile_paired() and tx_dbb_serialized is not None:
                     reply['tx'] = tx_dbb_serialized
-                    self.plugin.comserver_post_notification(reply)
+                    self.plugin.comserver_post_notification(reply, handler=self.handler)
 
                 if steps > 1:
                     self.handler.show_message(_("Signing large transaction. Please be patient ...") + "\n\n" +
@@ -653,7 +650,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         except UserCancelled:
             raise
         except BaseException as e:
-            self.give_error(e, True)
+            self.give_error(e)
         else:
             _logger.info(f"Transaction is_complete {tx.is_complete()}")
 
@@ -662,7 +659,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
     libraries_available = DIGIBOX
     keystore_class = DigitalBitbox_KeyStore
-    client = None
     DEVICE_IDS = [
                    (0x03eb, 0x2402) # Digital Bitbox
                  ]
@@ -684,8 +680,6 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
     def create_client(self, device, handler):
         if device.interface_number == 0 or device.usage_page == 0xffff:
-            if handler:
-                self.handler = handler
             client = self.get_dbb_device(device)
             if client is not None:
                 client = DigitalBitbox_Client(self, client)
@@ -708,19 +702,21 @@ class DigitalBitboxPlugin(HW_PluginBase):
         return ENCRYPTION_PRIVKEY_KEY in self.digitalbitbox_config
 
 
-    def comserver_post_notification(self, payload):
+    def comserver_post_notification(self, payload, *, handler: 'HardwareHandlerBase'):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
         key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
+        ciphertext = EncodeAES_bytes(key_s, json.dumps(payload).encode('ascii'))
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config[CHANNEL_ID_KEY],
-            EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+            base64.b64encode(ciphertext).decode('ascii'),
         )
         try:
             text = Network.send_http_on_proxy('post', url, body=args.encode('ascii'), headers={'content-type': 'application/x-www-form-urlencoded'})
             _logger.info(f'digitalbitbox reply from server {text}')
         except Exception as e:
-            self.handler.show_error(repr(e)) # repr because str(Exception()) == ''
+            _logger.exception("")
+            handler.show_error(repr(e))  # repr because str(Exception()) == ''
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
@@ -764,4 +760,4 @@ class DigitalBitboxPlugin(HW_PluginBase):
             "type": 'p2pkh',
             "echo": xpub['echo'],
         }
-        self.comserver_post_notification(verify_request_payload)
+        self.comserver_post_notification(verify_request_payload, handler=keystore.handler)

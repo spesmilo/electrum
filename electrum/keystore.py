@@ -28,7 +28,7 @@ from unicodedata import normalize
 import hashlib
 import re
 from typing import Tuple, TYPE_CHECKING, Union, Sequence, Optional, Dict, List, NamedTuple
-from functools import lru_cache
+from functools import lru_cache, wraps
 from abc import ABC, abstractmethod
 
 from . import bitcoin, ecc, constants, bip32
@@ -39,7 +39,8 @@ from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info)
 from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
-                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160)
+                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
+                     CiphertextFormatError)
 from .util import (InvalidPassword, WalletFileException,
                    BitcoinException, bh2u, bfh, inv_dict, is_hex_str)
 from .mnemonic import Mnemonic, Wordlist, seed_type, is_seed
@@ -50,9 +51,31 @@ if TYPE_CHECKING:
     from .gui.qt.util import TaskThread
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
     from .wallet_db import WalletDB
+    from .plugin import Device
 
 
 class CannotDerivePubkey(Exception): pass
+
+
+def also_test_none_password(check_password_fn):
+    """Decorator for check_password, simply to give a friendlier exception if
+    check_password(x) is called on a keystore that does not have a password set.
+    """
+    @wraps(check_password_fn)
+    def wrapper(self: 'Software_KeyStore', *args):
+        password = args[0]
+        try:
+            return check_password_fn(self, password)
+        except (CiphertextFormatError, InvalidPassword) as e:
+            if password is not None:
+                try:
+                    check_password_fn(self, None)
+                except Exception:
+                    pass
+                else:
+                    raise InvalidPassword("password given but keystore has no password") from e
+            raise
+    return wrapper
 
 
 class KeyStore(Logger, ABC):
@@ -127,7 +150,14 @@ class KeyStore(Logger, ABC):
         pass
 
     @abstractmethod
-    def sign_message(self, sequence: 'AddressIndexGeneric', message, password) -> bytes:
+    def sign_message(
+            self,
+            sequence: 'AddressIndexGeneric',
+            message: str,
+            password,
+            *,
+            script_type: Optional[str] = None,
+    ) -> bytes:
         pass
 
     @abstractmethod
@@ -175,7 +205,7 @@ class Software_KeyStore(KeyStore):
     def may_have_password(self):
         return not self.is_watching_only()
 
-    def sign_message(self, sequence, message, password) -> bytes:
+    def sign_message(self, sequence, message, password, *, script_type=None) -> bytes:
         privkey, compressed = self.get_private_key(sequence, password)
         key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
@@ -204,7 +234,8 @@ class Software_KeyStore(KeyStore):
         pass
 
     @abstractmethod
-    def check_password(self, password):
+    def check_password(self, password: Optional[str]) -> None:
+        """Raises InvalidPassword if password is not correct"""
         pass
 
     @abstractmethod
@@ -235,6 +266,7 @@ class Imported_KeyStore(Software_KeyStore):
     def can_import(self):
         return True
 
+    @also_test_none_password
     def check_password(self, password):
         pubkey = list(self.keypairs.keys())[0]
         self.get_private_key(pubkey, password)
@@ -491,9 +523,13 @@ class Xpub(MasterPublicKeyMixin):
         child_number_int = der_full[-1] if len(der_full) >= 1 else 0
         child_number_bytes = child_number_int.to_bytes(length=4, byteorder="big")
         fingerprint = bytes(4) if depth == 0 else bip32node.fingerprint
-        bip32node = bip32node._replace(depth=depth,
-                                       fingerprint=fingerprint,
-                                       child_number=child_number_bytes)
+        bip32node = bip32node._replace(
+            depth=depth,
+            fingerprint=fingerprint,
+            child_number=child_number_bytes,
+            # only put plain xpubs (not ypub/zpub) in PSBTs:
+            xtype="standard",
+        )
         return bip32node.to_xpub()
 
     def add_key_origin_from_root_node(self, *, derivation_prefix: str, root_node: BIP32Node):
@@ -568,6 +604,7 @@ class BIP32_KeyStore(Xpub, Deterministic_KeyStore):
     def get_master_private_key(self, password):
         return pw_decode(self.xprv, password, version=self.pw_hash_version)
 
+    @also_test_none_password
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
         try:
@@ -734,6 +771,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         if master_public_key != bfh(self.mpk):
             raise InvalidPassword()
 
+    @also_test_none_password
     def check_password(self, password):
         seed = self.get_hex_seed(password)
         self._check_seed(seed)
@@ -789,7 +827,7 @@ class Hardware_KeyStore(Xpub, KeyStore):
         # handler.  The handler is per-window and preserved across
         # device reconnects
         self.xpub = d.get('xpub')
-        self.label = d.get('label')
+        self.label = d.get('label')  # type: Optional[str]
         self.soft_device_id = d.get('soft_device_id')  # type: Optional[str]
         self.handler = None  # type: Optional[HardwareHandlerBase]
         run_hook('init_keystore', self)
@@ -833,14 +871,31 @@ class Hardware_KeyStore(Xpub, KeyStore):
         assert not self.has_seed()
         return False
 
+    def get_client(
+            self,
+            force_pair: bool = True,
+            *,
+            devices: Sequence['Device'] = None,
+            allow_user_interaction: bool = True,
+    ) -> Optional['HardwareClientBase']:
+        return self.plugin.get_client(
+            self,
+            force_pair=force_pair,
+            devices=devices,
+            allow_user_interaction=allow_user_interaction,
+        )
+
     def get_password_for_storage_encryption(self) -> str:
-        client = self.plugin.get_client(self)
+        client = self.get_client()
         return client.get_password_for_storage_encryption()
 
     def has_usable_connection_with_device(self) -> bool:
-        if not hasattr(self, 'plugin'):
-            return False
-        client = self.plugin.get_client(self, force_pair=False)
+        # we try to create a client even if there isn't one already,
+        # but do not prompt the user if auto-select fails:
+        client = self.get_client(
+            force_pair=True,
+            allow_user_interaction=False,
+        )
         if client is None:
             return False
         return client.has_usable_connection_with_device()
@@ -859,6 +914,12 @@ class Hardware_KeyStore(Xpub, KeyStore):
         if self.soft_device_id != client.get_soft_device_id():
             self.soft_device_id = client.get_soft_device_id()
             self.is_requesting_to_be_rewritten_to_wallet_file = True
+
+    def pairing_code(self) -> Optional[str]:
+        """Used by the DeviceMgr to keep track of paired hw devices."""
+        if not self.soft_device_id:
+            return None
+        return f"{self.plugin.name}/{self.soft_device_id}"
 
 
 KeyStoreWithMPK = Union[KeyStore, MasterPublicKeyMixin]  # intersection really...

@@ -1,9 +1,41 @@
-hidapi
-trezor[hidapi]>=0.12.0
+# Prefer old hidapi as newer versions have issues on macOS
+# (see #7738 and https://github.com/trezor/cython-hidapi/issues/142 ).
+# Note: newer hidapi should also work.
+hidapi<0.11
+
+# device plugin: trezor
+trezor[hidapi]>=0.13.0,<0.14
+
+# device plugin: safe_t
 safet>=0.1.5
+
+# device plugin: keepkey
 keepkey>=6.3.1
+
+# device plugin: ledger
+# note: btchip-python only needed for "legacy" protocol and HW.1 support
 btchip-python>=0.1.32
+ledger-bitcoin>=0.1.1,<0.2.0
+
+# device plugin: coldcard
 ckcc-protocol>=0.7.7
-bitbox02>=5.2.0
+
+# device plugin: bitbox02
+bitbox02>=6.0.0
+
+# device plugin: satochip
 pyscard>=1.9.9
 pysatochip==0.12.3
+
+# device plugin: jade
+cbor>=1.0.0,<2.0.0
+pyserial>=3.5.0,<4.0.0
+
+# prefer older protobuf (see #7922)
+# (pulled in via e.g. keepkey and bitbox02)
+protobuf>=3.12,<4
+
+# prefer older colorama to avoid needing hatchling
+# (pulled in via trezor -> click -> colorama)
+# (pulled in via safet -> click -> colorama)
+colorama<0.4.6

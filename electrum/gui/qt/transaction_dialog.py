@@ -49,11 +49,12 @@ from electrum.transaction import SerializationError, Transaction, PartialTransac
 from electrum.logging import get_logger
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
-                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, text_dialog,
+                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_COMPLETE_TX,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
-                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem)
+                   BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
+                   get_iconname_qrcode)
 
 from .fee_slider import FeeSlider, FeeComboBox
 from .confirm_tx_dialog import TxEditor
@@ -120,11 +121,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
-        self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        self.tx_hash_e.addButton(qr_icon, qr_show, _("Show as QR code"))
-        self.tx_hash_e.setReadOnly(True)
+        self.tx_hash_e = ShowQRLineEdit('', self.config, title='Transaction ID')
         vbox.addWidget(self.tx_hash_e)
 
         self.add_tx_stats(vbox)
@@ -244,7 +241,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
-        self.main_window.save_pending_invoice()
+        self.main_window.send_tab.save_pending_invoice()
         try:
             self.main_window.broadcast_transaction(self.tx)
         finally:
@@ -275,8 +272,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         action.triggered.connect(lambda: self.copy_to_clipboard(tx=gettx()))
         menu.addAction(action)
 
-        qr_icon = "qrcode_white.png" if ColorScheme.dark_scheme else "qrcode.png"
-        action = QAction(read_QIcon(qr_icon), _("Show as QR code"), self)
+        action = QAction(read_QIcon(get_iconname_qrcode()), _("Show as QR code"), self)
         action.triggered.connect(lambda: self.show_qr(tx=gettx()))
         menu.addAction(action)
 
@@ -295,15 +291,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         if not isinstance(self.tx, PartialTransaction):
             raise Exception("Can only export partial transactions for hardware device.")
         tx = copy.deepcopy(self.tx)
-        tx.add_info_from_wallet(self.wallet, include_xpubs=True)
-        # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
-        from electrum.keystore import Xpub
-        def is_ks_missing_info(ks):
-            return (isinstance(ks, Xpub) and (ks.get_root_fingerprint() is None
-                                              or ks.get_derivation_prefix() is None))
-        if any([is_ks_missing_info(ks) for ks in self.wallet.get_keystores()]):
-            _logger.warning('PSBT was requested to be filled with full bip32 paths but '
-                            'some keystores lacked either the derivation prefix or the root fingerprint')
+        tx.prepare_for_export_for_hardware_device(self.wallet)
         return tx
 
     def copy_to_clipboard(self, *, tx: Transaction = None):
@@ -451,7 +439,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             item = lnworker_history[txid]
             ln_amount = item['amount_msat'] / 1000
             if amount is None:
-                tx_mined_status = self.wallet.lnworker.lnwatcher.get_tx_height(txid)
+                tx_mined_status = self.wallet.lnworker.lnwatcher.adb.get_tx_height(txid)
         else:
             ln_amount = None
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
@@ -476,8 +464,10 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.date_label.setText(_("Date: {}").format(time_str))
             self.date_label.show()
         elif exp_n is not None:
-            text = '%.2f MB'%(exp_n/1000000)
-            self.date_label.setText(_('Position in mempool: {} from tip').format(text))
+            text = "{}: {}".format(
+                _('Position in mempool'),
+                self.config.depth_tooltip(exp_n))
+            self.date_label.setText(text)
             self.date_label.show()
         else:
             self.date_label.hide()
@@ -618,11 +608,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
                 prevout_hash = txin.prevout.txid.hex()
                 prevout_n = txin.prevout.out_idx
                 cursor.insertText(prevout_hash + ":%-4d " % prevout_n, ext)
-                addr = self.wallet.get_txin_address(txin)
+                addr = self.wallet.adb.get_txin_address(txin)
                 if addr is None:
                     addr = ''
                 cursor.insertText(addr, text_format(addr))
-                txin_value = self.wallet.get_txin_value(txin)
+                txin_value = self.wallet.adb.get_txin_value(txin)
                 if txin_value is not None:
                     cursor.insertText(format_amount(txin_value), ext)
             cursor.insertBlock()
@@ -690,9 +680,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox_right.addWidget(self.size_label)
         self.rbf_label = TxDetailLabel()
         vbox_right.addWidget(self.rbf_label)
-        self.rbf_cb = QCheckBox(_('Replace by fee'))
-        self.rbf_cb.setChecked(bool(self.config.get('use_rbf', True)))
-        vbox_right.addWidget(self.rbf_cb)
 
         self.locktime_final_label = TxDetailLabel()
         vbox_right.addWidget(self.locktime_final_label)
@@ -723,7 +710,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(self.finalized)
-        self.rbf_cb.setVisible(not self.finalized)
         self.locktime_final_label.setVisible(self.finalized)
         self.locktime_setter_widget.setVisible(not self.finalized)
 
@@ -991,11 +977,12 @@ class PreviewTxDialog(BaseTxDialog, TxEditor):
             return
         assert self.tx
         self.finalized = True
-        self.tx.set_rbf(self.rbf_cb.isChecked())
+        self.stop_editor_updates()
+        self.tx.set_rbf(True)
         locktime = self.locktime_e.get_locktime()
         if locktime is not None:
             self.tx.locktime = locktime
-        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields, self.rbf_cb,
+        for widget in [self.fee_slider, self.fee_combo, self.feecontrol_fields,
                        self.locktime_setter_widget, self.locktime_e]:
             widget.setEnabled(False)
             widget.setVisible(False)

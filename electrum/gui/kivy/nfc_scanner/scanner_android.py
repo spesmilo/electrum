@@ -46,7 +46,7 @@ class ScannerAndroid(NFCBase):
         global app
         app = App.get_running_app()
 
-        # Make sure we are listening to new intent 
+        # Make sure we are listening to new intent
         activity.bind(on_new_intent=self.on_new_intent)
 
         # Configure nfc
@@ -55,7 +55,7 @@ class ScannerAndroid(NFCBase):
         # Check if adapter exists
         if not self.nfc_adapter:
             return False
-        
+
         # specify that we want our activity to remain on top when a new intent
         # is fired
         self.nfc_pending_intent = PendingIntent.getActivity(context, 0,
@@ -131,7 +131,7 @@ class ScannerAndroid(NFCBase):
         ''' This function is called when the application receives a
         new intent, for the ones the application has registered previously,
         either in the manifest or in the foreground dispatch setup in the
-        nfc_init function above. 
+        nfc_init function above.
         '''
 
         action_list = (NfcAdapter.ACTION_NDEF_DISCOVERED,)
@@ -214,7 +214,7 @@ class ScannerAndroid(NFCBase):
         ndef_record = NdefRecord(
                 NdefRecord.TNF_MIME_MEDIA,
                 'org.electrum.kivy', '', data)
-        
+
         # Create message
         ndef_message = NdefMessage([ndef_record])
 

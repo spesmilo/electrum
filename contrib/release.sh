@@ -23,11 +23,11 @@
 #
 # Note: steps before doing a new release:
 # - update locale:
-#     1. cd /opt/electrum-locale && ./update && push
+#     1. cd /opt/electrum-locale && ./update && git push
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
-# - git tag
+# - $ git tag -s $VERSION -m $VERSION
 #
 
 set -e
@@ -63,9 +63,19 @@ elif [ "$GPGUSER" == "sombernight_releasekey" ]; then
 fi
 
 
-VERSION=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
+if [ ! -z "$RELEASEMANAGER" ] ; then
+    echo -n "Code signing passphrase:"
+    read -s password
+    # tests password against keystore
+    keytool -list -storepass $password
+    # the same password is used for windows signing
+    export WIN_SIGNING_PASSWORD=$password
+fi
+
+
+VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
 info "VERSION: $VERSION"
-REV=`git describe --tags`
+REV=$(git describe --tags)
 info "REV: $REV"
 COMMIT=$(git rev-parse HEAD)
 
@@ -85,7 +95,15 @@ tarball="Electrum-$VERSION.tar.gz"
 if test -f "dist/$tarball"; then
     info "file exists: $tarball"
 else
-   ./contrib/build-linux/sdist/build.sh
+    ./contrib/build-linux/sdist/build.sh
+fi
+
+# create source-only tarball
+srctarball="Electrum-sourceonly-$VERSION.tar.gz"
+if test -f "dist/$srctarball"; then
+    info "file exists: $srctarball"
+else
+    OMIT_UNCLEAN_FILES=1 ./contrib/build-linux/sdist/build.sh
 fi
 
 # appimage
@@ -105,7 +123,11 @@ if test -f "dist/$win1"; then
     info "file exists: $win1"
 else
     pushd .
-    ./contrib/build-wine/build.sh
+    if test -f "contrib/build-wine/dist/$win1"; then
+        info "unsigned file exists: $win1"
+    else
+        ./contrib/build-wine/build.sh
+    fi
     cd contrib/build-wine/
     if [ ! -z "$RELEASEMANAGER" ] ; then
         ./sign.sh
@@ -125,11 +147,11 @@ if test -f "dist/$apk1"; then
     info "file exists: $apk1"
 else
     if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh release
+        ./contrib/android/build.sh kivy all release $password
     else
-        ./contrib/android/build.sh release-unsigned
-        mv "$apk1_unsigned" "$apk1"
-        mv "$apk2_unsigned" "$apk2"
+        ./contrib/android/build.sh kivy all release-unsigned
+        mv "dist/$apk1_unsigned" "dist/$apk1"
+        mv "dist/$apk2_unsigned" "dist/$apk2"
     fi
 fi
 
@@ -162,7 +184,7 @@ sha256sum contrib/build-wine/dist/*.exe
 echo -n "proceed (y/n)? "
 read answer
 
-if [ "$answer" != "y" ] ;then
+if [ "$answer" != "y" ]; then
     echo "exit"
     exit 1
 fi
@@ -182,15 +204,17 @@ if [ -z "$RELEASEMANAGER" ] ; then
        bye
 !
     # check we have each binary
-    test -f "$tarball"  || fail "tarball not found among sftp downloads"
-    test -f "$appimage" || fail "appimage not found among sftp downloads"
-    test -f "$win1"     || fail "win1 not found among sftp downloads"
-    test -f "$win2"     || fail "win2 not found among sftp downloads"
-    test -f "$win3"     || fail "win3 not found among sftp downloads"
-    test -f "$apk1"     || fail "apk1 not found among sftp downloads"
-    test -f "$apk2"     || fail "apk2 not found among sftp downloads"
-    test -f "$dmg"      || fail "dmg not found among sftp downloads"
+    test -f "$tarball"    || fail "tarball not found among sftp downloads"
+    test -f "$srctarball" || fail "srctarball not found among sftp downloads"
+    test -f "$appimage"   || fail "appimage not found among sftp downloads"
+    test -f "$win1"       || fail "win1 not found among sftp downloads"
+    test -f "$win2"       || fail "win2 not found among sftp downloads"
+    test -f "$win3"       || fail "win3 not found among sftp downloads"
+    test -f "$apk1"       || fail "apk1 not found among sftp downloads"
+    test -f "$apk2"       || fail "apk2 not found among sftp downloads"
+    test -f "$dmg"        || fail "dmg not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
     test -f "$CONTRIB/build-wine/dist/$win1" || fail "win1 not found among built files"
     test -f "$CONTRIB/build-wine/dist/$win2" || fail "win2 not found among built files"
@@ -199,8 +223,9 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
     # compare downloaded binaries against ones we built
-    cmp --silent "$tarball" "$PROJECT_ROOT/dist/$tarball" || fail "files are different. tarball."
-    cmp --silent "$appimage" "$PROJECT_ROOT/dist/$appimage" || fail "files are different. appimage."
+    cmp --silent "$tarball"    "$PROJECT_ROOT/dist/$tarball"    || fail "files are different. tarball."
+    cmp --silent "$srctarball" "$PROJECT_ROOT/dist/$srctarball" || fail "files are different. srctarball."
+    cmp --silent "$appimage"   "$PROJECT_ROOT/dist/$appimage"   || fail "files are different. appimage."
     rm -rf "$CONTRIB/build-wine/signed/" && mkdir --parents "$CONTRIB/build-wine/signed/"
     cp -f "$win1" "$win2" "$win3" "$CONTRIB/build-wine/signed/"
     "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
@@ -210,12 +235,12 @@ if [ -z "$RELEASEMANAGER" ] ; then
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$dmg" ; do
+    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$dmg" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
     # upload sigs
-    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload"
+    ELECBUILD_UPLOADFROM="$PROJECT_ROOT/dist/sigs/" "$CONTRIB/upload.sh"
 
 else
     # ONLY release manager
@@ -225,7 +250,7 @@ else
     info "updating www repo"
     ./contrib/make_download $WWW_DIR
     info "signing the version announcement file"
-    sig=`./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET`
+    sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
     echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
 
 
@@ -237,7 +262,7 @@ else
     if test -f dist/uploaded; then
         info "files already uploaded"
     else
-        ./contrib/upload
+        ./contrib/upload.sh
         touch dist/uploaded
     fi
 

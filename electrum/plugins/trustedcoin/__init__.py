@@ -8,4 +8,4 @@ description = ''.join([
 ])
 requires_wallet_type = ['2fa']
 registers_wallet_type = '2fa'
-available_for = ['qt', 'cmdline', 'kivy']
+available_for = ['qt', 'cmdline', 'kivy', 'qml']

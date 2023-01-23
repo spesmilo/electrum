@@ -99,10 +99,11 @@ class Plugin(TrustedCoinPlugin):
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
+            icon = read_QIcon("trustedcoin-status-disabled.png")
         else:
             action = partial(self.settings_dialog, window)
-        button = StatusBarButton(read_QIcon("trustedcoin-status.png"),
-                                 _("TrustedCoin"), action)
+            icon = read_QIcon("trustedcoin-status.png")
+        button = StatusBarButton(icon, _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
         self.start_request_thread(window.wallet)
 
@@ -278,7 +279,7 @@ class Plugin(TrustedCoinPlugin):
         tos_e.tos_signal.connect(on_result)
         tos_e.error_signal.connect(on_error)
         t = threading.Thread(target=request_TOS)
-        t.setDaemon(True)
+        t.daemon = True
         t.start()
         email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)

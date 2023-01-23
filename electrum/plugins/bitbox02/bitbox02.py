@@ -22,7 +22,7 @@ from electrum.bitcoin import OnchainOutputType
 import electrum.bitcoin as bitcoin
 import electrum.ecc as ecc
 
-from ..hw_wallet import HW_PluginBase, HardwareClientBase
+from ..hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
 
 
 _logger = get_logger(__name__)
@@ -47,7 +47,7 @@ except ImportError as e:
 
 class BitBox02Client(HardwareClientBase):
     # handler is a BitBox02_Handler, importing it would lead to a circular dependency
-    def __init__(self, handler: Any, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
+    def __init__(self, handler: HardwareHandlerBase, device: Device, config: SimpleConfig, *, plugin: HW_PluginBase):
         HardwareClientBase.__init__(self, plugin=plugin)
         self.bitbox02_device = None  # type: Optional[bitbox02.BitBox02]
         self.handler = handler
@@ -444,7 +444,7 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
-            if tx_script_type == None:
+            if tx_script_type is None:
                 tx_script_type = txin.script_type
             elif tx_script_type != txin.script_type:
                 raise Exception("Cannot mix different input script types")
@@ -482,7 +482,7 @@ class BitBox02Client(HardwareClientBase):
                     )
                 )
             else:
-                addrtype, pubkey_hash = bitcoin.address_to_hash(txout.address)
+                addrtype, payload = bitcoin.address_to_payload(txout.address)
                 if addrtype == OnchainOutputType.P2PKH:
                     output_type = bitbox02.btc.P2PKH
                 elif addrtype == OnchainOutputType.P2SH:
@@ -491,6 +491,8 @@ class BitBox02Client(HardwareClientBase):
                     output_type = bitbox02.btc.P2WPKH
                 elif addrtype == OnchainOutputType.WITVER0_P2WSH:
                     output_type = bitbox02.btc.P2WSH
+                elif addrtype == OnchainOutputType.WITVER1_P2TR:
+                    output_type = bitbox02.btc.P2TR
                 else:
                     raise UserFacingException(
                         "Received unsupported output type during transaction signing: {} is not supported by the BitBox02".format(
@@ -500,7 +502,7 @@ class BitBox02Client(HardwareClientBase):
                 outputs.append(
                     bitbox02.BTCOutputExternal(
                         output_type=output_type,
-                        output_hash=pubkey_hash,
+                        output_payload=payload,
                         value=txout.value,
                     )
                 )
@@ -524,7 +526,7 @@ class BitBox02Client(HardwareClientBase):
         signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
         tx.update_signatures(signatures)
 
-    def sign_message(self, keypath: str, message: bytes, xtype: str) -> bytes:
+    def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
         if self.bitbox02_device is None:
             raise Exception(
                 "Need to setup communication first before attempting any BitBox02 calls"
@@ -534,9 +536,9 @@ class BitBox02Client(HardwareClientBase):
             simple_type = {
                 "p2wpkh-p2sh":bitbox02.btc.BTCScriptConfig.P2WPKH_P2SH,
                 "p2wpkh": bitbox02.btc.BTCScriptConfig.P2WPKH,
-            }[xtype]
+            }[script_type]
         except KeyError:
-            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(xtype))
+            raise UserFacingException("The BitBox02 does not support signing messages for this address type: {}".format(script_type))
 
         _, _, signature = self.bitbox02_device.btc_sign_msg(
             self._get_coin(),
@@ -557,20 +559,14 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
     def __init__(self, d: dict):
         super().__init__(d)
-        self.force_watching_only = False
         self.ux_busy = False
 
-    def get_client(self):
-        return self.plugin.get_client(self)
-
-    def give_error(self, message: Exception, clear_client: bool = False):
+    def give_error(self, message: Exception):
         self.logger.info(message)
         if not self.ux_busy:
             self.handler.show_error(message)
         else:
             self.ux_busy = False
-        if clear_client:
-            self.client = None
         raise UserFacingException(message)
 
     def decrypt_message(self, pubkey, message, password):
@@ -580,13 +576,16 @@ class BitBox02_KeyStore(Hardware_KeyStore):
             ).format(self.device)
         )
 
-    def sign_message(self, sequence, message, password):
+    def sign_message(self, sequence, message, password, *, script_type=None):
+        if constants.net.TESTNET:
+            raise UserFacingException(
+                _("The {} only supports message signing on mainnet.").format(self.device)
+            )
         if password:
             raise Exception("BitBox02 does not accept a password from the host")
         client = self.get_client()
         keypath = self.get_derivation_prefix() + "/%d/%d" % sequence
-        xtype = self.get_bip32_node_for_xpub().xtype
-        return client.sign_message(keypath, message.encode("utf-8"), xtype)
+        return client.sign_message(keypath, message.encode("utf-8"), script_type)
 
 
     @runs_in_hwd_thread
@@ -606,7 +605,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
         except Exception as e:
             self.logger.exception("")
-            self.give_error(e, True)
+            self.give_error(e)
             return
 
     @runs_in_hwd_thread
@@ -629,7 +628,7 @@ class BitBox02_KeyStore(Hardware_KeyStore):
 
 class BitBox02Plugin(HW_PluginBase):
     keystore_class = BitBox02_KeyStore
-    minimum_library = (5, 2, 0)
+    minimum_library = (6, 0, 0)
     DEVICE_IDS = [(0x03EB, 0x2403)]
 
     SUPPORTED_XTYPES = ("p2wpkh-p2sh", "p2wpkh", "p2wsh", "p2wsh-p2sh")
@@ -653,11 +652,8 @@ class BitBox02Plugin(HW_PluginBase):
         else:
             raise ImportError()
 
-    # handler is a BitBox02_Handler
     @runs_in_hwd_thread
-    def create_client(self, device: Device, handler: Any) -> BitBox02Client:
-        if not handler:
-            self.handler = handler
+    def create_client(self, device, handler) -> BitBox02Client:
         return BitBox02Client(handler, device, self.config, plugin=self)
 
     def setup_device(

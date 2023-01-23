@@ -11,13 +11,11 @@ task:
         ELECTRUM_PYTHON_NAME: python3
       matrix:
        - env:
-           ELECTRUM_PYTHON_VERSION: 3.6
-       - env:
-           ELECTRUM_PYTHON_VERSION: 3.7
-       - env:
            ELECTRUM_PYTHON_VERSION: 3.8
        - env:
            ELECTRUM_PYTHON_VERSION: 3.9
+       - env:
+           ELECTRUM_PYTHON_VERSION: 3.10
        - env:
            ELECTRUM_PYTHON_VERSION: 3
        - env:
@@ -30,11 +28,7 @@ task:
         ELECTRUM_PYTHON_NAME: pypy3
   pip_cache:
     folder: ~/.cache/pip
-    fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
-  electrum_cache:
-    folder: /tmp/electrum-build
-    populate_script: mkdir -p /tmp/electrum-build
+    fingerprint_script: echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI && cat $ELECTRUM_REQUIREMENTS
   version_script:
     - $ELECTRUM_PYTHON_NAME --version
   tag_script:
@@ -42,13 +36,14 @@ task:
   install_script:
     - apt-get update
     - apt-get -y install libsecp256k1-0
-    - pip install -r $ELECTRUM_REQUIREMENTS
+    - pip install -r $ELECTRUM_REQUIREMENTS_CI
   tox_script:
     - tox
   coveralls_script:
-    - coveralls
+    - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
   env:
-    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # following CI_* env vars are set up for coveralls
     CI_NAME: "CirrusCI"
     CI_BUILD_NUMBER: $CIRRUS_BUILD_ID
@@ -66,21 +61,17 @@ task:
     memory: 1G
   pip_cache:
     folder: ~/.cache/pip
-    fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
-  electrum_cache:
-    folder: /tmp/electrum-build
-    populate_script: mkdir -p /tmp/electrum-build
+    fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-0 gettext
-    - pip install -r $ELECTRUM_REQUIREMENTS
+    - apt-get -y install gettext
+    - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
   locale_script:
     - contrib/push_locale
   env:
-    ELECTRUM_IMAGE: python:3.7
-    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    ELECTRUM_IMAGE: python:3.8
+    ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
     - Tox Python 3.9
@@ -88,17 +79,15 @@ task:
 
 task:
   name: Regtest functional tests
-  container:
-    image: $ELECTRUM_IMAGE
+  compute_engine_instance:
+    image_project: cirrus-images
+    image: family/docker-builder
+    platform: linux
     cpu: 1
     memory: 1G
   pip_cache:
     folder: ~/.cache/pip
-    fingerprint_script: echo Regtest && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
-  electrum_cache:
-    folder: /tmp/electrum-build
-    populate_script: mkdir -p /tmp/electrum-build
+    fingerprint_script: echo Regtest && echo docker_builder && cat $ELECTRUM_REQUIREMENTS
   bitcoind_cache:
     folder: /tmp/bitcoind
     populate_script: mkdir -p /tmp/bitcoind
@@ -106,7 +95,8 @@ task:
     - apt-get update
     - apt-get -y install libsecp256k1-0 curl jq bc
     - pip3 install .[tests]
-    - pip3 install electrumx
+    # install e-x some commits after 1.16.0 tag, where it uses same aiorpcx as electrum
+    - pip3 install git+https://github.com/spesmilo/electrumx.git@c8d2cc0d5cf9e549a90ca876d85fed9a90b8c4ed
     - "BITCOIND_VERSION=$(curl https://bitcoincore.org/en/download/ | grep -E -i --only-matching 'Latest version: [0-9\\.]+' | grep -E --only-matching '[0-9\\.]+')"
     - BITCOIND_FILENAME=bitcoin-$BITCOIND_VERSION-x86_64-linux-gnu.tar.gz
     - BITCOIND_PATH=/tmp/bitcoind/$BITCOIND_FILENAME
@@ -121,8 +111,7 @@ task:
     - sleep 10s
     - python3 -m unittest electrum/tests/regtest.py
   env:
-    ELECTRUM_IMAGE: python:3.7
-    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
 
@@ -134,21 +123,20 @@ task:
   pip_cache:
     folder: ~/.cache/pip
     fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
-    populate_script: mkdir -p ~/.cache/pip
-  electrum_cache:
-    folder: /tmp/electrum-build
-    populate_script: mkdir -p /tmp/electrum-build
   install_script:
     - pip install flake8
   flake8_script:
     - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
   env:
-    ELECTRUM_IMAGE: python:3.7
-    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements-travis.txt
+    ELECTRUM_IMAGE: python:3.8
+    ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
   matrix:
     - name: Flake8 Mandatory
       env:
-        ELECTRUM_LINTERS: E9,F63,F7,F82
+        # list of error codes:
+        # - https://flake8.pycqa.org/en/latest/user/error-codes.html
+        # - https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+        ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,F63,F7,F82,W191,W29
     - name: Flake8 Non-Mandatory
       env:
         ELECTRUM_LINTERS: E,F,W,C90
@@ -160,6 +148,20 @@ task:
     dockerfile: contrib/build-wine/Dockerfile
     cpu: 1
     memory: 2G
+  pip_cache:
+    folder: contrib/build-wine/.cache/win32/wine_pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-wine/
+  build2_cache:
+    folder: contrib/build-wine/.cache/win32/build
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - cat contrib/make_libusb.sh | sha256sum
+      - cat contrib/make_zbar.sh | sha256sum
+      - git ls-files -s contrib/build-wine/
   build_script:
     - cd contrib/build-wine
     - ./make_win.sh
@@ -167,60 +169,141 @@ task:
     path: "contrib/build-wine/dist/*"
   env:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
+    CIRRUS_DOCKER_CONTEXT: contrib/build-wine
 
 task:
-  name: Android build
+  name: Android build (Kivy $APK_ARCH)
   container:
     dockerfile: contrib/android/Dockerfile
     cpu: 2
     memory: 2G
+  env:
+    APK_ARCH: arm64-v8a
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - git ls-files -s contrib/android/
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - git ls-files -s contrib/android/
+      - echo "kivy $APK_ARCH"
   build_script:
-    - ./contrib/android/make_apk
+    - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
 
 task:
-  name: MacOS build
-  macos_instance:
-    image: catalina-xcode-11.3.1
+  name: Android build (QML $APK_ARCH)
+  container:
+    dockerfile: contrib/android/Dockerfile
+    cpu: 8
+    memory: 24G
   env:
-    TARGET_OS: macOS
-  install_script:
-    - git fetch --all --tags
+    APK_ARCH: arm64-v8a
+  packages_tld_folder_cache:
+    folder: packages
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME && cat contrib/deterministic-build/requirements.txt && cat contrib/make_packages.sh
+      - git ls-files -s contrib/android/
+  p4a_cache:
+    folders:
+      - ".buildozer/android/platform/build-$APK_ARCH/packages"
+      - ".buildozer/android/platform/build-$APK_ARCH/build"
+    fingerprint_script:
+      # note: should *at least* depend on Dockerfile and p4a_recipes/, but contrib/android/ is simplest
+      - git ls-files -s contrib/android/
+      - echo "qml $APK_ARCH"
   build_script:
-    - ./contrib/osx/make_osx
-  sum_script:
-    - ls -lah dist
-    - shasum -a 256 dist/*.dmg
+    - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
+
+## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
+#task:
+#  name: MacOS build
+#  macos_instance:
+#    image: catalina-xcode-11.3.1
+#  env:
+#    TARGET_OS: macOS
+#  pip_cache:
+#    folder: ~/Library/Caches/pip
+#    fingerprint_script:
+#      - echo $CIRRUS_TASK_NAME
+#      - git ls-files -s contrib/deterministic-build/*.txt
+#      - git ls-files -s contrib/osx/
+#  build2_cache:
+#    folder: contrib/osx/.cache
+#    fingerprint_script:
+#      - echo $CIRRUS_TASK_NAME
+#      - cat contrib/make_libsecp256k1.sh | shasum -a 256
+#      - cat contrib/make_libusb.sh | shasum -a 256
+#      - cat contrib/make_zbar.sh | shasum -a 256
+#      - git ls-files -s contrib/osx/
+#  install_script:
+#    - git fetch --all --tags
+#  build_script:
+#    - ./contrib/osx/make_osx.sh
+#  sum_script:
+#    - ls -lah dist
+#    - shasum -a 256 dist/*.dmg
+#  binaries_artifacts:
+#    path: "dist/*"
 
 task:
   name: AppImage build
   container:
     dockerfile: contrib/build-linux/appimage/Dockerfile
     cpu: 2
-    memory: 1G
+    memory: 2G
+  pip_cache:
+    folder: contrib/build-linux/appimage/.cache/pip_cache
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/appimage/
+  build2_cache:
+    folder: contrib/build-linux/appimage/.cache/appimage
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - cat contrib/make_libsecp256k1.sh | sha256sum
+      - git ls-files -s contrib/build-linux/appimage/
   build_script:
     - ./contrib/build-linux/appimage/make_appimage.sh
   binaries_artifacts:
     path: "dist/*"
+  env:
+    CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
 
 task:
-  name: tarball build
   container:
     dockerfile: contrib/build-linux/sdist/Dockerfile
     cpu: 1
     memory: 1G
+  pip_cache:
+    folder: ~/.cache/pip
+    fingerprint_script:
+      - echo $CIRRUS_TASK_NAME
+      - git ls-files -s contrib/deterministic-build/*.txt
+      - git ls-files -s contrib/build-linux/sdist/
   build_script:
     - ./contrib/build-linux/sdist/make_sdist.sh
   binaries_artifacts:
     path: "dist/*"
+  matrix:
+    - name: tarball build
+    - name: source-only tarball build
+      env:
+        OMIT_UNCLEAN_FILES: 1
 
 task:
   name: Submodules
   container:
-    image: python:3.7
+    image: python:3.8
     cpu: 1
     memory: 1G
   fetch_script:

@@ -14,14 +14,15 @@ from aiorpcx import NetAddress
 from . import util
 from . import constants
 from .util import base_units, base_unit_name_to_decimal_point, decimal_point_to_base_unit_name, UnknownBaseUnit, DECIMAL_POINT_DEFAULT
-from .util import format_satoshis, format_fee_satoshis
+from .util import format_satoshis, format_fee_satoshis, os_chmod
 from .util import user_dir, make_dir, NoDynamicFeeEstimates, quantize_feerate
 from .i18n import _
 from .logging import get_logger, Logger
 
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
-FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
+FEE_DEPTH_TARGETS = [10_000_000, 5_000_000, 2_000_000, 1_000_000,
+                     800_000, 600_000, 400_000, 250_000, 100_000]
 FEE_LN_ETA_TARGET = 2  # note: make sure the network is asking for estimates for this target
 
 # satoshi per kbyte
@@ -33,6 +34,12 @@ FEERATE_MAX_RELAY = 50000
 FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
                          50000, 70000, 100000, 150000, 200000, 300000]
 FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
+
+# The min feerate_per_kw that can be used in lightning so that
+# the resulting onchain tx pays the min relay fee.
+# This would be FEERATE_DEFAULT_RELAY / 4 if not for rounding errors,
+# see https://github.com/ElementsProject/lightning/commit/2e687b9b352c9092b5e8bd4a688916ac50b44af0
+FEERATE_PER_KW_MIN_RELAY_LIGHTNING = 253
 
 FEE_RATIO_HIGH_WARNING = 0.05  # warn user if fee/amount for on-chain tx is higher than this
 
@@ -264,14 +271,14 @@ class SimpleConfig(Logger):
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
-            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+            os_chmod(path, stat.S_IREAD | stat.S_IWRITE)
         except FileNotFoundError:
             # datadir probably deleted while running...
             if os.path.exists(self.path):  # or maybe not?
                 raise
 
     def get_backup_dir(self):
-        # this is used to save a backup everytime a channel is created
+        # this is used to save wallet file backups (without active lightning channels)
         # on Android, the export backup button uses android_backup_dir()
         if 'ANDROID_DATA' in os.environ:
             return None
@@ -290,12 +297,7 @@ class SimpleConfig(Logger):
             if path and os.path.exists(path):
                 return path
 
-        # default path
-        util.assert_datadir_available(self.path)
-        dirpath = os.path.join(self.path, "wallets")
-        make_dir(dirpath, allow_symlink=False)
-
-        new_path = os.path.join(self.path, "wallets", "default_wallet")
+        new_path = self.get_fallback_wallet_path()
 
         # default path in pre 1.9 versions
         old_path = os.path.join(self.path, "electrum.dat")
@@ -303,6 +305,13 @@ class SimpleConfig(Logger):
             os.rename(old_path, new_path)
 
         return new_path
+
+    def get_fallback_wallet_path(self):
+        util.assert_datadir_available(self.path)
+        dirpath = os.path.join(self.path, "wallets")
+        make_dir(dirpath, allow_symlink=False)
+        path = os.path.join(self.path, "wallets", "default_wallet")
+        return path
 
     def remove_from_recently_open(self, filename):
         recent = self.get('recently_open', [])
@@ -390,9 +399,11 @@ class SimpleConfig(Logger):
                 break
         else:
             return 0
-        # add one sat/byte as currently that is
-        # the max precision of the histogram
-        # (well, in case of ElectrumX at least. not for electrs)
+        # add one sat/byte as currently that is the max precision of the histogram
+        # note: precision depends on server.
+        #       old ElectrumX <1.16 has 1 s/b prec, >=1.16 has 0.1 s/b prec.
+        #       electrs seems to use untruncated double-precision floating points.
+        #       # TODO decrease this to 0.1 s/b next time we bump the required protocol version
         fee += 1
         # convert to sat/kbyte
         return int(fee * 1000)
@@ -426,11 +437,17 @@ class SimpleConfig(Logger):
             min_target = -1
         return min_target
 
+    def get_depth_mb_str(self, depth: int) -> str:
+        # e.g. 500_000 -> "0.50 MB"
+        depth_mb = "{:.2f}".format(depth / 1_000_000)  # maybe .rstrip("0") ?
+        return f"{depth_mb} MB"
+
     def depth_tooltip(self, depth: Optional[int]) -> str:
         """Returns text tooltip for given mempool depth (in vbytes)."""
         if depth is None:
             return "unknown from tip"
-        return "%.1f MB from tip" % (depth/1_000_000)
+        depth_mb = self.get_depth_mb_str(depth)
+        return _("{} from tip").format(depth_mb)
 
     def eta_tooltip(self, x):
         if x < 0:
@@ -700,8 +717,8 @@ def read_user_config(path):
         with open(config_path, "r", encoding='utf-8') as f:
             data = f.read()
         result = json.loads(data)
-    except:
-        _logger.warning(f"Cannot read config file. {config_path}")
+    except Exception as exc:
+        _logger.warning(f"Cannot read config file at {config_path}: {exc}")
         return {}
     if not type(result) is dict:
         return {}
