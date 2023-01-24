@@ -167,7 +167,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421
+    # commit: from branch sombernight/electrum_20210421 (note: careful with force-pushing! see #8162)
     && git checkout "6f03256e8312f8d1e5a6da3a2a1bf06e2738325e^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
@@ -178,7 +178,7 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch accumulator/electrum_20210421d
+    # commit: from branch accumulator/electrum_20210421d (note: careful with force-pushing! see #8162)
     && git checkout "d33e07ba4c7931da46122a32f3807709a73cb7f6^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
