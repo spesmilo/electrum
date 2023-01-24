@@ -941,7 +941,7 @@ class LNWallet(LNWorker):
                 amount_msat = 0
             label = 'Reverse swap' if swap.is_reverse else 'Forward swap'
             delta = current_height - swap.locktime
-            if self.wallet.adb.is_mine(swap.funding_txid):
+            if self.wallet.adb.is_mine(swap.lockup_address):
                 tx_height = self.wallet.adb.get_tx_height(swap.funding_txid)
                 if swap.is_reverse and tx_height.height <= 0:
                     label += ' (%s)' % _('waiting for funding tx confirmation')
