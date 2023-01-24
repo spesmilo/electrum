@@ -86,6 +86,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         config = devmgr.config
         handler = keystore.handler
         self.thread = thread = keystore.thread
+        self.window = window
 
         def connect_and_doit():
             client = devmgr.client_by_id(device_id)
@@ -246,10 +247,10 @@ class SatochipSettingsDialog(WindowModalDialog):
         (response, sw1, sw2)= client.cc.card_change_PIN(0, oldpin, newpin)
         if (sw1==0x90 and sw2==0x00):
             msg= _("PIN changed successfully!")
-            client.handler.show_message(msg)
+            self.window.show_message(msg)
         else:
             msg= _("Failed to change PIN!")
-            client.handler.show_error(msg)
+            self.window.show_error(msg)
     
     def reset_seed(self, client):
         _logger.info("In reset_seed")
@@ -285,7 +286,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             # _logger.info("encrypted message: "+msg_out)
             
             #do challenge-response with 2FA device...
-            client.handler.show_message('2FA request sent! Approve or reject request on your second device.')
+            self.window.show_message('2FA request sent! Approve or reject request on your second device.')
             Satochip2FA.do_challenge_response(d)
             # decrypt and parse reply to extract challenge response
             try: 
@@ -302,15 +303,15 @@ class SatochipSettingsDialog(WindowModalDialog):
         (response, sw1, sw2) = client.cc.card_reset_seed(pin, hmac)
         if (sw1==0x90 and sw2==0x00):
             msg= _("Seed reset successfully!\nYou should close this wallet and launch the wizard to generate a new wallet.")
-            client.handler.show_message(msg)
+            self.window.show_message(msg)
             #to do: close client?
         elif (sw1==0x9c and sw2==0x0b):
             msg= _(f"Failed to reset seed: request rejected by 2FA device (error code: {hex(256*sw1+sw2)})")
-            client.handler.show_message(msg)
+            self.window.show_message(msg)
             #to do: close client?
         else:
             msg= _(f"Failed to reset seed with error code: {hex(256*sw1+sw2)}")
-            client.handler.show_error(msg)   
+            self.window.show_error(msg)   
         
     def reset_seed_dialog(self, msg):
         _logger.info("In reset_seed_dialog")
@@ -350,15 +351,15 @@ class SatochipSettingsDialog(WindowModalDialog):
                         if sw1!=0x90 or sw2!=0x00:                 
                             _logger.info(f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")#debugSatochip
                             #raise RuntimeError(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
-                            client.handler.show_error(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
+                            self.window.show_error(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
                         else:
-                            client.handler.show_message("2FA enabled successfully!") 
+                            self.window.show_message("2FA enabled successfully!") 
                     else:
-                        client.handler.show_message("2FA cancelled by user!")  
+                        self.window.show_message("2FA cancelled by user!")  
                         return
                 except Exception as e:
                     _logger.info(f"SatochipPlugin: setup 2FA error: {e}")
-                    client.handler.show_error(f'Unable to setup 2FA with error code: {e}')  
+                    self.window.show_error(f'Unable to setup 2FA with error code: {e}')  
                     return
                     
     def reset_2FA(self, client):
@@ -375,7 +376,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             # _logger.info("encrypted message: "+msg_out)
             
             #do challenge-response with 2FA device...
-            client.handler.show_message('2FA request sent! Approve or reject request on your second device.')
+            self.window.show_message('2FA request sent! Approve or reject request on your second device.')
             Satochip2FA.do_challenge_response(d)
             # decrypt and parse reply to extract challenge response
             try: 
@@ -393,16 +394,16 @@ class SatochipSettingsDialog(WindowModalDialog):
             if (sw1==0x90 and sw2==0x00):
                 msg= _("2FA reset successfully!")
                 client.cc.needs_2FA= False
-                client.handler.show_message(msg)
+                self.window.show_message(msg)
             elif (sw1==0x9c and sw2==0x17):
                 msg= _(f"Failed to reset 2FA: \nyou must reset the seed first (error code {hex(256*sw1+sw2)})")
-                client.handler.show_error(msg)    
+                self.window.show_error(msg)    
             else:
                 msg= _(f"Failed to reset 2FA with error code: {hex(256*sw1+sw2)}")
-                client.handler.show_error(msg)    
+                self.window.show_error(msg)    
         else:
             msg= _(f"2FA is already disabled!")
-            client.handler.show_error(msg)    
+            self.window.show_error(msg)    
             
     def verify_card(self, client):    
         is_authentic, txt_ca, txt_subca, txt_device, txt_error = self.card_verify_authenticity(client)            
@@ -418,7 +419,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             txt_result= 'Device authenticated successfully!'
             txt_result+= '\n\n' + text_cert_chain
             txt_color= 'green'
-            client.handler.show_message(txt_result)
+            self.window.show_message(txt_result)
         else:
             txt_result= ''.join(['Error: could not authenticate the issuer of this card! \n', 
                                         'Reason: ', txt_error , '\n\n',
@@ -426,7 +427,7 @@ class SatochipSettingsDialog(WindowModalDialog):
                                         'Contact support(at)satochip.io to report a suspicious device.'])
             txt_result+= '\n\n' + text_cert_chain
             txt_color= 'red'
-            client.handler.show_error(txt_result)
+            self.window.show_error(txt_result)
     
     def card_verify_authenticity(self, client): #todo: add this function in pysatochip
         cert_pem=txt_error=""
@@ -466,15 +467,15 @@ class SatochipSettingsDialog(WindowModalDialog):
         ]) 
         label = self.change_card_label_dialog(client, msg)
         if label is None:
-            client.handler.show_message(_("Operation aborted by user!"))
+            self.window.show_message(_("Operation aborted by user!"))
             return
         (response, sw1, sw2)= client.cc.card_set_label(label)
         if (sw1==0x90 and sw2==0x00):
-            client.handler.show_message(_("Card label changed successfully!"))
+            self.window.show_message(_("Card label changed successfully!"))
         elif (sw1==0x6D and sw2==0x00):
-            client.handler.show_error(_("Error: card does not support label!")) # starts with satochip v0.12
+            self.window.show_error(_("Error: card does not support label!")) # starts with satochip v0.12
         else:
-            client.handler.show_error(f"Error while changing label: sw12={hex(sw1)} {hex(sw2)}")
+            self.window.show_error(f"Error while changing label: sw12={hex(sw1)} {hex(sw2)}")
                   
     def change_card_label_dialog(self, client, msg):
         _logger.info("In change_card_label_dialog")
@@ -495,7 +496,7 @@ class SatochipSettingsDialog(WindowModalDialog):
             if label is None or len(label.encode('utf-8'))<=64:
                 return label 
             else:
-                client.handler.show_error(_("Card label should not be longer than 64 chars!"))
+                self.window.show_error(_("Card label should not be longer than 64 chars!"))
     
     
     
