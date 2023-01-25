@@ -206,7 +206,7 @@ class UTXOList(MyTreeView):
             addr = utxo.address
             txid = utxo.prevout.txid.hex()
             # "Details"
-            tx = self.wallet.db.get_transaction(txid)
+            tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))

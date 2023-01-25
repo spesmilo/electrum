@@ -672,7 +672,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     self.parent.show_lightning_transaction(tx_item)
                 return
             tx_hash = tx_item['txid']
-            tx = self.wallet.db.get_transaction(tx_hash)
+            tx = self.wallet.adb.get_transaction(tx_hash)
             if not tx:
                 return
             self.show_transaction(tx_item, tx)
@@ -716,10 +716,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
-        if tx_item.get('lightning'):
-            tx = self.wallet.adb.get_transaction(tx_hash)
-        else:
-            tx = self.wallet.db.get_transaction(tx_hash)
+        tx = self.wallet.adb.get_transaction(tx_hash)
         if not tx:
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
