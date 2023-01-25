@@ -509,6 +509,9 @@ class ChannelBackup(AbstractChannel):
     def is_backup(self):
         return True
 
+    def get_remote_alias(self) -> Optional[bytes]:
+        return None
+
     def create_sweeptxs_for_their_ctx(self, ctx):
         return {}
 
