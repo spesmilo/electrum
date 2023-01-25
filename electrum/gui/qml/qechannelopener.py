@@ -141,7 +141,7 @@ class QEChannelOpener(QObject, AuthMixin):
             return False
         return True
 
-    # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
+    # FIXME "max" button in amount_dialog should enforce LIGHTNING_MAX_FUNDING_SAT
     @pyqtSlot()
     @pyqtSlot(bool)
     def openChannel(self, confirm_backup_conflict=False):

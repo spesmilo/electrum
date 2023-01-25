@@ -603,6 +603,9 @@ class Peer(Logger):
     def is_shutdown_anysegwit(self):
         return self.features.supports(LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT)
 
+    def supports_large_channels(self):
+        return self.features.supports(LnFeatures.OPTION_SUPPORT_LARGE_CHANNELS)
+
     def is_channel_type(self):
         return self.features.supports(LnFeatures.OPTION_CHANNEL_TYPE_OPT)
 

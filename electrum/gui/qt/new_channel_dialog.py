@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton, QComb
 
 from electrum.i18n import _
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
+from electrum.lnutil import MIN_FUNDING_SAT
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum import ecc
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
@@ -131,13 +131,13 @@ class NewChannelDialog(WindowModalDialog):
             self.window.show_error(str(e))
             return
         amount = tx.output_value()
-        amount = min(amount, LN_MAX_FUNDING_SAT)
+        amount = min(amount, self.config.LIGHTNING_MAX_FUNDING_SAT)
         self.amount_e.setAmount(amount)
 
     def run(self):
         if not self.exec_():
             return
-        if self.max_button.isChecked() and self.amount_e.get_amount() < LN_MAX_FUNDING_SAT:
+        if self.max_button.isChecked() and self.amount_e.get_amount() < self.config.LIGHTNING_MAX_FUNDING_SAT:
             # if 'max' enabled and amount is strictly less than max allowed,
             # that means we have fewer coins than max allowed, and hence we can
             # spend all coins

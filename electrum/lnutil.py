@@ -49,7 +49,6 @@ HTLC_SUCCESS_WEIGHT = 703
 COMMITMENT_TX_WEIGHT = 724
 HTLC_OUTPUT_WEIGHT = 172
 
-LN_MAX_FUNDING_SAT = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
 
 # dummy address for fee estimation of funding tx
@@ -106,9 +105,6 @@ class ChannelConfig(StoredObject):
                 raise Exception(f"{conf_name}. invalid pubkey in channel config")
         if funding_sat < MIN_FUNDING_SAT:
             raise Exception(f"funding_sat too low: {funding_sat} sat < {MIN_FUNDING_SAT}")
-        # MUST set funding_satoshis to less than 2^24 satoshi
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(f"funding_sat too high: {funding_sat} sat > {LN_MAX_FUNDING_SAT}")
         # MUST set push_msat to equal or less than 1000 * funding_satoshis
         if not (0 <= self.initial_msat <= 1000 * funding_sat):
             raise Exception(f"{conf_name}. insane initial_msat={self.initial_msat}. (funding_sat={funding_sat})")

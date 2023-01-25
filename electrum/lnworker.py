@@ -34,7 +34,6 @@ from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_F
 from .invoices import BaseInvoice
 from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
 from .util import EventListener, event_listener
-from .lnutil import LN_MAX_FUNDING_SAT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
 from .bitcoin import opcodes, make_op_return, address_to_scripthash
@@ -222,6 +221,7 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
     | LnFeatures.OPTION_CHANNEL_TYPE_OPT
     | LnFeatures.OPTION_SCID_ALIAS_OPT
+    | LnFeatures.OPTION_SUPPORT_LARGE_CHANNEL_OPT
 )
 
 LNGOSSIP_FEATURES = (
@@ -1156,7 +1156,7 @@ class LNWallet(LNWorker):
         assert lightning_needed > 0
         min_funding_sat = lightning_needed + (lightning_needed // 20) + 1000 # safety margin
         min_funding_sat = max(min_funding_sat, 100_000) # at least 1mBTC
-        if min_funding_sat > LN_MAX_FUNDING_SAT:
+        if min_funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
             return
         fee_est = partial(self.config.estimate_fee, allow_fallback_to_static_rates=True)  # to avoid NoDynamicFeeEstimates
         try:
@@ -1165,7 +1165,7 @@ class LNWallet(LNWorker):
         except NotEnoughFunds:
             return
         # if available, suggest twice that amount:
-        if 2 * min_funding_sat <= LN_MAX_FUNDING_SAT:
+        if 2 * min_funding_sat <= self.config.LIGHTNING_MAX_FUNDING_SAT:
             try:
                 self.mktx_for_open_channel(coins=coins, funding_sat=2*min_funding_sat, node_id=bytes(32), fee_est=fee_est)
                 funding_sat = 2 * min_funding_sat
@@ -1175,8 +1175,8 @@ class LNWallet(LNWorker):
 
     def open_channel(self, *, connect_str: str, funding_tx: PartialTransaction,
                      funding_sat: int, push_amt_sat: int, password: str = None) -> Tuple[Channel, PartialTransaction]:
-        if funding_sat > LN_MAX_FUNDING_SAT:
-            raise Exception(_("Requested channel capacity is over protocol allowed maximum."))
+        if funding_sat > self.config.LIGHTNING_MAX_FUNDING_SAT:
+            raise Exception(_("Requested channel capacity is over maximum."))
         coro = self._open_channel_coroutine(
             connect_str=connect_str, funding_tx=funding_tx, funding_sat=funding_sat,
             push_sat=push_amt_sat, password=password)
