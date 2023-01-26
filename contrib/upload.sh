@@ -16,7 +16,7 @@ fi
 
 cd "$PROJECT_ROOT"
 
-VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
+VERSION=$("$CONTRIB"/print_electrum_version.py)
 echo "$VERSION"
 
 if [ -z "$ELECBUILD_UPLOADFROM" ]; then

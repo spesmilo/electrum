@@ -79,7 +79,7 @@ if [ ! -z "$RELEASEMANAGER" ] ; then
 fi
 
 
-VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
+VERSION=$("$CONTRIB"/print_electrum_version.py)
 info "VERSION: $VERSION"
 REV=$(git describe --tags)
 info "REV: $REV"

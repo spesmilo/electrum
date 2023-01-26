@@ -34,7 +34,7 @@ if [ -z "$ELECTRUM_SIGNING_WALLET" ] || [ -z "$ELECTRUM_SIGNING_ADDRESS" ]; then
     exit 1
 fi
 
-VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
+VERSION=$("$CONTRIB"/print_electrum_version.py)
 info "VERSION: $VERSION"
 
 set -x
