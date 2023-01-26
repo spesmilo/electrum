@@ -313,7 +313,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Use onchain fallback address for Lightning payment requests')
+                            text: qsTr('Create lightning invoices with on-chain fallback address')
                             wrapMode: Text.Wrap
                         }
                     }
