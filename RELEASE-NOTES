@@ -1,3 +1,18 @@
+# Release 4.3.4 - Copyright is Dubious (January 26, 2023)
+ * Lightning:
+   - make sending trampoline payments more reliable (5251e7f8)
+   - use different trampoline feature bits than eclair (#8141)
+ * invoice-handling: fix get_request_by_addr incorrectly mapping
+   addresses to request ids when an address was reused (#8113)
+ * fix a deadlock in wallet.py (52e2da3a)
+ * CLI: detect if daemon is already running (c7e2125f)
+ * add an AppStream metainfo.xml file for Linux packagers (#8149)
+ * payserver plugin:
+   -replaced vendored qrcode lib
+   -added tabs for on-chain and lightning invoices
+   -revamped html and javascript
+
+
 # Release 4.3.3 - (January 3, 2023)
  * Lightning:
    - fix handling failed HTLCs in gossip-based routing (#7995)
