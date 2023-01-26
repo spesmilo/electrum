@@ -244,12 +244,13 @@ class AddressSynchronizer(Logger, EventListener):
 
     def get_transaction(self, txid: str) -> Transaction:
         tx = self.db.get_transaction(txid)
-        # add verified tx info
-        tx.deserialize()
-        for txin in tx._inputs:
-            tx_height, tx_pos = self.get_txpos(txin.prevout.txid.hex())
-            txin.block_height = tx_height
-            txin.block_txpos = tx_pos
+        if tx:
+            # add verified tx info
+            tx.deserialize()
+            for txin in tx._inputs:
+                tx_height, tx_pos = self.get_txpos(txin.prevout.txid.hex())
+                txin.block_height = tx_height
+                txin.block_txpos = tx_pos
         return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
