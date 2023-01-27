@@ -25,9 +25,33 @@ print("Found {} files to translate".format(len(files.splitlines())))
 # Generate fresh translation template
 if not os.path.exists('electrum/locale'):
     os.mkdir('electrum/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum/locale/messages.pot'
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=messages.pot'
 print('Generate template')
 os.system(cmd)
+
+# add QML translations
+cmd = "find electrum/gui/qml -type f -name '*.qml'"
+
+files = subprocess.check_output(cmd, shell=True)
+
+with open("qml.lst", "wb") as f:
+    f.write(files)
+
+print("Found {} QML files to translate".format(len(files.splitlines())))
+
+cmd = "lupdate @qml.lst -ts qml.ts"
+print('Collecting strings')
+os.system(cmd)
+
+cmd = "lconvert -of po -o qml.pot qml.ts"
+print('Convert to gettext')
+os.system(cmd)
+
+cmd = "msgcat -u -o electrum/locale/messages.pot messages.pot qml.pot"
+print('Generate template')
+os.system(cmd)
+
+
 
 os.chdir('electrum')
 
