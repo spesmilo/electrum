@@ -125,6 +125,7 @@ ElDialog {
                                 else if (_bip21uri != '')
                                     rootLayout.state = 'bip21uri'
                             }
+                            Config.preferredRequestType = rootLayout.state
                         }
                     }
                 }
@@ -348,7 +349,14 @@ ElDialog {
         id: request
         wallet: Daemon.currentWallet
         onDetailsChanged: {
-            if (bolt11) {
+            var req_type = Config.preferredRequestType
+            if (bolt11 && req_type == 'bolt11') {
+                rootLayout.state = 'bolt11'
+            } else if (bip21 && req_type == 'bip21uri') {
+                rootLayout.state = 'bip21uri'
+            } else if (req_type == 'address') {
+                rootLayout.state = 'address'
+            } else if (bolt11) {
                 rootLayout.state = 'bolt11'
             } else if (bip21) {
                 rootLayout.state = 'bip21uri'
