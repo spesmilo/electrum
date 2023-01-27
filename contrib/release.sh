@@ -258,12 +258,7 @@ else
     fi
 
     # upload the files
-    if test -f dist/uploaded; then
-        info "files already uploaded"
-    else
-        ./contrib/upload.sh
-        touch dist/uploaded
-    fi
+    ./contrib/upload.sh
 
 fi
 
