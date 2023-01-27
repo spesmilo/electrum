@@ -20,6 +20,8 @@ ElDialog {
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
     property bool _ispaid: false
+    property bool _ignore_gaplimit: false
+    property bool _reuse_address: false
 
     parent: Overlay.overlay
     modal: true
@@ -310,20 +312,20 @@ ElDialog {
         }
     }
 
-    function createRequest(ignoreGaplimit = false) {
+    function createRequest() {
         var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
         if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
             console.log('Creating OnChain request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, ignoreGaplimit)
+            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, _ignore_gaplimit, _reuse_address)
         } else {
             console.log('Creating Lightning request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true)
+            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true, _ignore_gaplimit, _reuse_address)
         }
     }
 
-    function createDefaultRequest(ignoreGaplimit = false) {
+    function createDefaultRequest() {
         console.log('Creating default request')
-        Daemon.currentWallet.createDefaultRequest(ignoreGaplimit)
+        Daemon.currentWallet.createDefaultRequest(_ignore_gaplimit, _reuse_address)
     }
 
     Connections {
@@ -333,13 +335,20 @@ ElDialog {
         }
         function onRequestCreateError(code, error) {
             if (code == 'gaplimit') {
-                var dialog = app.messageDialog.createObject(app, {'text': error, 'yesno': true})
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
                 dialog.yesClicked.connect(function() {
-                    createDefaultRequest(true)
+                    _ignore_gaplimit = true
+                    createDefaultRequest()
+                })
+            } else if (code == 'non-deterministic') {
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
+                dialog.yesClicked.connect(function() {
+                    _reuse_address = true
+                    createDefaultRequest()
                 })
             } else {
                 console.log(error)
-                var dialog = app.messageDialog.createObject(app, {'text': error})
+                var dialog = app.messageDialog.createObject(app, {text: error})
             }
             dialog.open()
         }
@@ -388,7 +397,8 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        createDefaultRequest()
+        // callLater to make sure any popups are on top of the dialog stacking order
+        Qt.callLater(createDefaultRequest)
     }
 
     // hack. delay qr rendering until dialog is shown

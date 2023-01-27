@@ -2,7 +2,7 @@ import asyncio
 import queue
 import threading
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
@@ -571,21 +571,20 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         threading.Thread(target=pay_thread).start()
 
-    def create_bitcoin_request(self, amount: int, message: str, expiration: int, ignore_gap: bool) -> Optional[str]:
+    def create_bitcoin_request(self, amount: int, message: str, expiration: int, *, ignore_gap: bool = False, reuse_address: bool = False) -> Optional[Tuple]:
         addr = self.wallet.get_unused_address()
         if addr is None:
             if not self.wallet.is_deterministic():  # imported wallet
-                # TODO implement
-                return
-                #msg = [
-                    #_('No more addresses in your wallet.'), ' ',
-                    #_('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
-                    #_('If you want to create new addresses, use a deterministic wallet instead.'), '\n\n',
-                    #_('Creating a new payment request will reuse one of your addresses and overwrite an existing request. Continue anyway?'),
-                   #]
-                #if not self.question(''.join(msg)):
-                    #return
-                #addr = self.wallet.get_receiving_address()
+                if not reuse_address:
+                    msg = [
+                        _('No more addresses in your wallet.'), ' ',
+                        _('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
+                        _('If you want to create new addresses, use a deterministic wallet instead.'), '\n\n',
+                        _('Creating a new payment request will reuse one of your addresses and overwrite an existing request. Continue anyway?'),
+                    ]
+                    self.requestCreateError.emit('non-deterministic',''.join(msg))
+                    return
+                addr = self.wallet.get_receiving_address()
             else:  # deterministic wallet
                 if not ignore_gap:
                     self.requestCreateError.emit('gaplimit',_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?"))
@@ -593,6 +592,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 addr = self.wallet.create_new_address(False)
 
         req_key = self.wallet.create_request(amount, message, expiration, addr)
+        self._logger.debug(f'created request with key {req_key}')
         #try:
             #self.wallet.add_payment_request(req)
         #except Exception as e:
@@ -608,8 +608,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
-    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False):
-        # TODO: unify this method and create_bitcoin_request
+    @pyqtSlot(QEAmount, str, int, bool, bool, bool)
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False, reuse_address: bool = False):
         try:
             if is_lightning:
                 if not self.wallet.lnworker.channels:
@@ -620,10 +620,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 addr = self.wallet.get_unused_address()
                 key = self.wallet.create_request(amount.satsInt, message, expiration, addr)
             else:
-                key, addr = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap)
+                key, addr = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap=ignore_gap, reuse_address=reuse_address)
                 if not key:
                     return
-                self.addressModel.init_model()
+                self.addressModel.setDirty()
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
@@ -634,7 +634,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def createDefaultRequest(self, ignore_gap: bool = False):
+    @pyqtSlot(bool, bool)
+    def createDefaultRequest(self, ignore_gap: bool = False, reuse_address: bool = False):
         try:
             default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
             if self.wallet.lnworker and self.wallet.lnworker.channels:
@@ -645,9 +646,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                     pass
                 key = self.wallet.create_request(None, None, default_expiry, addr)
             else:
-                key, addr = self.create_bitcoin_request(None, None, default_expiry, ignore_gap)
-                if not key:
+                req = self.create_bitcoin_request(None, None, default_expiry, ignore_gap=ignore_gap, reuse_address=reuse_address)
+                if not req:
                     return
+                key, addr = req
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
