@@ -126,7 +126,7 @@ task:
   install_script:
     - pip install flake8
   flake8_script:
-    - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
+    - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics --exclude "*_pb2.py"
   env:
     ELECTRUM_IMAGE: python:3.8
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
