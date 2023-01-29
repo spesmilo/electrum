@@ -19,7 +19,7 @@ PYTHON_VERSION=3.9.15
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-VERSION=4.3.2
+VERSION=$("$CONTRIB"/print_electrum_version.py)
 APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
