@@ -18,6 +18,7 @@ class Plugin(Deniability):
     def settings_dialog(self, window):
 
         saved_budget = float(self.config.get('deniability_budget', 0))
+        rounded_budget = round(saved_budget, 2)
 
         d = WindowModalDialog(window, _("Deniability Budget"))
         self.d = d
@@ -25,7 +26,7 @@ class Plugin(Deniability):
         self.slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.slider.setMinimum(0)
         self.slider.setMaximum(10)
-        self.slider.setValue(saved_budget * 100)
+        self.slider.setValue(int(rounded_budget * 100))
         self.slider.valueChanged.connect(self.change_budget)
         self.current_label = QtWidgets.QLabel(str(saved_budget) + " BTC")
         self.slider.valueChanged.connect(self.update_current_label)
