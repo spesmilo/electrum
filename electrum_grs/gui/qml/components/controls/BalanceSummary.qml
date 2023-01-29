@@ -69,6 +69,7 @@ Item {
                 text: Daemon.fx.fiatCurrency
             }
             RowLayout {
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
@@ -81,35 +82,38 @@ Item {
                 }
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
                 text: formattedLightningCanReceive
                 font.family: FixedFont
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
             }
             Item {
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 Layout.preferredHeight: 1
                 Layout.preferredWidth: 1
             }
             Label {
                 Layout.alignment: Qt.AlignRight
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
                 color: constants.mutedForeground
                 text: formattedLightningCanReceiveFiat
             }
             Label {
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
                 color: constants.mutedForeground
                 text: Daemon.fx.fiatCurrency
             }
 
             RowLayout {
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
@@ -122,29 +126,31 @@ Item {
                 }
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
                 text: formattedLightningCanSend
                 font.family: FixedFont
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
             }
             Item {
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 Layout.preferredHeight: 1
                 Layout.preferredWidth: 1
             }
             Label {
                 Layout.alignment: Qt.AlignRight
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
                 color: constants.mutedForeground
                 text: formattedLightningCanSendFiat
             }
             Label {
-                visible: Daemon.fx.enabled
+                visible: Daemon.currentWallet.isLightning && Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeSmall
                 color: constants.mutedForeground
                 text: Daemon.fx.fiatCurrency

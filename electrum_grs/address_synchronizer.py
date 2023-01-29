@@ -243,7 +243,15 @@ class AddressSynchronizer(Logger, EventListener):
             return conflicting_txns
 
     def get_transaction(self, txid: str) -> Transaction:
-        return self.db.get_transaction(txid)
+        tx = self.db.get_transaction(txid)
+        if tx:
+            # add verified tx info
+            tx.deserialize()
+            for txin in tx._inputs:
+                tx_height, tx_pos = self.get_txpos(txin.prevout.txid.hex())
+                txin.block_height = tx_height
+                txin.block_txpos = tx_pos
+        return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
         """
@@ -768,9 +776,10 @@ class AddressSynchronizer(Logger, EventListener):
             received = {}
             sent = {}
             for tx_hash, height in h:
+                hh, pos = self.get_txpos(tx_hash)
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
-                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
+                    received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
             for tx_hash, height in h:
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
@@ -778,17 +787,18 @@ class AddressSynchronizer(Logger, EventListener):
         return received, sent
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
-        coins, spent = self.get_addr_io(address)
+        received, sent = self.get_addr_io(address)
         out = {}
-        for prevout_str, v in coins.items():
-            tx_height, value, is_cb = v
+        for prevout_str, v in received.items():
+            tx_height, tx_pos, value, is_cb = v
             prevout = TxOutpoint.from_str(prevout_str)
             utxo = PartialTxInput(prevout=prevout, is_coinbase_output=is_cb)
             utxo._trusted_address = address
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
-            if prevout_str in spent:
-                txid, height = spent[prevout_str]
+            utxo.block_txpos = tx_pos
+            if prevout_str in sent:
+                txid, height = sent[prevout_str]
                 utxo.spent_txid = txid
                 utxo.spent_height = height
             else:
@@ -807,7 +817,7 @@ class AddressSynchronizer(Logger, EventListener):
     # return the total amount ever received by an address
     def get_addr_received(self, address):
         received, sent = self.get_addr_io(address)
-        return sum([v for height, v, is_cb in received.values()])
+        return sum([value for height, pos, value, is_cb in received.values()])
 
     @with_local_height_cached
     def get_balance(self, domain, *, excluded_addresses: Set[str] = None,

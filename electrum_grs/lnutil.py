@@ -13,6 +13,9 @@ from aiorpcx import NetAddress
 
 from .util import bfh, bh2u, inv_dict, UserFacingException
 from .util import list_enabled_bits
+from .util import ShortID as ShortChannelID
+from .util import format_short_id as format_short_channel_id
+
 from .crypto import sha256
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
@@ -1487,63 +1490,7 @@ NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH
 
 
-class ShortChannelID(bytes):
 
-    def __repr__(self):
-        return f"<ShortChannelID: {format_short_channel_id(self)}>"
-
-    def __str__(self):
-        return format_short_channel_id(self)
-
-    @classmethod
-    def from_components(cls, block_height: int, tx_pos_in_block: int, output_index: int) -> 'ShortChannelID':
-        bh = block_height.to_bytes(3, byteorder='big')
-        tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
-        oi = output_index.to_bytes(2, byteorder='big')
-        return ShortChannelID(bh + tpos + oi)
-
-    @classmethod
-    def from_str(cls, scid: str) -> 'ShortChannelID':
-        """Parses a formatted scid str, e.g. '643920x356x0'."""
-        components = scid.split("x")
-        if len(components) != 3:
-            raise ValueError(f"failed to parse ShortChannelID: {scid!r}")
-        try:
-            components = [int(x) for x in components]
-        except ValueError:
-            raise ValueError(f"failed to parse ShortChannelID: {scid!r}") from None
-        return ShortChannelID.from_components(*components)
-
-    @classmethod
-    def normalize(cls, data: Union[None, str, bytes, 'ShortChannelID']) -> Optional['ShortChannelID']:
-        if isinstance(data, ShortChannelID) or data is None:
-            return data
-        if isinstance(data, str):
-            assert len(data) == 16
-            return ShortChannelID.fromhex(data)
-        if isinstance(data, (bytes, bytearray)):
-            assert len(data) == 8
-            return ShortChannelID(data)
-
-    @property
-    def block_height(self) -> int:
-        return int.from_bytes(self[:3], byteorder='big')
-
-    @property
-    def txpos(self) -> int:
-        return int.from_bytes(self[3:6], byteorder='big')
-
-    @property
-    def output_index(self) -> int:
-        return int.from_bytes(self[6:8], byteorder='big')
-
-
-def format_short_channel_id(short_channel_id: Optional[bytes]):
-    if not short_channel_id:
-        return _('Not yet available')
-    return str(int.from_bytes(short_channel_id[:3], 'big')) \
-        + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
-        + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
 @attr.s(frozen=True)

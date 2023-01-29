@@ -3,12 +3,15 @@
 # This script is part of the workflow for BUILDERs to reproduce and sign the
 # release binaries. (for builders who do not have sftp access to "electrum-downloads-airlock")
 #
+# env vars:
+# - SSHUSER
+#
+#
 # - BUILDER builds all binaries and checks they match the official releases
 #   (using release.sh, and perhaps some manual steps)
 # - BUILDER creates a PR against https://github.com/spesmilo/electrum-signatures/
 #   to add their sigs for a given release, which then gets merged
-# - SFTPUSER runs `$ electrum/contrib/add_cosigner $BUILDER`
-# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/upload.sh`
+# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/add_cosigner $BUILDER`
 # - SFTPUSER runs `$ electrum/contrib/make_download $WWW_DIR`
 # -     $ (cd $WWW_DIR; git commit -a -m "add_cosigner"; git push)
 # - SFTPUSER runs `$ electrum-web/publish.sh $SFTPUSER`
@@ -18,6 +21,7 @@ import re
 import os
 import sys
 import importlib
+import subprocess
 
 
 # cd to project root
@@ -32,7 +36,7 @@ ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
 APK_VERSION = version_module.APK_VERSION
 print("version", ELECTRUM_VERSION)
 
-# GPG names of cosigner
+# GPG name of cosigner
 cosigner = sys.argv[1]
 
 version = version_win = version_mac = ELECTRUM_VERSION
@@ -63,3 +67,6 @@ for shortname, filename in files.items():
     os.system(f"wget -nc {sig_url} -O {sig_path}")
     if os.system(f"gpg --verify {sig_path} {path}") != 0:
         raise Exception(sig_name)
+
+print("Calling upload.sh now... This might take some time.")
+subprocess.check_output(["./contrib/upload.sh", ])

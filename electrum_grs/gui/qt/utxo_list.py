@@ -46,14 +46,12 @@ class UTXOList(MyTreeView):
         ADDRESS = 1
         LABEL = 2
         AMOUNT = 3
-        HEIGHT = 4
 
     headers = {
+        Columns.OUTPOINT: _('Output point'),
         Columns.ADDRESS: _('Address'),
         Columns.LABEL: _('Label'),
         Columns.AMOUNT: _('Amount'),
-        Columns.HEIGHT: _('Height'),
-        Columns.OUTPOINT: _('Output point'),
     }
     filter_columns = [Columns.ADDRESS, Columns.LABEL, Columns.OUTPOINT]
     stretch_column = Columns.LABEL
@@ -86,10 +84,8 @@ class UTXOList(MyTreeView):
             name = utxo.prevout.to_str()
             self._utxo_dict[name] = utxo
             address = utxo.address
-            height = utxo.block_height
-            name_short = utxo.prevout.txid.hex()[:16] + '...' + ":%d" % utxo.prevout.out_idx
             amount = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
-            labels = [name_short, address, '', amount, '%d'%height]
+            labels = [str(utxo.short_id), address, '', amount]
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
@@ -206,7 +202,7 @@ class UTXOList(MyTreeView):
             addr = utxo.address
             txid = utxo.prevout.txid.hex()
             # "Details"
-            tx = self.wallet.db.get_transaction(txid)
+            tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))

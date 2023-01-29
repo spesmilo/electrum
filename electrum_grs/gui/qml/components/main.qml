@@ -254,7 +254,9 @@ ApplicationWindow
 
     Component {
         id: crashDialog
-        ExceptionDialog {}
+        ExceptionDialog {
+            z: 1000
+        }
     }
 
     Component.onCompleted: {

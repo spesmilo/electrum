@@ -101,51 +101,57 @@ Item {
     }
 
     ColumnLayout {
-        anchors.centerIn: parent
-        width: parent.width
-        spacing: 2*constants.paddingXLarge
-        visible: !Daemon.currentWallet
-
-        Label {
-            text: qsTr('No wallet loaded')
-            font.pixelSize: constants.fontSizeXXLarge
-            Layout.alignment: Qt.AlignHCenter
-        }
-
-        Pane {
-            Layout.alignment: Qt.AlignHCenter
-            padding: 0
-            background: Rectangle {
-                color: Material.dialogColor
-            }
-            FlatButton {
-                text: qsTr('Open/Create Wallet')
-                icon.source: '../../icons/wallet.png'
-                onClicked: {
-                    if (Daemon.availableWallets.rowCount() > 0) {
-                        stack.push(Qt.resolvedUrl('Wallets.qml'))
-                    } else {
-                        var newww = app.newWalletWizard.createObject(app)
-                        newww.walletCreated.connect(function() {
-                            Daemon.availableWallets.reload()
-                            // and load the new wallet
-                            Daemon.load_wallet(newww.path, newww.wizard_data['password'])
-                        })
-                        newww.open()
-                    }
-                }
-            }
-        }
-    }
-
-    ColumnLayout {
         anchors.fill: parent
-        visible: Daemon.currentWallet
 
         History {
             id: history
-            Layout.preferredWidth: parent.width
+            visible: Daemon.currentWallet
+            Layout.fillWidth: true
             Layout.fillHeight: true
+        }
+
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillHeight: true
+            spacing: 2*constants.paddingXLarge
+            visible: !Daemon.currentWallet
+
+            Item {
+                Layout.fillHeight: true
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr('No wallet loaded')
+                font.pixelSize: constants.fontSizeXXLarge
+            }
+
+            Pane {
+                Layout.alignment: Qt.AlignHCenter
+                padding: 0
+                background: Rectangle {
+                    color: Material.dialogColor
+                }
+                FlatButton {
+                    text: qsTr('Open/Create Wallet')
+                    icon.source: '../../icons/wallet.png'
+                    onClicked: {
+                        if (Daemon.availableWallets.rowCount() > 0) {
+                            stack.push(Qt.resolvedUrl('Wallets.qml'))
+                        } else {
+                            var newww = app.newWalletWizard.createObject(app)
+                            newww.walletCreated.connect(function() {
+                                Daemon.availableWallets.reload()
+                                // and load the new wallet
+                                Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                            })
+                            newww.open()
+                        }
+                    }
+                }
+            }
+            Item {
+                Layout.fillHeight: true
+            }
         }
 
         RowLayout {
@@ -167,7 +173,12 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 color: constants.darkerBackground
             }
+            Item {
+                visible: !Daemon.currentWallet
+                Layout.fillWidth: true
+            }
             FlatButton {
+                visible: Daemon.currentWallet
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_receive.png'
@@ -178,6 +189,7 @@ Item {
                 }
             }
             Rectangle {
+                visible: Daemon.currentWallet
                 Layout.fillWidth: false
                 Layout.preferredWidth: 2
                 Layout.preferredHeight: parent.height * 2/3
@@ -185,6 +197,7 @@ Item {
                 color: constants.darkerBackground
             }
             FlatButton {
+                visible: Daemon.currentWallet
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'

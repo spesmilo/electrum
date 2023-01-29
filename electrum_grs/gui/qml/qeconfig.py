@@ -167,6 +167,17 @@ class QEConfig(AuthMixin, QObject):
             self.config.set_key('trustedcoin_prepay', num_prepay)
             self.trustedcoinPrepayChanged.emit()
 
+    preferredRequestTypeChanged = pyqtSignal()
+    @pyqtProperty(str, notify=preferredRequestTypeChanged)
+    def preferredRequestType(self):
+        return self.config.get('preferred_request_type', 'bolt11')
+
+    @preferredRequestType.setter
+    def preferredRequestType(self, preferred_request_type):
+        if preferred_request_type != self.config.get('preferred_request_type', 'bolt11'):
+            self.config.set_key('preferred_request_type', preferred_request_type)
+            self.preferredRequestTypeChanged.emit()
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
