@@ -12,7 +12,15 @@ set -e
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-VERSION=$("$CONTRIB"/print_electrum_version.py)
+import importlib.util
+import os
+
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum_grs/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+VERSION = version_module.ELECTRUM_VERSION
 info "Last commit: $VERSION"
 
 # Load electrum-locale for this release

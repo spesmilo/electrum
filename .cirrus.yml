@@ -82,7 +82,7 @@ task:
 task:
   name: MacOS build (M1)
   macos_instance:
-    image: catalina-xcode-11.3.1
+    image: ghcr.io/cirruslabs/macos-monterey-xcode:13.3.1
   env:
     TARGET_OS: macOS
   pip_cache:
