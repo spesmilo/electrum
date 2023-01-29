@@ -19,15 +19,7 @@ PYTHON_VERSION=3.9.15
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
-import importlib.util
-import os
-
-# load version.py; needlessly complicated alternative to "imp.load_source":
-version_spec = importlib.util.spec_from_file_location('version', 'electrum_grs/version.py')
-version_module = importlib.util.module_from_spec(version_spec)
-version_spec.loader.exec_module(version_module)
-
-VERSION = version_module.ELECTRUM_VERSION
+VERSION=4.3.2
 APPIMAGE="$DISTDIR/electrum-grs-$VERSION-x86_64.AppImage"
 
 . "$CONTRIB"/build_tools_util.sh
