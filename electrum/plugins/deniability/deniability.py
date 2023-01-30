@@ -38,15 +38,22 @@ class Deniability(BasePlugin):
         # Create outputs for the transaction
         outputs = [
             (address1, int(self.rounded_budget*100000000)),
-            (address2, selected_utxo.value_sats() - int(self.budget*100000000))
+            (address2, 0)
         ]
         txout = [PartialTxOutput.from_address_and_value(address, int(amount_btc)) for address, amount_btc in outputs]
 
         # Create the partial transaction
         tx = PartialTransaction.from_io([txin], txout)
 
-        print(tx.to_json())
+        # Calculate fee
+        fee = 1*tx.estimated_size()
 
+        # Update the transaction based on fee
+
+        outputs[1] = (address2, selected_utxo.value_sats() - int(self.rounded_budget*100000000) - fee)
+        txout = [PartialTxOutput.from_address_and_value(address, int(amount_btc)) for address, amount_btc in outputs]
+
+        self.tx = PartialTransaction.from_io([txin], txout)
 
     @hook
     def load_wallet(self, wallet, window):
