@@ -89,7 +89,7 @@ Pane {
                     ScrollIndicator.vertical: ScrollIndicator { }
 
                     Label {
-                        visible: Daemon.currentWallet.channelModel.count == 0
+                        visible: listview.model.count == 0
                         anchors.centerIn: parent
                         width: listview.width * 4/5
                         font.pixelSize: constants.fontSizeXXLarge
@@ -135,14 +135,6 @@ Pane {
 
     }
 
-    Connections {
-        target: Daemon.currentWallet
-        function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(root, { text: message })
-            dialog.open()
-        }
-    }
-
     Component {
         id: swapDialog
         SwapDialog {
@@ -153,13 +145,6 @@ Pane {
     Component {
         id: openChannelDialog
         OpenChannelDialog {
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: importChannelBackupDialog
-        ImportChannelBackupDialog {
             onClosed: destroy()
         }
     }

@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QSortFilterProxyModel
+from PyQt5.QtCore import pyqtSignal, pyqtProperty, QSortFilterProxyModel, QModelIndex
 
 from electrum.logging import get_logger
 
@@ -10,6 +10,11 @@ class QEFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent_model, parent=None):
         super().__init__(parent)
         self.setSourceModel(parent_model)
+
+    countChanged = pyqtSignal()
+    @pyqtProperty(int, notify=countChanged)
+    def count(self):
+        return self.rowCount(QModelIndex())
 
     def isCustomFilter(self):
         return self._filter_value is not None
@@ -23,5 +28,4 @@ class QEFilterProxyModel(QSortFilterProxyModel):
 
         parent_model = self.sourceModel()
         d = parent_model.data(parent_model.index(s_row, 0, s_parent), self.filterRole())
-        # self._logger.debug(f'DATA in FilterProxy is {repr(d)}')
         return True if self._filter_value is None else d == self._filter_value

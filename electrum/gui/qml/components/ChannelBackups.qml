@@ -2,7 +2,6 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
-import QtQml.Models 2.2
 
 import org.electrum 1.0
 
@@ -66,7 +65,7 @@ Pane {
                     ScrollIndicator.vertical: ScrollIndicator { }
 
                     Label {
-                        visible: Daemon.currentWallet.channelModel.count == 0
+                        visible: listview.model.count == 0
                         anchors.centerIn: parent
                         width: listview.width * 4/5
                         font.pixelSize: constants.fontSizeXXLarge
@@ -96,20 +95,6 @@ Pane {
         function onImportChannelBackupFailed(message) {
             var dialog = app.messageDialog.createObject(root, { text: message })
             dialog.open()
-        }
-    }
-
-    Component {
-        id: swapDialog
-        SwapDialog {
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: openChannelDialog
-        OpenChannelDialog {
-            onClosed: destroy()
         }
     }
 
