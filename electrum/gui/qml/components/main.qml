@@ -120,14 +120,6 @@ ApplicationWindow
                         }
                     }
                 }
-
-                Rectangle {
-                    color: 'transparent'
-                    Layout.preferredWidth: constants.paddingSmall
-                    height: 1
-                    visible: !menuButton.visible
-                }
-
             }
 
             WalletSummary {
