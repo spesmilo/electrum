@@ -15,11 +15,11 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTimer, pyqtSignal,
+from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTranslator, QTimer, pyqtSignal,
                           QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt5.QtGui import QGuiApplication
 
-from electrum.i18n import set_language, languages
+from electrum.i18n import set_language, languages, language
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
@@ -31,6 +31,16 @@ if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
+
+class ElectrumTranslator(QTranslator):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def translate(self, context, source_text, disambiguation, n):
+        if source_text == "":
+            return ""
+        return language.gettext(source_text)
+
 
 class ElectrumGui(Logger):
 
@@ -61,6 +71,8 @@ class ElectrumGui(Logger):
         self.gui_thread = threading.current_thread()
         self.plugins = plugins
         self.app = ElectrumQmlApplication(sys.argv, config, daemon, plugins)
+        self.translator = ElectrumTranslator()
+        self.app.installTranslator(self.translator)
 
         # timer
         self.timer = QTimer(self.app)
