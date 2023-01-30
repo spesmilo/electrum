@@ -74,7 +74,7 @@ task:
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - Tox Python 3.9
+    - Tox Python 3.8
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
