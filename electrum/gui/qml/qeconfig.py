@@ -2,6 +2,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from decimal import Decimal
 
+from electrum.i18n import set_language, languages
 from electrum.logging import get_logger
 from electrum.util import DECIMAL_POINT_DEFAULT, format_satoshis
 from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
@@ -15,6 +16,25 @@ class QEConfig(AuthMixin, QObject):
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
+
+    languageChanged = pyqtSignal()
+    @pyqtProperty(str, notify=languageChanged)
+    def language(self):
+        return self.config.get('language')
+
+    @language.setter
+    def language(self, language):
+        if language not in languages:
+            return
+        if self.config.get('language') != language:
+            self.config.set_key('language', language)
+            set_language(language)
+            self.languageChanged.emit()
+
+    languagesChanged = pyqtSignal()
+    @pyqtProperty('QVariantList', notify=languagesChanged)
+    def languagesAvailable(self):
+        return list(map(lambda x: {'value': x[0], 'text': x[1]}, languages.items()))
 
     autoConnectChanged = pyqtSignal()
     @pyqtProperty(bool, notify=autoConnectChanged)

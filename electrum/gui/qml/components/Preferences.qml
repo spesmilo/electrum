@@ -46,7 +46,20 @@ Pane {
 
                     ElComboBox {
                         id: language
-                        enabled: false
+                        textRole: 'text'
+                        valueRole: 'value'
+                        model: Config.languagesAvailable
+                        onCurrentValueChanged: {
+                            if (activeFocus) {
+                                if (Config.language != currentValue) {
+                                    Config.language = currentValue
+                                    var dialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Please restart Electrum to activate the new GUI settings')
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
                     }
 
                     Label {
@@ -355,6 +368,7 @@ Pane {
     }
 
     Component.onCompleted: {
+        language.currentIndex = language.indexOfValue(Config.language)
         baseUnit.currentIndex = _baseunits.indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)
