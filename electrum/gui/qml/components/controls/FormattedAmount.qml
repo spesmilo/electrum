@@ -41,8 +41,11 @@ GridLayout {
     }
 
     function setFiatValue() {
-        fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+        if (showAlt)
+            fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
     }
+
+    onAmountChanged: setFiatValue()
 
     Connections {
         target: Daemon.fx
@@ -56,8 +59,5 @@ GridLayout {
         }
     }
 
-    Component.onCompleted: {
-        if (showAlt)
-            setFiatValue()
-    }
+    Component.onCompleted: setFiatValue()
 }
