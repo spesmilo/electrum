@@ -9,7 +9,7 @@ class Deniability(BasePlugin):
         self.budget = float(self.config.get('deniability_budget', 0))
         self.rounded_budget = round(self.budget, 2)
 
-    def check_utxos(self, wallet, window):
+    def check_utxos(self, wallet):
 
         utxos = []
         for utxo in wallet.get_utxos():
@@ -18,7 +18,7 @@ class Deniability(BasePlugin):
         if all(x < self.budget for x in utxos):
             raise Exception("Error: None of the UTXOs are greater than the deniability budget.")
 
-    def create_tx(self, wallet, window):
+    def create_tx(self, wallet):
 
         # Select the UTXO to use as input
         for utxo in wallet.get_utxos():
@@ -26,12 +26,12 @@ class Deniability(BasePlugin):
                 selected_utxo = utxo
                 break
 
-        # Create input for the transaction
+        # Create the input for the transaction
         prevout = selected_utxo.prevout
         txin = PartialTxInput(prevout=prevout)
         txin._trusted_value_sats = selected_utxo.value_sats()
 
-        # Create new addresses
+        # Create new addressesa
         address1 = wallet.create_new_address()
         address2 = wallet.create_new_address()
 
@@ -46,7 +46,7 @@ class Deniability(BasePlugin):
         tx = PartialTransaction.from_io([txin], txout)
 
         # Calculate fee
-        fee = 1*tx.estimated_size()
+        fee = 1.5*tx.estimated_size()
 
         # Update the transaction based on fee
 
@@ -55,8 +55,21 @@ class Deniability(BasePlugin):
 
         self.tx = PartialTransaction.from_io([txin], txout)
 
+        return self.tx
+
+    def sign_tx(self, wallet):
+
+        self.signed_tx = wallet.sign_transaction(self.tx, None)
+
+        self.signed_tx_hex = self.signed_tx.serialize()
+
+        return self.signed_tx
+
     @hook
     def load_wallet(self, wallet, window):
 
-        self.check_utxos(wallet, window)
-        self.create_tx(wallet, window)
+        self.check_utxos(wallet)
+
+        self.create_tx(wallet)
+
+        self.sign_tx(wallet)
