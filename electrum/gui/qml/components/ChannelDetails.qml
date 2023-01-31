@@ -205,6 +205,7 @@ Pane {
 
         FlatButton {
             Layout.fillWidth: true
+            visible: !channeldetails.isBackup
             text: qsTr('Backup');
             onClicked: {
                 var dialog = app.genericShareDialog.createObject(root,
