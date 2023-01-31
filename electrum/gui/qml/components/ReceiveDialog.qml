@@ -325,13 +325,6 @@ ElDialog {
         FocusScope { id: parkFocus }
     }
 
-    Component {
-        id: requestdialog
-        RequestDialog {
-            onClosed: destroy()
-        }
-    }
-
     function createRequest() {
         var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
         if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
