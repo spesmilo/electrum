@@ -34,9 +34,30 @@ GridLayout {
     }
 
     Label {
+        id: fiatLabel
         Layout.columnSpan: singleLine ? 1 : 2
         visible: showAlt && Daemon.fx.enabled && valid
-        text: '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
         font.pixelSize: constants.fontSizeSmall
+    }
+
+    function setFiatValue() {
+        fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+    }
+
+    Connections {
+        target: Daemon.fx
+        function onQuotesUpdated() { setFiatValue() }
+    }
+
+    Connections {
+        target: amount
+        function onValueChanged() {
+            setFiatValue()
+        }
+    }
+
+    Component.onCompleted: {
+        if (showAlt)
+            setFiatValue()
     }
 }

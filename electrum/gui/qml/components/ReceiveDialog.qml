@@ -179,6 +179,25 @@ ElDialog {
                     }
                 }
 
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: Daemon.currentWallet.isLightning
+                    spacing: constants.paddingXSmall
+                    Image {
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        source: '../../icons/lightning.png'
+                    }
+                    Label {
+                        text: qsTr('can receive:')
+                        font.pixelSize: constants.fontSizeSmall
+                        color: Material.accentColor
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.lightningCanReceive
+                    }
+                }
+
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
@@ -410,5 +429,4 @@ ElDialog {
             }
         }
     }
-
 }
