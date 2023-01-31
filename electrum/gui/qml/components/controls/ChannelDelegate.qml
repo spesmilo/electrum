@@ -37,7 +37,9 @@ ItemDelegate {
         Image {
             id: walleticon
             source: model.is_backup
-                        ? '../../../icons/nocloud.png'
+                        ? model.is_imported
+                            ? '../../../icons/nocloud.png'
+                            : '../../../icons/lightning_disconnected.png'
                         : model.is_trampoline
                             ? '../../../icons/kangaroo.png'
                             : '../../../icons/lightning.png'
