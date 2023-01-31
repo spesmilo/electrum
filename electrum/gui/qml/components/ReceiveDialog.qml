@@ -255,6 +255,7 @@ ElDialog {
                                 AppController.textToClipboard(_bip21uri)
                             else
                                 AppController.textToClipboard(_address)
+                            toaster.show(this, qsTr('Copied!'))
                         }
                     }
                     FlatButton {
@@ -413,6 +414,10 @@ ElDialog {
         onRejected: {
             console.log('rejected')
         }
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Component.onCompleted: {
