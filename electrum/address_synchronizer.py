@@ -686,11 +686,16 @@ class AddressSynchronizer(Logger, EventListener):
     def up_to_date_changed(self) -> None:
         # fire triggers
         util.trigger_callback('adb_set_up_to_date', self)
+        if self.is_up_to_date():
+            self.pending_txs_changed(False)
 
     def is_up_to_date(self):
         if not self.synchronizer or not self.verifier:
             return False
         return self.synchronizer.is_up_to_date() and self.verifier.is_up_to_date()
+
+    def pending_txs_changed(self, pending) -> None:
+        util.trigger_callback('adb_txs_pending', pending)
 
     def reset_netrequest_counters(self) -> None:
         if self.synchronizer:
