@@ -84,8 +84,8 @@ class BaseCrashReporter(Logger):
         stack = traceback.extract_tb(self.exc_args[2])
         readable_trace = self.__get_traceback_str_to_send()
         id = {
-            "file": stack[-1].filename,
-            "name": stack[-1].name,
+            "file": stack[-1].filename if len(stack) else '<no stack>',
+            "name": stack[-1].name if len(stack) else '<no stack>',
             "type": self.exc_args[0].__name__
         }
         return {
