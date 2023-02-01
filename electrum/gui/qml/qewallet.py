@@ -148,6 +148,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._isUpToDate = uptodate
             self.isUptodateChanged.emit()
 
+            if uptodate:
+                self.historyModel.init_model()
+
         if self.wallet.network.is_connected():
             server_height = self.wallet.network.get_server_height()
             server_lag = self.wallet.network.get_local_height() - server_height
@@ -187,7 +190,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
             self.addressModel.setDirty()
-            self.historyModel.init_model() # TODO: be less dramatic
+            self.historyModel.setDirty() # assuming wallet.is_up_to_date triggers after
 
     @event_listener
     def on_event_wallet_updated(self, wallet):
