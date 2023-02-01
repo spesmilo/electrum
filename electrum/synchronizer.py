@@ -216,6 +216,7 @@ class Synchronizer(SynchronizerBase):
                 continue  # already have complete tx
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
+            self.adb.pending_txs_changed(True)
 
         if not transaction_hashes: return
         async with OldTaskGroup() as group:
