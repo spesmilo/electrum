@@ -25,9 +25,12 @@ Item {
 
     TextHighlightPane {
         id: balancePane
+        leftPadding: constants.paddingXLarge
+        rightPadding: constants.paddingXLarge
 
         GridLayout {
             columns: 3
+            opacity: Daemon.currentWallet.synchronizing ? 0 : 1
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
@@ -110,6 +113,14 @@ Item {
             }
         }
 
+    }
+
+    Label {
+        opacity: Daemon.currentWallet.synchronizing ? 1 : 0
+        anchors.centerIn: balancePane
+        text: Daemon.currentWallet.synchronizingProgress
+        color: Material.accentColor
+        font.pixelSize: constants.fontSizeLarge
     }
 
     MouseArea {
