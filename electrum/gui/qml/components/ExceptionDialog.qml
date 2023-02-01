@@ -54,7 +54,8 @@ ElDialog
             Layout.alignment: Qt.AlignCenter
             text: qsTr('Show report contents')
             onClicked: {
-                console.log('traceback: ' + crashData.traceback.stack)
+                if (crashData.traceback)
+                    console.log('traceback: ' + crashData.traceback.stack)
                 var dialog = report.createObject(app, {
                     reportText: crashData.reportstring
                 })
@@ -123,10 +124,17 @@ ElDialog
 
             header: null
 
-            Label {
-                text: reportText
-                wrapMode: Text.Wrap
-                width: parent.width
+            Flickable {
+                anchors.fill: parent
+                contentHeight: reportLabel.implicitHeight
+                interactive: height < contentHeight
+
+                Label {
+                    id: reportLabel
+                    text: reportText
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                }
             }
         }
     }
