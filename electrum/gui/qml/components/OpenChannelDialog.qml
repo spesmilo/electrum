@@ -227,7 +227,7 @@ ElDialog {
                     + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
             if (!tx_complete) {
                 message = message + '\n\n' + qsTr('Please sign and broadcast the funding transaction.')
-                channelopener.wallet.historyModel.init_model() // local tx doesn't trigger model update
+                channelopener.wallet.historyModel.init_model(true) // local tx doesn't trigger model update
             }
             app.channelOpenProgressDialog.state = 'success'
             app.channelOpenProgressDialog.info = message

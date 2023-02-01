@@ -384,7 +384,7 @@ Pane {
             dialog.yesClicked.connect(function() {
                 dialog.close()
                 txdetails.removeLocalTx(true)
-                txdetails.wallet.historyModel.init_model()
+                txdetails.wallet.historyModel.init_model(true)
                 root.close()
             })
             dialog.open()

@@ -248,7 +248,7 @@ Pane {
                 dialog.yesClicked.connect(function() {
                     channeldetails.deleteChannel()
                     app.stack.pop()
-                    Daemon.currentWallet.historyModel.init_model() // needed here?
+                    Daemon.currentWallet.historyModel.init_model(true) // needed here?
                     Daemon.currentWallet.channelModel.remove_channel(channelid)
                 })
                 dialog.open()
