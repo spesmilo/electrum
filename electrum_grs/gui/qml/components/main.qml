@@ -30,6 +30,8 @@ ApplicationWindow
 
     property variant activeDialogs: []
 
+    property bool _wantClose: false
+
     header: ToolBar {
         id: toolbar
 
@@ -120,14 +122,6 @@ ApplicationWindow
                         }
                     }
                 }
-
-                Rectangle {
-                    color: 'transparent'
-                    Layout.preferredWidth: constants.paddingSmall
-                    height: 1
-                    visible: !menuButton.visible
-                }
-
             }
 
             WalletSummary {
@@ -310,21 +304,23 @@ ApplicationWindow
             stack.pop()
         } else {
             // destroy most GUI components so that we don't dump so many null reference warnings on exit
-            if (closeMsgTimer.running) {
+            if (app._wantClose) {
                 app.header.visible = false
                 mainStackView.clear()
             } else {
-                notificationPopup.show('Press Back again to exit')
-                closeMsgTimer.start()
+                var dialog = app.messageDialog.createObject(app, {
+                    text: qsTr('Close Electrum?'),
+                    yesno: true
+                })
+                dialog.yesClicked.connect(function() {
+                    dialog.close()
+                    app._wantClose = true
+                    app.close()
+                })
+                dialog.open()
                 close.accepted = false
             }
         }
-    }
-
-    Timer {
-        id: closeMsgTimer
-        interval: 5000
-        repeat: false
     }
 
     Connections {

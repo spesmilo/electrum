@@ -179,6 +179,25 @@ ElDialog {
                     }
                 }
 
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: Daemon.currentWallet.isLightning
+                    spacing: constants.paddingXSmall
+                    Image {
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        source: '../../icons/lightning.png'
+                    }
+                    Label {
+                        text: qsTr('can receive:')
+                        font.pixelSize: constants.fontSizeSmall
+                        color: Material.accentColor
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.lightningCanReceive
+                    }
+                }
+
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
@@ -236,6 +255,7 @@ ElDialog {
                                 AppController.textToClipboard(_bip21uri)
                             else
                                 AppController.textToClipboard(_address)
+                            toaster.show(this, qsTr('Copied!'))
                         }
                     }
                     FlatButton {
@@ -303,13 +323,6 @@ ElDialog {
         z: -1000
         onClicked: parkFocus.focus = true
         FocusScope { id: parkFocus }
-    }
-
-    Component {
-        id: requestdialog
-        RequestDialog {
-            onClosed: destroy()
-        }
     }
 
     function createRequest() {
@@ -396,6 +409,10 @@ ElDialog {
         }
     }
 
+    Toaster {
+        id: toaster
+    }
+
     Component.onCompleted: {
         // callLater to make sure any popups are on top of the dialog stacking order
         Qt.callLater(createDefaultRequest)
@@ -410,5 +427,4 @@ ElDialog {
             }
         }
     }
-
 }

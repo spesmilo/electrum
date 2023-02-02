@@ -160,7 +160,10 @@ Item {
             FlatButton {
                 Layout.fillWidth: false
                 Layout.preferredWidth: implicitHeight
-                text: qsTr('≡')
+                icon.source: '../../icons/hamburger.png'
+                icon.height: constants.iconSizeSmall
+                icon.width: constants.iconSizeSmall
+
                 onClicked: {
                     mainView.menu.open()
                     mainView.menu.y = mainView.height - mainView.menu.height

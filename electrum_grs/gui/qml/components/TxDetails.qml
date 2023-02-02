@@ -94,12 +94,6 @@ Pane {
                 }
 
                 Label {
-                    visible: !txdetails.isUnrelated && Daemon.fx.enabled && txdetails.lnAmount.satsInt != 0
-                    text: Daemon.fx.fiatValue(txdetails.lnAmount, false) + ' ' + Daemon.fx.fiatCurrency
-                }
-
-
-                Label {
                     visible: !txdetails.fee.isEmpty
                     text: qsTr('Transaction fee')
                     color: Material.accentColor

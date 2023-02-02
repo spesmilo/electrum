@@ -71,7 +71,10 @@ ElDialog {
                 FlatButton {
                     text: qsTr('Copy')
                     icon.source: '../../icons/copy_bw.png'
-                    onClicked: AppController.textToClipboard(dialog.text)
+                    onClicked: {
+                        AppController.textToClipboard(dialog.text)
+                        toaster.show(this, qsTr('Copied!'))
+                    }
                 }
                 FlatButton {
                     text: qsTr('Share')
@@ -82,6 +85,10 @@ ElDialog {
                 }
             }
         }
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Connections {

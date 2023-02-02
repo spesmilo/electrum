@@ -28,31 +28,7 @@ Pane {
 
             Heading {
                 Layout.columnSpan: 2
-                text: qsTr('Lightning Channels')
-            }
-
-            Label {
-                Layout.columnSpan: 2
-                text: qsTr('You have %1 open channels').arg(Daemon.currentWallet.channelModel.numOpenChannels)
-                color: Material.accentColor
-            }
-
-            Label {
-                text: qsTr('You can send:')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                amount: Daemon.currentWallet.lightningCanSend
-            }
-
-            Label {
-                text: qsTr('You can receive:')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                amount: Daemon.currentWallet.lightningCanReceive
+                text: qsTr('Lightning Channel Backups')
             }
         }
 
@@ -78,11 +54,11 @@ Pane {
                     Layout.preferredWidth: parent.width
                     Layout.fillHeight: true
                     clip: true
-                    model: Daemon.currentWallet.channelModel.filterModel('is_backup', false)
+                    model: Daemon.currentWallet.channelModel.filterModel('is_backup', true)
 
                     delegate: ChannelDelegate {
                         onClicked: {
-                            app.stack.push(Qt.resolvedUrl('ChannelDetails.qml'), { 'channelid': model.cid })
+                            app.stack.push(Qt.resolvedUrl('ChannelDetails.qml'), { channelid: model.cid })
                         }
                     }
 
@@ -94,7 +70,7 @@ Pane {
                         width: listview.width * 4/5
                         font.pixelSize: constants.fontSizeXXLarge
                         color: constants.mutedForeground
-                        text: qsTr('No Lightning channels yet in this wallet')
+                        text: qsTr('No Lightning channel backups present')
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -102,49 +78,29 @@ Pane {
             }
         }
 
-
         FlatButton {
             Layout.fillWidth: true
-            text: qsTr('Swap');
-            visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
-            icon.source: '../../icons/status_waiting.png'
+            text: qsTr('Import channel backup')
             onClicked: {
-                var dialog = swapDialog.createObject(root)
+                var dialog = importChannelBackupDialog.createObject(root)
                 dialog.open()
-            }
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Open Channel')
-            onClicked: {
-                var dialog = openChannelDialog.createObject(root)
-                dialog.open()
-            }
-            icon.source: '../../icons/lightning.png'
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Channel backups')
-            onClicked: {
-                app.stack.push(Qt.resolvedUrl('ChannelBackups.qml'))
             }
             icon.source: '../../icons/file.png'
         }
 
     }
 
-    Component {
-        id: swapDialog
-        SwapDialog {
-            onClosed: destroy()
+    Connections {
+        target: Daemon.currentWallet
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(root, { text: message })
+            dialog.open()
         }
     }
 
     Component {
-        id: openChannelDialog
-        OpenChannelDialog {
+        id: importChannelBackupDialog
+        ImportChannelBackupDialog {
             onClosed: destroy()
         }
     }

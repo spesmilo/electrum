@@ -8,6 +8,7 @@ from electrum_grs.util import Satoshis
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+from .qemodelfilter import QEFilterProxyModel
 
 class QEChannelListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -16,7 +17,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     _ROLE_NAMES=('cid','state','state_code','initiator','capacity','can_send',
                  'can_receive','l_csv_delay','r_csv_delay','send_frozen','receive_frozen',
                  'type','node_id','node_alias','short_cid','funding_tx','is_trampoline',
-                 'is_backup')
+                 'is_backup', 'is_imported')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -85,9 +86,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         if lnc.is_backup():
             item['can_send'] = QEAmount()
             item['can_receive'] = QEAmount()
+            item['is_imported'] = lnc.is_imported
         else:
             item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
             item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
+            item['is_imported'] = False
         return item
 
     numOpenChannelsChanged = pyqtSignal()
@@ -165,3 +168,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 self.countChanged.emit()
                 return
             i = i + 1
+
+    @pyqtSlot(str, 'QVariant', result=QEFilterProxyModel)
+    def filterModel(self, role, match):
+        self._filterModel = QEFilterProxyModel(self, self)
+        self._filterModel.setFilterRole(QEChannelListModel._ROLE_RMAP[role])
+        self._filterModel.setFilterValue(match)
+        return self._filterModel
+
