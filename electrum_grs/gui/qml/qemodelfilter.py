@@ -1,6 +1,6 @@
 from PyQt5.QtCore import pyqtSignal, pyqtProperty, QSortFilterProxyModel, QModelIndex
 
-from electrum.logging import get_logger
+from electrum_grs.logging import get_logger
 
 class QEFilterProxyModel(QSortFilterProxyModel):
     _logger = get_logger(__name__)
