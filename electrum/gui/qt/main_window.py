@@ -2190,30 +2190,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if tx:
             self.show_transaction(tx)
 
-    def do_process_from_txid(self):
+    def do_process_from_txid(self, *, parent: QWidget = None, txid: str = None):
+        if parent is None:
+            parent = self
         from electrum import transaction
-        txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
-        if ok and txid:
-            txid = str(txid).strip()
-            raw_tx = self._fetch_tx_from_network(txid)
+        if txid is None:
+            txid, ok = QInputDialog.getText(parent, _('Lookup transaction'), _('Transaction ID') + ':')
+            if not ok:
+                txid = None
+        if not txid:
+            return
+        txid = str(txid).strip()
+        tx = self.wallet.adb.get_transaction(txid)
+        if tx is None:
+            raw_tx = self._fetch_tx_from_network(txid, parent=parent)
             if not raw_tx:
                 return
             tx = transaction.Transaction(raw_tx)
-            self.show_transaction(tx)
+        self.show_transaction(tx)
 
-    def _fetch_tx_from_network(self, txid: str) -> Optional[str]:
+    def _fetch_tx_from_network(self, txid: str, *, parent: QWidget = None) -> Optional[str]:
         if not self.network:
-            self.show_message(_("You are offline."))
+            self.show_message(_("You are offline."), parent=parent)
             return
         try:
             raw_tx = self.network.run_from_another_thread(
                 self.network.get_transaction(txid, timeout=10))
         except UntrustedServerReturnedError as e:
             self.logger.info(f"Error getting transaction from network: {repr(e)}")
-            self.show_message(_("Error getting transaction from network") + ":\n" + e.get_message_for_gui())
+            self.show_message(
+                _("Error getting transaction from network") + ":\n" + e.get_message_for_gui(),
+                parent=parent,
+            )
             return
         except Exception as e:
-            self.show_message(_("Error getting transaction from network") + ":\n" + repr(e))
+            self.show_message(
+                _("Error getting transaction from network") + ":\n" + repr(e),
+                parent=parent,
+            )
             return
         return raw_tx
 

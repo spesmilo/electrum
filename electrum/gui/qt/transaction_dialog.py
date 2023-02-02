@@ -28,19 +28,20 @@ import copy
 import datetime
 import traceback
 import time
-from typing import TYPE_CHECKING, Callable, Optional, List, Union
+from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple
 from functools import partial
 from decimal import Decimal
 
-from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtCore import QSize, Qt, QUrl
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
-                             QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox)
+                             QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser)
 import qrcode
 from qrcode import exceptions
 
 from electrum.simple_config import SimpleConfig
 from electrum.util import quantize_feerate
+from electrum import bitcoin
 from electrum.bitcoin import base_encode, NLOCKTIME_BLOCKHEIGHT_MAX
 from electrum.i18n import _
 from electrum.plugin import run_hook
@@ -74,7 +75,7 @@ class TxFiatLabel(QLabel):
     def setAmount(self, fiat_fee):
         self.setText(('≈  %s' % fiat_fee) if fiat_fee else '')
 
-class QTextEditWithDefaultSize(QTextEdit):
+class QTextBrowserWithDefaultSize(QTextBrowser):
     def sizeHint(self):
         return QSize(0, 100)
 
@@ -86,7 +87,11 @@ class TxInOutWidget(QWidget):
         self.wallet = wallet
         self.main_window = main_window
         self.inputs_header = QLabel()
-        self.inputs_textedit = QTextEditWithDefaultSize()
+        self.inputs_textedit = QTextBrowserWithDefaultSize()
+        self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
+        self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
+        self.inputs_textedit.setTextInteractionFlags(
+            self.inputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         self.txo_color_recv = TxOutputColoring(
             legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
         self.txo_color_change = TxOutputColoring(
@@ -94,7 +99,11 @@ class TxInOutWidget(QWidget):
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
         self.outputs_header = QLabel()
-        self.outputs_textedit = QTextEditWithDefaultSize()
+        self.outputs_textedit = QTextBrowserWithDefaultSize()
+        self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
+        self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
+        self.outputs_textedit.setTextInteractionFlags(
+            self.outputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
 
         self.inputs_textedit.setMinimumWidth(950)
         self.outputs_textedit.setMinimumWidth(950)
@@ -125,43 +134,59 @@ class TxInOutWidget(QWidget):
 
         self.inputs_header.setText(inputs_header_text)
 
-        ext = QTextCharFormat()
+        ext = QTextCharFormat()  # "external"
+        lnk = QTextCharFormat()
+        lnk.setToolTip(_('Click to open'))
+        lnk.setAnchor(True)
+        lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
-        def text_format(addr):
+        def addr_text_format(addr):
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
                     tf_used_change = True
-                    return self.txo_color_change.text_char_format
+                    fmt = QTextCharFormat(self.txo_color_change.text_char_format)
                 else:
                     tf_used_recv = True
-                    return self.txo_color_recv.text_char_format
+                    fmt = QTextCharFormat(self.txo_color_recv.text_char_format)
+                fmt.setAnchorHref(addr)
+                fmt.setToolTip(_('Click to open'))
+                fmt.setAnchor(True)
+                fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+                return fmt
             elif self.wallet.is_billing_address(addr):
                 tf_used_2fa = True
                 return self.txo_color_2fa.text_char_format
             return ext
-
-        def insert_tx_io(cursor, is_coinbase, short_id, address, value):
-            if is_coinbase:
-                cursor.insertText('coinbase')
-            else:
-                address_str = address or '<address unknown>'
-                value_str = self.main_window.format_amount(value, whitespaces=True)
-                cursor.insertText("%-15s\t"%str(short_id), ext)
-                cursor.insertText("%-62s"%address_str, text_format(address))
-                cursor.insertText('\t', ext)
-                cursor.insertText(value_str, ext)
-            cursor.insertBlock()
 
         i_text = self.inputs_textedit
         i_text.clear()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
         cursor = i_text.textCursor()
-        for txin in self.tx.inputs():
+        for txin_idx, txin in enumerate(self.tx.inputs()):
             addr = self.wallet.adb.get_txin_address(txin)
             txin_value = self.wallet.adb.get_txin_value(txin)
-            insert_tx_io(cursor, txin.is_coinbase_input(), txin.short_id, addr, txin_value)
+            if txin.is_coinbase_input():
+                cursor.insertText('coinbase')
+            else:
+                # short_id
+                a_name = f"tx input {txin_idx}"
+                lnk2 = QTextCharFormat(lnk)
+                lnk2.setAnchorHref(txin.prevout.txid.hex())
+                lnk2.setAnchorNames([a_name])
+                cursor.insertText(str(txin.short_id), lnk2)
+                cursor.insertText(" " * max(0, 15 - len(str(txin.short_id))), ext)  # padding
+                cursor.insertText('\t', ext)
+                # addr
+                address_str = addr or '<address unknown>'
+                cursor.insertText(address_str, addr_text_format(addr))
+                cursor.insertText(" " * max(0, 62 - len(address_str)), ext)  # padding
+                cursor.insertText('\t', ext)
+                # value
+                value_str = self.main_window.format_amount(txin_value, whitespaces=True)
+                cursor.insertText(value_str, ext)
+            cursor.insertBlock()
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
@@ -176,13 +201,38 @@ class TxInOutWidget(QWidget):
                 short_id = ShortID.from_components(tx_height, tx_pos, index)
             else:
                 short_id = TxOutpoint(tx_hash, index).short_name()
-
             addr, value = o.get_ui_address_str(), o.value
-            insert_tx_io(cursor, False, short_id, addr, value)
+            # short id
+            cursor.insertText(str(short_id), ext)
+            cursor.insertText(" " * max(0, 15 - len(str(short_id))), ext)  # padding
+            cursor.insertText('\t', ext)
+            # addr
+            address_str = addr or '<address unknown>'
+            cursor.insertText(address_str, addr_text_format(addr))
+            cursor.insertText(" " * max(0, 62 - len(address_str)), ext)  # padding
+            cursor.insertText('\t', ext)
+            # value
+            value_str = self.main_window.format_amount(value, whitespaces=True)
+            cursor.insertText(value_str, ext)
+            cursor.insertBlock()
 
         self.txo_color_recv.legend_label.setVisible(tf_used_recv)
         self.txo_color_change.legend_label.setVisible(tf_used_change)
         self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
+
+    def _open_internal_link(self, target):
+        """Accepts either a str txid, str address, or a QUrl which should be
+        of the bare form "txid" and/or "address" -- used by the clickable
+        links in the inputs/outputs QTextBrowsers"""
+        if isinstance(target, QUrl):
+            target = target.toString(QUrl.None_)
+        assert target
+        if bitcoin.is_address(target):
+            # target was an address, open address dialog
+            self.main_window.show_address(target, parent=self)
+        else:
+            # target was a txid, open new tx dialog
+            self.main_window.do_process_from_txid(txid=target, parent=self)
 
 
 _logger = get_logger(__name__)
@@ -651,7 +701,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.save_button.setToolTip(_("Transaction already saved or not yet signed."))
 
         run_hook('transaction_dialog_update', self)
-
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()

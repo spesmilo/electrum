@@ -242,7 +242,7 @@ class AddressSynchronizer(Logger, EventListener):
                     conflicting_txns -= {tx_hash}
             return conflicting_txns
 
-    def get_transaction(self, txid: str) -> Transaction:
+    def get_transaction(self, txid: str) -> Optional[Transaction]:
         tx = self.db.get_transaction(txid)
         if tx:
             # add verified tx info
