@@ -216,9 +216,9 @@ class Synchronizer(SynchronizerBase):
                 continue  # already have complete tx
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
-            self.adb.pending_txs_changed(True)
 
         if not transaction_hashes: return
+        self.adb.pending_txs_changed(True)
         async with OldTaskGroup() as group:
             for tx_hash in transaction_hashes:
                 await group.spawn(self._get_transaction(tx_hash, allow_server_not_finding_tx=allow_server_not_finding_tx))
