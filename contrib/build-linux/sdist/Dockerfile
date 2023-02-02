@@ -17,6 +17,8 @@ RUN apt-get update -q && \
     apt-get autoremove -y && \
     apt-get clean
 
+RUN git config --global --add safe.directory '*'
+
 # create new user to avoid using root; but with sudo access and no password for convenience.
 #ENV USER="user"
 #ENV HOME_DIR="/home/${USER}"
