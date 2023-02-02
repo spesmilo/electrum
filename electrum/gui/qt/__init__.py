@@ -330,8 +330,11 @@ class ElectrumGui(BaseElectrumGui, Logger):
             app_is_starting: bool = False,
             force_wizard: bool = False,
     ) -> Optional[ElectrumWindow]:
-        '''Raises the window for the wallet if it is open.  Otherwise
-        opens the wallet and creates a new window for it'''
+        """Raises the window for the wallet if it is open.
+        Otherwise, opens the wallet and creates a new window for it.
+        Warning: the returned window might be for a completely different wallet
+                 than the provided path, as we allow user interaction to change the path.
+        """
         wallet = None
         # Try to open with daemon first. If this succeeds, there won't be a wizard at all
         # (the wallet main window will appear directly).
@@ -379,7 +382,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                     path = self.config.get_fallback_wallet_path()
                 else:
                     path = os.path.join(wallet_dir, filename)
-                self.start_new_window(path, uri=None, force_wizard=True)
+                return self.start_new_window(path, uri=None, force_wizard=True)
             return
         window.bring_to_top()
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
