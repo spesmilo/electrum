@@ -1060,9 +1060,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         l.show_toolbar(toolbar_shown)
         return tab
 
-    def show_address(self, addr):
+    def show_address(self, addr: str, *, parent: QWidget = None):
         from . import address_dialog
-        d = address_dialog.AddressDialog(self, addr)
+        d = address_dialog.AddressDialog(self, addr, parent=parent)
         d.exec_()
 
     def show_channel_details(self, chan):
