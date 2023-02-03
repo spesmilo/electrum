@@ -43,7 +43,6 @@ info "Building $pkgname..."
     git checkout "${LIBSECP_VERSION}^{commit}"
 
     if ! [ -x configure ] ; then
-        echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
         echo "LDFLAGS = -no-undefined" >> Makefile.am
         ./autogen.sh || fail "Could not run autogen for $pkgname. Please make sure you have automake and libtool installed, and try again."
     fi
