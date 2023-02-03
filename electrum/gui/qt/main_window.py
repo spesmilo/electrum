@@ -1085,7 +1085,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def do_copy(self, content: str, *, title: str = None) -> None:
         self.app.clipboard().setText(content)
         if title is None:
-            tooltip_text = _("Text copied to clipboard").format(title)
+            tooltip_text = _("Text copied to clipboard")
         else:
             tooltip_text = _("{} copied to clipboard").format(title)
         QToolTip.showText(QCursor.pos(), tooltip_text, self)

@@ -32,10 +32,11 @@ from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple
 from functools import partial
 from decimal import Decimal
 
-from PyQt5.QtCore import QSize, Qt, QUrl
-from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap
+from PyQt5.QtCore import QSize, Qt, QUrl, QPoint
+from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QCursor
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
-                             QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser)
+                             QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
+                             QApplication)
 import qrcode
 from qrcode import exceptions
 
@@ -65,6 +66,11 @@ from .locktimeedit import LockTimeEdit
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
+    from electrum.wallet import Abstract_Wallet
+
+
+_logger = get_logger(__name__)
+dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
 class TxSizeLabel(QLabel):
@@ -81,17 +87,20 @@ class QTextBrowserWithDefaultSize(QTextBrowser):
 
 class TxInOutWidget(QWidget):
 
-    def __init__(self, main_window, wallet):
+    def __init__(self, main_window: 'ElectrumWindow', wallet: 'Abstract_Wallet'):
         QWidget.__init__(self)
 
         self.wallet = wallet
         self.main_window = main_window
+        self.tx = None  # type: Optional[Transaction]
         self.inputs_header = QLabel()
         self.inputs_textedit = QTextBrowserWithDefaultSize()
         self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.inputs_textedit.setTextInteractionFlags(
             self.inputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        self.inputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.inputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
         self.txo_color_recv = TxOutputColoring(
             legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
         self.txo_color_change = TxOutputColoring(
@@ -104,6 +113,8 @@ class TxInOutWidget(QWidget):
         self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.outputs_textedit.setTextInteractionFlags(
             self.outputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
+        self.outputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.outputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
 
         self.inputs_textedit.setMinimumWidth(950)
         self.outputs_textedit.setMinimumWidth(950)
@@ -136,7 +147,7 @@ class TxInOutWidget(QWidget):
 
         ext = QTextCharFormat()  # "external"
         lnk = QTextCharFormat()
-        lnk.setToolTip(_('Click to open'))
+        lnk.setToolTip(_('Click to open, right-click for menu'))
         lnk.setAnchor(True)
         lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
@@ -150,7 +161,7 @@ class TxInOutWidget(QWidget):
                     tf_used_recv = True
                     fmt = QTextCharFormat(self.txo_color_recv.text_char_format)
                 fmt.setAnchorHref(addr)
-                fmt.setToolTip(_('Click to open'))
+                fmt.setToolTip(_('Click to open, right-click for menu'))
                 fmt.setAnchor(True)
                 fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
                 return fmt
@@ -167,25 +178,30 @@ class TxInOutWidget(QWidget):
         for txin_idx, txin in enumerate(self.tx.inputs()):
             addr = self.wallet.adb.get_txin_address(txin)
             txin_value = self.wallet.adb.get_txin_value(txin)
+            # prepare text char formats
+            a_name = f"input {txin_idx}"
+            tcf_ext = QTextCharFormat(ext)
+            tcf_shortid = QTextCharFormat(lnk)
+            tcf_shortid.setAnchorHref(txin.prevout.txid.hex())
+            tcf_addr = addr_text_format(addr)
+            for tcf in (tcf_ext, tcf_shortid, tcf_addr):  # used by context menu creation
+                tcf.setAnchorNames([a_name])
+            # insert text
             if txin.is_coinbase_input():
-                cursor.insertText('coinbase')
+                cursor.insertText('coinbase', tcf_ext)
             else:
                 # short_id
-                a_name = f"tx input {txin_idx}"
-                lnk2 = QTextCharFormat(lnk)
-                lnk2.setAnchorHref(txin.prevout.txid.hex())
-                lnk2.setAnchorNames([a_name])
-                cursor.insertText(str(txin.short_id), lnk2)
-                cursor.insertText(" " * max(0, 15 - len(str(txin.short_id))), ext)  # padding
-                cursor.insertText('\t', ext)
+                cursor.insertText(str(txin.short_id), tcf_shortid)
+                cursor.insertText(" " * max(0, 15 - len(str(txin.short_id))), tcf_ext)  # padding
+                cursor.insertText('\t', tcf_ext)
                 # addr
                 address_str = addr or '<address unknown>'
-                cursor.insertText(address_str, addr_text_format(addr))
-                cursor.insertText(" " * max(0, 62 - len(address_str)), ext)  # padding
-                cursor.insertText('\t', ext)
+                cursor.insertText(address_str, tcf_addr)
+                cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
+                cursor.insertText('\t', tcf_ext)
                 # value
                 value_str = self.main_window.format_amount(txin_value, whitespaces=True)
-                cursor.insertText(value_str, ext)
+                cursor.insertText(value_str, tcf_ext)
             cursor.insertBlock()
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
@@ -196,24 +212,30 @@ class TxInOutWidget(QWidget):
         tx_height, tx_pos = self.wallet.adb.get_txpos(self.tx.txid())
         tx_hash = bytes.fromhex(self.tx.txid())
         cursor = o_text.textCursor()
-        for index, o in enumerate(self.tx.outputs()):
+        for txout_idx, o in enumerate(self.tx.outputs()):
             if tx_pos is not None and tx_pos >= 0:
-                short_id = ShortID.from_components(tx_height, tx_pos, index)
+                short_id = ShortID.from_components(tx_height, tx_pos, txout_idx)
             else:
-                short_id = TxOutpoint(tx_hash, index).short_name()
+                short_id = TxOutpoint(tx_hash, txout_idx).short_name()
             addr, value = o.get_ui_address_str(), o.value
+            # prepare text char formats
+            a_name = f"output {txout_idx}"
+            tcf_ext = QTextCharFormat(ext)
+            tcf_addr = addr_text_format(addr)
+            for tcf in (tcf_ext, tcf_addr):  # used by context menu creation
+                tcf.setAnchorNames([a_name])
             # short id
-            cursor.insertText(str(short_id), ext)
-            cursor.insertText(" " * max(0, 15 - len(str(short_id))), ext)  # padding
-            cursor.insertText('\t', ext)
+            cursor.insertText(str(short_id), tcf_ext)
+            cursor.insertText(" " * max(0, 15 - len(str(short_id))), tcf_ext)  # padding
+            cursor.insertText('\t', tcf_ext)
             # addr
             address_str = addr or '<address unknown>'
-            cursor.insertText(address_str, addr_text_format(addr))
-            cursor.insertText(" " * max(0, 62 - len(address_str)), ext)  # padding
-            cursor.insertText('\t', ext)
+            cursor.insertText(address_str, tcf_addr)
+            cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
+            cursor.insertText('\t', tcf_ext)
             # value
             value_str = self.main_window.format_amount(value, whitespaces=True)
-            cursor.insertText(value_str, ext)
+            cursor.insertText(value_str, tcf_ext)
             cursor.insertBlock()
 
         self.txo_color_recv.legend_label.setVisible(tf_used_recv)
@@ -234,9 +256,92 @@ class TxInOutWidget(QWidget):
             # target was a txid, open new tx dialog
             self.main_window.do_process_from_txid(txid=target, parent=self)
 
+    def on_context_menu_for_inputs(self, pos: QPoint):
+        i_text = self.inputs_textedit
+        global_pos = i_text.viewport().mapToGlobal(pos)
 
-_logger = get_logger(__name__)
-dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+        cursor = i_text.cursorForPosition(pos)
+        charFormat = cursor.charFormat()
+        name = charFormat.anchorNames() and charFormat.anchorNames()[0]
+        if not name:
+            menu = i_text.createStandardContextMenu()
+            menu.exec_(global_pos)
+            return
+
+        menu = QMenu()
+        show_list = []
+        copy_list = []
+        # figure out which input they right-clicked on. input lines have an anchor named "input N"
+        txin_idx = int(name.split()[1])  # split "input N", translate N -> int
+        txin = self.tx.inputs()[txin_idx]
+
+        menu.addAction(f"Tx Input #{txin_idx}").setDisabled(True)
+        menu.addSeparator()
+        if txin.is_coinbase_input():
+            menu.addAction(_("Coinbase Input")).setDisabled(True)
+        else:
+            show_list += [(_("Show Prev Tx"), lambda: self._open_internal_link(txin.prevout.txid.hex()))]
+            copy_list += [(_("Copy Prevout"), lambda: self.main_window.do_copy(txin.prevout.to_str()))]
+            addr = self.wallet.adb.get_txin_address(txin)
+            if addr:
+                if self.wallet.is_mine(addr):
+                    show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
+                copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
+            txin_value = self.wallet.adb.get_txin_value(txin)
+            if txin_value:
+                value_str = self.main_window.format_amount(txin_value)
+                copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
+
+        for item in show_list:
+            menu.addAction(*item)
+        if show_list and copy_list:
+            menu.addSeparator()
+        for item in copy_list:
+            menu.addAction(*item)
+
+        menu.addSeparator()
+        std_menu = i_text.createStandardContextMenu()
+        menu.addActions(std_menu.actions())
+        menu.exec_(global_pos)
+
+    def on_context_menu_for_outputs(self, pos: QPoint):
+        o_text = self.outputs_textedit
+        global_pos = o_text.viewport().mapToGlobal(pos)
+
+        cursor = o_text.cursorForPosition(pos)
+        charFormat = cursor.charFormat()
+        name = charFormat.anchorNames() and charFormat.anchorNames()[0]
+        if not name:
+            menu = o_text.createStandardContextMenu()
+            menu.exec_(global_pos)
+            return
+
+        menu = QMenu()
+        show_list = []
+        copy_list = []
+        # figure out which output they right-clicked on. output lines have an anchor named "output N"
+        txout_idx = int(name.split()[1])  # split "output N", translate N -> int
+        menu.addAction(f"Tx Output #{txout_idx}").setDisabled(True)
+        menu.addSeparator()
+        if addr := self.tx.outputs()[txout_idx].address:
+            if self.wallet.is_mine(addr):
+                show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
+            copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
+        txout_value = self.tx.outputs()[txout_idx].value
+        value_str = self.main_window.format_amount(txout_value)
+        copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
+
+        for item in show_list:
+            menu.addAction(*item)
+        if show_list and copy_list:
+            menu.addSeparator()
+        for item in copy_list:
+            menu.addAction(*item)
+
+        menu.addSeparator()
+        std_menu = o_text.createStandardContextMenu()
+        menu.addActions(std_menu.actions())
+        menu.exec_(global_pos)
 
 
 def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, prompt_if_unsaved=False):
