@@ -169,11 +169,20 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 return
             i = i + 1
 
-    @pyqtSlot(str, 'QVariant', result=QEFilterProxyModel)
     def filterModel(self, role, match):
-        self._filterModel = QEFilterProxyModel(self, self)
+        _filterModel = QEFilterProxyModel(self, self)
         assert role in self._ROLE_RMAP
-        self._filterModel.setFilterRole(self._ROLE_RMAP[role])
-        self._filterModel.setFilterValue(match)
-        return self._filterModel
+        _filterModel.setFilterRole(self._ROLE_RMAP[role])
+        _filterModel.setFilterValue(match)
+        return _filterModel
+
+    @pyqtSlot(result=QEFilterProxyModel)
+    def filterModelBackups(self):
+        self._fm_backups = self.filterModel('is_backup', True)
+        return self._fm_backups
+
+    @pyqtSlot(result=QEFilterProxyModel)
+    def filterModelNoBackups(self):
+        self._fm_nobackups = self.filterModel('is_backup', False)
+        return self._fm_nobackups
 

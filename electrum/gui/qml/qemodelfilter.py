@@ -5,10 +5,9 @@ from electrum.logging import get_logger
 class QEFilterProxyModel(QSortFilterProxyModel):
     _logger = get_logger(__name__)
 
-    _filter_value = None
-
     def __init__(self, parent_model, parent=None):
         super().__init__(parent)
+        self._filter_value = None
         self.setSourceModel(parent_model)
 
     countChanged = pyqtSignal()

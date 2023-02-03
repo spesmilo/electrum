@@ -78,7 +78,7 @@ Pane {
                     Layout.preferredWidth: parent.width
                     Layout.fillHeight: true
                     clip: true
-                    model: Daemon.currentWallet.channelModel.filterModel('is_backup', false)
+                    model: Daemon.currentWallet.channelModel.filterModelNoBackups()
 
                     delegate: ChannelDelegate {
                         onClicked: {
