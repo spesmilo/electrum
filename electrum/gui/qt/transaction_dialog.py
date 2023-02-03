@@ -283,7 +283,7 @@ class TxInOutWidget(QWidget):
             menu.addAction(_("Coinbase Input")).setDisabled(True)
         else:
             show_list += [(_("Show Prev Tx"), lambda: self._open_internal_link(txin.prevout.txid.hex()))]
-            copy_list += [(_("Copy Prevout"), lambda: self.main_window.do_copy(txin.prevout.to_str()))]
+            copy_list += [(_("Copy") + " " + _("Outpoint"), lambda: self.main_window.do_copy(txin.prevout.to_str()))]
             addr = self.wallet.adb.get_txin_address(txin)
             if addr:
                 if self.wallet.is_mine(addr):
@@ -325,6 +325,9 @@ class TxInOutWidget(QWidget):
         txout_idx = int(name.split()[1])  # split "txio_idx N", translate N -> int
         menu.addAction(f"Tx Output #{txout_idx}").setDisabled(True)
         menu.addSeparator()
+        if tx_hash := self.tx.txid():
+            outpoint = TxOutpoint(bytes.fromhex(tx_hash), txout_idx)
+            copy_list += [(_("Copy") + " " + _("Outpoint"), lambda: self.main_window.do_copy(outpoint.to_str()))]
         if addr := self.tx.outputs()[txout_idx].address:
             if self.wallet.is_mine(addr):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
