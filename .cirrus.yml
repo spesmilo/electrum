@@ -2,7 +2,7 @@ task:
   container:
     image: $ELECTRUM_IMAGE
     cpu: 1
-    memory: 2G
+    memory: 1G
   matrix:
     - name: Tox Python $ELECTRUM_PYTHON_VERSION
       env:
