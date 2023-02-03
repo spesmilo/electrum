@@ -38,16 +38,18 @@ class LibModuleMissing(Exception): pass
 
 def load_library():
     if sys.platform == 'darwin':
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.0.dylib'),
-                         'libsecp256k1.0.dylib')
+        libnames = ['libsecp256k1.1.dylib', 'libsecp256k1.0.dylib', ]
     elif sys.platform in ('windows', 'win32'):
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1-0.dll'),
-                         'libsecp256k1-0.dll')
+        libnames = ['libsecp256k1-1.dll', 'libsecp256k1-0.dll', ]
     elif 'ANDROID_DATA' in os.environ:
-        library_paths = ('libsecp256k1.so',)
+        libnames = ['libsecp256k1.so', ]
     else:  # desktop Linux and similar
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),
-                         'libsecp256k1.so.0')
+        libnames = ['libsecp256k1.so.1', 'libsecp256k1.so.0', ]
+    library_paths = []
+    for libname in libnames:  # try local files in repo dir first
+        library_paths.append(os.path.join(os.path.dirname(__file__), libname))
+    for libname in libnames:
+        library_paths.append(libname)
 
     exceptions = []
     secp256k1 = None
