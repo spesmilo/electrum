@@ -226,14 +226,18 @@ class TxInOutWidget(QWidget):
         o_text.clear()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        tx_height, tx_pos = self.wallet.adb.get_txpos(self.tx.txid())
-        tx_hash = bytes.fromhex(self.tx.txid())
+        tx_height, tx_pos = None, None
+        tx_hash = self.tx.txid()
+        if tx_hash:
+            tx_height, tx_pos = self.wallet.adb.get_txpos(tx_hash)
         cursor = o_text.textCursor()
         for txout_idx, o in enumerate(self.tx.outputs()):
-            if tx_pos is not None and tx_pos >= 0:
+            if tx_height is not None and tx_pos is not None and tx_pos >= 0:
                 short_id = ShortID.from_components(tx_height, tx_pos, txout_idx)
+            elif tx_hash:
+                short_id = TxOutpoint(bytes.fromhex(tx_hash), txout_idx).short_name()
             else:
-                short_id = TxOutpoint(tx_hash, txout_idx).short_name()
+                short_id = f"unknown:{txout_idx}"
             addr = o.get_ui_address_str()
             insert_tx_io(
                 cursor=cursor, is_coinbase=False, txio_idx=txout_idx,
