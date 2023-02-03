@@ -78,6 +78,111 @@ class QTextEditWithDefaultSize(QTextEdit):
     def sizeHint(self):
         return QSize(0, 100)
 
+class TxInOutWidget(QWidget):
+
+    def __init__(self, main_window, wallet):
+        QWidget.__init__(self)
+
+        self.wallet = wallet
+        self.main_window = main_window
+        self.inputs_header = QLabel()
+        self.inputs_textedit = QTextEditWithDefaultSize()
+        self.txo_color_recv = TxOutputColoring(
+            legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
+        self.txo_color_change = TxOutputColoring(
+            legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
+        self.txo_color_2fa = TxOutputColoring(
+            legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
+        self.outputs_header = QLabel()
+        self.outputs_textedit = QTextEditWithDefaultSize()
+
+        self.inputs_textedit.setMinimumWidth(950)
+        self.outputs_textedit.setMinimumWidth(950)
+
+        outheader_hbox = QHBoxLayout()
+        outheader_hbox.setContentsMargins(0, 0, 0, 0)
+        outheader_hbox.addWidget(self.outputs_header)
+        outheader_hbox.addStretch(2)
+        outheader_hbox.addWidget(self.txo_color_recv.legend_label)
+        outheader_hbox.addWidget(self.txo_color_change.legend_label)
+        outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.inputs_header)
+        vbox.addWidget(self.inputs_textedit)
+        vbox.addLayout(outheader_hbox)
+        vbox.addWidget(self.outputs_textedit)
+        self.setLayout(vbox)
+
+    def update(self, tx):
+        self.tx = tx
+        inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
+
+        #if not self.finalized:
+        #    selected_coins = self.main_window.get_manually_selected_coins()
+        #    if selected_coins is not None:
+        #        inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
+
+        self.inputs_header.setText(inputs_header_text)
+
+        ext = QTextCharFormat()
+        tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
+        def text_format(addr):
+            nonlocal tf_used_recv, tf_used_change, tf_used_2fa
+            if self.wallet.is_mine(addr):
+                if self.wallet.is_change(addr):
+                    tf_used_change = True
+                    return self.txo_color_change.text_char_format
+                else:
+                    tf_used_recv = True
+                    return self.txo_color_recv.text_char_format
+            elif self.wallet.is_billing_address(addr):
+                tf_used_2fa = True
+                return self.txo_color_2fa.text_char_format
+            return ext
+
+        def insert_tx_io(cursor, is_coinbase, short_id, address, value):
+            if is_coinbase:
+                cursor.insertText('coinbase')
+            else:
+                address_str = address or '<address unknown>'
+                value_str = self.main_window.format_amount(value, whitespaces=True)
+                cursor.insertText("%-15s\t"%str(short_id), ext)
+                cursor.insertText("%-62s"%address_str, text_format(address))
+                cursor.insertText('\t', ext)
+                cursor.insertText(value_str, ext)
+            cursor.insertBlock()
+
+        i_text = self.inputs_textedit
+        i_text.clear()
+        i_text.setFont(QFont(MONOSPACE_FONT))
+        i_text.setReadOnly(True)
+        cursor = i_text.textCursor()
+        for txin in self.tx.inputs():
+            addr = self.wallet.adb.get_txin_address(txin)
+            txin_value = self.wallet.adb.get_txin_value(txin)
+            insert_tx_io(cursor, txin.is_coinbase_input(), txin.short_id, addr, txin_value)
+
+        self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
+        o_text = self.outputs_textedit
+        o_text.clear()
+        o_text.setFont(QFont(MONOSPACE_FONT))
+        o_text.setReadOnly(True)
+        tx_height, tx_pos = self.wallet.adb.get_txpos(self.tx.txid())
+        tx_hash = bytes.fromhex(self.tx.txid())
+        cursor = o_text.textCursor()
+        for index, o in enumerate(self.tx.outputs()):
+            if tx_pos is not None and tx_pos >= 0:
+                short_id = ShortID.from_components(tx_height, tx_pos, index)
+            else:
+                short_id = TxOutpoint(tx_hash, index).short_name()
+
+            addr, value = o.get_ui_address_str(), o.value
+            insert_tx_io(cursor, False, short_id, addr, value)
+
+        self.txo_color_recv.legend_label.setVisible(tf_used_recv)
+        self.txo_color_change.legend_label.setVisible(tf_used_change)
+        self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
 
 
 _logger = get_logger(__name__)
@@ -113,7 +218,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
         self.setMinimumWidth(640)
-        self.resize(1200,600)
         self.set_title()
 
         self.psbt_only_widgets = []  # type: List[QWidget]
@@ -129,30 +233,8 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         vbox.addSpacing(10)
 
-        self.inputs_header = QLabel()
-        vbox.addWidget(self.inputs_header)
-        self.inputs_textedit = QTextEditWithDefaultSize()
-        vbox.addWidget(self.inputs_textedit)
-
-        self.txo_color_recv = TxOutputColoring(
-            legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
-        self.txo_color_change = TxOutputColoring(
-            legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
-        self.txo_color_2fa = TxOutputColoring(
-            legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
-
-        outheader_hbox = QHBoxLayout()
-        outheader_hbox.setContentsMargins(0, 0, 0, 0)
-        vbox.addLayout(outheader_hbox)
-        self.outputs_header = QLabel()
-        outheader_hbox.addWidget(self.outputs_header)
-        outheader_hbox.addStretch(2)
-        outheader_hbox.addWidget(self.txo_color_recv.legend_label)
-        outheader_hbox.addWidget(self.txo_color_change.legend_label)
-        outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
-
-        self.outputs_textedit = QTextEditWithDefaultSize()
-        vbox.addWidget(self.outputs_textedit)
+        self.io_widget = TxInOutWidget(self.main_window, self.wallet)
+        vbox.addWidget(self.io_widget)
 
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
@@ -418,7 +500,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.finalize_button.setEnabled(self.can_finalize())
         if self.tx is None:
             return
-        self.update_io()
+        self.io_widget.update(self.tx)
         desc = self.desc
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
@@ -570,72 +652,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
 
         run_hook('transaction_dialog_update', self)
 
-    def update_io(self):
-        inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
-        if not self.finalized:
-            selected_coins = self.main_window.get_manually_selected_coins()
-            if selected_coins is not None:
-                inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
-        self.inputs_header.setText(inputs_header_text)
-
-        ext = QTextCharFormat()
-        tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
-        def text_format(addr):
-            nonlocal tf_used_recv, tf_used_change, tf_used_2fa
-            if self.wallet.is_mine(addr):
-                if self.wallet.is_change(addr):
-                    tf_used_change = True
-                    return self.txo_color_change.text_char_format
-                else:
-                    tf_used_recv = True
-                    return self.txo_color_recv.text_char_format
-            elif self.wallet.is_billing_address(addr):
-                tf_used_2fa = True
-                return self.txo_color_2fa.text_char_format
-            return ext
-
-        def insert_tx_io(cursor, is_coinbase, short_id, address, value):
-            if is_coinbase:
-                cursor.insertText('coinbase')
-            else:
-                address_str = address or '<address unknown>'
-                value_str = self.main_window.format_amount(value, whitespaces=True)
-                cursor.insertText("%-15s\t"%str(short_id), ext)
-                cursor.insertText("%-62s"%address_str, text_format(address))
-                cursor.insertText('\t', ext)
-                cursor.insertText(value_str, ext)
-            cursor.insertBlock()
-
-        i_text = self.inputs_textedit
-        i_text.clear()
-        i_text.setFont(QFont(MONOSPACE_FONT))
-        i_text.setReadOnly(True)
-        cursor = i_text.textCursor()
-        for txin in self.tx.inputs():
-            addr = self.wallet.adb.get_txin_address(txin)
-            txin_value = self.wallet.adb.get_txin_value(txin)
-            insert_tx_io(cursor, txin.is_coinbase_input(), txin.short_id, addr, txin_value)
-
-        self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
-        o_text = self.outputs_textedit
-        o_text.clear()
-        o_text.setFont(QFont(MONOSPACE_FONT))
-        o_text.setReadOnly(True)
-        tx_height, tx_pos = self.wallet.adb.get_txpos(self.tx.txid())
-        tx_hash = bytes.fromhex(self.tx.txid())
-        cursor = o_text.textCursor()
-        for index, o in enumerate(self.tx.outputs()):
-            if tx_pos is not None and tx_pos >= 0:
-                short_id = ShortID.from_components(tx_height, tx_pos, index)
-            else:
-                short_id = TxOutpoint(tx_hash, index).short_name()
-
-            addr, value = o.get_ui_address_str(), o.value
-            insert_tx_io(cursor, False, short_id, addr, value)
-
-        self.txo_color_recv.legend_label.setVisible(tf_used_recv)
-        self.txo_color_change.legend_label.setVisible(tf_used_change)
-        self.txo_color_2fa.legend_label.setVisible(tf_used_2fa)
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()
