@@ -614,7 +614,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         for txin in self.tx.inputs():
             addr = self.wallet.adb.get_txin_address(txin)
             txin_value = self.wallet.adb.get_txin_value(txin)
-            insert_tx_io(cursor, txin.is_coinbase_output(), txin.short_id, addr, txin_value)
+            insert_tx_io(cursor, txin.is_coinbase_input(), txin.short_id, addr, txin_value)
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
