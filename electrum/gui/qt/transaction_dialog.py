@@ -152,7 +152,7 @@ class TxInOutWidget(QWidget):
         lnk.setAnchor(True)
         lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
         tf_used_recv, tf_used_change, tf_used_2fa = False, False, False
-        def addr_text_format(addr):
+        def addr_text_format(addr: str) -> QTextCharFormat:
             nonlocal tf_used_recv, tf_used_change, tf_used_2fa
             if self.wallet.is_mine(addr):
                 if self.wallet.is_change(addr):
@@ -171,6 +171,40 @@ class TxInOutWidget(QWidget):
                 return self.txo_color_2fa.text_char_format
             return ext
 
+        def insert_tx_io(
+            *,
+            cursor: QCursor,
+            txio_idx: int,
+            is_coinbase: bool,
+            tcf_shortid: QTextCharFormat = None,
+            short_id: str,
+            addr: Optional[str],
+            value: Optional[int],
+        ):
+            tcf_ext = QTextCharFormat(ext)
+            tcf_addr = addr_text_format(addr)
+            if tcf_shortid is None:
+                tcf_shortid = tcf_ext
+            a_name = f"txio_idx {txio_idx}"
+            for tcf in (tcf_ext, tcf_shortid, tcf_addr):  # used by context menu creation
+                tcf.setAnchorNames([a_name])
+            if is_coinbase:
+                cursor.insertText('coinbase', tcf_ext)
+            else:
+                # short_id
+                cursor.insertText(short_id, tcf_shortid)
+                cursor.insertText(" " * max(0, 15 - len(short_id)), tcf_ext)  # padding
+                cursor.insertText('\t', tcf_ext)
+                # addr
+                address_str = addr or '<address unknown>'
+                cursor.insertText(address_str, tcf_addr)
+                cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
+                cursor.insertText('\t', tcf_ext)
+                # value
+                value_str = self.main_window.format_amount(value, whitespaces=True)
+                cursor.insertText(value_str, tcf_ext)
+            cursor.insertBlock()
+
         i_text = self.inputs_textedit
         i_text.clear()
         i_text.setFont(QFont(MONOSPACE_FONT))
@@ -179,31 +213,13 @@ class TxInOutWidget(QWidget):
         for txin_idx, txin in enumerate(self.tx.inputs()):
             addr = self.wallet.adb.get_txin_address(txin)
             txin_value = self.wallet.adb.get_txin_value(txin)
-            # prepare text char formats
-            a_name = f"input {txin_idx}"
-            tcf_ext = QTextCharFormat(ext)
             tcf_shortid = QTextCharFormat(lnk)
             tcf_shortid.setAnchorHref(txin.prevout.txid.hex())
-            tcf_addr = addr_text_format(addr)
-            for tcf in (tcf_ext, tcf_shortid, tcf_addr):  # used by context menu creation
-                tcf.setAnchorNames([a_name])
-            # insert text
-            if txin.is_coinbase_input():
-                cursor.insertText('coinbase', tcf_ext)
-            else:
-                # short_id
-                cursor.insertText(str(txin.short_id), tcf_shortid)
-                cursor.insertText(" " * max(0, 15 - len(str(txin.short_id))), tcf_ext)  # padding
-                cursor.insertText('\t', tcf_ext)
-                # addr
-                address_str = addr or '<address unknown>'
-                cursor.insertText(address_str, tcf_addr)
-                cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
-                cursor.insertText('\t', tcf_ext)
-                # value
-                value_str = self.main_window.format_amount(txin_value, whitespaces=True)
-                cursor.insertText(value_str, tcf_ext)
-            cursor.insertBlock()
+            insert_tx_io(
+                cursor=cursor, is_coinbase=txin.is_coinbase_input(), txio_idx=txin_idx,
+                tcf_shortid=tcf_shortid,
+                short_id=str(txin.short_id), addr=addr, value=txin_value,
+            )
 
         self.outputs_header.setText(_("Outputs") + ' (%d)'%len(self.tx.outputs()))
         o_text = self.outputs_textedit
@@ -218,26 +234,11 @@ class TxInOutWidget(QWidget):
                 short_id = ShortID.from_components(tx_height, tx_pos, txout_idx)
             else:
                 short_id = TxOutpoint(tx_hash, txout_idx).short_name()
-            addr, value = o.get_ui_address_str(), o.value
-            # prepare text char formats
-            a_name = f"output {txout_idx}"
-            tcf_ext = QTextCharFormat(ext)
-            tcf_addr = addr_text_format(addr)
-            for tcf in (tcf_ext, tcf_addr):  # used by context menu creation
-                tcf.setAnchorNames([a_name])
-            # short id
-            cursor.insertText(str(short_id), tcf_ext)
-            cursor.insertText(" " * max(0, 15 - len(str(short_id))), tcf_ext)  # padding
-            cursor.insertText('\t', tcf_ext)
-            # addr
-            address_str = addr or '<address unknown>'
-            cursor.insertText(address_str, tcf_addr)
-            cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
-            cursor.insertText('\t', tcf_ext)
-            # value
-            value_str = self.main_window.format_amount(value, whitespaces=True)
-            cursor.insertText(value_str, tcf_ext)
-            cursor.insertBlock()
+            addr = o.get_ui_address_str()
+            insert_tx_io(
+                cursor=cursor, is_coinbase=False, txio_idx=txout_idx,
+                short_id=str(short_id), addr=addr, value=o.value,
+            )
 
         self.txo_color_recv.legend_label.setVisible(tf_used_recv)
         self.txo_color_change.legend_label.setVisible(tf_used_change)
@@ -272,8 +273,8 @@ class TxInOutWidget(QWidget):
         menu = QMenu()
         show_list = []
         copy_list = []
-        # figure out which input they right-clicked on. input lines have an anchor named "input N"
-        txin_idx = int(name.split()[1])  # split "input N", translate N -> int
+        # figure out which input they right-clicked on. input lines have an anchor named "txio_idx N"
+        txin_idx = int(name.split()[1])  # split "txio_idx N", translate N -> int
         txin = self.tx.inputs()[txin_idx]
 
         menu.addAction(f"Tx Input #{txin_idx}").setDisabled(True)
@@ -320,8 +321,8 @@ class TxInOutWidget(QWidget):
         menu = QMenu()
         show_list = []
         copy_list = []
-        # figure out which output they right-clicked on. output lines have an anchor named "output N"
-        txout_idx = int(name.split()[1])  # split "output N", translate N -> int
+        # figure out which output they right-clicked on. output lines have an anchor named "txio_idx N"
+        txout_idx = int(name.split()[1])  # split "txio_idx N", translate N -> int
         menu.addAction(f"Tx Output #{txout_idx}").setDisabled(True)
         menu.addSeparator()
         if addr := self.tx.outputs()[txout_idx].address:
