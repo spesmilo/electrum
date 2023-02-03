@@ -169,17 +169,7 @@ Item {
                     mainView.menu.y = mainView.height - mainView.menu.height
                 }
             }
-            // Rectangle {
-            //     Layout.fillWidth: false
-            //     Layout.preferredWidth: 2
-            //     Layout.preferredHeight: parent.height * 2/3
-            //     Layout.alignment: Qt.AlignVCenter
-            //     color: constants.darkerBackground
-            // }
-            // Item {
-            //     visible: !Daemon.currentWallet
-            //     Layout.fillWidth: true
-            // }
+
             FlatButton {
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
@@ -191,14 +181,7 @@ Item {
                     dialog.open()
                 }
             }
-            // Rectangle {
-            //     visible: Daemon.currentWallet
-            //     Layout.fillWidth: false
-            //     Layout.preferredWidth: 2
-            //     Layout.preferredHeight: parent.height * 2/3
-            //     Layout.alignment: Qt.AlignVCenter
-            //     color: constants.darkerBackground
-            // }
+
             FlatButton {
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
