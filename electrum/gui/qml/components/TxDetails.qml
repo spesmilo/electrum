@@ -315,8 +315,10 @@ Pane {
 
         }
 
-        RowLayout {
+        ButtonContainer {
+            Layout.fillWidth: true
             visible: txdetails.canSign || txdetails.canBroadcast
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -333,7 +335,9 @@ Pane {
             }
         }
 
-        RowLayout {
+        ButtonContainer {
+            Layout.fillWidth: true
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -359,15 +363,16 @@ Pane {
                 visible: txdetails.canRemove
                 onClicked: txdetails.removeLocalTx()
             }
-        }
 
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Cancel Tx')
-            visible: txdetails.canCancel
-            onClicked: {
-                var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
-                dialog.open()
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Cancel Tx')
+                visible: txdetails.canCancel
+                onClicked: {
+                    var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                    dialog.open()
+                }
             }
         }
 

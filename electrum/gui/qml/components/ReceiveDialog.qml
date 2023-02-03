@@ -241,7 +241,7 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                RowLayout {
+                ButtonContainer {
                     id: buttons
                     Layout.alignment: Qt.AlignHCenter
                     FlatButton {
