@@ -47,7 +47,7 @@ def load_library():
         library_paths = ('libsecp256k1.so',)
     else:  # desktop Linux and similar
         library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),
-                         'libsecp256k1.so.0')
+                         'libsecp256k1.so.0', 'libsecp256k1.so.1')
 
     exceptions = []
     secp256k1 = None
