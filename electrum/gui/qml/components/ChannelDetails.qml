@@ -242,7 +242,9 @@ Pane {
                 visible: channeldetails.canDelete
                 onClicked: {
                     var dialog = app.messageDialog.createObject(root, {
-                        text: qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
+                        text: channeldetails.isBackup
+                                ? qsTr('Are you sure you want to delete this channel backup?')
+                                : qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
                         yesno: true
                     })
                     dialog.yesClicked.connect(function() {
