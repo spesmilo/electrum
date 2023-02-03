@@ -172,7 +172,8 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     @pyqtSlot(str, 'QVariant', result=QEFilterProxyModel)
     def filterModel(self, role, match):
         self._filterModel = QEFilterProxyModel(self, self)
-        self._filterModel.setFilterRole(QEChannelListModel._ROLE_RMAP[role])
+        assert role in self._ROLE_RMAP
+        self._filterModel.setFilterRole(self._ROLE_RMAP[role])
         self._filterModel.setFilterValue(match)
         return self._filterModel
 
