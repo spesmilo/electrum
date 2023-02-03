@@ -82,8 +82,12 @@ class TxFiatLabel(QLabel):
         self.setText(('≈  %s' % fiat_fee) if fiat_fee else '')
 
 class QTextBrowserWithDefaultSize(QTextBrowser):
+    def __init__(self, width: int = 0, height: int = 0):
+        self._width = width
+        self._height = height
+        QTextBrowser.__init__(self)
     def sizeHint(self):
-        return QSize(0, 100)
+        return QSize(self._width, self._height)
 
 class TxInOutWidget(QWidget):
 
@@ -94,7 +98,7 @@ class TxInOutWidget(QWidget):
         self.main_window = main_window
         self.tx = None  # type: Optional[Transaction]
         self.inputs_header = QLabel()
-        self.inputs_textedit = QTextBrowserWithDefaultSize()
+        self.inputs_textedit = QTextBrowserWithDefaultSize(950, 100)
         self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.inputs_textedit.setTextInteractionFlags(
@@ -108,16 +112,13 @@ class TxInOutWidget(QWidget):
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
         self.outputs_header = QLabel()
-        self.outputs_textedit = QTextBrowserWithDefaultSize()
+        self.outputs_textedit = QTextBrowserWithDefaultSize(950, 100)
         self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.outputs_textedit.setTextInteractionFlags(
             self.outputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         self.outputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
         self.outputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_outputs)
-
-        self.inputs_textedit.setMinimumWidth(950)
-        self.outputs_textedit.setMinimumWidth(950)
 
         outheader_hbox = QHBoxLayout()
         outheader_hbox.setContentsMargins(0, 0, 0, 0)
