@@ -28,35 +28,54 @@ ElDialog {
         color: "#aa000000"
     }
 
+    padding: 0
+
     ColumnLayout {
-        TextArea {
-            id: message
-            Layout.preferredWidth: Overlay.overlay.width *2/3
-            readOnly: true
-            wrapMode: TextInput.WordWrap
-            textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
-            background: Rectangle {
-                color: 'transparent'
+        ColumnLayout {
+            Layout.margins: constants.paddingMedium
+            Layout.alignment: Qt.AlignHCenter
+            TextArea {
+                id: message
+                Layout.preferredWidth: Overlay.overlay.width *2/3
+                readOnly: true
+                wrapMode: TextInput.WordWrap
+                textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
+                background: Rectangle {
+                    color: 'transparent'
+                }
             }
         }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Button {
+        ButtonContainer {
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                textUnderIcon: false
                 text: qsTr('Ok')
+                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: !yesno
                 onClicked: dialog.close()
             }
-            Button {
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                textUnderIcon: false
                 text: qsTr('Yes')
+                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: yesno
                 onClicked: {
                     yesClicked()
                     dialog.close()
                 }
             }
-            Button {
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                textUnderIcon: false
                 text: qsTr('No')
+                icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
                 visible: yesno
                 onClicked: {
                     reject()

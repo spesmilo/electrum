@@ -8,8 +8,10 @@ TabButton {
     id: control
     checkable: false
 
+    property bool textUnderIcon: true
+
     font.pixelSize: constants.fontSizeSmall
-    display: IconLabel.TextUnderIcon
+    display: textUnderIcon ? IconLabel.TextUnderIcon : IconLabel.TextBesideIcon
 
     contentItem: IconLabel {
         spacing: control.spacing
