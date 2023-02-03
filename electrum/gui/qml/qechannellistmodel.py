@@ -41,6 +41,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self.on_channel_updated(channel)
 
+    @qt_event_listener
+    def on_event_channels_updated(self, wallet):
+        if wallet == self.wallet:
+            self.init_model()
+
     def on_destroy(self):
         self.unregister_callbacks()
 

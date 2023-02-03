@@ -199,7 +199,10 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtSlot()
     def deleteChannel(self):
-        self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
+        if self.isBackup:
+            self._wallet.wallet.lnworker.remove_channel_backup(self._channel.channel_id)
+        else:
+            self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
 
     @pyqtSlot(result=str)
     def channelBackup(self):
