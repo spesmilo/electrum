@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 from electrum.plugin import hook, BasePlugin
-from electrum.transaction import PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 
 class Deniability(BasePlugin):
     def __init__(self, parent, config, name):
@@ -65,6 +65,15 @@ class Deniability(BasePlugin):
 
         return self.signed_tx
 
+    def send_tx(self, wallet):
+
+        self.network = wallet.network
+
+        final_tx = Transaction(self.signed_tx_hex)
+        result = wallet.add_transaction(final_tx)
+
+        return result
+
     @hook
     def load_wallet(self, wallet, window):
 
@@ -73,3 +82,5 @@ class Deniability(BasePlugin):
         self.create_tx(wallet)
 
         self.sign_tx(wallet)
+
+        self.send_tx(wallet)
