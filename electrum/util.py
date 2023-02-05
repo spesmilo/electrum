@@ -897,6 +897,8 @@ signet_block_explorers = {
                        {'tx': 'tx/', 'addr': 'address/'}),
     'wakiyamap.dev': ('https://signet-explorer.wakiyamap.dev/',
                        {'tx': 'tx/', 'addr': 'address/'}),
+    'ex.signet.bublina.eu.org': ('https://ex.signet.bublina.eu.org/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
