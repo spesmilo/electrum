@@ -255,7 +255,7 @@ class QETxDetails(QObject, QtEventListener):
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
-        else:
+        elif txinfo.tx_mined_status.height == 0:
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
 
         if self._wallet.wallet.lnworker:
