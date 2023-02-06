@@ -24,16 +24,11 @@ Container {
 
             contentRoot.children.push(verticalSeparator.createObject(_layout, {
                 pheight: rowheight * 2/3,
-                visible: Qt.binding(function() {
-                    let anybefore_visible = false
-                    for (let j = i-1; j >= 0; j--) {
-                        anybefore_visible = anybefore_visible || root.itemAt(j).visible
-                    }
-                    return button.visible && anybefore_visible
-                })
+                master_idx: i
             }))
 
             contentRoot.children.push(button)
+            console.log('push ' + i + ', v=' + button.visible + ',len=' + contentRoot.children.length)
         }
 
         contentItem = contentRoot
@@ -52,11 +47,24 @@ Container {
         id: verticalSeparator
         Rectangle {
             required property int pheight
+            required property int master_idx
             Layout.fillWidth: false
             Layout.preferredWidth: 2
             Layout.preferredHeight: pheight
+            Layout.leftMargin: 2
+            Layout.rightMargin: 2
             Layout.alignment: Qt.AlignVCenter
             color: constants.darkerBackground
+            Component.onCompleted: {
+                // create binding here, we need to be able to have stable ref master_idx
+                visible = Qt.binding(function() {
+                    let anybefore_visible = false
+                    for (let j = master_idx-1; j >= 0; j--) {
+                        anybefore_visible = anybefore_visible || root.itemAt(j).visible
+                    }
+                    return root.itemAt(master_idx).visible && anybefore_visible
+                })
+            }
         }
     }
 
