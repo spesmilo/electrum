@@ -16,6 +16,7 @@ ElDialog {
     signal txaccepted
 
     title: qsTr('Bump Fee')
+    iconSource: Qt.resolvedUrl('../../icons/rocket.png')
 
     width: parent.width
     height: parent.height
