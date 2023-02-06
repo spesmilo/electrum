@@ -105,23 +105,27 @@ Pane {
                     FormattedAmount {
                         Layout.fillWidth: true
                         amount: txdetails.fee
-                        singleLine: !(txdetails.canBump || txdetails.canCpfp)
                     }
-                    FlatButton {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: implicitWidth
-                        icon.source: '../../icons/warning.png'
-                        icon.color: 'transparent'
-                        text: qsTr('Bump fee')
-                        visible: txdetails.canBump || txdetails.canCpfp
-                        onClicked: {
-                            if (txdetails.canBump) {
-                                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
-                            } else {
-                                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
-                            }
-                            dialog.open()
+                }
+
+                Item {
+                    visible: feebumpButton.visible
+                    Layout.preferredWidth: 1 ; Layout.preferredHeight: 1
+                }
+                FlatButton {
+                    id: feebumpButton
+                    visible: txdetails.canBump || txdetails.canCpfp
+                    textUnderIcon: false
+                    icon.source: '../../icons/warning.png'
+                    icon.color: 'transparent'
+                    text: qsTr('Bump fee')
+                    onClicked: {
+                        if (txdetails.canBump) {
+                            var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                        } else {
+                            var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
                         }
+                        dialog.open()
                     }
                 }
 
@@ -385,27 +389,24 @@ Pane {
         rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: {
-            var dialog = app.messageDialog.createObject(app, {'text': message, 'yesno': true})
+            var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
             dialog.yesClicked.connect(function() {
                 dialog.close()
                 txdetails.removeLocalTx(true)
-                txdetails.wallet.historyModel.init_model(true)
                 root.close()
             })
             dialog.open()
         }
         onSaveTxSuccess: {
             var dialog = app.messageDialog.createObject(app, {
-                'text': qsTr('Transaction added to wallet history.') + '\n\n' +
-                        qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
+                text: qsTr('Transaction added to wallet history.') + '\n\n' +
+                      qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
             })
             dialog.open()
             root.close()
         }
         onSaveTxError: {
-            var dialog = app.messageDialog.createObject(app, {
-                'text': message
-            })
+            var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
     }
