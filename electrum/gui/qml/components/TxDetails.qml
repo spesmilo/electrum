@@ -143,12 +143,12 @@ Pane {
                 Label {
                     text: qsTr('Mempool depth')
                     color: Material.accentColor
-                    visible: !txdetails.isMined && txdetails.canBroadcast
+                    visible: !txdetails.isMined && !txdetails.canBroadcast
                 }
 
                 Label {
                     text: txdetails.mempoolDepth
-                    visible: !txdetails.isMined && txdetails.canBroadcast
+                    visible: !txdetails.isMined && !txdetails.canBroadcast
                 }
 
                 Label {
