@@ -9,6 +9,7 @@ import "controls"
 
 ElDialog {
     id: dialog
+
     width: parent.width
     height: parent.height
 
@@ -22,7 +23,7 @@ ElDialog {
     Overlay.modal: Rectangle {
         color: "#aa000000"
     }
-    property bool closing: false
+    property bool _closing: false
 
     closePolicy: Popup.NoAutoClose
 
@@ -97,7 +98,7 @@ ElDialog {
                 InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    text: qsTr(channeldetails.message_force_close)
+                    text: channeldetails.message_force_close
                 }
 
                 Label {
@@ -115,41 +116,47 @@ ElDialog {
                     }
 
                     RadioButton {
+                        id: closetypeCoop
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'cooperative'
-                        checked: true
-                        enabled: !closing && channeldetails.canCoopClose
+                        enabled: !_closing && channeldetails.canCoopClose
                         text: qsTr('Cooperative close')
                     }
                     RadioButton {
+                        id: closetypeRemoteForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'remote_force'
-                        enabled: !closing && channeldetails.canForceClose
+                        enabled: !_closing && channeldetails.canForceClose
                         text: qsTr('Request Force-close')
                     }
                     RadioButton {
+                        id: closetypeLocalForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'local_force'
-                        enabled: !closing && channeldetails.canForceClose && !channeldetails.isBackup
+                        enabled: !_closing && channeldetails.canForceClose && !channeldetails.isBackup
                         text: qsTr('Local Force-close')
                     }
                 }
 
                 ColumnLayout {
                     Layout.columnSpan: 2
-                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: parent.width
+
                     Label {
                         id: errorText
-                        visible: !closing && errorText
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.maximumWidth: parent.width
+                        visible: !_closing && errorText
                         wrapMode: Text.Wrap
-                        Layout.preferredWidth: layout.width
                     }
                     Label {
+                        Layout.alignment: Qt.AlignHCenter
                         text: qsTr('Closing...')
-                        visible: closing
+                        visible: _closing
                     }
                     BusyIndicator {
-                        visible: closing
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: _closing
                     }
                 }
             }
@@ -160,10 +167,10 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Close channel')
             icon.source: '../../icons/closebutton.png'
-            enabled: !closing
+            enabled: !_closing
             onClicked: {
-                closing = true
-                channeldetails.close_channel(closetypegroup.checkedButton.closetype)
+                _closing = true
+                channeldetails.closeChannel(closetypegroup.checkedButton.closetype)
             }
 
         }
@@ -175,13 +182,21 @@ ElDialog {
         wallet: Daemon.currentWallet
         channelid: dialog.channelid
 
+        onChannelChanged : {
+            // init default choice
+            if (channeldetails.canCoopClose)
+                closetypeCoop.checked = true
+            else
+                closetypeRemoteForce.checked = true
+        }
+
         onChannelCloseSuccess: {
-            closing = false
+            _closing = false
             dialog.close()
         }
 
         onChannelCloseFailed: {
-            closing = false
+            _closing = false
             errorText.text = message
         }
     }
