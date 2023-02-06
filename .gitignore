@@ -50,7 +50,7 @@ contrib/.venv_make_packages/
 
 # shared objects
 electrum/*.so
-electrum/*.so.0
+electrum/*.so.*
 electrum/*.dll
 electrum/*.dylib
 contrib/osx/*.dylib
