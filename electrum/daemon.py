@@ -305,9 +305,12 @@ class CommandsServer(AuthenticatedServer):
         return True
 
     async def gui(self, config_options):
+        # note: "config_options" is coming from the short-lived CLI-invocation,
+        #        while self.config is the config of the long-lived daemon process.
+        #       "config_options" should have priority.
         if self.daemon.gui_object:
             if hasattr(self.daemon.gui_object, 'new_window'):
-                path = self.config.get_wallet_path(use_gui_last_wallet=True)
+                path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
                 response = "ok"
             else:
