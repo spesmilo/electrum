@@ -28,7 +28,6 @@ Container {
             }))
 
             contentRoot.children.push(button)
-            console.log('push ' + i + ', v=' + button.visible + ',len=' + contentRoot.children.length)
         }
 
         contentItem = contentRoot
@@ -51,8 +50,6 @@ Container {
             Layout.fillWidth: false
             Layout.preferredWidth: 2
             Layout.preferredHeight: pheight
-            Layout.leftMargin: 2
-            Layout.rightMargin: 2
             Layout.alignment: Qt.AlignVCenter
             color: constants.darkerBackground
             Component.onCompleted: {
