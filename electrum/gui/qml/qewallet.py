@@ -513,10 +513,13 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         if not tx.is_complete():
             self._logger.debug('tx not complete')
-            return
+            broadcast = False
 
         if broadcast:
             self.broadcast(tx)
+        else:
+            # not broadcasted, so add to history now
+            self.historyModel.init_model(True)
 
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
     def on_sign_complete(self, broadcast, tx):

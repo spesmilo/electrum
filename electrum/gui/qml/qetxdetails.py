@@ -354,6 +354,7 @@ class QETxDetails(QObject, QtEventListener):
 
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
+        self._wallet.historyModel.init_model(True)
 
     @pyqtSlot()
     def save(self):
@@ -367,6 +368,7 @@ class QETxDetails(QObject, QtEventListener):
                 return
             self._wallet.wallet.save_db()
             self.saveTxSuccess.emit()
+            self._wallet.historyModel.init_model(True)
         except AddTransactionException as e:
             self.saveTxError.emit('error', str(e))
         finally:
