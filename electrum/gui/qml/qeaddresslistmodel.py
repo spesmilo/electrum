@@ -73,7 +73,7 @@ class QEAddressListModel(QAbstractListModel):
 
         r_addresses = self.wallet.get_receiving_addresses()
         c_addresses = self.wallet.get_change_addresses()
-        n_addresses = len(r_addresses) + len(c_addresses) if self.wallet.use_change else 0
+        n_addresses = len(r_addresses) + (len(c_addresses) if self.wallet.use_change else 0)
 
         def insert_row(atype, alist, address, iaddr):
             item = self.addr_to_model(address)
