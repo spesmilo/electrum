@@ -69,6 +69,7 @@ ElDialog {
                 Layout.alignment: Qt.AlignHCenter
 
                 FlatButton {
+                    Layout.minimumWidth: dialog.width * 1/4
                     text: qsTr('Copy')
                     icon.source: '../../icons/copy_bw.png'
                     onClicked: {
@@ -77,6 +78,7 @@ ElDialog {
                     }
                 }
                 FlatButton {
+                    Layout.minimumWidth: dialog.width * 1/4
                     text: qsTr('Share')
                     icon.source: '../../icons/share.png'
                     onClicked: {
