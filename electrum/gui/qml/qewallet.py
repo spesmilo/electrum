@@ -79,6 +79,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         super().__init__(parent)
         self.wallet = wallet
 
+        self._logger = get_logger(f'{__name__}.[{wallet}]')
+
         self._isUpToDate = False
         self._synchronizing = False
         self._synchronizing_progress = ''
@@ -195,7 +197,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @qt_event_listener
     def on_event_wallet_updated(self, wallet):
         if wallet == self.wallet:
-            self._logger.debug('wallet %s updated' % str(wallet))
+            self._logger.debug('wallet_updated')
             self.balanceChanged.emit()
             self.synchronizing = not wallet.is_up_to_date()
 
