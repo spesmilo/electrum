@@ -49,7 +49,7 @@ notification = None
 
 class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
-    userNotify = pyqtSignal(str)
+    userNotify = pyqtSignal(str, str)
     uriReceived = pyqtSignal(str)
     showException = pyqtSignal()
     sendingBugreport = pyqtSignal()
@@ -94,7 +94,7 @@ class QEAppController(BaseCrashReporter, QObject):
 
     def on_wallet_usernotify(self, wallet, message):
         self.logger.debug(message)
-        self.user_notification_queue.put(message)
+        self.user_notification_queue.put((wallet,message))
         if not self.notification_timer.isActive():
             self.logger.debug('starting app notification timer')
             self.notification_timer.start()
@@ -111,7 +111,8 @@ class QEAppController(BaseCrashReporter, QObject):
         self.user_notification_last_time = now
         self.logger.info("Notifying GUI about new user notifications")
         try:
-            self.userNotify.emit(self.user_notification_queue.get_nowait())
+            wallet, message = self.user_notification_queue.get_nowait()
+            self.userNotify.emit(str(wallet), message)
         except queue.Empty:
             pass
 

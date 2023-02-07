@@ -262,6 +262,7 @@ ApplicationWindow
 
     NotificationPopup {
         id: notificationPopup
+        width: parent.width
     }
 
     Component {
@@ -360,8 +361,8 @@ ApplicationWindow
 
     Connections {
         target: AppController
-        function onUserNotify(message) {
-            notificationPopup.show(message)
+        function onUserNotify(wallet_name, message) {
+            notificationPopup.show(wallet_name, message)
         }
         function onShowException() {
             var dialog = crashDialog.createObject(app, {
@@ -378,10 +379,10 @@ ApplicationWindow
         }
         // TODO: add to notification queue instead of barging through
         function onPaymentSucceeded(key) {
-            notificationPopup.show(qsTr('Payment Succeeded'))
+            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment Succeeded'))
         }
         function onPaymentFailed(key, reason) {
-            notificationPopup.show(qsTr('Payment Failed') + ': ' + reason)
+            notificationPopup.show(Daemon.currentWallet.name, qsTr('Payment Failed') + ': ' + reason)
         }
     }
 
