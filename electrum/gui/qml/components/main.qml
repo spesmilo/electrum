@@ -2,6 +2,7 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
+import QtQuick.Controls.Material.impl 2.12
 
 import QtQml 2.6
 import QtMultimedia 5.6
@@ -35,6 +36,17 @@ ApplicationWindow
     header: ToolBar {
         id: toolbar
 
+        background: Rectangle {
+            implicitHeight: 48
+            color: Material.dialogColor
+
+            layer.enabled: true
+            layer.effect: ElevationEffect {
+                elevation: 4
+                fullWidth: true
+            }
+        }
+
         ColumnLayout {
             spacing: 0
             width: parent.width
@@ -50,6 +62,12 @@ ApplicationWindow
                 Item {
                     Layout.preferredWidth: constants.paddingXLarge
                     Layout.preferredHeight: 1
+                }
+
+                Image {
+                    source: '../../icons/wallet.png'
+                    Layout.preferredWidth: constants.iconSizeSmall
+                    Layout.preferredHeight: constants.iconSizeSmall
                 }
 
                 Label {
