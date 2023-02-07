@@ -468,8 +468,9 @@ Pane {
                 Layout.preferredWidth: 1
                 visible: Daemon.currentWallet.walletType == 'imported'
                 text: Daemon.currentWallet.isWatchOnly
-                        ? qsTr('Import additional addresses')
-                        : qsTr('Import additional keys')
+                        ? qsTr('Add addresses')
+                        : qsTr('Add keys')
+                icon.source: '../../icons/add.png'
                 onClicked: rootItem.importAddressesKeys()
             }
             FlatButton {
