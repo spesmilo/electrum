@@ -157,7 +157,7 @@ Pane {
                             }
                             ToolButton {
                                 icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
+                                enabled: modelData
                                 onClicked: {
                                     var dialog = app.genericShareDialog.createObject(root,
                                         { title: qsTr('Public key'), text: modelData }
