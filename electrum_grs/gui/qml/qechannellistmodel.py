@@ -41,6 +41,11 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self.on_channel_updated(channel)
 
+    @qt_event_listener
+    def on_event_channels_updated(self, wallet):
+        if wallet == self.wallet:
+            self.init_model()
+
     def on_destroy(self):
         self.unregister_callbacks()
 
@@ -169,10 +174,20 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 return
             i = i + 1
 
-    @pyqtSlot(str, 'QVariant', result=QEFilterProxyModel)
     def filterModel(self, role, match):
-        self._filterModel = QEFilterProxyModel(self, self)
-        self._filterModel.setFilterRole(QEChannelListModel._ROLE_RMAP[role])
-        self._filterModel.setFilterValue(match)
-        return self._filterModel
+        _filterModel = QEFilterProxyModel(self, self)
+        assert role in self._ROLE_RMAP
+        _filterModel.setFilterRole(self._ROLE_RMAP[role])
+        _filterModel.setFilterValue(match)
+        return _filterModel
+
+    @pyqtSlot(result=QEFilterProxyModel)
+    def filterModelBackups(self):
+        self._fm_backups = self.filterModel('is_backup', True)
+        return self._fm_backups
+
+    @pyqtSlot(result=QEFilterProxyModel)
+    def filterModelNoBackups(self):
+        self._fm_nobackups = self.filterModel('is_backup', False)
+        return self._fm_nobackups
 

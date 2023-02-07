@@ -859,6 +859,10 @@ testnet_block_explorers = {
 }
 
 signet_block_explorers = {
+    'blockbook': ('https://blockbook-signet.groestlcoin.org/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'esplora': ('https://esplora-signet.groestlcoin.org/',
+                            {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }

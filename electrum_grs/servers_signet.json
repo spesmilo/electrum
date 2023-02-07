@@ -9,5 +9,11 @@
         "pruning": "-",
         "t": "50001",
         "version": "1.4"
+    },
+    "bublina.eu.org": {
+        "pruning": "-",
+        "s": "60003",
+        "t": "50001",
+        "version": "1.4"
     }
 }

@@ -31,7 +31,6 @@ import threading
 import socket
 import json
 import sys
-import asyncio
 from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar
 import traceback
 import concurrent

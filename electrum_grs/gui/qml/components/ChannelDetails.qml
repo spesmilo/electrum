@@ -203,58 +203,62 @@ Pane {
             }
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            visible: !channeldetails.isBackup
-            text: qsTr('Backup');
-            onClicked: {
-                var dialog = app.genericShareDialog.createObject(root,
-                    {
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                visible: !channeldetails.isBackup
+                text: qsTr('Backup')
+                onClicked: {
+                    var dialog = app.genericShareDialog.createObject(root, {
                         title: qsTr('Channel Backup for %1').arg(channeldetails.short_cid),
                         text: channeldetails.channelBackup(),
                         text_help: channeldetails.channelBackupHelpText(),
                         iconSource: Qt.resolvedUrl('../../icons/file.png')
-                    }
-                )
-                dialog.open()
+                    })
+                    dialog.open()
+                }
+                icon.source: '../../icons/file.png'
             }
-            icon.source: '../../icons/file.png'
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Close channel');
+                visible: channeldetails.canClose
+                onClicked: {
+                    var dialog = closechannel.createObject(root, { channelid: channelid })
+                    dialog.open()
+                }
+                icon.source: '../../icons/closebutton.png'
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Delete channel');
+                visible: channeldetails.canDelete
+                onClicked: {
+                    var dialog = app.messageDialog.createObject(root, {
+                        text: channeldetails.isBackup
+                                ? qsTr('Are you sure you want to delete this channel backup?')
+                                : qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
+                        yesno: true
+                    })
+                    dialog.yesClicked.connect(function() {
+                        channeldetails.deleteChannel()
+                        app.stack.pop()
+                        Daemon.currentWallet.historyModel.init_model(true) // needed here?
+                        Daemon.currentWallet.channelModel.remove_channel(channelid)
+                    })
+                    dialog.open()
+                }
+                icon.source: '../../icons/delete.png'
+            }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            text: qsTr('Close channel');
-            visible: channeldetails.canClose
-            onClicked: {
-                var dialog = closechannel.createObject(root, { 'channelid': channelid })
-                dialog.open()
-            }
-            icon.source: '../../icons/closebutton.png'
-        }
-
-        FlatButton {
-            Layout.fillWidth: true
-            Layout.preferredWidth: 1
-            text: qsTr('Delete channel');
-            visible: channeldetails.canDelete
-            onClicked: {
-                var dialog = app.messageDialog.createObject(root,
-                        {
-                            'text': qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
-                            'yesno': true
-                        }
-                )
-                dialog.yesClicked.connect(function() {
-                    channeldetails.deleteChannel()
-                    app.stack.pop()
-                    Daemon.currentWallet.historyModel.init_model() // needed here?
-                    Daemon.currentWallet.channelModel.remove_channel(channelid)
-                })
-                dialog.open()
-            }
-            icon.source: '../../icons/delete.png'
-        }
     }
 
     ChannelDetails {

@@ -6,9 +6,9 @@ assert LibSecp256k1Recipe.python_depends == []
 
 
 class LibSecp256k1RecipePinned(LibSecp256k1Recipe):
-    version = "1253a27756540d2ca526b2061d98d54868e9177c"
+    version = "21ffe4b22a9683cf24ae0763359e401d1284cc7a"
     url = "https://github.com/bitcoin-core/secp256k1/archive/{version}.zip"
-    sha512sum = "92232cdefba54fce5573e8b4a542dcd307e56380e9b72841da00da1d1d48bfa6f4c0d157e5c294be5342e500237761376aee5e29adde70b2bf7be413cbd77571"
+    sha512sum = "51832bfc6825690d5b71a5426aacce8981163ca1a56a235394aa86e742d105f5e2b331971433a21b8842ee338cbd7877dcbae5605fa01a9e6f4a73171b93f3e9"
 
 
 recipe = LibSecp256k1RecipePinned()

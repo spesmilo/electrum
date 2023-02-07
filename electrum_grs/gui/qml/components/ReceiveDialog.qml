@@ -241,10 +241,11 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                RowLayout {
+                ButtonContainer {
                     id: buttons
                     Layout.alignment: Qt.AlignHCenter
                     FlatButton {
+                        Layout.minimumWidth: dialog.width * 1/4
                         icon.source: '../../icons/copy_bw.png'
                         icon.color: 'transparent'
                         text: 'Copy'
@@ -259,6 +260,7 @@ ElDialog {
                         }
                     }
                     FlatButton {
+                        Layout.minimumWidth: dialog.width * 1/4
                         icon.source: '../../icons/share.png'
                         text: 'Share'
                         onClicked: {
@@ -274,6 +276,7 @@ ElDialog {
                         }
                     }
                     FlatButton {
+                        Layout.minimumWidth: dialog.width * 1/4
                         Layout.alignment: Qt.AlignHCenter
                         icon.source: '../../icons/pen.png'
                         text: qsTr('Edit')

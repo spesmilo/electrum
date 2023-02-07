@@ -116,12 +116,14 @@ def get_item_key(tx_item):
 
 class HistoryNode(CustomNode):
 
+    model: 'HistoryModel'
+
     def get_data_for_role(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:
         # note: this method is performance-critical.
         # it is called a lot, and so must run extremely fast.
         assert index.isValid()
         col = index.column()
-        window = self.model.parent
+        window = self.model.window
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
         timestamp = tx_item['timestamp']
@@ -228,10 +230,10 @@ class HistoryNode(CustomNode):
 
 class HistoryModel(CustomModel, Logger):
 
-    def __init__(self, parent: 'ElectrumWindow'):
-        CustomModel.__init__(self, parent, len(HistoryColumns))
+    def __init__(self, window: 'ElectrumWindow'):
+        CustomModel.__init__(self, window, len(HistoryColumns))
         Logger.__init__(self)
-        self.parent = parent
+        self.window = window
         self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
@@ -244,14 +246,14 @@ class HistoryModel(CustomModel, Logger):
 
     def update_label(self, index):
         tx_item = index.internalPointer().get_data()
-        tx_item['label'] = self.parent.wallet.get_label_for_txid(get_item_key(tx_item))
+        tx_item['label'] = self.window.wallet.get_label_for_txid(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
-        self.parent.utxo_list.update()
+        self.window.utxo_list.update()
 
     def get_domain(self):
         """Overridden in address_dialog.py"""
-        return self.parent.wallet.get_addresses()
+        return self.window.wallet.get_addresses()
 
     def should_include_lightning_payments(self) -> bool:
         """Overridden in address_dialog.py"""
@@ -260,7 +262,7 @@ class HistoryModel(CustomModel, Logger):
     @profiler
     def refresh(self, reason: str):
         self.logger.info(f"refreshing... reason: {reason}")
-        assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
+        assert self.window.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         assert self.view, 'view not set'
         if self.view.maybe_defer_update():
             return
@@ -268,12 +270,12 @@ class HistoryModel(CustomModel, Logger):
         selected_row = None
         if selected:
             selected_row = selected.row()
-        fx = self.parent.fx
+        fx = self.window.fx
         if fx: fx.history_used_spot = False
-        wallet = self.parent.wallet
+        wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
-            self.parent.fx,
+            self.window.fx,
             onchain_domain=self.get_domain(),
             include_lightning=self.should_include_lightning_payments())
         if transactions == self.transactions:
@@ -347,7 +349,7 @@ class HistoryModel(CustomModel, Logger):
         for txid, tx_item in self.transactions.items():
             if not tx_item.get('lightning', False):
                 tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
-                self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
+                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
@@ -355,8 +357,8 @@ class HistoryModel(CustomModel, Logger):
         # txid
         set_visible(HistoryColumns.TXID, False)
         # fiat
-        history = self.parent.fx.show_history()
-        cap_gains = self.parent.fx.get_history_capital_gains_config()
+        history = self.window.fx.show_history()
+        cap_gains = self.window.fx.get_history_capital_gains_config()
         set_visible(HistoryColumns.FIAT_VALUE, history)
         set_visible(HistoryColumns.FIAT_ACQ_PRICE, history and cap_gains)
         set_visible(HistoryColumns.FIAT_CAP_GAINS, history and cap_gains)
@@ -366,8 +368,8 @@ class HistoryModel(CustomModel, Logger):
         txid = tx_item['txid']
         fee = tx_item.get('fee')
         value = tx_item['value'].value
-        fiat_fields = self.parent.wallet.get_tx_item_fiat(
-            tx_hash=txid, amount_sat=value, fx=self.parent.fx, tx_fee=fee.value if fee else None)
+        fiat_fields = self.window.wallet.get_tx_item_fiat(
+            tx_hash=txid, amount_sat=value, fx=self.window.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
         self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
 
@@ -377,7 +379,7 @@ class HistoryModel(CustomModel, Logger):
             tx_item = self.transactions[tx_hash]
         except KeyError:
             return
-        self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+        self.tx_status_cache[tx_hash] = self.window.wallet.get_tx_status(tx_hash, tx_mined_info)
         tx_item.update({
             'confirmations':  tx_mined_info.conf,
             'timestamp':      tx_mined_info.timestamp,
@@ -402,7 +404,7 @@ class HistoryModel(CustomModel, Logger):
         assert orientation == Qt.Horizontal
         if role != Qt.DisplayRole:
             return None
-        fx = self.parent.fx
+        fx = self.window.fx
         fiat_title = 'n/a fiat value'
         fiat_acq_title = 'n/a fiat acquisition price'
         fiat_cg_title = 'n/a fiat capital gains'

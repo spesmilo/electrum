@@ -14,7 +14,8 @@
 # sudo apt-get install gcc-multilib g++-multilib
 # $ AUTOCONF_FLAGS="--host=i686-linux-gnu CFLAGS=-m32 CXXFLAGS=-m32 LDFLAGS=-m32" ./contrib/make_libsecp256k1.sh
 
-LIBSECP_VERSION="1253a27756540d2ca526b2061d98d54868e9177c"
+LIBSECP_VERSION="21ffe4b22a9683cf24ae0763359e401d1284cc7a"
+# ^ tag "v0.2.0"
 
 set -e
 
@@ -42,7 +43,6 @@ info "Building $pkgname..."
     git checkout "${LIBSECP_VERSION}^{commit}"
 
     if ! [ -x configure ] ; then
-        echo "libsecp256k1_la_LDFLAGS = -no-undefined" >> Makefile.am
         echo "LDFLAGS = -no-undefined" >> Makefile.am
         ./autogen.sh || fail "Could not run autogen for $pkgname. Please make sure you have automake and libtool installed, and try again."
     fi

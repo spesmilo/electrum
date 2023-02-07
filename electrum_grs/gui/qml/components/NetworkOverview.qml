@@ -161,26 +161,31 @@ Pane {
 
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Server Settings');
-            icon.source: '../../icons/network.png'
-            onClicked: {
-                var dialog = serverConfig.createObject(root)
-                dialog.open()
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Server Settings');
+                icon.source: '../../icons/network.png'
+                onClicked: {
+                    var dialog = serverConfig.createObject(root)
+                    dialog.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Proxy Settings');
+                icon.source: '../../icons/status_connected_proxy.png'
+                onClicked: {
+                    var dialog = proxyConfig.createObject(root)
+                    dialog.open()
+                }
             }
         }
-
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Proxy Settings');
-            icon.source: '../../icons/status_connected_proxy.png'
-            onClicked: {
-                var dialog = proxyConfig.createObject(root)
-                dialog.open()
-            }
-        }
-
     }
 
     function setFeeHistogram() {

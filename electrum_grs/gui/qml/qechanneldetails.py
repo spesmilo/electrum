@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
@@ -177,29 +178,30 @@ class QEChannelDetails(QObject, QtEventListener):
         else:
             self._logger.debug(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
 
-    # this method assumes the qobject is not destroyed before the close either fails or succeeds
     @pyqtSlot(str)
-    def close_channel(self, closetype):
-        async def do_close(closetype, channel_id):
+    def closeChannel(self, closetype):
+        channel_id = self._channel.channel_id
+        def do_close():
             try:
                 if closetype == 'remote_force':
-                    await self._wallet.wallet.lnworker.request_force_close(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.request_force_close(channel_id))
                 elif closetype == 'local_force':
-                    await self._wallet.wallet.lnworker.force_close_channel(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.force_close_channel(channel_id))
                 else:
-                    await self._wallet.wallet.lnworker.close_channel(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.close_channel(channel_id))
                 self.channelCloseSuccess.emit()
             except Exception as e:
                 self._logger.exception("Could not close channel: " + repr(e))
                 self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
 
-        loop = self._wallet.wallet.network.asyncio_loop
-        coro = do_close(closetype, self._channel.channel_id)
-        asyncio.run_coroutine_threadsafe(coro, loop)
+        threading.Thread(target=do_close).start()
 
     @pyqtSlot()
     def deleteChannel(self):
-        self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
+        if self.isBackup:
+            self._wallet.wallet.lnworker.remove_channel_backup(self._channel.channel_id)
+        else:
+            self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
 
     @pyqtSlot(result=str)
     def channelBackup(self):

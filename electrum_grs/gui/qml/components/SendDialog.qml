@@ -49,25 +49,32 @@ ElDialog {
             onFound: dialog.dispatch(scanData)
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            icon.source: '../../icons/pen.png'
-            text: qsTr('Manual input')
-            onClicked: {
-                var _mid = manualInputDialog.createObject(mainView)
-                _mid.accepted.connect(function() {
-                    dialog.dispatch(_mid.recipient)
-                })
-                _mid.open()
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/pen.png'
+                text: qsTr('Manual input')
+                onClicked: {
+                    var _mid = manualInputDialog.createObject(mainView)
+                    _mid.accepted.connect(function() {
+                        dialog.dispatch(_mid.recipient)
+                    })
+                    _mid.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/paste.png'
+                text: qsTr('Paste from clipboard')
+                onClicked: dialog.dispatch(AppController.clipboardToText())
             }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            icon.source: '../../icons/paste.png'
-            text: qsTr('Paste from clipboard')
-            onClicked: dialog.dispatch(AppController.clipboardToText())
-        }
     }
 
     Component {

@@ -254,7 +254,7 @@ class TxInput:
 
     def is_coinbase_output(self) -> bool:
         """Whether the coin being spent is an output of a coinbase tx.
-        This matters for coin maturity.
+        This matters for coin maturity (and pretty much only for that!).
         """
         return self._is_coinbase_output
 

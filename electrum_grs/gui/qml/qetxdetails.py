@@ -255,7 +255,7 @@ class QETxDetails(QObject, QtEventListener):
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
             self.update_mined_status(txinfo.tx_mined_status)
-        else:
+        elif txinfo.tx_mined_status.height == 0:
             self._mempool_depth = self._wallet.wallet.config.depth_tooltip(txinfo.mempool_depth_bytes)
 
         if self._wallet.wallet.lnworker:
@@ -354,6 +354,7 @@ class QETxDetails(QObject, QtEventListener):
 
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
+        self._wallet.historyModel.init_model(True)
 
     @pyqtSlot()
     def save(self):
@@ -367,6 +368,7 @@ class QETxDetails(QObject, QtEventListener):
                 return
             self._wallet.wallet.save_db()
             self.saveTxSuccess.emit()
+            self._wallet.historyModel.init_model(True)
         except AddTransactionException as e:
             self.saveTxError.emit('error', str(e))
         finally:

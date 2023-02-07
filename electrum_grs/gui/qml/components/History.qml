@@ -131,7 +131,9 @@ Pane {
         Label {
             id: postext
             anchors.centerIn: parent
-            text: listview.itemAt(0,listview.contentY + (dragb.y + dragb.height/2)).delegateModel.date
+            text: dragb.opacity
+                    ? listview.itemAt(0,listview.contentY + (dragb.y + dragb.height/2)).delegateModel.date
+                    : ''
             font.pixelSize: constants.fontSizeLarge
         }
     }

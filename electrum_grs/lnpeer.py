@@ -63,6 +63,8 @@ LN_P2P_NETWORK_TIMEOUT = 20
 
 
 class Peer(Logger):
+    # note: in general this class is NOT thread-safe. Most methods are assumed to be running on asyncio thread.
+
     LOGGING_SHORTCUT = 'P'
 
     ORDERED_MESSAGES = (
@@ -120,6 +122,7 @@ class Peer(Logger):
         self.downstream_htlc_resolved_event = asyncio.Event()
 
     def send_message(self, message_name: str, **kwargs):
+        assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         assert type(message_name) is str
         if message_name not in self.SPAMMY_MESSAGES:
             self.logger.debug(f"Sending {message_name.upper()}")
@@ -1421,6 +1424,7 @@ class Peer(Logger):
         self.maybe_send_commitment(chan)
 
     def maybe_send_commitment(self, chan: Channel) -> bool:
+        assert util.get_running_loop() == util.get_asyncio_loop(), f"this must be run on the asyncio thread!"
         # REMOTE should revoke first before we can sign a new ctx
         if chan.hm.is_revack_pending(REMOTE):
             return False

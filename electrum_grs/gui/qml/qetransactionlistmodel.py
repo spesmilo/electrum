@@ -32,6 +32,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.destroyed.connect(lambda: self.on_destroy())
         self.requestRefresh.connect(lambda: self.init_model())
 
+        self.setDirty()
         self.init_model()
 
     def on_destroy(self):
@@ -70,6 +71,10 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         if isinstance(value, Satoshis):
             return value.value
         return str(value)
+
+    @pyqtSlot()
+    def setDirty(self):
+        self._dirty = True
 
     def clear(self):
         self.beginResetModel()
@@ -139,7 +144,12 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     # initial model data
     @pyqtSlot()
-    def init_model(self):
+    @pyqtSlot(bool)
+    def init_model(self, force: bool = False):
+        # only (re)construct if dirty or forced
+        if not self._dirty and not force:
+            return
+
         self._logger.debug('retrieving history')
         history = self.wallet.get_full_history(onchain_domain=self.onchain_domain,
                                                include_lightning=self.include_lightning)
@@ -154,6 +164,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.endInsertRows()
 
         self.countChanged.emit()
+
+        self._dirty = False
 
     def on_tx_verified(self, txid, info):
         i = 0
