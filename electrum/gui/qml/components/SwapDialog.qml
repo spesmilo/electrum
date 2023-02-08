@@ -10,6 +10,8 @@ import "controls"
 ElDialog {
     id: root
 
+    required property QtObject swaphelper
+
     width: parent.width
     height: parent.height
 
@@ -194,24 +196,10 @@ ElDialog {
         }
     }
 
-    SwapHelper {
-        id: swaphelper
-        wallet: Daemon.currentWallet
-        onError: {
-            var dialog = app.messageDialog.createObject(app, {'text': message})
-            dialog.open()
+    Connections {
+        target: swaphelper
+        function onSwapStarted() {
+            root.close()
         }
-        onConfirm: {
-            var dialog = app.messageDialog.createObject(app, {'text': message, 'yesno': true})
-            dialog.yesClicked.connect(function() {
-                dialog.close()
-                swaphelper.executeSwap(true)
-            })
-            dialog.open()
-        }
-        onAuthRequired: {
-            app.handleAuthRequired(swaphelper, method)
-        }
-        onSwapStarted: root.close() // TODO: show swap progress monitor
     }
 }
