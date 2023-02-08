@@ -196,7 +196,8 @@ class Invoice(StoredObject):
     @lightning_invoice.validator
     def _validate_invoice_str(self, attribute, value):
         if value is not None:
-            lndecode(value)  # this checks the str can be decoded
+            lnaddr = lndecode(value)  # this checks the str can be decoded
+            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
 
     @amount_msat.validator
     def _validate_amount(self, attribute, value):

@@ -463,6 +463,7 @@ class Daemon(Logger):
         return wallet
 
     @staticmethod
+    @profiler
     def _load_wallet(
             path,
             password,
