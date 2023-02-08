@@ -1,5 +1,5 @@
 import time
-from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any
+from typing import TYPE_CHECKING, List, Optional, Union, Dict, Any, Sequence
 from decimal import Decimal
 
 import attr
@@ -126,16 +126,13 @@ class Invoice(StoredObject):
             address = self._lnaddr.get_fallback_address() or None
         return address
 
-    def get_outputs(self):
-        if self.is_lightning():
+    def get_outputs(self) -> Sequence[PartialTxOutput]:
+        outputs = self.outputs or []
+        if not outputs:
             address = self.get_address()
             amount = self.get_amount_sat()
             if address and amount is not None:
                 outputs = [PartialTxOutput.from_address_and_value(address, int(amount))]
-            else:
-                outputs = []
-        else:
-            outputs = self.outputs
         return outputs
 
     def can_be_paid_onchain(self) -> bool:
