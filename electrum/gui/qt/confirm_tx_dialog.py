@@ -377,24 +377,29 @@ class TxEditor(WindowModalDialog):
         hbox.addWidget(self.pref_button)
         return hbox
 
+    def resize_to_fit_content(self):
+        # fixme: calling resize once is not enough...
+        size = self.layout().sizeHint()
+        self.resize(size)
+        self.resize(size)
+
     def toggle_io_visibility(self):
         b = not self.config.get('show_tx_io', False)
         self.config.set_key('show_tx_io', b)
         self.set_io_visible(b)
-        #self.resize(self.layout().sizeHint())
-        self.setFixedSize(self.layout().sizeHint())
+        self.resize_to_fit_content()
 
     def toggle_fee_details(self):
         b = not self.config.get('show_tx_fee_details', False)
         self.config.set_key('show_tx_fee_details', b)
         self.set_fee_edit_visible(b)
-        self.setFixedSize(self.layout().sizeHint())
+        self.resize_to_fit_content()
 
     def toggle_locktime(self):
         b = not self.config.get('show_tx_locktime', False)
         self.config.set_key('show_tx_locktime', b)
         self.set_locktime_visible(b)
-        self.setFixedSize(self.layout().sizeHint())
+        self.resize_to_fit_content()
 
     def toggle_preview_button(self):
         b = not self.config.get('show_tx_preview_button', False)
@@ -448,7 +453,6 @@ class TxEditor(WindowModalDialog):
             self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
             self.message_label.setText(message)
 
-        self.setFixedSize(self.layout().sizeHint())
         self.preview_button.setEnabled(enable)
         self.ok_button.setEnabled(enable)
 
