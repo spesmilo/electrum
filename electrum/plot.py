@@ -1,3 +1,5 @@
+# note: This module takes 1-2 seconds to import. It should be imported *on-demand*.
+
 import datetime
 from collections import defaultdict
 
