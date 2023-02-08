@@ -97,9 +97,9 @@ class TxEditor(WindowModalDialog):
         vbox.addLayout(buttons)
 
         self.set_io_visible(self.config.get('show_tx_io', False))
-        self.set_fee_edit_visible(self.config.get('show_fee_details', False))
-        self.set_locktime_visible(self.config.get('show_locktime', False))
-        self.set_preview_visible(self.config.get('show_preview_button', False))
+        self.set_fee_edit_visible(self.config.get('show_tx_fee_details', False))
+        self.set_locktime_visible(self.config.get('show_tx_locktime', False))
+        self.set_preview_visible(self.config.get('show_tx_preview_button', False))
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
@@ -385,20 +385,20 @@ class TxEditor(WindowModalDialog):
         self.setFixedSize(self.layout().sizeHint())
 
     def toggle_fee_details(self):
-        b = not self.config.get('show_fee_details', False)
-        self.config.set_key('show_fee_details', b)
+        b = not self.config.get('show_tx_fee_details', False)
+        self.config.set_key('show_tx_fee_details', b)
         self.set_fee_edit_visible(b)
         self.setFixedSize(self.layout().sizeHint())
 
     def toggle_locktime(self):
-        b = not self.config.get('show_locktime', False)
-        self.config.set_key('show_locktime', b)
+        b = not self.config.get('show_tx_locktime', False)
+        self.config.set_key('show_tx_locktime', b)
         self.set_locktime_visible(b)
         self.setFixedSize(self.layout().sizeHint())
 
     def toggle_preview_button(self):
-        b = not self.config.get('show_preview_button', False)
-        self.config.set_key('show_preview_button', b)
+        b = not self.config.get('show_tx_preview_button', False)
+        self.config.set_key('show_tx_preview_button', b)
         self.set_preview_visible(b)
 
     def set_preview_visible(self, b):
