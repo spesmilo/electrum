@@ -183,9 +183,10 @@ class TxEditor(WindowModalDialog):
             self.show_message(title=_('Fee rounding'), msg=text)
 
         self.feerounding_icon = QToolButton()
-        self.feerounding_icon.setIcon(QIcon())
+        self.feerounding_icon.setStyleSheet("background-color: rgba(255, 255, 255, 0); ")
         self.feerounding_icon.setAutoRaise(True)
         self.feerounding_icon.clicked.connect(feerounding_onclick)
+        self.set_feerounding_visibility(False)
 
         self.fee_hbox = fee_hbox = QHBoxLayout()
         fee_hbox.addWidget(self.feerate_e)
@@ -254,6 +255,11 @@ class TxEditor(WindowModalDialog):
         self.feerounding_text = (_('Additional {} satoshis are going to be added.')
                                  .format(num_satoshis_added))
 
+    def set_feerounding_visibility(self, b:bool):
+        # we do not use setVisible because it affects the layout
+        self.feerounding_icon.setIcon(read_QIcon('info.png') if b else QIcon())
+        self.feerounding_icon.setEnabled(b)
+
     def get_fee_estimator(self):
         if self.is_send_fee_frozen() and self.fee_e.get_amount() is not None:
             fee_estimator = self.fee_e.get_amount()
@@ -299,7 +305,7 @@ class TxEditor(WindowModalDialog):
                 self.fee_e.setAmount(None)
             if not freeze_feerate:
                 self.feerate_e.setAmount(None)
-            self.feerounding_icon.setIcon(QIcon())
+            self.set_feerounding_visibility(False)
             return
 
         assert tx is not None
@@ -339,8 +345,7 @@ class TxEditor(WindowModalDialog):
         feerounding = (fee - displayed_fee) if (fee and displayed_fee is not None) else 0
         self.set_feerounding_text(int(feerounding))
         self.feerounding_icon.setToolTip(self.feerounding_text)
-        self.feerounding_icon.setIcon(read_QIcon('info.png') if abs(feerounding) >= 1 else QIcon())
-
+        self.set_feerounding_visibility(abs(feerounding) >= 1)
 
     def create_buttons_bar(self):
         self.preview_button = QPushButton(_('Preview'))
@@ -456,6 +461,7 @@ class TxEditor(WindowModalDialog):
             return
         if not tx:
             self.toggle_send_button(False)
+            self.set_feerounding_visibility(False)
             return
         self.update_fee_fields()
         if self.locktime_e.get_locktime() is None:
