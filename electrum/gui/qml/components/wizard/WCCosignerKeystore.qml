@@ -30,17 +30,17 @@ WizardComponent {
         width: parent.width
 
         Label {
+            Layout.fillWidth: true
+
             visible: cosigner
             text: qsTr('Here is your master public key. Please share it with your cosigners')
-            Layout.fillWidth: true
             wrapMode: Text.Wrap
         }
 
         TextHighlightPane {
-            visible: cosigner
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
+
+            visible: cosigner
 
             RowLayout {
                 width: parent.width

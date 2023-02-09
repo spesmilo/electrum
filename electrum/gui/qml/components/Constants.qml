@@ -37,6 +37,7 @@ Item {
 
     property color colorMine: "yellow"
     property color colorError: '#ffff8080'
+    property color colorWarning: 'yellow'
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
     property color colorChannelOpen: "#ff80ff80"

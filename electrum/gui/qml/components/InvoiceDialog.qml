@@ -50,6 +50,28 @@ ElDialog {
 
                 columns: 2
 
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+
+                    visible: invoice.userinfo
+                    borderColor: constants.colorWarning
+                    padding: constants.paddingXLarge
+
+                    RowLayout {
+                        Image {
+                            source: '../../icons/warning.png'
+                            Layout.preferredWidth: constants.iconSizeMedium
+                            Layout.preferredHeight: constants.iconSizeMedium
+                        }
+                        Label {
+                            width: parent.width
+                            text: invoice.userinfo
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                }
+
                 Label {
                     text: qsTr('Type')
                     color: Material.accentColor
@@ -92,12 +114,10 @@ ElDialog {
                 }
 
                 TextHighlightPane {
-                    visible: invoice.invoiceType == Invoice.OnchainInvoice
-
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
-                    padding: 0
+                    visible: invoice.invoiceType == Invoice.OnchainInvoice
                     leftPadding: constants.paddingMedium
 
                     Label {
@@ -115,19 +135,32 @@ ElDialog {
                 }
 
                 TextHighlightPane {
-                    visible: invoice.invoiceType == Invoice.LightningInvoice
-
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
-                    padding: 0
+                    visible: invoice.invoiceType == Invoice.LightningInvoice
                     leftPadding: constants.paddingMedium
 
-                    Label {
+                    RowLayout {
                         width: parent.width
-                        text: 'pubkey' in invoice.lnprops ? invoice.lnprops.pubkey : ''
-                        font.family: FixedFont
-                        wrapMode: Text.Wrap
+                        Label {
+                            id: pubkeyLabel
+                            Layout.fillWidth: true
+                            text: 'pubkey' in invoice.lnprops ? invoice.lnprops.pubkey : ''
+                            font.family: FixedFont
+                            wrapMode: Text.Wrap
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            icon.color: 'transparent'
+                            enabled: pubkeyLabel.text
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(app,
+                                    { title: qsTr('Node public key'), text: invoice.lnprops.pubkey }
+                                )
+                                dialog.open()
+                            }
+                        }
                     }
                 }
 
@@ -138,19 +171,32 @@ ElDialog {
                 }
 
                 TextHighlightPane {
-                    visible: invoice.invoiceType == Invoice.LightningInvoice
-
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
-                    padding: 0
+                    visible: invoice.invoiceType == Invoice.LightningInvoice
                     leftPadding: constants.paddingMedium
 
-                    Label {
+                    RowLayout {
                         width: parent.width
-                        text: 'payment_hash' in invoice.lnprops ? invoice.lnprops.payment_hash : ''
-                        font.family: FixedFont
-                        wrapMode: Text.Wrap
+                        Label {
+                            id: paymenthashLabel
+                            Layout.fillWidth: true
+                            text: 'payment_hash' in invoice.lnprops ? invoice.lnprops.payment_hash : ''
+                            font.family: FixedFont
+                            wrapMode: Text.Wrap
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            icon.color: 'transparent'
+                            enabled: paymenthashLabel.text
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(app,
+                                    { title: qsTr('Payment hash'), text: invoice.lnprops.payment_hash }
+                                )
+                                dialog.open()
+                            }
+                        }
                     }
                 }
 
@@ -162,13 +208,10 @@ ElDialog {
                 }
 
                 TextHighlightPane {
-                    visible: invoice.message
-
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignHCenter
 
-                    padding: 0
+                    visible: invoice.message
                     leftPadding: constants.paddingMedium
 
                     Label {
@@ -193,8 +236,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
 
-                    padding: 0
-                    leftPadding: constants.paddingXXLarge
+                    leftPadding: constants.paddingXLarge
 
                     property bool editmode: false
 
@@ -325,15 +367,6 @@ ElDialog {
 
                 }
 
-                Item { Layout.preferredHeight: constants.paddingLarge; Layout.preferredWidth: 1 }
-
-                InfoTextArea {
-                    Layout.columnSpan: 2
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: parent.width * 3/4
-                    visible: invoice.userinfo
-                    text: invoice.userinfo
-                }
             }
         }
 

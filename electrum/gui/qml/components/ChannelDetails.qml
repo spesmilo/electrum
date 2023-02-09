@@ -175,8 +175,6 @@ Pane {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
 
                     RowLayout {
                         width: parent.width
