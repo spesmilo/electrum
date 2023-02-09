@@ -10,128 +10,123 @@ import "controls"
 Pane {
     id: rootItem
     padding: 0
-    width: parent.width
 
     ColumnLayout {
         id: layout
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
 
-        Item {
-            width: parent.width
+        ListView {
+            id: listview
+
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
-            ListView {
-                id: listview
-                width: parent.width
-                height: parent.height
-                clip: true
-                model: Daemon.currentWallet.addressModel
-                currentIndex: -1
+            clip: true
+            model: Daemon.currentWallet.addressModel
+            currentIndex: -1
 
-                section.property: 'type'
-                section.criteria: ViewSection.FullString
-                section.delegate: sectionDelegate
+            section.property: 'type'
+            section.criteria: ViewSection.FullString
+            section.delegate: sectionDelegate
 
-                delegate: ItemDelegate {
-                    id: delegate
-                    width: ListView.view.width
-                    height: delegateLayout.height
-                    highlighted: ListView.isCurrentItem
+            delegate: ItemDelegate {
+                id: delegate
+                width: ListView.view.width
+                height: delegateLayout.height
+                highlighted: ListView.isCurrentItem
 
-                    font.pixelSize: constants.fontSizeMedium // set default font size for child controls
+                font.pixelSize: constants.fontSizeMedium // set default font size for child controls
 
-                    onClicked: {
-                        var page = app.stack.push(Qt.resolvedUrl('AddressDetails.qml'), {'address': model.address})
-                        page.addressDetailsChanged.connect(function() {
-                            // update listmodel when details change
-                            listview.model.update_address(model.address)
-                        })
-                    }
+                onClicked: {
+                    var page = app.stack.push(Qt.resolvedUrl('AddressDetails.qml'), {'address': model.address})
+                    page.addressDetailsChanged.connect(function() {
+                        // update listmodel when details change
+                        listview.model.update_address(model.address)
+                    })
+                }
 
-                    ColumnLayout {
-                        id: delegateLayout
-                        width: parent.width
-                        spacing: 0
+                ColumnLayout {
+                    id: delegateLayout
+                    width: parent.width
+                    spacing: 0
 
-                        GridLayout {
-                            columns: 2
-                            Layout.topMargin: constants.paddingSmall
-                            Layout.leftMargin: constants.paddingLarge
-                            Layout.rightMargin: constants.paddingLarge
+                    GridLayout {
+                        columns: 2
+                        Layout.topMargin: constants.paddingSmall
+                        Layout.leftMargin: constants.paddingLarge
+                        Layout.rightMargin: constants.paddingLarge
 
+                        Label {
+                            id: indexLabel
+                            font.bold: true
+                            text: '#' + ('00'+model.iaddr).slice(-2)
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            font.family: FixedFont
+                            text: model.address
+                            elide: Text.ElideMiddle
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            id: useIndicator
+                            Layout.preferredWidth: constants.iconSizeMedium
+                            Layout.preferredHeight: constants.iconSizeMedium
+                            color: model.held
+                                    ? constants.colorAddressFrozen
+                                    : model.numtx > 0
+                                        ? model.balance.satsInt == 0
+                                            ? constants.colorAddressUsed
+                                            : constants.colorAddressUsedWithBalance
+                                        : model.type == 'receive'
+                                            ? constants.colorAddressExternal
+                                            : constants.colorAddressInternal
+                        }
+
+                        RowLayout {
                             Label {
-                                id: indexLabel
-                                font.bold: true
-                                text: '#' + ('00'+model.iaddr).slice(-2)
+                                id: labelLabel
+                                font.pixelSize: model.label != '' ? constants.fontSizeLarge : constants.fontSizeSmall
+                                text: model.label != '' ? model.label : '<no label>'
+                                opacity: model.label != '' ? 1.0 : 0.8
+                                elide: Text.ElideRight
+                                maximumLineCount: 2
+                                wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
                             Label {
                                 font.family: FixedFont
-                                text: model.address
-                                elide: Text.ElideMiddle
-                                Layout.fillWidth: true
+                                text: Config.formatSats(model.balance, false)
+                                visible: model.balance.satsInt != 0
                             }
-
-                            Rectangle {
-                                id: useIndicator
-                                Layout.preferredWidth: constants.iconSizeMedium
-                                Layout.preferredHeight: constants.iconSizeMedium
-                                color: model.held
-                                        ? constants.colorAddressFrozen
-                                        : model.numtx > 0
-                                            ? model.balance.satsInt == 0
-                                                ? constants.colorAddressUsed
-                                                : constants.colorAddressUsedWithBalance
-                                            : model.type == 'receive'
-                                                ? constants.colorAddressExternal
-                                                : constants.colorAddressInternal
+                            Label {
+                                color: Material.accentColor
+                                text: Config.baseUnit + ','
+                                visible: model.balance.satsInt != 0
                             }
-
-                            RowLayout {
-                                Label {
-                                    id: labelLabel
-                                    font.pixelSize: model.label != '' ? constants.fontSizeLarge : constants.fontSizeSmall
-                                    text: model.label != '' ? model.label : '<no label>'
-                                    opacity: model.label != '' ? 1.0 : 0.8
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 2
-                                    wrapMode: Text.WordWrap
-                                    Layout.fillWidth: true
-                                }
-                                Label {
-                                    font.family: FixedFont
-                                    text: Config.formatSats(model.balance, false)
-                                    visible: model.balance.satsInt != 0
-                                }
-                                Label {
-                                    color: Material.accentColor
-                                    text: Config.baseUnit + ','
-                                    visible: model.balance.satsInt != 0
-                                }
-                                Label {
-                                    text: model.numtx
-                                    visible: model.numtx > 0
-                                }
-                                Label {
-                                    color: Material.accentColor
-                                    text: qsTr('tx')
-                                    visible: model.numtx > 0
-                                }
+                            Label {
+                                text: model.numtx
+                                visible: model.numtx > 0
                             }
-                        }
-
-                        Item {
-                            Layout.preferredWidth: 1
-                            Layout.preferredHeight: constants.paddingSmall
+                            Label {
+                                color: Material.accentColor
+                                text: qsTr('tx')
+                                visible: model.numtx > 0
+                            }
                         }
                     }
-                }
 
-                ScrollIndicator.vertical: ScrollIndicator { }
+                    Item {
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: constants.paddingSmall
+                    }
+                }
             }
 
+            ScrollIndicator.vertical: ScrollIndicator { }
         }
+
     }
 
     Component {
