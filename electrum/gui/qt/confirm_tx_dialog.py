@@ -77,6 +77,7 @@ class TxEditor(WindowModalDialog):
         self.is_preview = False
 
         self.locktime_e = LockTimeEdit(self)
+        self.locktime_e.valueEdited.connect(self._trigger_update)
         self.locktime_label = QLabel(_("LockTime") + ": ")
         self.io_widget = TxInOutWidget(self.main_window, self.wallet)
         self.create_fee_controls()
@@ -109,6 +110,7 @@ class TxEditor(WindowModalDialog):
     def timer_actions(self):
         if self.needs_update:
             self.update_tx()
+            self.set_locktime()
             self.update()
             self.needs_update = False
 
@@ -558,6 +560,13 @@ class ConfirmTxDialog(TxEditor):
             self.main_window.show_error(str(e))
             raise
         self.tx.set_rbf(True)
+
+    def set_locktime(self):
+        if not self.tx:
+            return
+        locktime = self.locktime_e.get_locktime()
+        if locktime is not None:
+            self.tx.locktime = locktime
 
     def have_enough_funds_assuming_zero_fees(self) -> bool:
         # called in send_tab.py

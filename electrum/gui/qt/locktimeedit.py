@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Optional, Any
 
-from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
 from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
                              QHBoxLayout, QDateTimeEdit)
@@ -18,6 +18,8 @@ from .util import char_width_in_lineedit, ColorScheme
 
 
 class LockTimeEdit(QWidget):
+
+    valueEdited = pyqtSignal()
 
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
@@ -62,6 +64,11 @@ class LockTimeEdit(QWidget):
         for w in self.editors:
             hbox.addWidget(w)
         hbox.addStretch(1)
+
+        self.locktime_height_e.textEdited.connect(self.valueEdited.emit)
+        self.locktime_raw_e.textEdited.connect(self.valueEdited.emit)
+        self.locktime_date_e.dateTimeChanged.connect(self.valueEdited.emit)
+        self.combo.currentIndexChanged.connect(self.valueEdited.emit)
 
     def get_locktime(self) -> Optional[int]:
         return self.editor.get_locktime()
