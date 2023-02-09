@@ -480,13 +480,8 @@ class TxEditor(WindowModalDialog):
         fee_rate = fee // tx.estimated_size()
         #self.feerate_label.setText(self.main_window.format_amount(fee_rate))
 
-        # extra fee
-        x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
-        if x_fee:
-            x_fee_address, x_fee_amount = x_fee
-            self.extra_fee_label.setVisible(True)
-            self.extra_fee_value.setVisible(True)
-            self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
+        self.update_extra_fees()
+
         amount = tx.output_value() if self.output_value == '!' else self.output_value
         tx_size = tx.estimated_size()
         fee_warning_tuple = self.wallet.get_tx_fee_warning(
@@ -499,6 +494,10 @@ class TxEditor(WindowModalDialog):
 
     def _update_amount_label(self):
         pass
+
+    def update_extra_fees(self):
+        pass
+
 
 class ConfirmTxDialog(TxEditor):
     help_text = ''#_('Set the mining fee of your transaction')
@@ -613,3 +612,11 @@ class ConfirmTxDialog(TxEditor):
         grid.addWidget(self.locktime_e, 6, 1, 1, 2)
 
         return grid
+
+    def update_extra_fees(self):
+        x_fee = run_hook('get_tx_extra_fee', self.wallet, self.tx)
+        if x_fee:
+            x_fee_address, x_fee_amount = x_fee
+            self.extra_fee_label.setVisible(True)
+            self.extra_fee_value.setVisible(True)
+            self.extra_fee_value.setText(self.main_window.format_amount_and_units(x_fee_amount))
