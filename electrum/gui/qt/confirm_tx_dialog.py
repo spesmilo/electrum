@@ -181,6 +181,7 @@ class TxEditor(WindowModalDialog):
         self.fee_target = QLabel('')
         self.fee_slider = FeeSlider(self, self.config, self.fee_slider_callback)
         self.fee_combo = FeeComboBox(self.fee_slider)
+        self.fee_combo.setFocusPolicy(Qt.NoFocus)
 
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
@@ -251,8 +252,10 @@ class TxEditor(WindowModalDialog):
             # edit_changed was edited just now, so make sure we will
             # freeze the correct fee setting (this)
             edit_other.setModified(False)
-        self.fee_slider.deactivate()
-        self.trigger_update()
+            self.fee_slider.deactivate()
+            # do not call trigger_update on editing_finished,
+            # because that event is emitted when we press OK
+            self.trigger_update()
 
     def is_send_fee_frozen(self):
         return self.fee_e.isVisible() and self.fee_e.isModified() \
@@ -357,6 +360,8 @@ class TxEditor(WindowModalDialog):
         self.set_feerounding_text(int(feerounding))
         self.feerounding_icon.setToolTip(self.feerounding_text)
         self.set_feerounding_visibility(abs(feerounding) >= 1)
+        # feerate_label needs to be updated from feerate_e
+        self.update_feerate_label()
 
     def create_buttons_bar(self):
         self.preview_button = QPushButton(_('Preview'))
@@ -382,6 +387,7 @@ class TxEditor(WindowModalDialog):
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
         self.pref_button.setPopupMode(QToolButton.InstantPopup)
+        self.pref_button.setFocusPolicy(Qt.NoFocus)
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel(text))
         hbox.addStretch()

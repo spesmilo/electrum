@@ -52,7 +52,7 @@ class _BaseRBFDialog(TxEditor):
         new_fee_rate = self.old_fee_rate + max(1, self.old_fee_rate // 20)
         self.feerate_e.setAmount(new_fee_rate)
         self.update()
-        self.fee_slider.activate()
+        self.fee_slider.deactivate()
         # are we paying max?
         invoices = self.wallet.get_relevant_invoices_for_tx(txid)
         if len(invoices) == 1 and len(invoices[0].outputs) == 1:
@@ -64,6 +64,7 @@ class _BaseRBFDialog(TxEditor):
         self.method_combo = QComboBox()
         self.method_combo.addItems([_('Preserve payment'), _('Decrease payment')])
         self.method_combo.currentIndexChanged.connect(self.trigger_update)
+        self.method_combo.setFocusPolicy(Qt.NoFocus)
         old_size_label = TxSizeLabel()
         old_size_label.setAlignment(Qt.AlignCenter)
         old_size_label.setAmount(self.old_tx_size)

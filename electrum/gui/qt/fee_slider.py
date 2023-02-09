@@ -40,7 +40,6 @@ class FeeSlider(QSlider):
         self.update()
         self.valueChanged.connect(self.moved)
         self._active = True
-        self.setFocusPolicy(Qt.NoFocus)
 
     def get_fee_rate(self, pos):
         if self.dyn:
