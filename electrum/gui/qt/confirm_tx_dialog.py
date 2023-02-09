@@ -492,6 +492,13 @@ class TxEditor(WindowModalDialog):
         else:
             self.toggle_send_button(True)
 
+    def set_locktime(self):
+        if not self.tx:
+            return
+        locktime = self.locktime_e.get_locktime()
+        if locktime is not None:
+            self.tx.locktime = locktime
+
     def _update_amount_label(self):
         pass
 
@@ -559,13 +566,6 @@ class ConfirmTxDialog(TxEditor):
             self.main_window.show_error(str(e))
             raise
         self.tx.set_rbf(True)
-
-    def set_locktime(self):
-        if not self.tx:
-            return
-        locktime = self.locktime_e.get_locktime()
-        if locktime is not None:
-            self.tx.locktime = locktime
 
     def have_enough_funds_assuming_zero_fees(self) -> bool:
         # called in send_tab.py
