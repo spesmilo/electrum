@@ -313,21 +313,22 @@ ElDialog {
                             }
 
                             Label {
-                                text: Config.baseUnit
-                                color: Material.accentColor
                                 Layout.fillWidth: amountMax.visible ? false : true
                                 Layout.columnSpan: amountMax.visible ? 1 : 2
+
+                                text: Config.baseUnit
+                                color: Material.accentColor
                             }
                             Switch {
                                 id: amountMax
+                                Layout.fillWidth: true
+
                                 text: qsTr('Max')
                                 visible: _canMax
-                                Layout.fillWidth: true
-                                checked: invoice.amount.isMax
+                                checked: false
                                 onCheckedChanged: {
-                                    if (activeFocus) {
+                                    if (activeFocus)
                                         invoice.amount.isMax = checked
-                                    }
                                 }
                             }
 
@@ -419,7 +420,10 @@ ElDialog {
         if (invoice_key != '') {
             invoice.initFromKey(invoice_key)
         }
-        if (invoice.amount.isEmpty)
+        if (invoice.amount.isEmpty) {
             amountContainer.editmode = true
+        } else if (invoice.amount.isMax) {
+            amountMax.checked = true
+        }
     }
 }
