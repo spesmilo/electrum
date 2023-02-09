@@ -64,7 +64,7 @@ class _BaseRBFDialog(TxEditor):
         self.method_label = QLabel(_('Method') + ':')
         self.method_combo = QComboBox()
         self.method_combo.addItems([_('Preserve payment'), _('Decrease payment')])
-        self.method_combo.currentIndexChanged.connect(self.update)
+        self.method_combo.currentIndexChanged.connect(self.trigger_update)
         old_size_label = TxSizeLabel()
         old_size_label.setAlignment(Qt.AlignCenter)
         old_size_label.setAmount(self.old_tx_size)

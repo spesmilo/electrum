@@ -77,7 +77,7 @@ class TxEditor(WindowModalDialog):
         self.is_preview = False
 
         self.locktime_e = LockTimeEdit(self)
-        self.locktime_e.valueEdited.connect(self._trigger_update)
+        self.locktime_e.valueEdited.connect(self.trigger_update)
         self.locktime_label = QLabel(_("LockTime") + ": ")
         self.io_widget = TxInOutWidget(self.main_window, self.wallet)
         self.create_fee_controls()
@@ -212,7 +212,7 @@ class TxEditor(WindowModalDialog):
         self.fee_slider.setFixedWidth(200)
         self.fee_target.setFixedSize(self.feerate_e.sizeHint())
 
-    def _trigger_update(self):
+    def trigger_update(self):
         # set tx to None so that the ok button is disabled while we compute the new tx
         self.tx = None
         self.update()
@@ -229,7 +229,7 @@ class TxEditor(WindowModalDialog):
         self.fee_e.setModified(False)
         self.update_fee_target()
         self.update_feerate_label()
-        self._trigger_update()
+        self.trigger_update()
 
     def on_fee_or_feerate(self, edit_changed, editing_finished):
         edit_other = self.feerate_e if edit_changed == self.fee_e else self.fee_e
@@ -243,7 +243,7 @@ class TxEditor(WindowModalDialog):
             # freeze the correct fee setting (this)
             edit_other.setModified(False)
         self.fee_slider.deactivate()
-        self._trigger_update()
+        self.trigger_update()
 
     def is_send_fee_frozen(self):
         return self.fee_e.isVisible() and self.fee_e.isModified() \
@@ -476,9 +476,6 @@ class TxEditor(WindowModalDialog):
         fee = tx.get_fee()
         assert fee is not None
         self.fee_label.setText(self.main_window.config.format_amount_and_units(fee))
-
-        fee_rate = fee // tx.estimated_size()
-        #self.feerate_label.setText(self.main_window.format_amount(fee_rate))
 
         self.update_extra_fees()
 
