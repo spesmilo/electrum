@@ -45,417 +45,420 @@ Pane {
 
     ColumnLayout {
         id: rootLayout
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
         spacing: 0
 
         Flickable {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.margins: constants.paddingLarge
 
-            contentHeight: flickableLayout.height
+            contentHeight: flickableRoot.height
             clip:true
             interactive: height < contentHeight
 
-            ColumnLayout {
-                id: flickableLayout
+            Pane {
+                id: flickableRoot
                 width: parent.width
-                spacing: constants.paddingLarge
+                padding: constants.paddingLarge
 
-                Heading {
-                    text: qsTr('Wallet details')
-                }
+                ColumnLayout {
+                    width: parent.width
+                    spacing: constants.paddingLarge
 
-                GridLayout {
-                    columns: 3
-                    Layout.alignment: Qt.AlignHCenter
+                    Heading {
+                        text: qsTr('Wallet details')
+                    }
 
-                    Tag {
+                    GridLayout {
+                        columns: 3
                         Layout.alignment: Qt.AlignHCenter
-                        text: Daemon.currentWallet.walletType
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/wallet.png'
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: Daemon.currentWallet.txinType
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('HD')
-                        visible: Daemon.currentWallet.isDeterministic
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('Watch only')
-                        visible: Daemon.currentWallet.isWatchOnly
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/eye1.png'
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('Encrypted')
-                        visible: Daemon.currentWallet.isEncrypted
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/key.png'
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('HW')
-                        visible: Daemon.currentWallet.isHardware
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/seed.png'
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('Lightning')
-                        visible: Daemon.currentWallet.isLightning
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/lightning.png'
-                    }
-                    Tag {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr('Seed')
-                        visible: Daemon.currentWallet.hasSeed
-                        font.pixelSize: constants.fontSizeSmall
-                        font.bold: true
-                        iconSource: '../../../icons/seed.png'
-                    }
-                }
 
-                Piechart {
-                    id: piechart
-                    visible: Daemon.currentWallet.totalBalance.satsInt > 0
-                    Layout.preferredWidth: parent.width
-                    implicitHeight: 220 // TODO: sane value dependent on screen
-                    innerOffset: 6
-                    function updateSlices() {
-                        var totalB = Daemon.currentWallet.totalBalance.satsInt
-                        var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
-                        var frozenB = Daemon.currentWallet.frozenBalance.satsInt
-                        var lnB = Daemon.currentWallet.lightningBalance.satsInt
-                        piechart.slices = [
-                            { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' },
-                            { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
-                            { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
-                        ]
-                    }
-                }
-
-                GridLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    visible: Daemon.currentWallet
-                    columns: 3
-
-                    Item {
-                        visible: !Daemon.currentWallet.totalBalance.isEmpty
-                        Layout.preferredWidth: 1; Layout.preferredHeight: 1
-                    }
-                    Label {
-                        visible: !Daemon.currentWallet.totalBalance.isEmpty
-                        text: qsTr('Total')
-                    }
-                    FormattedAmount {
-                        visible: !Daemon.currentWallet.totalBalance.isEmpty
-                        amount: Daemon.currentWallet.totalBalance
-                    }
-
-                    Rectangle {
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
-                        Layout.preferredWidth: constants.iconSizeXSmall
-                        Layout.preferredHeight: constants.iconSizeXSmall
-                        color: constants.colorPiechartLightning
-                    }
-                    Label {
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
-                        text: qsTr('Lightning')
-
-                    }
-                    FormattedAmount {
-                        amount: Daemon.currentWallet.lightningBalance
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty
-                    }
-
-                    Rectangle {
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
-                        Layout.preferredWidth: constants.iconSizeXSmall
-                        Layout.preferredHeight: constants.iconSizeXSmall
-                        color: constants.colorPiechartOnchain
-                    }
-                    Label {
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
-                        text: qsTr('On-chain')
-
-                    }
-                    FormattedAmount {
-                        amount: Daemon.currentWallet.confirmedBalance
-                        visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
-                    }
-
-                    Rectangle {
-                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
-                        Layout.preferredWidth: constants.iconSizeXSmall
-                        Layout.preferredHeight: constants.iconSizeXSmall
-                        color: constants.colorPiechartFrozen
-                    }
-                    Label {
-                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
-                        text: qsTr('Frozen')
-                    }
-                    FormattedAmount {
-                        amount: Daemon.currentWallet.frozenBalance
-                        visible: !Daemon.currentWallet.frozenBalance.isEmpty
-                    }
-                }
-
-                GridLayout {
-                    Layout.preferredWidth: parent.width
-                    visible: Daemon.currentWallet
-                    columns: 2
-
-                    Label {
-                        Layout.columnSpan: 2
-                        visible: Daemon.currentWallet.hasSeed
-                        text: qsTr('Seed')
-                        color: Material.accentColor
-                    }
-
-                    TextHighlightPane {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        visible: Daemon.currentWallet.hasSeed
-                        RowLayout {
-                            width: parent.width
-                            Label {
-                                id: seedText
-                                visible: false
-                                Layout.fillWidth: true
-                                text: Daemon.currentWallet.seed
-                                wrapMode: Text.Wrap
-                                font.family: FixedFont
-                                font.pixelSize: constants.fontSizeMedium
-                            }
-                            Label {
-                                id: showSeedText
-                                Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignHCenter
-                                text: qsTr('Tap to show seed')
-                                wrapMode: Text.Wrap
-                                font.pixelSize: constants.fontSizeLarge
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    seedText.visible = true
-                                    showSeedText.visible = false
-                                }
-                            }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Daemon.currentWallet.walletType
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/wallet.png'
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Daemon.currentWallet.txinType
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('HD')
+                            visible: Daemon.currentWallet.isDeterministic
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('Watch only')
+                            visible: Daemon.currentWallet.isWatchOnly
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/eye1.png'
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('Encrypted')
+                            visible: Daemon.currentWallet.isEncrypted
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/key.png'
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('HW')
+                            visible: Daemon.currentWallet.isHardware
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/seed.png'
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('Lightning')
+                            visible: Daemon.currentWallet.isLightning
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/lightning.png'
+                        }
+                        Tag {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: qsTr('Seed')
+                            visible: Daemon.currentWallet.hasSeed
+                            font.pixelSize: constants.fontSizeSmall
+                            font.bold: true
+                            iconSource: '../../../icons/seed.png'
                         }
                     }
 
-                    Label {
-                        Layout.columnSpan: 2
-                        visible: Daemon.currentWallet.isLightning
-                        text: qsTr('Lightning Node ID')
-                        color: Material.accentColor
-                    }
-
-                    TextHighlightPane {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        visible: Daemon.currentWallet.isLightning
-
-                        RowLayout {
-                            width: parent.width
-                            Label {
-                                Layout.fillWidth: true
-                                text: Daemon.currentWallet.lightningNodePubkey
-                                wrapMode: Text.Wrap
-                                font.family: FixedFont
-                                font.pixelSize: constants.fontSizeMedium
-                            }
-                            ToolButton {
-                                icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
-                                onClicked: {
-                                    var dialog = app.genericShareDialog.createObject(rootItem, {
-                                        title: qsTr('Lightning Node ID'),
-                                        text: Daemon.currentWallet.lightningNodePubkey
-                                    })
-                                    dialog.open()
-                                }
-                            }
+                    Piechart {
+                        id: piechart
+                        visible: Daemon.currentWallet.totalBalance.satsInt > 0
+                        Layout.preferredWidth: parent.width
+                        implicitHeight: 220 // TODO: sane value dependent on screen
+                        innerOffset: 6
+                        function updateSlices() {
+                            var totalB = Daemon.currentWallet.totalBalance.satsInt
+                            var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
+                            var frozenB = Daemon.currentWallet.frozenBalance.satsInt
+                            var lnB = Daemon.currentWallet.lightningBalance.satsInt
+                            piechart.slices = [
+                                { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' },
+                                { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
+                                { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
+                            ]
                         }
                     }
 
-                    Label {
-                        visible: _is2fa
-                        text: qsTr('2FA')
-                        color: Material.accentColor
-                    }
+                    GridLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: Daemon.currentWallet
+                        columns: 3
 
-                    Label {
-                        Layout.fillWidth: true
-                        visible: _is2fa
-                        text: Daemon.currentWallet.canSignWithoutServer
-                                ? qsTr('disabled (can sign without server)')
-                                : qsTr('enabled')
-                    }
+                        Item {
+                            visible: !Daemon.currentWallet.totalBalance.isEmpty
+                            Layout.preferredWidth: 1; Layout.preferredHeight: 1
+                        }
+                        Label {
+                            visible: !Daemon.currentWallet.totalBalance.isEmpty
+                            text: qsTr('Total')
+                        }
+                        FormattedAmount {
+                            visible: !Daemon.currentWallet.totalBalance.isEmpty
+                            amount: Daemon.currentWallet.totalBalance
+                        }
 
-                    Label {
-                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                        text: qsTr('Remaining TX')
-                        color: Material.accentColor
-                    }
+                        Rectangle {
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            Layout.preferredWidth: constants.iconSizeXSmall
+                            Layout.preferredHeight: constants.iconSizeXSmall
+                            color: constants.colorPiechartLightning
+                        }
+                        Label {
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            text: qsTr('Lightning')
 
-                    Label {
-                        Layout.fillWidth: true
-                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                        text: 'tx_remaining' in Daemon.currentWallet.billingInfo
-                                ? Daemon.currentWallet.billingInfo['tx_remaining']
-                                : qsTr('unknown')
-                    }
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.lightningBalance
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                        }
 
-                    Label {
-                        Layout.columnSpan: 2
-                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
-                        text: qsTr('Billing')
-                        color: Material.accentColor
-                    }
+                        Rectangle {
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            Layout.preferredWidth: constants.iconSizeXSmall
+                            Layout.preferredHeight: constants.iconSizeXSmall
+                            color: constants.colorPiechartOnchain
+                        }
+                        Label {
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            text: qsTr('On-chain')
 
-                    TextHighlightPane {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.confirmedBalance
+                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                        }
 
-                        ColumnLayout {
-                            spacing: 0
-
-                            ButtonGroup {
-                                id: billinggroup
-                                onCheckedButtonChanged: {
-                                    Config.trustedcoinPrepay = checkedButton.value
-                                }
-                            }
-
-                            Repeater {
-                                model: AppController.plugin('trustedcoin').billingModel
-                                delegate: RowLayout {
-                                    RadioButton {
-                                        ButtonGroup.group: billinggroup
-                                        property string value: modelData.value
-                                        text: modelData.text
-                                        checked: modelData.value == Config.trustedcoinPrepay
-                                    }
-                                    Label {
-                                        text: Config.formatSats(modelData.sats_per_tx)
-                                        font.family: FixedFont
-                                    }
-                                    Label {
-                                        text: Config.baseUnit + '/tx'
-                                        color: Material.accentColor
-                                    }
-                                }
-                            }
+                        Rectangle {
+                            visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                            Layout.preferredWidth: constants.iconSizeXSmall
+                            Layout.preferredHeight: constants.iconSizeXSmall
+                            color: constants.colorPiechartFrozen
+                        }
+                        Label {
+                            visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                            text: qsTr('Frozen')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.frozenBalance
+                            visible: !Daemon.currentWallet.frozenBalance.isEmpty
                         }
                     }
 
-                    Repeater {
-                        id: keystores
-                        model: Daemon.currentWallet.keystores
-                        delegate: ColumnLayout {
+                    GridLayout {
+                        Layout.preferredWidth: parent.width
+                        visible: Daemon.currentWallet
+                        columns: 2
+
+                        Label {
                             Layout.columnSpan: 2
+                            visible: Daemon.currentWallet.hasSeed
+                            text: qsTr('Seed')
+                            color: Material.accentColor
+                        }
+
+                        TextHighlightPane {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            visible: Daemon.currentWallet.hasSeed
                             RowLayout {
+                                width: parent.width
                                 Label {
-                                    text: qsTr('Keystore')
-                                    color: Material.accentColor
+                                    id: seedText
+                                    visible: false
+                                    Layout.fillWidth: true
+                                    text: Daemon.currentWallet.seed
+                                    wrapMode: Text.Wrap
+                                    font.family: FixedFont
+                                    font.pixelSize: constants.fontSizeMedium
                                 }
                                 Label {
-                                    text: '#' + index
-                                    visible: keystores.count > 1
+                                    id: showSeedText
+                                    Layout.fillWidth: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: qsTr('Tap to show seed')
+                                    wrapMode: Text.Wrap
+                                    font.pixelSize: constants.fontSizeLarge
                                 }
-                                Image {
-                                    Layout.preferredWidth: constants.iconSizeXSmall
-                                    Layout.preferredHeight: constants.iconSizeXSmall
-                                    source: modelData.watch_only ? '../../icons/eye1.png' : '../../icons/key.png'
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        seedText.visible = true
+                                        showSeedText.visible = false
+                                    }
                                 }
                             }
-                            TextHighlightPane {
-                                Layout.fillWidth: true
-                                leftPadding: constants.paddingLarge
+                        }
 
-                                GridLayout {
-                                    width: parent.width
-                                    columns: 2
+                        Label {
+                            Layout.columnSpan: 2
+                            visible: Daemon.currentWallet.isLightning
+                            text: qsTr('Lightning Node ID')
+                            color: Material.accentColor
+                        }
 
-                                    Label {
-                                        text: qsTr('Derivation prefix')
-                                        visible: modelData.derivation_prefix
-                                        color: Material.accentColor
-                                    }
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: modelData.derivation_prefix
-                                        visible: modelData.derivation_prefix
-                                        font.family: FixedFont
-                                    }
+                        TextHighlightPane {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            visible: Daemon.currentWallet.isLightning
 
-                                    Label {
-                                        text: qsTr('BIP32 fingerprint')
-                                        visible: modelData.fingerprint
-                                        color: Material.accentColor
+                            RowLayout {
+                                width: parent.width
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: Daemon.currentWallet.lightningNodePubkey
+                                    wrapMode: Text.Wrap
+                                    font.family: FixedFont
+                                    font.pixelSize: constants.fontSizeMedium
+                                }
+                                ToolButton {
+                                    icon.source: '../../icons/share.png'
+                                    icon.color: 'transparent'
+                                    onClicked: {
+                                        var dialog = app.genericShareDialog.createObject(rootItem, {
+                                            title: qsTr('Lightning Node ID'),
+                                            text: Daemon.currentWallet.lightningNodePubkey
+                                        })
+                                        dialog.open()
                                     }
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: modelData.fingerprint
-                                        visible: modelData.fingerprint
-                                        font.family: FixedFont
-                                    }
+                                }
+                            }
+                        }
 
-                                    Label {
-                                        Layout.columnSpan: 2
-                                        visible: modelData.master_pubkey
-                                        text: qsTr('Master Public Key')
-                                        color: Material.accentColor
+                        Label {
+                            visible: _is2fa
+                            text: qsTr('2FA')
+                            color: Material.accentColor
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: _is2fa
+                            text: Daemon.currentWallet.canSignWithoutServer
+                                    ? qsTr('disabled (can sign without server)')
+                                    : qsTr('enabled')
+                        }
+
+                        Label {
+                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
+                            text: qsTr('Remaining TX')
+                            color: Material.accentColor
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
+                            text: 'tx_remaining' in Daemon.currentWallet.billingInfo
+                                    ? Daemon.currentWallet.billingInfo['tx_remaining']
+                                    : qsTr('unknown')
+                        }
+
+                        Label {
+                            Layout.columnSpan: 2
+                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
+                            text: qsTr('Billing')
+                            color: Material.accentColor
+                        }
+
+                        TextHighlightPane {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
+
+                            ColumnLayout {
+                                spacing: 0
+
+                                ButtonGroup {
+                                    id: billinggroup
+                                    onCheckedButtonChanged: {
+                                        Config.trustedcoinPrepay = checkedButton.value
                                     }
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        Layout.columnSpan: 2
-                                        Layout.leftMargin: constants.paddingLarge
-                                        Label {
-                                            text: modelData.master_pubkey
-                                            wrapMode: Text.Wrap
-                                            Layout.fillWidth: true
-                                            font.family: FixedFont
-                                            font.pixelSize: constants.fontSizeMedium
+                                }
+
+                                Repeater {
+                                    model: AppController.plugin('trustedcoin').billingModel
+                                    delegate: RowLayout {
+                                        RadioButton {
+                                            ButtonGroup.group: billinggroup
+                                            property string value: modelData.value
+                                            text: modelData.text
+                                            checked: modelData.value == Config.trustedcoinPrepay
                                         }
-                                        ToolButton {
-                                            icon.source: '../../icons/share.png'
-                                            icon.color: 'transparent'
-                                            onClicked: {
-                                                var dialog = app.genericShareDialog.createObject(rootItem, {
-                                                    title: qsTr('Master Public Key'),
-                                                    text: modelData.master_pubkey
-                                                })
-                                                dialog.open()
+                                        Label {
+                                            text: Config.formatSats(modelData.sats_per_tx)
+                                            font.family: FixedFont
+                                        }
+                                        Label {
+                                            text: Config.baseUnit + '/tx'
+                                            color: Material.accentColor
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Repeater {
+                            id: keystores
+                            model: Daemon.currentWallet.keystores
+                            delegate: ColumnLayout {
+                                Layout.columnSpan: 2
+                                RowLayout {
+                                    Label {
+                                        text: qsTr('Keystore')
+                                        color: Material.accentColor
+                                    }
+                                    Label {
+                                        text: '#' + index
+                                        visible: keystores.count > 1
+                                    }
+                                    Image {
+                                        Layout.preferredWidth: constants.iconSizeXSmall
+                                        Layout.preferredHeight: constants.iconSizeXSmall
+                                        source: modelData.watch_only ? '../../icons/eye1.png' : '../../icons/key.png'
+                                    }
+                                }
+                                TextHighlightPane {
+                                    Layout.fillWidth: true
+                                    leftPadding: constants.paddingLarge
+
+                                    GridLayout {
+                                        width: parent.width
+                                        columns: 2
+
+                                        Label {
+                                            text: qsTr('Derivation prefix')
+                                            visible: modelData.derivation_prefix
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.derivation_prefix
+                                            visible: modelData.derivation_prefix
+                                            font.family: FixedFont
+                                        }
+
+                                        Label {
+                                            text: qsTr('BIP32 fingerprint')
+                                            visible: modelData.fingerprint
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.fingerprint
+                                            visible: modelData.fingerprint
+                                            font.family: FixedFont
+                                        }
+
+                                        Label {
+                                            Layout.columnSpan: 2
+                                            visible: modelData.master_pubkey
+                                            text: qsTr('Master Public Key')
+                                            color: Material.accentColor
+                                        }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Layout.columnSpan: 2
+                                            Layout.leftMargin: constants.paddingLarge
+                                            Label {
+                                                text: modelData.master_pubkey
+                                                wrapMode: Text.Wrap
+                                                Layout.fillWidth: true
+                                                font.family: FixedFont
+                                                font.pixelSize: constants.fontSizeMedium
+                                            }
+                                            ToolButton {
+                                                icon.source: '../../icons/share.png'
+                                                icon.color: 'transparent'
+                                                onClicked: {
+                                                    var dialog = app.genericShareDialog.createObject(rootItem, {
+                                                        title: qsTr('Master Public Key'),
+                                                        text: modelData.master_pubkey
+                                                    })
+                                                    dialog.open()
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
+                    }
                 }
             }
         }
