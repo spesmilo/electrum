@@ -67,6 +67,9 @@ class TxEditor(WindowModalDialog):
         self.make_tx = make_tx
         self.output_value = output_value
         self.tx = None  # type: Optional[PartialTransaction]
+        self.message = '' # set by side effect
+        self.error = ''   # set by side effect
+
         self.config = window.config
         self.wallet = window.wallet
         self.not_enough_funds = False
@@ -109,10 +112,13 @@ class TxEditor(WindowModalDialog):
 
     def timer_actions(self):
         if self.needs_update:
-            self.update_tx()
-            self.set_locktime()
             self.update()
             self.needs_update = False
+
+    def update(self):
+        self.update_tx()
+        self.set_locktime()
+        self._update_widgets()
 
     def stop_editor_updates(self):
         self.main_window.gui_object.timer.timeout.disconnect(self.timer_actions)
@@ -127,6 +133,7 @@ class TxEditor(WindowModalDialog):
             self.config.set_key('fee_per_kb', fee_rate, False)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
+        # expected to set self.tx, self.message and self.error
         raise NotImplementedError()
 
     def update_fee_target(self):
@@ -215,7 +222,9 @@ class TxEditor(WindowModalDialog):
     def trigger_update(self):
         # set tx to None so that the ok button is disabled while we compute the new tx
         self.tx = None
-        self.update()
+        self.message = ''
+        self.error = ''
+        self._update_widgets()
         self.needs_update = True
 
     def fee_slider_callback(self, dyn, pos, fee_rate):
@@ -447,47 +456,40 @@ class TxEditor(WindowModalDialog):
         self.is_preview = True
         self.accept()
 
-    def toggle_send_button(self, enable: bool, *, message: str = None):
-        if message is None:
-            self.message_label.setStyleSheet(None)
-            self.message_label.setText(' ')
-        else:
-            self.message_label.setStyleSheet(ColorScheme.RED.as_stylesheet())
-            self.message_label.setText(message)
-
-        self.preview_button.setEnabled(enable)
-        self.ok_button.setEnabled(enable)
-
-    def update(self):
-        tx = self.tx
+    def _update_widgets(self):
         self._update_amount_label()
         if self.not_enough_funds:
-            text = self.main_window.send_tab.get_text_not_enough_funds_mentioning_frozen()
-            self.toggle_send_button(False, message=text)
-            return
-        if not tx:
-            self.toggle_send_button(False)
+            self.error = self.main_window.send_tab.get_text_not_enough_funds_mentioning_frozen()
+        if not self.tx:
             self.set_feerounding_visibility(False)
-            return
-        self.update_fee_fields()
-        if self.locktime_e.get_locktime() is None:
-            self.locktime_e.set_locktime(self.tx.locktime)
-        self.io_widget.update(tx)
-        fee = tx.get_fee()
+        else:
+            self.check_tx_fee_warning()
+            self.update_fee_fields()
+            if self.locktime_e.get_locktime() is None:
+                self.locktime_e.set_locktime(self.tx.locktime)
+            self.io_widget.update(self.tx)
+            self.fee_label.setText(self.main_window.config.format_amount_and_units(self.tx.get_fee()))
+            self._update_extra_fees()
+
+        self._update_send_button()
+        self._update_message()
+
+
+    def check_tx_fee_warning(self):
+        # side effects: self.error, self.message
+        fee = self.tx.get_fee()
         assert fee is not None
-        self.fee_label.setText(self.main_window.config.format_amount_and_units(fee))
-
-        self.update_extra_fees()
-
-        amount = tx.output_value() if self.output_value == '!' else self.output_value
-        tx_size = tx.estimated_size()
+        amount = self.tx.output_value() if self.output_value == '!' else self.output_value
+        tx_size = self.tx.estimated_size()
         fee_warning_tuple = self.wallet.get_tx_fee_warning(
             invoice_amt=amount, tx_size=tx_size, fee=fee)
         if fee_warning_tuple:
             allow_send, long_warning, short_warning = fee_warning_tuple
-            self.toggle_send_button(allow_send, message=long_warning)
-        else:
-            self.toggle_send_button(True)
+            if not allow_send:
+                self.error = long_warning
+            else:
+                # note: this may overrride existing message
+                self.message = long_warning
 
     def set_locktime(self):
         if not self.tx:
@@ -499,8 +501,18 @@ class TxEditor(WindowModalDialog):
     def _update_amount_label(self):
         pass
 
-    def update_extra_fees(self):
+    def _update_extra_fees(self):
         pass
+
+    def _update_message(self):
+        style = ColorScheme.RED if self.error else ColorScheme.BLUE
+        self.message_label.setStyleSheet(style.as_stylesheet())
+        self.message_label.setText(self.error or self.message)
+
+    def _update_send_button(self):
+        enabled = bool(self.tx) and not self.error
+        self.preview_button.setEnabled(enabled)
+        self.ok_button.setEnabled(enabled)
 
 
 class ConfirmTxDialog(TxEditor):
@@ -516,8 +528,7 @@ class ConfirmTxDialog(TxEditor):
             title=_("New Transaction"), # todo: adapt title for channel funding tx, swaps
             allow_preview=allow_preview)
 
-        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update_tx)
-        self.update()
+        BlockingWaitingDialog(window, _("Preparing transaction..."), self.update)
 
     def _update_amount_label(self):
         tx = self.tx
@@ -538,6 +549,8 @@ class ConfirmTxDialog(TxEditor):
             self.tx = self.make_tx(fee_estimator)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
+            error = ''
+            message = ''
         except NotEnoughFunds:
             self.not_enough_funds = True
             self.tx = None
@@ -610,7 +623,7 @@ class ConfirmTxDialog(TxEditor):
 
         return grid
 
-    def update_extra_fees(self):
+    def _update_extra_fees(self):
         x_fee = run_hook('get_tx_extra_fee', self.wallet, self.tx)
         if x_fee:
             x_fee_address, x_fee_amount = x_fee

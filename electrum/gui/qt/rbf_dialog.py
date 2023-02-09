@@ -51,8 +51,7 @@ class _BaseRBFDialog(TxEditor):
 
         new_fee_rate = self.old_fee_rate + max(1, self.old_fee_rate // 20)
         self.feerate_e.setAmount(new_fee_rate)
-        self._update_tx(new_fee_rate)
-        self._update_message()
+        self.update()
         self.fee_slider.activate()
         # are we paying max?
         invoices = self.wallet.get_relevant_invoices_for_tx(txid)
@@ -111,22 +110,18 @@ class _BaseRBFDialog(TxEditor):
 
     def update_tx(self):
         fee_rate = self.feerate_e.get_amount()
-        self._update_tx(fee_rate)
-        self._update_message()
-
-    def _update_tx(self, fee_rate):
         if fee_rate is None:
             self.tx = None
-            self.message = ''
+            self.error = _('No fee rate')
         elif fee_rate <= self.old_fee_rate:
             self.tx = None
-            self.message = _("The new fee rate needs to be higher than the old fee rate.")
+            self.error = _("The new fee rate needs to be higher than the old fee rate.")
         else:
             try:
                 self.tx = self.make_tx(fee_rate)
             except CannotBumpFee as e:
                 self.tx = None
-                self.message = str(e)
+                self.error = str(e)
         if not self.tx:
             return
         delta = self.tx.get_fee() - self.old_tx.get_fee()
@@ -135,15 +130,6 @@ class _BaseRBFDialog(TxEditor):
         else:
             self.message = _("The recipient will receive {} less.").format(self.main_window.format_amount_and_units(delta))
 
-    def _update_message(self):
-        enabled = bool(self.tx)
-        self.ok_button.setEnabled(enabled)
-        if enabled:
-            style = ColorScheme.BLUE.as_stylesheet()
-        else:
-            style = ColorScheme.RED.as_stylesheet()
-        self.message_label.setStyleSheet(style)
-        self.message_label.setText(self.message)
 
 
 class BumpFeeDialog(_BaseRBFDialog):
