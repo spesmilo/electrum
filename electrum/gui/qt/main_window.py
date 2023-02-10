@@ -1258,17 +1258,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg = messages.MGS_CONFLICTING_BACKUP_INSTANCE
             if not self.question(msg):
                 return
-        # use ConfirmTxDialog
         # we need to know the fee before we broadcast, because the txid is required
         make_tx = self.mktx_for_open_channel(funding_sat=funding_sat, node_id=node_id)
-        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, is_sweep=False)
-        # disable preview button because the user must not broadcast tx before establishment_flow
-        d.preview_button.setEnabled(False)
-        cancelled, is_send, password, funding_tx = d.run()
-        if not is_send:
+        d = ConfirmTxDialog(window=self, make_tx=make_tx, output_value=funding_sat, allow_preview=False)
+        funding_tx = d.run()
+        if not funding_tx:
             return
-        if cancelled:
-            return
+        self._open_channel(connect_str, funding_sat, push_amt, funding_tx)
+
+    @protected
+    def _open_channel(self, connect_str, funding_sat, push_amt, funding_tx, password):
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
         def task():

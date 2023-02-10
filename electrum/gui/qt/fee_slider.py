@@ -41,12 +41,16 @@ class FeeSlider(QSlider):
         self.valueChanged.connect(self.moved)
         self._active = True
 
+    def get_fee_rate(self, pos):
+        if self.dyn:
+            fee_rate = self.config.depth_to_fee(pos) if self.config.use_mempool_fees() else self.config.eta_to_fee(pos)
+        else:
+            fee_rate = self.config.static_fee(pos)
+        return fee_rate
+
     def moved(self, pos):
         with self.lock:
-            if self.dyn:
-                fee_rate = self.config.depth_to_fee(pos) if self.config.use_mempool_fees() else self.config.eta_to_fee(pos)
-            else:
-                fee_rate = self.config.static_fee(pos)
+            fee_rate = self.get_fee_rate(pos)
             tooltip = self.get_tooltip(pos, fee_rate)
             QToolTip.showText(QCursor.pos(), tooltip, self)
             self.setToolTip(tooltip)
@@ -59,6 +63,15 @@ class FeeSlider(QSlider):
             return _('Target') + ': ' + target + '\n' + _('Current rate') + ': ' + estimate
         else:
             return _('Fixed rate') + ': ' + target + '\n' + _('Estimate') + ': ' + estimate
+
+    def get_dynfee_target(self):
+        if not self.dyn:
+            return ''
+        pos = self.value()
+        fee_rate = self.get_fee_rate(pos)
+        mempool = self.config.use_mempool_fees()
+        target, estimate = self.config.get_fee_text(pos, True, mempool, fee_rate)
+        return target
 
     def update(self):
         with self.lock:
