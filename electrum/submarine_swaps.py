@@ -594,8 +594,13 @@ class SwapManager(Logger):
                                 f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_recv_amount={inverted_recv_amount}")
         return send_amount
 
-    def get_swap_by_tx(self, tx: Transaction) -> Optional[SwapData]:
-        # determine if tx is spending from a swap
+    def get_swap_by_funding_tx(self, tx: Transaction) -> Optional[SwapData]:
+        if len(tx.outputs()) != 1:
+            return False
+        prevout = TxOutpoint(txid=bytes.fromhex(tx.txid()), out_idx=0)
+        return self._swaps_by_funding_outpoint.get(prevout)
+
+    def get_swap_by_claim_tx(self, tx: Transaction) -> Optional[SwapData]:
         txin = tx.inputs()[0]
         return self.get_swap_by_claim_txin(txin)
 

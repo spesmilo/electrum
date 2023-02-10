@@ -58,6 +58,9 @@ class _BaseRBFDialog(TxEditor):
         if len(invoices) == 1 and len(invoices[0].outputs) == 1:
             if invoices[0].outputs[0].value == '!':
                 self.set_decrease_payment()
+        # do not decrease payment if it is a swap
+        if self.wallet.get_swap_by_funding_tx(self.old_tx):
+            self.method_combo.setEnabled(False)
 
     def create_grid(self):
         self.method_label = QLabel(_('Method') + ':')
