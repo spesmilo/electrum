@@ -50,26 +50,14 @@ ElDialog {
 
                 columns: 2
 
-                TextHighlightPane {
+                InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-
+                    Layout.topMargin: constants.paddingLarge
+                    Layout.bottomMargin: constants.paddingLarge
                     visible: invoice.userinfo
-                    borderColor: constants.colorWarning
-                    padding: constants.paddingXLarge
-
-                    RowLayout {
-                        Image {
-                            source: '../../icons/warning.png'
-                            Layout.preferredWidth: constants.iconSizeMedium
-                            Layout.preferredHeight: constants.iconSizeMedium
-                        }
-                        Label {
-                            width: parent.width
-                            text: invoice.userinfo
-                            wrapMode: Text.Wrap
-                        }
-                    }
+                    text: invoice.userinfo
+                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
                 Label {
