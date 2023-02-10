@@ -57,6 +57,8 @@ ElDialog {
 
             Label {
                 id: amountLabel
+                Layout.fillWidth: true
+                Layout.minimumWidth: implicitWidth
                 text: qsTr('Amount to send')
                 color: Material.accentColor
             }
@@ -135,31 +137,39 @@ ElDialog {
                 text: finalizer.target
             }
 
-            Slider {
-                id: feeslider
-                leftPadding: constants.paddingMedium
-                snapMode: Slider.SnapOnRelease
-                stepSize: 1
-                from: 0
-                to: finalizer.sliderSteps
-                onValueChanged: {
-                    if (activeFocus)
-                        finalizer.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = finalizer.sliderPos
-                }
-                Connections {
-                    target: finalizer
-                    function onSliderPosChanged() {
-                        feeslider.value = finalizer.sliderPos
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+
+                Slider {
+                    id: feeslider
+                    Layout.fillWidth: true
+                    leftPadding: constants.paddingMedium
+
+                    snapMode: Slider.SnapOnRelease
+                    stepSize: 1
+                    from: 0
+                    to: finalizer.sliderSteps
+
+                    onValueChanged: {
+                        if (activeFocus)
+                            finalizer.sliderPos = value
+                    }
+                    Component.onCompleted: {
+                        value = finalizer.sliderPos
+                    }
+                    Connections {
+                        target: finalizer
+                        function onSliderPosChanged() {
+                            feeslider.value = finalizer.sliderPos
+                        }
                     }
                 }
-            }
 
-            FeeMethodComboBox {
-                id: target
-                feeslider: finalizer
+                FeeMethodComboBox {
+                    id: target
+                    feeslider: finalizer
+                }
             }
 
             InfoTextArea {
