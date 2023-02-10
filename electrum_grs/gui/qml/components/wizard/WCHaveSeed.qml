@@ -93,11 +93,10 @@ WizardComponent {
             }
 
             TextHighlightPane {
-                visible: cosigner
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
-                padding: 0
-                leftPadding: constants.paddingSmall
+
+                visible: cosigner
 
                 RowLayout {
                     width: parent.width

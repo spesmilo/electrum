@@ -44,27 +44,30 @@ ElDialog {
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhDigitsOnly
             echoMode: TextInput.Password
             focus: true
+            enabled: !_waiting
+            Keys.onPressed: _otpError = ''
             onTextChanged: {
-                if (activeFocus)
-                    _otpError = ''
+                if (text.length == 6) {
+                    _waiting = true
+                    Daemon.currentWallet.submitOtp(otpEdit.text)
+                }
             }
         }
 
         Label {
-            opacity: _otpError ? 1 : 0
+            Layout.topMargin: constants.paddingMedium
+            Layout.bottomMargin: constants.paddingMedium
+            Layout.alignment: Qt.AlignHCenter
+
             text: _otpError
             color: constants.colorError
-            Layout.alignment: Qt.AlignHCenter
-        }
 
-        Button {
-            Layout.columnSpan: 2
-            Layout.alignment: Qt.AlignHCenter
-            text: qsTr('Submit')
-            enabled: !_waiting
-            onClicked: {
-                _waiting = true
-                Daemon.currentWallet.submitOtp(otpEdit.text)
+            BusyIndicator {
+                anchors.centerIn: parent
+                width: constants.iconSizeXLarge
+                height: constants.iconSizeXLarge
+                visible: _waiting
+                running: _waiting
             }
         }
     }

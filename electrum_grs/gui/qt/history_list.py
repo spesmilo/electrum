@@ -61,12 +61,6 @@ if TYPE_CHECKING:
 _logger = get_logger(__name__)
 
 
-try:
-    from electrum_grs.plot import plot_history, NothingToPlotException
-except:
-    _logger.info("could not import electrum_grs.plot. This feature needs matplotlib to be installed.")
-    plot_history = None
-
 # note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
     "unconfirmed.png",
@@ -631,10 +625,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d.exec_()
 
     def plot_history_dialog(self):
-        if plot_history is None:
+        try:
+            from electrum_grs.plot import plot_history, NothingToPlotException
+        except Exception as e:
+            _logger.error(f"could not import electrum.plot. This feature needs matplotlib to be installed. exc={e!r}")
             self.parent.show_message(
                 _("Can't plot history.") + '\n' +
-                _("Perhaps some dependencies are missing...") + " (matplotlib?)")
+                _("Perhaps some dependencies are missing...") + " (matplotlib?)" + '\n' +
+                f"Error: {e!r}"
+            )
             return
         try:
             plt = plot_history(list(self.hm.transactions.values()))

@@ -22,7 +22,7 @@ Pane {
         spacing: 0
 
         Flickable {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
             leftMargin: constants.paddingLarge
@@ -48,8 +48,6 @@ Pane {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
 
                     RowLayout {
                         width: parent.width
@@ -86,8 +84,6 @@ Pane {
 
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
 
                     RowLayout {
                         width: parent.width
@@ -144,8 +140,7 @@ Pane {
                     delegate: TextHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        padding: 0
-                        leftPadding: constants.paddingSmall
+
                         RowLayout {
                             width: parent.width
                             Label {
@@ -157,7 +152,7 @@ Pane {
                             }
                             ToolButton {
                                 icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
+                                enabled: modelData
                                 onClicked: {
                                     var dialog = app.genericShareDialog.createObject(root,
                                         { title: qsTr('Public key'), text: modelData }

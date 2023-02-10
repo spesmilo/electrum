@@ -32,6 +32,7 @@ ApplicationWindow
     property variant activeDialogs: []
 
     property bool _wantClose: false
+    property var _exceptionDialog
 
     header: ToolBar {
         id: toolbar
@@ -364,11 +365,16 @@ ApplicationWindow
         function onUserNotify(wallet_name, message) {
             notificationPopup.show(wallet_name, message)
         }
-        function onShowException() {
-            var dialog = crashDialog.createObject(app, {
-                crashData: AppController.crashData()
+        function onShowException(crash_data) {
+            if (app._exceptionDialog)
+                return
+            app._exceptionDialog = crashDialog.createObject(app, {
+                crashData: crash_data
             })
-            dialog.open()
+            app._exceptionDialog.onClosed.connect(function() {
+                app._exceptionDialog = null
+            })
+            app._exceptionDialog.open()
         }
     }
 

@@ -135,7 +135,11 @@ class QEChannelOpener(QObject, AuthMixin):
 
     def nodeid_to_lnpeer(self, nodeid):
         node_pubkey, host_port = extract_nodeid(nodeid)
-        host, port = host_port.split(':',1)
+        if host_port.__contains__(':'):
+            host, port = host_port.split(':',1)
+        else:
+            host = host_port
+            port = 9735
         return LNPeerAddr(host, int(port), node_pubkey)
 
     # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT

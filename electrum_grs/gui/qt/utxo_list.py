@@ -212,34 +212,30 @@ class UTXOList(MyTreeView):
                 return
             self.add_copy_menu(menu, idx)
             # "Freeze coin"
+            menu_freeze = menu.addMenu(_("Freeze"))
             if not self.wallet.is_frozen_coin(utxo):
-                menu.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], True))
+                menu_freeze.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], True))
             else:
-                menu.addSeparator()
-                menu.addAction(_("Coin is frozen"), lambda: None).setEnabled(False)
-                menu.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], False))
-                menu.addSeparator()
+                menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], False))
             # "Freeze address"
             if not self.wallet.is_frozen_address(addr):
-                menu.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
+                menu_freeze.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
             else:
-                menu.addSeparator()
-                menu.addAction(_("Address is frozen"), lambda: None).setEnabled(False)
-                menu.addAction(_("Unfreeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
-                menu.addSeparator()
+                menu_freeze.addAction(_("Unfreeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
         elif len(coins) > 1:  # multiple items selected
             menu.addSeparator()
             addrs = [utxo.address for utxo in coins]
             is_coin_frozen = [self.wallet.is_frozen_coin(utxo) for utxo in coins]
             is_addr_frozen = [self.wallet.is_frozen_address(utxo.address) for utxo in coins]
+            menu_freeze = menu.addMenu(_("Freeze"))
             if not all(is_coin_frozen):
-                menu.addAction(_("Freeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, True))
+                menu_freeze.addAction(_("Freeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, True))
             if any(is_coin_frozen):
-                menu.addAction(_("Unfreeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, False))
+                menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, False))
             if not all(is_addr_frozen):
-                menu.addAction(_("Freeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
+                menu_freeze.addAction(_("Freeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
             if any(is_addr_frozen):
-                menu.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+                menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
 
         menu.exec_(self.viewport().mapToGlobal(position))
 

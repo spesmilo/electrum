@@ -538,7 +538,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot(str)
     def submitOtp(self, otp):
-        self._otp_on_submit(otp)
+        def submit_otp_task():
+            self._otp_on_submit(otp)
+        threading.Thread(target=submit_otp_task).start()
 
     def broadcast(self, tx):
         assert tx.is_complete()

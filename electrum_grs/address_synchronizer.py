@@ -845,14 +845,14 @@ class AddressSynchronizer(Logger, EventListener):
 
         c = u = x = 0
         mempool_height = self.get_local_height() + 1  # height of next block
-        for utxo in coins.values():
+        for utxo in coins.values():  # type: PartialTxInput
             if utxo.spent_height is not None:
                 continue
             if utxo.prevout.to_str() in excluded_coins:
                 continue
             v = utxo.value_sats()
             tx_height = utxo.block_height
-            is_cb = utxo._is_coinbase_output
+            is_cb = utxo.is_coinbase_output()
             if is_cb and tx_height + COINBASE_MATURITY > mempool_height:
                 x += v
             elif tx_height > 0:

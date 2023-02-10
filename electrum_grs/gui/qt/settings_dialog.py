@@ -276,13 +276,6 @@ class SettingsDialog(QDialog, QtEventListener):
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
 
-        preview_cb = QCheckBox(_('Advanced preview'))
-        preview_cb.setChecked(bool(self.config.get('advanced_preview', False)))
-        preview_cb.setToolTip(_("Open advanced transaction preview dialog when 'Pay' is clicked."))
-        def on_preview(x):
-            self.config.set_key('advanced_preview', x == Qt.Checked)
-        preview_cb.stateChanged.connect(on_preview)
-
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
@@ -494,7 +487,6 @@ class SettingsDialog(QDialog, QtEventListener):
         tx_widgets = []
         tx_widgets.append((usechange_cb, None))
         tx_widgets.append((batch_rbf_cb, None))
-        tx_widgets.append((preview_cb, None))
         tx_widgets.append((unconf_cb, None))
         tx_widgets.append((multiple_cb, None))
         tx_widgets.append((outrounding_cb, None))

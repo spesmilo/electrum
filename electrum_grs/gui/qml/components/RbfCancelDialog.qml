@@ -32,9 +32,10 @@ ElDialog {
         spacing: 0
 
         GridLayout {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
+
             columns: 2
 
             Label {
@@ -169,8 +170,7 @@ ElDialog {
                 delegate: TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
+
                     RowLayout {
                         width: parent.width
                         Label {

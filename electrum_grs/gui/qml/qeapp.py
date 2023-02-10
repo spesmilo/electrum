@@ -51,7 +51,7 @@ class QEAppController(BaseCrashReporter, QObject):
     _dummy = pyqtSignal()
     userNotify = pyqtSignal(str, str)
     uriReceived = pyqtSignal(str)
-    showException = pyqtSignal()
+    showException = pyqtSignal('QVariantMap')
     sendingBugreport = pyqtSignal()
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
@@ -223,7 +223,7 @@ class QEAppController(BaseCrashReporter, QObject):
     @pyqtSlot(object,object,object,object)
     def crash(self, config, e, text, tb):
         self.exc_args = (e, text, tb) # for BaseCrashReporter
-        self.showException.emit()
+        self.showException.emit(self.crashData())
 
     @pyqtSlot()
     def sendReport(self):

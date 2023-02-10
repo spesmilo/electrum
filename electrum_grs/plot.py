@@ -1,3 +1,5 @@
+# note: This module takes 1-2 seconds to import. It should be imported *on-demand*.
+
 import datetime
 from collections import defaultdict
 
@@ -21,7 +23,8 @@ def plot_history(history):
     hist_in = defaultdict(int)
     hist_out = defaultdict(int)
     for item in history:
-        if not item['confirmations']:
+        is_lightning = item.get("lightning", False)
+        if not is_lightning and not item['confirmations']:
             continue
         if item['timestamp'] is None:
             continue

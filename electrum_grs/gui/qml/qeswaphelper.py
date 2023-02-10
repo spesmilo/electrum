@@ -18,9 +18,10 @@ from .qewallet import QEWallet
 class QESwapHelper(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
-    error = pyqtSignal([str], arguments=['message'])
     confirm = pyqtSignal([str], arguments=['message'])
     swapStarted = pyqtSignal()
+    swapSuccess = pyqtSignal()
+    swapFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -302,10 +303,12 @@ class QESwapHelper(AuthMixin, QObject):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                result = fut.result()
+                self.swapStarted.emit()
+                txid = fut.result()
+                self.swapSuccess.emit()
             except Exception as e:
                 self._logger.error(str(e))
-                self.error.emit(str(e))
+                self.swapFailed.emit(str(e))
 
         threading.Thread(target=swap_task).start()
 
@@ -322,10 +325,15 @@ class QESwapHelper(AuthMixin, QObject):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                result = fut.result()
+                self.swapStarted.emit()
+                success = fut.result()
+                if success:
+                    self.swapSuccess.emit()
+                else:
+                    self.swapFailed.emit('')
             except Exception as e:
                 self._logger.error(str(e))
-                self.error.emit(str(e))
+                self.swapFailed.emit(str(e))
 
         threading.Thread(target=swap_task).start()
 
@@ -356,4 +364,3 @@ class QESwapHelper(AuthMixin, QObject):
             lightning_amount = self._receive_amount
             onchain_amount = self._send_amount
             self.do_normal_swap(lightning_amount, onchain_amount)
-        self.swapStarted.emit()

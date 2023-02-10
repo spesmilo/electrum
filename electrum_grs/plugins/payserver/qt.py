@@ -42,9 +42,13 @@ class Plugin(PayServerPlugin):
             partial(self.settings_dialog, window))
 
     def settings_dialog(self, window: WindowModalDialog):
+        if self.config.get('offline'):
+            window.show_error(_("You are offline."))
+            return
         d = WindowModalDialog(window, _("PayServer Settings"))
         form = QtWidgets.QFormLayout(None)
         addr = self.config.get('payserver_address', 'localhost:8080')
+        assert self.server
         url = self.server.base_url + self.server.root + '/create_invoice.html'
         self.help_button = QtWidgets.QPushButton('View sample invoice creation form')
         self.help_button.clicked.connect(lambda: webopen(url))

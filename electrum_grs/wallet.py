@@ -2770,7 +2770,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             fee: int) -> Optional[Tuple[bool, str, str]]:
 
         feerate = Decimal(fee) / tx_size  # sat/byte
-        fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 1
+        fee_ratio = Decimal(fee) / invoice_amt if invoice_amt else 0
         long_warning = None
         short_warning = None
         allow_send = True
@@ -3085,9 +3085,14 @@ class Imported_Wallet(Simple_Wallet):
     @profiler
     def try_detecting_internal_addresses_corruption(self):
         # we check only a random sample, for performance
-        addresses = self.get_addresses()
-        addresses = random.sample(addresses, min(len(addresses), 10))
-        for addr_found in addresses:
+        addresses_all = self.get_addresses()
+        # some random *used* addresses (note: we likely have not synced yet)
+        addresses_used = [addr for addr in addresses_all if self.adb.is_used(addr)]
+        sample1 = random.sample(addresses_used, min(len(addresses_used), 10))
+        # some random *unused* addresses
+        addresses_unused = [addr for addr in addresses_all if not self.adb.is_used(addr)]
+        sample2 = random.sample(addresses_unused, min(len(addresses_unused), 10))
+        for addr_found in itertools.chain(sample1, sample2):
             self.check_address_for_corruption(addr_found)
 
     def check_address_for_corruption(self, addr):
@@ -3167,12 +3172,16 @@ class Deterministic_Wallet(Abstract_Wallet):
     @profiler
     def try_detecting_internal_addresses_corruption(self):
         addresses_all = self.get_addresses()
-        # sample 1: first few
-        addresses_sample1 = addresses_all[:10]
-        # sample2: a few more randomly selected
-        addresses_rand = addresses_all[10:]
-        addresses_sample2 = random.sample(addresses_rand, min(len(addresses_rand), 10))
-        for addr_found in itertools.chain(addresses_sample1, addresses_sample2):
+        # first few addresses
+        nfirst_few = 10
+        sample1 = addresses_all[:nfirst_few]
+        # some random *used* addresses (note: we likely have not synced yet)
+        addresses_used = [addr for addr in addresses_all[nfirst_few:] if self.adb.is_used(addr)]
+        sample2 = random.sample(addresses_used, min(len(addresses_used), 10))
+        # some random *unused* addresses
+        addresses_unused = [addr for addr in addresses_all[nfirst_few:] if not self.adb.is_used(addr)]
+        sample3 = random.sample(addresses_unused, min(len(addresses_unused), 10))
+        for addr_found in itertools.chain(sample1, sample2, sample3):
             self.check_address_for_corruption(addr_found)
 
     def check_address_for_corruption(self, addr):

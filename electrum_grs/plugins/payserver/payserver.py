@@ -26,7 +26,7 @@
 import os
 import asyncio
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from aiohttp import web
 from aiorpcx import NetAddress
@@ -50,7 +50,9 @@ class PayServerPlugin(BasePlugin):
         self.config = config
         self.server = None
 
-    def view_url(self, key):
+    def view_url(self, key) -> Optional[str]:
+        if not self.server:
+            return None
         return self.server.base_url + self.server.root + '/pay?id=' + key
 
     @hook
@@ -65,7 +67,8 @@ class PayServerPlugin(BasePlugin):
 
     @hook
     def wallet_export_request(self, d, key):
-        d['view_url'] = self.view_url(key)
+        if view_url := self.view_url(key):
+            d['view_url'] = view_url
 
 
 class PayServer(Logger, EventListener):

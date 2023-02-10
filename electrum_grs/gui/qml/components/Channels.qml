@@ -112,7 +112,7 @@ Pane {
                 visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
                 icon.source: '../../icons/status_waiting.png'
                 onClicked: {
-                    var dialog = swapDialog.createObject(root)
+                    var dialog = swapDialog.createObject(root, { swaphelper: swaphelper })
                     dialog.open()
                 }
             }
@@ -141,9 +141,36 @@ Pane {
 
     }
 
+    SwapHelper {
+        id: swaphelper
+        wallet: Daemon.currentWallet
+        onConfirm: {
+            var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
+            dialog.yesClicked.connect(function() {
+                dialog.close()
+                swaphelper.executeSwap(true)
+            })
+            dialog.open()
+        }
+        onAuthRequired: {
+            app.handleAuthRequired(swaphelper, method)
+        }
+        onSwapStarted: {
+            var dialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+            dialog.open()
+        }
+    }
+
     Component {
         id: swapDialog
         SwapDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: swapProgressDialog
+        SwapProgressDialog {
             onClosed: destroy()
         }
     }
