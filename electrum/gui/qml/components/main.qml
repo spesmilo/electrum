@@ -345,9 +345,9 @@ ApplicationWindow
 
     Connections {
         target: Daemon
-        function onWalletRequiresPassword() {
+        function onWalletRequiresPassword(name, path) {
             console.log('wallet requires password')
-            var dialog = openWalletDialog.createObject(app, { path: Daemon.path })
+            var dialog = openWalletDialog.createObject(app, { path: path, name: name })
             dialog.open()
         }
         function onWalletOpenError(error) {
@@ -445,6 +445,7 @@ ApplicationWindow
     property bool _lockDialogShown: false
 
     onActiveChanged: {
+        console.log('app active = ' + active)
         if (!active) {
             // deactivated
             _lastActive = Date.now()
