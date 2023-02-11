@@ -24,7 +24,7 @@ GridLayout {
     }
     Label {
         visible: valid
-        text: amount.msatsInt > 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
+        text: amount.msatsInt != 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
         font.family: FixedFont
     }
     Label {
