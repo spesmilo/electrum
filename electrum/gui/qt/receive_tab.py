@@ -161,9 +161,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.addTab(self.receive_URI_widget, read_QIcon("link.png"), _('URI'))
         self.receive_tabs.addTab(self.receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
         self.receive_tabs.addTab(self.receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
         self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
-        self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
+        self.receive_tabs.currentChanged.connect(self.on_tab_changed)
         receive_tabs_sp = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
         receive_tabs_sp.setRetainSizeWhenHidden(True)
         self.receive_tabs.setSizePolicy(receive_tabs_sp)
@@ -194,6 +193,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox.setStretchFactor(hbox, 40)
         vbox.setStretchFactor(self.request_list, 60)
         self.request_list.update()  # after parented and put into a layout, can update without flickering
+
+    def on_tab_changed(self, i):
+        self.config.set_key('receive_tabs_index', i)
+        title, data = self.get_tab_data(i)
+        self.window.do_copy(data, title=title)
+        self.update_receive_qr_window()
 
     def toggle_receive_qr(self, e):
         if e.button() != Qt.LeftButton:
@@ -236,7 +241,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
         # encode lightning invoices as uppercase so QR encoding can use
         # alphanumeric mode; resulting in smaller QR codes
-        lnaddr_qr = lnaddr.upper()
         self.receive_address_e.setText(addr)
         self.receive_address_qr.setData(addr)
         self.receive_address_help_text.setText(address_help)
@@ -245,7 +249,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_URI_help.setText(URI_help)
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
         self.receive_lightning_help_text.setText(ln_help)
-        self.receive_lightning_qr.setData(lnaddr_qr)
+        self.receive_lightning_qr.setData(lnaddr.upper())
         self.update_textedit_warning(text_e=self.receive_address_e, warning_text=address_help)
         self.update_textedit_warning(text_e=self.receive_URI_e, warning_text=URI_help)
         self.update_textedit_warning(text_e=self.receive_lightning_e, warning_text=ln_help)
@@ -257,15 +261,20 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setVisible(True)
         self.update_receive_qr_window()
 
+    def get_tab_data(self, i):
+        if i == 0:
+            return _('Bitcoin URI'), self.receive_URI_e.text()
+        elif i == 1:
+            return _('Address'), self.receive_address_e.text()
+        else:
+            return _('Lightning Request'), self.receive_lightning_e.text()
+
     def update_receive_qr_window(self):
         if self.window.qr_window and self.window.qr_window.isVisible():
             i = self.receive_tabs.currentIndex()
-            if i == 0:
-                data = self.receive_URI_qr.data
-            elif i == 1:
-                data = self.receive_address_qr.data
-            else:
-                data = self.receive_lightning_qr.data
+            title, data = self.get_tab_data(i)
+            if i == 2:
+                data = data.upper()
             self.window.qr_window.qrw.setData(data)
 
     def create_invoice(self):
@@ -301,11 +310,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         # clear request fields
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
-        # copy to clipboard
-        r = self.wallet.get_request(key)
-        content = r.lightning_invoice if r.is_lightning() else r.get_address()
-        title = _('Invoice') if r.is_lightning() else _('Address')
-        self.window.do_copy(content, title=title)
+        # copy current tab to clipboard
+        self.on_tab_changed(self.receive_tabs.currentIndex())
 
     def get_bitcoin_address_for_request(self, amount) -> Optional[str]:
         addr = self.wallet.get_unused_address()
