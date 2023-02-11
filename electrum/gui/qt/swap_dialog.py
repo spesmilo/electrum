@@ -138,10 +138,11 @@ class SwapDialog(WindowModalDialog):
         self._update_tx('!')
         if self.tx:
             amount = self.tx.output_value_for_address(ln_dummy_address())
-            max_swap_amt = self.swap_manager.get_max_amount()
-            max_recv_amt_ln = int(self.swap_manager.num_sats_can_receive())
-            max_recv_amt_oc = self.swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or float('inf')
-            max_amt = int(min(max_swap_amt, max_recv_amt_oc))
+            max_amt = self.swap_manager.max_amount_forward_swap()
+            if max_amt is None:
+                self.send_amount_e.setAmount(None)
+                self.max_button.setChecked(False)
+                return
             if amount > max_amt:
                 amount = max_amt
                 self._update_tx(amount)

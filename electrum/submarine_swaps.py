@@ -639,3 +639,12 @@ class SwapManager(Logger):
         sig = bytes.fromhex(tx.sign_txin(0, swap.privkey))
         witness = [sig, preimage, witness_script]
         txin.witness = bytes.fromhex(construct_witness(witness))
+
+    def max_amount_forward_swap(self) -> Optional[int]:
+        """ returns None if we cannot swap """
+        max_swap_amt_ln = self.get_max_amount()
+        max_recv_amt_ln = int(self.num_sats_can_receive())
+        max_amt_ln = int(min(max_swap_amt_ln, max_recv_amt_ln))
+        max_amt_oc = self.get_send_amount(max_amt_ln, is_reverse=False) or 0
+        min_amt_oc = self.get_send_amount(self.min_amount, is_reverse=False) or 0
+        return max_amt_oc if max_amt_oc >= min_amt_oc else None
