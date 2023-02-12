@@ -195,7 +195,7 @@ class UTXOList(MyTreeView):
         max_amount = self.wallet.lnworker.swap_manager.max_amount_forward_swap()
         if value < min_amount:
             return False
-        if value > max_amount:
+        if max_amount is None or value > max_amount:
             return False
         return True
 
