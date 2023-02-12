@@ -116,7 +116,7 @@ class QEAppController(BaseCrashReporter, QObject):
         except queue.Empty:
             pass
 
-    def notifyAndroid(self, message):
+    def notifyAndroid(self, wallet_name, message):
         try:
             # TODO: lazy load not in UI thread please
             global notification

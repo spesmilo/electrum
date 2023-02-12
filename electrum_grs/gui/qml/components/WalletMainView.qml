@@ -327,6 +327,10 @@ Item {
                     _confirmPaymentDialog.destroy()
                 }
             }
+            // TODO: lingering confirmPaymentDialogs can raise exceptions in
+            // the child finalizer when currentWallet disappears, but we need
+            // it long enough for the finalizer to finish..
+            // onClosed: destroy()
         }
     }
 

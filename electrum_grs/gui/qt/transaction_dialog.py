@@ -136,11 +136,6 @@ class TxInOutWidget(QWidget):
         self.tx = tx
         inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
 
-        #if not self.finalized:
-        #    selected_coins = self.main_window.get_manually_selected_coins()
-        #    if selected_coins is not None:
-        #        inputs_header_text += f"  -  " + _("Coin selection active ({} UTXOs selected)").format(len(selected_coins))
-
         self.inputs_header.setText(inputs_header_text)
 
         ext = QTextCharFormat()  # "external"
@@ -362,9 +357,10 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, pr
 
 
 
-class BaseTxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, finalized: bool, external_keypairs=None):
+class TxDialog(QDialog, MessageBoxMixin):
+
+    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -372,7 +368,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         QDialog.__init__(self, parent=None)
         self.tx = None  # type: Optional[Transaction]
         self.external_keypairs = external_keypairs
-        self.finalized = finalized
         self.main_window = parent
         self.config = parent.config
         self.wallet = parent.wallet
@@ -380,7 +375,6 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
         self.setMinimumWidth(640)
-        self.set_title()
 
         self.psbt_only_widgets = []  # type: List[QWidget]
 
@@ -444,21 +438,16 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         # Transaction sharing buttons
         self.sharing_buttons = [self.export_actions_button, self.save_button]
         run_hook('transaction_dialog', self)
-        #if not self.finalized:
-        #    self.create_fee_controls()
-        #    vbox.addWidget(self.feecontrol_fields)
         self.hbox = hbox = QHBoxLayout()
         hbox.addLayout(Buttons(*self.sharing_buttons))
         hbox.addStretch(1)
         hbox.addLayout(Buttons(*self.buttons))
         vbox.addLayout(hbox)
-        self.set_buttons_visibility()
-
         dialogs.append(self)
 
-    def set_buttons_visibility(self):
-        for b in [self.export_actions_button, self.save_button, self.sign_button, self.broadcast_button, self.partial_tx_actions_button]:
-            b.setVisible(self.finalized)
+        self.set_tx(tx)
+        self.update()
+        self.set_title()
 
     def set_tx(self, tx: 'Transaction'):
         # Take a copy; it might get updated in the main window by
@@ -667,8 +656,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         txid = self.tx.txid()
         fx = self.main_window.fx
         tx_item_fiat = None
-        if (self.finalized  # ensures we don't use historical rates for tx being constructed *now*
-                and txid is not None and fx.is_enabled() and amount is not None):
+        if (txid is not None and fx.is_enabled() and amount is not None):
             tx_item_fiat = self.wallet.get_tx_item_fiat(
                 tx_hash=txid, amount_sat=abs(amount), fx=fx, tx_fee=fee)
         lnworker_history = self.wallet.lnworker.get_onchain_history() if self.wallet.lnworker else {}
@@ -683,7 +671,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         can_sign = not self.tx.is_complete() and \
             (self.wallet.can_sign(self.tx) or bool(self.external_keypairs))
         self.sign_button.setEnabled(can_sign)
-        if self.finalized and tx_details.txid:
+        if tx_details.txid:
             self.tx_hash_e.setText(tx_details.txid)
         else:
             # note: when not finalized, RBF and locktime changes do not trigger
@@ -785,7 +773,7 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
             self.ln_amount_label.setText(ln_amount_str)
         else:
             self.ln_amount_label.hide()
-        show_psbt_only_widgets = self.finalized and isinstance(self.tx, PartialTransaction)
+        show_psbt_only_widgets = isinstance(self.tx, PartialTransaction)
         for widget in self.psbt_only_widgets:
             if isinstance(widget, QMenu):
                 widget.menuAction().setVisible(show_psbt_only_widgets)
@@ -863,11 +851,11 @@ class BaseTxDialog(QDialog, MessageBoxMixin):
         vbox.addWidget(self.block_hash_label)
 
         # set visibility after parenting can be determined by Qt
-        self.rbf_label.setVisible(self.finalized)
-        self.locktime_final_label.setVisible(self.finalized)
+        self.rbf_label.setVisible(True)
+        self.locktime_final_label.setVisible(True)
 
     def set_title(self):
-        self.setWindowTitle(_("Create transaction") if not self.finalized else _("Transaction"))
+        self.setWindowTitle(_("Transaction") + ' ' + self.tx.txid())
 
     def can_finalize(self) -> bool:
         return False
@@ -910,10 +898,3 @@ class TxOutputColoring:
         self.text_char_format = QTextCharFormat()
         self.text_char_format.setBackground(QBrush(self.color))
         self.text_char_format.setToolTip(tooltip)
-
-
-class TxDialog(BaseTxDialog):
-    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved):
-        BaseTxDialog.__init__(self, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved, finalized=True)
-        self.set_tx(tx)
-        self.update()

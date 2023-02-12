@@ -148,8 +148,8 @@ class SwapManager(Logger):
         self.normal_fee = 0
         self.lockup_fee = 0
         self.percentage = 0
-        self.min_amount = 0
-        self._max_amount = 0
+        self._min_amount = None
+        self._max_amount = None
         self.wallet = wallet
         self.lnworker = lnworker
 
@@ -170,6 +170,8 @@ class SwapManager(Logger):
             self.api_url = API_URL_TESTNET
         else:
             self.api_url = API_URL_REGTEST
+        # init default min & max
+        self.init_min_max_values()
 
     def start_network(self, *, network: 'Network', lnwatcher: 'LNWalletWatcher'):
         assert network
@@ -491,19 +493,40 @@ class SwapManager(Logger):
             raise SwapServerError() from e
         # we assume server response is well-formed; otherwise let an exception propagate to the crash reporter
         pairs = json.loads(response)
+        # cache data to disk
+        with open(self.pairs_filename(), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(pairs))
         fees = pairs['pairs']['GRS/GRS']['fees']
         self.percentage = fees['percentage']
         self.normal_fee = fees['minerFees']['baseAsset']['normal']
         self.lockup_fee = fees['minerFees']['baseAsset']['reverse']['lockup']
         limits = pairs['pairs']['GRS/GRS']['limits']
-        self.min_amount = limits['minimal']
+        self._min_amount = limits['minimal']
         self._max_amount = limits['maximal']
+
+    def pairs_filename(self):
+        return os.path.join(self.wallet.config.path, 'swap_pairs')
+
+    def init_min_max_values(self):
+        # use default values if we never requested pairs
+        try:
+            with open(self.pairs_filename(), 'r', encoding='utf-8') as f:
+                pairs = json.loads(f.read())
+            limits = pairs['pairs']['BTC/BTC']['limits']
+            self._min_amount = limits['minimal']
+            self._max_amount = limits['maximal']
+        except:
+            self._min_amount = 10000
+            self._max_amount = 10000000
 
     def get_max_amount(self):
         return self._max_amount
 
+    def get_min_amount(self):
+        return self._min_amount
+
     def check_invoice_amount(self, x):
-        return x >= self.min_amount and x <= self._max_amount
+        return x >= self.get_min_amount() and x <= self.get_max_amount()
 
     def _get_recv_amount(self, send_amount: Optional[int], *, is_reverse: bool) -> Optional[int]:
         """For a given swap direction and amount we send, returns how much we will receive.
@@ -594,8 +617,13 @@ class SwapManager(Logger):
                                 f"recv_amount={recv_amount} -> send_amount={send_amount} -> inverted_recv_amount={inverted_recv_amount}")
         return send_amount
 
-    def get_swap_by_tx(self, tx: Transaction) -> Optional[SwapData]:
-        # determine if tx is spending from a swap
+    def get_swap_by_funding_tx(self, tx: Transaction) -> Optional[SwapData]:
+        if len(tx.outputs()) != 1:
+            return False
+        prevout = TxOutpoint(txid=bytes.fromhex(tx.txid()), out_idx=0)
+        return self._swaps_by_funding_outpoint.get(prevout)
+
+    def get_swap_by_claim_tx(self, tx: Transaction) -> Optional[SwapData]:
         txin = tx.inputs()[0]
         return self.get_swap_by_claim_txin(txin)
 
@@ -634,3 +662,12 @@ class SwapManager(Logger):
         sig = bytes.fromhex(tx.sign_txin(0, swap.privkey))
         witness = [sig, preimage, witness_script]
         txin.witness = bytes.fromhex(construct_witness(witness))
+
+    def max_amount_forward_swap(self) -> Optional[int]:
+        """ returns None if we cannot swap """
+        max_swap_amt_ln = self.get_max_amount()
+        max_recv_amt_ln = int(self.num_sats_can_receive())
+        max_amt_ln = int(min(max_swap_amt_ln, max_recv_amt_ln))
+        max_amt_oc = self.get_send_amount(max_amt_ln, is_reverse=False) or 0
+        min_amt_oc = self.get_send_amount(self.get_min_amount(), is_reverse=False) or 0
+        return max_amt_oc if max_amt_oc >= min_amt_oc else None

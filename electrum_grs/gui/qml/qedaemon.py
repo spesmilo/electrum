@@ -114,6 +114,7 @@ class QEDaemon(AuthMixin, QObject):
     _new_wallet_wizard = None
     _server_connect_wizard = None
     _path = None
+    _name = None
     _use_single_password = False
     _password = None
 
@@ -123,7 +124,7 @@ class QEDaemon(AuthMixin, QObject):
     serverConnectWizardChanged = pyqtSignal()
 
     walletLoaded = pyqtSignal()
-    walletRequiresPassword = pyqtSignal()
+    walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
 
@@ -137,7 +138,7 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot()
     def passwordValidityCheck(self):
         if not self._walletdb._validPassword:
-            self.walletRequiresPassword.emit()
+            self.walletRequiresPassword.emit(self._name, self._path)
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -153,6 +154,8 @@ class QEDaemon(AuthMixin, QObject):
             return
 
         self._path = standardize_path(self._path)
+        self._name = os.path.basename(self._path)
+
         self._logger.debug('load wallet ' + str(self._path))
 
         if not password:
@@ -229,10 +232,6 @@ class QEDaemon(AuthMixin, QObject):
             return
 
         self.availableWallets.remove_wallet(path)
-
-    @pyqtProperty('QString')
-    def path(self):
-        return self._path
 
     @pyqtProperty(QEWallet, notify=walletLoaded)
     def currentWallet(self):

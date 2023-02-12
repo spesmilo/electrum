@@ -59,7 +59,7 @@ Pane {
                 text: listview.sectionLabels[section]
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingLarge
-                font.pixelSize: constants.fontSizeLarge
+                font.pixelSize: constants.fontSizeMedium
                 color: Material.accentColor
             }
         }
@@ -76,8 +76,7 @@ Pane {
                 DelegateModelGroup { name: 'older'; includeByDefault: false }
             ]
 
-            delegate: HistoryItemDelegate {
-            }
+            delegate: HistoryItemDelegate { }
         }
 
         ScrollIndicator.vertical: ScrollIndicator { }

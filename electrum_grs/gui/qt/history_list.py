@@ -728,12 +728,13 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
+        menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
-            menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
+            menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
         menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
         channel_id = tx_item.get('channel_id')
         if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):

@@ -32,9 +32,12 @@ from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
 from PyQt5.QtWidgets import QAbstractItemView, QMenu, QLabel, QHBoxLayout
 
 from electrum_grs.i18n import _
-from electrum_grs.transaction import PartialTxInput
+from electrum_grs.bitcoin import is_address
+from electrum_grs.transaction import PartialTxInput, PartialTxOutput
+from electrum_grs.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
 
 from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
+from .new_channel_dialog import NewChannelDialog
 
 
 class UTXOList(MyTreeView):
@@ -183,6 +186,57 @@ class UTXOList(MyTreeView):
         if not all([prevout_str in utxo_set for prevout_str in self._spend_set]):
             self._spend_set.clear()
 
+    def can_swap_coins(self, coins):
+        # fixme: min and max_amounts are known only after first request
+        if self.wallet.lnworker is None:
+            return False
+        value = sum(x.value_sats() for x in coins)
+        min_amount = self.wallet.lnworker.swap_manager.get_min_amount()
+        max_amount = self.wallet.lnworker.swap_manager.max_amount_forward_swap()
+        if value < min_amount:
+            return False
+        if value > max_amount:
+            return False
+        return True
+
+    def swap_coins(self, coins):
+        #self.clear_coincontrol()
+        self.add_to_coincontrol(coins)
+        self.parent.run_swap_dialog(is_reverse=False, recv_amount_sat='!')
+        self.clear_coincontrol()
+
+    def can_open_channel(self, coins):
+        if self.wallet.lnworker is None:
+            return False
+        value = sum(x.value_sats() for x in coins)
+        return value >= MIN_FUNDING_SAT and value <= LN_MAX_FUNDING_SAT
+
+    def open_channel_with_coins(self, coins):
+        # todo : use a single dialog in new flow
+        #self.clear_coincontrol()
+        self.add_to_coincontrol(coins)
+        d = NewChannelDialog(self.parent)
+        d.max_button.setChecked(True)
+        d.max_button.setEnabled(False)
+        d.min_button.setEnabled(False)
+        d.clear_button.setEnabled(False)
+        d.amount_e.setFrozen(True)
+        d.spend_max()
+        d.run()
+        self.clear_coincontrol()
+
+    def clipboard_contains_address(self):
+        text = self.parent.app.clipboard().text()
+        return is_address(text)
+
+    def pay_to_clipboard_address(self, coins):
+        addr = self.parent.app.clipboard().text()
+        outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
+        #self.clear_coincontrol()
+        self.add_to_coincontrol(coins)
+        self.parent.send_tab.pay_onchain_dialog(coins, outputs)
+        self.clear_coincontrol()
+
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
         if selected is None:
@@ -190,8 +244,15 @@ class UTXOList(MyTreeView):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         coins = [self._utxo_dict[name] for name in selected]
-        # coin control
         if coins:
+            menu_spend = menu.addMenu(_("Fully spend") + '…')
+            m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))
+            m.setEnabled(self.clipboard_contains_address())
+            m = menu_spend.addAction(_("in new channel"), lambda: self.open_channel_with_coins(coins))
+            m.setEnabled(self.can_open_channel(coins))
+            m = menu_spend.addAction(_("in submarine swap"), lambda: self.swap_coins(coins))
+            m.setEnabled(self.can_swap_coins(coins))
+            # coin control
             if self.are_in_coincontrol(coins):
                 menu.addAction(_("Remove from coin control"), lambda: self.remove_from_coincontrol(coins))
             else:

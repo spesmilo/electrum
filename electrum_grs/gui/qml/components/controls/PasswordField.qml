@@ -13,6 +13,7 @@ RowLayout {
         echoMode: TextInput.Password
         inputMethodHints: Qt.ImhSensitiveData
         Layout.fillWidth: true
+        Layout.minimumWidth: fontMetrics.advanceWidth('X') * 16
         onAccepted: root.accepted()
     }
     ToolButton {
@@ -21,4 +22,10 @@ RowLayout {
             password_tf.echoMode = password_tf.echoMode == TextInput.Password ? TextInput.Normal : TextInput.Password
         }
     }
+
+    FontMetrics {
+        id: fontMetrics
+        font: password_tf.font
+    }
+
 }

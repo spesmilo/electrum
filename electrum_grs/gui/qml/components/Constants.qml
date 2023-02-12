@@ -35,9 +35,11 @@ Item {
     property color colorCredit: "#ff80ff80"
     property color colorDebit: "#ffff8080"
 
-    property color colorMine: "yellow"
-    property color colorError: '#ffff8080'
+    property color colorInfo: Material.accentColor
     property color colorWarning: 'yellow'
+    property color colorError: '#ffff8080'
+
+    property color colorMine: "yellow"
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
     property color colorChannelOpen: "#ff80ff80"

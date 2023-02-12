@@ -710,8 +710,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return any([chan.funding_outpoint.txid == txid
                     for chan in self.lnworker.channels.values()])
 
-    def is_swap_tx(self, tx: Transaction) -> bool:
-        return bool(self.lnworker.swap_manager.get_swap_by_tx(tx)) if self.lnworker else False
+    def get_swap_by_claim_tx(self, tx: Transaction) -> bool:
+        return self.lnworker.swap_manager.get_swap_by_claim_tx(tx) if self.lnworker else None
+
+    def get_swap_by_funding_tx(self, tx: Transaction) -> bool:
+        return bool(self.lnworker.swap_manager.get_swap_by_funding_tx(tx)) if self.lnworker else None
 
     def get_wallet_delta(self, tx: Transaction) -> TxWalletDelta:
         """Return the effect a transaction has on the wallet.
@@ -757,7 +760,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx_wallet_delta = self.get_wallet_delta(tx)
         is_relevant = tx_wallet_delta.is_relevant
         is_any_input_ismine = tx_wallet_delta.is_any_input_ismine
-        is_swap = self.is_swap_tx(tx)
+        is_swap = bool(self.get_swap_by_claim_tx(tx))
         fee = tx_wallet_delta.fee
         exp_n = None
         can_broadcast = False
@@ -2180,7 +2183,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for k in self.get_keystores():
                 if k.can_sign_txin(txin):
                     return True
-        if self.is_swap_tx(tx):
+        if self.get_swap_by_claim_tx(tx):
             return True
         return False
 
@@ -2235,7 +2238,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not isinstance(tx, PartialTransaction):
             return
         # note: swap signing does not require the password
-        swap = self.lnworker.swap_manager.get_swap_by_tx(tx) if self.lnworker else None
+        swap = self.get_swap_by_claim_tx(tx)
         if swap:
             self.lnworker.swap_manager.sign_tx(tx, swap)
             return
