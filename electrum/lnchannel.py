@@ -988,10 +988,11 @@ class Channel(AbstractChannel):
         """
         # TODO: when more channel types are supported, this method should depend on channel type
         next_remote_ctn = self.get_next_ctn(REMOTE)
-        self.logger.info(f"sign_next_commitment {next_remote_ctn}")
+        self.logger.info(f"sign_next_commitment. ctn={next_remote_ctn}")
 
         pending_remote_commitment = self.get_next_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
+        self.logger.debug(f"sign_next_commitment. {pending_remote_commitment.serialize()=}. {sig_64.hex()=}")
 
         their_remote_htlc_privkey_number = derive_privkey(
             int.from_bytes(self.config[LOCAL].htlc_basepoint.privkey, 'big'),
@@ -1039,8 +1040,12 @@ class Channel(AbstractChannel):
         pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise LNProtocolWarning(
-                f'failed verifying signature of our updated commitment transaction: '
-                f'{bh2u(sig)} preimage is {preimage_hex}, rawtx: {pending_local_commitment.serialize()}')
+                f'failed verifying signature for our updated commitment transaction. '
+                f'sig={sig.hex()}. '
+                f'pre_hash={pre_hash.hex()}. '
+                f'pubkey={self.config[REMOTE].multisig_key.pubkey}. '
+                f'ctx={pending_local_commitment.serialize()} '
+            )
 
         htlc_sigs_string = b''.join(htlc_sigs)
 
@@ -1077,10 +1082,20 @@ class Channel(AbstractChannel):
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
-        pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
+        preimage_hex = htlc_tx.serialize_preimage(0)
+        pre_hash = sha256d(bfh(preimage_hex))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
         if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
-            raise LNProtocolWarning(f'failed verifying HTLC signatures: {htlc} {htlc_direction}, rawtx: {htlc_tx.serialize()}')
+            raise LNProtocolWarning(
+                f'failed verifying HTLC signatures: {htlc=}, {htlc_direction=}. '
+                f'htlc_tx={htlc_tx.serialize()}. '
+                f'htlc_sig={htlc_sig.hex()}. '
+                f'remote_htlc_pubkey={remote_htlc_pubkey.hex()}. '
+                f'pre_hash={pre_hash.hex()}. '
+                f'ctx={ctx.serialize()}. '
+                f'ctx_output_idx={ctx_output_idx}. '
+                f'ctn={ctn}. '
+            )
 
     def get_remote_htlc_sig_for_htlc(self, *, htlc_relative_idx: int) -> bytes:
         data = self.config[LOCAL].current_htlc_signatures
