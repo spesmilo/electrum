@@ -17,6 +17,8 @@ _logger = get_logger(__name__)
 BIP32_PRIME = 0x80000000
 UINT32_MAX = (1 << 32) - 1
 
+BIP32_HARDENED_CHAR = "h"  # default "hardened" char we put in str paths
+
 
 def protect_against_invalid_ecpoint(func):
     def func_wrapper(*args):
@@ -345,7 +347,7 @@ def convert_bip32_intpath_to_strpath(path: Sequence[int]) -> str:
             raise ValueError(f"bip32 path child index out of range: {child_index}")
         prime = ""
         if child_index & BIP32_PRIME:
-            prime = "'"
+            prime = BIP32_HARDENED_CHAR
             child_index = child_index ^ BIP32_PRIME
         s += str(child_index) + prime + '/'
     # cut trailing "/"
