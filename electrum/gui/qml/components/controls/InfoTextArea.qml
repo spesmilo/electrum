@@ -15,7 +15,6 @@ TextHighlightPane {
     property int iconStyle: InfoTextArea.IconStyle.Info
     property alias textFormat: infotext.textFormat
 
-    // borderColor: constants.colorWarning
     borderColor: iconStyle == InfoTextArea.IconStyle.Info
         ? constants.colorInfo
         : iconStyle == InfoTextArea.IconStyle.Warn
@@ -38,12 +37,11 @@ TextHighlightPane {
             Layout.preferredWidth: constants.iconSizeMedium
             Layout.preferredHeight: constants.iconSizeMedium
         }
-        Label {
 
+        Label {
             id: infotext
             Layout.fillWidth: true
             width: parent.width
-            text: invoice.userinfo
             wrapMode: Text.Wrap
         }
     }

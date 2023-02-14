@@ -7,7 +7,7 @@ Pane {
     padding: constants.paddingSmall
 
     property color backgroundColor: Qt.lighter(Material.background, 1.15)
-    property color borderColor: null
+    property color borderColor: 'transparent'
 
     background: Rectangle {
         color: backgroundColor
