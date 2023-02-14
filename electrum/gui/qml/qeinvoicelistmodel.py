@@ -1,13 +1,13 @@
 from abc import abstractmethod
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
-from electrum.invoices import Invoice
+from electrum.invoices import Invoice, PR_EXPIRED, LN_EXPIRY_NEVER
 
-from .util import QtEventListener, qt_event_listener
+from .util import QtEventListener, qt_event_listener, status_update_timer_interval
 from .qetypes import QEAmount
 
 class QEAbstractInvoiceListModel(QAbstractListModel):
@@ -24,6 +24,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
+
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.updateStatusStrings)
+
         self.init_model()
 
     def rowCount(self, index):
@@ -60,6 +65,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.invoices = invoices
         self.endInsertRows()
 
+        self.set_status_timer()
+
     def add_invoice(self, invoice: Invoice):
         item = self.invoice_to_model(invoice)
         self._logger.debug(str(item))
@@ -67,6 +74,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), 0, 0)
         self.invoices.insert(0, item)
         self.endInsertRows()
+
+        self.set_status_timer()
 
     @pyqtSlot(str)
     def addInvoice(self, key):
@@ -81,6 +90,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
                 self.endRemoveRows()
                 break
             i = i + 1
+        self.set_status_timer()
 
     def get_model_invoice(self, key: str):
         for invoice in self.invoices:
@@ -104,7 +114,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     def invoice_to_model(self, invoice: Invoice):
         item = self.get_invoice_as_dict(invoice)
-        #item['key'] = invoice.get_id()
+        item['key'] = invoice.get_id()
         item['is_lightning'] = invoice.is_lightning()
         if invoice.is_lightning() and 'address' not in item:
             item['address'] = ''
@@ -114,6 +124,32 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         item['type'] = 'invoice'
 
         return item
+
+    def set_status_timer(self):
+        nearest_interval = LN_EXPIRY_NEVER
+        for invoice in self.invoices:
+            if invoice['status'] != PR_EXPIRED:
+                if invoice['expiration'] > 0 and invoice['expiration'] != LN_EXPIRY_NEVER:
+                    interval = status_update_timer_interval(invoice['timestamp'] + invoice['expiration'])
+                    if interval > 0:
+                        nearest_interval = nearest_interval if nearest_interval < interval else interval
+
+        if nearest_interval != LN_EXPIRY_NEVER:
+            self._timer.setInterval(nearest_interval)  # msec
+            self._timer.start()
+
+    @pyqtSlot()
+    def updateStatusStrings(self):
+        i = 0
+        for item in self.invoices:
+            invoice = self.get_invoice_for_key(item['key'])
+            item['status'] = self.wallet.get_invoice_status(invoice)
+            item['status_str'] = invoice.get_status_str(item['status'])
+            index = self.index(i,0)
+            self.dataChanged.emit(index, index, [self._ROLE_RMAP['status'], self._ROLE_RMAP['status_str']])
+            i = i + 1
+
+        self.set_status_timer()
 
     @abstractmethod
     def get_invoice_for_key(self, key: str):
@@ -148,7 +184,6 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'invoice'
-        item['key'] = invoice.get_id()
 
         return item
 
@@ -181,7 +216,6 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def invoice_to_model(self, invoice: Invoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'request'
-        item['key'] = invoice.get_id()
 
         return item
 
