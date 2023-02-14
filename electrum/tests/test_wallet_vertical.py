@@ -1813,8 +1813,7 @@ class TestWalletSending(TestCaseForTestnet):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
 
-    def test_sweep_p2pk(self):
-
+    def test_sweep_uncompressed_p2pk(self):
         class NetworkMock:
             relay_fee = 1000
             async def listunspent_for_scripthash(self, scripthash):
@@ -1840,6 +1839,141 @@ class TestWalletSending(TestCaseForTestnet):
                          str(tx_copy))
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.txid())
         self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.wtxid())
+
+    def test_sweep_compressed_p2pk(self):
+        class NetworkMock:
+            relay_fee = 1000
+            async def listunspent_for_scripthash(self, scripthash):
+                if scripthash == 'cc911adb9fb939d0003a138ebdaa5195bf1d6f9172e438309ab4c00a5ebc255b':
+                    return [{'tx_hash': '84a4a1943f7a620e0d8413f4c10877000768797a93bb106b3e7cd6fccc59b35e', 'tx_pos': 1, 'height': 2420005, 'value': 111111}]
+                else:
+                    return []
+            async def get_transaction(self, txid):
+                if txid == "84a4a1943f7a620e0d8413f4c10877000768797a93bb106b3e7cd6fccc59b35e":
+                    return "02000000000102b7bfcd442c91134743c6e4100bb9f79456a6015de3c3920166bb0c3b7a8f7c070100000000fdffffff5ab39480d4b35ffa843691d944a8479dfe825d38b03fcb1804197482bfad80fb0100000000fdffffff02d4ec000000000000160014769114e56e0913de3719a3b00a446b78e61751f007b201000000000023210332e147520e4743299d95196afaf9db7c86fe02507d9ca89acd7a4e96a63653d5ac0247304402200387fe79ffe10cec73d9b131058d7128665f729d14597828b483842889c4f5ea02201197b2f1295e4011e2d174d53c240fd13c6351451ab961ccb3678fc21fa5323b0121023c221dfbf7c3f61b9e5f66343c1a302d6beca2a8883504b0f484faec9919636b024730440220687d387af37df458efc104ee0065262cb5ea195e526ed7a480fd16e6cf708c3a022019bd3fd9c3ca3f1a1fbeabe20547876eb4572a7339de37b706fbd55031e60428012102c9c459e58b01a864d7bb80f6d577326465a04219c48541b5f3ea556a06ca61a425ed2400"
+                else:
+                    raise Exception("unexpected txid")
+
+        privkeys = ['cUygTZe4jZLVwE4G44NznCPTeGvgsgassqucUHkAJxGC71Rst2kH',]
+        network = NetworkMock()
+        dest_addr = 'tb1q5uy5xjcn55gwdkmghht8yp3vwz3088f6e3e0em'
+        sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=2420006, tx_version=2)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
+
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('02000000015eb359ccfcd67c3e6b10bb937a796807007708c1f413840d0e627a3f94a1a48401000000484730440220043fc85a43e918ac41e494e309fdf204ca245d260cb5ea09108b196ca65d8a09022056f852f0f521e79ab2124d7e9f779c7290329ce5628ef8e92601980b065d3eb501fdffffff017f9e010000000000160014a709434b13a510e6db68bdd672062c70a2f39d3a26ed2400',
+                         str(tx_copy))
+        self.assertEqual('968a501350b954ecb51948202b8d0613aa84123ca9b745c14e208cb14feeff59', tx_copy.txid())
+        self.assertEqual('968a501350b954ecb51948202b8d0613aa84123ca9b745c14e208cb14feeff59', tx_copy.wtxid())
+
+    def test_sweep_uncompressed_p2pkh(self):
+        class NetworkMock:
+            relay_fee = 1000
+            async def listunspent_for_scripthash(self, scripthash):
+                if scripthash == '71e8c6a9fd8ab498290d5ccbfe1cfe2c5dc2a389b4c036dd84e305a59c4a4d53':
+                    return [{'tx_hash': '15a78cc7664c42f1040474763bf794d555f6092bfba97d6c276f296c2d141506', 'tx_pos': 0, 'height': -1, 'value': 222222}]
+                else:
+                    return []
+            async def get_transaction(self, txid):
+                if txid == "15a78cc7664c42f1040474763bf794d555f6092bfba97d6c276f296c2d141506":
+                    return "02000000000101c6a49fbd701f1526c8e43025a6dda8dd235b3593cfd38af040cba3e37b474fdb0e00000000fdffffff020e640300000000001976a914f1b02b7028fb81aefbb25809a2baf8d94d0c2ba288acb9e3080000000000160014c2eee75efe6621be177f7edd8198f671d1640c2602473044022072b8a6154590704063c377af451b4d69f76cc9064085d4a0c80f08625c57628802207844164839d93ce54ce7db092bbd809d5270142b5dedc823e95400e8bdae88c6012102b6ad13f48fd679a209b7d822376550e5e694a3a2862546ceb72c4012977eac4829ed2400"
+                else:
+                    raise Exception("unexpected txid")
+
+        privkeys = ['p2pkh:91gxDahzHiJ63HXmLP7pvZrkF8i5gKBXk4VqWfhbhJjtf6Ni5NU',]
+        network = NetworkMock()
+        dest_addr = 'tb1q3ws2p0qjk5vrravv065xqlnkckvzcpclk79eu2'
+        sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=5000, locktime=2420010, tx_version=2)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
+
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('02000000010615142d6c296f276c7da9fb2b09f655d594f73b76740404f1424c66c78ca715000000008a47304402206d2dae571ca2f51e0d4a8ce6a6335fa25ac09f4bbed26439124d93f035bdbb130220249dc2039f1da338a40679f0e79c25a2dc2983688e6c04753348f2aa8435e375014104b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b2987b4c862d5b687bb5328adccc69e67a17b109b6328228695a1c384573acd6199fdffffff0186500300000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071f2aed2400',
+                         str(tx_copy))
+        self.assertEqual('d62048493bf8459be5e1e3cab6caabc8f15661d02c364d8dc008297e573772bf', tx_copy.txid())
+        self.assertEqual('d62048493bf8459be5e1e3cab6caabc8f15661d02c364d8dc008297e573772bf', tx_copy.wtxid())
+
+    def test_sweep_compressed_p2pkh(self):
+        class NetworkMock:
+            relay_fee = 1000
+            async def listunspent_for_scripthash(self, scripthash):
+                if scripthash == '941b2ca8bd850e391abc5e024c83b773842c40268a8fa8a5ef7aeca19fb395c5':
+                    return [{'tx_hash': '8a764102b4a5c5d1b5235e6ce7e67ed3c146130f8a52e7692a151e2e5a831767', 'tx_pos': 0, 'height': -1, 'value': 123456}]
+                else:
+                    return []
+            async def get_transaction(self, txid):
+                if txid == "8a764102b4a5c5d1b5235e6ce7e67ed3c146130f8a52e7692a151e2e5a831767":
+                    return "020000000001010615142d6c296f276c7da9fb2b09f655d594f73b76740404f1424c66c78ca7150100000000fdffffff0240e20100000000001976a914f1d49f51f9b58c4805431c303d12d3dcf51ae54188ace9000700000000001600145bdb04f2d096ee48b8b350c85481392ab47c01e70247304402200a72a4599cb27f16011cd67e2951733d6775cbd008506eacb2c20d69db3f531702204c944ec09224a347481c9eea78cac79b77b194b19dfef01b1e3b428010a82570012102fc38612ca7cc42d05a7089f1a6ec3900535604bd779f83c7817aae7bfd907dbd2aed2400"
+                else:
+                    raise Exception("unexpected txid")
+
+        privkeys = ['p2pkh:cN3LiXmurmGRF5xngYd8XS2ZsP2KeXFUh4SH7wpC8uJJzw52JPq1',]
+        network = NetworkMock()
+        dest_addr = 'tb1q782f750ekkxysp2rrscr6yknmn634e2pv8lktu'
+        sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=1000, locktime=2420010, tx_version=2)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
+
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('02000000016717835a2e1e152a69e7528a0f1346c1d37ee6e76c5e23b5d1c5a5b40241768a000000006a473044022038ad38003943bfd3ed39ba4340d545753fcad632a8fe882d01e4f0140ddb3cfb022019498260e29f5fbbcde9176bfb3553b7acec5fe284a9a3a33547a2d082b60355012103b875ab889006d4a9be8467c9256cf54e1073f7f9a037604f571cc025bbf47b29fdffffff0158de010000000000160014f1d49f51f9b58c4805431c303d12d3dcf51ae5412aed2400',
+                         str(tx_copy))
+        self.assertEqual('432c108626581fc6a7d3efc9dac5f3dec8286cec47dfaab86b4267d10381586c', tx_copy.txid())
+        self.assertEqual('432c108626581fc6a7d3efc9dac5f3dec8286cec47dfaab86b4267d10381586c', tx_copy.wtxid())
+
+    def test_sweep_p2wpkh_p2sh(self):
+        class NetworkMock:
+            relay_fee = 1000
+            async def listunspent_for_scripthash(self, scripthash):
+                if scripthash == '9ee9bddbe9dc47f7f6c5a652a09012f49dfc54d5b997f58d7ccc49040871e61b':
+                    return [{'tx_hash': '9a7bf98ed72b1002559d3d61805838a00e94afec78b8597a68606e2a0725171d', 'tx_pos': 0, 'height': -1, 'value': 150000}]
+                else:
+                    return []
+            async def get_transaction(self, txid):
+                if txid == "9a7bf98ed72b1002559d3d61805838a00e94afec78b8597a68606e2a0725171d":
+                    return "020000000001038fc862be3bc8022866cc83b4f2feeaa914b015a3c6644251960baaccc4a5740b0000000000fdffffff7bfd61e391034e28848fae269183f1c5929e26befd5b2d798cf12c91d4d00dbf0100000000fdffffff014764d324e70e7e3e4fa27077bda2d880b3d1545588b75f79deb2855d9f31cb0000000000fdffffff01f04902000000000017a9147d0530db22c8124ff1558269f543dfeedd37131b87024730440220568ae75314f6414ccf2b0bbed522e1b4b1086ed6eb185ba4bc044ba2723c1f3402206c82253797d0f180db38986b46d8ad952829cf25bc31e3ca6ee54665f5a44b3c0121038a466bdcb979b96d70fde84b9ded4aba0c3cd9c0d2d59121fc3555428fd1a4890247304402203ba1b482b0b6ce5c3d29ef21ee8afad641af8381d3b131103c384757922f0c04022072320e260b60fc862669b2ea3dfb663f7f3a0b6babe8d265ac9ebf268e7225c2012103ff0877f34157a3444afbfdd7432032a93187bc1932e1c155d56dd66ef527906c02473044022058b1c1a2a8c1a256d4870b550ba93777a2cce36b89abe3515f024fd4eec48ce4022023e0002193a26064275433e8ade98642d74d58ee4f8e9717a8acca737856a6c401210364e8f5d9c30986931bca1197138d7250a17a0711a223f113b3ccc11ef09efccb2aed2400"
+                else:
+                    raise Exception("unexpected txid")
+
+        privkeys = ['p2wpkh-p2sh:cQMRGsiEsFX5YoxVZaMEzBruAkCWnoFf1SG7SRm2tLHDEN165TrA',]
+        network = NetworkMock()
+        dest_addr = 'tb1qu7n2tzm90a3f29kvxlhzsc7t40ddk075ut5w44'
+        sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=500, locktime=2420010, tx_version=2)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
+
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('020000000001011d1725072a6e60687a59b878ecaf940ea0385880613d9d5502102bd78ef97b9a0000000017160014e7a6a58b657f629516cc37ee2863cbabdadb3fd4fdffffff01fc47020000000000160014e7a6a58b657f629516cc37ee2863cbabdadb3fd402473044022048ea4c558fd374f5d5066440a7f4933393cb377802cb949e3039fedf0378a29402204b4a58c591117cc1e37f07b03cc03cc6198dbf547e2bff813e2e2102bd2057e00121029f46ba81b3c6ad84e52841364dc54ca1097d0c30a68fb529766504c4b1c599352aed2400',
+                         str(tx_copy))
+        self.assertEqual('0680124954ccc158cbf24d289c93579f68fd75916509214066f69e09adda1861', tx_copy.txid())
+        self.assertEqual('da8567d9b28e9e0ed8b3dcef6e619eba330cec6cb0c55d57f658f5ca06e02eb0', tx_copy.wtxid())
+
+    def test_sweep_p2wpkh(self):
+        class NetworkMock:
+            relay_fee = 1000
+            async def listunspent_for_scripthash(self, scripthash):
+                if scripthash == '7630f6b2121336279b55e5b71d4a59be5ffa782e86bae249ba0b5ad6a791933f':
+                    return [{'tx_hash': '01d76acdb8992f4262fb847f5efbd95ea178049be59c70a2851bdcf9b4ae28e3', 'tx_pos': 0, 'height': 2420006, 'value': 98300}]
+                else:
+                    return []
+            async def get_transaction(self, txid):
+                if txid == "01d76acdb8992f4262fb847f5efbd95ea178049be59c70a2851bdcf9b4ae28e3":
+                    return "02000000000101208840a3310ae4b88181374b5812f56f5dd56f12574f3bcd8041b48bfadc92cf0000000000fdffffff02fc7f010000000000160014d339efed7cd5d28d31995caf10b8973a9a13c656a08601000000000043410403886197eb13c59721b94a29f9a68a841caedb7782b35121cd81d50d0cc70db3f8955c7a07b08dd6470141b66eedd324406e29d6b6799033314512334461e3f9ac0247304402203328153753e934d7a13215bf58f093f84281d57f8c7d42f3b7704cd714c7b32c02205a502f3f3e4302561ccc93df413be3c78a439ff35b60cea03d19f8804a9a1239012103f41052be701441d1bc8f7cc6a6053d7e7f5e63be212fe5e3687344ddd52e3af525ed2400"
+                else:
+                    raise Exception("unexpected txid")
+
+        privkeys = ['p2wpkh:cV2BvgtpLNX328m4QrhqycBGA6EkZUFfHM9kKjVXjfyD53uNfC4q',]
+        network = NetworkMock()
+        dest_addr = 'tb1qhuy2e45lrdcp9s4ezeptx5kwxcnahzgpar9scc'
+        sweep_coro = sweep(privkeys, network=network, config=self.config, to_address=dest_addr, fee=500, locktime=2420010, tx_version=2)
+        loop = util.get_asyncio_loop()
+        tx = asyncio.run_coroutine_threadsafe(sweep_coro, loop).result()
+
+        tx_copy = tx_from_any(tx.serialize())
+        self.assertEqual('02000000000101e328aeb4f9dc1b85a2709ce59b0478a15ed9fb5e7f84fb62422f99b8cd6ad7010000000000fdffffff01087e010000000000160014bf08acd69f1b7012c2b91642b352ce3627db89010247304402204993099c4663d92ef4c9a28b3f45a40a6585754fe22ecfdc0a76c43fda7c9d04022006a75e0fd3ad1862d8e81015a71d2a1489ec7a9264e6e63b8fe6bb90c27e799b0121038ca94e7c715152fd89803c2a40a934c7c4035fb87b3cba981cd1e407369cfe312aed2400',
+                         str(tx_copy))
+        self.assertEqual('e02641928e5394332eec0a36c196f1e30e2b8645ebbeef89d6cc27bf237ae548', tx_copy.txid())
+        self.assertEqual('b062d2e19880c66b36e80b823c2d00a2769658d1e574ff854dab15efd8fd7da8', tx_copy.wtxid())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     def test_coinjoin_between_two_p2wpkh_electrum_seeds(self, mock_save_db):
