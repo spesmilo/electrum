@@ -2,14 +2,14 @@ import threading
 import asyncio
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS, QTimer
 
 from electrum import bitcoin
 from electrum import lnutil
 from electrum.i18n import _
 from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
-                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED)
+                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
 from electrum.lnaddr import LnInvoiceException
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
@@ -20,6 +20,7 @@ from electrum.bitcoin import COIN
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
+from .util import status_update_timer_interval
 
 class QEInvoice(QObject):
     class Type:
@@ -140,6 +141,10 @@ class QEInvoiceParser(QEInvoice):
         self._amount = QEAmount()
         self._userinfo = ''
 
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.updateStatusString)
+
         self.clear()
 
     @pyqtProperty(int, notify=invoiceChanged)
@@ -189,6 +194,10 @@ class QEInvoiceParser(QEInvoice):
 
         self.determine_can_pay()
         self.invoiceChanged.emit()
+
+    @pyqtProperty('quint64', notify=invoiceChanged)
+    def time(self):
+        return self._effectiveInvoice.time if self._effectiveInvoice else 0
 
     @pyqtProperty('quint64', notify=invoiceChanged)
     def expiration(self):
@@ -267,6 +276,21 @@ class QEInvoiceParser(QEInvoice):
 
         self.invoiceChanged.emit()
         self.statusChanged.emit()
+
+        self.set_status_timer()
+
+    def set_status_timer(self):
+        if self.status != PR_EXPIRED:
+            if self.expiration > 0 and self.expiration != LN_EXPIRY_NEVER:
+                interval = status_update_timer_interval(self.time + self.expiration)
+                if interval > 0:
+                    self._timer.setInterval(interval)  # msec
+                    self._timer.start()
+
+    @pyqtSlot()
+    def updateStatusString(self):
+        self.statusChanged.emit()
+        self.set_status_timer()
 
     def determine_can_pay(self):
         self.canPay = False
