@@ -116,7 +116,11 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
-        return self._req.lightning_invoice if self._req else ''
+        can_receive = self._wallet.wallet.lnworker.num_sats_can_receive()
+        if self._req and can_receive > 0 and self._req.amount_msat/1000 <= can_receive:
+            return self._req.lightning_invoice
+        else:
+            return ''
 
     @pyqtProperty(str, notify=detailsChanged)
     def bip21(self):
