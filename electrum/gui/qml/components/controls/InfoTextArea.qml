@@ -26,6 +26,8 @@ TextHighlightPane {
 
     RowLayout {
         width: parent.width
+        spacing: constants.paddingLarge
+
         Image {
             source: iconStyle == InfoTextArea.IconStyle.Info
                 ? "../../../icons/info.png"

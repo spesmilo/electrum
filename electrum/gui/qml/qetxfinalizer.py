@@ -499,6 +499,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
 
         if self._wallet.wallet.get_swap_by_funding_tx(self._orig_tx):
             self._can_change_bump_method = False
+            self.canChangeBumpMethodChanged.emit()
 
         if not isinstance(self._orig_tx, PartialTransaction):
             self._orig_tx = PartialTransaction.from_tx(self._orig_tx)
