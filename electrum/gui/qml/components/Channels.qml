@@ -110,8 +110,13 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Swap');
                 visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
-                icon.source: '../../icons/status_waiting.png'
+                icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: {
+                    var swaphelper = app.swaphelper.createObject(app)
+                    swaphelper.swapStarted.connect(function() {
+                        var dialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+                        dialog.open()
+                    })
                     var dialog = swapDialog.createObject(root, { swaphelper: swaphelper })
                     dialog.open()
                 }
@@ -139,26 +144,6 @@ Pane {
             }
         }
 
-    }
-
-    SwapHelper {
-        id: swaphelper
-        wallet: Daemon.currentWallet
-        onConfirm: {
-            var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-            dialog.yesClicked.connect(function() {
-                dialog.close()
-                swaphelper.executeSwap(true)
-            })
-            dialog.open()
-        }
-        onAuthRequired: {
-            app.handleAuthRequired(swaphelper, method)
-        }
-        onSwapStarted: {
-            var dialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
-            dialog.open()
-        }
     }
 
     Component {

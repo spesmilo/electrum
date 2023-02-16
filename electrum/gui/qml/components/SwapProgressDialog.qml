@@ -15,6 +15,7 @@ ElDialog {
     width: parent.width
     height: parent.height
 
+    iconSource: Qt.resolvedUrl('../../icons/update.png')
     title: swaphelper.isReverse
         ? qsTr('Reverse swap...')
         : qsTr('Swap...')
