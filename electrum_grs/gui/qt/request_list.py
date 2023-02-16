@@ -194,13 +194,13 @@ class RequestList(MyTreeView):
             self.update()
             return
         menu = QMenu(self)
+        copy_menu = self.add_copy_menu(menu, idx)
         if req.get_address():
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Groestlcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.parent.do_copy(req.get_address(), title='Groestlcoin Address'))
         if URI := self.wallet.get_request_URI(req):
-            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy(URI, title='Groestlcoin URI'))
+            copy_menu.addAction(_("Groestlcoin URI"), lambda: self.parent.do_copy(URI, title='Groestlcoin URI'))
         if req.is_lightning():
-            menu.addAction(_("Copy Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
-        self.add_copy_menu(menu, idx)
+            copy_menu.addAction(_("Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))

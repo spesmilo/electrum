@@ -200,6 +200,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._logger.debug('wallet_updated')
             self.balanceChanged.emit()
             self.synchronizing = not wallet.is_up_to_date()
+            if not self.synchronizing:
+                self.historyModel.init_model() # refresh if dirty
 
     @event_listener
     def on_event_channel(self, wallet, channel):

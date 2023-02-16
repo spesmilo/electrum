@@ -799,15 +799,15 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
 
     def test_convert_bip32_intpath_to_strpath(self):
-        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
+        self.assertEqual("m/0/1h/1h", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
         self.assertEqual("m", convert_bip32_intpath_to_strpath([]))
-        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
+        self.assertEqual("m/44h/5241h/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
 
     def test_normalize_bip32_derivation(self):
-        self.assertEqual("m/0/1'/1'", normalize_bip32_derivation("m/0/1h/1'"))
+        self.assertEqual("m/0/1h/1h", normalize_bip32_derivation("m/0/1h/1'"))
         self.assertEqual("m", normalize_bip32_derivation("m////"))
-        self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
-        self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
+        self.assertEqual("m/0/2/1h", normalize_bip32_derivation("m/0/2/-1/"))
+        self.assertEqual("m/0/1h/1h/5h", normalize_bip32_derivation("m/0//-1/1'///5h"))
 
     def test_is_xkey_consistent_with_key_origin_info(self):
         ### actual data (high depth path)

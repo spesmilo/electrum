@@ -1082,13 +1082,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .receive_tab import ReceiveTab
         return ReceiveTab(self)
 
-    def do_copy(self, content: str, *, title: str = None) -> None:
-        self.app.clipboard().setText(content)
-        if title is None:
-            tooltip_text = _("Text copied to clipboard")
-        else:
-            tooltip_text = _("{} copied to clipboard").format(title)
-        QToolTip.showText(QCursor.pos(), tooltip_text, self)
+    def do_copy(self, text: str, *, title: str = None) -> None:
+        self.app.clipboard().setText(text)
+        message = _("Text copied to Clipboard") if title is None else _("{} copied to Clipboard").format(title)
+        # tooltip cannot be displayed immediately when called from a menu; wait 200ms
+        self.gui_object.timer.singleShot(200, lambda: QToolTip.showText(QCursor.pos(), message, self))
 
     def toggle_qr_window(self):
         from . import qrwindow

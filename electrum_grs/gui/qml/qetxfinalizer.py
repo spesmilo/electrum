@@ -449,6 +449,12 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self._orig_tx = None
         self._rbf = True
         self._bump_method = 'preserve_payment'
+        self._can_change_bump_method = True
+
+    canChangeBumpMethodChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=canChangeBumpMethodChanged)
+    def canChangeBumpMethod(self):
+        return self._can_change_bump_method
 
     oldfeeChanged = pyqtSignal()
     @pyqtProperty(QEAmount, notify=oldfeeChanged)
@@ -479,6 +485,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
 
     @bumpMethod.setter
     def bumpMethod(self, bumpmethod):
+        assert self._can_change_bump_method
         if self._bump_method != bumpmethod:
             self._bump_method = bumpmethod
             self.bumpMethodChanged.emit()
@@ -489,6 +496,9 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         assert self._txid
         self._orig_tx = self._wallet.wallet.get_input_tx(self._txid)
         assert self._orig_tx
+
+        if self._wallet.wallet.get_swap_by_funding_tx(self._orig_tx):
+            self._can_change_bump_method = False
 
         if not isinstance(self._orig_tx, PartialTransaction):
             self._orig_tx = PartialTransaction.from_tx(self._orig_tx)

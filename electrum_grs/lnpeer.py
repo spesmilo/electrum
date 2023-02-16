@@ -767,6 +767,7 @@ class Peer(Logger):
 
         # <- accept_channel
         payload = await self.wait_for_message('accept_channel', temp_channel_id)
+        self.logger.debug(f"received accept_channel for temp_channel_id={temp_channel_id.hex()}. {payload=}")
         remote_per_commitment_point = payload['first_per_commitment_point']
         funding_txn_minimum_depth = payload['minimum_depth']
         if funding_txn_minimum_depth <= 0:

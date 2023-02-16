@@ -303,7 +303,9 @@ class ECPubkey(object):
     def __lt__(self, other):
         if not isinstance(other, ECPubkey):
             raise TypeError('comparison not defined for ECPubkey and {}'.format(type(other)))
-        return (self.x() or 0) < (other.x() or 0)
+        p1 = ((self.x() or 0), (self.y() or 0))
+        p2 = ((other.x() or 0), (other.y() or 0))
+        return p1 < p2
 
     def verify_message_for_address(self, sig65: bytes, message: bytes, algo=lambda x: sha256(msg_magic(x))) -> bool:
         assert_bytes(message)

@@ -154,7 +154,7 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=channelChanged)
     def message_force_close(self, notify=channelChanged):
-        return _(messages.MSG_REQUEST_FORCE_CLOSE)
+        return _(messages.MSG_REQUEST_FORCE_CLOSE).strip()
 
     @pyqtProperty(bool, notify=channelChanged)
     def isBackup(self):

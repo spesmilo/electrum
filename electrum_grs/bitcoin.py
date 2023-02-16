@@ -398,7 +398,6 @@ def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
 def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash160_to_p2pkh(hash_160(public_key), net=net)
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
@@ -408,11 +407,9 @@ def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     return addr
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
 def script_to_p2wsh(script: str, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
@@ -424,7 +421,6 @@ def p2wsh_nested_script(witness_script: str) -> str:
     return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
-    if net is None: net = constants.net
     if txin_type == 'p2pkh':
         return public_key_to_p2pkh(bfh(pubkey), net=net)
     elif txin_type == 'p2wpkh':
@@ -438,7 +434,6 @@ def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
 
 # TODO this method is confusingly named
 def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
-    if net is None: net = constants.net
     if txin_type == 'p2sh':
         # given scriptcode is a redeem_script
         return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
@@ -733,7 +728,6 @@ def is_b58_address(addr: str, *, net=None) -> bool:
     return True
 
 def is_address(addr: str, *, net=None) -> bool:
-    if net is None: net = constants.net
     return is_segwit_address(addr, net=net) \
            or is_b58_address(addr, net=net)
 

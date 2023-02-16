@@ -726,8 +726,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu = QMenu()
         if tx_details.can_remove:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
-        cc = self.add_copy_menu(menu, idx)
-        cc.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
+        copy_menu = self.add_copy_menu(menu, idx)
+        copy_menu.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
         menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue

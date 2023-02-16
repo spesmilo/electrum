@@ -56,6 +56,8 @@ ElDialog {
                 Layout.preferredWidth: 1
                 Layout.fillWidth: true
                 ElComboBox {
+                    enabled: rbffeebumper.canChangeBumpMethod
+
                     textRole: 'text'
                     valueRole: 'value'
 

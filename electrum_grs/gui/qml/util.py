@@ -1,4 +1,5 @@
 from functools import wraps
+from time import time
 
 from PyQt5.QtCore import pyqtSignal
 
@@ -27,3 +28,22 @@ def qt_event_listener(func):
     def decorator(self, *args):
         self.qt_callback_signal.emit( (func,) + args)
     return decorator
+
+# return delay in msec when expiry time string should be updated
+# returns 0 when expired or expires > 1 day away (no updates needed)
+def status_update_timer_interval(exp):
+    # very roughly according to util.time_difference
+    exp_in = int(exp - time())
+    exp_in_min = int(exp_in/60)
+
+    interval = 0
+    if exp_in < 0:
+        interval = 0
+    elif exp_in_min < 2:
+        interval = 1000
+    elif exp_in_min < 90:
+        interval = 1000 * 60
+    elif exp_in_min < 1440:
+        interval = 1000 * 60 * 60
+
+    return interval

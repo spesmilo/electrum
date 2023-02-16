@@ -774,8 +774,10 @@ class MyTreeView(QTreeView):
         self.show_toolbar(not self.toolbar_shown, config)
 
     def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
-        cc = menu.addMenu(_("Copy Column"))
+        cc = menu.addMenu(_("Copy"))
         for column in self.Columns:
+            if self.isColumnHidden(column):
+                continue
             column_title = self.original_model().horizontalHeaderItem(column).text()
             if not column_title:
                 continue

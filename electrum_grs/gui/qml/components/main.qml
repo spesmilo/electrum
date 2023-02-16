@@ -66,6 +66,7 @@ ApplicationWindow
                 }
 
                 Image {
+                    visible: Daemon.currentWallet
                     source: '../../icons/wallet.png'
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall

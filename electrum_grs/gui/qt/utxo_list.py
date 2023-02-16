@@ -195,7 +195,7 @@ class UTXOList(MyTreeView):
         max_amount = self.wallet.lnworker.swap_manager.max_amount_forward_swap()
         if value < min_amount:
             return False
-        if value > max_amount:
+        if max_amount is None or value > max_amount:
             return False
         return True
 
@@ -244,41 +244,42 @@ class UTXOList(MyTreeView):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         coins = [self._utxo_dict[name] for name in selected]
-        if coins:
-            menu_spend = menu.addMenu(_("Fully spend") + '…')
-            m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))
-            m.setEnabled(self.clipboard_contains_address())
-            m = menu_spend.addAction(_("in new channel"), lambda: self.open_channel_with_coins(coins))
-            m.setEnabled(self.can_open_channel(coins))
-            m = menu_spend.addAction(_("in submarine swap"), lambda: self.swap_coins(coins))
-            m.setEnabled(self.can_swap_coins(coins))
-            # coin control
-            if self.are_in_coincontrol(coins):
-                menu.addAction(_("Remove from coin control"), lambda: self.remove_from_coincontrol(coins))
-            else:
-                menu.addAction(_("Add to coin control"), lambda: self.add_to_coincontrol(coins))
-
+        if not coins:
+            return
         if len(coins) == 1:
+            idx = self.indexAt(position)
+            if not idx.isValid():
+                return
+            self.add_copy_menu(menu, idx)
             utxo = coins[0]
-            addr = utxo.address
             txid = utxo.prevout.txid.hex()
             # "Details"
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))
-            # "Copy ..."
-            idx = self.indexAt(position)
-            if not idx.isValid():
-                return
-            self.add_copy_menu(menu, idx)
-            # "Freeze coin"
+        # fully spend
+        menu_spend = menu.addMenu(_("Fully spend") + '…')
+        m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))
+        m.setEnabled(self.clipboard_contains_address())
+        m = menu_spend.addAction(_("in new channel"), lambda: self.open_channel_with_coins(coins))
+        m.setEnabled(self.can_open_channel(coins))
+        m = menu_spend.addAction(_("in submarine swap"), lambda: self.swap_coins(coins))
+        m.setEnabled(self.can_swap_coins(coins))
+        # coin control
+        if self.are_in_coincontrol(coins):
+            menu.addAction(_("Remove from coin control"), lambda: self.remove_from_coincontrol(coins))
+        else:
+            menu.addAction(_("Add to coin control"), lambda: self.add_to_coincontrol(coins))
+        # Freeze menu
+        if len(coins) == 1:
+            utxo = coins[0]
+            addr = utxo.address
             menu_freeze = menu.addMenu(_("Freeze"))
             if not self.wallet.is_frozen_coin(utxo):
                 menu_freeze.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], True))
             else:
                 menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], False))
-            # "Freeze address"
             if not self.wallet.is_frozen_address(addr):
                 menu_freeze.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
             else:

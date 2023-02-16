@@ -53,7 +53,6 @@ ElDialog {
                 InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    Layout.topMargin: constants.paddingLarge
                     Layout.bottomMargin: constants.paddingLarge
                     visible: invoice.userinfo
                     text: invoice.userinfo

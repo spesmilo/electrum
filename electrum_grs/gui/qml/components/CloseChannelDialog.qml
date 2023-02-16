@@ -63,6 +63,15 @@ ElDialog {
                 }
 
                 Label {
+                    text: qsTr('Short channel ID')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    text: channeldetails.short_cid
+                }
+
+                Label {
                     text: qsTr('Remote node ID')
                     Layout.columnSpan: 2
                     color: Material.accentColor
@@ -82,20 +91,12 @@ ElDialog {
                     }
                 }
 
-                Label {
-                    text: qsTr('Short channel ID')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: channeldetails.short_cid
-                }
-
                 Item { Layout.preferredHeight: constants.paddingMedium; Layout.preferredWidth: 1; Layout.columnSpan: 2 }
 
                 InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
+                    Layout.bottomMargin: constants.paddingLarge
                     text: channeldetails.message_force_close
                 }
 

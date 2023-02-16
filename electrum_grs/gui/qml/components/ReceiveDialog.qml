@@ -207,10 +207,17 @@ ElDialog {
 
                 GridLayout {
                     columns: 2
-                    visible: request.message || !request.amount.isEmpty
+                    // visible: request.message || !request.amount.isEmpty
                     Layout.maximumWidth: buttons.width
                     Layout.alignment: Qt.AlignHCenter
 
+                    Label {
+                        text: qsTr('Status')
+                        color: Material.accentColor
+                    }
+                    Label {
+                        text: request.status_str
+                    }
                     Label {
                         visible: request.message
                         text: qsTr('Message')
@@ -234,7 +241,7 @@ ElDialog {
                 }
 
                 Rectangle {
-                    visible: request.message || !request.amount.isEmpty
+                    // visible: request.message || !request.amount.isEmpty
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
                     Layout.preferredWidth: buttons.width
