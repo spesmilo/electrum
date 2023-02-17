@@ -283,7 +283,18 @@ class TxInput:
             d['witness'] = self.witness.hex()
         return d
 
-    def witness_elements(self)-> Sequence[bytes]:
+    def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
+        if script_sig is None:
+            script_sig = self.script_sig
+        # Prev hash and index
+        s = self.prevout.serialize_to_network()
+        # Script length, script, sequence
+        s += bytes.fromhex(var_int(len(script_sig)))
+        s += script_sig
+        s += bytes.fromhex(int_to_hex(self.nsequence, 4))
+        return s
+
+    def witness_elements(self) -> Sequence[bytes]:
         if not self.witness:
             return []
         vds = BCDataStream()
@@ -854,16 +865,6 @@ class Transaction:
         else:
             raise UnknownTxinType(f'cannot construct preimage_script for txin_type: {txin.script_type}')
 
-    @classmethod
-    def serialize_input(self, txin: TxInput, script: str) -> str:
-        # Prev hash and index
-        s = txin.prevout.serialize_to_network().hex()
-        # Script length, script, sequence
-        s += var_int(len(script)//2)
-        s += script
-        s += int_to_hex(txin.nsequence, 4)
-        return s
-
     def _calc_bip143_shared_txdigest_fields(self) -> BIP143SharedTxDigestFields:
         inputs = self.inputs()
         outputs = self.outputs()
@@ -902,11 +903,12 @@ class Transaction:
         inputs = self.inputs()
         outputs = self.outputs()
 
-        def create_script_sig(txin: TxInput) -> str:
+        def create_script_sig(txin: TxInput) -> bytes:
             if include_sigs:
-                return self.input_script(txin, estimate_size=estimate_size)
-            return ''
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, create_script_sig(txin))
+                script_sig = self.input_script(txin, estimate_size=estimate_size)
+                return bytes.fromhex(script_sig)
+            return b""
+        txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=create_script_sig(txin)).hex()
                                                for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
 
@@ -973,10 +975,10 @@ class Transaction:
         return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_weight(cls, txin, is_segwit_tx):
+    def estimated_input_weight(cls, txin: TxInput, is_segwit_tx: bool):
         '''Return an estimate of serialized input weight in weight units.'''
-        script = cls.input_script(txin, estimate_size=True)
-        input_size = len(cls.serialize_input(txin, script)) // 2
+        script_sig = cls.input_script(txin, estimate_size=True)
+        input_size = len(txin.serialize_to_network(script_sig=bytes.fromhex(script_sig)))
 
         if txin.is_segwit(guess_for_address=True):
             witness_size = len(cls.serialize_witness(txin, estimate_size=True)) // 2
@@ -1964,7 +1966,7 @@ class PartialTransaction(Transaction):
             nSequence = int_to_hex(txin.nsequence, 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
-            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, preimage_script if txin_index==k else '')
+            txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=bfh(preimage_script) if txin_index==k else b"").hex()
                                                    for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
