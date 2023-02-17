@@ -23,7 +23,7 @@ from electrum import ecc
 from electrum.ecc import msg_magic
 from electrum.wallet import Standard_Wallet
 from electrum import constants
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.util import to_string, UserCancelled, UserFacingException, bfh
@@ -645,7 +645,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = ecc.der_sig_from_r_and_s(sig_r, sig_s)
-                    sig = to_hexstr(sig) + '01'
+                    sig = to_hexstr(sig) + Sighash.to_sigbytes(Sighash.ALL).hex()
                     tx.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_bytes.hex(), sig=sig)
         except UserCancelled:
             raise

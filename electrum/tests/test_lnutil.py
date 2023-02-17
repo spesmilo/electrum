@@ -11,7 +11,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
                              ln_compare_features, IncompatibleLightningFeatures, ChannelType)
 from electrum.util import bh2u, bfh, MyEncoder
-from electrum.transaction import Transaction, PartialTransaction
+from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 
 from . import ElectrumTestCase
@@ -725,7 +725,8 @@ class TestLNUtil(ElectrumTestCase):
         assert len(pubkey) == 33
         assert len(privkey) == 33
         tx.sign({bh2u(pubkey): (privkey[:-1], True)})
-        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + "01")
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + sighash)
 
     def test_get_compressed_pubkey_from_bech32(self):
         self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',

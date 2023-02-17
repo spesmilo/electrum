@@ -90,18 +90,24 @@ class MissingTxInputAmount(Exception):
 
 
 class Sighash(IntEnum):
+    # note: this is not an IntFlag, as ALL|NONE != SINGLE
+
     ALL = 1
     NONE = 2
     SINGLE = 3
     ANYONECANPAY = 0x80
 
     @classmethod
-    def is_valid(cls, sighash) -> bool:
+    def is_valid(cls, sighash: int) -> bool:
         for flag in Sighash:
             for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
                 if (flag & ~0x1f | base_flag) == sighash:
                     return True
         return False
+
+    @classmethod
+    def to_sigbytes(cls, sighash: int) -> bytes:
+        return sighash.to_bytes(length=1, byteorder="big")
 
 
 class TxOutput:
@@ -1940,7 +1946,7 @@ class PartialTransaction(Transaction):
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
         if not Sighash.is_valid(sighash):
-            raise Exception("SIGHASH_FLAG not supported!")
+            raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
@@ -1966,6 +1972,8 @@ class PartialTransaction(Transaction):
             nSequence = int_to_hex(txin.nsequence, 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
+            if sighash != Sighash.ALL:
+                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
             txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=bfh(preimage_script) if txin_index==k else b"").hex()
                                                    for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
@@ -1994,12 +2002,11 @@ class PartialTransaction(Transaction):
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
         sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256d(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + sighash_type
+        sig = bh2u(sig) + Sighash.to_sigbytes(sighash).hex()
         return sig
 
     def is_complete(self) -> bool:

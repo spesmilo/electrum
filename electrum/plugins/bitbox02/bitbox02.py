@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 from electrum import bip32, constants
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import PartialTransaction
+from electrum.transaction import PartialTransaction, Sighash
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
 from electrum.util import bh2u, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
@@ -523,7 +523,8 @@ class BitBox02Client(HardwareClientBase):
         # Fill signatures
         if len(sigs) != len(tx.inputs()):
             raise Exception("Incorrect number of inputs signed.")  # Should never occur
-        signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + sighash for x in sigs]
         tx.update_signatures(signatures)
 
     def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
