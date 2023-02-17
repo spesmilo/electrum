@@ -14,7 +14,7 @@ from electrum.simple_config import SimpleConfig
 from electrum import constants
 from electrum.daemon import Daemon
 from electrum.wallet import create_new_wallet
-from electrum.util import create_and_start_event_loop, log_exceptions, bh2u, bfh
+from electrum.util import create_and_start_event_loop, log_exceptions, bfh
 from electrum.lnutil import LnFeatures
 
 logger = get_logger(__name__)
@@ -77,9 +77,9 @@ async def worker(work_queue: asyncio.Queue, results_queue: asyncio.Queue, flag):
 
         # handle ipv4/ipv6
         if ':' in addr[0]:
-            connect_str = f"{bh2u(work['pk'])}@[{addr.host}]:{addr.port}"
+            connect_str = f"{work['pk'].hex()}@[{addr.host}]:{addr.port}"
         else:
-            connect_str = f"{bh2u(work['pk'])}@{addr.host}:{addr.port}"
+            connect_str = f"{work['pk'].hex()}@{addr.host}:{addr.port}"
 
         print(f"worker connecting to {connect_str}")
         try:

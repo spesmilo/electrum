@@ -11,7 +11,6 @@ from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelBut
                                   OkButton, CloseButton, PasswordLineEdit, getOpenFileName)
 from electrum.i18n import _
 from electrum.plugin import hook
-from electrum.util import bh2u
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from ..hw_wallet.plugin import only_hook_if_libraries_available
@@ -487,7 +486,7 @@ class SettingsDialog(WindowModalDialog):
             self.features = features
             set_label_enabled()
             if features.bootloader_hash:
-                bl_hash = bh2u(features.bootloader_hash)
+                bl_hash = features.bootloader_hash.hex()
                 bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
             else:
                 bl_hash = "N/A"

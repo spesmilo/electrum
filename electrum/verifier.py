@@ -26,7 +26,7 @@ from typing import Sequence, Optional, TYPE_CHECKING
 
 import aiorpcx
 
-from .util import bh2u, TxMinedInfo, NetworkJobOnDefaultServer
+from .util import TxMinedInfo, NetworkJobOnDefaultServer
 from .crypto import sha256d
 from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
@@ -153,7 +153,7 @@ class SPV(NetworkJobOnDefaultServer):
             if len(item) != 32:
                 raise MerkleVerificationFailure('all merkle branch items have to 32 bytes long')
             inner_node = (item + h) if (index & 1) else (h + item)
-            cls._raise_if_valid_tx(bh2u(inner_node))
+            cls._raise_if_valid_tx(inner_node.hex())
             h = sha256d(inner_node)
             index >>= 1
         if index != 0:

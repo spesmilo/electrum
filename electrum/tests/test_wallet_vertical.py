@@ -14,7 +14,7 @@ from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCON
 from electrum.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
                              restore_wallet_from_text, Abstract_Wallet)
 from electrum.util import (
-    bfh, bh2u, NotEnoughFunds, UnrelatedTransactionException,
+    bfh, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
 from electrum.transaction import (TxOutput, Transaction, PartialTransaction, PartialTxOutput,
                                   PartialTxInput, tx_from_any, TxOutpoint)
@@ -445,7 +445,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
         bip32_seed = keystore.bip39_to_seed(seed_words, '')
         self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
-                         bh2u(bip32_seed))
+                         bip32_seed.hex())
 
         def create_keystore_from_bip32seed(xtype):
             ks = keystore.BIP32_KeyStore({})
@@ -643,7 +643,7 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
         self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
         bip32_seed = keystore.bip39_to_seed(seed_words, '')
         self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
-                         bh2u(bip32_seed))
+                         bip32_seed.hex())
 
         def create_keystore_from_bip32seed(xtype):
             ks = keystore.BIP32_KeyStore({})

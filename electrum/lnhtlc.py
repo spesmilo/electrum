@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING, Set
 import threading
 
 from .lnutil import SENT, RECEIVED, LOCAL, REMOTE, HTLCOwner, UpdateAddHtlc, Direction, FeeUpdate
-from .util import bh2u, bfh, with_lock
+from .util import bfh, with_lock
 
 if TYPE_CHECKING:
     from .json_db import StoredDict

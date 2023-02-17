@@ -39,7 +39,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
-from .util import bh2u, bfh, make_aiohttp_session
+from .util import bfh, make_aiohttp_session
 from .invoices import Invoice, get_id_from_onchain_outputs
 from .crypto import sha256
 from .bitcoin import address_to_script

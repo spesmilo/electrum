@@ -5,7 +5,7 @@ import os
 from electrum import constants, blockchain
 from electrum.simple_config import SimpleConfig
 from electrum.blockchain import Blockchain, deserialize_header, hash_header
-from electrum.util import bh2u, bfh, make_dir
+from electrum.util import bfh, make_dir
 
 from . import ElectrumTestCase
 

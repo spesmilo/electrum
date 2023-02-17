@@ -3,7 +3,7 @@ import traceback
 import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
-from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
+from electrum.util import bfh, UserCancelled, UserFacingException
 from electrum.bip32 import BIP32Node
 from electrum import constants
 from electrum.i18n import _
@@ -331,7 +331,7 @@ class KeepKeyPlugin(HW_PluginBase):
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs,
                                     lock_time=tx.locktime, version=tx.version)[0]
         sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [(bh2u(x) + sighash) for x in signatures]
+        signatures = [(x.hex() + sighash) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread

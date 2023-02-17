@@ -2,7 +2,7 @@ import traceback
 import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
+from electrum.util import bfh, versiontuple, UserCancelled, UserFacingException
 from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum import constants
 from electrum.i18n import _
@@ -371,7 +371,7 @@ class TrezorPlugin(HW_PluginBase):
                                        serialize=False,
                                        prev_txes=prev_tx)
         sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [(bh2u(x) + sighash) for x in signatures]
+        signatures = [(x.hex() + sighash) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread

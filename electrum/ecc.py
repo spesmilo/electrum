@@ -32,7 +32,7 @@ from ctypes import (
     CFUNCTYPE, POINTER, cast
 )
 
-from .util import bfh, bh2u, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
+from .util import bfh, assert_bytes, to_bytes, InvalidPassword, profiler, randrange
 from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from . import constants
 from .logging import get_logger
@@ -221,7 +221,7 @@ class ECPubkey(object):
             return header + x + y
 
     def get_public_key_hex(self, compressed=True) -> str:
-        return bh2u(self.get_public_key_bytes(compressed))
+        return self.get_public_key_bytes(compressed).hex()
 
     def point(self) -> Tuple[Optional[int], Optional[int]]:
         x = self.x()

@@ -7,7 +7,6 @@ from electrum.simple_config import SimpleConfig
 from electrum import blockchain
 from electrum.interface import Interface, ServerAddr
 from electrum.crypto import sha256
-from electrum.util import bh2u
 from electrum import util
 
 from . import ElectrumTestCase
@@ -105,7 +104,7 @@ class TestNetwork(ElectrumTestCase):
     def mock_fork(self, bad_header):
         forkpoint = bad_header['block_height']
         b = blockchain.Blockchain(config=self.config, forkpoint=forkpoint, parent=None,
-                                  forkpoint_hash=bh2u(sha256(str(forkpoint))), prev_hash=bh2u(sha256(str(forkpoint-1))))
+                                  forkpoint_hash=sha256(str(forkpoint)).hex(), prev_hash=sha256(str(forkpoint-1)).hex())
         return b
 
     def test_chain_false_during_binary(self):

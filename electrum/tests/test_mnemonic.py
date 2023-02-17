@@ -6,7 +6,7 @@ from electrum import keystore
 from electrum import mnemonic
 from electrum import slip39
 from electrum import old_mnemonic
-from electrum.util import bh2u, bfh
+from electrum.util import bfh
 from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
@@ -104,20 +104,20 @@ class Test_NewMnemonic(ElectrumTestCase):
         # note: not a valid electrum seed
         seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
         self.assertEqual('741b72fd15effece6bfe5a26a52184f66811bd2be363190e07a42cca442b1a5bb22b3ad0eb338197287e6d314866c7fba863ac65d3f156087a5052ebc7157fce',
-                         bh2u(seed))
+                         seed.hex())
 
     def test_mnemonic_to_seed(self):
         for test_name, test in SEED_TEST_CASES.items():
             if test.words_hex is not None:
-                self.assertEqual(test.words_hex, bh2u(test.words.encode('utf8')), msg=test_name)
+                self.assertEqual(test.words_hex, test.words.encode('utf8').hex(), msg=test_name)
             self.assertTrue(is_new_seed(test.words, prefix=test.seed_version), msg=test_name)
             m = mnemonic.Mnemonic(lang=test.lang)
             if test.entropy is not None:
                 self.assertEqual(test.entropy, m.mnemonic_decode(test.words), msg=test_name)
             if test.passphrase_hex is not None:
-                self.assertEqual(test.passphrase_hex, bh2u(test.passphrase.encode('utf8')), msg=test_name)
+                self.assertEqual(test.passphrase_hex, test.passphrase.encode('utf8').hex(), msg=test_name)
             seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic=test.words, passphrase=test.passphrase)
-            self.assertEqual(test.bip32_seed, bh2u(seed), msg=test_name)
+            self.assertEqual(test.bip32_seed, seed.hex(), msg=test_name)
 
     def test_random_seeds(self):
         iters = 10

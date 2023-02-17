@@ -23,7 +23,7 @@ from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup, EventListener
+from electrum.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -1377,7 +1377,7 @@ class TestPeer(TestCaseForTestnet):
         # create upfront shutdown script for bob, alice doesn't use upfront
         # shutdown script
         bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
-        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bh2u(bob_uss_pub))
+        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bob_uss_pub.hex())
         bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
 
         # bob commits to close to bob_uss

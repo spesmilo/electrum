@@ -18,7 +18,7 @@ from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
-from electrum.util import bfh, bh2u, InvalidPassword, randrange
+from electrum.util import bfh, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
 
@@ -450,17 +450,17 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_push_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
-        self.assertEqual(push_script(''), bh2u(bytes([opcodes.OP_0])))
-        self.assertEqual(push_script('07'), bh2u(bytes([opcodes.OP_7])))
-        self.assertEqual(push_script('10'), bh2u(bytes([opcodes.OP_16])))
-        self.assertEqual(push_script('81'), bh2u(bytes([opcodes.OP_1NEGATE])))
+        self.assertEqual(push_script(''), bytes([opcodes.OP_0]).hex())
+        self.assertEqual(push_script('07'), bytes([opcodes.OP_7]).hex())
+        self.assertEqual(push_script('10'), bytes([opcodes.OP_16]).hex())
+        self.assertEqual(push_script('81'), bytes([opcodes.OP_1NEGATE]).hex())
         self.assertEqual(push_script('11'), '0111')
         self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
-        self.assertEqual(push_script(76 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')))
-        self.assertEqual(push_script(100 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')))
-        self.assertEqual(push_script(255 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')))
-        self.assertEqual(push_script(256 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')))
-        self.assertEqual(push_script(520 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')))
+        self.assertEqual(push_script(76 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')).hex())
+        self.assertEqual(push_script(100 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')).hex())
+        self.assertEqual(push_script(255 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')).hex())
+        self.assertEqual(push_script(256 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')).hex())
+        self.assertEqual(push_script(520 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')).hex())
 
     def test_add_number_to_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers

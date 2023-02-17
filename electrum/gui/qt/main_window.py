@@ -57,7 +57,7 @@ from electrum.plugin import run_hook, BasePlugin
 from electrum.i18n import _
 from electrum.util import (format_time, get_asyncio_loop,
                            UserCancelled, profiler,
-                           bh2u, bfh, InvalidPassword,
+                           bfh, InvalidPassword,
                            UserFacingException, FailedToParsePaymentIdentifier,
                            get_new_wallet_name, send_exception_to_crash_reporter,
                            AddTransactionException, BITCOIN_BIP21_URI_SCHEME, os_chmod)

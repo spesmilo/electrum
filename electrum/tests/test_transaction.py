@@ -5,7 +5,7 @@ from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transactio
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
                                   SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
-from electrum.util import bh2u, bfh
+from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
 from electrum.ecc import ECPrivkey
@@ -30,7 +30,7 @@ class TestBCDataStream(ElectrumTestCase):
         with self.assertRaises(transaction.SerializationError):
             s.write_compact_size(-1)
 
-        self.assertEqual(bh2u(s.input),
+        self.assertEqual(s.input.hex(),
                           '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
         for v in values:
             self.assertEqual(s.read_compact_size(), v)

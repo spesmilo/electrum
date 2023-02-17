@@ -5,7 +5,6 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
 
-from electrum.util import bh2u
 from electrum.logging import Logger
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel, ChannelState, ChanCloseOption
@@ -465,8 +464,8 @@ class ChannelDetailsPopup(Popup, Logger):
         self.app = app
         self.chan = chan
         self.title = _('Channel details')
-        self.node_id = bh2u(chan.node_id)
-        self.channel_id = bh2u(chan.channel_id)
+        self.node_id = chan.node_id.hex()
+        self.channel_id = chan.channel_id.hex()
         self.funding_txid = chan.funding_outpoint.txid
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.capacity = self.app.format_amount_and_units(chan.get_capacity())

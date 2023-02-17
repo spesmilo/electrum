@@ -10,7 +10,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
                              ln_compare_features, IncompatibleLightningFeatures, ChannelType)
-from electrum.util import bh2u, bfh, MyEncoder
+from electrum.util import bfh, MyEncoder
 from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
 
@@ -575,7 +575,7 @@ class TestLNUtil(ElectrumTestCase):
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=htlc_output_index,
             amount_msat=amount_msat,
-            witness_script=bh2u(htlc))
+            witness_script=htlc.hex())
         our_htlc_tx = make_htlc_tx(
             cltv_expiry=cltv_timeout,
             inputs=our_htlc_tx_inputs,
@@ -724,7 +724,7 @@ class TestLNUtil(ElectrumTestCase):
         assert type(privkey) is bytes
         assert len(pubkey) == 33
         assert len(privkey) == 33
-        tx.sign({bh2u(pubkey): (privkey[:-1], True)})
+        tx.sign({pubkey.hex(): (privkey[:-1], True)})
         sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
         tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + sighash)
 

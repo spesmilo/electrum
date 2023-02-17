@@ -5,7 +5,7 @@ import shutil
 import asyncio
 
 from electrum import util
-from electrum.util import bh2u, bfh
+from electrum.util import bfh
 from electrum.lnutil import ShortChannelID
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
