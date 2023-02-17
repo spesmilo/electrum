@@ -34,7 +34,6 @@ class TestSwapTxs(TestCaseForTestnet):
             prevout=TxOutpoint(txid=bfh(swap_data.funding_txid), out_idx=0),
         )
         txin._trusted_value_sats = swap_data.onchain_amount
-        txin._trusted_address = swap_data.lockup_address
         tx = SwapManager._create_and_sign_claim_tx(
             txin=txin,
             swap=swap_data,
@@ -65,7 +64,6 @@ class TestSwapTxs(TestCaseForTestnet):
             prevout=TxOutpoint(txid=bfh(swap_data.funding_txid), out_idx=0),
         )
         txin._trusted_value_sats = swap_data.onchain_amount
-        txin._trusted_address = swap_data.lockup_address
         tx = SwapManager._create_and_sign_claim_tx(
             txin=txin,
             swap=swap_data,

@@ -124,14 +124,8 @@ def create_claim_tx(
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
-    assert txin.address is not None
-    if is_segwit_address(txin.address):
-        txin.script_type = 'p2wsh'
-        txin.script_sig = b''
-    else:
-        txin.script_type = 'p2wsh-p2sh'  # TODO rm??
-        txin.redeem_script = bytes.fromhex(p2wsh_nested_script(witness_script.hex()))
-        txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
+    txin.script_type = 'p2wsh'
+    txin.script_sig = b''
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
