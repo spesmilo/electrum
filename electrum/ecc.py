@@ -209,7 +209,7 @@ class ECPubkey(object):
                   + int.to_bytes(y, length=32, byteorder='big', signed=False))
         return ECPubkey(_bytes)
 
-    def get_public_key_bytes(self, compressed=True):
+    def get_public_key_bytes(self, compressed=True) -> bytes:
         if self.is_at_infinity(): raise Exception('point is at infinity')
         x = int.to_bytes(self.x(), length=32, byteorder='big', signed=False)
         y = int.to_bytes(self.y(), length=32, byteorder='big', signed=False)
@@ -220,16 +220,19 @@ class ECPubkey(object):
             header = b'\x04'
             return header + x + y
 
-    def get_public_key_hex(self, compressed=True):
+    def get_public_key_hex(self, compressed=True) -> str:
         return bh2u(self.get_public_key_bytes(compressed))
 
-    def point(self) -> Tuple[int, int]:
-        return self.x(), self.y()
+    def point(self) -> Tuple[Optional[int], Optional[int]]:
+        x = self.x()
+        y = self.y()
+        assert (x is None) == (y is None), f"either both x and y, or neither should be None. {(x, y)=}"
+        return x, y
 
-    def x(self) -> int:
+    def x(self) -> Optional[int]:
         return self._x
 
-    def y(self) -> int:
+    def y(self) -> Optional[int]:
         return self._y
 
     def _to_libsecp256k1_pubkey_ptr(self):
@@ -356,14 +359,14 @@ class ECPubkey(object):
         return base64.b64encode(encrypted + mac)
 
     @classmethod
-    def order(cls):
+    def order(cls) -> int:
         return CURVE_ORDER
 
-    def is_at_infinity(self):
+    def is_at_infinity(self) -> bool:
         return self == POINT_AT_INFINITY
 
     @classmethod
-    def is_pubkey_bytes(cls, b: bytes):
+    def is_pubkey_bytes(cls, b: bytes) -> bool:
         try:
             ECPubkey(b)
             return True
@@ -430,12 +433,12 @@ class ECPrivkey(ECPubkey):
         super().__init__(pubkey.get_public_key_bytes(compressed=False))
 
     @classmethod
-    def from_secret_scalar(cls, secret_scalar: int):
+    def from_secret_scalar(cls, secret_scalar: int) -> 'ECPrivkey':
         secret_bytes = int.to_bytes(secret_scalar, length=32, byteorder='big', signed=False)
         return ECPrivkey(secret_bytes)
 
     @classmethod
-    def from_arbitrary_size_secret(cls, privkey_bytes: bytes):
+    def from_arbitrary_size_secret(cls, privkey_bytes: bytes) -> 'ECPrivkey':
         """This method is only for legacy reasons. Do not introduce new code that uses it.
         Unlike the default constructor, this method does not require len(privkey_bytes) == 32,
         and the secret does not need to be within the curve order either.
@@ -454,7 +457,7 @@ class ECPrivkey(ECPubkey):
         return f"<ECPrivkey {self.get_public_key_hex()}>"
 
     @classmethod
-    def generate_random_key(cls):
+    def generate_random_key(cls) -> 'ECPrivkey':
         randint = randrange(CURVE_ORDER)
         ephemeral_exponent = int.to_bytes(randint, length=32, byteorder='big', signed=False)
         return ECPrivkey(ephemeral_exponent)
