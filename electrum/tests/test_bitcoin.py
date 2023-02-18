@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import sys
 
@@ -35,27 +36,43 @@ def needs_test_with_all_aes_implementations(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
-            func(*args, **kwargs)
-            return
-        has_cryptodome = crypto.HAS_CRYPTODOME
-        has_cryptography = crypto.HAS_CRYPTOGRAPHY
-        has_pyaes = crypto.HAS_PYAES
-        try:
-            if has_pyaes:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
-                func(*args, **kwargs)  # pyaes
-            if has_cryptodome:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
-                func(*args, **kwargs)  # cryptodome
-            if has_cryptography:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
-                func(*args, **kwargs)  # cryptography
-        finally:
-            crypto.HAS_CRYPTODOME = has_cryptodome
-            crypto.HAS_CRYPTOGRAPHY = has_cryptography
-            crypto.HAS_PYAES = has_pyaes
+    if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+        return func
+    has_cryptodome = crypto.HAS_CRYPTODOME
+    has_cryptography = crypto.HAS_CRYPTOGRAPHY
+    has_pyaes = crypto.HAS_PYAES
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                if has_pyaes:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
+                    await func(*args, **kwargs)  # pyaes
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
+                    await func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
+                    await func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+                crypto.HAS_PYAES = has_pyaes
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                if has_pyaes:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
+                    func(*args, **kwargs)  # pyaes
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
+                    func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
+                    func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+                crypto.HAS_PYAES = has_pyaes
     return run_test
 
 
@@ -66,22 +83,34 @@ def needs_test_with_all_chacha20_implementations(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
-            func(*args, **kwargs)
-            return
-        has_cryptodome = crypto.HAS_CRYPTODOME
-        has_cryptography = crypto.HAS_CRYPTOGRAPHY
-        try:
-            if has_cryptodome:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
-                func(*args, **kwargs)  # cryptodome
-            if has_cryptography:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
-                func(*args, **kwargs)  # cryptography
-        finally:
-            crypto.HAS_CRYPTODOME = has_cryptodome
-            crypto.HAS_CRYPTOGRAPHY = has_cryptography
+    if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+        return func
+    has_cryptodome = crypto.HAS_CRYPTODOME
+    has_cryptography = crypto.HAS_CRYPTOGRAPHY
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
+                    await func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
+                    await func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
+                    func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
+                    func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
     return run_test
 
 
@@ -93,13 +122,21 @@ def disable_ecdsa_r_value_grinding(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
-        try:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
-            func(*args, **kwargs)
-        finally:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
+    is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
+                return await func(*args, **kwargs)
+            finally:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
+                return func(*args, **kwargs)
+            finally:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
     return run_test
 
 

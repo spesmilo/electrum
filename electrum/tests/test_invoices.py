@@ -37,7 +37,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet2.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
         return wallet2
 
-    def test_wallet_with_ln_creates_payreq_and_gets_paid_on_ln(self):
+    async def test_wallet_with_ln_creates_payreq_and_gets_paid_on_ln(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -54,7 +54,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.lnworker.set_request_status(bytes.fromhex(pr.rhash), PR_PAID)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_with_ln_creates_payreq_and_gets_paid_onchain(self):
+    async def test_wallet_with_ln_creates_payreq_and_gets_paid_onchain(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -84,7 +84,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_without_ln_creates_payreq_and_gets_paid_onchain(self):
+    async def test_wallet_without_ln_creates_payreq_and_gets_paid_onchain(self):
         text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -114,7 +114,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_gets_paid_onchain_in_the_past(self):
+    async def test_wallet_gets_paid_onchain_in_the_past(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -143,7 +143,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_reuse_unused_fallback_onchain_addr_when_getting_paid_with_lightning(self):
+    async def test_wallet_reuse_unused_fallback_onchain_addr_when_getting_paid_with_lightning(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=5, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -198,7 +198,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr4))
         self.assertEqual(addr4, pr4.get_address())
 
-    def test_wallet_reuse_addr_of_expired_request(self):
+    async def test_wallet_reuse_addr_of_expired_request(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -226,7 +226,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(addr2, pr2.get_address())
         self.assertFalse(pr2.has_expired())
 
-    def test_wallet_get_request_by_addr(self):
+    async def test_wallet_get_request_by_addr(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet

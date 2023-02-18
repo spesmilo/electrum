@@ -295,6 +295,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     txin_type: str
     wallet_type: str
     lnworker: Optional['LNWallet']
+    network: Optional['Network']
 
     def __init__(self, db: WalletDB, storage: Optional[WalletStorage], *, config: SimpleConfig):
 
@@ -2187,6 +2188,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return True
         return False
 
+    def _get_rawtx_from_network(self, txid: str) -> str:
+        """legacy hack. do not use in new code."""
+        assert self.network
+        return self.network.run_from_another_thread(
+            self.network.get_transaction(txid, timeout=10))
+
     def get_input_tx(self, tx_hash: str, *, ignore_network_issues=False) -> Optional[Transaction]:
         # First look up an input transaction in the wallet where it
         # will likely be.  If co-signing a transaction it may not have
@@ -2194,8 +2201,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx = self.db.get_transaction(tx_hash)
         if not tx and self.network and self.network.has_internet_connection():
             try:
-                raw_tx = self.network.run_from_another_thread(
-                    self.network.get_transaction(tx_hash, timeout=10))
+                raw_tx = self._get_rawtx_from_network(tx_hash)
             except NetworkException as e:
                 _logger.info(f'got network error getting input txn. err: {repr(e)}. txid: {tx_hash}. '
                              f'if you are intentionally offline, consider using the --offline flag')

@@ -1561,12 +1561,17 @@ def is_tor_socks_port(host: str, port: int) -> bool:
     return False
 
 
+AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = False  # used by unit tests
+
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
 def get_asyncio_loop() -> asyncio.AbstractEventLoop:
     """Returns the global asyncio event loop we use."""
-    if _asyncio_event_loop is None:
-        raise Exception("event loop not created yet")
-    return _asyncio_event_loop
+    if loop := _asyncio_event_loop:
+        return loop
+    if AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP:
+        if loop := get_running_loop():
+            return loop
+    raise Exception("event loop not created yet")
 
 
 def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
@@ -1777,7 +1782,6 @@ class CallbackManager:
     def __init__(self):
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
-        self.asyncio_loop = None
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1795,21 +1799,20 @@ class CallbackManager:
         Can be called from any thread. The callback itself will get scheduled
         on the event loop.
         """
-        if self.asyncio_loop is None:
-            self.asyncio_loop = get_asyncio_loop()
-            assert self.asyncio_loop.is_running(), "event loop not running"
+        loop = get_asyncio_loop()
+        assert loop.is_running(), "event loop not running"
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(*args), self.asyncio_loop)
-            elif get_running_loop() == self.asyncio_loop:
+                asyncio.run_coroutine_threadsafe(callback(*args), loop)
+            elif get_running_loop() == loop:
                 # run callback immediately, so that it is guaranteed
                 # to have been executed when this method returns
                 callback(*args)
             else:
-                self.asyncio_loop.call_soon_threadsafe(callback, *args)
+                loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
