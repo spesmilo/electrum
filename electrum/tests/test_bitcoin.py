@@ -25,7 +25,6 @@ from electrum.keystore import xtype_from_derivation
 from electrum import ecc_fast
 
 from . import ElectrumTestCase
-from . import TestCaseForTestnet
 from . import FAST_TESTS
 
 
@@ -653,7 +652,8 @@ class Test_bitcoin(ElectrumTestCase):
                          segwit_addr.bech32_decode('1p2gdwpf'))
 
 
-class Test_bitcoin_testnet(TestCaseForTestnet):
+class Test_bitcoin_testnet(ElectrumTestCase):
+    TESTNET = True
 
     def test_address_to_script(self):
         # bech32/bech32m native segwit
@@ -941,7 +941,8 @@ class Test_xprv_xpub(ElectrumTestCase):
             self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
-class Test_xprv_xpub_testnet(TestCaseForTestnet):
+class Test_xprv_xpub_testnet(ElectrumTestCase):
+    TESTNET = True
 
     def test_version_bytes(self):
         xprv_headers_b58 = {

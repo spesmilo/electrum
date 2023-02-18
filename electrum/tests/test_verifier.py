@@ -5,7 +5,7 @@ from electrum.transaction import Transaction
 from electrum.util import bfh
 from electrum.verifier import SPV, InnerNodeOfSpvProofIsValidTx
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 
 MERKLE_BRANCH = [
@@ -19,9 +19,10 @@ VALID_64_BYTE_TX = ('0200000001cb659c5528311901a7aada7db817bd6e3ce2f05d1c62c385b
 assert len(VALID_64_BYTE_TX) == 128
 
 
-class VerifierTestCase(TestCaseForTestnet):
+class VerifierTestCase(ElectrumTestCase):
     # these tests are regarding the attack described in
     # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+    TESTNET = True
 
     def test_verify_ok_t_tx(self):
         """Actually mined 64 byte tx should not raise."""

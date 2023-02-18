@@ -5,11 +5,12 @@ from electrum import constants
 from electrum.transaction import (tx_from_any, PartialTransaction, BadHeaderMagic, UnexpectedEndOfStream,
                                   SerializationError, PSBTInputConsistencyFailure)
 
-from . import ElectrumTestCase, TestCaseForTestnet
+from . import ElectrumTestCase
 
 
-class TestValidPSBT(TestCaseForTestnet):
+class TestValidPSBT(ElectrumTestCase):
     # test cases from BIP-0174
+    TESTNET = True
 
     def test_valid_psbt_001(self):
         # Case: PSBT with one P2PKH input. Outputs are empty
@@ -97,8 +98,9 @@ class TestValidPSBT(TestCaseForTestnet):
         self.assertEqual(1, len(tx.inputs()))
 
 
-class TestInvalidPSBT(TestCaseForTestnet):
+class TestInvalidPSBT(ElectrumTestCase):
     # test cases from BIP-0174
+    TESTNET = True
 
     def test_invalid_psbt_001(self):
         # Case: Network transaction, not PSBT format
@@ -232,8 +234,9 @@ class TestInvalidPSBT(TestCaseForTestnet):
             tx = tx_from_any(bytes.fromhex('70736274ff0100710100000001626bbbb7a4ad82dbf7f6bd64ac3f40d0e2695b606d7953f2802b9ea426ea080a0000000000fdffffff02a025260000000000160014e5bddbfee3883729b48fe3385216e64e6035f6eb585d720000000000160014dab37af8fefbbb31887a0a5f9b2698f4a7b45f6a1c3914000001011f8096990000000000160014dab37af8fefbbb31887a0a5f9b2698f4a7b45f6a0100fd200101000000000101197a89cff51096b9dd4214cdee0eb90cb27a25477e739521d728a679724042730100000000fdffffff048096980000000000160014dab37af8fefbbb31887a0a5f9b2698f4a7b45f6a80969800000000001976a91405a20074ef7eb42c7c6fcd4f499faa699742783288ac809698000000000017a914b808938a8007bc54509cd946944c479c0fa6554f87131b2c0400000000160014a04dfdb9a9aeac3b3fada6f43c2a66886186e2440247304402204f5dbb9dda65eab26179f1ca7c37c8baf028153815085dd1bbb2b826296e3b870220379fcd825742d6e2bdff772f347b629047824f289a5499a501033f6c3495594901210363c9c98740fe0455c646215cea9b13807b758791c8af7b74e62968bef57ff8ae1e391400000000'))
 
 
-class TestPSBTSignerChecks(TestCaseForTestnet):
+class TestPSBTSignerChecks(ElectrumTestCase):
     # test cases from BIP-0174
+    TESTNET = True
 
     @unittest.skip("the check this test is testing is intentionally disabled in transaction.py")
     def test_psbt_fails_signer_checks_001(self):
@@ -269,8 +272,9 @@ class TestPSBTSignerChecks(TestCaseForTestnet):
             tx2 = PartialTransaction.from_raw_psbt('cHNidP8BAJoCAAAAAljoeiG1ba8MI76OcHBFbDNvfLqlyHV5JPVFiHuyq911AAAAAAD/////g40EJ9DsZQpoqka7CwmK6kQiwHGyyng1Kgd5WdB86h0BAAAAAP////8CcKrwCAAAAAAWABTYXCtx0AYLCcmIauuBXlCZHdoSTQDh9QUAAAAAFgAUAK6pouXw+HaliN9VRuh0LR2HAI8AAAAAAAEAuwIAAAABqtc5MQGL0l+ErkALaISL4J23BurCrBgpi6vucatlb4sAAAAASEcwRAIgWPb8fGoz4bMVSNSByCbAFb0wE1qtQs1neQ2rZtKtJDsCIEoc7SYExnNbY5PltBaR3XiwDwxZQvufdRhW+qk4FX26Af7///8CgPD6AgAAAAAXqRQPuUY0IWlrgsgzryQceMF9295JNIfQ8gonAQAAABepFCnKdPigj4GZlCgYXJe12FLkBj9hh2UAAAAiAgLath/0mhTban0CsM0fu3j8SxgxK1tOVNrk26L7/vU210gwRQIhAPYQOLMI3B2oZaNIUnRvAVdyk0IIxtJEVDk82ZvfIhd3AiAFbmdaZ1ptCgK4WxTl4pB02KJam1dgvqKBb2YZEKAG6gEBAwQBAAAAAQRHUiEClYO/Oa4KYJdHrRma3dY0+mEIVZ1sXNObTCGD8auW4H8hAtq2H/SaFNtqfQKwzR+7ePxLGDErW05U2uTbovv+9TbXUq4iBgKVg785rgpgl0etGZrd1jT6YQhVnWxc05tMIYPxq5bgfxDZDGpPAAAAgAAAAIAAAACAIgYC2rYf9JoU22p9ArDNH7t4/EsYMStbTlTa5Nui+/71NtcQ2QxqTwAAAIAAAACAAQAAgAABASAAwusLAAAAABepFLf1+vQOPUClpFmx2zU18rcvqSHohyICAjrdkE89bc9Z3bkGsN7iNSm3/7ntUOXoYVGSaGAiHw5zRzBEAiBl9FulmYtZon/+GnvtAWrx8fkNVLOqj3RQql9WolEDvQIgf3JHA60e25ZoCyhLVtT/y4j3+3Weq74IqjDym4UTg9IBAQMEAQAAAAEEIgAgjCNTFzdDtZXftKB7crqOQuN5fadOh/59nXSX47ICiQMBBUdSIQMIncEMesbbVPkTKa9hczPbOIzq0MIx9yM3nRuZAwsC3CECOt2QTz1tz1nduQaw3uI1Kbf/ue1Q5ehhUZJoYCIfDnNSrSIGAjrdkE89bc9Z3bkGsN7iNSm3/7ntUOXoYVGSaGAiHw5zENkMak8AAACAAAAAgAMAAIAiBgMIncEMesbbVPkTKa9hczPbOIzq0MIx9yM3nRuZAwsC3BDZDGpPAAAAgAAAAIACAACAACICA6mkw39ZltOqJdusa1cK8GUDlEkpQkYLNUdT7Z7spYdxENkMak8AAACAAAAAgAQAAIAAIgICf2OZdX0u/1WhNq0CxoSxg4tlVuXxtrNCgqlLa1AFEJYQ2QxqTwAAAIAAAACABQAAgAA=')
 
 
-class TestPSBTComplexChecks(TestCaseForTestnet):
+class TestPSBTComplexChecks(ElectrumTestCase):
     # test cases from BIP-0174
+    TESTNET = True
 
     def test_psbt_combiner_unknown_fields(self):
         tx1 = tx_from_any("70736274ff01003f0200000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000ffffffff010000000000000000036a0100000000000a0f0102030405060708090f0102030405060708090a0b0c0d0e0f000a0f0102030405060708090f0102030405060708090a0b0c0d0e0f000a0f0102030405060708090f0102030405060708090a0b0c0d0e0f00")

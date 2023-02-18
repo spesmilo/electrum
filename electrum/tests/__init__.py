@@ -36,7 +36,20 @@ class SequentialTestCase(unittest.TestCase):
 class ElectrumTestCase(SequentialTestCase):
     """Base class for our unit tests."""
 
+    TESTNET = False
     # maxDiff = None
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if cls.TESTNET:
+            constants.set_testnet()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        if cls.TESTNET:
+            constants.set_mainnet()
 
     def setUp(self):
         super().setUp()
@@ -48,20 +61,6 @@ class ElectrumTestCase(SequentialTestCase):
         self._loop_thread.join(timeout=1)
         super().tearDown()
         shutil.rmtree(self.electrum_path)
-
-
-class TestCaseForTestnet(ElectrumTestCase):
-    """Class that runs member tests in testnet mode"""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        constants.set_testnet()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        constants.set_mainnet()
 
 
 def as_testnet(func):

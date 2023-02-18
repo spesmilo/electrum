@@ -23,7 +23,6 @@ from electrum.network import Network
 
 from electrum.plugins.trustedcoin import trustedcoin
 
-from . import TestCaseForTestnet
 from . import ElectrumTestCase
 
 
@@ -610,7 +609,8 @@ class TestWalletKeystoreAddressIntegrityForMainnet(ElectrumTestCase):
         self.assertEqual(w.get_change_addresses()[0], '32tvTmBLfLofu8ps4SWpUJC4fS699jiWvC')
 
 
-class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
+class TestWalletKeystoreAddressIntegrityForTestnet(ElectrumTestCase):
+    TESTNET = True
 
     def setUp(self):
         super().setUp()
@@ -697,7 +697,8 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
         self.assertEqual(w.get_change_addresses()[0], 'tb1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3ts5777jl')
 
 
-class TestWalletSending(TestCaseForTestnet):
+class TestWalletSending(ElectrumTestCase):
+    TESTNET = True
 
     def setUp(self):
         super().setUp()
@@ -2692,7 +2693,8 @@ class TestWalletSending(TestCaseForTestnet):
                          tx.serialize_as_bytes().hex())
 
 
-class TestWalletOfflineSigning(TestCaseForTestnet):
+class TestWalletOfflineSigning(ElectrumTestCase):
+    TESTNET = True
 
     def setUp(self):
         super().setUp()
@@ -3399,7 +3401,8 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual('4376fa5f1f6cb37b1f3956175d3bd4ef6882169294802b250a3c672f3ff431c1', tx.wtxid())
 
 
-class TestWalletHistory_SimpleRandomOrder(TestCaseForTestnet):
+class TestWalletHistory_SimpleRandomOrder(ElectrumTestCase):
+    TESTNET = True
     transactions = {
         "0f4972c84974b908a58dda2614b68cf037e6c03e8291898c719766f213217b67": "01000000029d1bdbe67f0bd0d7bd700463f5c29302057c7b52d47de9e2ca5069761e139da2000000008b483045022100a146a2078a318c1266e42265a369a8eef8993750cb3faa8dd80754d8d541d5d202207a6ab8864986919fd1a7fd5854f1e18a8a0431df924d7a878ec3dc283e3d75340141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff9d1bdbe67f0bd0d7bd700463f5c29302057c7b52d47de9e2ca5069761e139da2010000008a47304402201c7fa37b74a915668b0244c01f14a9756bbbec1031fb69390bcba236148ab37e02206151581f9aa0e6758b503064c1e661a726d75c6be3364a5a121a8c12cf618f64014104dc28da82e141416aaf771eb78128d00a55fdcbd13622afcbb7a3b911e58baa6a99841bfb7b99bcb7e1d47904fda5d13fdf9675cdbbe73e44efcc08165f49bac6feffffff02b0183101000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac005a6202000000001976a9145eb4eeaefcf9a709f8671444933243fbd05366a388ac54c51200",
         "2791cdc98570cc2b6d9d5b197dc2d002221b074101e3becb19fab4b79150446d": "010000000132201ff125888a326635a2fc6e971cd774c4d0c1a757d742d0f6b5b020f7203a050000006a47304402201d20bb5629a35b84ff9dd54788b98e265623022894f12152ac0e6158042550fe02204e98969e1f7043261912dd0660d3da64e15acf5435577fc02a00eccfe76b323f012103a336ad86546ab66b6184238fe63bb2955314be118b32fa45dd6bd9c4c5875167fdffffff0254959800000000001976a9148d2db0eb25b691829a47503006370070bc67400588ac80969800000000001976a914f96669095e6df76cfdf5c7e49a1909f002e123d088ace8ca1200",
@@ -3460,7 +3463,8 @@ class TestWalletHistory_SimpleRandomOrder(TestCaseForTestnet):
         self.assertEqual(27633300, sum(w.get_balance()))
 
 
-class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
+class TestWalletHistory_EvilGapLimit(ElectrumTestCase):
+    TESTNET = True
     transactions = {
         # txn A:
         "511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4": "010000000001018aacc3c8f98964232ebb74e379d8ff4e800991eecfcf64bd1793954f5e50a8790100000000fdffffff0340420f0000000000160014dbf321e905d544b54b86a2f3ed95b0ac66a3ddb0ff0514000000000016001474f1c130d3db22894efb3b7612b2c924628d0d7e80841e000000000016001488492707677190c073b6555fb08d37e91bbb75d802483045022100cf2904e09ea9d2670367eccc184d92fcb8a9b9c79a12e4efe81df161077945db02203530276a3401d944cf7a292e0660f36ee1df4a1c92c131d2c0d31d267d52524901210215f523a412a5262612e1a5ef9842dc864b0d73dc61fb4c6bfd480a867bebb1632e181400",
@@ -3517,7 +3521,8 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         self.assertEqual(9999788, sum(w.get_balance()))
 
 
-class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
+class TestWalletHistory_DoubleSpend(ElectrumTestCase):
+    TESTNET = True
     transactions = {
         # txn A:
         "a3849040f82705151ba12a4389310b58a17b78025d81116a3338595bdefa1625": "020000000001011b7eb29921187b40209c234344f57a3365669c8883a3d511fbde5155f11f64d10000000000fdffffff024c400f0000000000160014b50d21483fb5e088db90bf766ea79219fb377fef40420f0000000000160014aaf5fc4a6297375c32403a9c2768e7029c8dbd750247304402206efd510954b289829f8f778163b98a2a4039deb93c3b0beb834b00cd0add14fd02201c848315ddc52ced0350a981fe1a7f3cbba145c7a43805db2f126ed549eaa500012103083a50d63264743456a3e812bfc91c11bd2a673ba4628c09f02d78f62157e56d788d1700",
@@ -3567,7 +3572,8 @@ class TestWalletHistory_DoubleSpend(TestCaseForTestnet):
         self.assertEqual(999890, sum(w.get_balance()))
 
 
-class TestImportedWallet(TestCaseForTestnet):
+class TestImportedWallet(ElectrumTestCase):
+    TESTNET = True
     transactions = {
         # txn A funds addr1:
         "0e350564ee7ed4ffce24a998b538f7f3ebbab6fcb4bb331f8bb6b9d86d86fcd8": "02000000000101470cfc737af6bf917ce35bf7224b1021ef87349cd7f150464e6a0e3ee0cf6f1a0400000000fdffffff0261de0c0000000000160014f6aa7ea83b54335553ece4de88b3e9af6fb4ff0b92b78b00000000001600141dfacc496a9c98227631e3df4796baf3ba8254120247304402201a1b70f27ffcaeecaebad147117e9f4f541e3c630112c395e8237b5f1404f9170220600c96b92a55f8ee99da3fcaf9ca5595468742107651c5cea5798b0e672c7a5b012103ccaf45a46ead9648fc60ba0476f3f820d73fbf75f7d9af626d0512a042c1fc9a41091e00",

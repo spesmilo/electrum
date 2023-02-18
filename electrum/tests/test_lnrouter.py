@@ -15,7 +15,7 @@ from electrum.constants import BitcoinTestnet
 from electrum.simple_config import SimpleConfig
 from electrum.lnrouter import PathEdge, LiquidityHintMgr, DEFAULT_PENALTY_PROPORTIONAL_MILLIONTH, DEFAULT_PENALTY_BASE_MSAT, fee_for_edge_msat
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
 
 
@@ -27,7 +27,8 @@ def node(character: str) -> bytes:
     return b'\x02' + f'{character}'.encode() * 32
 
 
-class Test_LNRouter(TestCaseForTestnet):
+class Test_LNRouter(ElectrumTestCase):
+    TESTNET = True
 
     cdb = None
 

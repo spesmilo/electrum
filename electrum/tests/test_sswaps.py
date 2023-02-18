@@ -3,10 +3,11 @@ from electrum.util import bfh
 from electrum.transaction import PartialTxInput, TxOutpoint
 from electrum.submarine_swaps import SwapManager, SwapData
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 
-class TestSwapTxs(TestCaseForTestnet):
+class TestSwapTxs(ElectrumTestCase):
+    TESTNET = True
 
     def setUp(self):
         super().setUp()

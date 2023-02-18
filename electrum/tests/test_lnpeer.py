@@ -44,7 +44,7 @@ from electrum.simple_config import SimpleConfig
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -392,7 +392,8 @@ class PaymentDone(Exception): pass
 class SuccessfulTest(Exception): pass
 
 
-class TestPeer(TestCaseForTestnet):
+class TestPeer(ElectrumTestCase):
+    TESTNET = True
 
     @classmethod
     def setUpClass(cls):
