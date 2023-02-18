@@ -19,25 +19,14 @@ FAST_TESTS = False
 electrum.logging._configure_stderr_logging()
 
 
-# some unit tests are modifying globals...
-class SequentialTestCase(unittest.TestCase):
-
-    test_lock = threading.Lock()
-
-    def setUp(self):
-        super().setUp()
-        self.test_lock.acquire()
-
-    def tearDown(self):
-        super().tearDown()
-        self.test_lock.release()
-
-
-class ElectrumTestCase(SequentialTestCase):
+class ElectrumTestCase(unittest.TestCase):
     """Base class for our unit tests."""
 
     TESTNET = False
-    # maxDiff = None
+    # maxDiff = None  # for debugging
+
+    # some unit tests are modifying globals... so we run sequentially:
+    _test_lock = threading.Lock()
 
     @classmethod
     def setUpClass(cls):
@@ -52,6 +41,7 @@ class ElectrumTestCase(SequentialTestCase):
             constants.set_mainnet()
 
     def setUp(self):
+        self._test_lock.acquire()
         super().setUp()
         self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
         self.electrum_path = tempfile.mkdtemp()
@@ -59,8 +49,9 @@ class ElectrumTestCase(SequentialTestCase):
     def tearDown(self):
         self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
         self._loop_thread.join(timeout=1)
-        super().tearDown()
         shutil.rmtree(self.electrum_path)
+        super().tearDown()
+        self._test_lock.release()
 
 
 def as_testnet(func):
