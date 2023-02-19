@@ -15,7 +15,7 @@ class Deniability(BasePlugin):
         for utxo in wallet.get_utxos():
             utxos.append(float(self.config.format_amount(utxo.value_sats())))
 
-        if all(x < self.budget for x in utxos):
+        if all(x <= self.budget for x in utxos):
             raise Exception("Error: None of the UTXOs are greater than the deniability budget.")
 
     def create_tx(self, wallet):
