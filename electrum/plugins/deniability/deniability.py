@@ -2,6 +2,7 @@
 
 from electrum.plugin import hook, BasePlugin
 from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+import asyncio
 
 class Deniability(BasePlugin):
     def __init__(self, parent, config, name):
@@ -65,14 +66,16 @@ class Deniability(BasePlugin):
 
         return self.signed_tx
 
-    def send_tx(self, wallet):
-
+    async def send_tx(self, wallet):
         self.network = wallet.network
-
         final_tx = Transaction(self.signed_tx_hex)
-        result = wallet.add_transaction(final_tx)
-
+        loop = asyncio.get_event_loop()
+        result = await self.network.broadcast_transaction(final_tx)
         return result
+
+    def send(self, wallet):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.send_tx(wallet))
 
     @hook
     def load_wallet(self, wallet, window):
@@ -83,4 +86,4 @@ class Deniability(BasePlugin):
 
         self.sign_tx(wallet)
 
-        self.send_tx(wallet)
+        self.send(wallet)
