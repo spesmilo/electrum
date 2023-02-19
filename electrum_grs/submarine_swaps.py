@@ -14,7 +14,7 @@ from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script
                       is_segwit_address, construct_witness)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
-from .util import log_exceptions
+from .util import log_exceptions, BelowDustLimit
 from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
     from .lnwatcher import LNWalletWatcher
     from .lnworker import LNWallet
+    from .simple_config import SimpleConfig
 
 
 API_URL_MAINNET = 'https://swaps.groestlcoin.org'
@@ -116,7 +117,6 @@ def create_claim_tx(
         *,
         txin: PartialTxInput,
         witness_script: bytes,
-        preimage: Union[bytes, int],  # 0 if timing out forward-swap
         address: str,
         amount_sat: int,
         locktime: int,
@@ -124,13 +124,8 @@ def create_claim_tx(
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
-    if is_segwit_address(txin.address):
-        txin.script_type = 'p2wsh'
-        txin.script_sig = b''
-    else:
-        txin.script_type = 'p2wsh-p2sh'
-        txin.redeem_script = bytes.fromhex(p2wsh_nested_script(witness_script.hex()))
-        txin.script_sig = bytes.fromhex(push_script(txin.redeem_script.hex()))
+    txin.script_type = 'p2wsh'
+    txin.script_sig = b''
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
     tx = PartialTransaction.from_io([txin], [txout], version=2, locktime=locktime)
@@ -217,33 +212,21 @@ class SwapManager(Logger):
             if not swap.is_reverse and delta < 0:
                 # too early for refund
                 return
-            # FIXME the mining fee should depend on swap.is_reverse.
-            #       the txs are not the same size...
-            amount_sat = txin.value_sats() - self.get_claim_fee()
-            if amount_sat < dust_threshold():
+            try:
+                tx = self._create_and_sign_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
+            except BelowDustLimit:
                 self.logger.info('utxo value below dust threshold')
                 continue
-            if swap.is_reverse:  # successful reverse swap
-                preimage = swap.preimage
-                locktime = 0
-            else:  # timing out forward swap
-                preimage = 0
-                locktime = swap.locktime
-            tx = create_claim_tx(
-                txin=txin,
-                witness_script=swap.redeem_script,
-                preimage=preimage,
-                address=swap.receive_address,
-                amount_sat=amount_sat,
-                locktime=locktime,
-            )
-            self.sign_tx(tx, swap)
             self.logger.info(f'adding claim tx {tx.txid()}')
             self.wallet.adb.add_transaction(tx)
             swap.spending_txid = tx.txid()
 
     def get_claim_fee(self):
-        return self.wallet.config.estimate_fee(136, allow_fallback_to_static_rates=True)
+        return self._get_claim_fee(config=self.wallet.config)
+
+    @classmethod
+    def _get_claim_fee(cls, *, config: 'SimpleConfig'):
+        return config.estimate_fee(136, allow_fallback_to_static_rates=True)
 
     def get_swap(self, payment_hash: bytes) -> Optional[SwapData]:
         # for history
@@ -650,7 +633,8 @@ class SwapManager(Logger):
         witness = [sig_dummy, preimage, witness_script]
         txin.witness_sizehint = len(bytes.fromhex(construct_witness(witness)))
 
-    def sign_tx(self, tx: PartialTransaction, swap: SwapData) -> None:
+    @classmethod
+    def sign_tx(cls, tx: PartialTransaction, swap: SwapData) -> None:
         preimage = swap.preimage if swap.is_reverse else 0
         witness_script = swap.redeem_script
         txin = tx.inputs()[0]
@@ -662,6 +646,34 @@ class SwapManager(Logger):
         sig = bytes.fromhex(tx.sign_txin(0, swap.privkey))
         witness = [sig, preimage, witness_script]
         txin.witness = bytes.fromhex(construct_witness(witness))
+
+    @classmethod
+    def _create_and_sign_claim_tx(
+        cls,
+        *,
+        txin: PartialTxInput,
+        swap: SwapData,
+        config: 'SimpleConfig',
+    ) -> PartialTransaction:
+        # FIXME the mining fee should depend on swap.is_reverse.
+        #       the txs are not the same size...
+        amount_sat = txin.value_sats() - cls._get_claim_fee(config=config)
+        if amount_sat < dust_threshold():
+            raise BelowDustLimit()
+        if swap.is_reverse:  # successful reverse swap
+            locktime = 0
+            # preimage will be set in sign_tx
+        else:  # timing out forward swap
+            locktime = swap.locktime
+        tx = create_claim_tx(
+            txin=txin,
+            witness_script=swap.redeem_script,
+            address=swap.receive_address,
+            amount_sat=amount_sat,
+            locktime=locktime,
+        )
+        cls.sign_tx(tx, swap)
+        return tx
 
     def max_amount_forward_swap(self) -> Optional[int]:
         """ returns None if we cannot swap """

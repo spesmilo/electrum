@@ -32,7 +32,7 @@ import aiorpcx
 from . import bitcoin
 from . import ecc
 from . import constants
-from .util import bh2u, bfh, NetworkJobOnDefaultServer
+from .util import bfh, NetworkJobOnDefaultServer
 from .lnutil import funding_output_script_from_keys, ShortChannelID
 from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
@@ -105,7 +105,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
                 continue
             self.started_verifying_channel.add(short_channel_id)
             await self.taskgroup.spawn(self.verify_channel(block_height, short_channel_id))
-            #self.logger.info(f'requested short_channel_id {bh2u(short_channel_id)}')
+            #self.logger.info(f'requested short_channel_id {short_channel_id.hex()}')
 
     async def verify_channel(self, block_height: int, short_channel_id: ShortChannelID):
         # we are verifying channel announcements as they are from untrusted ln peers.

@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (QMenu, QHBoxLayout, QLabel, QVBoxLayout, QGridLayou
                              QToolTip)
 from PyQt5.QtGui import QFont, QStandardItem, QBrush, QPainter, QIcon, QHelpEvent
 
-from electrum_grs.util import bh2u, NotEnoughFunds, NoDynamicFeeEstimates
+from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_grs.i18n import _
 from electrum_grs.lnchannel import AbstractChannel, PeerState, ChannelBackup, Channel, ChannelState, ChanCloseOption
 from electrum_grs.wallet import Abstract_Wallet

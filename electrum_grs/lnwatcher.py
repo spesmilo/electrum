@@ -11,7 +11,7 @@ from typing import NamedTuple, Dict
 from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
-from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
+from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint
 from .transaction import match_script_against_template
@@ -69,7 +69,7 @@ class SweepStore(SqlDB):
     def get_sweep_tx(self, funding_outpoint, prevout):
         c = self.conn.cursor()
         c.execute("SELECT tx FROM sweep_txs WHERE funding_outpoint=? AND prevout=?", (funding_outpoint, prevout))
-        return [Transaction(bh2u(r[0])) for r in c.fetchall()]
+        return [Transaction(r[0].hex()) for r in c.fetchall()]
 
     @sql
     def list_sweep_tx(self):

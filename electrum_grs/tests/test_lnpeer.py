@@ -23,7 +23,7 @@ from electrum_grs.ecc import ECPrivkey
 from electrum_grs import simple_config, lnutil
 from electrum_grs.lnaddr import lnencode, LnAddr, lndecode
 from electrum_grs.bitcoin import COIN, sha256
-from electrum_grs.util import bh2u, NetworkRetryManager, bfh, OldTaskGroup, EventListener
+from electrum_grs.util import NetworkRetryManager, bfh, OldTaskGroup, EventListener
 from electrum_grs.lnpeer import Peer
 from electrum_grs.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum_grs.lnutil import PaymentFailure, LnFeatures, HTLCOwner
@@ -44,7 +44,7 @@ from electrum_grs.simple_config import SimpleConfig
 
 from .test_lnchannel import create_test_channels
 from .test_bitcoin import needs_test_with_all_chacha20_implementations
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -392,7 +392,8 @@ class PaymentDone(Exception): pass
 class SuccessfulTest(Exception): pass
 
 
-class TestPeer(TestCaseForTestnet):
+class TestPeer(ElectrumTestCase):
+    TESTNET = True
 
     @classmethod
     def setUpClass(cls):
@@ -1377,7 +1378,7 @@ class TestPeer(TestCaseForTestnet):
         # create upfront shutdown script for bob, alice doesn't use upfront
         # shutdown script
         bob_uss_pub = lnutil.privkey_to_pubkey(os.urandom(32))
-        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bh2u(bob_uss_pub))
+        bob_uss_addr = bitcoin.pubkey_to_address('p2wpkh', bob_uss_pub.hex())
         bob_uss = bfh(bitcoin.address_to_script(bob_uss_addr))
 
         # bob commits to close to bob_uss

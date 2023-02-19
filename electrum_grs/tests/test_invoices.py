@@ -1,7 +1,7 @@
 import os
 import time
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.wallet import restore_wallet_from_text, Standard_Wallet, Abstract_Wallet
@@ -11,18 +11,19 @@ from electrum_grs.transaction import Transaction, PartialTxOutput
 from electrum_grs.util import TxMinedInfo
 
 
-class TestWalletPaymentRequests(TestCaseForTestnet):
+class TestWalletPaymentRequests(ElectrumTestCase):
     """test 'incoming' invoices"""
+    TESTNET = True
 
     def setUp(self):
-        TestCaseForTestnet.setUp(self)
+        super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.wallet1_path = os.path.join(self.electrum_path, "somewallet1")
         self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
         self._orig_get_cur_time = Invoice._get_cur_time
 
     def tearDown(self):
-        TestCaseForTestnet.tearDown(self)
+        super().tearDown()
         Invoice._get_cur_time = staticmethod(self._orig_get_cur_time)
 
     def create_wallet2(self) -> Standard_Wallet:

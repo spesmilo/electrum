@@ -19,6 +19,7 @@ class QESwapHelper(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
     confirm = pyqtSignal([str], arguments=['message'])
+    error = pyqtSignal([str], arguments=['message'])
     swapStarted = pyqtSignal()
     swapSuccess = pyqtSignal()
     swapFailed = pyqtSignal([str], arguments=['message'])

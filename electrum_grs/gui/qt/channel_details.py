@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
 
 from electrum_grs.util import EventListener
 from electrum_grs.i18n import _
-from electrum_grs.util import bh2u, format_time
+from electrum_grs.util import format_time
 from electrum_grs.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
 from electrum_grs.lnchannel import htlcsum, Channel, AbstractChannel, HTLCWithStatus
 from electrum_grs.lnaddr import LnAddr, lndecode
@@ -86,7 +86,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format_msat(i.amount_msat))])
         it.appendRow([HTLCItem(_('CLTV expiry')),HTLCItem(str(i.cltv_expiry))])
-        it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(bh2u(i.payment_hash))])
+        it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(i.payment_hash.hex())])
         return it
 
     def make_model(self, htlcs: Sequence[HTLCWithStatus]) -> QtGui.QStandardItemModel:

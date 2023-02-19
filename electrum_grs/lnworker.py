@@ -40,7 +40,7 @@ from .transaction import Transaction
 from .transaction import get_script_type_from_output_script
 from .crypto import sha256
 from .bip32 import BIP32Node
-from .util import bh2u, bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
+from .util import bfh, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .crypto import chacha20_encrypt, chacha20_decrypt
 from .util import ignore_exceptions, make_aiohttp_session
 from .util import timestamp_to_datetime, random_shuffled_copy
@@ -468,12 +468,12 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
                 if self.uses_trampoline():
                     addr = trampolines_by_id().get(node_id)
                     if not addr:
-                        raise ConnStringFormatError(_('Address unknown for node:') + ' ' + bh2u(node_id))
+                        raise ConnStringFormatError(_('Address unknown for node:') + ' ' + node_id.hex())
                     host, port = addr.host, addr.port
                 else:
                     addrs = self.channel_db.get_node_addresses(node_id)
                     if not addrs:
-                        raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
+                        raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + node_id.hex())
                     host, port, timestamp = self.choose_preferred_address(list(addrs))
             port = int(port)
             # Try DNS-resolving the host (if needed). This is simply so that
@@ -860,7 +860,7 @@ class LNWallet(LNWorker):
             tx_height = self.wallet.adb.get_tx_height(funding_txid)
             self._labels_cache[funding_txid] = _('Open channel') + ' ' + chan.get_id_for_log()
             item = {
-                'channel_id': bh2u(chan.channel_id),
+                'channel_id': chan.channel_id.hex(),
                 'type': 'channel_opening',
                 'label': self.get_label_for_txid(funding_txid),
                 'txid': funding_txid,
@@ -881,7 +881,7 @@ class LNWallet(LNWorker):
             tx_height = self.wallet.adb.get_tx_height(closing_txid)
             self._labels_cache[closing_txid] = _('Close channel') + ' ' + chan.get_id_for_log()
             item = {
-                'channel_id': bh2u(chan.channel_id),
+                'channel_id': chan.channel_id.hex(),
                 'txid': closing_txid,
                 'label': self.get_label_for_txid(closing_txid),
                 'type': 'channel_closure',
@@ -1278,7 +1278,7 @@ class LNWallet(LNWorker):
             code, data = failure_msg.code, failure_msg.data
             self.logger.info(f"UPDATE_FAIL_HTLC. code={repr(code)}. "
                              f"decoded_data={failure_msg.decode_data()}. data={data.hex()!r}")
-            self.logger.info(f"error reported by {bh2u(erring_node_id)}")
+            self.logger.info(f"error reported by {erring_node_id.hex()}")
             if code == OnionFailureCode.MPP_TIMEOUT:
                 raise PaymentFailure(failure_msg.code_name())
             # trampoline
@@ -1816,12 +1816,12 @@ class LNWallet(LNWorker):
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
-        self.preimages[bh2u(payment_hash)] = bh2u(preimage)
+        self.preimages[payment_hash.hex()] = preimage.hex()
         if write_to_disk:
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
-        r = self.preimages.get(bh2u(payment_hash))
+        r = self.preimages.get(payment_hash.hex())
         return bfh(r) if r else None
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:

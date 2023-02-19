@@ -6,7 +6,6 @@ from kivy.factory import Factory
 from electrum_grs.gui import messages
 from electrum_grs.gui.kivy.i18n import _
 from electrum_grs.lnaddr import lndecode
-from electrum_grs.util import bh2u
 from electrum_grs.bitcoin import COIN
 import electrum_grs.simple_config as config
 from electrum_grs.logging import Logger
@@ -150,7 +149,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             if not fee:
                 fee = config.FEERATE_FALLBACK_STATIC_FEE
             self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)  # FIXME magic number?!
-            self.pubkey = bh2u(self.lnaddr.pubkey.serialize())
+            self.pubkey = self.lnaddr.pubkey.serialize().hex()
         if self.msg:
             self.app.show_info(self.msg)
 

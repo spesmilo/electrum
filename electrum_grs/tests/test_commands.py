@@ -9,7 +9,7 @@ from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.transaction import Transaction, TxOutput, tx_from_any
 
-from . import TestCaseForTestnet, ElectrumTestCase
+from . import ElectrumTestCase
 from .test_wallet_vertical import WalletIntegrityHelper
 
 
@@ -124,7 +124,8 @@ class TestCommands(ElectrumTestCase):
                          cmds._run('getprivatekeys', (['bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af', 'bc1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nq604y2n'],), wallet=wallet))
 
 
-class TestCommandsTestnet(TestCaseForTestnet):
+class TestCommandsTestnet(ElectrumTestCase):
+    TESTNET = True
 
     def setUp(self):
         super().setUp()

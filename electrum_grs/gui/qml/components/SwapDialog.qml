@@ -50,7 +50,9 @@ ElDialog {
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    source: swaphelper.isReverse ? '../../icons/lightning.png' : '../../icons/bitcoin.png'
+                    source: swaphelper.isReverse
+                        ? '../../icons/lightning.png'
+                        : '../../icons/bitcoin.png'
                     visible: swaphelper.valid
                 }
             }
@@ -83,7 +85,9 @@ ElDialog {
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    source: swaphelper.isReverse ? '../../icons/bitcoin.png' : '../../icons/lightning.png'
+                    source: swaphelper.isReverse
+                        ? '../../icons/bitcoin.png'
+                        : '../../icons/lightning.png'
                     visible: swaphelper.valid
                 }
             }
@@ -123,7 +127,9 @@ ElDialog {
                     color: Material.accentColor
                 }
                 Label {
-                    text: '(' + swaphelper.serverfeeperc + ')'
+                    text: swaphelper.serverfeeperc
+                        ? '(' + swaphelper.serverfeeperc + ')'
+                        : ''
                 }
             }
 
@@ -164,15 +170,6 @@ ElDialog {
                 if (activeFocus)
                     swaphelper.sliderPos = value
             }
-            Component.onCompleted: {
-                value = swaphelper.sliderPos
-            }
-            Connections {
-                target: swaphelper
-                function onSliderPosChanged() {
-                    swapslider.value = swaphelper.sliderPos
-                }
-            }
         }
 
         InfoTextArea {
@@ -190,7 +187,7 @@ ElDialog {
             Layout.columnSpan: 2
             Layout.fillWidth: true
             text: qsTr('Swap')
-            icon.source: '../../icons/status_waiting.png'
+            icon.source: Qt.resolvedUrl('../../icons/update.png')
             enabled: swaphelper.valid
             onClicked: swaphelper.executeSwap()
         }
@@ -198,8 +195,16 @@ ElDialog {
 
     Connections {
         target: swaphelper
-        function onSwapStarted() {
+        function onSliderPosChanged() {
+            swapslider.value = swaphelper.sliderPos
+        }
+        function onSwapSuccess() {
             root.close()
         }
     }
+
+    Component.onCompleted: {
+        swapslider.value = swaphelper.sliderPos
+    }
+
 }

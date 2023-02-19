@@ -11,7 +11,7 @@ import re
 import attr
 from aiorpcx import NetAddress
 
-from .util import bfh, bh2u, inv_dict, UserFacingException
+from .util import bfh, inv_dict, UserFacingException
 from .util import list_enabled_bits
 from .util import ShortID as ShortChannelID
 from .util import format_short_id as format_short_channel_id
@@ -430,7 +430,7 @@ class RevocationStore:
             this_bucket = self.buckets[i]
             e = shachain_derive(new_element, this_bucket.index)
             if e != this_bucket:
-                raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
+                raise Exception("hash is not derivable: {} {} {}".format(e.secret.hex(), this_bucket.secret.hex(), this_bucket.index))
         self.buckets[bucket] = new_element
         self.storage['index'] = index - 1
 
@@ -474,7 +474,7 @@ def shachain_derive(element, to_index):
         to_index)
 
 ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
-ShachainElement.__str__ = lambda self: "ShachainElement(" + bh2u(self.secret) + "," + str(self.index) + ")"
+ShachainElement.__str__ = lambda self: f"ShachainElement({self.secret.hex()},{self.index})"
 
 def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> bytes:
     """Generate per commitment secret."""
@@ -528,7 +528,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
         delayed_pubkey=local_delayedpubkey,
     )
 
-    p2wsh = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+    p2wsh = bitcoin.redeem_script_to_address('p2wsh', script.hex())
     weight = HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
     fee = local_feerate * weight
     fee = fee // 1000 * 1000
@@ -740,7 +740,7 @@ def possible_output_idxs_of_htlc_in_ctx(*, chan: 'Channel', pcp: bytes, subject:
                                                       local_htlc_pubkey=htlc_pubkey,
                                                       payment_hash=payment_hash,
                                                       cltv_expiry=cltv_expiry)
-    htlc_address = redeem_script_to_address('p2wsh', bh2u(preimage_script))
+    htlc_address = redeem_script_to_address('p2wsh', preimage_script.hex())
     candidates = ctx.get_output_idxs_from_address(htlc_address)
     return {output_idx for output_idx in candidates
             if ctx.outputs()[output_idx].value == htlc.amount_msat // 1000}
@@ -806,7 +806,7 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
     htlc_tx_inputs = make_htlc_tx_inputs(
         commit.txid(), ctx_output_idx,
         amount_msat=amount_msat,
-        witness_script=bh2u(preimage_script))
+        witness_script=preimage_script.hex())
     if is_htlc_success:
         cltv_expiry = 0
     htlc_tx = make_htlc_tx(cltv_expiry=cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
@@ -814,7 +814,7 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
         funding_pos: int, funding_txid: str, funding_sat: int) -> PartialTxInput:
-    pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
+    pubkeys = sorted([local_funding_pubkey.hex(), remote_funding_pubkey.hex()])
     # commitment tx input
     prevout = TxOutpoint(txid=bfh(funding_txid), out_idx=funding_pos)
     c_input = PartialTxInput(prevout=prevout)
@@ -859,7 +859,7 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     non_htlc_outputs = [to_local, to_remote]
     htlc_outputs = []
     for script, htlc in htlcs:
-        addr = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+        addr = bitcoin.redeem_script_to_address('p2wsh', script.hex())
         htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(address_to_script(addr)),
                                             value=htlc.amount_msat // 1000))
 
@@ -985,13 +985,13 @@ def make_commitment_output_to_local_witness_script(
 def make_commitment_output_to_local_address(
         revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> str:
     local_script = make_commitment_output_to_local_witness_script(revocation_pubkey, to_self_delay, delayed_pubkey)
-    return bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
+    return bitcoin.redeem_script_to_address('p2wsh', local_script.hex())
 
 def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> str:
-    return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+    return bitcoin.pubkey_to_address('p2wpkh', remote_payment_pubkey.hex())
 
 def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
-    tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
+    tx.sign({local_config.multisig_key.pubkey.hex(): (local_config.multisig_key.privkey, True)})
     sig = tx.inputs()[0].part_sigs[local_config.multisig_key.pubkey]
     sig_64 = sig_string_from_der_sig(sig[:-1])
     return sig_64
@@ -1000,7 +1000,7 @@ def funding_output_script(local_config, remote_config) -> str:
     return funding_output_script_from_keys(local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey)
 
 def funding_output_script_from_keys(pubkey1: bytes, pubkey2: bytes) -> str:
-    pubkeys = sorted([bh2u(pubkey1), bh2u(pubkey2)])
+    pubkeys = sorted([pubkey1.hex(), pubkey2.hex()])
     return transaction.multisig_script(pubkeys, 2)
 
 
@@ -1450,7 +1450,7 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
             # invoice?
             invoice = lndecode(connect_contents)
             nodeid_bytes = invoice.pubkey.serialize()
-            nodeid_hex = bh2u(nodeid_bytes)
+            nodeid_hex = nodeid_bytes.hex()
         except:
             # node id as hex?
             nodeid_hex = connect_contents

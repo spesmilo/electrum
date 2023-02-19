@@ -2,12 +2,12 @@ import traceback
 import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
 
-from electrum_grs.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
+from electrum_grs.util import bfh, versiontuple, UserCancelled, UserFacingException
 from electrum_grs.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
 from electrum_grs import constants
 from electrum_grs.i18n import _
 from electrum_grs.plugin import Device, runs_in_hwd_thread
-from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
 from electrum_grs.keystore import Hardware_KeyStore
 from electrum_grs.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum_grs.logging import get_logger
@@ -370,7 +370,8 @@ class TrezorPlugin(HW_PluginBase):
                                        amount_unit=self.get_trezor_amount_unit(),
                                        serialize=False,
                                        prev_txes=prev_tx)
-        signatures = [(bh2u(x) + '01') for x in signatures]
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        signatures = [(x.hex() + sighash) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread

@@ -10,10 +10,11 @@ from electrum_grs.util import bfh
 from electrum_grs.lnutil import ShortChannelID, LnFeatures
 from electrum_grs import constants
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 
-class TestLNMsg(TestCaseForTestnet):
+class TestLNMsg(ElectrumTestCase):
+    TESTNET = True
 
     def test_write_bigsize_int(self):
         self.assertEqual(bfh("00"), write_bigsize_int(0))

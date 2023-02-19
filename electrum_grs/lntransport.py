@@ -15,7 +15,7 @@ from .crypto import sha256, hmac_oneshot, chacha20_poly1305_encrypt, chacha20_po
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
                      HandshakeFailed, LNPeerAddr)
 from . import ecc
-from .util import bh2u, MySocksProxy
+from .util import MySocksProxy
 
 
 class HandshakeState(object):

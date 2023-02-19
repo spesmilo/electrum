@@ -15,7 +15,7 @@ from electrum_grs import util, paymentrequest
 from electrum_grs import lnutil
 from electrum_grs.plugin import run_hook
 from electrum_grs.i18n import _
-from electrum_grs.util import (get_asyncio_loop, bh2u, FailedToParsePaymentIdentifier,
+from electrum_grs.util import (get_asyncio_loop, FailedToParsePaymentIdentifier,
                            InvalidBitcoinURI, maybe_extract_lightning_payment_identifier, NotEnoughFunds,
                            NoDynamicFeeEstimates, InvoiceError, parse_max_spend)
 from electrum_grs.invoices import PR_PAID, Invoice
@@ -396,7 +396,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
             return
 
-        pubkey = bh2u(lnaddr.pubkey.serialize())
+        pubkey = lnaddr.pubkey.serialize().hex()
         for k,v in lnaddr.tags:
             if k == 'd':
                 description = v

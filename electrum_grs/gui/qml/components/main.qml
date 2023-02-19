@@ -7,6 +7,8 @@ import QtQuick.Controls.Material.impl 2.12
 import QtQml 2.6
 import QtMultimedia 5.6
 
+import org.electrum 1.0
+
 import "controls"
 
 ApplicationWindow
@@ -271,6 +273,30 @@ ApplicationWindow
         id: crashDialog
         ExceptionDialog {
             z: 1000
+        }
+    }
+
+    property alias swaphelper: _swaphelper
+    Component {
+        id: _swaphelper
+        SwapHelper {
+            id: __swaphelper
+            wallet: Daemon.currentWallet
+            onConfirm: {
+                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
+                dialog.yesClicked.connect(function() {
+                    dialog.close()
+                    __swaphelper.executeSwap(true)
+                })
+                dialog.open()
+            }
+            onAuthRequired: {
+                app.handleAuthRequired(__swaphelper, method)
+            }
+            onError: {
+                var dialog = app.messageDialog.createObject(app, { text: message })
+                dialog.open()
+            }
         }
     }
 

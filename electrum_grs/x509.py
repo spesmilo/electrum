@@ -28,7 +28,7 @@ import time
 from datetime import datetime
 
 from . import util
-from .util import profiler, bh2u
+from .util import profiler
 from .logging import get_logger
 
 
@@ -272,10 +272,10 @@ class X509(object):
                     # Subject Key Identifier
                     r = value.root()
                     value = value.get_value_of_type(r, 'OCTET STRING')
-                    self.SKI = bh2u(value)
+                    self.SKI = value.hex()
                 elif oid == '2.5.29.35':
                     # Authority Key Identifier
-                    self.AKI = bh2u(value.get_sequence()[0])
+                    self.AKI = value.get_sequence()[0].hex()
                 else:
                     pass
 

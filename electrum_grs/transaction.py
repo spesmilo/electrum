@@ -42,7 +42,7 @@ import copy
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
-from .util import profiler, to_bytes, bh2u, bfh, chunks, is_hex_str, parse_max_spend
+from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
@@ -90,18 +90,24 @@ class MissingTxInputAmount(Exception):
 
 
 class Sighash(IntEnum):
+    # note: this is not an IntFlag, as ALL|NONE != SINGLE
+
     ALL = 1
     NONE = 2
     SINGLE = 3
     ANYONECANPAY = 0x80
 
     @classmethod
-    def is_valid(cls, sighash) -> bool:
+    def is_valid(cls, sighash: int) -> bool:
         for flag in Sighash:
             for base_flag in [Sighash.ALL, Sighash.NONE, Sighash.SINGLE]:
                 if (flag & ~0x1f | base_flag) == sighash:
                     return True
         return False
+
+    @classmethod
+    def to_sigbytes(cls, sighash: int) -> bytes:
+        return sighash.to_bytes(length=1, byteorder="big")
 
 
 class TxOutput:
@@ -283,7 +289,18 @@ class TxInput:
             d['witness'] = self.witness.hex()
         return d
 
-    def witness_elements(self)-> Sequence[bytes]:
+    def serialize_to_network(self, *, script_sig: bytes = None) -> bytes:
+        if script_sig is None:
+            script_sig = self.script_sig
+        # Prev hash and index
+        s = self.prevout.serialize_to_network()
+        # Script length, script, sequence
+        s += bytes.fromhex(var_int(len(script_sig)))
+        s += script_sig
+        s += bytes.fromhex(int_to_hex(self.nsequence, 4))
+        return s
+
+    def witness_elements(self) -> Sequence[bytes]:
         if not self.witness:
             return []
         vds = BCDataStream()
@@ -633,7 +650,7 @@ class Transaction:
             self._cached_network_ser = raw.strip() if raw else None
             assert is_hex_str(self._cached_network_ser)
         elif isinstance(raw, (bytes, bytearray)):
-            self._cached_network_ser = bh2u(raw)
+            self._cached_network_ser = raw.hex()
         else:
             raise Exception(f"cannot initialize transaction from {raw}")
         self._inputs = None  # type: List[TxInput]
@@ -846,7 +863,7 @@ class Transaction:
             return multisig_script(pubkeys, txin.num_sig)
         elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             pubkey = pubkeys[0]
-            pkh = bh2u(hash_160(bfh(pubkey)))
+            pkh = hash_160(bfh(pubkey)).hex()
             return bitcoin.pubkeyhash_to_p2pkh_script(pkh)
         elif txin.script_type == 'p2pk':
             pubkey = pubkeys[0]
@@ -854,22 +871,12 @@ class Transaction:
         else:
             raise UnknownTxinType(f'cannot construct preimage_script for txin_type: {txin.script_type}')
 
-    @classmethod
-    def serialize_input(self, txin: TxInput, script: str) -> str:
-        # Prev hash and index
-        s = txin.prevout.serialize_to_network().hex()
-        # Script length, script, sequence
-        s += var_int(len(script)//2)
-        s += script
-        s += int_to_hex(txin.nsequence, 4)
-        return s
-
     def _calc_bip143_shared_txdigest_fields(self) -> BIP143SharedTxDigestFields:
         inputs = self.inputs()
         outputs = self.outputs()
-        hashPrevouts = bh2u(sha256(b''.join(txin.prevout.serialize_to_network() for txin in inputs)))
-        hashSequence = bh2u(sha256(bfh(''.join(int_to_hex(txin.nsequence, 4) for txin in inputs))))
-        hashOutputs = bh2u(sha256(bfh(''.join(o.serialize_to_network().hex() for o in outputs))))
+        hashPrevouts = sha256(b''.join(txin.prevout.serialize_to_network() for txin in inputs)).hex()
+        hashSequence = sha256(bfh(''.join(int_to_hex(txin.nsequence, 4) for txin in inputs))).hex()
+        hashOutputs = sha256(bfh(''.join(o.serialize_to_network().hex() for o in outputs))).hex()
         return BIP143SharedTxDigestFields(hashPrevouts=hashPrevouts,
                                           hashSequence=hashSequence,
                                           hashOutputs=hashOutputs)
@@ -902,11 +909,12 @@ class Transaction:
         inputs = self.inputs()
         outputs = self.outputs()
 
-        def create_script_sig(txin: TxInput) -> str:
+        def create_script_sig(txin: TxInput) -> bytes:
             if include_sigs:
-                return self.input_script(txin, estimate_size=estimate_size)
-            return ''
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, create_script_sig(txin))
+                script_sig = self.input_script(txin, estimate_size=estimate_size)
+                return bytes.fromhex(script_sig)
+            return b""
+        txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=create_script_sig(txin)).hex()
                                                for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
 
@@ -941,7 +949,7 @@ class Transaction:
             except UnknownTxinType:
                 # we might not know how to construct scriptSig for some scripts
                 return None
-            self._cached_txid = bh2u(sha256(bfh(ser))[::-1])
+            self._cached_txid = sha256(bfh(ser))[::-1].hex()
         return self._cached_txid
 
     def wtxid(self) -> Optional[str]:
@@ -953,7 +961,7 @@ class Transaction:
         except UnknownTxinType:
             # we might not know how to construct scriptSig/witness for some scripts
             return None
-        return bh2u(sha256(bfh(ser))[::-1])
+        return sha256(bfh(ser))[::-1].hex()
 
     def add_info_from_wallet(self, wallet: 'Abstract_Wallet', **kwargs) -> None:
         return  # no-op
@@ -973,10 +981,10 @@ class Transaction:
         return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_weight(cls, txin, is_segwit_tx):
+    def estimated_input_weight(cls, txin: TxInput, is_segwit_tx: bool):
         '''Return an estimate of serialized input weight in weight units.'''
-        script = cls.input_script(txin, estimate_size=True)
-        input_size = len(cls.serialize_input(txin, script)) // 2
+        script_sig = cls.input_script(txin, estimate_size=True)
+        input_size = len(txin.serialize_to_network(script_sig=bytes.fromhex(script_sig)))
 
         if txin.is_segwit(guess_for_address=True):
             witness_size = len(cls.serialize_witness(txin, estimate_size=True)) // 2
@@ -1938,7 +1946,7 @@ class PartialTransaction(Transaction):
         txin = inputs[txin_index]
         sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
         if not Sighash.is_valid(sighash):
-            raise Exception("SIGHASH_FLAG not supported!")
+            raise Exception(f"SIGHASH_FLAG ({sighash}) not supported!")
         nHashType = int_to_hex(sighash, 4)
         preimage_script = self.get_preimage_script(txin)
         if txin.is_segwit():
@@ -1955,7 +1963,7 @@ class PartialTransaction(Transaction):
             if (sighash & 0x1f) != Sighash.SINGLE and (sighash & 0x1f) != Sighash.NONE:
                 hashOutputs = bip143_shared_txdigest_fields.hashOutputs
             elif (sighash & 0x1f) == Sighash.SINGLE and txin_index < len(outputs):
-                hashOutputs = bh2u(sha256(outputs[txin_index].serialize_to_network()))
+                hashOutputs = sha256(outputs[txin_index].serialize_to_network()).hex()
             else:
                 hashOutputs = '00' * 32
             outpoint = txin.prevout.serialize_to_network().hex()
@@ -1964,7 +1972,9 @@ class PartialTransaction(Transaction):
             nSequence = int_to_hex(txin.nsequence, 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
-            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, preimage_script if txin_index==k else '')
+            if sighash != Sighash.ALL:
+                raise Exception(f"SIGHASH_FLAG ({sighash}) not supported! (for legacy sighash)")
+            txins = var_int(len(inputs)) + ''.join(txin.serialize_to_network(script_sig=bfh(preimage_script) if txin_index==k else b"").hex()
                                                    for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(o.serialize_to_network().hex() for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
@@ -1992,12 +2002,11 @@ class PartialTransaction(Transaction):
         txin = self.inputs()[txin_index]
         txin.validate_data(for_signing=True)
         sighash = txin.sighash if txin.sighash is not None else Sighash.ALL
-        sighash_type = sighash.to_bytes(length=1, byteorder="big").hex()
         pre_hash = sha256(bfh(self.serialize_preimage(txin_index,
                                                        bip143_shared_txdigest_fields=bip143_shared_txdigest_fields)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + sighash_type
+        sig = sig.hex() + Sighash.to_sigbytes(sighash).hex()
         return sig
 
     def is_complete(self) -> bool:

@@ -144,6 +144,10 @@ class NoDynamicFeeEstimates(Exception):
         return _('Dynamic fee estimates not available')
 
 
+class BelowDustLimit(Exception):
+    pass
+
+
 class InvalidPassword(Exception):
     def __init__(self, message: Optional[str] = None):
         self.message = message
@@ -585,17 +589,6 @@ def to_bytes(something, encoding='utf8') -> bytes:
 bfh = bytes.fromhex
 
 
-def bh2u(x: bytes) -> str:
-    """
-    str with hex representation of a bytes-like object
-
-    >>> x = bytes((1, 2, 10))
-    >>> bh2u(x)
-    '01020A'
-    """
-    return x.hex()
-
-
 def xor_bytes(a: bytes, b: bytes) -> bytes:
     size = min(len(a), len(b))
     return ((int.from_bytes(a[:size], "big") ^ int.from_bytes(b[:size], "big"))
@@ -1000,7 +993,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
     if 'sig' in out:
         try:
-            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
+            out['sig'] = bitcoin.base_decode(out['sig'], base=58).hex()
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
