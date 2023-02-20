@@ -69,6 +69,20 @@ class Deniability(BasePlugin):
     async def send_tx(self, wallet):
         self.network = wallet.network
         final_tx = Transaction(self.signed_tx_hex)
+
+        input_labels = []
+        for txin in final_tx.inputs():
+            prevout_hash = txin.prevout.txid.hex()
+            prevout_n = txin.prevout.out_idx
+            prevout = wallet.db.get_transaction(prevout_hash).outputs()[prevout_n]
+            input_labels.append(wallet.db.get_dict('labels').get(prevout.address))
+
+        # Set the label of the output coins
+        output_labels = [label + 1 if label is not None else 1 for label in input_labels]
+        for i, txout in enumerate(final_tx.outputs()):
+            label = output_labels[i]
+            wallet.set_label(txout.address, str(label))
+
         loop = asyncio.get_event_loop()
         result = await self.network.broadcast_transaction(final_tx)
         return result
