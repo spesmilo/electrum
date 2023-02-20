@@ -1,4 +1,5 @@
 import asyncio
+import os
 import unittest
 import threading
 import tempfile
@@ -47,6 +48,12 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
         self._test_lock.acquire()
         super().setUp()
         self.electrum_path = tempfile.mkdtemp()
+
+    async def asyncSetUp(self):
+        loop = util.get_asyncio_loop()
+        # IsolatedAsyncioTestCase creates event loops with debug=True, which makes the tests take ~4x time
+        if not (os.environ.get("PYTHONASYNCIODEBUG") or os.environ.get("PYTHONDEVMODE")):
+            loop.set_debug(False)
 
     def tearDown(self):
         shutil.rmtree(self.electrum_path)
