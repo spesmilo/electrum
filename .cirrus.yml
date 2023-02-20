@@ -17,9 +17,15 @@ task:
        - env:
            ELECTRUM_PYTHON_VERSION: 3.10
        - env:
-           ELECTRUM_PYTHON_VERSION: 3
+           ELECTRUM_PYTHON_VERSION: 3.11
        - env:
            ELECTRUM_PYTHON_VERSION: rc
+       - name: Tox Python 3 debug mode
+         env:
+           ELECTRUM_PYTHON_VERSION: 3
+           # enable additional checks:
+           PYTHONASYNCIODEBUG: "1"
+           PYTHONDEVMODE: "1"
     - name: Tox PyPy
       allow_failures: true
       env:
@@ -38,6 +44,8 @@ task:
     - apt-get -y install libsecp256k1-0
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
   tox_script:
+    - export PYTHONASYNCIODEBUG
+    - export PYTHONDEVMODE
     - tox
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
