@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QMetaObject, Qt
 
 from electrum import bitcoin
 from electrum.i18n import _
@@ -113,6 +113,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
 
+        # post-construction init in GUI thread
+        # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
+
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
         # methods of this class only, and specifically not be
@@ -122,6 +125,19 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.destroyed.connect(lambda: self.on_destroy())
 
         self.synchronizing = True # start in sync state
+
+    # @pyqtSlot()
+    # def qt_init(self):
+    #     self.notification_timer = QTimer(self)
+    #     self.notification_timer.setSingleShot(False)
+    #     self.notification_timer.setInterval(500)  # msec
+    #     self.notification_timer.timeout.connect(self.notify_transactions)
+    #
+    #     self.sync_progress_timer = QTimer(self)
+    #     self.sync_progress_timer.setSingleShot(False)
+    #     self.sync_progress_timer.setInterval(2000)
+    #     self.sync_progress_timer.timeout.connect(self.update_sync_progress)
+
 
     @pyqtProperty(bool, notify=isUptodateChanged)
     def isUptodate(self):
