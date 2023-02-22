@@ -1095,15 +1095,20 @@ class Ledger_Client_New(Ledger_Client):
                 if utxo is None:
                     continue
                 scriptcode = utxo.scriptPubKey
-
-                p2sh = False
                 if electrum_txin.script_type in ['p2sh', 'p2wpkh-p2sh']:
                     if len(psbt_in.redeem_script) == 0:
                         continue
                     scriptcode = psbt_in.redeem_script
+                elif electrum_txin.script_type in ['p2wsh', 'p2wsh-p2sh']:
+                    if len(psbt_in.witness_script) == 0:
+                        continue
+                    scriptcode = psbt_in.witness_script
+
+                p2sh = False
+                if electrum_txin.script_type in ['p2sh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
                     p2sh = True
 
-                is_wit, wit_ver, __ = is_witness(scriptcode)
+                is_wit, wit_ver, __ = is_witness(psbt_in.redeem_script or utxo.scriptPubKey)
 
                 script_addrtype = AddressType.LEGACY
                 if is_wit:
@@ -1122,12 +1127,6 @@ class Ledger_Client_New(Ledger_Client):
                             script_addrtype = AddressType.TAP
                         else:
                             continue
-
-                # Check if P2WSH
-                if electrum_txin.script_type in ['p2wsh']:
-                    if len(psbt_in.witness_script) == 0:
-                        continue
-                    scriptcode = psbt_in.witness_script
 
                 multisig = parse_multisig(scriptcode)
                 if multisig is not None:
