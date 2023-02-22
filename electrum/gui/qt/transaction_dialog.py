@@ -855,7 +855,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.locktime_final_label.setVisible(True)
 
     def set_title(self):
-        self.setWindowTitle(_("Transaction") + ' ' + self.tx.txid())
+        txid = self.tx.txid() or "<no txid yet>"
+        self.setWindowTitle(_("Transaction") + ' ' + txid)
 
     def can_finalize(self) -> bool:
         return False
