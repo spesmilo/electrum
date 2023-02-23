@@ -27,63 +27,67 @@ ElDialog {
         color: "#aa000000"
     }
 
-    Flickable {
+    padding: 0
+
+    ColumnLayout {
         anchors.fill: parent
-        contentHeight: rootLayout.height
-        clip:true
-        interactive: height < contentHeight
+        spacing: 0
 
-        ColumnLayout {
-            id: rootLayout
-            width: parent.width
-            spacing: constants.paddingMedium
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: qr.height
-                Layout.topMargin: constants.paddingSmall
-                Layout.bottomMargin: constants.paddingSmall
-                QRImage {
-                    id: qr
-                    qrdata: dialog.text_qr
-                    anchors.centerIn: parent
-                }
-            }
+            contentHeight: rootLayout.height
+            clip:true
+            interactive: height < contentHeight
 
-            Label {
-                visible: dialog.text_help
-                text: dialog.text_help
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
+            ColumnLayout {
+                id: rootLayout
+                width: parent.width
+                spacing: constants.paddingMedium
 
-            Rectangle {
-                height: 1
-                Layout.preferredWidth: qr.width
-                Layout.alignment: Qt.AlignHCenter
-                color: Material.accentColor
-            }
-
-            ButtonContainer {
-                // Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
-
-                FlatButton {
-                    Layout.minimumWidth: dialog.width * 1/4
-                    text: qsTr('Copy')
-                    icon.source: '../../icons/copy_bw.png'
-                    onClicked: {
-                        AppController.textToClipboard(dialog.text)
-                        toaster.show(this, qsTr('Copied!'))
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: qr.height
+                    Layout.topMargin: constants.paddingSmall
+                    Layout.bottomMargin: constants.paddingSmall
+                    QRImage {
+                        id: qr
+                        qrdata: dialog.text_qr
+                        anchors.centerIn: parent
                     }
                 }
-                FlatButton {
-                    Layout.minimumWidth: dialog.width * 1/4
-                    text: qsTr('Share')
-                    icon.source: '../../icons/share.png'
-                    onClicked: {
-                        AppController.doShare(dialog.text, dialog.title)
-                    }
+
+                Label {
+                    visible: dialog.text_help
+                    text: dialog.text_help
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                }
+
+            }
+        }
+
+        ButtonContainer {
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Copy')
+                icon.source: '../../icons/copy_bw.png'
+                onClicked: {
+                    AppController.textToClipboard(dialog.text)
+                    toaster.show(this, qsTr('Copied!'))
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Share')
+                icon.source: '../../icons/share.png'
+                onClicked: {
+                    AppController.doShare(dialog.text, dialog.title)
                 }
             }
         }
