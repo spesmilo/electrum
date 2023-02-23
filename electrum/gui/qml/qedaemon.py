@@ -118,6 +118,7 @@ class QEDaemon(AuthMixin, QObject):
     _name = None
     _use_single_password = False
     _password = None
+    _loading = False
 
     _backendWalletLoaded = pyqtSignal([str], arguments=['password'])
 
@@ -125,6 +126,7 @@ class QEDaemon(AuthMixin, QObject):
     fxChanged = pyqtSignal()
     newWalletWizardChanged = pyqtSignal()
     serverConnectWizardChanged = pyqtSignal()
+    loadingChanged = pyqtSignal()
 
     walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
     walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
@@ -178,6 +180,9 @@ class QEDaemon(AuthMixin, QObject):
                 return
 
         def load_wallet_task():
+            self._loading = True
+            self.loadingChanged.emit()
+
             try:
                 wallet = self.daemon.load_wallet(self._path, password)
 
@@ -202,8 +207,11 @@ class QEDaemon(AuthMixin, QObject):
             except WalletFileException as e:
                 self._logger.error(str(e))
                 self.walletOpenError.emit(str(e))
+            finally:
+                self._loading = False
+                self.loadingChanged.emit()
 
-        threading.Thread(target=load_wallet_task).start()
+        threading.Thread(target=load_wallet_task, daemon=True).start()
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -251,6 +259,10 @@ class QEDaemon(AuthMixin, QObject):
             return
 
         self.availableWallets.remove_wallet(path)
+
+    @pyqtProperty(bool, notify=loadingChanged)
+    def loading(self):
+        return self._loading
 
     @pyqtProperty(QEWallet, notify=walletLoaded)
     def currentWallet(self):

@@ -14,12 +14,13 @@ Pane {
     padding: 0
 
     function createWallet() {
-        var dialog = app.newWalletWizard.createObject(rootItem)
+        var dialog = app.newWalletWizard.createObject(app)
         dialog.open()
         dialog.walletCreated.connect(function() {
             Daemon.availableWallets.reload()
             // and load the new wallet
             Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
+            app.stack.pop()
         })
     }
 
@@ -57,6 +58,7 @@ Pane {
 
                         onClicked: {
                             Daemon.load_wallet(model.path)
+                            app.stack.pop()
                         }
 
                         RowLayout {
@@ -115,14 +117,6 @@ Pane {
             text: 'Create Wallet'
             icon.source: '../../icons/add.png'
             onClicked: rootItem.createWallet()
-        }
-    }
-
-    Connections {
-        target: Daemon
-        function onWalletLoaded() {
-            Daemon.availableWallets.reload()
-            app.stack.pop()
         }
     }
 

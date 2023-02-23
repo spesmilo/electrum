@@ -171,6 +171,30 @@ ApplicationWindow
         }
     }
 
+    Pane {
+        id: walletLoadingPane
+        parent: Overlay.overlay
+        anchors.fill: parent
+        background: Rectangle { color: Material.dialogColor }
+        visible: Daemon.loading
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 2 * constants.paddingXLarge
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr('Opening wallet...')
+                font.pixelSize: constants.fontSizeXXLarge
+            }
+
+            BusyIndicator {
+                Layout.alignment: Qt.AlignHCenter
+                running: Daemon.loading
+            }
+        }
+    }
+
     Timer {
         id: coverTimer
         interval: 10
