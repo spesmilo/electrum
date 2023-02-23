@@ -20,7 +20,6 @@ Pane {
             Daemon.availableWallets.reload()
             // and load the new wallet
             Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
-            app.stack.pop()
         })
     }
 
@@ -57,8 +56,10 @@ Pane {
                         height: row.height
 
                         onClicked: {
-                            Daemon.load_wallet(model.path)
-                            app.stack.pop()
+                            if (Daemon.currentWallet.name != model.name)
+                                Daemon.load_wallet(model.path)
+                            else
+                                app.stack.pop()
                         }
 
                         RowLayout {
@@ -117,6 +118,14 @@ Pane {
             text: 'Create Wallet'
             icon.source: '../../icons/add.png'
             onClicked: rootItem.createWallet()
+        }
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            if (app.stack.currentItem.objectName == 'Wallets')
+                app.stack.pop()
         }
     }
 

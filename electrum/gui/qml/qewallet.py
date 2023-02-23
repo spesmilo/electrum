@@ -126,19 +126,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.synchronizing = True # start in sync state
 
-    # @pyqtSlot()
-    # def qt_init(self):
-    #     self.notification_timer = QTimer(self)
-    #     self.notification_timer.setSingleShot(False)
-    #     self.notification_timer.setInterval(500)  # msec
-    #     self.notification_timer.timeout.connect(self.notify_transactions)
-    #
-    #     self.sync_progress_timer = QTimer(self)
-    #     self.sync_progress_timer.setSingleShot(False)
-    #     self.sync_progress_timer.setInterval(2000)
-    #     self.sync_progress_timer.timeout.connect(self.update_sync_progress)
-
-
     @pyqtProperty(bool, notify=isUptodateChanged)
     def isUptodate(self):
         return self._isUpToDate

@@ -171,30 +171,6 @@ ApplicationWindow
         }
     }
 
-    Pane {
-        id: walletLoadingPane
-        parent: Overlay.overlay
-        anchors.fill: parent
-        background: Rectangle { color: Material.dialogColor }
-        visible: Daemon.loading
-
-        ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 2 * constants.paddingXLarge
-
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: qsTr('Opening wallet...')
-                font.pixelSize: constants.fontSizeXXLarge
-            }
-
-            BusyIndicator {
-                Layout.alignment: Qt.AlignHCenter
-                running: Daemon.loading
-            }
-        }
-    }
-
     Timer {
         id: coverTimer
         interval: 10
@@ -279,6 +255,14 @@ ApplicationWindow
     Component {
         id: _openWalletDialog
         OpenWalletDialog {
+            onClosed: destroy()
+        }
+    }
+
+    property alias loadingWalletDialog: _loadingWalletDialog
+    Component {
+        id: _loadingWalletDialog
+        LoadingWalletDialog {
             onClosed: destroy()
         }
     }
@@ -408,6 +392,13 @@ ApplicationWindow
         }
         function onAuthRequired(method) {
             handleAuthRequired(Daemon, method)
+        }
+        function onLoadingChanged() {
+            if (!Daemon.loading)
+                return
+            console.log('wallet loading')
+            var dialog = loadingWalletDialog.createObject(app, { allowClose: false } )
+            dialog.open()
         }
     }
 
