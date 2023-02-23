@@ -143,4 +143,11 @@ Pane {
             Daemon.currentWallet.historyModel.updateBlockchainHeight(height)
         }
     }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            listview.positionViewAtBeginning()
+        }
+    }
 }
