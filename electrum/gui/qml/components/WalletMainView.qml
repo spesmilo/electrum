@@ -102,6 +102,7 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
+        spacing: 0
 
         History {
             id: history
@@ -155,22 +156,26 @@ Item {
         }
 
         ButtonContainer {
+            id: buttonContainer
             Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: false
                 Layout.preferredWidth: implicitHeight
+                Layout.preferredHeight: receiveButton.implicitHeight
+
                 icon.source: '../../icons/hamburger.png'
                 icon.height: constants.iconSizeSmall
                 icon.width: constants.iconSizeSmall
 
                 onClicked: {
                     mainView.menu.open()
-                    mainView.menu.y = mainView.height - mainView.menu.height
+                    mainView.menu.y = mainView.height + app.header.height - mainView.menu.height - buttonContainer.height
                 }
             }
 
             FlatButton {
+                id: receiveButton
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
