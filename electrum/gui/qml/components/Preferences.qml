@@ -247,6 +247,7 @@ Pane {
                     }
 
                     RequestExpiryComboBox {
+                        includeNever: false
                         onCurrentValueChanged: {
                             if (activeFocus)
                                 Config.requestExpiry = currentValue
