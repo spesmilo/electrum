@@ -41,6 +41,32 @@ ElDialog {
             columnSpacing: constants.paddingSmall
             columns: 4
 
+            TextHighlightPane {
+                Layout.columnSpan: 4
+                Layout.fillWidth: true
+
+                visible: Daemon.currentWallet.lightningCanReceive
+
+                RowLayout {
+                    width: parent.width
+                    spacing: constants.paddingXSmall
+                    Label {
+                        text: qsTr('Max amount over Lightning')
+                        font.pixelSize: constants.fontSizeSmall
+                        color: Material.accentColor
+                        wrapMode: Text.Wrap
+                    }
+                    Image {
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        source: '../../icons/lightning.png'
+                    }
+                    FormattedAmount {
+                        amount: Daemon.currentWallet.lightningCanReceive
+                    }
+                }
+            }
+
             Label {
                 text: qsTr('Message')
             }

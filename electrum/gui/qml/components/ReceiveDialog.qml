@@ -182,25 +182,6 @@ ElDialog {
                     }
                 }
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    visible: Daemon.currentWallet.isLightning
-                    spacing: constants.paddingXSmall
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: '../../icons/lightning.png'
-                    }
-                    Label {
-                        text: qsTr('can receive:')
-                        font.pixelSize: constants.fontSizeSmall
-                        color: Material.accentColor
-                    }
-                    FormattedAmount {
-                        amount: Daemon.currentWallet.lightningCanReceive
-                    }
-                }
-
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
@@ -221,23 +202,20 @@ ElDialog {
                         text: request.status_str
                     }
                     Label {
-                        visible: request.message
                         text: qsTr('Message')
                         color: Material.accentColor
                     }
                     Label {
-                        visible: request.message
                         Layout.fillWidth: true
                         text: request.message
                         wrapMode: Text.Wrap
                     }
                     Label {
-                        visible: !request.amount.isEmpty
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
                     FormattedAmount {
-                        visible: !request.amount.isEmpty
+                        valid: !request.amount.isEmpty
                         amount: request.amount
                     }
                 }
