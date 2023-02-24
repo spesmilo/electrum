@@ -24,6 +24,7 @@ ElDialog {
     property var wizard_data
     property alias pages: pages
     property QtObject wiz
+    property alias finishButtonText: finishButton.text
 
     function doClose() {
         if (pages.currentIndex == 0)
@@ -171,6 +172,7 @@ ElDialog {
                 }
 
                 Button {
+                    id: finishButton
                     text: qsTr("Finish")
                     visible: pages.lastpage
                     enabled: pages.pagevalid

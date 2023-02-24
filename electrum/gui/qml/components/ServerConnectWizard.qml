@@ -12,6 +12,7 @@ Wizard {
     enter: null // disable transition
 
     wiz: Daemon.serverConnectWizard
+    finishButtonText: qsTr('Next')
 
     onAccepted: {
         var proxy = wizard_data['proxy']
