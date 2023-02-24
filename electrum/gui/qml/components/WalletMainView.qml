@@ -51,15 +51,6 @@ Item {
         MenuItem {
             icon.color: 'transparent'
             action: Action {
-                text: qsTr('Invoices');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
-                enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_receive.png'
-            }
-        }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
                 text: qsTr('Addresses');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
                 enabled: Daemon.currentWallet
