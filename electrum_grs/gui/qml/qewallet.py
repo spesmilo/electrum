@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QMetaObject, Qt
 
 from electrum_grs import bitcoin
 from electrum_grs.i18n import _
@@ -112,6 +112,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.sync_progress_timer.setSingleShot(False)
         self.sync_progress_timer.setInterval(2000)
         self.sync_progress_timer.timeout.connect(self.update_sync_progress)
+
+        # post-construction init in GUI thread
+        # QMetaObject.invokeMethod(self, 'qt_init', Qt.QueuedConnection)
 
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be

@@ -73,6 +73,7 @@ ElDialog {
                 ]
 
                 Rectangle {
+                    id: qrbg
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: constants.paddingSmall
                     Layout.bottomMargin: constants.paddingSmall
@@ -201,14 +202,13 @@ ElDialog {
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: buttons.width
+                    Layout.preferredWidth: qrbg.width
                     color: Material.accentColor
                 }
 
                 GridLayout {
                     columns: 2
-                    // visible: request.message || !request.amount.isEmpty
-                    Layout.maximumWidth: buttons.width
+                    Layout.maximumWidth: qrbg.width
                     Layout.alignment: Qt.AlignHCenter
 
                     Label {
@@ -241,57 +241,63 @@ ElDialog {
                 }
 
                 Rectangle {
-                    // visible: request.message || !request.amount.isEmpty
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: buttons.width
+                    Layout.preferredWidth: qrbg.width
                     color: Material.accentColor
                 }
 
-                ButtonContainer {
-                    id: buttons
-                    Layout.alignment: Qt.AlignHCenter
-                    FlatButton {
-                        Layout.minimumWidth: dialog.width * 1/4
-                        icon.source: '../../icons/copy_bw.png'
-                        icon.color: 'transparent'
-                        text: 'Copy'
-                        onClicked: {
-                            if (request.isLightning && rootLayout.state == 'bolt11')
-                                AppController.textToClipboard(_bolt11)
-                            else if (rootLayout.state == 'bip21uri')
-                                AppController.textToClipboard(_bip21uri)
-                            else
-                                AppController.textToClipboard(_address)
-                            toaster.show(this, qsTr('Copied!'))
-                        }
-                    }
-                    FlatButton {
-                        Layout.minimumWidth: dialog.width * 1/4
-                        icon.source: '../../icons/share.png'
-                        text: 'Share'
-                        onClicked: {
-                            enabled = false
-                            if (request.isLightning && rootLayout.state == 'bolt11')
-                                AppController.doShare(_bolt11, qsTr('Payment Request'))
-                            else if (rootLayout.state == 'bip21uri')
-                                AppController.doShare(_bip21uri, qsTr('Payment Request'))
-                            else
-                                AppController.doShare(_address, qsTr('Onchain address'))
-
-                            enabled = true
-                        }
-                    }
-                    FlatButton {
-                        Layout.minimumWidth: dialog.width * 1/4
-                        Layout.alignment: Qt.AlignHCenter
-                        icon.source: '../../icons/pen.png'
-                        text: qsTr('Edit')
-                        onClicked: receiveDetailsDialog.open()
-                    }
-                }
             }
 
+        }
+
+        ButtonContainer {
+            id: buttons
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/copy_bw.png'
+                icon.color: 'transparent'
+                text: 'Copy'
+                onClicked: {
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.textToClipboard(_bolt11)
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.textToClipboard(_bip21uri)
+                    else
+                        AppController.textToClipboard(_address)
+                    toaster.show(this, qsTr('Copied!'))
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/share.png'
+                text: 'Share'
+                onClicked: {
+                    enabled = false
+                    if (request.isLightning && rootLayout.state == 'bolt11')
+                        AppController.doShare(_bolt11, qsTr('Payment Request'))
+                    else if (rootLayout.state == 'bip21uri')
+                        AppController.doShare(_bip21uri, qsTr('Payment Request'))
+                    else
+                        AppController.doShare(_address, qsTr('Onchain address'))
+
+                    enabled = true
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/pen.png'
+                text: qsTr('Edit')
+                onClicked: receiveDetailsDialog.open()
+            }
         }
     }
 

@@ -183,7 +183,7 @@ class CosignerWallet(Logger):
 
     def hook_transaction_dialog_update(self, d: 'TxDialog'):
         assert self.wallet == d.wallet
-        if not d.finalized or d.tx.is_complete() or d.wallet.can_sign(d.tx):
+        if d.tx.is_complete() or d.wallet.can_sign(d.tx):
             d.cosigner_send_button.setVisible(False)
             return
         for xpub, K, _hash in self.cosigner_list:

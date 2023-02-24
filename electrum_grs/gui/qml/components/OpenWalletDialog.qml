@@ -45,7 +45,7 @@ ElDialog {
             InfoTextArea {
                 id: notice
                 text: qsTr("Wallet <b>%1</b> requires password to unlock").arg(name)
-                // visible: false //wallet_db.needsPassword
+                visible: wallet_db.needsPassword
                 iconStyle: InfoTextArea.IconStyle.Warn
                 Layout.fillWidth: true
             }
@@ -96,7 +96,6 @@ ElDialog {
 
         FlatButton {
             id: unlockButton
-            // Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             visible: wallet_db.needsPassword
             icon.source: '../../icons/unlock.png'

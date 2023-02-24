@@ -17,7 +17,7 @@ Item {
     function show(item, text) {
         _text = text
         var r = item.mapToItem(parent, item.x, item.y)
-        x = r.x
+        x = r.x - (toaster.width - item.width)/2
         y = r.y - toaster.height - constants.paddingLarge
         toaster._y = y - 35
         ani.restart()

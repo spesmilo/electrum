@@ -259,6 +259,14 @@ ApplicationWindow
         }
     }
 
+    property alias loadingWalletDialog: _loadingWalletDialog
+    Component {
+        id: _loadingWalletDialog
+        LoadingWalletDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
@@ -384,6 +392,13 @@ ApplicationWindow
         }
         function onAuthRequired(method) {
             handleAuthRequired(Daemon, method)
+        }
+        function onLoadingChanged() {
+            if (!Daemon.loading)
+                return
+            console.log('wallet loading')
+            var dialog = loadingWalletDialog.createObject(app, { allowClose: false } )
+            dialog.open()
         }
     }
 

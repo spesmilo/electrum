@@ -2483,7 +2483,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.send_tab.fiat_send_e.setVisible(b)
         self.receive_tab.fiat_receive_e.setVisible(b)
         self.history_model.refresh('update_fiat')
-        self.history_list.update()
         self.address_list.refresh_headers()
         self.address_list.update()
         self.update_status()

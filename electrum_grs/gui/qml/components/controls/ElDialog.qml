@@ -12,6 +12,10 @@ Dialog {
         close()
     }
 
+    closePolicy: allowClose
+        ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        : Popup.NoAutoClose
+
     onOpenedChanged: {
         if (opened) {
             app.activeDialogs.push(abstractdialog)
@@ -48,6 +52,7 @@ Dialog {
                 leftPadding: constants.paddingXLarge
                 topPadding: constants.paddingXLarge
                 bottomPadding: constants.paddingXLarge
+                rightPadding: constants.paddingXLarge
                 font.bold: true
                 font.pixelSize: constants.fontSizeMedium
             }
