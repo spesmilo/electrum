@@ -13,6 +13,8 @@ ElDialog {
 
     title: qsTr('Receive Payment')
 
+    property string key
+
     property string _bolt11: request.bolt11
     property string _bip21uri: request.bip21
     property string _address: request.address
@@ -441,8 +443,12 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        // callLater to make sure any popups are on top of the dialog stacking order
-        Qt.callLater(createDefaultRequest)
+        if (dialog.key) {
+            request.key = dialog.key
+        } else {
+            // callLater to make sure any popups are on top of the dialog stacking order
+            Qt.callLater(createDefaultRequest)
+        }
     }
 
     // hack. delay qr rendering until dialog is shown

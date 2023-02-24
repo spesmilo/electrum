@@ -5,6 +5,8 @@ import QtQuick.Controls.Material 2.0
 import QtQml.Models 2.1
 import QtQml 2.6
 
+import org.electrum 1.0
+
 import "controls"
 
 Pane {
@@ -35,10 +37,10 @@ Pane {
                     model: Daemon.currentWallet.requestModel
                     delegate: InvoiceDelegate {
                         onClicked: {
-                            //var dialog = app.stack.getRoot().openInvoice(model.key)
-                            // dialog.invoiceAmountChanged.connect(function () {
-                            //     Daemon.currentWallet.invoiceModel.init_model()
-                            // })
+                            // TODO: only open unpaid?
+                            if (model.status == Invoice.Unpaid) {
+                                app.stack.getRoot().openRequest(model.key)
+                            }
                         }
                     }
                 }

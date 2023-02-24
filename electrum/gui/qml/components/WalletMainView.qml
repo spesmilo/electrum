@@ -21,6 +21,12 @@ Item {
         return dialog
     }
 
+    function openRequest(key) {
+        var dialog = receiveDialog.createObject(app, { key: key })
+        dialog.open()
+        return dialog
+    }
+
     function openSendDialog() {
         _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
         _sendDialog.open()
