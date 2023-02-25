@@ -317,6 +317,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.adb.add_address(addr)
         self.lock = self.adb.lock
         self.transaction_lock = self.adb.transaction_lock
+        self._last_full_history = None
+        self._tx_parents_cache = {}
 
         self.taskgroup = OldTaskGroup()
 
@@ -453,6 +455,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def is_up_to_date(self) -> bool:
         return self._up_to_date
 
+    def tx_is_related(self, tx):
+        is_mine = any([self.is_mine(out.address) for out in tx.outputs()])
+        is_mine |= any([self.is_mine(self.adb.get_txin_address(txin)) for txin in tx.inputs()])
+        return is_mine
+
+    def clear_tx_parents_cache(self):
+        with self.lock, self.transaction_lock:
+            self._tx_parents_cache.clear()
+            self._last_full_history = None
+
     @event_listener
     async def on_event_adb_set_up_to_date(self, adb):
         if self.adb != adb:
@@ -473,20 +485,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.logger.info(f'set_up_to_date: {up_to_date}')
 
     @event_listener
-    def on_event_adb_added_tx(self, adb, tx_hash):
+    def on_event_adb_added_tx(self, adb, tx_hash: str, tx: Transaction):
         if self.adb != adb:
             return
-        tx = self.db.get_transaction(tx_hash)
-        if not tx:
-            raise Exception(tx_hash)
-        is_mine = any([self.is_mine(out.address) for out in tx.outputs()])
-        is_mine |= any([self.is_mine(self.adb.get_txin_address(txin)) for txin in tx.inputs()])
-        if not is_mine:
+        if not self.tx_is_related(tx):
             return
+        self.clear_tx_parents_cache()
         if self.lnworker:
             self.lnworker.maybe_add_backup_from_tx(tx)
         self._update_invoices_and_reqs_touched_by_tx(tx_hash)
         util.trigger_callback('new_transaction', self, tx)
+
+    @event_listener
+    def on_event_adb_removed_tx(self, adb, txid: str, tx: Transaction):
+        if self.adb != adb:
+            return
+        if not self.tx_is_related(tx):
+            return
+        self.clear_tx_parents_cache()
 
     @event_listener
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
@@ -844,6 +860,33 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             can_remove=can_remove,
             is_lightning_funding_tx=is_lightning_funding_tx,
         )
+
+    def get_tx_parents(self, txid) -> Dict:
+        """
+        recursively calls itself and returns a flat dict:
+        txid -> input_index ->  prevout
+        note: this does not take into account address reuse
+        """
+        if not self.is_up_to_date():
+            return {}
+        if self._last_full_history is None:
+            self._last_full_history = self.get_full_history(None)
+
+        with self.lock, self.transaction_lock:
+            result = self._tx_parents_cache.get(txid, None)
+            if result is not None:
+                return result
+            result = {}
+            parents = []
+            tx = self.adb.get_transaction(txid)
+            for i, txin in enumerate(tx.inputs()):
+                parents.append(str(txin.short_id))
+                _txid = txin.prevout.txid.hex()
+                if _txid in self._last_full_history.keys():
+                    result.update(self.get_tx_parents(_txid))
+            result[txid] = parents
+            self._tx_parents_cache[txid] = result
+            return result
 
     def get_balance(self, **kwargs):
         domain = self.get_addresses()

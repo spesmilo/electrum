@@ -349,7 +349,7 @@ class AddressSynchronizer(Logger, EventListener):
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             if is_new:
-                util.trigger_callback('adb_added_tx', self, tx_hash)
+                util.trigger_callback('adb_added_tx', self, tx_hash, tx)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
@@ -401,6 +401,7 @@ class AddressSynchronizer(Logger, EventListener):
                     scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
                     prevout = TxOutpoint(bfh(tx_hash), idx)
                     self.db.remove_prevout_by_scripthash(scripthash, prevout=prevout, value=txo.value)
+        util.trigger_callback('adb_removed_tx', self, tx_hash, tx)
 
     def get_depending_transactions(self, tx_hash: str) -> Set[str]:
         """Returns all (grand-)children of tx_hash in this wallet."""
