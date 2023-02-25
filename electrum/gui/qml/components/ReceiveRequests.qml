@@ -11,6 +11,7 @@ import "controls"
 
 Pane {
     id: root
+    objectName: 'ReceiveRequests'
 
     ColumnLayout {
         anchors.fill: parent

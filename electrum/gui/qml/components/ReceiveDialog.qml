@@ -243,7 +243,8 @@ ElDialog {
                 text: qsTr('Requests')
                 onClicked: {
                     dialog.close()
-                    app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                    if (app.stack.currentItem.objectName != 'ReceiveRequests')
+                        app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
                 }
             }
             FlatButton {
