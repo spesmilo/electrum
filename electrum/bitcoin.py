@@ -448,7 +448,7 @@ def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> st
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script: str, *, net=None) -> str:
+def script_to_address(script: str, *, net=None) -> Optional[str]:
     from .transaction import get_address_from_output_script
     return get_address_from_output_script(bfh(script), net=net)
 

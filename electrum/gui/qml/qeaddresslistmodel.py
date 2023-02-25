@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
+from electrum import bitcoin
 from electrum.logging import get_logger
 from electrum.util import Satoshis
 
@@ -52,9 +53,10 @@ class QEAddressListModel(QAbstractListModel):
         self.endResetModel()
 
     def addr_to_model(self, address):
+        spk = bitcoin.address_to_script(address)
         item = {}
         item['address'] = address
-        item['numtx'] = self.wallet.adb.get_address_history_len(address)
+        item['numtx'] = self.wallet.adb.get_spk_history_len(spk)
         item['label'] = self.wallet.get_label_for_address(address)
         c, u, x = self.wallet.get_addr_balance(address)
         item['balance'] = QEAmount(amount_sat=c + u + x)

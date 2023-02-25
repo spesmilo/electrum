@@ -3,6 +3,8 @@
 import sys
 import asyncio
 
+import electrum
+from electrum.bitcoin import script_to_address
 from electrum.network import Network
 from electrum.util import print_msg, create_and_start_event_loop
 from electrum.synchronizer import SynchronizerBase
@@ -23,25 +25,14 @@ network = Network(config)
 network.start()
 
 
-class Notifier(SynchronizerBase):
+class Notifier(electrum.synchronizer.Notifier):
     def __init__(self, network):
-        SynchronizerBase.__init__(self, network)
-        self.watched_addresses = set()
-        self.watch_queue = asyncio.Queue()
+        super().__init__(network)
 
-    async def main(self):
-        # resend existing subscriptions if we were restarted
-        for addr in self.watched_addresses:
-            await self._add_address(addr)
-        # main loop
-        while True:
-            addr = await self.watch_queue.get()
-            self.watched_addresses.add(addr)
-            await self._add_address(addr)
-
-    async def _on_address_status(self, addr, status):
-        print_msg(f"addr {addr}, status {status}")
+    async def _on_spk_status(self, spk, status):
+        addr = script_to_address(spk)
+        print_msg(f"spk {spk}, addr {addr}, status {status}")
 
 
 notifier = Notifier(network)
-asyncio.run_coroutine_threadsafe(notifier.watch_queue.put(addr), loop)
+asyncio.run_coroutine_threadsafe(notifier.start_watching_addr(addr, url=""), loop)

@@ -580,7 +580,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if not hasattr(self, '_not_old_change_addresses'):
                 self._not_old_change_addresses = self.get_change_addresses()
             self._not_old_change_addresses = [addr for addr in self._not_old_change_addresses
-                                              if not self.adb.address_is_old(addr)]
+                                              if not self.adb.is_address_old(addr)]
             unused_addrs = [addr for addr in self._not_old_change_addresses
                             if not self.adb.is_used(addr) and not self.is_address_reserved(addr)]
             return unused_addrs
@@ -743,7 +743,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         with self.lock, self.transaction_lock:
             for txin in tx.inputs():
                 addr = self.adb.get_txin_address(txin)
-                value = self.adb.get_txin_value(txin, address=addr)
+                spk = address_to_script(addr) if addr else None
+                value = self.adb.get_txin_value(txin, spk=spk)
                 if self.is_mine(addr):
                     num_input_ismine += 1
                     is_relevant = True
@@ -890,10 +891,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_balance(self, **kwargs):
         domain = self.get_addresses()
-        return self.adb.get_balance(domain, **kwargs)
+        return self.adb.get_balance(domain_addrs=domain, **kwargs)
 
     def get_addr_balance(self, address):
-        return self.adb.get_balance([address])
+        return self.adb.get_balance(domain_addrs=[address])
 
     def get_utxos(
             self,
@@ -902,7 +903,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     ):
         if domain is None:
             domain = self.get_addresses()
-        return self.adb.get_utxos(domain=domain, **kwargs)
+        return self.adb.get_utxos(domain_addrs=domain, **kwargs)
 
     def get_spendable_coins(
             self,
@@ -943,7 +944,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         frozen_coins = {utxo.prevout.to_str() for utxo in self.get_utxos()
                         if self.is_frozen_coin(utxo)}
         if not frozen_coins:  # shortcut
-            return self.adb.get_balance(frozen_addresses)
+            return self.adb.get_balance(domain_addrs=frozen_addresses)
         c1, u1, x1 = self.get_balance()
         c2, u2, x2 = self.get_balance(
             excluded_addresses=frozen_addresses,
@@ -968,7 +969,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def balance_at_timestamp(self, domain, target_timestamp):
         # we assume that get_history returns items ordered by block height
         # we also assume that block timestamps are monotonic (which is false...!)
-        h = self.adb.get_history(domain=domain)
+        h = self.adb.get_history(domain_addrs=domain)
         balance = 0
         for hist_item in h:
             balance = hist_item.balance
@@ -981,7 +982,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if domain is None:
             domain = self.get_addresses()
         monotonic_timestamp = 0
-        for hist_item in self.adb.get_history(domain=domain):
+        for hist_item in self.adb.get_history(domain_addrs=domain):
             monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
             yield {
                 'txid': hist_item.txid,
@@ -1422,12 +1423,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.lnworker and (label:= self.lnworker.get_label_for_txid(tx_hash)):
             return label
         # note: we don't deserialize tx as the history calls us for every tx, and that would be slow
-        if not self.db.get_txi_addresses(tx_hash):
+        if not self.db.get_txi_scriptpubkeys(tx_hash):
             # no inputs are ismine -> likely incoming payment -> concat labels of output addresses
             labels = []
-            for addr in self.db.get_txo_addresses(tx_hash):
-                label = self.get_label_for_address(addr)
-                if label:
+            for spk in self.db.get_txo_scriptpubkeys(tx_hash):
+                if (addr := bitcoin.script_to_address(spk)) and (label := self.get_label_for_address(addr)):
                     labels.append(label)
             return ', '.join(labels)
         else:
@@ -1498,7 +1498,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
         candidate = None
         domain = self.get_addresses()
-        for hist_item in self.adb.get_history(domain):
+        for hist_item in self.adb.get_history(domain_addrs=domain):
             # tx should not be mined yet
             if hist_item.tx_mined_status.conf > 0: continue
             # conservative future proofing of code: only allow known unconfirmed types
@@ -2067,7 +2067,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 break
         else:
             raise CannotCPFP(_("Could not find suitable output"))
-        coins = self.adb.get_addr_utxo(address)
+        coins = self.adb.get_spk_utxo(address_to_script(address))
         item = coins.get(TxOutpoint.from_str(txid+':%d'%i))
         if not item:
             raise CannotCPFP(_("Could not find coins for output"))
@@ -2149,7 +2149,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self,
             txin: PartialTxInput,
             *,
-            address: str = None,
+            spk: str = None,
             ignore_network_issues: bool = True,
     ) -> None:
         # - We prefer to include UTXO (full tx), even for segwit inputs (see #6198).
@@ -2158,13 +2158,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         #   Regardless, this might improve compatibility with some other software.
         # - For witness v1, witness_utxo will be enough though (bip-0341 sighash fixes known prior issues).
         # - We cannot include UTXO if the prev tx is not signed yet (chain of unsigned txs).
-        address = address or txin.address
-        if txin.witness_utxo is None and txin.is_segwit() and address:
-            received, spent = self.adb.get_addr_io(address)
+        if not spk and txin.scriptpubkey:
+            spk = txin.scriptpubkey.hex()
+        if txin.witness_utxo is None and txin.is_segwit() and spk:
+            received, spent = self.adb.get_spk_io(spk)
             item = received.get(txin.prevout.to_str())
             if item:
                 txin_value = item[2]
-                txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
+                txin.witness_utxo = TxOutput(scriptpubkey=bytes.fromhex(spk), value=txin_value)
         if txin.utxo is None:
             txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)
 
@@ -2184,8 +2185,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ignore_network_issues: bool = True,
     ) -> None:
         address = self.adb.get_txin_address(txin)
+        spk = self.adb.get_txin_spk(txin)
         # note: we add input utxos regardless of is_mine
-        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, address=address)
+        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, spk=spk)
         is_mine = self.is_mine(address)
         if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
@@ -2695,11 +2697,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """ Average acquisition price of the inputs of a transaction """
         input_value = 0
         total_price = 0
-        txi_addresses = self.db.get_txi_addresses(txid)
-        if not txi_addresses:
+        txi_spks = self.db.get_txi_scriptpubkeys(txid)
+        if not txi_spks:
             return Decimal('NaN')
-        for addr in txi_addresses:
-            d = self.db.get_txi_addr(txid, addr)
+        for spk in txi_spks:
+            d = self.db.get_txi_spk(txid, spk)
             for ser, v in d:
                 input_value += v
                 total_price += self.coin_price(ser.split(':')[0], price_func, ccy, v)
@@ -2719,7 +2721,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         result = self._coin_price_cache.get(cache_key, None)
         if result is not None:
             return result
-        if self.db.get_txi_addresses(txid):
+        if self.db.get_txi_scriptpubkeys(txid):
             result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
             self._coin_price_cache[cache_key] = result
             return result
@@ -3037,17 +3039,18 @@ class Imported_Wallet(Simple_Wallet):
             raise UserFacingException("cannot delete last remaining address from wallet")
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
+        scriptpubkey = address_to_script(address)
         with self.lock:
-            for addr in self.db.get_history():
-                details = self.adb.get_address_history(addr)
-                if addr == address:
+            for spk in self.db.get_scriptpubkeys():
+                details = self.adb.get_spk_history(spk)
+                if spk == scriptpubkey:
                     for tx_hash, height in details:
                         transactions_to_remove.add(tx_hash)
                 else:
                     for tx_hash, height in details:
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
-            self.db.remove_addr_history(address)
+            self.db.remove_spk_history(scriptpubkey)
             for tx_hash in transactions_to_remove:
                 self.adb._remove_transaction(tx_hash)
         self.set_label(address, None)
@@ -3258,7 +3261,8 @@ class Deterministic_Wallet(Abstract_Wallet):
     def num_unused_trailing_addresses(self, addresses):
         k = 0
         for addr in addresses[::-1]:
-            if self.db.get_addr_history(addr):
+            spk = address_to_script(addr)
+            if self.db.get_spk_history(spk):
                 break
             k += 1
         return k
@@ -3270,7 +3274,7 @@ class Deterministic_Wallet(Abstract_Wallet):
         addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
         for addr in addresses[0:-k]:
-            if self.adb.address_is_old(addr):
+            if self.adb.is_address_old(addr):
                 n = 0
             else:
                 n += 1
@@ -3338,7 +3342,7 @@ class Deterministic_Wallet(Abstract_Wallet):
                 last_few_addresses = self.get_change_addresses(slice_start=-limit)
             else:
                 last_few_addresses = self.get_receiving_addresses(slice_start=-limit)
-            if any(map(self.adb.address_is_old, last_few_addresses)):
+            if any(map(self.adb.is_address_old, last_few_addresses)):
                 count += 1
                 self.create_new_address(for_change)
             else:
@@ -3359,7 +3363,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         def process_addresses(addrs, gap_limit):
             rolling_num_unused = 0
             for addr in addrs:
-                if self.db.get_addr_history(addr):
+                spk = address_to_script(addr)
+                if self.db.get_spk_history(spk):
                     rolling_num_unused = 0
                 else:
                     if rolling_num_unused >= gap_limit:

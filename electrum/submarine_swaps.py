@@ -11,7 +11,7 @@ import aiohttp
 from .crypto import sha256, hash_160
 from .ecc import ECPrivkey
 from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script,
-                      is_segwit_address, construct_witness)
+                      is_segwit_address, construct_witness, address_to_script)
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions, BelowDustLimit
@@ -186,7 +186,7 @@ class SwapManager(Logger):
             return
         current_height = self.network.get_local_height()
         delta = current_height - swap.locktime
-        txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
+        txos = self.lnwatcher.adb.get_spk_outputs(address_to_script(swap.lockup_address))
         for txin in txos.values():
             if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
                 self.logger.info('amount too low, we should not reveal the preimage')

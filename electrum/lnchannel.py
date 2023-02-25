@@ -35,6 +35,7 @@ import attr
 
 from . import ecc
 from . import constants, util
+from . import bitcoin
 from .util import bfh, chunks, TxMinedInfo
 from .invoices import PR_PAID
 from .bitcoin import redeem_script_to_address
@@ -503,7 +504,8 @@ class ChannelBackup(AbstractChannel):
         lnwatcher = self.lnworker.lnwatcher
         if lnwatcher:
             # fixme: we should probably not call that method here
-            return lnwatcher.adb.get_tx_delta(self.funding_outpoint.txid, self.cb.funding_address)
+            spk = bitcoin.address_to_script(self.cb.funding_address)
+            return lnwatcher.adb.get_tx_delta(self.funding_outpoint.txid, spk)
         return None
 
     def is_backup(self):

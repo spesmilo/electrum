@@ -104,7 +104,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
         domain = self.wallet.get_addresses()
-        for hist_item in reversed(self.wallet.adb.get_history(domain)):
+        for hist_item in reversed(self.wallet.adb.get_history(domain_addrs=domain)):
             if hist_item.tx_mined_status.conf:
                 timestamp = hist_item.tx_mined_status.timestamp
                 try:
