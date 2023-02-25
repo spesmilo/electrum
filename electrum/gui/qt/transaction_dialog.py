@@ -398,7 +398,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button = b = QPushButton(_("Broadcast"))
         b.clicked.connect(self.do_broadcast)
 
-        self.save_button = b = QPushButton(_("Save"))
+        self.save_button = b = QPushButton(_("Add to History"))
         b.clicked.connect(self.save)
 
         self.cancel_button = b = QPushButton(_("Close"))
@@ -416,7 +416,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.psbt_only_widgets.append(export_submenu)
 
         self.export_actions_button = QToolButton()
-        self.export_actions_button.setText(_("Export"))
+        self.export_actions_button.setText(_("Share"))
         self.export_actions_button.setMenu(export_actions_menu)
         self.export_actions_button.setPopupMode(QToolButton.InstantPopup)
 
@@ -505,7 +505,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         action.triggered.connect(lambda: self.show_qr(tx=gettx()))
         menu.addAction(action)
 
-        action = QAction(_("Export to file"), self)
+        action = QAction(_("Save to file"), self)
         action.triggered.connect(lambda: self.export_to_file(tx=gettx()))
         menu.addAction(action)
 
@@ -784,9 +784,9 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self.save_button.setEnabled(tx_details.can_save_as_local)
         if tx_details.can_save_as_local:
-            self.save_button.setToolTip(_("Save transaction offline"))
+            self.save_button.setToolTip(_("Add transaction to history, without broadcasting it"))
         else:
-            self.save_button.setToolTip(_("Transaction already saved or not yet signed."))
+            self.save_button.setToolTip(_("Transaction already in history or not yet signed."))
 
         run_hook('transaction_dialog_update', self)
 
