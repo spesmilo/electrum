@@ -2161,11 +2161,9 @@ class LNWallet(LNWorker):
             return channels
 
     def num_sats_can_receive(self, deltas=None) -> Decimal:
-        """Return a conservative estimate of max sat value we can realistically receive
-        in a single payment. (MPP is allowed)
-
-        The theoretical max would be `sum(chan.available_to_spend(REMOTE) for chan in self.channels)`,
-        but that would require a sender using MPP to magically guess all our channel liquidities.
+        """
+        We no longer assume the sender to send MPP on different channels,
+        because channel liquidities are hard to guess
         """
         if deltas is None:
             deltas = {}
@@ -2182,11 +2180,9 @@ class LNWallet(LNWorker):
             recv_chan_msats = [recv_capacity(chan) for chan in recv_channels]
         if not recv_chan_msats:
             return Decimal(0)
-        can_receive_msat = max(
-            max(recv_chan_msats),       # single-part payment baseline
-            sum(recv_chan_msats) // 2,  # heuristic for MPP
-        )
+        can_receive_msat = max(recv_chan_msats)
         return Decimal(can_receive_msat) / 1000
+
 
     def _suggest_channels_for_rebalance(self, direction, amount_sat) -> Sequence[Tuple[Channel, int]]:
         """
@@ -2296,15 +2292,6 @@ class LNWallet(LNWorker):
         )
         return await self.pay_invoice(
             invoice, channels=[chan1])
-
-    def num_sats_can_receive_no_mpp(self) -> Decimal:
-        with self.lock:
-            channels = [
-                c for c in self.channels.values()
-                if c.is_active() and not c.is_frozen_for_receiving()
-            ]
-            can_receive = max([c.available_to_spend(REMOTE) for c in channels]) if channels else 0
-        return Decimal(can_receive) / 1000
 
     def can_receive_invoice(self, invoice: Invoice) -> bool:
         assert invoice.is_lightning()
