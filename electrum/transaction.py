@@ -1186,7 +1186,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self.witness_script = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
-        self.script_descriptor = None  # type: Optional[Descriptor]
+        self._script_descriptor = None  # type: Optional[Descriptor]
         self._trusted_value_sats = None  # type: Optional[int]
         self._trusted_address = None  # type: Optional[str]
         self._is_p2sh_segwit = None  # type: Optional[bool]  # None means unknown
@@ -1224,6 +1224,19 @@ class PartialTxInput(TxInput, PSBTSection):
         if desc := self.script_descriptor:
             return desc.get_all_pubkeys()
         return set()
+
+    @property
+    def script_descriptor(self):
+        return self._script_descriptor
+
+    @script_descriptor.setter
+    def script_descriptor(self, desc: Optional[Descriptor]):
+        self._script_descriptor = desc
+        if desc:
+            if self.redeem_script is None:
+                self.redeem_script = desc.expand().redeem_script
+            if self.witness_script is None:
+                self.witness_script = desc.expand().witness_script
 
     def to_json(self):
         d = super().to_json()
@@ -1537,7 +1550,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
         self._unknown = {}  # type: Dict[bytes, bytes]
 
-        self.script_descriptor = None  # type: Optional[Descriptor]
+        self._script_descriptor = None  # type: Optional[Descriptor]
         self.is_mine = False  # type: bool  # whether the wallet considers the output to be ismine
         self.is_change = False  # type: bool  # whether the wallet considers the output to be change
 
@@ -1546,6 +1559,19 @@ class PartialTxOutput(TxOutput, PSBTSection):
         if desc := self.script_descriptor:
             return desc.get_all_pubkeys()
         return set()
+
+    @property
+    def script_descriptor(self):
+        return self._script_descriptor
+
+    @script_descriptor.setter
+    def script_descriptor(self, desc: Optional[Descriptor]):
+        self._script_descriptor = desc
+        if desc:
+            if self.redeem_script is None:
+                self.redeem_script = desc.expand().redeem_script
+            if self.witness_script is None:
+                self.witness_script = desc.expand().witness_script
 
     def to_json(self):
         d = super().to_json()

@@ -2197,18 +2197,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
         txin.script_descriptor = self._get_script_descriptor_for_address(address)
-        if txin.redeem_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
-            try:
-                redeem_script_hex = self.get_redeem_script(address)
-                txin.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
-            except UnknownTxinType:
-                pass
-        if txin.witness_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
-            try:
-                witness_script_hex = self.get_witness_script(address)
-                txin.witness_script = bfh(witness_script_hex) if witness_script_hex else None
-            except UnknownTxinType:
-                pass
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
@@ -2295,18 +2283,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         txout.is_mine = True
         txout.is_change = self.is_change(address)
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
-        if txout.redeem_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
-            try:
-                redeem_script_hex = self.get_redeem_script(address)
-                txout.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
-            except UnknownTxinType:
-                pass
-        if txout.witness_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
-            try:
-                witness_script_hex = self.get_witness_script(address)
-                txout.witness_script = bfh(witness_script_hex) if witness_script_hex else None
-            except UnknownTxinType:
-                pass
 
     def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
         if self.is_watching_only():
