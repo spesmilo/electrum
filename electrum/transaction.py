@@ -52,7 +52,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
 from .crypto import sha256d
 from .logging import get_logger
 from .util import ShortID
-from .descriptor import Descriptor
+from .descriptor import Descriptor, MissingSolutionPiece
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -774,6 +774,14 @@ class Transaction:
 
         if estimate_size and txin.witness_sizehint is not None:
             return '00' * txin.witness_sizehint
+
+        if desc := txin.script_descriptor:
+            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.part_sigs)
+            if sol.witness is not None:
+                return sol.witness.hex()
+            return construct_witness([])
+
+        assert estimate_size  # TODO xxxxx
         if _type in ('address', 'unknown') and estimate_size:
             _type = cls.guess_txintype_from_address(txin.address)
         pubkeys, sig_list = cls.get_siglist(txin, estimate_size=estimate_size)
@@ -827,7 +835,12 @@ class Transaction:
                 if redeem_script := desc.expand().redeem_script:
                     return construct_script([redeem_script])
                 return ""
+            sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.part_sigs)
+            if sol.script_sig is not None:
+                return sol.script_sig.hex()
+            return ""
 
+        assert estimate_size  # TODO xxxxx
         _type = txin.script_type
         pubkeys, sig_list = self.get_siglist(txin, estimate_size=estimate_size)
         if _type in ('address', 'unknown') and estimate_size:
@@ -841,7 +854,6 @@ class Transaction:
         elif _type == 'p2pkh':
             return construct_script([sig_list[0], pubkeys[0]])
         elif _type == 'p2wpkh-p2sh':
-            assert estimate_size  # otherwise script_descriptor should handle it
             redeem_script = bitcoin.p2wpkh_nested_script(pubkeys[0])
             return construct_script([redeem_script])
         raise UnknownTxinType(f'cannot construct scriptSig for txin_type: {_type}')
@@ -1486,17 +1498,13 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if self.script_sig is not None and not self.is_segwit():
             return True
-        signatures = list(self.part_sigs.values())
-        s = len(signatures)
-        # note: The 'script_type' field is currently only set by the wallet,
-        #       for its own addresses. This means we can only finalize inputs
-        #       that are related to the wallet.
-        #       The 'fix' would be adding extra logic that matches on templates,
-        #       and figures out the script_type from available fields.
-        if self.script_type in ('p2pk', 'p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-            return s >= 1
-        if self.script_type in ('p2sh', 'p2wsh', 'p2wsh-p2sh'):
-            return s >= self.num_sig
+        if desc := self.script_descriptor:
+            try:
+                desc.satisfy(allow_dummy=False, sigdata=self.part_sigs)
+            except MissingSolutionPiece:
+                pass
+            else:
+                return True
         return False
 
     def finalize(self) -> None:
@@ -1589,6 +1597,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return False
         if self.witness_script:
             return True
+        if desc := self.script_descriptor:
+            return desc.is_segwit()
         _type = self.script_type
         if _type == 'address' and guess_for_address:
             _type = Transaction.guess_txintype_from_address(self.address)
