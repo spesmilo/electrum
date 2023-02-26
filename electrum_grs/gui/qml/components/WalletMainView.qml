@@ -21,6 +21,12 @@ Item {
         return dialog
     }
 
+    function openRequest(key) {
+        var dialog = receiveDialog.createObject(app, { key: key })
+        dialog.open()
+        return dialog
+    }
+
     function openSendDialog() {
         _sendDialog = sendDialog.createObject(mainView, {invoiceParser: invoiceParser})
         _sendDialog.open()
@@ -48,15 +54,6 @@ Item {
         }
 
         id: menu
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Invoices');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
-                enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_receive.png'
-            }
-        }
         MenuItem {
             icon.color: 'transparent'
             action: Action {

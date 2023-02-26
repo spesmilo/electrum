@@ -49,10 +49,12 @@ class UTXOList(MyTreeView):
         ADDRESS = 1
         LABEL = 2
         AMOUNT = 3
+        PARENTS = 4
 
     headers = {
         Columns.OUTPOINT: _('Output point'),
         Columns.ADDRESS: _('Address'),
+        Columns.PARENTS: _('Parents'),
         Columns.LABEL: _('Label'),
         Columns.AMOUNT: _('Amount'),
     }
@@ -87,14 +89,15 @@ class UTXOList(MyTreeView):
             name = utxo.prevout.to_str()
             self._utxo_dict[name] = utxo
             address = utxo.address
-            amount = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
-            labels = [str(utxo.short_id), address, '', amount]
+            amount_str = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
+            labels = [str(utxo.short_id), address, '', amount_str, '']
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
             utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
+            utxo_item[self.Columns.PARENTS].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
             self.model().insertRow(idx, utxo_item)
             self.refresh_row(name, idx)
@@ -117,8 +120,10 @@ class UTXOList(MyTreeView):
         assert row is not None
         utxo = self._utxo_dict[key]
         utxo_item = [self.std_model.item(row, col) for col in self.Columns]
-        address = utxo.address
-        label = self.wallet.get_label_for_txid(utxo.prevout.txid.hex()) or self.wallet.get_label_for_address(address)
+        txid = utxo.prevout.txid.hex()
+        parents = self.wallet.get_tx_parents(txid)
+        utxo_item[self.Columns.PARENTS].setText('%6s'%len(parents))
+        label = self.wallet.get_label_for_txid(txid) or ''
         utxo_item[self.Columns.LABEL].setText(label)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')
         if key in self._spend_set:
@@ -130,7 +135,7 @@ class UTXOList(MyTreeView):
         for col in utxo_item:
             col.setBackground(color)
             col.setToolTip(tooltip)
-        if self.wallet.is_frozen_address(address):
+        if self.wallet.is_frozen_address(utxo.address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.ADDRESS].setToolTip(_('Address is frozen'))
         if self.wallet.is_frozen_coin(utxo):
@@ -257,7 +262,7 @@ class UTXOList(MyTreeView):
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, tx_desc=label))
+                menu.addAction(_("View parents"), lambda: self.parent.show_utxo(utxo))
         # fully spend
         menu_spend = menu.addMenu(_("Fully spend") + '…')
         m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))

@@ -55,14 +55,12 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                icon.source: '../../icons/pen.png'
-                text: qsTr('Manual input')
+                icon.source: '../../icons/tab_receive.png'
+                text: qsTr('Invoices')
+                enabled: Daemon.currentWallet.invoiceModel.rowCount() // TODO: only count non-expired
                 onClicked: {
-                    var _mid = manualInputDialog.createObject(mainView)
-                    _mid.accepted.connect(function() {
-                        dialog.dispatch(_mid.recipient)
-                    })
-                    _mid.open()
+                    dialog.close()
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                 }
             }
 
@@ -75,50 +73,6 @@ ElDialog {
             }
         }
 
-    }
-
-    Component {
-        id: manualInputDialog
-        ElDialog {
-            property alias recipient: recipientTextEdit.text
-
-            iconSource: Qt.resolvedUrl('../../icons/pen.png')
-
-            anchors.centerIn: parent
-            implicitWidth: parent.width * 0.9
-
-            parent: Overlay.overlay
-            modal: true
-
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
-
-            title: qsTr('Manual Input')
-
-            ColumnLayout {
-                width: parent.width
-
-                Label {
-                    text: 'Enter a bitcoin address or a Lightning invoice'
-                    wrapMode: Text.Wrap
-                    Layout.maximumWidth: parent.width
-                }
-
-                TextField {
-                    id: recipientTextEdit
-                    topPadding: constants.paddingXXLarge
-                    bottomPadding: constants.paddingXXLarge
-                    Layout.preferredWidth: parent.width
-                    font.family: FixedFont
-
-                    wrapMode: TextInput.WrapAnywhere
-                    placeholderText: qsTr('Enter the payment request here')
-                }
-            }
-
-            onClosed: destroy()
-        }
     }
 
     Bitcoin {

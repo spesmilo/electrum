@@ -13,6 +13,8 @@ ElDialog {
 
     title: qsTr('Receive Payment')
 
+    property string key
+
     property string _bolt11: request.bolt11
     property string _bip21uri: request.bip21
     property string _address: request.address
@@ -180,25 +182,6 @@ ElDialog {
                     }
                 }
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    visible: Daemon.currentWallet.isLightning
-                    spacing: constants.paddingXSmall
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: '../../icons/lightning.png'
-                    }
-                    Label {
-                        text: qsTr('can receive:')
-                        font.pixelSize: constants.fontSizeSmall
-                        color: Material.accentColor
-                    }
-                    FormattedAmount {
-                        amount: Daemon.currentWallet.lightningCanReceive
-                    }
-                }
-
                 Rectangle {
                     height: 1
                     Layout.alignment: Qt.AlignHCenter
@@ -219,23 +202,20 @@ ElDialog {
                         text: request.status_str
                     }
                     Label {
-                        visible: request.message
                         text: qsTr('Message')
                         color: Material.accentColor
                     }
                     Label {
-                        visible: request.message
                         Layout.fillWidth: true
                         text: request.message
                         wrapMode: Text.Wrap
                     }
                     Label {
-                        visible: !request.amount.isEmpty
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
                     FormattedAmount {
-                        visible: !request.amount.isEmpty
+                        valid: !request.amount.isEmpty
                         amount: request.amount
                     }
                 }
@@ -255,6 +235,18 @@ ElDialog {
             id: buttons
             Layout.fillWidth: true
 
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                icon.source: '../../icons/tab_receive.png'
+                text: qsTr('Requests')
+                onClicked: {
+                    dialog.close()
+                    if (app.stack.currentItem.objectName != 'ReceiveRequests')
+                        app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                }
+            }
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -430,8 +422,12 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        // callLater to make sure any popups are on top of the dialog stacking order
-        Qt.callLater(createDefaultRequest)
+        if (dialog.key) {
+            request.key = dialog.key
+        } else {
+            // callLater to make sure any popups are on top of the dialog stacking order
+            Qt.callLater(createDefaultRequest)
+        }
     }
 
     // hack. delay qr rendering until dialog is shown

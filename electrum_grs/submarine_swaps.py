@@ -241,11 +241,6 @@ class SwapManager(Logger):
         callback = lambda: self._claim_swap(swap)
         self.lnwatcher.add_callback(swap.lockup_address, callback)
 
-    def num_sats_can_receive(self):
-        # finding how to do MPP is too hard for sender,
-        # might result in our coins being locked
-        return self.lnworker.num_sats_can_receive_no_mpp()
-
     async def normal_swap(
             self,
             *,
@@ -678,7 +673,7 @@ class SwapManager(Logger):
     def max_amount_forward_swap(self) -> Optional[int]:
         """ returns None if we cannot swap """
         max_swap_amt_ln = self.get_max_amount()
-        max_recv_amt_ln = int(self.num_sats_can_receive())
+        max_recv_amt_ln = int(self.lnworker.num_sats_can_receive())
         max_amt_ln = int(min(max_swap_amt_ln, max_recv_amt_ln))
         max_amt_oc = self.get_send_amount(max_amt_ln, is_reverse=False) or 0
         min_amt_oc = self.get_send_amount(self.get_min_amount(), is_reverse=False) or 0
