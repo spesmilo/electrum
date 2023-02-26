@@ -28,7 +28,10 @@
 from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo
 from . import bitcoin
 from .bitcoin import construct_script, opcodes, construct_witness
+from . import constants
 from .crypto import hash_160, sha256
+from . import ecc
+from . import segwit_addr
 from .util import bfh
 
 from binascii import unhexlify
@@ -44,6 +47,14 @@ from typing import (
 
 
 MAX_TAPROOT_NODES = 128
+
+# we guess that signatures will be 72 bytes long
+# note: DER-encoded ECDSA signatures are 71 or 72 bytes in practice
+#       See https://bitcoin.stackexchange.com/questions/77191/what-is-the-maximum-size-of-a-der-encoded-ecdsa-signature
+#       We assume low S (as that is a bitcoin standardness rule).
+#       We do not assume low R (even though the sigs we create conform), as external sigs,
+#       e.g. from a hw signer cannot be expected to have a low R.
+DUMMY_DER_SIG = 72 * b"\x00"
 
 
 class ExpandedScripts:
@@ -403,7 +414,7 @@ class PKDescriptor(Descriptor):
         pubkey = self.pubkeys[0].get_pubkey_bytes()
         sig = sigdata.get(pubkey)
         if sig is None and allow_dummy:
-            sig = 72 * b"\x00"
+            sig = DUMMY_DER_SIG
         if sig is None:
             raise MissingSolutionPiece(f"no sig for {pubkey.hex()}")
         return ScriptSolutionInner(
@@ -437,7 +448,7 @@ class PKHDescriptor(Descriptor):
         pubkey = self.pubkeys[0].get_pubkey_bytes()
         sig = sigdata.get(pubkey)
         if sig is None and allow_dummy:
-            sig = 72 * b"\x00"
+            sig = DUMMY_DER_SIG
         if sig is None:
             raise MissingSolutionPiece(f"no sig for {pubkey.hex()}")
         return ScriptSolutionInner(
@@ -474,7 +485,7 @@ class WPKHDescriptor(Descriptor):
         pubkey = self.pubkeys[0].get_pubkey_bytes()
         sig = sigdata.get(pubkey)
         if sig is None and allow_dummy:
-            sig = 72 * b"\x00"
+            sig = DUMMY_DER_SIG
         if sig is None:
             raise MissingSolutionPiece(f"no sig for {pubkey.hex()}")
         return ScriptSolutionInner(
@@ -532,7 +543,7 @@ class MultisigDescriptor(Descriptor):
                 if len(signatures) >= self.thresh:
                     break
         if allow_dummy:
-            dummy_sig = 72 * b"\x00"
+            dummy_sig = DUMMY_DER_SIG
             signatures += (self.thresh - len(signatures)) * [dummy_sig]
         if len(signatures) < self.thresh:
             raise MissingSolutionPiece(f"not enough sigs")
@@ -900,3 +911,32 @@ def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) 
         return SHDescriptor(subdescriptor=wpkh)
     else:
         raise NotImplementedError(f"unexpected {script_type=}")
+
+
+def create_dummy_descriptor_from_address(addr: Optional[str]) -> 'Descriptor':
+    # It's not possible to tell the script type in general just from an address.
+    # - "1" addresses are of course p2pkh
+    # - "3" addresses are p2sh but we don't know the redeem script...
+    # - "bc1" addresses (if they are 42-long) are p2wpkh
+    # - "bc1" addresses that are 62-long are p2wsh but we don't know the script...
+    # If we don't know the script, we _guess_ it is pubkeyhash.
+    # As this method is used e.g. for tx size estimation,
+    # the estimation will not be precise.
+    def guess_script_type(addr: Optional[str]) -> str:
+        if addr is None:
+            return 'p2wpkh'  # the default guess
+        witver, witprog = segwit_addr.decode_segwit_address(constants.net.SEGWIT_HRP, addr)
+        if witprog is not None:
+            return 'p2wpkh'
+        addrtype, hash_160_ = bitcoin.b58_address_to_hash160(addr)
+        if addrtype == constants.net.ADDRTYPE_P2PKH:
+            return 'p2pkh'
+        elif addrtype == constants.net.ADDRTYPE_P2SH:
+            return 'p2wpkh-p2sh'
+        raise Exception(f'unrecognized address: {repr(addr)}')
+
+    script_type = guess_script_type(addr)
+    # guess pubkey-len to be 33-bytes:
+    pubkey = ecc.GENERATOR.get_public_key_bytes(compressed=True).hex()
+    desc = get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=script_type)
+    return desc

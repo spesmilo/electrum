@@ -47,12 +47,12 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       int_to_hex, push_script, b58_address_to_hash160,
-                      opcodes, add_number_to_script, base_decode, is_segwit_script_type,
+                      opcodes, add_number_to_script, base_decode,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d
 from .logging import get_logger
 from .util import ShortID
-from .descriptor import Descriptor, MissingSolutionPiece
+from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -734,33 +734,6 @@ class Transaction:
             raise SerializationError('extra junk at the end')
 
     @classmethod
-    def get_siglist(self, txin: 'PartialTxInput', *, estimate_size=False):
-        if txin.is_coinbase_input():
-            return [], []
-
-        if estimate_size:
-            try:
-                pubkey_size = len(txin.pubkeys[0])
-            except IndexError:
-                pubkey_size = 33  # guess it is compressed
-            num_pubkeys = max(1, len(txin.pubkeys))
-            pk_list = ["00" * pubkey_size] * num_pubkeys
-            num_sig = max(1, txin.num_sig)
-            # we guess that signatures will be 72 bytes long
-            # note: DER-encoded ECDSA signatures are 71 or 72 bytes in practice
-            #       See https://bitcoin.stackexchange.com/questions/77191/what-is-the-maximum-size-of-a-der-encoded-ecdsa-signature
-            #       We assume low S (as that is a bitcoin standardness rule).
-            #       We do not assume low R (even though the sigs we create conform), as external sigs,
-            #       e.g. from a hw signer cannot be expected to have a low R.
-            sig_list = ["00" * 72] * num_sig
-        else:
-            pk_list = [pubkey.hex() for pubkey in txin.pubkeys]
-            sig_list = [txin.part_sigs.get(pubkey, b'').hex() for pubkey in txin.pubkeys]
-            if txin.is_complete():
-                sig_list = [sig for sig in sig_list if sig]
-        return pk_list, sig_list
-
-    @classmethod
     def serialize_witness(cls, txin: TxInput, *, estimate_size=False) -> str:
         if txin.witness is not None:
             return txin.witness.hex()
@@ -775,47 +748,15 @@ class Transaction:
         if estimate_size and txin.witness_sizehint is not None:
             return '00' * txin.witness_sizehint
 
-        if desc := txin.script_descriptor:
+        dummy_desc = None
+        if estimate_size:
+            dummy_desc = create_dummy_descriptor_from_address(txin.address)
+        if desc := (txin.script_descriptor or dummy_desc):
             sol = desc.satisfy(allow_dummy=estimate_size, sigdata=txin.part_sigs)
             if sol.witness is not None:
                 return sol.witness.hex()
             return construct_witness([])
-
-        assert estimate_size  # TODO xxxxx
-        if _type in ('address', 'unknown') and estimate_size:
-            _type = cls.guess_txintype_from_address(txin.address)
-        pubkeys, sig_list = cls.get_siglist(txin, estimate_size=estimate_size)
-        if _type in ['p2wpkh', 'p2wpkh-p2sh']:
-            return construct_witness([sig_list[0], pubkeys[0]])
-        elif _type in ['p2wsh', 'p2wsh-p2sh']:
-            witness_script = multisig_script(pubkeys, txin.num_sig)
-            return construct_witness([0, *sig_list, witness_script])
-        elif _type in ['p2pk', 'p2pkh', 'p2sh']:
-            return construct_witness([])
-        raise UnknownTxinType(f'cannot construct witness for txin_type: {_type}')
-
-    @classmethod
-    def guess_txintype_from_address(cls, addr: Optional[str]) -> str:
-        # It's not possible to tell the script type in general
-        # just from an address.
-        # - "1" addresses are of course p2pkh
-        # - "3" addresses are p2sh but we don't know the redeem script..
-        # - "bc1" addresses (if they are 42-long) are p2wpkh
-        # - "bc1" addresses that are 62-long are p2wsh but we don't know the script..
-        # If we don't know the script, we _guess_ it is pubkeyhash.
-        # As this method is used e.g. for tx size estimation,
-        # the estimation will not be precise.
-        if addr is None:
-            return 'p2wpkh'
-        witver, witprog = segwit_addr.decode_segwit_address(constants.net.SEGWIT_HRP, addr)
-        if witprog is not None:
-            return 'p2wpkh'
-        addrtype, hash_160_ = b58_address_to_hash160(addr)
-        if addrtype == constants.net.ADDRTYPE_P2PKH:
-            return 'p2pkh'
-        elif addrtype == constants.net.ADDRTYPE_P2SH:
-            return 'p2wpkh-p2sh'
-        raise Exception(f'unrecognized address: {repr(addr)}')
+        raise UnknownTxinType("cannot construct witness")
 
     @classmethod
     def input_script(self, txin: TxInput, *, estimate_size=False) -> str:
@@ -830,7 +771,10 @@ class Transaction:
         if txin.is_native_segwit():
             return ''
 
-        if desc := txin.script_descriptor:
+        dummy_desc = None
+        if estimate_size:
+            dummy_desc = create_dummy_descriptor_from_address(txin.address)
+        if desc := (txin.script_descriptor or dummy_desc):
             if desc.is_segwit():
                 if redeem_script := desc.expand().redeem_script:
                     return construct_script([redeem_script])
@@ -839,24 +783,7 @@ class Transaction:
             if sol.script_sig is not None:
                 return sol.script_sig.hex()
             return ""
-
-        assert estimate_size  # TODO xxxxx
-        _type = txin.script_type
-        pubkeys, sig_list = self.get_siglist(txin, estimate_size=estimate_size)
-        if _type in ('address', 'unknown') and estimate_size:
-            _type = self.guess_txintype_from_address(txin.address)
-        if _type == 'p2pk':
-            return construct_script([sig_list[0]])
-        elif _type == 'p2sh':
-            # put op_0 before script
-            redeem_script = multisig_script(pubkeys, txin.num_sig)
-            return construct_script([0, *sig_list, redeem_script])
-        elif _type == 'p2pkh':
-            return construct_script([sig_list[0], pubkeys[0]])
-        elif _type == 'p2wpkh-p2sh':
-            redeem_script = bitcoin.p2wpkh_nested_script(pubkeys[0])
-            return construct_script([redeem_script])
-        raise UnknownTxinType(f'cannot construct scriptSig for txin_type: {_type}')
+        raise UnknownTxinType("cannot construct scriptSig")
 
     @classmethod
     def get_preimage_script(cls, txin: 'PartialTxInput') -> str:
@@ -1599,10 +1526,10 @@ class PartialTxInput(TxInput, PSBTSection):
             return True
         if desc := self.script_descriptor:
             return desc.is_segwit()
-        _type = self.script_type
-        if _type == 'address' and guess_for_address:
-            _type = Transaction.guess_txintype_from_address(self.address)
-        return is_segwit_script_type(_type)
+        if guess_for_address:
+            dummy_desc = create_dummy_descriptor_from_address(self.address)
+            return dummy_desc.is_segwit()
+        return False  # can be false-negative
 
     def already_has_some_signatures(self) -> bool:
         """Returns whether progress has been made towards completing this input."""
