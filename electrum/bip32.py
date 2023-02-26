@@ -2,7 +2,9 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
+import binascii
 import hashlib
+import struct
 from typing import List, Tuple, NamedTuple, Union, Iterable, Sequence, Optional
 
 from .util import bfh, BitcoinException
@@ -426,3 +428,84 @@ def is_xkey_consistent_with_key_origin_info(xkey: str, *,
         if bfh(root_fingerprint) != bip32node.fingerprint:
             return False
     return True
+
+
+class KeyOriginInfo:
+    """
+    Object representing the origin of a key.
+
+    from https://github.com/bitcoin-core/HWI/blob/5f300d3dee7b317a6194680ad293eaa0962a3cc7/hwilib/key.py
+    # Copyright (c) 2020 The HWI developers
+    # Distributed under the MIT software license.
+    """
+    def __init__(self, fingerprint: bytes, path: Sequence[int]) -> None:
+        """
+        :param fingerprint: The 4 byte BIP 32 fingerprint of a parent key from which this key is derived from
+        :param path: The derivation path to reach this key from the key at ``fingerprint``
+        """
+        self.fingerprint: bytes = fingerprint
+        self.path: Sequence[int] = path
+
+    @classmethod
+    def deserialize(cls, s: bytes) -> 'KeyOriginInfo':
+        """
+        Deserialize a serialized KeyOriginInfo.
+        They will be serialized in the same way that PSBTs serialize derivation paths
+        """
+        fingerprint = s[0:4]
+        s = s[4:]
+        path = list(struct.unpack("<" + "I" * (len(s) // 4), s))
+        return cls(fingerprint, path)
+
+    def serialize(self) -> bytes:
+        """
+        Serializes the KeyOriginInfo in the same way that derivation paths are stored in PSBTs
+        """
+        r = self.fingerprint
+        r += struct.pack("<" + "I" * len(self.path), *self.path)
+        return r
+
+    def _path_string(self) -> str:
+        strpath = self.get_derivation_path()
+        if len(strpath) >= 2:
+            assert strpath.startswith("m/")
+        return strpath[1:]  # cut leading "m"
+
+    def to_string(self) -> str:
+        """
+        Return the KeyOriginInfo as a string in the form <fingerprint>/<index>/<index>/...
+        This is the same way that KeyOriginInfo is shown in descriptors
+        """
+        s = binascii.hexlify(self.fingerprint).decode()
+        s += self._path_string()
+        return s
+
+    @classmethod
+    def from_string(cls, s: str) -> 'KeyOriginInfo':
+        """
+        Create a KeyOriginInfo from the string
+        :param s: The string to parse
+        """
+        s = s.lower()
+        entries = s.split("/")
+        fingerprint = binascii.unhexlify(s[0:8])
+        path: Sequence[int] = []
+        if len(entries) > 1:
+            path = convert_bip32_path_to_list_of_uint32(s[9:])
+        return cls(fingerprint, path)
+
+    def get_derivation_path(self) -> str:
+        """
+        Return the string for just the path
+        """
+        return convert_bip32_intpath_to_strpath(self.path)
+
+    def get_full_int_list(self) -> List[int]:
+        """
+        Return a list of ints representing this KeyOriginInfo.
+        The first int is the fingerprint, followed by the path
+        """
+        xfp = [struct.unpack("<I", self.fingerprint)[0]]
+        xfp.extend(self.path)
+        return xfp
+
