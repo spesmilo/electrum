@@ -46,6 +46,11 @@ def PolyMod(c: int, val: int) -> int:
         c ^= 0x644d626ffd
     return c
 
+
+_INPUT_CHARSET = "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#\"\\ "
+_INPUT_CHARSET_INV = {c: i for (i, c) in enumerate(_INPUT_CHARSET)}
+_CHECKSUM_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
 def DescriptorChecksum(desc: str) -> str:
     """
     Compute the checksum for a descriptor
@@ -53,15 +58,13 @@ def DescriptorChecksum(desc: str) -> str:
     :param desc: The descriptor string to compute a checksum for
     :return: A checksum
     """
-    INPUT_CHARSET = "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#\"\\ "
-    CHECKSUM_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-
     c = 1
     cls = 0
     clscount = 0
     for ch in desc:
-        pos = INPUT_CHARSET.find(ch)
-        if pos == -1:
+        try:
+            pos = _INPUT_CHARSET_INV[ch]
+        except KeyError:
             return ""
         c = PolyMod(c, pos & 31)
         cls = cls * 3 + (pos >> 5)
@@ -78,7 +81,7 @@ def DescriptorChecksum(desc: str) -> str:
 
     ret = [''] * 8
     for j in range(0, 8):
-        ret[j] = CHECKSUM_CHARSET[(c >> (5 * (7 - j))) & 31]
+        ret[j] = _CHECKSUM_CHARSET[(c >> (5 * (7 - j))) & 31]
     return ''.join(ret)
 
 def AddChecksum(desc: str) -> str:
