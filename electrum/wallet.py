@@ -126,13 +126,6 @@ async def _append_utxos_to_inputs(
         txin.utxo = prev_tx
         txin.block_height = int(item['height'])
         txin.script_descriptor = script_descriptor
-        # TODO rm as much of below (.num_sig / .pubkeys) as possible
-        # TODO need unit tests for other scripts (only have p2pk atm)
-        txin.script_type = txin_type
-        txin.pubkeys = [bfh(pubkey)]
-        txin.num_sig = 1
-        if txin_type == 'p2wpkh-p2sh':
-            txin.redeem_script = bfh(bitcoin.p2wpkh_nested_script(pubkey))
         inputs.append(txin)
 
     u = await network.listunspent_for_scripthash(scripthash)
@@ -2151,10 +2144,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx_new.add_info_from_wallet(self)
         return tx_new
 
-    @abstractmethod
-    def _add_input_sig_info(self, txin: PartialTxInput, address: str, *, only_der_suffix: bool) -> None:
-        pass
-
     def _add_txinout_derivation_info(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                      address: str, *, only_der_suffix: bool) -> None:
         pass  # implemented by subclasses
@@ -2208,22 +2197,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
         txin.script_descriptor = self._get_script_descriptor_for_address(address)
-        # set script_type first, as later checks might rely on it:  # TODO rm most of below in favour of osd
-        txin.script_type = self.get_txin_type(address)
-        txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1
-        if txin.redeem_script is None:
+        if txin.redeem_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
             try:
                 redeem_script_hex = self.get_redeem_script(address)
                 txin.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
             except UnknownTxinType:
                 pass
-        if txin.witness_script is None:
+        if txin.witness_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
             try:
                 witness_script_hex = self.get_witness_script(address)
                 txin.witness_script = bfh(witness_script_hex) if witness_script_hex else None
             except UnknownTxinType:
                 pass
-        self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
+        self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
     def _get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
@@ -2306,19 +2292,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if not is_mine:
                 return
         txout.script_descriptor = self._get_script_descriptor_for_address(address)
-        txout.script_type = self.get_txin_type(address)
         txout.is_mine = True
         txout.is_change = self.is_change(address)
-        if isinstance(self, Multisig_Wallet):
-            txout.num_sig = self.m
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
-        if txout.redeem_script is None:
+        if txout.redeem_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
             try:
                 redeem_script_hex = self.get_redeem_script(address)
                 txout.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
             except UnknownTxinType:
                 pass
-        if txout.witness_script is None:
+        if txout.witness_script is None:  # FIXME should be set in transaction.py instead, based on the script desc
             try:
                 witness_script_hex = self.get_witness_script(address)
                 txout.witness_script = bfh(witness_script_hex) if witness_script_hex else None
@@ -3189,20 +3172,6 @@ class Imported_Wallet(Simple_Wallet):
             if addr != bitcoin.pubkey_to_address(txin_type, pubkey):
                 raise InternalAddressCorruption()
 
-    def _add_input_sig_info(self, txin, address, *, only_der_suffix):
-        if not self.is_mine(address):
-            return
-        if txin.script_type in ('unknown', 'address'):
-            return
-        elif txin.script_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-            pubkey = self.get_public_key(address)
-            if not pubkey:
-                return
-            txin.pubkeys = [bfh(pubkey)]
-        else:
-            raise Exception(f'Unexpected script type: {txin.script_type}. '
-                            f'Imported wallets are not implemented to handle this.')
-
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
         # FIXME This is slow.
@@ -3330,14 +3299,10 @@ class Deterministic_Wallet(Abstract_Wallet):
         return {k.derive_pubkey(*der_suffix): (k, der_suffix)
                 for k in self.get_keystores()}
 
-    def _add_input_sig_info(self, txin, address, *, only_der_suffix):
-        self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
-
     def _add_txinout_derivation_info(self, txinout, address, *, only_der_suffix):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txinout.pubkeys = sorted([pk for pk in list(pubkey_deriv_info)])
         for pubkey in pubkey_deriv_info:
             ks, der_suffix = pubkey_deriv_info[pubkey]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,

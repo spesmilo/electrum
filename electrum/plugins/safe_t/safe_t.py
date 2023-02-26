@@ -346,12 +346,13 @@ class SafeTPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    if len(txin.pubkeys) > 1:
+                    assert (desc := txin.script_descriptor)
+                    if multi := desc.get_simple_multisig():
                         xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
-                        multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
+                        multisig = self._make_multisig(multi.thresh, xpubs_and_deriv_suffixes)
                     else:
                         multisig = None
-                    script_type = self.get_safet_input_script_type(txin.script_type)
+                    script_type = self.get_safet_input_script_type(desc.to_legacy_electrum_script_type())
                     txinputtype = self.types.TxInputType(
                         script_type=script_type,
                         multisig=multisig)
@@ -388,10 +389,11 @@ class SafeTPlugin(HW_PluginBase):
     def tx_outputs(self, tx: PartialTransaction, *, keystore: 'SafeTKeyStore'):
 
         def create_output_by_derivation():
-            script_type = self.get_safet_output_script_type(txout.script_type)
-            if len(txout.pubkeys) > 1:
+            assert (desc := txout.script_descriptor)
+            script_type = self.get_safet_output_script_type(desc.to_legacy_electrum_script_type())
+            if multi := desc.get_simple_multisig():
                 xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
-                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+                multisig = self._make_multisig(multi.thresh, xpubs_and_deriv_suffixes)
             else:
                 multisig = None
             my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)

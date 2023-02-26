@@ -397,9 +397,6 @@ class Commands:
                 keypairs[pubkey] = privkey, compressed
                 desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
                 txin.script_descriptor = desc
-                txin.script_type = txin_type
-                txin.pubkeys = [bfh(pubkey)]
-                txin.num_sig = 1
             inputs.append(txin)
 
         outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
@@ -428,8 +425,6 @@ class Commands:
             if address in txins_dict.keys():
                 for txin in txins_dict[address]:
                     txin.script_descriptor = desc
-                    txin.pubkeys = [pubkey]
-                    txin.script_type = txin_type
                 tx.sign({pubkey.hex(): (priv2, compressed)})
 
         return tx.serialize()

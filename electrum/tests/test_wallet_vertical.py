@@ -729,7 +729,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet1.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1.is_mine(wallet1.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -749,7 +748,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet2.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -809,7 +807,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet1a.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -829,7 +826,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet2.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -908,7 +904,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet1a.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -937,7 +932,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet2a.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2a.is_mine(wallet2a.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -987,7 +981,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet1a.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet1a.is_mine(wallet1a.adb.get_txin_address(tx_copy.inputs()[0])))
 
@@ -1007,7 +1000,6 @@ class TestWalletSending(ElectrumTestCase):
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual(1, len(tx.inputs()))
-        self.assertEqual(wallet2.txin_type, tx.inputs()[0].script_type)
         tx_copy = tx_from_any(tx.serialize())
         self.assertTrue(wallet2.is_mine(wallet2.adb.get_txin_address(tx_copy.inputs()[0])))
 

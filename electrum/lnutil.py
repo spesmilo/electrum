@@ -823,10 +823,6 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
     ppubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
     multi = descriptor.MultisigDescriptor(pubkeys=ppubkeys, thresh=2, is_sorted=True)
     c_input.script_descriptor = descriptor.WSHDescriptor(subdescriptor=multi)
-
-    c_input.script_type = 'p2wsh'
-    c_input.pubkeys = [bfh(pk) for pk in pubkeys]
-    c_input.num_sig = 2
     c_input._trusted_value_sats = funding_sat
     return c_input
 

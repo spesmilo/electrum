@@ -516,9 +516,6 @@ def create_sweeptx_their_ctx_to_remote(
     txin._trusted_value_sats = val
     desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey, script_type='p2wpkh')
     txin.script_descriptor = desc
-    txin.script_type = 'p2wpkh'
-    txin.pubkeys = [bfh(our_payment_pubkey)]
-    txin.num_sig = 1
     sweep_inputs = [txin]
     tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)
