@@ -1,10 +1,12 @@
 # Copyright (c) 2018-2023 The HWI developers
+# Copyright (c) 2023 The Electrum developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
 # originally from https://github.com/bitcoin-core/HWI/blob/f5a9b29c00e483cc99a1b8f4f5ef75413a092869/test/test_descriptor.py
 
 from binascii import unhexlify
+import unittest
 
 from electrum.descriptor import (
     parse_descriptor,
@@ -15,6 +17,8 @@ from electrum.descriptor import (
     WPKHDescriptor,
     WSHDescriptor,
 )
+from electrum import ecc
+from electrum.util import bfh
 
 from . import ElectrumTestCase, as_testnet
 
@@ -35,6 +39,7 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(e.output_script, unhexlify("0014d95fc47eada9e4c3cf59a2cbf9e96517c3ba2efa"))
         self.assertEqual(e.redeem_script, None)
         self.assertEqual(e.witness_script, None)
+        self.assertEqual(e.address(), "tb1qm90ugl4d48jv8n6e5t9ln6t9zlpm5th690vysp")
 
     @as_testnet
     def test_parse_multisig_descriptor_with_origin(self):
@@ -216,3 +221,100 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].deriv_path, "/0/0")
         self.assertEqual(desc.depths, [1, 3, 3, 2])
         self.assertEqual(desc.to_string_no_checksum(), d)
+
+    @as_testnet
+    def test_parse_descriptor_with_range(self):
+        d = "wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*)"
+        desc = parse_descriptor(d)
+        self.assertTrue(isinstance(desc, WPKHDescriptor))
+        self.assertEqual(desc.pubkeys[0].origin.fingerprint.hex(), "00000001")
+        self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h")
+        self.assertEqual(desc.pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
+        self.assertEqual(desc.pubkeys[0].deriv_path, "/0/*")
+        self.assertEqual(desc.to_string_no_checksum(), d)
+        with self.assertRaises(ValueError):  # "pos" arg needed due to "*"
+            e = desc.expand()
+        e = desc.expand(pos=7)
+        self.assertEqual(e.output_script, unhexlify("0014c5f80de08f6ae8dd720bf4e4948ba498c96256a1"))
+        self.assertEqual(e.redeem_script, None)
+        self.assertEqual(e.witness_script, None)
+
+        with self.assertRaises(ValueError):  # wildcard only allowed in last position
+            parse_descriptor("wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/*/0)")
+        with self.assertRaises(ValueError):  # only one wildcard(*) is allowed
+            parse_descriptor("wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/*/*)")
+
+    @as_testnet
+    def test_parse_multisig_descriptor_with_range(self):
+        d = "wsh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*,[00000002/48h/0h/0h/2h]tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty/0/*))"
+        desc = parse_descriptor(d)
+        self.assertTrue(isinstance(desc, WSHDescriptor))
+        self.assertTrue(isinstance(desc.subdescriptors[0], MultisigDescriptor))
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].origin.fingerprint.hex(), "00000001")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].origin.get_derivation_path(), "m/48h/0h/0h/2h")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].deriv_path, "/0/*")
+
+        self.assertEqual(desc.subdescriptors[0].pubkeys[1].origin.fingerprint.hex(), "00000002")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[1].origin.get_derivation_path(), "m/48h/0h/0h/2h")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[1].pubkey, "tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[1].deriv_path, "/0/*")
+        self.assertEqual(desc.to_string_no_checksum(), d)
+        e = desc.expand(pos=7)
+        self.assertEqual(e.output_script, unhexlify("0020453cdf90aef0997947bc0605481f81dd2978ecd2d04ac36fb57397a82341682d"))
+        self.assertEqual(e.redeem_script, None)
+        self.assertEqual(e.witness_script, unhexlify("5221034e703dfcd64f23ad5d6156ee3b9dd7566137626c663bb521bf710957599723342102c35627535d26de98ae749b7a7849df99cbe53af795005437ca647c8af9a006af52ae"))
+
+    @as_testnet
+    def test_multisig_descriptor_with_mixed_range(self):
+        d = "sh(wsh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*,[00000002/48h/0h/0h/2h]tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty/0/0)))"
+        desc = parse_descriptor(d)
+        e = desc.expand(pos=7)
+        self.assertEqual(e.output_script, bfh("a914644ece12bab2f84ad6de96ec18de51e6168c028987"))
+        self.assertEqual(e.redeem_script, bfh("0020824ce4ffab74a8d09c2f77ed447fb040ea5dfbed06f8e3b3327127a18634f6a7"))
+        self.assertEqual(e.witness_script, bfh("5221034e703dfcd64f23ad5d6156ee3b9dd7566137626c663bb521bf7109575997233421033a4f18d2b498273ed7439c59f6d8a673d5b9c67a03163d530e12c941ca22be3352ae"))
+        self.assertEqual(e.address(), "2N2Pbxw3HNJ9jrUw8LCSfXyDWx9TKGRT2an")
+
+    @as_testnet
+    def test_uncompressed_pubkey_in_segwit(self):
+        pubkey = ecc.ECPubkey(bfh("02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"))
+        pubkey_comp_hex = pubkey.get_public_key_hex(compressed=True)
+        pubkey_uncomp_hex = pubkey.get_public_key_hex(compressed=False)
+        self.assertEqual(pubkey_comp_hex, "02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc")
+        self.assertEqual(pubkey_uncomp_hex, "04a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc3ccfc29410b8f23c15d88413a6b88c8cd44b016a7f1dd91a8d64c3107c6bce1a")
+        # pkh
+        desc = parse_descriptor(f"pkh({pubkey_comp_hex})")
+        self.assertEqual(desc.expand().output_script, bfh("76a9140297bde2689a3c79ffe050583b62f86f2d9dae5488ac"))
+        desc = parse_descriptor(f"pkh({pubkey_uncomp_hex})")
+        self.assertEqual(desc.expand().output_script, bfh("76a914e1f4a76b122f0288b013404cd52a9d1de0ced3c488ac"))
+        # wpkh
+        desc = parse_descriptor(f"wpkh({pubkey_comp_hex})")
+        self.assertEqual(desc.expand().output_script, bfh("00140297bde2689a3c79ffe050583b62f86f2d9dae54"))
+        with self.assertRaises(ValueError):  # only compressed public keys can be used in segwit scripts
+            desc = parse_descriptor(f"wpkh({pubkey_uncomp_hex})")
+        # sh(wsh(multi()))
+        desc = parse_descriptor(f"sh(wsh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*,{pubkey_comp_hex})))")
+        self.assertEqual(desc.expand(pos=2).output_script, bfh("a9148f162cce29ad81e63ed45cd09aff83418316eab687"))
+        with self.assertRaises(ValueError):  # only compressed public keys can be used in segwit scripts
+            desc = parse_descriptor(f"sh(wsh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/*,{pubkey_uncomp_hex})))")
+
+    @as_testnet
+    def test_parse_descriptor_context(self):
+        desc = parse_descriptor("sh(wsh(sortedmulti(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0,[00000002/48h/0h/0h/2h]tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty/0/0)))")
+        self.assertTrue(isinstance(desc, SHDescriptor))
+        with self.assertRaises(ValueError):  # Can only have sh() at top level
+            desc = parse_descriptor("wsh(sh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0,[00000002/48h/0h/0h/2h]tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty/0/0)))")
+        with self.assertRaises(ValueError):  # Can only have wsh() at top level or inside sh()
+            desc = parse_descriptor("wsh(wsh(multi(2,[00000001/48h/0h/0h/2h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0,[00000002/48h/0h/0h/2h]tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty/0/0)))")
+
+        desc = parse_descriptor("wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0)")
+        self.assertTrue(isinstance(desc, WPKHDescriptor))
+        with self.assertRaises(ValueError):  # Can only have wpkh() at top level or inside sh()
+            desc = parse_descriptor("wsh(wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0))")
+
+    def test_parse_descriptor_ypub_zpub_forbidden(self):
+        desc = parse_descriptor("wpkh([535e473f/0h]xpub68W3CJPrQzHhTQcHM6tbCvNVB9ih4tbzsFBLwe7zZUj5uHuhxBUhvnXe1RQhbKCTiTj3D7kXni6yAD88i2xnjKHaJ5NqTtHawKnPFCDnmo4/0/*)")
+        with self.assertRaises(ValueError):  # only standard xpub/xprv allowed
+            desc = parse_descriptor("wpkh([535e473f/0h]ypub6TLJVy4mZfqBJhoQBTgDR1TzM7s91WbVnMhZj31swV6xxPiwCqeGYrBn2dNHbDrP86qqxbM6FNTX3VjhRjNoXYyBAR5G3o75D3r2djmhZwM/0/*)")
+        with self.assertRaises(ValueError):  # only standard xpub/xprv allowed
+            desc = parse_descriptor("wpkh([535e473f/0h]zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr/0/*)")

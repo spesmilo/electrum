@@ -9,21 +9,12 @@
 # See https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md
 #
 # TODO allow xprv
+# TODO hardened derivation
 # TODO allow WIF privkeys
 # TODO impl ADDR descriptors
 # TODO impl RAW descriptors
-# TODO disable descs we cannot solve: TRDescriptor
-# TODO add checks to validate nestings
-#      https://github.com/bitcoin/bitcoin/blob/94070029fb6b783833973f9fe08a3a871994492f/doc/descriptors.md#reference
-#      e.g. sh is top-level only, wsh is top-level or directly inside sh
-#
-# TODO tests
-#      - port https://github.com/bitcoin-core/HWI/blob/master/test/test_descriptor.py
-#      - ranged descriptors (that have a "*")
-#
-# TODO solver? integrate with transaction.py...
-#      Transaction.input_script/get_preimage_script/serialize_witness
 
+import enum
 
 from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo
 from . import bitcoin
@@ -188,8 +179,13 @@ class PubkeyProvider(object):
         self.origin = origin
         self.pubkey = pubkey
         self.deriv_path = deriv_path
-        # TODO check that deriv_path only has a single "*" (and that it is in the last pos. but can end with e.g. "*h")
-
+        if deriv_path:
+            wildcard_count = deriv_path.count("*")
+            if wildcard_count > 1:
+                raise ValueError("only one wildcard(*) is allowed in a descriptor")
+            if wildcard_count == 1:
+                if deriv_path[-1] != "*":
+                    raise ValueError("wildcard in descriptor only allowed in last position")
         # Make ExtendedKey from pubkey if it isn't hex
         self.extkey = None
         try:
@@ -240,6 +236,7 @@ class PubkeyProvider(object):
     def get_pubkey_bytes(self, *, pos: Optional[int] = None) -> bytes:
         if self.is_range() and pos is None:
             raise ValueError("pos must be set for ranged descriptor")
+        # note: if not ranged, we ignore pos.
         if self.extkey is not None:
             compressed = True  # bip32 implies compressed pubkeys
             if self.deriv_path is None:
@@ -298,11 +295,21 @@ class PubkeyProvider(object):
             return True
         return False
 
+    def has_uncompressed_pubkey(self) -> bool:
+        if self.is_range():  # bip32 implies compressed
+            return False
+        return b"\x04" == self.get_pubkey_bytes()[:1]
+
 
 class Descriptor(object):
     r"""
     An abstract class for Descriptors themselves.
     Descriptors can contain multiple :class:`PubkeyProvider`\ s and multiple ``Descriptor`` as subdescriptors.
+
+    Note: a significant portion of input validation logic is in parse_descriptor(),
+          maybe these checks should be moved to (or also done in) this class?
+          For example, sh() must be top-level, or segwit mandates compressed pubkeys,
+          or bare-multisig cannot have >3 pubkeys.
     """
     def __init__(
         self,
@@ -823,7 +830,7 @@ def _get_expr(s: str) -> Tuple[str, str]:
             break
     return s[0:i], s[i:]
 
-def parse_pubkey(expr: str) -> Tuple['PubkeyProvider', str]:
+def parse_pubkey(expr: str, *, ctx: '_ParseDescriptorContext') -> Tuple['PubkeyProvider', str]:
     """
     Parses an individual pubkey expression from a string that may contain more than one pubkey expression.
 
@@ -836,7 +843,11 @@ def parse_pubkey(expr: str) -> Tuple['PubkeyProvider', str]:
     if comma_idx != -1:
         end = comma_idx
         next_expr = expr[end + 1:]
-    return PubkeyProvider.parse(expr[:end]), next_expr
+    pubkey_provider = PubkeyProvider.parse(expr[:end])
+    permit_uncompressed = ctx in (_ParseDescriptorContext.TOP, _ParseDescriptorContext.P2SH)
+    if not permit_uncompressed and pubkey_provider.has_uncompressed_pubkey():
+        raise ValueError("uncompressed pubkeys are not allowed")
+    return pubkey_provider, next_expr
 
 
 class _ParseDescriptorContext(Enum):
@@ -847,20 +858,14 @@ class _ParseDescriptorContext(Enum):
     Some expressions aren't allowed at certain levels, this helps us track those.
     """
 
-    TOP = 1
-    """The top level, not within any descriptor"""
-
-    P2SH = 2
-    """Within a ``sh()`` descriptor"""
-
-    P2WSH = 3
-    """Within a ``wsh()`` descriptor"""
-
-    P2TR = 4
-    """Within a ``tr()`` descriptor"""
+    TOP = enum.auto()     # The top level, not within any descriptor
+    P2SH = enum.auto()    # Within an sh() descriptor
+    P2WPKH = enum.auto()  # Within wpkh() descriptor
+    P2WSH = enum.auto()   # Within a wsh() descriptor
+    P2TR = enum.auto()    # Within a tr() descriptor
 
 
-def _parse_descriptor(desc: str, ctx: '_ParseDescriptorContext') -> 'Descriptor':
+def _parse_descriptor(desc: str, *, ctx: '_ParseDescriptorContext') -> 'Descriptor':
     """
     :meta private:
 
@@ -874,14 +879,14 @@ def _parse_descriptor(desc: str, ctx: '_ParseDescriptorContext') -> 'Descriptor'
     """
     func, expr = _get_func_expr(desc)
     if func == "pk":
-        pubkey, expr = parse_pubkey(expr)
+        pubkey, expr = parse_pubkey(expr, ctx=ctx)
         if expr:
             raise ValueError("more than one pubkey in pk descriptor")
         return PKDescriptor(pubkey)
     if func == "pkh":
         if not (ctx == _ParseDescriptorContext.TOP or ctx == _ParseDescriptorContext.P2SH or ctx == _ParseDescriptorContext.P2WSH):
             raise ValueError("Can only have pkh at top level, in sh(), or in wsh()")
-        pubkey, expr = parse_pubkey(expr)
+        pubkey, expr = parse_pubkey(expr, ctx=ctx)
         if expr:
             raise ValueError("More than one pubkey in pkh descriptor")
         return PKHDescriptor(pubkey)
@@ -894,10 +899,10 @@ def _parse_descriptor(desc: str, ctx: '_ParseDescriptorContext') -> 'Descriptor'
         expr = expr[comma_idx + 1:]
         pubkeys = []
         while expr:
-            pubkey, expr = parse_pubkey(expr)
+            pubkey, expr = parse_pubkey(expr, ctx=ctx)
             pubkeys.append(pubkey)
-        if len(pubkeys) == 0 or len(pubkeys) > 16:
-            raise ValueError("Cannot have {} keys in a multisig; must have between 1 and 16 keys, inclusive".format(len(pubkeys)))
+        if len(pubkeys) == 0 or len(pubkeys) > 15:
+            raise ValueError("Cannot have {} keys in a multisig; must have between 1 and 15 keys, inclusive".format(len(pubkeys)))
         elif thresh < 1:
             raise ValueError("Multisig threshold cannot be {}, must be at least 1".format(thresh))
         elif thresh > len(pubkeys):
@@ -908,24 +913,24 @@ def _parse_descriptor(desc: str, ctx: '_ParseDescriptorContext') -> 'Descriptor'
     if func == "wpkh":
         if not (ctx == _ParseDescriptorContext.TOP or ctx == _ParseDescriptorContext.P2SH):
             raise ValueError("Can only have wpkh() at top level or inside sh()")
-        pubkey, expr = parse_pubkey(expr)
+        pubkey, expr = parse_pubkey(expr, ctx=_ParseDescriptorContext.P2WPKH)
         if expr:
             raise ValueError("More than one pubkey in pkh descriptor")
         return WPKHDescriptor(pubkey)
     if func == "sh":
         if ctx != _ParseDescriptorContext.TOP:
             raise ValueError("Can only have sh() at top level")
-        subdesc = _parse_descriptor(expr, _ParseDescriptorContext.P2SH)
+        subdesc = _parse_descriptor(expr, ctx=_ParseDescriptorContext.P2SH)
         return SHDescriptor(subdesc)
     if func == "wsh":
         if not (ctx == _ParseDescriptorContext.TOP or ctx == _ParseDescriptorContext.P2SH):
             raise ValueError("Can only have wsh() at top level or inside sh()")
-        subdesc = _parse_descriptor(expr, _ParseDescriptorContext.P2WSH)
+        subdesc = _parse_descriptor(expr, ctx=_ParseDescriptorContext.P2WSH)
         return WSHDescriptor(subdesc)
     if func == "tr":
         if ctx != _ParseDescriptorContext.TOP:
             raise ValueError("Can only have tr at top level")
-        internal_key, expr = parse_pubkey(expr)
+        internal_key, expr = parse_pubkey(expr, ctx=ctx)
         subscripts = []
         depths = []
         if expr:
@@ -945,7 +950,7 @@ def _parse_descriptor(desc: str, ctx: '_ParseDescriptorContext') -> 'Descriptor'
                         raise ValueError(f"tr() supports at most {MAX_TAPROOT_NODES} nesting levels")  # TODO xxxx fixed upstream bug here
                 # Process script expression
                 sarg, expr = _get_expr(expr)
-                subscripts.append(_parse_descriptor(sarg, _ParseDescriptorContext.P2TR))
+                subscripts.append(_parse_descriptor(sarg, ctx=_ParseDescriptorContext.P2TR))
                 depths.append(len(branches))
                 # Process closing braces
                 while len(branches) > 0 and branches[-1]:
@@ -982,7 +987,7 @@ def parse_descriptor(desc: str) -> 'Descriptor':
         computed = DescriptorChecksum(desc)
         if computed != checksum:
             raise ValueError("The checksum does not match; Got {}, expected {}".format(checksum, computed))
-    return _parse_descriptor(desc, _ParseDescriptorContext.TOP)
+    return _parse_descriptor(desc, ctx=_ParseDescriptorContext.TOP)
 
 
 #####
