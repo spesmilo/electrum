@@ -926,8 +926,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain: Optional[Iterable[str]] = None,
             *,
             nonlocal_only: bool = False,
+            confirmed_only: bool = False,
     ) -> Sequence[PartialTxInput]:
-        confirmed_only = self.config.get('confirmed_only', False)
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
         utxos = self.get_utxos(

@@ -1192,12 +1192,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.show_error(_('Payment failed') + '\n\n' + reason)
 
-    def get_coins(self, *, nonlocal_only=False) -> Sequence[PartialTxInput]:
+    def get_coins(self, **kwargs) -> Sequence[PartialTxInput]:
         coins = self.get_manually_selected_coins()
         if coins is not None:
             return coins
         else:
-            return self.wallet.get_spendable_coins(None, nonlocal_only=nonlocal_only)
+            return self.wallet.get_spendable_coins(None, **kwargs)
 
     def get_manually_selected_coins(self) -> Optional[Sequence[PartialTxInput]]:
         """Return a list of selected coins or None.
@@ -1242,9 +1242,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         WaitingDialog(self, msg, task, on_success, on_failure)
 
     def mktx_for_open_channel(self, *, funding_sat, node_id):
-        coins = self.get_coins(nonlocal_only=True)
-        make_tx = lambda fee_est: self.wallet.lnworker.mktx_for_open_channel(
-            coins=coins,
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.lnworker.mktx_for_open_channel(
+            coins = self.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
             funding_sat=funding_sat,
             node_id=node_id,
             fee_est=fee_est)

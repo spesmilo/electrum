@@ -119,15 +119,6 @@ class SettingsDialog(QDialog, QtEventListener):
             self.config.set_key('bip21_lightning', bool(x))
         bip21_lightning_cb.stateChanged.connect(on_bip21_lightning)
 
-        batch_rbf_cb = QCheckBox(_('Batch unconfirmed transactions'))
-        batch_rbf_cb.setChecked(bool(self.config.get('batch_rbf', False)))
-        batch_rbf_cb.setToolTip(
-            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
-            _('This will save fees.'))
-        def on_batch_rbf(x):
-            self.config.set_key('batch_rbf', bool(x))
-        batch_rbf_cb.stateChanged.connect(on_batch_rbf)
-
         # lightning
         help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
         recov_cb = QCheckBox(_("Create recoverable channels"))
@@ -276,33 +267,6 @@ class SettingsDialog(QDialog, QtEventListener):
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
 
-        usechange_cb = QCheckBox(_('Use change addresses'))
-        usechange_cb.setChecked(self.wallet.use_change)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
-        def on_usechange(x):
-            usechange_result = x == Qt.Checked
-            if self.wallet.use_change != usechange_result:
-                self.wallet.use_change = usechange_result
-                self.wallet.db.put('use_change', self.wallet.use_change)
-                multiple_cb.setEnabled(self.wallet.use_change)
-        usechange_cb.stateChanged.connect(on_usechange)
-        usechange_cb.setToolTip(_('Using change addresses makes it more difficult for other people to track your transactions.'))
-
-        def on_multiple(x):
-            multiple = x == Qt.Checked
-            if self.wallet.multiple_change != multiple:
-                self.wallet.multiple_change = multiple
-                self.wallet.db.put('multiple_change', multiple)
-        multiple_change = self.wallet.multiple_change
-        multiple_cb = QCheckBox(_('Use multiple change addresses'))
-        multiple_cb.setEnabled(self.wallet.use_change)
-        multiple_cb.setToolTip('\n'.join([
-            _('In some cases, use up to 3 change addresses in order to break '
-              'up large coin amounts and obfuscate the recipient address.'),
-            _('This may result in higher transactions fees.')
-        ]))
-        multiple_cb.setChecked(multiple_change)
-        multiple_cb.stateChanged.connect(on_multiple)
 
         def fmt_docs(key, klass):
             lines = [ln.lstrip(" ") for ln in klass.__doc__.split("\n")]
@@ -322,25 +286,6 @@ class SettingsDialog(QDialog, QtEventListener):
                 chooser_name = choosers[chooser_combo.currentIndex()]
                 self.config.set_key('coin_chooser', chooser_name)
             chooser_combo.currentIndexChanged.connect(on_chooser)
-
-        def on_unconf(x):
-            self.config.set_key('confirmed_only', bool(x))
-        conf_only = bool(self.config.get('confirmed_only', False))
-        unconf_cb = QCheckBox(_('Spend only confirmed coins'))
-        unconf_cb.setToolTip(_('Spend only confirmed inputs.'))
-        unconf_cb.setChecked(conf_only)
-        unconf_cb.stateChanged.connect(on_unconf)
-
-        def on_outrounding(x):
-            self.config.set_key('coin_chooser_output_rounding', bool(x))
-        enable_outrounding = bool(self.config.get('coin_chooser_output_rounding', True))
-        outrounding_cb = QCheckBox(_('Enable output value rounding'))
-        outrounding_cb.setToolTip(
-            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
-            _('This might improve your privacy somewhat.') + '\n' +
-            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
-        outrounding_cb.setChecked(enable_outrounding)
-        outrounding_cb.stateChanged.connect(on_outrounding)
 
         block_explorers = sorted(util.block_explorer_info().keys())
         BLOCK_EX_CUSTOM_ITEM = _("Custom URL")
@@ -484,15 +429,7 @@ class SettingsDialog(QDialog, QtEventListener):
         invoices_widgets = []
         invoices_widgets.append((bolt11_fallback_cb, None))
         invoices_widgets.append((bip21_lightning_cb, None))
-        tx_widgets = []
-        tx_widgets.append((usechange_cb, None))
-        tx_widgets.append((batch_rbf_cb, None))
-        tx_widgets.append((unconf_cb, None))
-        tx_widgets.append((multiple_cb, None))
-        tx_widgets.append((outrounding_cb, None))
-        if len(choosers) > 1:
-            tx_widgets.append((chooser_label, chooser_combo))
-        tx_widgets.append((block_ex_label, block_ex_hbox_w))
+
         lightning_widgets = []
         lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
@@ -509,10 +446,12 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
+        misc_widgets.append((block_ex_label, block_ex_hbox_w))
+        if len(choosers) > 1:
+            misc_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
-            (tx_widgets, _('Transactions')),
             (invoices_widgets, _('Invoices')),
             (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
