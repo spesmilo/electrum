@@ -124,7 +124,13 @@ class BIP32Node(NamedTuple):
     child_number: bytes = b'\x00'*4
 
     @classmethod
-    def from_xkey(cls, xkey: str, *, net=None) -> 'BIP32Node':
+    def from_xkey(
+        cls,
+        xkey: str,
+        *,
+        net=None,
+        allow_custom_headers: bool = True,  # to also accept ypub/zpub
+    ) -> 'BIP32Node':
         if net is None:
             net = constants.net
         xkey = DecodeBase58Check(xkey)
@@ -145,6 +151,8 @@ class BIP32Node(NamedTuple):
         else:
             raise InvalidMasterKeyVersionBytes(f'Invalid extended key format: {hex(header)}')
         xtype = headers_inv[header]
+        if not allow_custom_headers and xtype != "standard":
+            raise ValueError(f"only standard xpub/xprv allowed. found custom xtype={xtype}")
         if is_private:
             eckey = ecc.ECPrivkey(xkey[13 + 33:])
         else:

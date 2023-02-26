@@ -121,8 +121,8 @@ class PubkeyProvider(object):
             unhexlify(self.pubkey)
             # Is hex, normal pubkey
         except Exception:
-            # Not hex, maybe xpub
-            self.extkey = BIP32Node.from_xkey(pubkey)
+            # Not hex, maybe xpub (but don't allow ypub/zpub)
+            self.extkey = BIP32Node.from_xkey(pubkey, allow_custom_headers=False)
 
     @classmethod
     def parse(cls, s: str) -> 'PubkeyProvider':
