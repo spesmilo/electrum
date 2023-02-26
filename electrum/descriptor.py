@@ -1,4 +1,5 @@
 # Copyright (c) 2017 Andrew Chow
+# Copyright (c) 2023 The Electrum developers
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 #
@@ -22,6 +23,8 @@
 
 
 from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo
+from . import bitcoin
+from .bitcoin import construct_script, opcodes
 from .crypto import hash_160, sha256
 
 from binascii import unhexlify
@@ -31,16 +34,41 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
+    Sequence,
 )
 
 
 MAX_TAPROOT_NODES = 128
 
 
-class ExpandedScripts(NamedTuple):
-    output_script: Optional[bytes] = None
-    redeem_script: Optional[bytes] = None
-    witness_script: Optional[bytes] = None
+class ExpandedScripts:
+
+    def __init__(
+        self,
+        *,
+        output_script: Optional[bytes] = None,
+        redeem_script: Optional[bytes] = None,
+        witness_script: Optional[bytes] = None,
+        scriptcode_for_sighash: Optional[bytes] = None
+    ):
+        self.output_script = output_script
+        self.redeem_script = redeem_script
+        self.witness_script = witness_script
+        self.scriptcode_for_sighash = scriptcode_for_sighash
+
+    @property
+    def scriptcode_for_sighash(self) -> Optional[bytes]:
+        if self._scriptcode_for_sighash:
+            return self._scriptcode_for_sighash
+        return self.witness_script or self.redeem_script or self.output_script
+
+    @scriptcode_for_sighash.setter
+    def scriptcode_for_sighash(self, value: Optional[bytes]):
+        self._scriptcode_for_sighash = value
+
+    def address(self, *, net=None) -> Optional[str]:
+        if spk := self.output_script:
+            return bitcoin.script_to_address(spk.hex(), net=net)
 
 
 def PolyMod(c: int, val: int) -> int:
@@ -180,18 +208,25 @@ class PubkeyProvider(object):
             s += self.deriv_path
         return s
 
-    def get_pubkey_bytes(self, pos: int) -> bytes:
+    def get_pubkey_bytes(self, *, pos: Optional[int] = None) -> bytes:
+        if self.is_range() and pos is None:
+            raise ValueError("pos must be set for ranged descriptor")
         if self.extkey is not None:
-            if self.deriv_path is not None:
+            compressed = True  # bip32 implies compressed pubkeys
+            if self.deriv_path is None:
+                assert not self.is_range()
+                return self.extkey.eckey.get_public_key_bytes(compressed=compressed)
+            else:
                 path_str = self.deriv_path[1:]
-                if path_str[-1] == "*":
+                if self.is_range():
+                    assert path_str[-1] == "*"
                     path_str = path_str[:-1] + str(pos)
                 path = convert_bip32_path_to_list_of_uint32(path_str)
                 child_key = self.extkey.subkey_at_public_derivation(path)
-                return child_key.eckey.get_public_key_bytes()
-            else:
-                return self.extkey.eckey.get_public_key_bytes()
-        return unhexlify(self.pubkey)
+                return child_key.eckey.get_public_key_bytes(compressed=compressed)
+        else:
+            assert not self.is_range()
+            return unhexlify(self.pubkey)
 
     def get_full_derivation_path(self, pos: int) -> str:
         """
@@ -226,6 +261,13 @@ class PubkeyProvider(object):
 
     def __lt__(self, other: 'PubkeyProvider') -> bool:
         return self.pubkey < other.pubkey
+
+    def is_range(self) -> bool:
+        if not self.deriv_path:
+            return False
+        if self.deriv_path[-1] == "*":  # TODO hardened
+            return True
+        return False
 
 
 class Descriptor(object):
@@ -268,11 +310,23 @@ class Descriptor(object):
         """
         return AddChecksum(self.to_string_no_checksum())
 
-    def expand(self, pos: int) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         """
         Returns the scripts for a descriptor at the given `pos` for ranged descriptors.
         """
         raise NotImplementedError("The Descriptor base class does not implement this method")
+
+    def is_range(self) -> bool:
+        for pubkey in self.pubkeys:
+            if pubkey.is_range():
+                return True
+        for desc in self.subdescriptors:
+            if desc.is_range():
+                return True
+        return False
+
+    def is_segwit(self) -> bool:
+        return any([desc.is_segwit() for desc in self.subdescriptors])
 
 
 class PKDescriptor(Descriptor):
@@ -288,8 +342,10 @@ class PKDescriptor(Descriptor):
         """
         super().__init__([pubkey], [], "pk")
 
-    # TODO
-    # def expand(self, pos: int) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
+        pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
+        script = construct_script([pubkey, opcodes.OP_CHECKSIG])
+        return ExpandedScripts(output_script=bytes.fromhex(script))
 
 
 class PKHDescriptor(Descriptor):
@@ -305,9 +361,11 @@ class PKHDescriptor(Descriptor):
         """
         super().__init__([pubkey], [], "pkh")
 
-    def expand(self, pos: int) -> "ExpandedScripts":
-        script = b"\x76\xa9\x14" + hash_160(self.pubkeys[0].get_pubkey_bytes(pos)) + b"\x88\xac"
-        return ExpandedScripts(output_script=script)
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
+        pubkey = self.pubkeys[0].get_pubkey_bytes(pos=pos)
+        pkh = hash_160(pubkey).hex()
+        script = bitcoin.pubkeyhash_to_p2pkh_script(pkh)
+        return ExpandedScripts(output_script=bytes.fromhex(script))
 
 
 class WPKHDescriptor(Descriptor):
@@ -323,9 +381,17 @@ class WPKHDescriptor(Descriptor):
         """
         super().__init__([pubkey], [], "wpkh")
 
-    def expand(self, pos: int) -> "ExpandedScripts":
-        script = b"\x00\x14" + hash_160(self.pubkeys[0].get_pubkey_bytes(pos))
-        return ExpandedScripts(output_script=script)
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
+        pkh = hash_160(self.pubkeys[0].get_pubkey_bytes(pos=pos))
+        output_script = construct_script([0, pkh])
+        scriptcode = bitcoin.pubkeyhash_to_p2pkh_script(pkh.hex())
+        return ExpandedScripts(
+            output_script=bytes.fromhex(output_script),
+            scriptcode_for_sighash=bytes.fromhex(scriptcode),
+        )
+
+    def is_segwit(self) -> bool:
+        return True
 
 
 class MultisigDescriptor(Descriptor):
@@ -352,14 +418,14 @@ class MultisigDescriptor(Descriptor):
     def to_string_no_checksum(self) -> str:
         return "{}({},{})".format(self.name, self.thresh, ",".join([p.to_string() for p in self.pubkeys]))
 
-    def expand(self, pos: int) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         if self.thresh > 16:
             m = b"\x01" + self.thresh.to_bytes(1, "big")
         else:
             m = (self.thresh + 0x50).to_bytes(1, "big") if self.thresh > 0 else b"\x00"
         n = (len(self.pubkeys) + 0x50).to_bytes(1, "big") if len(self.pubkeys) > 0 else b"\x00"
         script: bytes = m
-        der_pks = [p.get_pubkey_bytes(pos) for p in self.pubkeys]
+        der_pks = [p.get_pubkey_bytes(pos=pos) for p in self.pubkeys]
         if self.is_sorted:
             der_pks.sort()
         for pk in der_pks:
@@ -382,14 +448,17 @@ class SHDescriptor(Descriptor):
         """
         super().__init__([], [subdescriptor], "sh")
 
-    def expand(self, pos: int) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         assert len(self.subdescriptors) == 1
-        redeem_script, _, witness_script = self.subdescriptors[0].expand(pos)
+        sub_scripts = self.subdescriptors[0].expand(pos=pos)
+        redeem_script = sub_scripts.output_script
+        witness_script = sub_scripts.witness_script
         script = b"\xa9\x14" + hash_160(redeem_script) + b"\x87"
         return ExpandedScripts(
             output_script=script,
             redeem_script=redeem_script,
             witness_script=witness_script,
+            scriptcode_for_sighash=sub_scripts.scriptcode_for_sighash,
         )
 
 
@@ -406,14 +475,18 @@ class WSHDescriptor(Descriptor):
         """
         super().__init__([], [subdescriptor], "wsh")
 
-    def expand(self, pos: int) -> "ExpandedScripts":
+    def expand(self, *, pos: Optional[int] = None) -> "ExpandedScripts":
         assert len(self.subdescriptors) == 1
-        witness_script, _, _ = self.subdescriptors[0].expand(pos)
+        sub_scripts = self.subdescriptors[0].expand(pos=pos)
+        witness_script = sub_scripts.output_script
         script = b"\x00\x20" + sha256(witness_script)
         return ExpandedScripts(
             output_script=script,
             witness_script=witness_script,
         )
+
+    def is_segwit(self) -> bool:
+        return True
 
 
 class TRDescriptor(Descriptor):
@@ -456,6 +529,10 @@ class TRDescriptor(Descriptor):
                 path[-1] = True
         r += ")"
         return r
+
+    def is_segwit(self) -> bool:
+        return True
+
 
 def _get_func_expr(s: str) -> Tuple[str, str]:
     """
@@ -666,3 +743,20 @@ def parse_descriptor(desc: str) -> 'Descriptor':
             raise ValueError("The checksum does not match; Got {}, expected {}".format(checksum, computed))
     return _parse_descriptor(desc, _ParseDescriptorContext.TOP)
 
+
+#####
+
+
+def get_singlesig_descriptor_from_legacy_leaf(*, pubkey: str, script_type: str) -> Optional[Descriptor]:
+    pubkey = PubkeyProvider.parse(pubkey)
+    if script_type == 'p2pk':
+        return PKDescriptor(pubkey=pubkey)
+    elif script_type == 'p2pkh':
+        return PKHDescriptor(pubkey=pubkey)
+    elif script_type == 'p2wpkh':
+        return WPKHDescriptor(pubkey=pubkey)
+    elif script_type == 'p2wpkh-p2sh':
+        wpkh = WPKHDescriptor(pubkey=pubkey)
+        return SHDescriptor(subdescriptor=wpkh)
+    else:
+        raise NotImplementedError(f"unexpected {script_type=}")

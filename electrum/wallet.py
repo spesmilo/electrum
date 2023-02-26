@@ -84,6 +84,8 @@ from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
+from . import descriptor
+from .descriptor import Descriptor
 
 if TYPE_CHECKING:
     from .network import Network
@@ -100,16 +102,17 @@ TX_STATUS = [
 ]
 
 
-async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Network',
-                                  pubkey: str, txin_type: str, imax: int) -> None:
-    if txin_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-        address = bitcoin.pubkey_to_address(txin_type, pubkey)
-        scripthash = bitcoin.address_to_scripthash(address)
-    elif txin_type == 'p2pk':
-        script = bitcoin.public_key_to_p2pk_script(pubkey)
-        scripthash = bitcoin.script_to_scripthash(script)
-    else:
-        raise Exception(f'unexpected txin_type to sweep: {txin_type}')
+async def _append_utxos_to_inputs(
+    *,
+    inputs: List[PartialTxInput],
+    network: 'Network',
+    script_descriptor: 'descriptor.Descriptor',
+    pubkey: str,
+    txin_type: str,
+    imax: int,
+) -> None:
+    script = script_descriptor.expand().output_script.hex()
+    scripthash = bitcoin.script_to_scripthash(script)
 
     async def append_single_utxo(item):
         prev_tx_raw = await network.get_transaction(item['tx_hash'])
@@ -122,6 +125,9 @@ async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Net
         txin = PartialTxInput(prevout=prevout)
         txin.utxo = prev_tx
         txin.block_height = int(item['height'])
+        txin.script_descriptor = script_descriptor
+        # TODO rm as much of below (.num_sig / .pubkeys) as possible
+        # TODO need unit tests for other scripts (only have p2pk atm)
         txin.script_type = txin_type
         txin.pubkeys = [bfh(pubkey)]
         txin.num_sig = 1
@@ -141,9 +147,11 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
     async def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
         await _append_utxos_to_inputs(
             inputs=inputs,
             network=network,
+            script_descriptor=desc,
             pubkey=pubkey,
             txin_type=txin_type,
             imax=imax)
@@ -684,13 +692,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """
         pass
 
-    @abstractmethod
     def get_redeem_script(self, address: str) -> Optional[str]:
-        pass
+        desc = self._get_script_descriptor_for_address(address)
+        if desc is None: return None
+        redeem_script = desc.expand().redeem_script
+        if redeem_script:
+            return redeem_script.hex()
 
-    @abstractmethod
     def get_witness_script(self, address: str) -> Optional[str]:
-        pass
+        desc = self._get_script_descriptor_for_address(address)
+        if desc is None: return None
+        witness_script = desc.expand().witness_script
+        if witness_script:
+            return witness_script.hex()
 
     @abstractmethod
     def get_txin_type(self, address: str) -> str:
@@ -2193,7 +2207,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker:
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
-        # set script_type first, as later checks might rely on it:
+        txin.script_descriptor = self._get_script_descriptor_for_address(address)
+        # set script_type first, as later checks might rely on it:  # TODO rm most of below in favour of osd
         txin.script_type = self.get_txin_type(address)
         txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1
         if txin.redeem_script is None:
@@ -2210,6 +2225,34 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 pass
         self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
+
+    def _get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
+        if not self.is_mine(address):
+            return None
+        script_type = self.get_txin_type(address)
+        if script_type in ('address', 'unknown'):
+            return None
+        if script_type in ('p2pk', 'p2pkh', 'p2wpkh-p2sh', 'p2wpkh'):
+            pubkey = self.get_public_keys(address)[0]
+            return descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=script_type)
+        elif script_type == 'p2sh':
+            pubkeys = self.get_public_keys(address)
+            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            return descriptor.SHDescriptor(subdescriptor=multi)
+        elif script_type == 'p2wsh':
+            pubkeys = self.get_public_keys(address)
+            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            return descriptor.WSHDescriptor(subdescriptor=multi)
+        elif script_type == 'p2wsh-p2sh':
+            pubkeys = self.get_public_keys(address)
+            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            wsh = descriptor.WSHDescriptor(subdescriptor=multi)
+            return descriptor.SHDescriptor(subdescriptor=wsh)
+        else:
+            raise NotImplementedError(f"unexpected {script_type=}")
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
@@ -2262,6 +2305,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txout, address)
             if not is_mine:
                 return
+        txout.script_descriptor = self._get_script_descriptor_for_address(address)
         txout.script_type = self.get_txin_type(address)
         txout.is_mine = True
         txout.is_change = self.is_change(address)
@@ -2938,20 +2982,6 @@ class Simple_Wallet(Abstract_Wallet):
     def get_public_keys(self, address: str) -> Sequence[str]:
         return [self.get_public_key(address)]
 
-    def get_redeem_script(self, address: str) -> Optional[str]:
-        txin_type = self.get_txin_type(address)
-        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk'):
-            return None
-        if txin_type == 'p2wpkh-p2sh':
-            pubkey = self.get_public_key(address)
-            return bitcoin.p2wpkh_nested_script(pubkey)
-        if txin_type == 'address':
-            return None
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
-
-    def get_witness_script(self, address: str) -> Optional[str]:
-        return None
-
 
 class Imported_Wallet(Simple_Wallet):
     # wallet made of imported addresses
@@ -3462,28 +3492,6 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def pubkeys_to_scriptcode(self, pubkeys: Sequence[str]) -> str:
         return transaction.multisig_script(sorted(pubkeys), self.m)
-
-    def get_redeem_script(self, address):
-        txin_type = self.get_txin_type(address)
-        pubkeys = self.get_public_keys(address)
-        scriptcode = self.pubkeys_to_scriptcode(pubkeys)
-        if txin_type == 'p2sh':
-            return scriptcode
-        elif txin_type == 'p2wsh-p2sh':
-            return bitcoin.p2wsh_nested_script(scriptcode)
-        elif txin_type == 'p2wsh':
-            return None
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
-
-    def get_witness_script(self, address):
-        txin_type = self.get_txin_type(address)
-        pubkeys = self.get_public_keys(address)
-        scriptcode = self.pubkeys_to_scriptcode(pubkeys)
-        if txin_type == 'p2sh':
-            return None
-        elif txin_type in ('p2wsh-p2sh', 'p2wsh'):
-            return scriptcode
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
 
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i).hex() for k in self.get_keystores()]

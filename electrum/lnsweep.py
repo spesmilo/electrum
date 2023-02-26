@@ -8,6 +8,7 @@ from enum import Enum, auto
 from .util import bfh
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from .invoices import PR_PAID
+from . import descriptor
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -513,6 +514,8 @@ def create_sweeptx_their_ctx_to_remote(
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
     txin = PartialTxInput(prevout=prevout)
     txin._trusted_value_sats = val
+    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey, script_type='p2wpkh')
+    txin.script_descriptor = desc
     txin.script_type = 'p2wpkh'
     txin.pubkeys = [bfh(our_payment_pubkey)]
     txin.num_sig = 1

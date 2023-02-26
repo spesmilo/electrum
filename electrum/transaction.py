@@ -52,6 +52,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
 from .crypto import sha256d
 from .logging import get_logger
 from .util import ShortID
+from .descriptor import Descriptor
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -821,6 +822,12 @@ class Transaction:
         if txin.is_native_segwit():
             return ''
 
+        if desc := txin.script_descriptor:
+            if desc.is_segwit():
+                if redeem_script := desc.expand().redeem_script:
+                    return construct_script([redeem_script])
+                return ""
+
         _type = txin.script_type
         pubkeys, sig_list = self.get_siglist(txin, estimate_size=estimate_size)
         if _type in ('address', 'unknown') and estimate_size:
@@ -833,17 +840,9 @@ class Transaction:
             return construct_script([0, *sig_list, redeem_script])
         elif _type == 'p2pkh':
             return construct_script([sig_list[0], pubkeys[0]])
-        elif _type in ['p2wpkh', 'p2wsh']:
-            return ''
         elif _type == 'p2wpkh-p2sh':
+            assert estimate_size  # otherwise script_descriptor should handle it
             redeem_script = bitcoin.p2wpkh_nested_script(pubkeys[0])
-            return construct_script([redeem_script])
-        elif _type == 'p2wsh-p2sh':
-            if estimate_size:
-                witness_script = ''
-            else:
-                witness_script = self.get_preimage_script(txin)
-            redeem_script = bitcoin.p2wsh_nested_script(witness_script)
             return construct_script([redeem_script])
         raise UnknownTxinType(f'cannot construct scriptSig for txin_type: {_type}')
 
@@ -858,18 +857,12 @@ class Transaction:
                 raise Exception('OP_CODESEPARATOR black magic is not supported')
             return txin.redeem_script.hex()
 
-        pubkeys = [pk.hex() for pk in txin.pubkeys]
-        if txin.script_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
-            return multisig_script(pubkeys, txin.num_sig)
-        elif txin.script_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
-            pubkey = pubkeys[0]
-            pkh = hash_160(bfh(pubkey)).hex()
-            return bitcoin.pubkeyhash_to_p2pkh_script(pkh)
-        elif txin.script_type == 'p2pk':
-            pubkey = pubkeys[0]
-            return bitcoin.public_key_to_p2pk_script(pubkey)
-        else:
-            raise UnknownTxinType(f'cannot construct preimage_script for txin_type: {txin.script_type}')
+        if desc := txin.script_descriptor:
+            sc = desc.expand()
+            if script := sc.scriptcode_for_sighash:
+                return script.hex()
+            raise Exception(f"don't know scriptcode for descriptor: {desc.to_string()}")
+        raise UnknownTxinType(f'cannot construct preimage_script for txin_type: {txin.script_type}')
 
     def _calc_bip143_shared_txdigest_fields(self) -> BIP143SharedTxDigestFields:
         inputs = self.inputs()
@@ -1255,6 +1248,7 @@ class PartialTxInput(TxInput, PSBTSection):
         self.witness_script = None  # type: Optional[bytes]
         self._unknown = {}  # type: Dict[bytes, bytes]
 
+        self.script_descriptor = None  # type: Optional[Descriptor]
         self.script_type = 'unknown'
         self.num_sig = 0  # type: int  # num req sigs for multisig
         self.pubkeys = []  # type: List[bytes]  # note: order matters
@@ -1296,6 +1290,7 @@ class PartialTxInput(TxInput, PSBTSection):
             'height': self.block_height,
             'value_sats': self.value_sats(),
             'address': self.address,
+            'desc': self.script_descriptor.to_string() if self.script_descriptor else None,
             'utxo': str(self.utxo) if self.utxo else None,
             'witness_utxo': self.witness_utxo.serialize_to_network().hex() if self.witness_utxo else None,
             'sighash': self.sighash,
@@ -1614,6 +1609,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
         self.bip32_paths = {}  # type: Dict[bytes, Tuple[bytes, Sequence[int]]]  # pubkey -> (xpub_fingerprint, path)
         self._unknown = {}  # type: Dict[bytes, bytes]
 
+        self.script_descriptor = None  # type: Optional[Descriptor]
         self.script_type = 'unknown'
         self.num_sig = 0  # num req sigs for multisig
         self.pubkeys = []  # type: List[bytes]  # note: order matters
@@ -1623,6 +1619,7 @@ class PartialTxOutput(TxOutput, PSBTSection):
     def to_json(self):
         d = super().to_json()
         d.update({
+            'desc': self.script_descriptor.to_string() if self.script_descriptor else None,
             'redeem_script': self.redeem_script.hex() if self.redeem_script else None,
             'witness_script': self.witness_script.hex() if self.witness_script else None,
             'bip32_paths': {pubkey.hex(): (xfp.hex(), bip32.convert_bip32_intpath_to_strpath(path))

@@ -9,8 +9,9 @@ from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
 from electrum.ecc import ECPrivkey
-from .test_bitcoin import disable_ecdsa_r_value_grinding
+from electrum import descriptor
 
+from .test_bitcoin import disable_ecdsa_r_value_grinding
 from . import ElectrumTestCase
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
@@ -89,8 +90,12 @@ class TestTransaction(ElectrumTestCase):
 
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
-        tx.inputs()[0].script_type = 'p2pkh'
-        tx.inputs()[0].pubkeys = [bfh('02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6')]
+        pubkey = bfh('02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6')
+        script_type = 'p2pkh'
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=script_type)
+        tx.inputs()[0].script_descriptor = desc
+        tx.inputs()[0].script_type = script_type
+        tx.inputs()[0].pubkeys = [pubkey]
         tx.inputs()[0].num_sig = 1
         tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.serialize(), signed_blob)

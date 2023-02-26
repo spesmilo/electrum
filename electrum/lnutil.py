@@ -21,6 +21,7 @@ from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOut
                           PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
+from . import descriptor
 from .bitcoin import (push_script, redeem_script_to_address, address_to_script,
                       construct_witness, construct_script)
 from . import segwit_addr
@@ -818,6 +819,11 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
     # commitment tx input
     prevout = TxOutpoint(txid=bfh(funding_txid), out_idx=funding_pos)
     c_input = PartialTxInput(prevout=prevout)
+
+    ppubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
+    multi = descriptor.MultisigDescriptor(pubkeys=ppubkeys, thresh=2, is_sorted=True)
+    c_input.script_descriptor = descriptor.WSHDescriptor(subdescriptor=multi)
+
     c_input.script_type = 'p2wsh'
     c_input.pubkeys = [bfh(pk) for pk in pubkeys]
     c_input.num_sig = 2
