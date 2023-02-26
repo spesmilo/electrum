@@ -7,15 +7,28 @@
 # Output Script Descriptors
 # See https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md
 #
+# TODO allow xprv
+# TODO allow WIF privkeys
+# TODO impl ADDR descriptors
+# TODO impl RAW descriptors
+# TODO disable descs we cannot solve: TRDescriptor
+#
+# TODO tests
+#      - port https://github.com/bitcoin-core/HWI/blob/master/test/test_descriptor.py
+#      - ranged descriptors (that have a "*")
+#
+# TODO solver? integrate with transaction.py...
+#      Transaction.input_script/get_preimage_script/serialize_witness
+
 
 from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo
 from .crypto import hash_160, sha256
 
 from binascii import unhexlify
-from collections import namedtuple
 from enum import Enum
 from typing import (
     List,
+    NamedTuple,
     Optional,
     Tuple,
 )
@@ -24,7 +37,11 @@ from typing import (
 MAX_TAPROOT_NODES = 128
 
 
-ExpandedScripts = namedtuple("ExpandedScripts", ["output_script", "redeem_script", "witness_script"])
+class ExpandedScripts(NamedTuple):
+    output_script: Optional[bytes] = None
+    redeem_script: Optional[bytes] = None
+    witness_script: Optional[bytes] = None
+
 
 def PolyMod(c: int, val: int) -> int:
     """
@@ -114,6 +131,7 @@ class PubkeyProvider(object):
         self.origin = origin
         self.pubkey = pubkey
         self.deriv_path = deriv_path
+        # TODO check that deriv_path only has a single "*" (and that it is in the last pos. but can end with e.g. "*h")
 
         # Make ExtendedKey from pubkey if it isn't hex
         self.extkey = None
@@ -270,6 +288,9 @@ class PKDescriptor(Descriptor):
         """
         super().__init__([pubkey], [], "pk")
 
+    # TODO
+    # def expand(self, pos: int) -> "ExpandedScripts":
+
 
 class PKHDescriptor(Descriptor):
     """
@@ -286,7 +307,7 @@ class PKHDescriptor(Descriptor):
 
     def expand(self, pos: int) -> "ExpandedScripts":
         script = b"\x76\xa9\x14" + hash_160(self.pubkeys[0].get_pubkey_bytes(pos)) + b"\x88\xac"
-        return ExpandedScripts(script, None, None)
+        return ExpandedScripts(output_script=script)
 
 
 class WPKHDescriptor(Descriptor):
@@ -304,7 +325,7 @@ class WPKHDescriptor(Descriptor):
 
     def expand(self, pos: int) -> "ExpandedScripts":
         script = b"\x00\x14" + hash_160(self.pubkeys[0].get_pubkey_bytes(pos))
-        return ExpandedScripts(script, None, None)
+        return ExpandedScripts(output_script=script)
 
 
 class MultisigDescriptor(Descriptor):
@@ -345,7 +366,7 @@ class MultisigDescriptor(Descriptor):
             script += len(pk).to_bytes(1, "big") + pk
         script += n + b"\xae"
 
-        return ExpandedScripts(script, None, None)
+        return ExpandedScripts(output_script=script)
 
 
 class SHDescriptor(Descriptor):
@@ -365,7 +386,11 @@ class SHDescriptor(Descriptor):
         assert len(self.subdescriptors) == 1
         redeem_script, _, witness_script = self.subdescriptors[0].expand(pos)
         script = b"\xa9\x14" + hash_160(redeem_script) + b"\x87"
-        return ExpandedScripts(script, redeem_script, witness_script)
+        return ExpandedScripts(
+            output_script=script,
+            redeem_script=redeem_script,
+            witness_script=witness_script,
+        )
 
 
 class WSHDescriptor(Descriptor):
@@ -385,7 +410,10 @@ class WSHDescriptor(Descriptor):
         assert len(self.subdescriptors) == 1
         witness_script, _, _ = self.subdescriptors[0].expand(pos)
         script = b"\x00\x20" + sha256(witness_script)
-        return ExpandedScripts(script, None, witness_script)
+        return ExpandedScripts(
+            output_script=script,
+            witness_script=witness_script,
+        )
 
 
 class TRDescriptor(Descriptor):
