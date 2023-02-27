@@ -46,7 +46,7 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
         rm winehq.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/debian/ && \
     apt-get update -q && \
-    apt-get install -qy \
+    apt-get install -qy --allow-downgrades \
         wine-stable-amd64:amd64=7.0.0.0~bullseye-1 \
         wine-stable-i386:i386=7.0.0.0~bullseye-1 \
         wine-stable:amd64=7.0.0.0~bullseye-1 \
