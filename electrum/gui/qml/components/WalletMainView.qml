@@ -243,8 +243,10 @@ Item {
     Connections {
         target: Daemon
         function onWalletLoaded() {
-            if (_intentUri)
+            if (_intentUri) {
                 invoiceParser.recipient = _intentUri
+                _intentUri = ''
+            }
         }
     }
 
