@@ -395,7 +395,7 @@ class Descriptor(object):
         assert not self.is_range()
         nhave, nreq = 0, 0
         for desc in self.subdescriptors:
-            a, b = desc.get_satisfaction_progress()
+            a, b = desc.get_satisfaction_progress(sigdata=sigdata)
             nhave += a
             nreq += b
         return nhave, nreq
