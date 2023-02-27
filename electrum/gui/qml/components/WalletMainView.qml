@@ -14,6 +14,7 @@ Item {
     property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
 
     property var _sendDialog
+    property string _intentUri
 
     function openInvoice(key) {
         var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
@@ -229,7 +230,21 @@ Item {
     Connections {
         target: AppController
         function onUriReceived(uri) {
+            console.log('uri received: ' + uri)
+            if (!Daemon.currentWallet) {
+                console.log('No wallet open, deferring')
+                _intentUri = uri
+                return
+            }
             invoiceParser.recipient = uri
+        }
+    }
+
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            if (_intentUri)
+                invoiceParser.recipient = _intentUri
         }
     }
 
