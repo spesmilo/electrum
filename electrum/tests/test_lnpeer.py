@@ -175,6 +175,9 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
+    def clear_invoices_cache(self):
+        pass
+
     def pay_scheduled_invoices(self):
         pass
 

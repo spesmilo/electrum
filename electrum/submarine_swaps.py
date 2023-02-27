@@ -261,14 +261,16 @@ class SwapManager(Logger):
         assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        lnaddr, invoice = self.lnworker.create_invoice(
-            amount_msat=lightning_amount_sat * 1000,
+        amount_msat = lightning_amount_sat * 1000
+        payment_hash = self.lnworker.create_payment_info(lightning_amount_sat)
+        lnaddr, invoice = self.lnworker.get_bolt11_invoice(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
             message='swap',
             expiry=3600 * 24,
             fallback_address=None,
             channels=channels,
         )
-        payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
             "type": "submarine",

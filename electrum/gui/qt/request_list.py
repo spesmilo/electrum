@@ -197,7 +197,7 @@ class RequestList(MyTreeView):
         if URI := self.wallet.get_request_URI(req):
             copy_menu.addAction(_("Bitcoin URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
         if req.is_lightning():
-            copy_menu.addAction(_("Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
+            copy_menu.addAction(_("Lightning Request"), lambda: self.parent.do_copy(self.wallet.get_bolt11_invoice(req), title='Lightning Request'))
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
