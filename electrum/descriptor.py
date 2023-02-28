@@ -186,6 +186,8 @@ class PubkeyProvider(object):
             if wildcard_count == 1:
                 if deriv_path[-1] != "*":
                     raise ValueError("wildcard in descriptor only allowed in last position")
+            if deriv_path[0] != "/":
+                raise ValueError(f"deriv_path suffix must start with a '/'. got {deriv_path!r}")
         # Make ExtendedKey from pubkey if it isn't hex
         self.extkey = None
         try:
@@ -194,6 +196,8 @@ class PubkeyProvider(object):
         except Exception:
             # Not hex, maybe xpub (but don't allow ypub/zpub)
             self.extkey = BIP32Node.from_xkey(pubkey, allow_custom_headers=False)
+        if deriv_path and self.extkey is None:
+            raise ValueError("deriv_path suffix present for simple pubkey")
 
     @classmethod
     def parse(cls, s: str) -> 'PubkeyProvider':

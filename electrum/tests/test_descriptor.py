@@ -16,6 +16,7 @@ from electrum.descriptor import (
     PKHDescriptor,
     WPKHDescriptor,
     WSHDescriptor,
+    PubkeyProvider,
 )
 from electrum import ecc
 from electrum.util import bfh
@@ -335,3 +336,27 @@ class TestDescriptor(ElectrumTestCase):
             desc = parse_descriptor("wpkh([535e473f/0h]ypub6TLJVy4mZfqBJhoQBTgDR1TzM7s91WbVnMhZj31swV6xxPiwCqeGYrBn2dNHbDrP86qqxbM6FNTX3VjhRjNoXYyBAR5G3o75D3r2djmhZwM/0/*)")
         with self.assertRaises(ValueError):  # only standard xpub/xprv allowed
             desc = parse_descriptor("wpkh([535e473f/0h]zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr/0/*)")
+
+    def test_pubkey_provider_deriv_path(self):
+        xpub = "xpub68W3CJPrQzHhTQcHM6tbCvNVB9ih4tbzsFBLwe7zZUj5uHuhxBUhvnXe1RQhbKCTiTj3D7kXni6yAD88i2xnjKHaJ5NqTtHawKnPFCDnmo4"
+        # valid:
+        pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="/1/7")
+        pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="/1/*")
+        # invalid:
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="1")
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="1/7")
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="m/1/7")
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="*/7")
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=xpub, deriv_path="*/*")
+
+        pubkey_hex = "02a0507c8bb3d96dfd7731bafb0ae30e6ed10bbadd6a9f9f88eaf0602b9cc99adc"
+        # valid:
+        pp = PubkeyProvider(origin=None, pubkey=pubkey_hex, deriv_path=None)
+        # invalid:
+        with self.assertRaises(ValueError):
+            pp = PubkeyProvider(origin=None, pubkey=pubkey_hex, deriv_path="/1/7")
