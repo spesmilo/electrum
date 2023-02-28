@@ -7,7 +7,7 @@ import ".."
 
 Item {
     id: toaster
-    width: rect.width
+    width: contentItem.implicitWidth
     height: rect.height
     visible: false
 
@@ -17,9 +17,9 @@ Item {
     function show(item, text) {
         _text = text
         var r = item.mapToItem(parent, item.x, item.y)
-        x = r.x - (toaster.width - item.width)/2
+        x = r.x - item.width + 0.5*(item.width - toaster.width)
         y = r.y - toaster.height - constants.paddingLarge
-        toaster._y = y - 35
+        toaster._y = y - toaster.height
         ani.restart()
     }
 
@@ -40,17 +40,17 @@ Item {
         id: rect
         width: contentItem.width
         height: contentItem.height
-        color: constants.colorAlpha(Material.dialogColor, 0.90)
-        border {
-            color: Material.accentColor
-            width: 1
-        }
+        color: constants.colorAlpha(Material.background, 0.90)
 
         RowLayout {
             id: contentItem
             Label {
                 Layout.margins: 10
                 text: toaster._text
+                onTextChanged: {
+                    // hack. ref implicitWidth so it gets recalculated
+                    var _ = contentItem.implicitWidth
+                }
             }
         }
     }
