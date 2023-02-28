@@ -56,7 +56,7 @@ Pane {
                         height: row.height
 
                         onClicked: {
-                            if (Daemon.currentWallet.name != model.name)
+                            if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name)
                                 Daemon.load_wallet(model.path)
                             else
                                 app.stack.pop()

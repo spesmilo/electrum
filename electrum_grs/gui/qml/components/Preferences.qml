@@ -203,7 +203,7 @@ Pane {
                             }
                         }
                         Button {
-                            text: qsTr('Change')
+                            text: qsTr('Modify')
                             visible: Config.pinCode != ''
                             onClicked: {
                                 var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})

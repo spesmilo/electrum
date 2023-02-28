@@ -202,7 +202,7 @@ class QESwapHelper(AuthMixin, QObject):
             max_onchain_spend = 0
         reverse = int(min(lnworker.num_sats_can_send(),
                           swap_manager.get_max_amount()))
-        max_recv_amt_ln = int(swap_manager.num_sats_can_receive())
+        max_recv_amt_ln = int(lnworker.num_sats_can_receive())
         max_recv_amt_oc = swap_manager.get_send_amount(max_recv_amt_ln, is_reverse=False) or 0
         forward = int(min(max_recv_amt_oc,
                           # maximally supported swap amount by provider

@@ -239,18 +239,6 @@ ElDialog {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
 
-                icon.source: '../../icons/tab_receive.png'
-                text: qsTr('Requests')
-                onClicked: {
-                    dialog.close()
-                    if (app.stack.currentItem.objectName != 'ReceiveRequests')
-                        app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
-                }
-            }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-
                 icon.source: '../../icons/copy_bw.png'
                 icon.color: 'transparent'
                 text: 'Copy'

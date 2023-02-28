@@ -109,27 +109,6 @@ Pane {
                         }
                     }
 
-                    Item {
-                        visible: feebumpButton.visible
-                        Layout.preferredWidth: 1 ; Layout.preferredHeight: 1
-                    }
-                    FlatButton {
-                        id: feebumpButton
-                        visible: txdetails.canBump || txdetails.canCpfp
-                        textUnderIcon: false
-                        icon.source: '../../icons/warning.png'
-                        icon.color: 'transparent'
-                        text: qsTr('Bump fee')
-                        onClicked: {
-                            if (txdetails.canBump) {
-                                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
-                            } else {
-                                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
-                            }
-                            dialog.open()
-                        }
-                    }
-
                     Label {
                         Layout.fillWidth: true
                         text: qsTr('Status')
@@ -139,6 +118,53 @@ Pane {
                     Label {
                         Layout.fillWidth: true
                         text: txdetails.status
+                    }
+
+                    TextHighlightPane {
+                        Layout.fillWidth: true
+                        Layout.columnSpan: 2
+                        borderColor: constants.colorWarning
+                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
+
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                Layout.fillWidth: true
+                                text: qsTr('This transaction is still unconfirmed.') + '\n' +
+                                qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
+                                wrapMode: Text.Wrap
+                            }
+                            ColumnLayout {
+                                Layout.alignment: Qt.AlignHCenter
+                                FlatButton {
+                                    id: feebumpButton
+                                    visible: txdetails.canBump || txdetails.canCpfp
+                                    textUnderIcon: false
+                                    icon.source: '../../icons/add.png'
+                                    text: qsTr('Bump fee')
+                                    onClicked: {
+                                        if (txdetails.canBump) {
+                                            var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                                        } else {
+                                            var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                                        }
+                                        dialog.open()
+                                    }
+                                }
+                                FlatButton {
+                                    id: cancelButton
+                                    visible: txdetails.canCancel
+                                    textUnderIcon: false
+                                    icon.source: '../../icons/closebutton.png'
+                                    text: qsTr('Cancel Tx')
+                                    onClicked: {
+                                        var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                                        dialog.open()
+                                    }
+                                }
+                            }
+                        }
+
                     }
 
                     Label {
@@ -317,30 +343,29 @@ Pane {
 
         ButtonContainer {
             Layout.fillWidth: true
-            visible: txdetails.canSign || txdetails.canBroadcast
 
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/key.png'
                 text: qsTr('Sign')
-                enabled: txdetails.canSign
+                visible: txdetails.canSign
                 onClicked: txdetails.sign()
             }
+
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/microphone.png'
                 text: qsTr('Broadcast')
-                enabled: txdetails.canBroadcast
+                visible: txdetails.canBroadcast
                 onClicked: txdetails.broadcast()
             }
-        }
-
-        ButtonContainer {
-            Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/qrcode_white.png'
                 text: qsTr('Export')
                 onClicked: {
                     var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
@@ -351,6 +376,7 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/save.png'
                 text: qsTr('Save')
                 visible: txdetails.canSaveAsLocal
                 onClicked: txdetails.save()
@@ -359,21 +385,12 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                icon.source: '../../icons/delete.png'
                 text: qsTr('Remove')
                 visible: txdetails.canRemove
                 onClicked: txdetails.removeLocalTx()
             }
 
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Cancel Tx')
-                visible: txdetails.canCancel
-                onClicked: {
-                    var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
-                    dialog.open()
-                }
-            }
         }
 
     }

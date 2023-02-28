@@ -710,14 +710,20 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot(str)
     def set_password(self, password):
+        if password == '':
+            password = None
+
         storage = self.wallet.storage
 
         # HW wallet not supported yet
         if storage.is_encrypted_with_hw_device():
             return
 
+        current_password = self.password if self.password != '' else None
+
         try:
-            self.wallet.update_password(self.password, password, encrypt_storage=True)
+            self._logger.info(f'PW change from {current_password} to {password}')
+            self.wallet.update_password(current_password, password, encrypt_storage=True)
             self.password = password
         except InvalidPassword as e:
             self._logger.exception(repr(e))

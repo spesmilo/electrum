@@ -142,11 +142,16 @@ class QEDaemon(AuthMixin, QObject):
 
         self._walletdb = QEWalletDB()
         self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
+        self._walletdb.walletOpenProblem.connect(self.onWalletOpenProblem)
 
     @pyqtSlot()
     def passwordValidityCheck(self):
         if not self._walletdb._validPassword:
             self.walletRequiresPassword.emit(self._name, self._path)
+
+    @pyqtSlot(str)
+    def onWalletOpenProblem(self, error):
+        self.walletOpenError.emit(error)
 
     @pyqtSlot()
     @pyqtSlot(str)
@@ -165,6 +170,10 @@ class QEDaemon(AuthMixin, QObject):
         self._name = os.path.basename(self._path)
 
         self._logger.debug('load wallet ' + str(self._path))
+
+        # map empty string password to None
+        if password == '':
+            password = None
 
         if not password:
             password = self._password
@@ -220,7 +229,7 @@ class QEDaemon(AuthMixin, QObject):
         wallet = self.daemon._wallets[self._path]
         self._current_wallet = QEWallet.getInstanceFor(wallet)
         self.availableWallets.updateWallet(self._path)
-        self._current_wallet.password = password
+        self._current_wallet.password = password if password else None
         self.walletLoaded.emit(self._name, self._path)
 
 
@@ -307,6 +316,9 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str)
     def setPassword(self, password):
         assert self._use_single_password
+        # map empty string password to None
+        if password == '':
+            password = None
         self._logger.debug('about to set password for ALL wallets')
         self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
         self._password = password

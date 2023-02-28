@@ -56,14 +56,16 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
 
-    _crash_user_text = ''
-
     def __init__(self, qedaemon, plugins):
         BaseCrashReporter.__init__(self, None, None, None)
         QObject.__init__(self)
 
         self._qedaemon = qedaemon
         self._plugins = plugins
+
+        self._crash_user_text = ''
+        self._app_started = False
+        self._intent = ''
 
         # set up notification queue and notification_timer
         self.user_notification_queue = queue.Queue()
@@ -142,15 +144,23 @@ class QEAppController(BaseCrashReporter, QObject):
             self.logger.error(f'unable to bind intent: {repr(e)}')
 
     def on_new_intent(self, intent):
+        if not self._app_started:
+            self._intent = intent
+            return
+
         data = str(intent.getDataString())
+        self.logger.debug(f'received intent: {repr(data)}')
         scheme = str(intent.getScheme()).lower()
         if scheme == BITCOIN_BIP21_URI_SCHEME or scheme == LIGHTNING_URI_SCHEME:
             self.uriReceived.emit(data)
 
+    def startupFinished(self):
+        self._app_started = True
+        if self._intent:
+            self.on_new_intent(self._intent)
+
     @pyqtSlot(str, str)
     def doShare(self, data, title):
-        #if platform != 'android':
-            #return
         try:
             from jnius import autoclass, cast
         except ImportError:
@@ -352,6 +362,7 @@ class ElectrumQmlApplication(QGuiApplication):
         if object is None:
             self._valid = False
         self.engine.objectCreated.disconnect(self.objectCreated)
+        self.appController.startupFinished()
 
     def message_handler(self, line, funct, file):
         # filter out common harmless messages
