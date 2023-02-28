@@ -34,6 +34,8 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h")
         self.assertEqual(desc.pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
         self.assertEqual(desc.pubkeys[0].deriv_path, "/0/0")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_path(), "m/84h/1h/0h/0/0")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_int_list(), [16777216, 2147483732, 2147483649, 2147483648, 0, 0])
         self.assertEqual(desc.to_string_no_checksum(), d)
         e = desc.expand()
         self.assertEqual(e.output_script, unhexlify("0014d95fc47eada9e4c3cf59a2cbf9e96517c3ba2efa"))
@@ -51,6 +53,8 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.subdescriptors[0].pubkeys[0].origin.get_derivation_path(), "m/48h/0h/0h/2h")
         self.assertEqual(desc.subdescriptors[0].pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
         self.assertEqual(desc.subdescriptors[0].pubkeys[0].deriv_path, "/0/0")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].get_full_derivation_path(), "m/48h/0h/0h/2h/0/0")
+        self.assertEqual(desc.subdescriptors[0].pubkeys[0].get_full_derivation_int_list(), [16777216, 2147483696, 2147483648, 2147483648, 2147483650, 0, 0])
 
         self.assertEqual(desc.subdescriptors[0].pubkeys[1].origin.fingerprint.hex(), "00000002")
         self.assertEqual(desc.subdescriptors[0].pubkeys[1].origin.get_derivation_path(), "m/48h/0h/0h/2h")
@@ -109,6 +113,8 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].origin, None)
         self.assertEqual(desc.pubkeys[0].pubkey, "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B")
         self.assertEqual(desc.pubkeys[0].deriv_path, "/0/0")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_path(), "m/0/0")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_int_list(), [0, 0])
         self.assertEqual(desc.to_string_no_checksum(), d)
         e = desc.expand()
         self.assertEqual(e.output_script, unhexlify("0014d95fc47eada9e4c3cf59a2cbf9e96517c3ba2efa"))
@@ -138,6 +144,8 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h/0/0")
         self.assertEqual(desc.pubkeys[0].pubkey, "02c97dc3f4420402e01a113984311bf4a1b8de376cac0bdcfaf1b3ac81f13433c7")
         self.assertEqual(desc.pubkeys[0].deriv_path, None)
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_path(), "m/84h/1h/0h/0/0")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_int_list(), [16777216, 2147483732, 2147483649, 2147483648, 0, 0])
         self.assertEqual(desc.to_string_no_checksum(), d)
         e = desc.expand()
         self.assertEqual(e.output_script, unhexlify("0014d95fc47eada9e4c3cf59a2cbf9e96517c3ba2efa"))
@@ -164,6 +172,8 @@ class TestDescriptor(ElectrumTestCase):
         self.assertEqual(desc.pubkeys[0].origin, None)
         self.assertEqual(desc.pubkeys[0].pubkey, "02c97dc3f4420402e01a113984311bf4a1b8de376cac0bdcfaf1b3ac81f13433c7")
         self.assertEqual(desc.pubkeys[0].deriv_path, None)
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_path(), "m")
+        self.assertEqual(desc.pubkeys[0].get_full_derivation_int_list(), [])
         self.assertEqual(desc.to_string_no_checksum(), d)
 
     def test_parse_empty_descriptor(self):
@@ -175,6 +185,13 @@ class TestDescriptor(ElectrumTestCase):
         desc = parse_descriptor(d)
         self.assertIsNotNone(desc)
         self.assertEqual(desc.pubkeys[0].origin.get_derivation_path(), "m/84h/1h/0h")
+
+    @as_testnet
+    def test_parse_descriptor_unknown_notation_for_hardened_derivation(self):
+        with self.assertRaises(ValueError):
+            desc = parse_descriptor("wpkh([00000001/84x/1x/0x]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0/0)")
+        with self.assertRaises(ValueError):
+            desc = parse_descriptor("wpkh([00000001/84h/1h/0h]tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B/0x)")
 
     def test_checksums(self):
         with self.subTest(msg="Valid checksum"):

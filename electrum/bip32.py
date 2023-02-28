@@ -334,14 +334,18 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
             # makes concatenating paths easier
             continue
         prime = 0
-        if x.endswith("'") or x.endswith("h"):
+        if x.endswith("'") or x.endswith("h"):  # note: some implementations also accept "H", "p", "P"
             x = x[:-1]
             prime = BIP32_PRIME
         if x.startswith('-'):
             if prime:
                 raise ValueError(f"bip32 path child index is signalling hardened level in multiple ways")
             prime = BIP32_PRIME
-        child_index = abs(int(x)) | prime
+        try:
+            x_int = int(x)
+        except ValueError as e:
+            raise ValueError(f"failed to parse bip32 path: {(str(e))}") from None
+        child_index = abs(x_int) | prime
         if child_index > UINT32_MAX:
             raise ValueError(f"bip32 path child index too large: {child_index} > {UINT32_MAX}")
         path.append(child_index)

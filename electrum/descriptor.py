@@ -16,7 +16,7 @@
 
 import enum
 
-from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo
+from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo, BIP32_PRIME
 from . import bitcoin
 from .bitcoin import construct_script, opcodes, construct_witness
 from . import constants
@@ -254,35 +254,31 @@ class PubkeyProvider(object):
             assert not self.is_range()
             return unhexlify(self.pubkey)
 
-    def get_full_derivation_path(self, pos: int) -> str:
+    def get_full_derivation_path(self, *, pos: Optional[int] = None) -> str:
         """
         Returns the full derivation path at the given position, including the origin
         """
-        path = self.origin.get_derivation_path() if self.origin is not None else "m/"
+        if self.is_range() and pos is None:
+            raise ValueError("pos must be set for ranged descriptor")
+        path = self.origin.get_derivation_path() if self.origin is not None else "m"
         path += self.deriv_path if self.deriv_path is not None else ""
         if path[-1] == "*":
             path = path[:-1] + str(pos)
         return path
 
-    def get_full_derivation_int_list(self, pos: int) -> List[int]:
+    def get_full_derivation_int_list(self, *, pos: Optional[int] = None) -> List[int]:
         """
         Returns the full derivation path as an integer list at the given position.
         Includes the origin and master key fingerprint as an int
         """
+        if self.is_range() and pos is None:
+            raise ValueError("pos must be set for ranged descriptor")
         path: List[int] = self.origin.get_full_int_list() if self.origin is not None else []
         if self.deriv_path is not None:
-            der_split = self.deriv_path.split("/")
-            for p in der_split:
-                if not p:
-                    continue
-                if p == "*":
-                    i = pos
-                elif p[-1] in "'phHP":
-                    assert len(p) >= 2
-                    i = int(p[:-1]) | 0x80000000
-                else:
-                    i = int(p)
-                path.append(i)
+            der_suffix = self.deriv_path
+            assert (wc_count := der_suffix.count("*")) <= 1, wc_count
+            der_suffix = der_suffix.replace("*", str(pos))
+            path.extend(convert_bip32_path_to_list_of_uint32(der_suffix))
         return path
 
     def __lt__(self, other: 'PubkeyProvider') -> bool:
