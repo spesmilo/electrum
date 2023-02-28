@@ -36,7 +36,9 @@ from .bitcoin import deserialize_privkey, serialize_privkey, BaseDecodeError
 from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
 from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
-                    convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info)
+                    convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info,
+                    KeyOriginInfo)
+from .descriptor import PubkeyProvider
 from .ecc import string_to_number
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion, hash_160,
@@ -179,6 +181,10 @@ class KeyStore(Logger, ABC):
         """
         pass
 
+    @abstractmethod
+    def get_pubkey_provider(self, sequence: 'AddressIndexGeneric') -> Optional[PubkeyProvider]:
+        pass
+
     def find_my_pubkey_in_txinout(
             self, txinout: Union['PartialTxInput', 'PartialTxOutput'],
             *, only_der_suffix: bool = False
@@ -302,6 +308,15 @@ class Imported_KeyStore(Software_KeyStore):
             return pubkey.hex()
         return None
 
+    def get_pubkey_provider(self, sequence: 'AddressIndexGeneric') -> Optional[PubkeyProvider]:
+        if sequence in self.keypairs:
+            return PubkeyProvider(
+                origin=None,
+                pubkey=sequence,
+                deriv_path=None,
+            )
+        return None
+
     def update_password(self, old_password, new_password):
         self.check_password(old_password)
         if new_password == '':
@@ -402,6 +417,9 @@ class MasterPublicKeyMixin(ABC):
         and 'only_der_suffix', and the derivation path is adjusted accordingly.
         """
         pass
+
+    def get_key_origin_info(self) -> Optional[KeyOriginInfo]:
+        return None
 
     @abstractmethod
     def derive_pubkey(self, for_change: int, n: int) -> bytes:
@@ -531,6 +549,22 @@ class Xpub(MasterPublicKeyMixin):
             xtype="standard",
         )
         return bip32node.to_xpub()
+
+    def get_key_origin_info(self) -> Optional[KeyOriginInfo]:
+        fp_bytes, der_full = self.get_fp_and_derivation_to_be_used_in_partial_tx(
+            der_suffix=[], only_der_suffix=False)
+        origin = KeyOriginInfo(fingerprint=fp_bytes, path=der_full)
+        return origin
+
+    def get_pubkey_provider(self, sequence: 'AddressIndexGeneric') -> Optional[PubkeyProvider]:
+        strpath = convert_bip32_intpath_to_strpath(sequence)
+        strpath = strpath[1:]  # cut leading "m"
+        bip32node = self.get_bip32_node_for_xpub()
+        return PubkeyProvider(
+            origin=self.get_key_origin_info(),
+            pubkey=bip32node._replace(xtype="standard").to_xkey(),
+            deriv_path=strpath,
+        )
 
     def add_key_origin_from_root_node(self, *, derivation_prefix: str, root_node: BIP32Node):
         assert self.xpub
@@ -801,6 +835,13 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         der_prefix_ints = convert_bip32_path_to_list_of_uint32(der_prefix_str)
         der_full = der_prefix_ints + list(der_suffix)
         return fingerprint_bytes, der_full
+
+    def get_pubkey_provider(self, sequence: 'AddressIndexGeneric') -> Optional[PubkeyProvider]:
+        return PubkeyProvider(
+            origin=None,
+            pubkey=self.derive_pubkey(*sequence).hex(),
+            deriv_path=None,
+        )
 
     def update_password(self, old_password, new_password):
         self.check_password(old_password)

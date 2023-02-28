@@ -686,14 +686,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         pass
 
     def get_redeem_script(self, address: str) -> Optional[str]:
-        desc = self._get_script_descriptor_for_address(address)
+        desc = self.get_script_descriptor_for_address(address)
         if desc is None: return None
         redeem_script = desc.expand().redeem_script
         if redeem_script:
             return redeem_script.hex()
 
     def get_witness_script(self, address: str) -> Optional[str]:
-        desc = self._get_script_descriptor_for_address(address)
+        desc = self.get_script_descriptor_for_address(address)
         if desc is None: return None
         witness_script = desc.expand().witness_script
         if witness_script:
@@ -2196,32 +2196,38 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker:
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
-        txin.script_descriptor = self._get_script_descriptor_for_address(address)
+        txin.script_descriptor = self.get_script_descriptor_for_address(address)
         self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
 
-    def _get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
+    def get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
         if not self.is_mine(address):
             return None
         script_type = self.get_txin_type(address)
         if script_type in ('address', 'unknown'):
             return None
-        if script_type in ('p2pk', 'p2pkh', 'p2wpkh-p2sh', 'p2wpkh'):
-            pubkey = self.get_public_keys(address)[0]
-            return descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=script_type)
+        addr_index = self.get_address_index(address)
+        if addr_index is None:
+            return None
+        pubkeys = [ks.get_pubkey_provider(addr_index) for ks in self.get_keystores()]
+        if not pubkeys:
+            return None
+        if script_type == 'p2pk':
+            return descriptor.PKDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2pkh':
+            return descriptor.PKHDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2wpkh':
+            return descriptor.WPKHDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2wpkh-p2sh':
+            wpkh = descriptor.WPKHDescriptor(pubkey=pubkeys[0])
+            return descriptor.SHDescriptor(subdescriptor=wpkh)
         elif script_type == 'p2sh':
-            pubkeys = self.get_public_keys(address)
-            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
             multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
             return descriptor.SHDescriptor(subdescriptor=multi)
         elif script_type == 'p2wsh':
-            pubkeys = self.get_public_keys(address)
-            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
             multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
             return descriptor.WSHDescriptor(subdescriptor=multi)
         elif script_type == 'p2wsh-p2sh':
-            pubkeys = self.get_public_keys(address)
-            pubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
             multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
             wsh = descriptor.WSHDescriptor(subdescriptor=multi)
             return descriptor.SHDescriptor(subdescriptor=wsh)
@@ -2279,7 +2285,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txout, address)
             if not is_mine:
                 return
-        txout.script_descriptor = self._get_script_descriptor_for_address(address)
+        txout.script_descriptor = self.get_script_descriptor_for_address(address)
         txout.is_mine = True
         txout.is_change = self.is_change(address)
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
@@ -3390,7 +3396,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         return pubkeys[0]
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.db, 'keystore')
+        self.keystore = load_keystore(self.db, 'keystore')  # type: KeyStoreWithMPK
         try:
             xtype = bip32.xpub_type(self.keystore.xpub)
         except:

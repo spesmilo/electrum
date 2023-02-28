@@ -821,7 +821,11 @@ class TestWalletSending(ElectrumTestCase):
 
         # wallet2 -> wallet1
         outputs = [PartialTxOutput.from_address_and_value(wallet1a.get_receiving_address(), 100000)]
-        tx = wallet2.mktx(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
+        tx = wallet2.mktx(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False, sign=False)
+        self.assertEqual(
+            "pkh(045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25ed)",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
+        wallet2.sign_transaction(tx, password=None)
 
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
@@ -893,6 +897,9 @@ class TestWalletSending(ElectrumTestCase):
         outputs = [PartialTxOutput.from_address_and_value(wallet2a.get_receiving_address(), 165000)]
         tx = wallet1a.mktx(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False, sign=False)
         self.assertEqual((0, 2), tx.signature_count())
+        self.assertEqual(
+            "wsh(sortedmulti(2,[b2e35a7d/1h]tpubD9aPYLPPYw8MxU3cD57LwpV5v7GomHxdv62MSbPcRkp47zwXx69ACUFsKrj8xzuzRrij9FWVhfvkvNqtqsr8ZtefkDsGZ9GLuHzoS6bXyk1/0/0,[53b77ddb/1h]tpubD8spLJysN7v7V1KHvkZ7AwjnXShKafopi7Vu3Ahs2S46FxBPTode8DgGxDo55k4pJvETGScZFwnM5f2Y31EUjteJdhxR73sjr9ieydgah2U/0/0,[43067d63/1h]tpubD8khd1g1tzFeKeaU59QV811hyvhwn9KDfy5sqFJ5m2wJLw6rUt4AZviqutRPXTUAK4SpU2we3y2WBP916Ma8Em4qFGcbYkFvXVfpGYV3oZR/0/0))",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         wallet1a.sign_transaction(tx, password=None)
         self.assertEqual((1, 2), tx.signature_count())
         txid = tx.txid()
@@ -925,6 +932,9 @@ class TestWalletSending(ElectrumTestCase):
         outputs = [PartialTxOutput.from_address_and_value(wallet1a.get_receiving_address(), 100000)]
         tx = wallet2a.mktx(outputs=outputs, password=None, fee=5000, tx_version=1, rbf=False)
         self.assertEqual((1, 2), tx.signature_count())
+        self.assertEqual(
+            "sh(wsh(sortedmulti(2,[d1dbcc21]tpubDDsv4RpsGViZeEVwivuj3aaKhFQSv1kYsz64mwRoHkqBfw8qBSYEmc8TtyVGotJb44V3pviGzefP9m9hidRg9dPPaDWL2yoRpMW3hdje3Rk/0/0,[17cea914]tpubDCZU2kACPGACYDvAXvZUXQ7cE7msFfCtpah5QCuaz8iarKMLTgR4c2u8RGKdFhbb3YJxzmktDd1rCtF58ksyVgFw28pchY55uwkDiXjY9hU/0/0)))",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         txid = tx.txid()
         partial_tx = tx.serialize_as_bytes().hex()
         self.assertEqual("70736274ff01007e010000000149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e0100000000feffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a086010000000000220020f7b6b30c3073ae2680a7e90c589bbfec5303331be68bbab843eed5d51ba012390000000000010120888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870100fd7c0101000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400473044022055cb04fa71c4b5955724d7ac5da90436d75212e7847fc121cb588f54bcdffdc4022064eca1ad639b7c748101059dc69f2893abb3b396bcf9c13f670415076f93ddbf01473044022009230e456724f2a4c10d886c836eeec599b21db0bf078aa8fc8c95868b8920ec02200dfda835a66acb5af50f0d95fcc4b76c6e8f4789a7184c182275b087d1efe556016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000220202119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb14730440220091ea67af7c1131f51f62fe9596dff0a60c8b45bfc5be675389e193912e8a71802201bf813bbf83933a35ecc46e2d5b0442bd8758fa82e0f8ed16392c10d51f7f7660101042200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163c010547522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae220602119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb10cd1dbcc210000000000000000220602fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab81260c17cea9140000000000000000000100220020717ab7037b81797cb3e192a8a1b4d88083444bbfcd26934cadf3bcf890f14e05010147522102987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde21034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f9952ae220202987c184fcd8ace2e2a314250e04a15a4b8c885fb4eb778ab82c45838bcbcbdde0c17cea91401000000000000002202034084c4a0493c248783e60d8415cd30b3ba2c3b7a79201e38b953adea2bc44f990cd1dbcc2101000000000000000000",
@@ -2613,6 +2623,9 @@ class TestWalletSending(ElectrumTestCase):
         tx.version = 2
         tx.locktime = 2378363
         self.assertEqual("04cf670cc809560ab6b1a362c119dbd59ea6a7621d00a4a05c0ef1839e65c035", tx.txid())
+        self.assertEqual(
+            "wsh(sortedmulti(2,[9559fbd1/9999h]tpubD9MoDeHnEQnU5EMgt9mc4yKU6SURbfq2ooMToY5GH95B8Li1CEsuo9dBKXM2sdjuDGq4KCXLuigss3y22fZULzVrfVuZDxEN55Sp6CcU9DK/0/0,[015148ee]tpubDFF7YPCSGHZy55HkQj6HJkXCR8DWbKKXpTYBH38fSHf6VuoEzNmZQZdAoKEVy36S8zXkbGeV4XQU6vaRXGsQfgptFYPR4HSpAenqkY7J7Lg/0/0))",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertEqual({}, tx.to_json()['xpubs'])
         self.assertEqual(
             {'022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc48275049': ('9559fbd1', "m/9999h/0/0"),
@@ -2640,6 +2653,9 @@ class TestWalletSending(ElectrumTestCase):
         tx.version = 2
         tx.locktime = 2378363
         self.assertEqual("04cf670cc809560ab6b1a362c119dbd59ea6a7621d00a4a05c0ef1839e65c035", tx.txid())
+        self.assertEqual(
+            "wsh(sortedmulti(2,[9559fbd1/9999h]tpubD9MoDeHnEQnU5EMgt9mc4yKU6SURbfq2ooMToY5GH95B8Li1CEsuo9dBKXM2sdjuDGq4KCXLuigss3y22fZULzVrfVuZDxEN55Sp6CcU9DK/0/0,[30cf1be5/48h/1h/0h/2h]tpubDFF7YPCSGHZy55HkQj6HJkXCR8DWbKKXpTYBH38fSHf6VuoEzNmZQZdAoKEVy36S8zXkbGeV4XQU6vaRXGsQfgptFYPR4HSpAenqkY7J7Lg/0/0))",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertEqual({}, tx.to_json()['xpubs'])
         self.assertEqual(
             {'022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc48275049': ('9559fbd1', "m/9999h/0/0"),
@@ -3036,6 +3052,9 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
+        self.assertEqual(
+            "sh(wpkh(03845818239fe468a9e7c7ae1a3d3653a8333f89ff316a771a3acf6854b4d8c6db))",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
@@ -3114,6 +3133,9 @@ class TestWalletOfflineSigning(ElectrumTestCase):
 
         # sign tx
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
+        self.assertEqual(
+            "pkh([233d2ae4]tpubDDMN69wQjDZxaJz9afZQGa48hZS7X5oSegF2hg67yddNvqfpuTN9DqvDEp7YyVf7AzXnqBqHdLhzTAStHvsoMDDb8WoJQzNrcHgDJHVYgQF/0/1)",
+            tx.inputs()[0].script_descriptor.to_string_no_checksum())
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
