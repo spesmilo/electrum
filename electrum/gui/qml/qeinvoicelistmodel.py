@@ -29,7 +29,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self.updateStatusStrings)
 
-        self.init_model()
+        try:
+            self.init_model()
+        except Exception as e:
+            self._logger.error(f'{repr(e)}')
+            raise e
 
     def rowCount(self, index):
         return len(self.invoices)
