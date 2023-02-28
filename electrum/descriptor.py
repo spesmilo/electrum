@@ -278,12 +278,16 @@ class PubkeyProvider(object):
         if self.is_range() and pos is None:
             raise ValueError("pos must be set for ranged descriptor")
         path: List[int] = self.origin.get_full_int_list() if self.origin is not None else []
-        if self.deriv_path is not None:
-            der_suffix = self.deriv_path
-            assert (wc_count := der_suffix.count("*")) <= 1, wc_count
-            der_suffix = der_suffix.replace("*", str(pos))
-            path.extend(convert_bip32_path_to_list_of_uint32(der_suffix))
+        path.extend(self.get_der_suffix_int_list(pos=pos))
         return path
+
+    def get_der_suffix_int_list(self, *, pos: Optional[int] = None) -> List[int]:
+        if not self.deriv_path:
+            return []
+        der_suffix = self.deriv_path
+        assert (wc_count := der_suffix.count("*")) <= 1, wc_count
+        der_suffix = der_suffix.replace("*", str(pos))
+        return convert_bip32_path_to_list_of_uint32(der_suffix)
 
     def __lt__(self, other: 'PubkeyProvider') -> bool:
         return self.pubkey < other.pubkey
@@ -606,7 +610,14 @@ class MultisigDescriptor(Descriptor):
         self.thresh = thresh
         self.is_sorted = is_sorted
         if self.is_sorted:
-            self.pubkeys.sort()
+            if not self.is_range():
+                # sort xpubs using the order of pubkeys
+                der_pks = [p.get_pubkey_bytes() for p in self.pubkeys]
+                self.pubkeys = [x[1] for x in sorted(zip(der_pks, self.pubkeys))]
+            else:
+                # not possible to sort according to final order in expanded scripts,
+                # but for easier visual comparison, we do a lexicographical sort
+                self.pubkeys.sort()
 
     def to_string_no_checksum(self) -> str:
         return "{}({},{})".format(self.name, self.thresh, ",".join([p.to_string() for p in self.pubkeys]))

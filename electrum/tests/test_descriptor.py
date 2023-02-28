@@ -337,6 +337,34 @@ class TestDescriptor(ElectrumTestCase):
         with self.assertRaises(ValueError):  # only standard xpub/xprv allowed
             desc = parse_descriptor("wpkh([535e473f/0h]zpub6nAZodjgiMNf9zzX1pTqd6ZVX61ax8azhUDnWRumKVUr1VYATVoqAuqv3qKsb8WJXjxei4wei2p4vnMG9RnpKnen2kmgdhvZUmug2NnHNsr/0/*)")
 
+    @as_testnet
+    def test_sortedmulti_ranged_pubkey_order(self):
+        xpub1 = "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B"
+        xpub2 = "tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty"
+        # if ranged, we sort lexicographically
+        desc = parse_descriptor(f"sh(wsh(sortedmulti(2,[00000001/48h/0h/0h/2h]{xpub1}/0/*,[00000002/48h/0h/0h/2h]{xpub2}/0/*)))")
+        self.assertEqual([xpub1, xpub2], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+        desc = parse_descriptor(f"sh(wsh(sortedmulti(2,[00000002/48h/0h/0h/2h]{xpub2}/0/*,[00000001/48h/0h/0h/2h]{xpub1}/0/*)))")
+        self.assertEqual([xpub1, xpub2], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+        # if unsorted "multi", don't touch order
+        desc = parse_descriptor(f"sh(wsh(multi(2,[00000002/48h/0h/0h/2h]{xpub2}/0/*,[00000001/48h/0h/0h/2h]{xpub1}/0/*)))")
+        self.assertEqual([xpub2, xpub1], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+
+    @as_testnet
+    def test_sortedmulti_unranged_pubkey_order(self):
+        xpub1 = "tpubD6NzVbkrYhZ4WaWSyoBvQwbpLkojyoTZPRsgXELWz3Popb3qkjcJyJUGLnL4qHHoQvao8ESaAstxYSnhyswJ76uZPStJRJCTKvosUCJZL5B"
+        xpub2 = "tpubDFHiBJDeNvqPWNJbzzxqDVXmJZoNn2GEtoVcFhMjXipQiorGUmps3e5ieDGbRrBPTFTh9TXEKJCwbAGW9uZnfrVPbMxxbFohuFzfT6VThty"
+        # if not ranged, we sort according to final derived pubkey order
+        desc = parse_descriptor(f"sh(wsh(sortedmulti(2,[00000001/48h/0h/0h/2h]{xpub1}/0/0,[00000002/48h/0h/0h/2h]{xpub2}/0/0)))")
+        self.assertEqual([xpub1, xpub2], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+        desc = parse_descriptor(f"sh(wsh(sortedmulti(2,[00000001/48h/0h/0h/2h]{xpub1}/0/1,[00000002/48h/0h/0h/2h]{xpub2}/0/1)))")
+        self.assertEqual([xpub2, xpub1], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+        desc = parse_descriptor(f"sh(wsh(sortedmulti(2,[00000001/48h/0h/0h/2h]{xpub1}/0/4,[00000002/48h/0h/0h/2h]{xpub2}/0/4)))")
+        self.assertEqual([xpub1, xpub2], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+        # if unsorted "multi", don't touch order
+        desc = parse_descriptor(f"sh(wsh(multi(2,[00000001/48h/0h/0h/2h]{xpub1}/0/1,[00000002/48h/0h/0h/2h]{xpub2}/0/1)))")
+        self.assertEqual([xpub1, xpub2], [pk.pubkey for pk in desc.subdescriptors[0].subdescriptors[0].pubkeys])
+
     def test_pubkey_provider_deriv_path(self):
         xpub = "xpub68W3CJPrQzHhTQcHM6tbCvNVB9ih4tbzsFBLwe7zZUj5uHuhxBUhvnXe1RQhbKCTiTj3D7kXni6yAD88i2xnjKHaJ5NqTtHawKnPFCDnmo4"
         # valid:
