@@ -142,11 +142,16 @@ class QEDaemon(AuthMixin, QObject):
 
         self._walletdb = QEWalletDB()
         self._walletdb.validPasswordChanged.connect(self.passwordValidityCheck)
+        self._walletdb.walletOpenProblem.connect(self.on_wallet_open_problem)
 
     @pyqtSlot()
     def passwordValidityCheck(self):
         if not self._walletdb._validPassword:
             self.walletRequiresPassword.emit(self._name, self._path)
+
+    @pyqtSlot(str)
+    def on_wallet_open_problem(self, error):
+        self.walletOpenError.emit(error)
 
     @pyqtSlot()
     @pyqtSlot(str)

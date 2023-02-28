@@ -6,14 +6,15 @@ from electrum.logging import get_logger
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, WalletFileException
 from electrum import keystore
 
 class QEWalletDB(QObject):
     _logger = get_logger(__name__)
 
     fileNotFound = pyqtSignal()
-    pathChanged = pyqtSignal([bool], arguments=["ready"])
+    walletOpenProblem = pyqtSignal([str], arguments=['error'])
+    pathChanged = pyqtSignal([bool], arguments=['ready'])
     needsPasswordChanged = pyqtSignal()
     needsHWDeviceChanged = pyqtSignal()
     passwordChanged = pyqtSignal()
@@ -149,21 +150,25 @@ class QEWalletDB(QObject):
 
     def load_db(self):
         # needs storage accessible
-        self._db = WalletDB(self._storage.read(), manual_upgrades=True)
-        if self._db.requires_split():
-            self._logger.warning('wallet requires split')
-            self._requiresSplit = True
-            self.requiresSplitChanged.emit()
-            return
-        if self._db.get_action():
-            self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
-            return
+        try:
+            self._db = WalletDB(self._storage.read(), manual_upgrades=True)
+            if self._db.requires_split():
+                self._logger.warning('wallet requires split')
+                self._requiresSplit = True
+                self.requiresSplitChanged.emit()
+                return
+            if self._db.get_action():
+                self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
+                return
 
-        if self._db.requires_upgrade():
-            self._logger.warning('wallet requires upgrade, upgrading')
-            self._db.upgrade()
-            self._db.write(self._storage)
+            if self._db.requires_upgrade():
+                self._logger.warning('wallet requires upgrade, upgrading')
+                self._db.upgrade()
+                self._db.write(self._storage)
 
-        self._ready = True
-        self.readyChanged.emit()
-
+            self._ready = True
+            self.readyChanged.emit()
+        except WalletFileException as e:
+            self._logger.error(f'{repr(e)}')
+            self._storage = None
+            self.walletOpenProblem.emit(str(e))
