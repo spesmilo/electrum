@@ -134,6 +134,10 @@ ElDialog {
         onNeedsPasswordChanged: {
             notice.visible = needsPassword
         }
+        onWalletOpenProblem: {
+            openwalletdialog.close()
+            Daemon.onWalletOpenProblem(error)
+        }
     }
 
     Component.onCompleted: {
