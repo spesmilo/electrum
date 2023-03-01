@@ -103,7 +103,6 @@ class TxEditor(WindowModalDialog):
         self.set_io_visible(self.config.get('show_tx_io', False))
         self.set_fee_edit_visible(self.config.get('show_tx_fee_details', False))
         self.set_locktime_visible(self.config.get('show_tx_locktime', False))
-        self.set_preview_visible(self.config.get('show_tx_preview_button', False))
         self.update_fee_target()
         self.resize(self.layout().sizeHint())
 
@@ -366,6 +365,7 @@ class TxEditor(WindowModalDialog):
     def create_buttons_bar(self):
         self.preview_button = QPushButton(_('Preview'))
         self.preview_button.clicked.connect(self.on_preview)
+        self.preview_button.setVisible(self.allow_preview)
         self.ok_button = QPushButton(_('OK'))
         self.ok_button.clicked.connect(self.on_send)
         self.ok_button.setDefault(True)
@@ -380,9 +380,6 @@ class TxEditor(WindowModalDialog):
         self.m2.setCheckable(True)
         self.m3 = self.pref_menu.addAction('Edit Locktime', self.toggle_locktime)
         self.m3.setCheckable(True)
-        self.m4 = self.pref_menu.addAction('Show Preview Button', self.toggle_preview_button)
-        self.m4.setCheckable(True)
-        self.m4.setEnabled(self.allow_preview)
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -417,16 +414,6 @@ class TxEditor(WindowModalDialog):
         self.config.set_key('show_tx_locktime', b)
         self.set_locktime_visible(b)
         self.resize_to_fit_content()
-
-    def toggle_preview_button(self):
-        b = not self.config.get('show_tx_preview_button', False)
-        self.config.set_key('show_tx_preview_button', b)
-        self.set_preview_visible(b)
-
-    def set_preview_visible(self, b):
-        b = b and self.allow_preview
-        self.preview_button.setVisible(b)
-        self.m4.setChecked(b)
 
     def set_io_visible(self, b):
         self.io_widget.setVisible(b)
