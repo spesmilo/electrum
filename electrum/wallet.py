@@ -878,6 +878,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             result = {}
             parents = []
             tx = self.adb.get_transaction(txid)
+            assert tx, f"cannot find {txid} in db"
             for i, txin in enumerate(tx.inputs()):
                 _txid = txin.prevout.txid.hex()
                 parents.append(_txid)

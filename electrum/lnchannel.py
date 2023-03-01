@@ -230,6 +230,29 @@ class AbstractChannel(Logger, ABC):
     def is_redeemed(self):
         return self.get_state() == ChannelState.REDEEMED
 
+    def need_to_subscribe(self) -> bool:
+        """Whether lnwatcher/synchronizer need to be watching this channel."""
+        if not self.is_redeemed():
+            return True
+        # Chan already deeply closed. Still, if some txs are missing, we should sub.
+        # check we have funding tx
+        # note: tx might not be directly related to the wallet, e.g. chan opened by remote
+        if (funding_item := self.get_funding_height()) is None:
+            return True
+        if self.lnworker:
+            funding_txid, funding_height, funding_timestamp = funding_item
+            if self.lnworker.wallet.adb.get_transaction(funding_txid) is None:
+                return True
+        # check we have closing tx
+        # note: tx might not be directly related to the wallet, e.g. local-fclose
+        if (closing_item := self.get_closing_height()) is None:
+            return True
+        if self.lnworker:
+            closing_txid, closing_height, closing_timestamp = closing_item
+            if self.lnworker.wallet.adb.get_transaction(closing_txid) is None:
+                return True
+        return False
+
     @abstractmethod
     def get_close_options(self) -> Sequence[ChanCloseOption]:
         pass
