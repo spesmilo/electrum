@@ -664,7 +664,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             item = lnworker_history[txid]
             ln_amount = item['amount_msat'] / 1000
             if amount is None:
-                tx_mined_status = self.wallet.lnworker.lnwatcher.adb.get_tx_height(txid)
+                tx_mined_status = self.wallet.adb.get_tx_height(txid)
         else:
             ln_amount = None
         self.broadcast_button.setEnabled(tx_details.can_broadcast)
