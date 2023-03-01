@@ -54,7 +54,7 @@ class ExpandedScripts:
     def __init__(
         self,
         *,
-        output_script: Optional[bytes] = None,
+        output_script: bytes,  # "scriptPubKey"
         redeem_script: Optional[bytes] = None,
         witness_script: Optional[bytes] = None,
         scriptcode_for_sighash: Optional[bytes] = None
@@ -75,8 +75,7 @@ class ExpandedScripts:
         self._scriptcode_for_sighash = value
 
     def address(self, *, net=None) -> Optional[str]:
-        if spk := self.output_script:
-            return bitcoin.script_to_address(spk.hex(), net=net)
+        return bitcoin.script_to_address(self.output_script.hex(), net=net)
 
 
 class ScriptSolutionInner(NamedTuple):

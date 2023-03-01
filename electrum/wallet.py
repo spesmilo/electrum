@@ -107,8 +107,6 @@ async def _append_utxos_to_inputs(
     inputs: List[PartialTxInput],
     network: 'Network',
     script_descriptor: 'descriptor.Descriptor',
-    pubkey: str,
-    txin_type: str,
     imax: int,
 ) -> None:
     script = script_descriptor.expand().output_script.hex()
@@ -145,8 +143,6 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
             inputs=inputs,
             network=network,
             script_descriptor=desc,
-            pubkey=pubkey,
-            txin_type=txin_type,
             imax=imax)
         keypairs[pubkey] = privkey, compressed
 
