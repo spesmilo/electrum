@@ -268,10 +268,10 @@ class AbstractChannel(Logger, ABC):
             their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
             if our_sweep_info is not None:
                 self._sweep_info[txid] = our_sweep_info
-                self.logger.info(f'we force closed')
+                self.logger.info(f'we (local) force closed')
             elif their_sweep_info is not None:
                 self._sweep_info[txid] = their_sweep_info
-                self.logger.info(f'they force closed.')
+                self.logger.info(f'they (remote) force closed.')
             else:
                 self._sweep_info[txid] = {}
                 self.logger.info(f'not sure who closed.')
