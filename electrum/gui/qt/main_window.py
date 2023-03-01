@@ -1074,9 +1074,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .channel_details import ChannelDetailsDialog
         ChannelDetailsDialog(self, chan).show()
 
-    def show_transaction(self, tx, *, tx_desc=None):
-        '''tx_desc is set only for txs created in the Send tab'''
-        show_transaction(tx, parent=self, desc=tx_desc)
+    def show_transaction(self, tx: Transaction):
+        show_transaction(tx, parent=self)
 
     def show_lightning_transaction(self, tx_item):
         from .lightning_tx_dialog import LightningTxDialog

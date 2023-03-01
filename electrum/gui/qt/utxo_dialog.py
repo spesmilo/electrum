@@ -130,5 +130,4 @@ class UTXODialog(WindowModalDialog):
         tx = self.wallet.adb.get_transaction(txid)
         if not tx:
             return
-        label = self.wallet.get_label_for_txid(txid)
-        self.main_window.show_transaction(tx, tx_desc=label)
+        self.main_window.show_transaction(tx)

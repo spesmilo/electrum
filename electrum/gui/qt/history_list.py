@@ -676,12 +676,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             tx = self.wallet.adb.get_transaction(tx_hash)
             if not tx:
                 return
-            self.show_transaction(tx_item, tx)
-
-    def show_transaction(self, tx_item, tx):
-        tx_hash = tx_item['txid']
-        label = self.wallet.get_label_for_txid(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
-        self.parent.show_transaction(tx, tx_desc=label)
+            self.parent.show_transaction(tx)
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))
@@ -735,7 +730,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
+        menu.addAction(_("View Transaction"), lambda: self.parent.show_transaction(tx))
         channel_id = tx_item.get('channel_id')
         if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
             menu.addAction(_("View Channel"), lambda: self.parent.show_channel_details(chan))

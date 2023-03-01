@@ -346,9 +346,9 @@ class TxInOutWidget(QWidget):
 
 
 
-def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, prompt_if_unsaved=False):
+def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved=False):
     try:
-        d = TxDialog(tx, parent=parent, desc=desc, prompt_if_unsaved=prompt_if_unsaved)
+        d = TxDialog(tx, parent=parent, prompt_if_unsaved=prompt_if_unsaved)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
@@ -360,7 +360,7 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', desc=None, pr
 
 class TxDialog(QDialog, MessageBoxMixin):
 
-    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', desc, prompt_if_unsaved, external_keypairs=None):
+    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''
@@ -373,7 +373,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.wallet = parent.wallet
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
-        self.desc = desc
+        self.desc = None
+        if txid := tx.txid():
+            self.desc = self.wallet.get_label_for_txid(txid) or None
         self.setMinimumWidth(640)
 
         self.psbt_only_widgets = []  # type: List[QWidget]

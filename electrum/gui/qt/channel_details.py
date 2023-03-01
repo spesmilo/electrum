@@ -172,7 +172,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         if not tx:
             self.show_error(_("Transaction not found."))
             return
-        self.window.show_transaction(tx, tx_desc=_('Transaction'))
+        self.window.show_transaction(tx)
 
     def get_common_form(self, chan):
         form = QtWidgets.QFormLayout(None)
