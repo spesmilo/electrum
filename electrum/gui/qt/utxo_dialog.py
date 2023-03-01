@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from typing import TYPE_CHECKING
+import copy
 
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QTextCharFormat, QFont
@@ -53,11 +54,8 @@ class UTXODialog(WindowModalDialog):
 
         txid = self.utxo.prevout.txid.hex()
         parents = self.wallet.get_tx_parents(txid)
-        out = []
-        for _txid, _list in sorted(parents.items()):
-            tx_height, tx_pos = self.wallet.adb.get_txpos(_txid)
-            label = self.wallet.get_label_for_txid(_txid) or "<no label>"
-            out.append((tx_height, tx_pos, _txid, label, _list))
+        num_parents = len(parents)
+        parents_copy = copy.deepcopy(parents)
 
         self.parents_list = QTextBrowser()
         self.parents_list.setOpenLinks(False)  # disable automatic link opening
@@ -72,9 +70,27 @@ class UTXODialog(WindowModalDialog):
         cursor = self.parents_list.textCursor()
         ext = QTextCharFormat()
 
-        for tx_height, tx_pos, _txid, label, _list in reversed(sorted(out)):
+        if num_parents < 200:
+            ASCII_EDGE   = '└─'
+            ASCII_BRANCH = '├─'
+            ASCII_PIPE   = '| '
+            ASCII_SPACE  = '  '
+        else:
+            ASCII_EDGE   = '└'
+            ASCII_BRANCH = '├'
+            ASCII_PIPE   = '|'
+            ASCII_SPACE  = ' '
+
+        def print_ascii_tree(_txid, prefix, is_last):
+            if _txid not in parents:
+                return
+            tx_height, tx_pos = self.wallet.adb.get_txpos(_txid)
             key = "%dx%d"%(tx_height, tx_pos) if tx_pos >= 0 else _txid[0:8]
-            list_str = ','.join(filter(None, _list))
+            label = self.wallet.get_label_for_txid(_txid) or ""
+            if _txid not in parents_copy:
+                label = '[duplicate]'
+            c = '' if _txid == txid else (ASCII_EDGE if is_last else ASCII_BRANCH)
+            cursor.insertText(prefix + c, ext)
             lnk = QTextCharFormat()
             lnk.setToolTip(_('Click to open, right-click for menu'))
             lnk.setAnchorHref(_txid)
@@ -82,15 +98,20 @@ class UTXODialog(WindowModalDialog):
             lnk.setAnchor(True)
             lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
             cursor.insertText(key, lnk)
-            cursor.insertText("\t", ext)
-            cursor.insertText("%-32s\t<-  "%label[0:32], ext)
-            cursor.insertText(list_str, ext)
+            cursor.insertText(" ", ext)
+            cursor.insertText(label, ext)
             cursor.insertBlock()
-
+            next_prefix = '' if txid == _txid else prefix + (ASCII_SPACE if is_last else ASCII_PIPE)
+            parents_list = parents_copy.pop(_txid, [])
+            for i, p in enumerate(parents_list):
+                is_last = i == len(parents_list) - 1
+                print_ascii_tree(p, next_prefix, is_last)
+        # recursively build the tree
+        print_ascii_tree(txid, '', False)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Output point") + ": " + str(self.utxo.short_id)))
         vbox.addWidget(QLabel(_("Amount") + ": " + self.main_window.format_amount_and_units(self.utxo.value_sats())))
-        vbox.addWidget(QLabel(_("This UTXO has {} parent transactions in your wallet").format(len(parents))))
+        vbox.addWidget(QLabel(_("This UTXO has {} parent transactions in your wallet").format(num_parents)))
         vbox.addWidget(self.parents_list)
         msg = ' '.join([
             _("Note: This analysis only shows parent transactions, and does not take address reuse into consideration."),

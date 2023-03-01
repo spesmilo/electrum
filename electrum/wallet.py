@@ -864,8 +864,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_tx_parents(self, txid) -> Dict:
         """
         recursively calls itself and returns a flat dict:
-        txid -> input_index ->  prevout
-        note: this does not take into account address reuse
+        txid -> list of parent txids
         """
         if not self.is_up_to_date():
             return {}
@@ -880,8 +879,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             parents = []
             tx = self.adb.get_transaction(txid)
             for i, txin in enumerate(tx.inputs()):
-                parents.append(str(txin.short_id))
                 _txid = txin.prevout.txid.hex()
+                parents.append(_txid)
                 if _txid in self._last_full_history.keys():
                     result.update(self.get_tx_parents(_txid))
             result[txid] = parents
