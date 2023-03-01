@@ -74,7 +74,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .invoices import Invoice
+from .invoices import Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
 from .contacts import Contacts
 from .interface import NetworkException
@@ -2443,7 +2443,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         }
         if is_lightning:
             d['rhash'] = x.rhash
-            d['lightning_invoice'] = x.lightning_invoice
+            d['lightning_invoice'] = self.get_bolt11_invoice(x)
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
@@ -2477,7 +2477,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             'invoice_id': key,
         }
         if is_lightning:
-            d['lightning_invoice'] = x.lightning_invoice
+            d['lightning_invoice'] = self.get_bolt11_invoice(x)
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
@@ -2508,6 +2508,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     relevant_invoice_keys.add(invoice_key)
         self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
 
+    def get_bolt11_invoice(self, req: Request) -> str:
+        if not self.lnworker:
+            return ''
+        amount_msat = req.amount_msat if req.amount_msat > 0 else None
+        lnaddr, invoice = self.lnworker.get_bolt11_invoice(
+            payment_hash=req.payment_hash,
+            amount_msat=amount_msat,
+            message=req.message,
+            expiry=req.exp,
+            fallback_address=req.get_address() if self.config.get('bolt11_fallback', True) else None)
+        return invoice
+
     def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
@@ -2515,21 +2527,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
-        timestamp = int(Invoice._get_cur_time())
-        fallback_address = address if self.config.get('bolt11_fallback', True) else None
-        lightning = self.has_lightning()
-        if lightning:
-            lightning_invoice = self.lnworker.add_request(
-                amount_sat=amount_sat,
-                message=message,
-                expiry=exp_delay,
-                fallback_address=fallback_address,
-            )
-        else:
-            lightning_invoice = None
+        timestamp = int(Request._get_cur_time())
+        payment_hash = self.lnworker.create_payment_info(amount_sat, write_to_disk=False) if self.has_lightning() else None
         outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
-        req = Invoice(
+        req = Request(
             outputs=outputs,
             message=message,
             time=timestamp,
@@ -2537,7 +2539,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             exp=exp_delay,
             height=height,
             bip70=None,
-            lightning_invoice=lightning_invoice,
+            payment_hash=payment_hash,
         )
         key = self.add_payment_request(req)
         return key
@@ -2858,7 +2860,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         ln_is_error = False
         ln_swap_suggestion = None
         ln_rebalance_suggestion = None
-        lnaddr = req.lightning_invoice or ''
         URI = self.get_request_URI(req) or ''
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
         can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
@@ -2878,7 +2879,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             URI_help = _('This request cannot be paid on-chain')
             if is_amt_too_small_for_onchain:
                 URI_help = _('Amount too small to be received onchain')
-        if not lnaddr:
+        if not req.is_lightning():
             ln_is_error = True
             ln_help = _('This request does not have a Lightning invoice.')
 
@@ -2886,7 +2887,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.adb.is_used(addr):
                 address_help = URI_help = (_("This address has already been used. "
                                              "For better privacy, do not reuse it for new payments."))
-            if lnaddr:
+            if req.is_lightning():
                 if not lightning_online:
                     ln_is_error = True
                     ln_help = _('You must be online to receive Lightning payments.')
