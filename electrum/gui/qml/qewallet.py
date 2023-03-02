@@ -53,7 +53,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     # shared signal for many static wallet properties
     dataChanged = pyqtSignal()
 
-    isUptodateChanged = pyqtSignal()
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal([str], arguments=['key'])
     requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
@@ -81,7 +80,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self._logger = get_logger(f'{__name__}.[{wallet}]')
 
-        self._isUpToDate = False
         self._synchronizing = False
         self._synchronizing_progress = ''
 
@@ -124,11 +122,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-        self.synchronizing = True # start in sync state
-
-    @pyqtProperty(bool, notify=isUptodateChanged)
-    def isUptodate(self):
-        return self._isUpToDate
+        self.synchronizing = not wallet.is_up_to_date()
 
     synchronizingChanged = pyqtSignal()
     @pyqtProperty(bool, notify=synchronizingChanged)
@@ -138,7 +132,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @synchronizing.setter
     def synchronizing(self, synchronizing):
         if self._synchronizing != synchronizing:
-            self._logger.info(f'SYNC {self._synchronizing} -> {synchronizing}')
+            self._logger.debug(f'SYNC {self._synchronizing} -> {synchronizing}')
             self._synchronizing = synchronizing
             self.synchronizingChanged.emit()
             if synchronizing:
@@ -159,17 +153,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._synchronizing_progress = progress
             self._logger.info(progress)
             self.synchronizingProgressChanged.emit()
-
-    @qt_event_listener
-    def on_event_status(self):
-        self._logger.debug('status')
-        uptodate = self.wallet.is_up_to_date()
-        if self._isUpToDate != uptodate:
-            self._isUpToDate = uptodate
-            self.isUptodateChanged.emit()
-
-            if uptodate:
-                self.historyModel.init_model()
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):
