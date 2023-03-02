@@ -651,7 +651,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
 
         assert key is not None
-        self.requestModel.add_invoice(self.wallet.get_request(key))
+        # requestModel not used, so don't update
+        # self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot()
@@ -677,7 +678,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return
 
         assert key is not None
-        self.requestModel.add_invoice(self.wallet.get_request(key))
+        # requestModel not used, so don't update
+        # self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
