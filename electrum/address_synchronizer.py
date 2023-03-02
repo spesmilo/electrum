@@ -778,13 +778,13 @@ class AddressSynchronizer(Logger, EventListener):
             sent = {}
             for tx_hash, height in h:
                 hh, pos = self.get_txpos(tx_hash)
+                assert hh == height
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
                     received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
-            for tx_hash, height in h:
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = tx_hash, height
+                    sent[txi] = tx_hash, height, pos
         return received, sent
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
@@ -799,7 +799,7 @@ class AddressSynchronizer(Logger, EventListener):
             utxo.block_height = tx_height
             utxo.block_txpos = tx_pos
             if prevout_str in sent:
-                txid, height = sent[prevout_str]
+                txid, height, pos = sent[prevout_str]
                 utxo.spent_txid = txid
                 utxo.spent_height = height
             else:

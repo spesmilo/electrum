@@ -871,23 +871,37 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """
         if not self.is_up_to_date():
             return {}
-        if self._last_full_history is None:
-            self._last_full_history = self.get_full_history(None)
-
         with self.lock, self.transaction_lock:
+            if self._last_full_history is None:
+                self._last_full_history = self.get_full_history(None)
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
                 return result
             result = {}
             parents = []
+            uncles = []
             tx = self.adb.get_transaction(txid)
             assert tx, f"cannot find {txid} in db"
             for i, txin in enumerate(tx.inputs()):
                 _txid = txin.prevout.txid.hex()
                 parents.append(_txid)
+                # detect address reuse
+                addr = self.adb.get_txin_address(txin)
+                received, sent = self.adb.get_addr_io(addr)
+                if len(sent) > 1:
+                    my_txid, my_height, my_pos = sent[txin.prevout.to_str()]
+                    assert my_txid == txid
+                    for k, v in sent.items():
+                        if k != txin.prevout.to_str():
+                            reuse_txid, reuse_height, reuse_pos = v
+                            if (reuse_height, reuse_pos) < (my_height, my_pos):
+                                uncle_txid, uncle_index = k.split(':')
+                                uncles.append(uncle_txid)
+
+            for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
                     result.update(self.get_tx_parents(_txid))
-            result[txid] = parents
+            result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
 
