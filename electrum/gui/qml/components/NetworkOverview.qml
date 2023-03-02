@@ -11,6 +11,8 @@ Pane {
 
     padding: 0
 
+    property string title: qsTr("Network")
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

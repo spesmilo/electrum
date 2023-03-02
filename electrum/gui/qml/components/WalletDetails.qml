@@ -498,21 +498,6 @@ Pane {
                 visible: Daemon.currentWallet && Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
                 icon.source: '../../icons/lightning.png'
             }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Channels')
-                onClicked: app.stack.push(Qt.resolvedUrl('Channels.qml'))
-                visible: Daemon.currentWallet && Daemon.currentWallet.isLightning
-                icon.source: '../../icons/lightning.png'
-            }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Addresses')
-                onClicked: app.stack.push(Qt.resolvedUrl('Addresses.qml'))
-                icon.source: '../../icons/tab_addresses.png'
-            }
         }
     }
 

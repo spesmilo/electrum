@@ -36,6 +36,55 @@ ApplicationWindow
     property bool _wantClose: false
     property var _exceptionDialog
 
+    property QtObject appMenu: Menu {
+        parent: Overlay.overlay
+        dim: true
+        modal: true
+        Overlay.modal: Rectangle {
+            color: "#44000000"
+        }
+
+        id: menu
+
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Network')
+                onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
+                icon.source: '../../icons/network.png'
+            }
+        }
+
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Preferences');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
+                icon.source: '../../icons/preferences.png'
+            }
+        }
+
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('About');
+                onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
+                icon.source: '../../icons/electrum.png'
+            }
+        }
+
+        function openPage(url) {
+            stack.pushOnRoot(url)
+            currentIndex = -1
+        }
+    }
+
+    function openAppMenu() {
+        appMenu.open()
+        appMenu.x = app.width - appMenu.width
+        appMenu.y = toolbar.height
+    }
+
     header: ToolBar {
         id: toolbar
 
@@ -62,24 +111,15 @@ ApplicationWindow
                 Layout.rightMargin: constants.paddingMedium
                 Layout.alignment: Qt.AlignVCenter
 
-                ToolButton {
-                    id: menuButton
-                    enabled: stack.currentItem && stack.currentItem.menu
-                        ? stack.currentItem.menu.count > 0
-                        : false
-
-                    text: enabled ? '≡' : ''
-                    font.pixelSize: constants.fontSizeXLarge
-                    onClicked: {
-                        stack.currentItem.menu.open()
-                        stack.currentItem.menu.y = toolbarTopLayout.height
-                    }
+                Item {
+                    Layout.preferredWidth: constants.paddingXLarge
+                    Layout.preferredHeight: 1
                 }
 
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    visible: Daemon.currentWallet
+                    visible: Daemon.currentWallet && stack.currentItem.title == Daemon.currentWallet.name
                     source: '../../icons/wallet.png'
                 }
 
@@ -94,9 +134,10 @@ ApplicationWindow
                     MouseArea {
                         height: toolbarTopLayout.height
                         anchors.fill: parent
+                        // enabled: Daemon.currentWallet
                         onClicked: {
-                            if (stack.currentItem.objectName != 'Wallets')
-                                stack.pushOnRoot(Qt.resolvedUrl('Wallets.qml'))
+                            stack.getRoot().menu.open()
+                            stack.getRoot().menu.y = toolbar.height
                         }
                     }
                 }
@@ -136,20 +177,14 @@ ApplicationWindow
                 LightningNetworkStatusIndicator {
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: {
-                            if (stack.currentItem.objectName != 'NetworkOverview')
-                                stack.push(Qt.resolvedUrl('NetworkOverview.qml'))
-                        }
+                        onClicked: openAppMenu()
                     }
                 }
 
                 OnchainNetworkStatusIndicator {
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: {
-                            if (stack.currentItem.objectName != 'NetworkOverview')
-                                stack.push(Qt.resolvedUrl('NetworkOverview.qml'))
-                        }
+                        onClicked: openAppMenu()
                     }
                 }
             }

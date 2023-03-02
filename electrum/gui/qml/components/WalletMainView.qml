@@ -11,7 +11,7 @@ import "controls"
 Item {
     id: mainView
 
-    property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
+    property string title: Daemon.currentWallet ? Daemon.currentWallet.name : qsTr('no wallet loaded')
 
     property var _sendDialog
     property string _intentUri
@@ -61,37 +61,42 @@ Item {
             action: Action {
                 text: qsTr('Wallet details')
                 enabled: Daemon.currentWallet
-                onTriggered: menu.openPage(true, Qt.resolvedUrl('WalletDetails.qml'))
+                onTriggered: menu.openPage(Qt.resolvedUrl('WalletDetails.qml'))
                 icon.source: '../../icons/wallet.png'
+            }
+        }
+        MenuItem {
+            icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Addresses');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
+                enabled: Daemon.currentWallet
+                icon.source: '../../icons/tab_addresses.png'
+            }
+        }
+        MenuItem {
+           icon.color: 'transparent'
+            action: Action {
+                text: qsTr('Channels');
+                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
+                icon.source: '../../icons/lightning.png'
             }
         }
 
         MenuSeparator { }
 
         MenuItem {
-            icon.color: 'transparent'
+           icon.color: 'transparent'
             action: Action {
-                text: qsTr('Preferences');
-                onTriggered: menu.openPage(false, Qt.resolvedUrl('Preferences.qml'))
-                icon.source: '../../icons/preferences.png'
+                text: qsTr('Other wallets');
+                onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
+                icon.source: '../../icons/file.png'
             }
         }
 
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('About');
-                onTriggered: menu.openPage(false, Qt.resolvedUrl('About.qml'))
-                icon.source: '../../icons/electrum.png'
-            }
-        }
-
-        function openPage(onroot, url) {
-            if (onroot) {
-                stack.pushOnRoot(url)
-            } else {
-                stack.push(url)
-            }
+        function openPage(url) {
+            stack.pushOnRoot(url)
             currentIndex = -1
         }
     }
