@@ -73,12 +73,12 @@ class UTXODialog(WindowModalDialog):
         if num_parents < 200:
             ASCII_EDGE   = '└─'
             ASCII_BRANCH = '├─'
-            ASCII_PIPE   = '| '
+            ASCII_PIPE   = '│ '
             ASCII_SPACE  = '  '
         else:
             ASCII_EDGE   = '└'
             ASCII_BRANCH = '├'
-            ASCII_PIPE   = '|'
+            ASCII_PIPE   = '│'
             ASCII_SPACE  = ' '
 
         def print_ascii_tree(_txid, prefix, is_last):
