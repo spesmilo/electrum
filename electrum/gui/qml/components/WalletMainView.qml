@@ -55,30 +55,24 @@ Item {
         }
 
         id: menu
+
         MenuItem {
             icon.color: 'transparent'
             action: Action {
-                text: qsTr('Addresses');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
+                text: qsTr('Wallet details')
                 enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_addresses.png'
+                onTriggered: menu.openPage(true, Qt.resolvedUrl('WalletDetails.qml'))
+                icon.source: '../../icons/wallet.png'
             }
         }
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Channels');
-                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
-                onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
-                icon.source: '../../icons/lightning.png'
-            }
-        }
+
+        MenuSeparator { }
 
         MenuItem {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('Preferences');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
+                onTriggered: menu.openPage(false, Qt.resolvedUrl('Preferences.qml'))
                 icon.source: '../../icons/preferences.png'
             }
         }
@@ -87,13 +81,17 @@ Item {
             icon.color: 'transparent'
             action: Action {
                 text: qsTr('About');
-                onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
+                onTriggered: menu.openPage(false, Qt.resolvedUrl('About.qml'))
                 icon.source: '../../icons/electrum.png'
             }
         }
 
-        function openPage(url) {
-            stack.push(url)
+        function openPage(onroot, url) {
+            if (onroot) {
+                stack.pushOnRoot(url)
+            } else {
+                stack.push(url)
+            }
             currentIndex = -1
         }
     }
@@ -156,21 +154,6 @@ Item {
         ButtonContainer {
             id: buttonContainer
             Layout.fillWidth: true
-
-            FlatButton {
-                Layout.fillWidth: false
-                Layout.preferredWidth: implicitHeight
-                Layout.preferredHeight: receiveButton.implicitHeight
-
-                icon.source: '../../icons/hamburger.png'
-                icon.height: constants.iconSizeSmall
-                icon.width: constants.iconSizeSmall
-
-                onClicked: {
-                    mainView.menu.open()
-                    mainView.menu.y = mainView.height + app.header.height - mainView.menu.height - buttonContainer.height
-                }
-            }
 
             FlatButton {
                 id: receiveButton

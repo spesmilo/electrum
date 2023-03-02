@@ -62,25 +62,33 @@ ApplicationWindow
                 Layout.rightMargin: constants.paddingMedium
                 Layout.alignment: Qt.AlignVCenter
 
-                Item {
-                    Layout.preferredWidth: constants.paddingXLarge
-                    Layout.preferredHeight: 1
+                ToolButton {
+                    id: menuButton
+                    enabled: stack.currentItem && stack.currentItem.menu
+                        ? stack.currentItem.menu.count > 0
+                        : false
+
+                    text: enabled ? '≡' : ''
+                    font.pixelSize: constants.fontSizeXLarge
+                    onClicked: {
+                        stack.currentItem.menu.open()
+                        stack.currentItem.menu.y = toolbarTopLayout.height
+                    }
                 }
 
                 Image {
-                    visible: Daemon.currentWallet
-                    source: '../../icons/wallet.png'
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
+                    visible: Daemon.currentWallet
+                    source: '../../icons/wallet.png'
                 }
 
                 Label {
+                    Layout.fillWidth: true
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
                     elide: Label.ElideRight
-                    // horizontalAlignment: Qt.AlignHCenter
                     verticalAlignment: Qt.AlignVCenter
-                    Layout.fillWidth: true
                     font.pixelSize: constants.fontSizeMedium
                     font.bold: true
                     MouseArea {

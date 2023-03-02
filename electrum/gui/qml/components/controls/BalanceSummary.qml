@@ -123,14 +123,6 @@ Item {
         font.pixelSize: constants.fontSizeLarge
     }
 
-    MouseArea {
-        anchors.fill: balancePane
-        onClicked: {
-            app.stack.pushOnRoot(Qt.resolvedUrl('../WalletDetails.qml'))
-        }
-    }
-
-
     // instead of all these explicit connections, we should expose
     // formatted balances directly as a property
     Connections {
