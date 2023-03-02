@@ -119,7 +119,7 @@ ApplicationWindow
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    visible: Daemon.currentWallet && stack.currentItem.title == Daemon.currentWallet.name
+                    visible: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
                     source: '../../icons/wallet.png'
                 }
 
@@ -127,14 +127,15 @@ ApplicationWindow
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
                     text: stack.currentItem.title
+                        ? stack.currentItem.title
+                        : Daemon.currentWallet.name
                     elide: Label.ElideRight
                     verticalAlignment: Qt.AlignVCenter
                     font.pixelSize: constants.fontSizeMedium
                     font.bold: true
                     MouseArea {
-                        height: toolbarTopLayout.height
+                        // height: toolbarTopLayout.height
                         anchors.fill: parent
-                        // enabled: Daemon.currentWallet
                         onClicked: {
                             stack.getRoot().menu.open()
                             stack.getRoot().menu.y = toolbar.height
