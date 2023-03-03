@@ -329,7 +329,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._frozen_addresses      = set(db.get('frozen_addresses', []))
         self._frozen_coins          = db.get_dict('frozen_coins')  # type: Dict[str, bool]
         self.fiat_value            = db.get_dict('fiat_value')
-        self._receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Invoice]
+        self._receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Request]
         self._invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
@@ -2389,7 +2389,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(invoice, status)
 
-    def get_request_by_addr(self, addr: str) -> Optional[Invoice]:
+    def get_request_by_addr(self, addr: str) -> Optional[Request]:
         """Returns a relevant request for address, from an on-chain PoV.
         (One that has been paid on-chain or is pending)
 
@@ -2417,7 +2417,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         reqs.sort(key=lambda req: req.get_time())
         return reqs[-1]
 
-    def get_request(self, request_id: str) -> Optional[Invoice]:
+    def get_request(self, request_id: str) -> Optional[Request]:
         return self._receive_requests.get(request_id)
 
     def get_formatted_request(self, request_id):
@@ -2512,7 +2512,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_bolt11_invoice(self, req: Request) -> str:
         if not self.lnworker:
             return ''
-        amount_msat = req.amount_msat if req.amount_msat > 0 else None
+        amount_msat = req.get_amount_msat() or None
+        assert (amount_msat is None or amount_msat > 0), amount_msat
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
             payment_hash=req.payment_hash,
             amount_msat=amount_msat,
@@ -2545,7 +2546,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         key = self.add_payment_request(req)
         return key
 
-    def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):
+    def add_payment_request(self, req: Request, *, write_to_disk: bool = True):
         request_id = req.get_id()
         self._receive_requests[request_id] = req
         if addr:=req.get_address():
@@ -2577,7 +2578,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if write_to_disk:
             self.save_db()
 
-    def get_sorted_requests(self) -> List[Invoice]:
+    def get_sorted_requests(self) -> List[Request]:
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self._receive_requests.keys()]
         out = [x for x in out if x is not None]

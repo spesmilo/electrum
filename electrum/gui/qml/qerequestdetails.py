@@ -117,7 +117,7 @@ class QERequestDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
         can_receive = self._wallet.wallet.lnworker.num_sats_can_receive() if  self._wallet.wallet.lnworker else 0
-        if self._req and can_receive > 0 and self._req.amount_msat/1000 <= can_receive:
+        if self._req and can_receive > 0 and (self._req.get_amount_sat() or 0) <= can_receive:
             return self._wallet.wallet.get_bolt11_invoice(self._req)
         else:
             return ''
