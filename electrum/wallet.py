@@ -1066,13 +1066,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         data = read_json_file(path)
         for x in data:
             try:
-                req = Invoice(**x)
+                req = Request(**x)
             except:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
         self.save_db()
 
     def export_requests(self, path):
+        # note: this does not export preimages for LN bolt11 invoices
         write_json_file(path, list(self._receive_requests.values()))
 
     def import_invoices(self, path):
@@ -1125,7 +1126,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
-    def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
+    def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
         and list of relevant TXIDs.
         """
@@ -1161,7 +1162,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     is_paid = False
         return is_paid, conf_needed, list(relevant_txs)
 
-    def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
+    def is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int]]:
         is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
         return is_paid, conf_needed
 

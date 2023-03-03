@@ -1809,6 +1809,8 @@ class LNWallet(LNWorker):
         self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
         payment_preimage = self.get_preimage(payment_hash)
+        if payment_preimage is None:  # e.g. when export/importing requests between wallets
+            raise Exception("missing preimage for payment_hash")
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
