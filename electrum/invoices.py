@@ -166,27 +166,6 @@ class BaseInvoice(StoredObject):
             return amount_msat
         return int(amount_msat // 1000)
 
-    def get_bip21_URI(self, *, include_lightning: bool = False) -> Optional[str]:
-        from electrum.util import create_bip21_uri
-        addr = self.get_address()
-        amount = self.get_amount_sat()
-        if amount is not None:
-            amount = int(amount)
-        message = self.message
-        extra = {}
-        if self.time and self.exp:
-            extra['time'] = str(int(self.time))
-            extra['exp'] = str(int(self.exp))
-        lightning = self.lightning_invoice if include_lightning else None
-        if lightning:
-            extra['lightning'] = lightning
-        if not addr and lightning:
-            return "bitcoin:?lightning="+lightning
-        if not addr and not lightning:
-            return None
-        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
-        return str(uri)
-
     @amount_msat.validator
     def _validate_amount(self, attribute, value):
         if value is None:
@@ -315,6 +294,30 @@ class Request(BaseInvoice):
     def rhash(self) -> str:
         assert self.is_lightning()
         return self.payment_hash.hex()
+
+    def get_bip21_URI(
+        self,
+        *,
+        lightning_invoice: Optional[str] = None,
+    ) -> Optional[str]:
+        from electrum.util import create_bip21_uri
+        addr = self.get_address()
+        amount = self.get_amount_sat()
+        if amount is not None:
+            amount = int(amount)
+        message = self.message
+        extra = {}
+        if self.time and self.exp:
+            extra['time'] = str(int(self.time))
+            extra['exp'] = str(int(self.exp))
+        if lightning_invoice:
+            extra['lightning'] = lightning_invoice
+        if not addr and lightning_invoice:
+            return "bitcoin:?lightning="+lightning_invoice
+        if not addr and not lightning_invoice:
+            return None
+        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
+        return str(uri)
 
 
 def get_id_from_onchain_outputs(outputs: Sequence[PartialTxOutput], *, timestamp: int) -> str:
