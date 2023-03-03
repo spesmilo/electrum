@@ -180,46 +180,53 @@ Pane {
                         text: qsTr('Wallet behavior')
                     }
 
-                    Label {
-                        text: qsTr('PIN')
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: usePin
+                            checked: Config.pinCode
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    console.log('PIN active ' + checked)
+                                    if (checked) {
+                                        var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
+                                        dialog.accepted.connect(function() {
+                                            Config.pinCode = dialog.pincode
+                                            dialog.close()
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = false
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        focus = false
+                                        Config.pinCode = ''
+                                        // re-add binding, pincode still set if auth failed
+                                        checked = Qt.binding(function () { return Config.pinCode })
+                                    }
+                                }
+
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('PIN')
+                            wrapMode: Text.Wrap
+                        }
                     }
 
-                    RowLayout {
-                        Label {
-                            text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
-                            color: Material.accentColor
-                            Layout.rightMargin: constants.paddingMedium
-                        }
-                        Button {
-                            text: qsTr('Enable')
-                            visible: Config.pinCode == ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Modify')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Remove')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                Config.pinCode = ''
-                            }
+                    Button {
+                        text: qsTr('Modify')
+                        visible: Config.pinCode != ''
+                        onClicked: {
+                            var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
+                            dialog.accepted.connect(function() {
+                                Config.pinCode = dialog.pincode
+                                dialog.close()
+                            })
+                            dialog.open()
                         }
                     }
 
