@@ -16,6 +16,7 @@ ElDialog {
     signal txaccepted
 
     title: qsTr('Bump Fee')
+    iconSource: Qt.resolvedUrl('../../icons/rocket.png')
 
     width: parent.width
     height: parent.height
@@ -182,8 +183,7 @@ ElDialog {
                 delegate: TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
+
                     RowLayout {
                         width: parent.width
                         Label {
