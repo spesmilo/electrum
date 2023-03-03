@@ -2478,7 +2478,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             'invoice_id': key,
         }
         if is_lightning:
-            d['lightning_invoice'] = self.get_bolt11_invoice(x)
+            d['lightning_invoice'] = x.lightning_invoice
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
