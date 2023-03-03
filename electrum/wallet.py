@@ -74,7 +74,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .invoices import Invoice, Request
+from .invoices import BaseInvoice, Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
 from .contacts import Contacts
 from .interface import NetworkException
@@ -2372,7 +2372,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_EXPIRED
         return status
 
-    def get_invoice_status(self, invoice: Invoice):
+    def get_invoice_status(self, invoice: BaseInvoice):
         """Returns status of (incoming) request or (outgoing) invoice."""
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
@@ -2425,7 +2425,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if x:
             return self.export_request(x)
 
-    def export_request(self, x: Invoice) -> Dict[str, Any]:
+    def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
