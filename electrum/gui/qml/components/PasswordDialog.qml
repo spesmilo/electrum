@@ -74,7 +74,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr("Ok")
             icon.source: '../../icons/confirmed.png'
-            enabled: confirmPassword ? pw_1.text == pw_2.text : true
+            enabled: confirmPassword ? pw_1.text.length > 4 && pw_1.text == pw_2.text : true
             onClicked: {
                 password = pw_1.text
                 passworddialog.accept()

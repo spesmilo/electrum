@@ -508,15 +508,20 @@ Pane {
             app.stack.pop()
         }
         function onRequestNewPassword() { // new unified password (all wallets)
-            var dialog = app.passwordDialog.createObject(app,
-                    {
-                        'confirmPassword': true,
-                        'title': qsTr('Enter new password'),
-                        'infotext': qsTr('If you forget your password, you\'ll need to\
-                        restore from seed. Please make sure you have your seed stored safely')
-                    } )
+            var dialog = app.passwordDialog.createObject(app, {
+                confirmPassword: true,
+                title: qsTr('Enter new password'),
+                infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
+            })
             dialog.accepted.connect(function() {
                 Daemon.setPassword(dialog.password)
+            })
+            dialog.open()
+        }
+        function onPasswordChangeFailed() {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                text: qsTr('Password change failed')
             })
             dialog.open()
         }
@@ -544,9 +549,9 @@ Pane {
         target: Daemon.currentWallet
         function onRequestNewPassword() { // new wallet password
             var dialog = app.passwordDialog.createObject(app, {
-                'confirmPassword': true,
-                'title': qsTr('Enter new password'),
-                'infotext': qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
+                confirmPassword: true,
+                title: qsTr('Enter new password'),
+                infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
             })
             dialog.accepted.connect(function() {
                 Daemon.currentWallet.set_password(dialog.password)
