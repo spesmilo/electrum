@@ -195,42 +195,6 @@ Pane {
                 }
             }
 
-            Label {
-                text: qsTr('Lightning invoice')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
-
-            TextHighlightPane {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-
-                RowLayout {
-                    width: parent.width
-                    Label {
-                        Layout.fillWidth: true
-                        text: lnpaymentdetails.invoice
-                        font.pixelSize: constants.fontSizeLarge
-                        font.family: FixedFont
-                        wrapMode: Text.Wrap
-                        maximumLineCount: 3
-                        elide: Text.ElideRight
-                    }
-                    ToolButton {
-                        icon.source: '../../icons/share.png'
-                        icon.color: enabled ? 'transparent' : constants.mutedForeground
-                        enabled: lnpaymentdetails.invoice != ''
-                        onClicked: {
-                            var dialog = app.genericShareDialog.createObject(root,
-                                { title: qsTr('Lightning Invoice'), text: lnpaymentdetails.invoice }
-                            )
-                            dialog.open()
-                        }
-                    }
-                }
-            }
-
-
         }
     }
 

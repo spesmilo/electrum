@@ -72,10 +72,6 @@ class QELnPaymentDetails(QObject):
     def preimage(self):
         return self._preimage
 
-    @pyqtProperty(str, notify=detailsChanged)
-    def invoice(self):
-        return self._invoice
-
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def amount(self):
         return self._amount
@@ -100,13 +96,5 @@ class QELnPaymentDetails(QObject):
         self._status = 'settled' # TODO: other states? get_lightning_history is deciding the filter for us :(
         self._phash = tx['payment_hash']
         self._preimage = tx['preimage']
-
-        invoice = (self._wallet.wallet.get_invoice(self._key)
-                   or self._wallet.wallet.get_request(self._key))
-        self._logger.debug(str(invoice))
-        if invoice:
-            self._invoice = invoice.lightning_invoice or ''
-        else:
-            self._invoice = ''
 
         self.detailsChanged.emit()
