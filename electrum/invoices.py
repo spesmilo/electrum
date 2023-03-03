@@ -107,8 +107,16 @@ class BaseInvoice(StoredObject):
     #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
 
-    def is_lightning(self):
-        return self.lightning_invoice is not None
+    def is_lightning(self) -> bool:
+        raise NotImplementedError()
+
+    def get_address(self) -> Optional[str]:
+        """returns the first address, to be displayed in GUI"""
+        raise NotImplementedError()
+
+    @property
+    def rhash(self) -> str:
+        raise NotImplementedError()
 
     def get_status_str(self, status):
         status_str = pr_tooltips[status]
@@ -240,8 +248,10 @@ class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     __lnaddr = None
 
+    def is_lightning(self):
+        return self.lightning_invoice is not None
+
     def get_address(self) -> Optional[str]:
-        """returns the first address, to be displayed in GUI"""
         address = None
         if self.outputs:
             address = self.outputs[0].address if len(self.outputs) > 0 else None
@@ -257,6 +267,7 @@ class Invoice(BaseInvoice):
 
     @property
     def rhash(self) -> str:
+        assert self.is_lightning()
         return self._lnaddr.paymenthash.hex()
 
     @lightning_invoice.validator
@@ -295,7 +306,6 @@ class Request(BaseInvoice):
         return self.payment_hash is not None
 
     def get_address(self) -> Optional[str]:
-        """returns the first address, to be displayed in GUI"""
         address = None
         if self.outputs:
             address = self.outputs[0].address if len(self.outputs) > 0 else None
@@ -303,9 +313,10 @@ class Request(BaseInvoice):
 
     @property
     def rhash(self) -> str:
+        assert self.is_lightning()
         return self.payment_hash.hex()
 
 
-def get_id_from_onchain_outputs(outputs: List[PartialTxOutput], *, timestamp: int) -> str:
+def get_id_from_onchain_outputs(outputs: Sequence[PartialTxOutput], *, timestamp: int) -> str:
     outputs_str = "\n".join(f"{txout.scriptpubkey.hex()}, {txout.value}" for txout in outputs)
     return sha256d(outputs_str + "%d" % timestamp).hex()[0:10]

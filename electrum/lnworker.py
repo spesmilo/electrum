@@ -30,6 +30,7 @@ from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
+from .invoices import BaseInvoice
 from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
 from .util import EventListener, event_listener
 from .lnutil import LN_MAX_FUNDING_SAT
@@ -1899,7 +1900,7 @@ class LNWallet(LNWorker):
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
 
-    def get_invoice_status(self, invoice: Invoice) -> int:
+    def get_invoice_status(self, invoice: BaseInvoice) -> int:
         invoice_id = invoice.rhash
         if invoice_id in self.inflight_payments:
             return PR_INFLIGHT
@@ -2291,7 +2292,7 @@ class LNWallet(LNWorker):
         return await self.pay_invoice(
             invoice, channels=[chan1])
 
-    def can_receive_invoice(self, invoice: Invoice) -> bool:
+    def can_receive_invoice(self, invoice: BaseInvoice) -> bool:
         assert invoice.is_lightning()
         return (invoice.get_amount_sat() or 0) <= self.num_sats_can_receive()
 

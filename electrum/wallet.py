@@ -2361,11 +2361,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_request_URI(self, req: Invoice) -> Optional[str]:
+    def get_request_URI(self, req: Request) -> Optional[str]:
         include_lightning = bool(self.config.get('bip21_lightning', False))
         return req.get_bip21_URI(include_lightning=include_lightning)
 
-    def check_expired_status(self, r: Invoice, status):
+    def check_expired_status(self, r: BaseInvoice, status):
         #if r.is_lightning() and r.exp == 0:
         #    status = PR_EXPIRED  # for BOLT-11 invoices, exp==0 means 0 seconds
         if status == PR_UNPAID and r.has_expired():
@@ -2850,7 +2850,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             return allow_send, long_warning, short_warning
 
-    def get_help_texts_for_receive_request(self, req: Invoice) -> ReceiveRequestHelp:
+    def get_help_texts_for_receive_request(self, req: Request) -> ReceiveRequestHelp:
         key = req.get_id()
         addr = req.get_address() or ''
         amount_sat = req.get_amount_sat() or 0
