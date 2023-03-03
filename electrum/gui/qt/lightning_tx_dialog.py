@@ -32,6 +32,7 @@ from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout
 
 from electrum.i18n import _
 from electrum.lnworker import PaymentDirection
+from electrum.invoices import Invoice
 
 from .util import WindowModalDialog, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, font_height
 from .qrtextedit import ShowQRTextEdit
@@ -53,13 +54,11 @@ class LightningTxDialog(WindowModalDialog):
         self.amount = Decimal(tx_item['amount_msat']) / 1000
         self.payment_hash = tx_item['payment_hash']
         self.preimage = tx_item['preimage']
-        invoice = (self.parent.wallet.get_invoice(self.payment_hash)
-                   or self.parent.wallet.get_request(self.payment_hash))
+        self.invoice = ""
+        invoice = self.parent.wallet.get_invoice(self.payment_hash)  # only check outgoing invoices
         if invoice:
             assert invoice.is_lightning(), f"{self.invoice!r}"
             self.invoice = invoice.lightning_invoice
-        else:
-            self.invoice = ''
         self.setMinimumWidth(700)
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -78,9 +77,10 @@ class LightningTxDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("Preimage") + ":"))
         self.preimage_e = ShowQRLineEdit(self.preimage, self.config, title=_("Preimage"))
         vbox.addWidget(self.preimage_e)
-        vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
-        self.invoice_e = ShowQRTextEdit(self.invoice, config=self.config)
-        self.invoice_e.setMaximumHeight(max(150, 10 * font_height()))
-        self.invoice_e.addCopyButton()
-        vbox.addWidget(self.invoice_e)
+        if self.invoice:
+            vbox.addWidget(QLabel(_("Lightning Invoice") + ":"))
+            self.invoice_e = ShowQRTextEdit(self.invoice, config=self.config)
+            self.invoice_e.setMaximumHeight(max(150, 10 * font_height()))
+            self.invoice_e.addCopyButton()
+            vbox.addWidget(self.invoice_e)
         vbox.addLayout(Buttons(CloseButton(self)))
