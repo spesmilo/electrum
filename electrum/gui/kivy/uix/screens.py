@@ -14,7 +14,7 @@ from kivy.properties import StringProperty
 
 from electrum.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
-                               pr_expiration_values, Invoice)
+                               pr_expiration_values, Invoice, Request)
 from electrum import bitcoin, constants
 from electrum import lnutil
 from electrum.transaction import tx_from_any, PartialTxOutput
@@ -536,12 +536,12 @@ class ReceiveScreen(CScreen):
         self.update()
         self.app.show_request(key)
 
-    def get_card(self, req: Invoice) -> Dict[str, Any]:
+    def get_card(self, req: Request) -> Dict[str, Any]:
         is_lightning = req.is_lightning()
         if not is_lightning:
             address = req.get_address()
         else:
-            address = req.lightning_invoice
+            address = self.app.wallet.get_bolt11_invoice(req)
         key = req.get_id()
         amount = req.get_amount_sat()
         description = req.message
