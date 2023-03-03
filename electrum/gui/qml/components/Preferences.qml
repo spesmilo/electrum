@@ -217,16 +217,23 @@ Pane {
                         }
                     }
 
-                    Button {
-                        text: qsTr('Modify')
+                    Pane {
+                        background: Rectangle { color: Material.dialogColor }
+                        padding: 0
                         visible: Config.pinCode != ''
-                        onClicked: {
-                            var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
-                            dialog.accepted.connect(function() {
-                                Config.pinCode = dialog.pincode
-                                dialog.close()
-                            })
-                            dialog.open()
+                        FlatButton {
+                            text: qsTr('Modify')
+                            onClicked: {
+                                var dialog = pinSetup.createObject(preferences, {
+                                    mode: 'change',
+                                    pincode: Config.pinCode
+                                })
+                                dialog.accepted.connect(function() {
+                                    Config.pinCode = dialog.pincode
+                                    dialog.close()
+                                })
+                                dialog.open()
+                            }
                         }
                     }
 

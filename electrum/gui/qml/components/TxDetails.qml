@@ -136,30 +136,38 @@ Pane {
                             }
                             ColumnLayout {
                                 Layout.alignment: Qt.AlignHCenter
-                                FlatButton {
-                                    id: feebumpButton
+                                Pane {
+                                    background: Rectangle { color: Material.dialogColor }
+                                    padding: 0
                                     visible: txdetails.canBump || txdetails.canCpfp
-                                    textUnderIcon: false
-                                    icon.source: '../../icons/add.png'
-                                    text: qsTr('Bump fee')
-                                    onClicked: {
-                                        if (txdetails.canBump) {
-                                            var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
-                                        } else {
-                                            var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                                    FlatButton {
+                                        id: feebumpButton
+                                        textUnderIcon: false
+                                        icon.source: '../../icons/add.png'
+                                        text: qsTr('Bump fee')
+                                        onClicked: {
+                                            if (txdetails.canBump) {
+                                                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                                            } else {
+                                                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                                            }
+                                            dialog.open()
                                         }
-                                        dialog.open()
                                     }
                                 }
-                                FlatButton {
-                                    id: cancelButton
+                                Pane {
+                                    background: Rectangle { color: Material.dialogColor }
+                                    padding: 0
                                     visible: txdetails.canCancel
-                                    textUnderIcon: false
-                                    icon.source: '../../icons/closebutton.png'
-                                    text: qsTr('Cancel Tx')
-                                    onClicked: {
-                                        var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
-                                        dialog.open()
+                                    FlatButton {
+                                        id: cancelButton
+                                        textUnderIcon: false
+                                        icon.source: '../../icons/closebutton.png'
+                                        text: qsTr('Cancel Tx')
+                                        onClicked: {
+                                            var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                                            dialog.open()
+                                        }
                                     }
                                 }
                             }
