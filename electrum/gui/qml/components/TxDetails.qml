@@ -212,8 +212,9 @@ Pane {
                     }
 
                     Label {
-                        text: qsTr('Label')
                         Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Label')
                         color: Material.accentColor
                     }
 
@@ -270,8 +271,9 @@ Pane {
                     }
 
                     Label {
-                        text: qsTr('Transaction ID')
                         Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Transaction ID')
                         color: Material.accentColor
                     }
 
@@ -303,8 +305,9 @@ Pane {
                     }
 
                     Label {
-                        text: qsTr('Outputs')
                         Layout.columnSpan: 2
+                        Layout.topMargin: constants.paddingSmall
+                        text: qsTr('Outputs')
                         color: Material.accentColor
                     }
 

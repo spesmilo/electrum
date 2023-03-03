@@ -227,6 +227,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.hasSeed
                             text: qsTr('Seed')
                             color: Material.accentColor
@@ -267,6 +268,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.isLightning
                             text: qsTr('Lightning Node ID')
                             color: Material.accentColor
@@ -330,6 +332,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                             text: qsTr('Billing')
                             color: Material.accentColor
@@ -377,6 +380,7 @@ Pane {
                             model: Daemon.currentWallet.keystores
                             delegate: ColumnLayout {
                                 Layout.columnSpan: 2
+                                Layout.topMargin: constants.paddingSmall
                                 RowLayout {
                                     Label {
                                         text: qsTr('Keystore')

@@ -72,8 +72,9 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Label')
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Label')
                     color: Material.accentColor
                 }
 
@@ -130,8 +131,9 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Public keys')
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Public keys')
                     color: Material.accentColor
                 }
 

@@ -94,8 +94,9 @@ ElDialog {
                 }
 
                 Label {
-                    visible: invoice.invoiceType == Invoice.OnchainInvoice
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: invoice.invoiceType == Invoice.OnchainInvoice
                     text: qsTr('Address')
                     color: Material.accentColor
                 }
@@ -116,6 +117,8 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     visible: invoice.invoiceType == Invoice.LightningInvoice
                     text: qsTr('Remote Pubkey')
                     color: Material.accentColor
@@ -152,6 +155,8 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     visible: invoice.invoiceType == Invoice.LightningInvoice
                     text: qsTr('Payment hash')
                     color: Material.accentColor
@@ -188,9 +193,10 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     text: qsTr('Description')
                     visible: invoice.message
-                    Layout.columnSpan: 2
                     color: Material.accentColor
                 }
 
@@ -211,9 +217,10 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
                     text: qsTr('Amount to send')
                     color: Material.accentColor
-                    Layout.columnSpan: 2
                 }
 
                 TextHighlightPane {

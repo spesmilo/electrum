@@ -74,8 +74,9 @@ Pane {
             }
 
             Label {
-                text: qsTr('Label')
                 Layout.columnSpan: 2
+                Layout.topMargin: constants.paddingSmall
+                text: qsTr('Label')
                 color: Material.accentColor
             }
 
@@ -132,8 +133,9 @@ Pane {
             }
 
             Label {
-                text: qsTr('Payment hash')
                 Layout.columnSpan: 2
+                Layout.topMargin: constants.paddingSmall
+                text: qsTr('Payment hash')
                 color: Material.accentColor
             }
 
@@ -164,8 +166,9 @@ Pane {
             }
 
             Label {
-                text: qsTr('Preimage')
                 Layout.columnSpan: 2
+                Layout.topMargin: constants.paddingSmall
+                text: qsTr('Preimage')
                 color: Material.accentColor
             }
 
