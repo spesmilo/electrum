@@ -778,7 +778,6 @@ class AddressSynchronizer(Logger, EventListener):
             sent = {}
             for tx_hash, height in h:
                 hh, pos = self.get_txpos(tx_hash)
-                assert hh == height
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
                     received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
