@@ -32,7 +32,8 @@ import hmac
 #<<<<<<< HEAD
 #from typing import Union
 import scrypt
-import neoscrypt
+#import neoscrypt
+from ctypes import *
 from typing import Union, Mapping, Optional
 
 from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException, versiontuple
@@ -336,8 +337,11 @@ def PoWHash(x):
 
 
 def PoWNeoScryptHash(x):
-    x = to_bytes(x, 'utf8')
-    return neoscrypt.getPoWHash(x)
+    x = create_string_buffer(to_bytes(x, 'utf8'))
+    hash = CDLL('./libneoscrypt.so.0')
+    y = create_string_buffer(32)
+    hash.neoscrypt(byref(x),y)
+    return y
 
 def hash_160(x: bytes) -> bytes:
     return ripemd(sha256(x))
