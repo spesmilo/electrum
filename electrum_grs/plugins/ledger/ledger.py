@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 
 from electrum_grs import ecc
 from electrum_grs import bip32
+from electrum_grs import descriptor
 from electrum_grs.crypto import hash_160
 from electrum_grs.bitcoin import int_to_hex, var_int, is_segwit_script_type, is_b58_address
 from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
@@ -356,20 +357,25 @@ class Ledger_KeyStore(Hardware_KeyStore):
         assert client_electrum
         client_ledger = self.get_client_dongle_object(client=client_electrum)
 
+        def is_txin_legacy_multisig(txin: PartialTxInput) -> bool:
+            desc = txin.script_descriptor
+            return (isinstance(desc, descriptor.SHDescriptor)
+                    and isinstance(desc.subdescriptors[0], descriptor.MultisigDescriptor))
+
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
             if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if txin.script_type in ['p2sh']:
+            if is_txin_legacy_multisig(txin):
                 p2shTransaction = True
 
-            if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if txin.is_p2sh_segwit():
                 if not client_electrum.supports_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
-            if txin.script_type in ['p2wpkh', 'p2wsh']:
+            if txin.is_native_segwit():
                 if not client_electrum.supports_native_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
@@ -396,7 +402,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Sanity check
         if p2shTransaction:
             for txin in tx.inputs():
-                if txin.script_type != 'p2sh':
+                if not is_txin_legacy_multisig(txin):
                     self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
         txOutput = var_int(len(tx.outputs()))
