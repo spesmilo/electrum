@@ -264,7 +264,7 @@ class Jade_KeyStore(Hardware_KeyStore):
             jade_inputs = []
             for txin in tx.inputs():
                 pubkey, path = self.find_my_pubkey_in_txinout(txin)
-                witness_input = txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh', 'p2wpkh', 'p2wsh']
+                witness_input = txin.is_segwit()
                 redeem_script = Transaction.get_preimage_script(txin)
                 redeem_script = bytes.fromhex(redeem_script) if redeem_script is not None else None
                 input_tx = txin.utxo
@@ -280,6 +280,7 @@ class Jade_KeyStore(Hardware_KeyStore):
             change = [None] * len(tx.outputs())
             for index, txout in enumerate(tx.outputs()):
                 if txout.is_mine and txout.is_change:
+                    assert (desc := txout.script_descriptor)
                     if is_multisig:
                         # Multisig - wallet details must be registered on Jade hw
                         multisig_name = _register_multisig_wallet(wallet, self, txout.address)
@@ -294,7 +295,7 @@ class Jade_KeyStore(Hardware_KeyStore):
                     else:
                         # Pass entire path
                         pubkey, path = self.find_my_pubkey_in_txinout(txout)
-                        change[index] = {'path':path, 'variant': txout.script_type}
+                        change[index] = {'path':path, 'variant': desc.to_legacy_electrum_script_type()}
 
             # The txn itself
             txn_bytes = bytes.fromhex(tx.serialize_to_network())

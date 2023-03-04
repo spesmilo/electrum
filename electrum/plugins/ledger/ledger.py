@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 
 from electrum import bip32, constants, ecc
+from electrum import descriptor
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
 from electrum.bitcoin import EncodeBase58Check, int_to_hex, is_b58_address, is_segwit_script_type, var_int
@@ -16,7 +17,7 @@ from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.logging import get_logger
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import PartialTransaction, Transaction
+from electrum.transaction import PartialTransaction, Transaction, PartialTxInput
 from electrum.util import bfh, UserFacingException, versiontuple
 from electrum.wallet import Standard_Wallet
 
@@ -544,20 +545,25 @@ class Ledger_Client_Legacy(Ledger_Client):
         pin = ""
         # prompt for the PIN before displaying the dialog if necessary
 
+        def is_txin_legacy_multisig(txin: PartialTxInput) -> bool:
+            desc = txin.script_descriptor
+            return (isinstance(desc, descriptor.SHDescriptor)
+                    and isinstance(desc.subdescriptors[0], descriptor.MultisigDescriptor))
+
         # Fetch inputs of the transaction to sign
         for txin in tx.inputs():
             if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if txin.script_type in ['p2sh']:
+            if is_txin_legacy_multisig(txin):
                 p2shTransaction = True
 
-            if txin.script_type in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if txin.is_p2sh_segwit():
                 if not self.supports_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
-            if txin.script_type in ['p2wpkh', 'p2wsh']:
+            if txin.is_native_segwit():
                 if not self.supports_native_segwit():
                     self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
@@ -584,7 +590,7 @@ class Ledger_Client_Legacy(Ledger_Client):
         # Sanity check
         if p2shTransaction:
             for txin in tx.inputs():
-                if txin.script_type != 'p2sh':
+                if not is_txin_legacy_multisig(txin):
                     self.give_error("P2SH / regular input mixed in same transaction not supported")  # should never happen
 
         txOutput = var_int(len(tx.outputs()))
@@ -1083,7 +1089,6 @@ class Ledger_Client_New(Ledger_Client):
                     raise UserFacingException("Coinbase not supported")     # should never happen
 
                 utxo = None
-                scriptcode = b""
                 if psbt_in.witness_utxo:
                     utxo = psbt_in.witness_utxo
                 if psbt_in.non_witness_utxo:
@@ -1094,19 +1099,9 @@ class Ledger_Client_New(Ledger_Client):
 
                 if utxo is None:
                     continue
-                scriptcode = utxo.scriptPubKey
-                if electrum_txin.script_type in ['p2sh', 'p2wpkh-p2sh']:
-                    if len(psbt_in.redeem_script) == 0:
-                        continue
-                    scriptcode = psbt_in.redeem_script
-                elif electrum_txin.script_type in ['p2wsh', 'p2wsh-p2sh']:
-                    if len(psbt_in.witness_script) == 0:
-                        continue
-                    scriptcode = psbt_in.witness_script
-
-                p2sh = False
-                if electrum_txin.script_type in ['p2sh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
-                    p2sh = True
+                if (desc := electrum_txin.script_descriptor) is None:
+                    raise Exception("script_descriptor missing for txin ")
+                scriptcode = desc.expand().scriptcode_for_sighash
 
                 is_wit, wit_ver, __ = is_witness(psbt_in.redeem_script or utxo.scriptPubKey)
 
@@ -1115,7 +1110,7 @@ class Ledger_Client_New(Ledger_Client):
                     # if it's a segwit spend (any version), make sure the witness_utxo is also present
                     psbt_in.witness_utxo = utxo
 
-                    if p2sh:
+                    if electrum_txin.is_p2sh_segwit():
                         if wit_ver == 0:
                             script_addrtype = AddressType.SH_WIT
                         else:
