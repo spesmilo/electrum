@@ -354,25 +354,6 @@ def validate_op_return_output(output: TxOutput, *, max_size: int = None) -> None
         raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
 
 
-def get_xpubs_and_der_suffixes_from_txinout(tx: PartialTransaction,
-                                            txinout: Union[PartialTxInput, PartialTxOutput]) \
-        -> List[Tuple[str, List[int]]]:
-    xfp_to_xpub_map = {xfp: bip32node for bip32node, (xfp, path)
-                       in tx.xpubs.items()}  # type: Dict[bytes, BIP32Node]
-    xfps = [txinout.bip32_paths[pubkey][0] for pubkey in txinout.pubkeys]
-    try:
-        xpubs = [xfp_to_xpub_map[xfp] for xfp in xfps]
-    except KeyError as e:
-        raise Exception(f"Partial transaction is missing global xpub for "
-                        f"fingerprint ({str(e)}) in input/output") from e
-    xpubs_and_deriv_suffixes = []
-    for bip32node, pubkey in zip(xpubs, txinout.pubkeys):
-        xfp, path = txinout.bip32_paths[pubkey]
-        der_suffix = list(path)[bip32node.depth:]
-        xpubs_and_deriv_suffixes.append((bip32node.to_xpub(), der_suffix))
-    return xpubs_and_deriv_suffixes
-
-
 def only_hook_if_libraries_available(func):
     # note: this decorator must wrap @hook, not the other way around,
     # as 'hook' uses the name of the function it wraps

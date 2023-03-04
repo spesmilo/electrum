@@ -86,6 +86,10 @@ class QEAppController(BaseCrashReporter, QObject):
         qewallet = self._qedaemon.currentWallet
         if not qewallet:
             return
+
+        # register wallet in Exception_Hook
+        Exception_Hook.maybe_setup(config=qewallet.wallet.config, wallet=qewallet.wallet)
+
         # attach to the wallet user notification events
         # connect only once
         try:

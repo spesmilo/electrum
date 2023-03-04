@@ -182,6 +182,8 @@ class QESwapHelper(AuthMixin, QObject):
 
     def init_swap_slider_range(self):
         lnworker = self._wallet.wallet.lnworker
+        if not lnworker:
+            return
         swap_manager = lnworker.swap_manager
         try:
             asyncio.run(swap_manager.get_pairs())

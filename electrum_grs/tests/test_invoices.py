@@ -5,7 +5,7 @@ from . import ElectrumTestCase
 
 from electrum_grs.simple_config import SimpleConfig
 from electrum_grs.wallet import restore_wallet_from_text, Standard_Wallet, Abstract_Wallet
-from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, Invoice
+from electrum_grs.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, BaseInvoice
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum_grs.transaction import Transaction, PartialTxOutput
 from electrum_grs.util import TxMinedInfo
@@ -20,11 +20,11 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.wallet1_path = os.path.join(self.electrum_path, "somewallet1")
         self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
-        self._orig_get_cur_time = Invoice._get_cur_time
+        self._orig_get_cur_time = BaseInvoice._get_cur_time
 
     def tearDown(self):
         super().tearDown()
-        Invoice._get_cur_time = staticmethod(self._orig_get_cur_time)
+        BaseInvoice._get_cur_time = staticmethod(self._orig_get_cur_time)
 
     def create_wallet2(self) -> Standard_Wallet:
         text = 'cross end slow expose giraffe fuel track awake turtle capital ranch pulp'
@@ -156,8 +156,6 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertTrue(pr1.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr1))
         self.assertEqual(addr1, pr1.get_address())
-        self.assertEqual(addr1, pr1._lnaddr.get_fallback_address())
-        self.assertTrue(pr1.can_be_paid_onchain())
         self.assertFalse(pr1.has_expired())
 
         # create payreq2
@@ -213,7 +211,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(addr1, pr1.get_address())
         self.assertFalse(pr1.has_expired())
 
-        Invoice._get_cur_time = lambda *args: time.time() + 100_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 100_000
         self.assertTrue(pr1.has_expired())
 
         # create payreq2
@@ -240,7 +238,7 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertFalse(pr1.has_expired())
         self.assertEqual(pr1, wallet1.get_request_by_addr(addr1))
 
-        Invoice._get_cur_time = lambda *args: time.time() + 100_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 100_000
         self.assertTrue(pr1.has_expired())
         self.assertEqual(None, wallet1.get_request_by_addr(addr1))
 
@@ -265,6 +263,6 @@ class TestWalletPaymentRequests(ElectrumTestCase):
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr1))
 
         # now make both invoices be past their expiration date. pr2 should be unaffected.
-        Invoice._get_cur_time = lambda *args: time.time() + 200_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 200_000
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr2))
         self.assertEqual(pr2, wallet1.get_request_by_addr(addr1))

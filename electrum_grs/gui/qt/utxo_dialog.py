@@ -24,16 +24,18 @@
 # SOFTWARE.
 
 from typing import TYPE_CHECKING
+import copy
 
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QTextCharFormat, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QTextBrowser
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTextBrowser
 
 from electrum_grs.i18n import _
 
 from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT, WWLabel
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
+from .transaction_dialog import TxOutputColoring
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -53,11 +55,8 @@ class UTXODialog(WindowModalDialog):
 
         txid = self.utxo.prevout.txid.hex()
         parents = self.wallet.get_tx_parents(txid)
-        out = []
-        for _txid, _list in sorted(parents.items()):
-            tx_height, tx_pos = self.wallet.adb.get_txpos(_txid)
-            label = self.wallet.get_label_for_txid(_txid) or "<no label>"
-            out.append((tx_height, tx_pos, _txid, label, _list))
+        num_parents = len(parents)
+        parents_copy = copy.deepcopy(parents)
 
         self.parents_list = QTextBrowser()
         self.parents_list.setOpenLinks(False)  # disable automatic link opening
@@ -68,35 +67,70 @@ class UTXODialog(WindowModalDialog):
         self.parents_list.setMinimumWidth(900)
         self.parents_list.setMinimumHeight(400)
         self.parents_list.setLineWrapMode(QTextBrowser.NoWrap)
+        self.txo_color_parent = TxOutputColoring(
+            legend=_("Direct parent"), color=ColorScheme.BLUE, tooltip=_("Direct parent"))
+        self.txo_color_uncle = TxOutputColoring(
+            legend=_("Address reuse"), color=ColorScheme.RED, tooltip=_("Address reuse"))
 
         cursor = self.parents_list.textCursor()
         ext = QTextCharFormat()
 
-        for tx_height, tx_pos, _txid, label, _list in reversed(sorted(out)):
+        if num_parents < 200:
+            ASCII_EDGE   = '└─'
+            ASCII_BRANCH = '├─'
+            ASCII_PIPE   = '│ '
+            ASCII_SPACE  = '  '
+        else:
+            ASCII_EDGE   = '└'
+            ASCII_BRANCH = '├'
+            ASCII_PIPE   = '│'
+            ASCII_SPACE  = ' '
+
+        def print_ascii_tree(_txid, prefix, is_last, is_uncle):
+            if _txid not in parents:
+                return
+            tx_height, tx_pos = self.wallet.adb.get_txpos(_txid)
             key = "%dx%d"%(tx_height, tx_pos) if tx_pos >= 0 else _txid[0:8]
-            list_str = ','.join(filter(None, _list))
-            lnk = QTextCharFormat()
+            label = self.wallet.get_label_for_txid(_txid) or ""
+            if _txid not in parents_copy:
+                label = '[duplicate]'
+            c = '' if _txid == txid else (ASCII_EDGE if is_last else ASCII_BRANCH)
+            cursor.insertText(prefix + c, ext)
+            if is_uncle:
+                lnk = QTextCharFormat(self.txo_color_uncle.text_char_format)
+            else:
+                lnk = QTextCharFormat(self.txo_color_parent.text_char_format)
             lnk.setToolTip(_('Click to open, right-click for menu'))
             lnk.setAnchorHref(_txid)
             #lnk.setAnchorNames([a_name])
             lnk.setAnchor(True)
             lnk.setUnderlineStyle(QTextCharFormat.SingleUnderline)
             cursor.insertText(key, lnk)
-            cursor.insertText("\t", ext)
-            cursor.insertText("%-32s\t<-  "%label[0:32], ext)
-            cursor.insertText(list_str, ext)
+            cursor.insertText(" ", ext)
+            cursor.insertText(label, ext)
             cursor.insertBlock()
+            next_prefix = '' if txid == _txid else prefix + (ASCII_SPACE if is_last else ASCII_PIPE)
+            parents_list, uncle_list = parents_copy.pop(_txid, ([],[]))
+            for i, p in enumerate(parents_list + uncle_list):
+                is_last = (i == len(parents_list) + len(uncle_list)- 1)
+                is_uncle = (i > len(parents_list) - 1)
+                print_ascii_tree(p, next_prefix, is_last, is_uncle)
 
+        # recursively build the tree
+        print_ascii_tree(txid, '', False, False)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Output point") + ": " + str(self.utxo.short_id)))
         vbox.addWidget(QLabel(_("Amount") + ": " + self.main_window.format_amount_and_units(self.utxo.value_sats())))
-        vbox.addWidget(QLabel(_("This UTXO has {} parent transactions in your wallet").format(len(parents))))
+        vbox.addWidget(QLabel(_("This UTXO has {} parent transactions in your wallet").format(num_parents)))
         vbox.addWidget(self.parents_list)
-        msg = ' '.join([
-            _("Note: This analysis only shows parent transactions, and does not take address reuse into consideration."),
-            _("If you reuse addresses, more links can be established between your transactions, that are not displayed here.")
-        ])
-        vbox.addWidget(WWLabel(msg))
+        legend_hbox = QHBoxLayout()
+        legend_hbox.setContentsMargins(0, 0, 0, 0)
+        legend_hbox.addStretch(2)
+        legend_hbox.addWidget(self.txo_color_parent.legend_label)
+        legend_hbox.addWidget(self.txo_color_uncle.legend_label)
+        vbox.addLayout(legend_hbox)
+        self.txo_color_parent.legend_label.setVisible(True)
+        self.txo_color_uncle.legend_label.setVisible(True)
         vbox.addLayout(Buttons(CloseButton(self)))
         self.setLayout(vbox)
         # set cursor to top
@@ -109,5 +143,4 @@ class UTXODialog(WindowModalDialog):
         tx = self.wallet.adb.get_transaction(txid)
         if not tx:
             return
-        label = self.wallet.get_label_for_txid(txid)
-        self.main_window.show_transaction(tx, tx_desc=label)
+        self.main_window.show_transaction(tx)

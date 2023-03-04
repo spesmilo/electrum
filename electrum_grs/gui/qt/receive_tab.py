@@ -224,7 +224,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         help_texts = self.wallet.get_help_texts_for_receive_request(req)
         addr = (req.get_address() or '') if not help_texts.address_is_error else ''
         URI = (self.wallet.get_request_URI(req) or '') if not help_texts.URI_is_error else ''
-        lnaddr = (req.lightning_invoice or '') if not help_texts.ln_is_error else ''
+        lnaddr = self.wallet.get_bolt11_invoice(req) if not help_texts.ln_is_error else ''
         address_help = help_texts.address_help
         URI_help = help_texts.URI_help
         ln_help = help_texts.ln_help

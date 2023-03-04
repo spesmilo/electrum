@@ -108,12 +108,14 @@ Pane {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
                     }
-                    FlatButton {
-                        Layout.minimumWidth: implicitWidth
-                        // icon.source: '../../icons/warning.png'
-                        // icon.color: 'transparent'
-                        text: channeldetails.frozenForSending ? qsTr('Unfreeze') : qsTr('Freeze')
-                        onClicked: channeldetails.freezeForSending()
+                    Pane {
+                        background: Rectangle { color: Material.dialogColor }
+                        padding: 0
+                        FlatButton {
+                            Layout.minimumWidth: implicitWidth
+                            text: channeldetails.frozenForSending ? qsTr('Unfreeze') : qsTr('Freeze')
+                            onClicked: channeldetails.freezeForSending()
+                        }
                     }
                 }
 
@@ -143,12 +145,14 @@ Pane {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
                     }
-                    FlatButton {
-                        Layout.minimumWidth: implicitWidth
-                        // icon.source: '../../icons/warning.png'
-                        // icon.color: 'transparent'
-                        text: channeldetails.frozenForReceiving ? qsTr('Unfreeze') : qsTr('Freeze')
-                        onClicked: channeldetails.freezeForReceiving()
+                    Pane {
+                        background: Rectangle { color: Material.dialogColor }
+                        padding: 0
+                        FlatButton {
+                            Layout.minimumWidth: implicitWidth
+                            text: channeldetails.frozenForReceiving ? qsTr('Unfreeze') : qsTr('Freeze')
+                            onClicked: channeldetails.freezeForReceiving()
+                        }
                     }
                 }
 

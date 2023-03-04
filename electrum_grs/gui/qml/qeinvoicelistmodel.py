@@ -124,8 +124,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
             item['address'] = ''
         item['date'] = format_time(item['timestamp'])
         item['amount'] = QEAmount(from_invoice=invoice)
-        item['onchain_fallback'] = invoice.is_lightning() and invoice._lnaddr.get_fallback_address()
-        item['type'] = 'invoice'
+        item['onchain_fallback'] = invoice.is_lightning() and invoice.get_address()
 
         return item
 
@@ -224,7 +223,8 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
         return item
 
     def get_invoice_list(self):
-        return self.wallet.get_unpaid_requests()
+        # disable for now, as QERequestListModel isn't used in UI
+        return [] #self.wallet.get_unpaid_requests()
 
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)

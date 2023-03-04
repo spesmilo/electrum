@@ -74,7 +74,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
-from .invoices import Invoice
+from .invoices import BaseInvoice, Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
 from .contacts import Contacts
 from .interface import NetworkException
@@ -84,6 +84,8 @@ from .lnworker import LNWallet
 from .paymentrequest import PaymentRequest
 from .util import read_json_file, write_json_file, UserFacingException, FileImportFailed
 from .util import EventListener, event_listener
+from . import descriptor
+from .descriptor import Descriptor
 
 if TYPE_CHECKING:
     from .network import Network
@@ -100,16 +102,15 @@ TX_STATUS = [
 ]
 
 
-async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Network',
-                                  pubkey: str, txin_type: str, imax: int) -> None:
-    if txin_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-        address = bitcoin.pubkey_to_address(txin_type, pubkey)
-        scripthash = bitcoin.address_to_scripthash(address)
-    elif txin_type == 'p2pk':
-        script = bitcoin.public_key_to_p2pk_script(pubkey)
-        scripthash = bitcoin.script_to_scripthash(script)
-    else:
-        raise Exception(f'unexpected txin_type to sweep: {txin_type}')
+async def _append_utxos_to_inputs(
+    *,
+    inputs: List[PartialTxInput],
+    network: 'Network',
+    script_descriptor: 'descriptor.Descriptor',
+    imax: int,
+) -> None:
+    script = script_descriptor.expand().output_script.hex()
+    scripthash = bitcoin.script_to_scripthash(script)
 
     async def append_single_utxo(item):
         prev_tx_raw = await network.get_transaction(item['tx_hash'])
@@ -122,11 +123,7 @@ async def _append_utxos_to_inputs(*, inputs: List[PartialTxInput], network: 'Net
         txin = PartialTxInput(prevout=prevout)
         txin.utxo = prev_tx
         txin.block_height = int(item['height'])
-        txin.script_type = txin_type
-        txin.pubkeys = [bfh(pubkey)]
-        txin.num_sig = 1
-        if txin_type == 'p2wpkh-p2sh':
-            txin.redeem_script = bfh(bitcoin.p2wpkh_nested_script(pubkey))
+        txin.script_descriptor = script_descriptor
         inputs.append(txin)
 
     u = await network.listunspent_for_scripthash(scripthash)
@@ -141,11 +138,11 @@ async def sweep_preparations(privkeys, network: 'Network', imax=100):
 
     async def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
         await _append_utxos_to_inputs(
             inputs=inputs,
             network=network,
-            pubkey=pubkey,
-            txin_type=txin_type,
+            script_descriptor=desc,
             imax=imax)
         keypairs[pubkey] = privkey, compressed
 
@@ -329,7 +326,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._frozen_addresses      = set(db.get('frozen_addresses', []))
         self._frozen_coins          = db.get_dict('frozen_coins')  # type: Dict[str, bool]
         self.fiat_value            = db.get_dict('fiat_value')
-        self._receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Invoice]
+        self._receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Request]
         self._invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
 
@@ -684,13 +681,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """
         pass
 
-    @abstractmethod
     def get_redeem_script(self, address: str) -> Optional[str]:
-        pass
+        desc = self.get_script_descriptor_for_address(address)
+        if desc is None: return None
+        redeem_script = desc.expand().redeem_script
+        if redeem_script:
+            return redeem_script.hex()
 
-    @abstractmethod
     def get_witness_script(self, address: str) -> Optional[str]:
-        pass
+        desc = self.get_script_descriptor_for_address(address)
+        if desc is None: return None
+        witness_script = desc.expand().witness_script
+        if witness_script:
+            return witness_script.hex()
 
     @abstractmethod
     def get_txin_type(self, address: str) -> str:
@@ -864,27 +867,41 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_tx_parents(self, txid) -> Dict:
         """
         recursively calls itself and returns a flat dict:
-        txid -> input_index ->  prevout
-        note: this does not take into account address reuse
+        txid -> list of parent txids
         """
         if not self.is_up_to_date():
             return {}
-        if self._last_full_history is None:
-            self._last_full_history = self.get_full_history(None)
-
         with self.lock, self.transaction_lock:
+            if self._last_full_history is None:
+                self._last_full_history = self.get_full_history(None)
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
                 return result
             result = {}
             parents = []
+            uncles = []
             tx = self.adb.get_transaction(txid)
+            assert tx, f"cannot find {txid} in db"
             for i, txin in enumerate(tx.inputs()):
-                parents.append(str(txin.short_id))
                 _txid = txin.prevout.txid.hex()
+                parents.append(_txid)
+                # detect address reuse
+                addr = self.adb.get_txin_address(txin)
+                received, sent = self.adb.get_addr_io(addr)
+                if len(sent) > 1:
+                    my_txid, my_height, my_pos = sent[txin.prevout.to_str()]
+                    assert my_txid == txid
+                    for k, v in sent.items():
+                        if k != txin.prevout.to_str():
+                            reuse_txid, reuse_height, reuse_pos = v
+                            if (reuse_height, reuse_pos) < (my_height, my_pos):
+                                uncle_txid, uncle_index = k.split(':')
+                                uncles.append(uncle_txid)
+
+            for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
                     result.update(self.get_tx_parents(_txid))
-            result[txid] = parents
+            result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
 
@@ -1066,13 +1083,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         data = read_json_file(path)
         for x in data:
             try:
-                req = Invoice(**x)
+                req = Request(**x)
             except:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
         self.save_db()
 
     def export_requests(self, path):
+        # note: this does not export preimages for LN bolt11 invoices
         write_json_file(path, list(self._receive_requests.values()))
 
     def import_invoices(self, path):
@@ -1125,7 +1143,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
 
-    def _is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int], Sequence[str]]:
+    def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
         and list of relevant TXIDs.
         """
@@ -1161,7 +1179,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     is_paid = False
         return is_paid, conf_needed, list(relevant_txs)
 
-    def is_onchain_invoice_paid(self, invoice: Invoice) -> Tuple[bool, Optional[int]]:
+    def is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int]]:
         is_paid, conf_needed, relevant_txs = self._is_onchain_invoice_paid(invoice)
         return is_paid, conf_needed
 
@@ -2137,10 +2155,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx_new.add_info_from_wallet(self)
         return tx_new
 
-    @abstractmethod
-    def _add_input_sig_info(self, txin: PartialTxInput, address: str, *, only_der_suffix: bool) -> None:
-        pass
-
     def _add_txinout_derivation_info(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                      address: str, *, only_der_suffix: bool) -> None:
         pass  # implemented by subclasses
@@ -2193,23 +2207,43 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.lnworker:
                 self.lnworker.swap_manager.add_txin_info(txin)
             return
-        # set script_type first, as later checks might rely on it:
-        txin.script_type = self.get_txin_type(address)
-        txin.num_sig = self.m if isinstance(self, Multisig_Wallet) else 1
-        if txin.redeem_script is None:
-            try:
-                redeem_script_hex = self.get_redeem_script(address)
-                txin.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
-            except UnknownTxinType:
-                pass
-        if txin.witness_script is None:
-            try:
-                witness_script_hex = self.get_witness_script(address)
-                txin.witness_script = bfh(witness_script_hex) if witness_script_hex else None
-            except UnknownTxinType:
-                pass
-        self._add_input_sig_info(txin, address, only_der_suffix=only_der_suffix)
+        txin.script_descriptor = self.get_script_descriptor_for_address(address)
+        self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
         txin.block_height = self.adb.get_tx_height(txin.prevout.txid.hex()).height
+
+    def get_script_descriptor_for_address(self, address: str) -> Optional[Descriptor]:
+        if not self.is_mine(address):
+            return None
+        script_type = self.get_txin_type(address)
+        if script_type in ('address', 'unknown'):
+            return None
+        addr_index = self.get_address_index(address)
+        if addr_index is None:
+            return None
+        pubkeys = [ks.get_pubkey_provider(addr_index) for ks in self.get_keystores()]
+        if not pubkeys:
+            return None
+        if script_type == 'p2pk':
+            return descriptor.PKDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2pkh':
+            return descriptor.PKHDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2wpkh':
+            return descriptor.WPKHDescriptor(pubkey=pubkeys[0])
+        elif script_type == 'p2wpkh-p2sh':
+            wpkh = descriptor.WPKHDescriptor(pubkey=pubkeys[0])
+            return descriptor.SHDescriptor(subdescriptor=wpkh)
+        elif script_type == 'p2sh':
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            return descriptor.SHDescriptor(subdescriptor=multi)
+        elif script_type == 'p2wsh':
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            return descriptor.WSHDescriptor(subdescriptor=multi)
+        elif script_type == 'p2wsh-p2sh':
+            multi = descriptor.MultisigDescriptor(pubkeys=pubkeys, thresh=self.m, is_sorted=True)
+            wsh = descriptor.WSHDescriptor(subdescriptor=multi)
+            return descriptor.SHDescriptor(subdescriptor=wsh)
+        else:
+            raise NotImplementedError(f"unexpected {script_type=}")
 
     def can_sign(self, tx: Transaction) -> bool:
         if not isinstance(tx, PartialTransaction):
@@ -2262,24 +2296,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_mine = self._learn_derivation_path_for_address_from_txinout(txout, address)
             if not is_mine:
                 return
-        txout.script_type = self.get_txin_type(address)
+        txout.script_descriptor = self.get_script_descriptor_for_address(address)
         txout.is_mine = True
         txout.is_change = self.is_change(address)
-        if isinstance(self, Multisig_Wallet):
-            txout.num_sig = self.m
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
-        if txout.redeem_script is None:
-            try:
-                redeem_script_hex = self.get_redeem_script(address)
-                txout.redeem_script = bfh(redeem_script_hex) if redeem_script_hex else None
-            except UnknownTxinType:
-                pass
-        if txout.witness_script is None:
-            try:
-                witness_script_hex = self.get_witness_script(address)
-                txout.witness_script = bfh(witness_script_hex) if witness_script_hex else None
-            except UnknownTxinType:
-                pass
 
     def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
         if self.is_watching_only():
@@ -2361,18 +2381,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def delete_address(self, address: str) -> None:
         raise Exception("this wallet cannot delete addresses")
 
-    def get_request_URI(self, req: Invoice) -> Optional[str]:
-        include_lightning = bool(self.config.get('bip21_lightning', False))
-        return req.get_bip21_URI(include_lightning=include_lightning)
+    def get_request_URI(self, req: Request) -> Optional[str]:
+        lightning_invoice = None
+        if self.config.get('bip21_lightning', False):
+            lightning_invoice = self.get_bolt11_invoice(req)
+        return req.get_bip21_URI(lightning_invoice=lightning_invoice)
 
-    def check_expired_status(self, r: Invoice, status):
+    def check_expired_status(self, r: BaseInvoice, status):
         #if r.is_lightning() and r.exp == 0:
         #    status = PR_EXPIRED  # for BOLT-11 invoices, exp==0 means 0 seconds
         if status == PR_UNPAID and r.has_expired():
             status = PR_EXPIRED
         return status
 
-    def get_invoice_status(self, invoice: Invoice):
+    def get_invoice_status(self, invoice: BaseInvoice):
         """Returns status of (incoming) request or (outgoing) invoice."""
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
@@ -2389,7 +2411,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             status = PR_PAID
         return self.check_expired_status(invoice, status)
 
-    def get_request_by_addr(self, addr: str) -> Optional[Invoice]:
+    def get_request_by_addr(self, addr: str) -> Optional[Request]:
         """Returns a relevant request for address, from an on-chain PoV.
         (One that has been paid on-chain or is pending)
 
@@ -2417,7 +2439,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         reqs.sort(key=lambda req: req.get_time())
         return reqs[-1]
 
-    def get_request(self, request_id: str) -> Optional[Invoice]:
+    def get_request(self, request_id: str) -> Optional[Request]:
         return self._receive_requests.get(request_id)
 
     def get_formatted_request(self, request_id):
@@ -2425,7 +2447,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if x:
             return self.export_request(x)
 
-    def export_request(self, x: Invoice) -> Dict[str, Any]:
+    def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
         status_str = x.get_status_str(status)
@@ -2444,7 +2466,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         }
         if is_lightning:
             d['rhash'] = x.rhash
-            d['lightning_invoice'] = x.lightning_invoice
+            d['lightning_invoice'] = self.get_bolt11_invoice(x)
             d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
@@ -2509,6 +2531,19 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     relevant_invoice_keys.add(invoice_key)
         self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
 
+    def get_bolt11_invoice(self, req: Request) -> str:
+        if not self.lnworker:
+            return ''
+        amount_msat = req.get_amount_msat() or None
+        assert (amount_msat is None or amount_msat > 0), amount_msat
+        lnaddr, invoice = self.lnworker.get_bolt11_invoice(
+            payment_hash=req.payment_hash,
+            amount_msat=amount_msat,
+            message=req.message,
+            expiry=req.exp,
+            fallback_address=req.get_address() if self.config.get('bolt11_fallback', True) else None)
+        return invoice
+
     def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):
         # for receiving
         amount_sat = amount_sat or 0
@@ -2516,21 +2551,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         message = message or ''
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
-        timestamp = int(Invoice._get_cur_time())
-        fallback_address = address if self.config.get('bolt11_fallback', True) else None
-        lightning = self.has_lightning()
-        if lightning:
-            lightning_invoice = self.lnworker.add_request(
-                amount_sat=amount_sat,
-                message=message,
-                expiry=exp_delay,
-                fallback_address=fallback_address,
-            )
-        else:
-            lightning_invoice = None
+        timestamp = int(Request._get_cur_time())
+        payment_hash = self.lnworker.create_payment_info(amount_sat, write_to_disk=False) if self.has_lightning() else None
         outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
-        req = Invoice(
+        req = Request(
             outputs=outputs,
             message=message,
             time=timestamp,
@@ -2538,12 +2563,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             exp=exp_delay,
             height=height,
             bip70=None,
-            lightning_invoice=lightning_invoice,
+            payment_hash=payment_hash,
         )
         key = self.add_payment_request(req)
         return key
 
-    def add_payment_request(self, req: Invoice, *, write_to_disk: bool = True):
+    def add_payment_request(self, req: Request, *, write_to_disk: bool = True):
         request_id = req.get_id()
         self._receive_requests[request_id] = req
         if addr:=req.get_address():
@@ -2575,7 +2600,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if write_to_disk:
             self.save_db()
 
-    def get_sorted_requests(self) -> List[Invoice]:
+    def get_sorted_requests(self) -> List[Request]:
         """ sorted by timestamp """
         out = [self.get_request(x) for x in self._receive_requests.keys()]
         out = [x for x in out if x is not None]
@@ -2847,7 +2872,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             return allow_send, long_warning, short_warning
 
-    def get_help_texts_for_receive_request(self, req: Invoice) -> ReceiveRequestHelp:
+    def get_help_texts_for_receive_request(self, req: Request) -> ReceiveRequestHelp:
         key = req.get_id()
         addr = req.get_address() or ''
         amount_sat = req.get_amount_sat() or 0
@@ -2859,7 +2884,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         ln_is_error = False
         ln_swap_suggestion = None
         ln_rebalance_suggestion = None
-        lnaddr = req.lightning_invoice or ''
         URI = self.get_request_URI(req) or ''
         lightning_online = self.lnworker and self.lnworker.num_peers() > 0
         can_receive_lightning = self.lnworker and amount_sat <= self.lnworker.num_sats_can_receive()
@@ -2879,7 +2903,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             URI_help = _('This request cannot be paid on-chain')
             if is_amt_too_small_for_onchain:
                 URI_help = _('Amount too small to be received onchain')
-        if not lnaddr:
+        if not req.is_lightning():
             ln_is_error = True
             ln_help = _('This request does not have a Lightning invoice.')
 
@@ -2887,7 +2911,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             if self.adb.is_used(addr):
                 address_help = URI_help = (_("This address has already been used. "
                                              "For better privacy, do not reuse it for new payments."))
-            if lnaddr:
+            if req.is_lightning():
                 if not lightning_online:
                     ln_is_error = True
                     ln_help = _('You must be online to receive Lightning payments.')
@@ -2936,20 +2960,6 @@ class Simple_Wallet(Abstract_Wallet):
 
     def get_public_keys(self, address: str) -> Sequence[str]:
         return [self.get_public_key(address)]
-
-    def get_redeem_script(self, address: str) -> Optional[str]:
-        txin_type = self.get_txin_type(address)
-        if txin_type in ('p2pkh', 'p2wpkh', 'p2pk'):
-            return None
-        if txin_type == 'p2wpkh-p2sh':
-            pubkey = self.get_public_key(address)
-            return bitcoin.p2wpkh_nested_script(pubkey)
-        if txin_type == 'address':
-            return None
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
-
-    def get_witness_script(self, address: str) -> Optional[str]:
-        return None
 
 
 class Imported_Wallet(Simple_Wallet):
@@ -3158,20 +3168,6 @@ class Imported_Wallet(Simple_Wallet):
             if addr != bitcoin.pubkey_to_address(txin_type, pubkey):
                 raise InternalAddressCorruption()
 
-    def _add_input_sig_info(self, txin, address, *, only_der_suffix):
-        if not self.is_mine(address):
-            return
-        if txin.script_type in ('unknown', 'address'):
-            return
-        elif txin.script_type in ('p2pkh', 'p2wpkh', 'p2wpkh-p2sh'):
-            pubkey = self.get_public_key(address)
-            if not pubkey:
-                return
-            txin.pubkeys = [bfh(pubkey)]
-        else:
-            raise Exception(f'Unexpected script type: {txin.script_type}. '
-                            f'Imported wallets are not implemented to handle this.')
-
     def pubkeys_to_address(self, pubkeys):
         pubkey = pubkeys[0]
         # FIXME This is slow.
@@ -3299,14 +3295,10 @@ class Deterministic_Wallet(Abstract_Wallet):
         return {k.derive_pubkey(*der_suffix): (k, der_suffix)
                 for k in self.get_keystores()}
 
-    def _add_input_sig_info(self, txin, address, *, only_der_suffix):
-        self._add_txinout_derivation_info(txin, address, only_der_suffix=only_der_suffix)
-
     def _add_txinout_derivation_info(self, txinout, address, *, only_der_suffix):
         if not self.is_mine(address):
             return
         pubkey_deriv_info = self.get_public_keys_with_deriv_info(address)
-        txinout.pubkeys = sorted([pk for pk in list(pubkey_deriv_info)])
         for pubkey in pubkey_deriv_info:
             ks, der_suffix = pubkey_deriv_info[pubkey]
             fp_bytes, der_full = ks.get_fp_and_derivation_to_be_used_in_partial_tx(der_suffix,
@@ -3418,7 +3410,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         return pubkeys[0]
 
     def load_keystore(self):
-        self.keystore = load_keystore(self.db, 'keystore')
+        self.keystore = load_keystore(self.db, 'keystore')  # type: KeyStoreWithMPK
         try:
             xtype = bip32.xpub_type(self.keystore.xpub)
         except:
@@ -3461,28 +3453,6 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def pubkeys_to_scriptcode(self, pubkeys: Sequence[str]) -> str:
         return transaction.multisig_script(sorted(pubkeys), self.m)
-
-    def get_redeem_script(self, address):
-        txin_type = self.get_txin_type(address)
-        pubkeys = self.get_public_keys(address)
-        scriptcode = self.pubkeys_to_scriptcode(pubkeys)
-        if txin_type == 'p2sh':
-            return scriptcode
-        elif txin_type == 'p2wsh-p2sh':
-            return bitcoin.p2wsh_nested_script(scriptcode)
-        elif txin_type == 'p2wsh':
-            return None
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
-
-    def get_witness_script(self, address):
-        txin_type = self.get_txin_type(address)
-        pubkeys = self.get_public_keys(address)
-        scriptcode = self.pubkeys_to_scriptcode(pubkeys)
-        if txin_type == 'p2sh':
-            return None
-        elif txin_type in ('p2wsh-p2sh', 'p2wsh'):
-            return scriptcode
-        raise UnknownTxinType(f'unexpected txin_type {txin_type}')
 
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i).hex() for k in self.get_keystores()]

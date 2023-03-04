@@ -227,6 +227,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.hasSeed
                             text: qsTr('Seed')
                             color: Material.accentColor
@@ -267,6 +268,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: Daemon.currentWallet.isLightning
                             text: qsTr('Lightning Node ID')
                             color: Material.accentColor
@@ -330,6 +332,7 @@ Pane {
 
                         Label {
                             Layout.columnSpan: 2
+                            Layout.topMargin: constants.paddingSmall
                             visible: _is2fa && !Daemon.currentWallet.canSignWithoutServer
                             text: qsTr('Billing')
                             color: Material.accentColor
@@ -377,6 +380,7 @@ Pane {
                             model: Daemon.currentWallet.keystores
                             delegate: ColumnLayout {
                                 Layout.columnSpan: 2
+                                Layout.topMargin: constants.paddingSmall
                                 RowLayout {
                                     Label {
                                         text: qsTr('Keystore')
@@ -508,15 +512,20 @@ Pane {
             app.stack.pop()
         }
         function onRequestNewPassword() { // new unified password (all wallets)
-            var dialog = app.passwordDialog.createObject(app,
-                    {
-                        'confirmPassword': true,
-                        'title': qsTr('Enter new password'),
-                        'infotext': qsTr('If you forget your password, you\'ll need to\
-                        restore from seed. Please make sure you have your seed stored safely')
-                    } )
+            var dialog = app.passwordDialog.createObject(app, {
+                confirmPassword: true,
+                title: qsTr('Enter new password'),
+                infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
+            })
             dialog.accepted.connect(function() {
                 Daemon.setPassword(dialog.password)
+            })
+            dialog.open()
+        }
+        function onPasswordChangeFailed() {
+            var dialog = app.messageDialog.createObject(app, {
+                title: qsTr('Error'),
+                text: qsTr('Password change failed')
             })
             dialog.open()
         }
@@ -544,9 +553,9 @@ Pane {
         target: Daemon.currentWallet
         function onRequestNewPassword() { // new wallet password
             var dialog = app.passwordDialog.createObject(app, {
-                'confirmPassword': true,
-                'title': qsTr('Enter new password'),
-                'infotext': qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
+                confirmPassword: true,
+                title: qsTr('Enter new password'),
+                infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
             })
             dialog.accepted.connect(function() {
                 Daemon.currentWallet.set_password(dialog.password)

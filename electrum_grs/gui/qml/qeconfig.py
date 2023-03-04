@@ -1,6 +1,7 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
-
+import copy
 from decimal import Decimal
+
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.i18n import set_language, languages
 from electrum_grs.logging import get_logger
@@ -34,7 +35,12 @@ class QEConfig(AuthMixin, QObject):
     languagesChanged = pyqtSignal()
     @pyqtProperty('QVariantList', notify=languagesChanged)
     def languagesAvailable(self):
-        return list(map(lambda x: {'value': x[0], 'text': x[1]}, languages.items()))
+        # sort on translated languages, then re-add Default on top
+        langs = copy.deepcopy(languages)
+        default = langs.pop('')
+        langs_sorted = sorted(list(map(lambda x: {'value': x[0], 'text': x[1]}, langs.items())), key=lambda x: x['text'])
+        langs_sorted.insert(0, {'value': '', 'text': default})
+        return langs_sorted
 
     autoConnectChanged = pyqtSignal()
     @pyqtProperty(bool, notify=autoConnectChanged)

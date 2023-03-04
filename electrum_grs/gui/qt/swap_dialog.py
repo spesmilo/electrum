@@ -46,7 +46,7 @@ class SwapDialog(WindowModalDialog):
         btn_width = 10 * char_width_in_lineedit()
         self.max_button.setFixedWidth(btn_width)
         self.max_button.setCheckable(True)
-        self.toggle_button = QPushButton(u'\U000021c4')
+        self.toggle_button = QPushButton('  \U000021c4  ')  # whitespace to force larger min width
         self.toggle_button.setEnabled(is_reverse is None)
         # send_follows is used to know whether the send amount field / receive
         # amount field should be adjusted after the fee slider was moved

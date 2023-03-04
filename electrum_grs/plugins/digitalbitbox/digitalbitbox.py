@@ -19,6 +19,7 @@ import copy
 from electrum_grs.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum_grs.bitcoin import public_key_to_p2pkh
 from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
+from electrum_grs import descriptor
 from electrum_grs import ecc
 from electrum_grs.ecc import msg_magic
 from electrum_grs.wallet import Standard_Wallet
@@ -527,7 +528,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin.is_coinbase_input():
                     self.give_error("Coinbase not supported") # should never happen
 
-                if txin.script_type != 'p2pkh':
+                assert (desc := txin.script_descriptor)
+                if desc.to_legacy_electrum_script_type() != 'p2pkh':
                     p2pkhTransaction = False
 
                 my_pubkey, inputPath = self.find_my_pubkey_in_txinout(txin)
@@ -557,9 +559,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 tx_copy = copy.deepcopy(tx)
                 # monkey-patch method of tx_copy instance to change serialization
                 def input_script(self, txin: PartialTxInput, *, estimate_size=False):
-                    if txin.script_type == 'p2pkh':
+                    desc = txin.script_descriptor
+                    if isinstance(desc, descriptor.PKHDescriptor):
                         return Transaction.get_preimage_script(txin)
-                    raise Exception("unsupported type %s" % txin.script_type)
+                    raise Exception(f"unsupported txin type. only p2pkh is supported. got: {desc.to_string()[:10]}")
                 tx_copy.input_script = input_script.__get__(tx_copy, PartialTransaction)
                 tx_dbb_serialized = tx_copy.serialize_to_network()
             else:

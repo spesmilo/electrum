@@ -25,7 +25,7 @@ from enum import Enum
 from typing import Tuple, Optional, Sequence, NamedTuple, List
 
 CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
-_CHARSET_INVERSE = {x: CHARSET.find(x) for x in CHARSET}
+_CHARSET_INVERSE = {c: i for (i, c) in enumerate(CHARSET)}
 
 BECH32_CONST = 1
 BECH32M_CONST = 0x2bc830a3

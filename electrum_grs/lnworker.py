@@ -30,6 +30,7 @@ from . import constants, util
 from . import keystore
 from .util import profiler, chunks, OldTaskGroup
 from .invoices import Invoice, PR_UNPAID, PR_EXPIRED, PR_PAID, PR_INFLIGHT, PR_FAILED, PR_ROUTING, LN_EXPIRY_NEVER
+from .invoices import BaseInvoice
 from .util import NetworkRetryManager, JsonRPCClient, NotEnoughFunds
 from .util import EventListener, event_listener
 from .lnutil import LN_MAX_FUNDING_SAT
@@ -602,6 +603,7 @@ class LNWallet(LNWorker):
         self.lnrater: LNRater = None
         self.payment_info = self.db.get_dict('lightning_payments')     # RHASH -> amount, direction, is_paid
         self.preimages = self.db.get_dict('lightning_preimages')   # RHASH -> preimage
+        self._bolt11_cache = {}
         # note: this sweep_address is only used as fallback; as it might result in address-reuse
         self.logs = defaultdict(list)  # type: Dict[str, List[HtlcLog]]  # key is RHASH  # (not persisted)
         # used in tests
@@ -730,10 +732,10 @@ class LNWallet(LNWorker):
         self.lnrater = LNRater(self, network)
 
         for chan in self.channels.values():
-            if not chan.is_redeemed():
+            if chan.need_to_subscribe():
                 self.lnwatcher.add_channel(chan.funding_outpoint.to_str(), chan.get_funding_address())
         for cb in self.channel_backups.values():
-            if not cb.is_redeemed():
+            if cb.need_to_subscribe():
                 self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
 
         for coro in [
@@ -949,6 +951,7 @@ class LNWallet(LNWorker):
     def channel_state_changed(self, chan: Channel):
         if type(chan) is Channel:
             self.save_channel(chan)
+        self.clear_invoices_cache()
         util.trigger_callback('channel', self.wallet, chan)
 
     def save_channel(self, chan: Channel):
@@ -1750,27 +1753,33 @@ class LNWallet(LNWorker):
         route[-1].node_features |= invoice_features
         return route
 
-    def create_invoice(
+    def clear_invoices_cache(self):
+        self._bolt11_cache.clear()
+
+    def get_bolt11_invoice(
             self, *,
+            payment_hash: bytes,
             amount_msat: Optional[int],
             message: str,
             expiry: int,
             fallback_address: Optional[str],
-            write_to_disk: bool = True,
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[LnAddr, str]:
+
+        pair = self._bolt11_cache.get(payment_hash)
+        if pair:
+            lnaddr, invoice = pair
+            assert lnaddr.get_amount_msat() == amount_msat
+            return pair
 
         assert amount_msat is None or amount_msat > 0
         timestamp = int(time.time())
         routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
-        if not routing_hints:
-            self.logger.info(
-                "Warning. No routing hints added to invoice. "
-                "Other clients will likely not be able to send to us.")
+        self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
-        payment_preimage = os.urandom(32)
-        payment_hash = sha256(payment_preimage)
-        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
+        payment_preimage = self.get_preimage(payment_hash)
+        if payment_preimage is None:  # e.g. when export/importing requests between wallets
+            raise Exception("missing preimage for payment_hash")
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
@@ -1789,30 +1798,20 @@ class LNWallet(LNWorker):
             date=timestamp,
             payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
+        pair = lnaddr, invoice
+        self._bolt11_cache[payment_hash] = pair
+        return pair
+
+    def create_payment_info(self, amount_sat: Optional[int], write_to_disk=True) -> bytes:
+        amount_msat = amount_sat * 1000 if amount_sat else None
+        payment_preimage = os.urandom(32)
+        payment_hash = sha256(payment_preimage)
+        info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
         self.save_preimage(payment_hash, payment_preimage, write_to_disk=False)
         self.save_payment_info(info, write_to_disk=False)
         if write_to_disk:
             self.wallet.save_db()
-        return lnaddr, invoice
-
-    def add_request(
-            self,
-            *,
-            amount_sat: Optional[int],
-            message: str,
-            expiry: int,
-            fallback_address: Optional[str],
-    ) -> str:
-        # passed expiry is relative, it is absolute in the lightning invoice
-        amount_msat = amount_sat * 1000 if amount_sat else None
-        lnaddr, invoice = self.create_invoice(
-            amount_msat=amount_msat,
-            message=message,
-            expiry=expiry,
-            fallback_address=fallback_address,
-            write_to_disk=False,
-        )
-        return invoice
+        return payment_hash
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
@@ -1822,7 +1821,7 @@ class LNWallet(LNWorker):
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
         r = self.preimages.get(payment_hash.hex())
-        return bfh(r) if r else None
+        return bytes.fromhex(r) if r else None
 
     def get_payment_info(self, payment_hash: bytes) -> Optional[PaymentInfo]:
         """returns None if payment_hash is a payment we are forwarding"""
@@ -1872,7 +1871,7 @@ class LNWallet(LNWorker):
         info = self.get_payment_info(payment_hash)
         return info.status if info else PR_UNPAID
 
-    def get_invoice_status(self, invoice: Invoice) -> int:
+    def get_invoice_status(self, invoice: BaseInvoice) -> int:
         invoice_id = invoice.rhash
         if invoice_id in self.inflight_payments:
             return PR_INFLIGHT
@@ -1891,6 +1890,8 @@ class LNWallet(LNWorker):
             self.set_payment_status(bfh(key), status)
         util.trigger_callback('invoice_status', self.wallet, key, status)
         self.logger.info(f"invoice status triggered (2) for key {key} and status {status}")
+        # liquidity changed
+        self.clear_invoices_cache()
 
     def set_request_status(self, payment_hash: bytes, status: int) -> None:
         if self.get_payment_status(payment_hash) == status:
@@ -2107,7 +2108,7 @@ class LNWallet(LNWorker):
             channels = list(self.channels.values())
             # we exclude channels that cannot *right now* receive (e.g. peer offline)
             channels = [chan for chan in channels
-                        if (chan.is_active() and not chan.is_frozen_for_receiving())]
+                        if (chan.is_open() and not chan.is_frozen_for_receiving())]
             # Filter out nodes that have low receive capacity compared to invoice amt.
             # Even with MPP, below a certain threshold, including these channels probably
             # hurts more than help, as they lead to many failed attempts for the sender.
@@ -2252,7 +2253,7 @@ class LNWallet(LNWorker):
             raise Exception('Rebalance requires two different channels')
         if self.uses_trampoline() and chan1.node_id == chan2.node_id:
             raise Exception('Rebalance requires channels from different trampolines')
-        lnaddr, invoice = self.create_invoice(
+        lnaddr, invoice = self.add_reqest(
             amount_msat=amount_msat,
             message='rebalance',
             expiry=3600,
@@ -2262,7 +2263,7 @@ class LNWallet(LNWorker):
         return await self.pay_invoice(
             invoice, channels=[chan1])
 
-    def can_receive_invoice(self, invoice: Invoice) -> bool:
+    def can_receive_invoice(self, invoice: BaseInvoice) -> bool:
         assert invoice.is_lightning()
         return (invoice.get_amount_sat() or 0) <= self.num_sats_can_receive()
 

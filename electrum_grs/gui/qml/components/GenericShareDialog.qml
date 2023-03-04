@@ -54,9 +54,9 @@ ElDialog {
                 }
 
                 TextHighlightPane {
-                    Layout.alignment: Qt.AlignHCenter
+                    Layout.leftMargin: constants.paddingMedium
+                    Layout.rightMargin: constants.paddingMedium
                     Layout.fillWidth: true
-                    Layout.maximumWidth: qr.width
                     Label {
                         width: parent.width
                         text: dialog.text
@@ -69,6 +69,8 @@ ElDialog {
                 }
 
                 Label {
+                    Layout.leftMargin: constants.paddingMedium
+                    Layout.rightMargin: constants.paddingMedium
                     visible: dialog.text_help
                     text: dialog.text_help
                     wrapMode: Text.Wrap

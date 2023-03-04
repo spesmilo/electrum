@@ -33,7 +33,7 @@ import binascii
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
-from .invoices import Invoice
+from .invoices import Invoice, Request
 from .keystore import bip44_derivation
 from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransaction, PartialTxOutput
 from .logging import Logger
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 50     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 51     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -199,6 +199,7 @@ class WalletDB(JsonDB):
         self._convert_version_48()
         self._convert_version_49()
         self._convert_version_50()
+        self._convert_version_51()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -980,6 +981,21 @@ class WalletDB(JsonDB):
         self._convert_invoices_keys(requests)
         self.data['seed_version'] = 50
 
+    def _convert_version_51(self):
+        from .lnaddr import lndecode
+        if not self._is_upgrade_method_needed(50, 50):
+            return
+        requests = self.data.get('payment_requests', {})
+        for key, item in list(requests.items()):
+            lightning_invoice = item.pop('lightning_invoice')
+            if lightning_invoice is None:
+                payment_hash = None
+            else:
+                lnaddr = lndecode(lightning_invoice)
+                payment_hash = lnaddr.paymenthash.hex()
+            item['payment_hash'] = payment_hash
+        self.data['seed_version'] = 51
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1460,7 +1476,7 @@ class WalletDB(JsonDB):
         if key == 'invoices':
             v = dict((k, Invoice(**x)) for k, x in v.items())
         if key == 'payment_requests':
-            v = dict((k, Invoice(**x)) for k, x in v.items())
+            v = dict((k, Request(**x)) for k, x in v.items())
         elif key == 'adds':
             v = dict((k, UpdateAddHtlc.from_tuple(*x)) for k, x in v.items())
         elif key == 'fee_updates':

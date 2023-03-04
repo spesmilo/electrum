@@ -7,6 +7,7 @@ import attr
 from .json_db import StoredObject
 from .i18n import _
 from .util import age, InvoiceError
+from .lnutil import hex_to_bytes
 from .lnaddr import lndecode, LnAddr
 from . import constants
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
@@ -83,7 +84,11 @@ LN_EXPIRY_NEVER = 100 * 365 * 24 * 60 * 60  # 100 years
 
 
 @attr.s
-class Invoice(StoredObject):
+class BaseInvoice(StoredObject):
+    """
+    Base class for Invoice and Request
+    In the code, we use 'invoice' for outgoing payments, and 'request' for incoming payments.
+    """
 
     # mandatory fields
     amount_msat = attr.ib(kw_only=True)  # type: Optional[Union[int, str]]  # can be '!' or None
@@ -101,13 +106,17 @@ class Invoice(StoredObject):
     bip70 = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     #bip70_requestor = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
-    # lightning only
-    lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
 
-    __lnaddr = None
+    def is_lightning(self) -> bool:
+        raise NotImplementedError()
 
-    def is_lightning(self):
-        return self.lightning_invoice is not None
+    def get_address(self) -> Optional[str]:
+        """returns the first address, to be displayed in GUI"""
+        raise NotImplementedError()
+
+    @property
+    def rhash(self) -> str:
+        raise NotImplementedError()
 
     def get_status_str(self, status):
         status_str = pr_tooltips[status]
@@ -117,15 +126,6 @@ class Invoice(StoredObject):
                 status_str = _('Expires') + ' ' + age(expiration, include_seconds=True)
         return status_str
 
-    def get_address(self) -> Optional[str]:
-        """returns the first address, to be displayed in GUI"""
-        address = None
-        if self.outputs:
-            address = self.outputs[0].address if len(self.outputs) > 0 else None
-        if not address and self.is_lightning():
-            address = self._lnaddr.get_fallback_address() or None
-        return address
-
     def get_outputs(self) -> Sequence[PartialTxOutput]:
         outputs = self.outputs or []
         if not outputs:
@@ -134,12 +134,6 @@ class Invoice(StoredObject):
             if address and amount is not None:
                 outputs = [PartialTxOutput.from_address_and_value(address, int(amount))]
         return outputs
-
-    def can_be_paid_onchain(self) -> bool:
-        if self.is_lightning():
-            return bool(self._lnaddr.get_fallback_address())
-        else:
-            return True
 
     def get_expiration_date(self):
         # 0 means never
@@ -172,33 +166,6 @@ class Invoice(StoredObject):
             return amount_msat
         return int(amount_msat // 1000)
 
-    def get_bip21_URI(self, *, include_lightning: bool = False) -> Optional[str]:
-        from electrum_grs.util import create_bip21_uri
-        addr = self.get_address()
-        amount = self.get_amount_sat()
-        if amount is not None:
-            amount = int(amount)
-        message = self.message
-        extra = {}
-        if self.time and self.exp:
-            extra['time'] = str(int(self.time))
-            extra['exp'] = str(int(self.exp))
-        lightning = self.lightning_invoice if include_lightning else None
-        if lightning:
-            extra['lightning'] = lightning
-        if not addr and lightning:
-            return "groestlcoin:?lightning="+lightning
-        if not addr and not lightning:
-            return None
-        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
-        return str(uri)
-
-    @lightning_invoice.validator
-    def _validate_invoice_str(self, attribute, value):
-        if value is not None:
-            lnaddr = lndecode(value)  # this checks the str can be decoded
-            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
-
     @amount_msat.validator
     def _validate_amount(self, attribute, value):
         if value is None:
@@ -211,16 +178,6 @@ class Invoice(StoredObject):
                 raise InvoiceError(f"unexpected amount: {value!r}")
         else:
             raise InvoiceError(f"unexpected amount: {value!r}")
-
-    @property
-    def _lnaddr(self) -> LnAddr:
-        if self.__lnaddr is None:
-            self.__lnaddr = lndecode(self.lightning_invoice)
-        return self.__lnaddr
-
-    @property
-    def rhash(self) -> str:
-        return self._lnaddr.paymenthash.hex()
 
     @classmethod
     def from_bech32(cls, invoice: str) -> 'Invoice':
@@ -259,6 +216,51 @@ class Invoice(StoredObject):
             lightning_invoice=None,
         )
 
+    def get_id(self) -> str:
+        if self.is_lightning():
+            return self.rhash
+        else:  # on-chain
+            return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
+
+@attr.s
+class Invoice(BaseInvoice):
+    lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
+    __lnaddr = None
+
+    def is_lightning(self):
+        return self.lightning_invoice is not None
+
+    def get_address(self) -> Optional[str]:
+        address = None
+        if self.outputs:
+            address = self.outputs[0].address if len(self.outputs) > 0 else None
+        if not address and self.is_lightning():
+            address = self._lnaddr.get_fallback_address() or None
+        return address
+
+    @property
+    def _lnaddr(self) -> LnAddr:
+        if self.__lnaddr is None:
+            self.__lnaddr = lndecode(self.lightning_invoice)
+        return self.__lnaddr
+
+    @property
+    def rhash(self) -> str:
+        assert self.is_lightning()
+        return self._lnaddr.paymenthash.hex()
+
+    @lightning_invoice.validator
+    def _validate_invoice_str(self, attribute, value):
+        if value is not None:
+            lnaddr = lndecode(value)  # this checks the str can be decoded
+            self.__lnaddr = lnaddr    # save it, just to avoid having to recompute later
+
+    def can_be_paid_onchain(self) -> bool:
+        if self.is_lightning():
+            return bool(self._lnaddr.get_fallback_address())
+        else:
+            return True
+
     def to_debug_json(self) -> Dict[str, Any]:
         d = self.to_json()
         d.update({
@@ -274,13 +276,50 @@ class Invoice(StoredObject):
             d['r_tags'] = [str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in ln_routing_info[-1]]
         return d
 
-    def get_id(self) -> str:
-        if self.is_lightning():
-            return self.rhash
-        else:  # on-chain
-            return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
+
+@attr.s
+class Request(BaseInvoice):
+    payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)  # type: Optional[bytes]
+
+    def is_lightning(self):
+        return self.payment_hash is not None
+
+    def get_address(self) -> Optional[str]:
+        address = None
+        if self.outputs:
+            address = self.outputs[0].address if len(self.outputs) > 0 else None
+        return address
+
+    @property
+    def rhash(self) -> str:
+        assert self.is_lightning()
+        return self.payment_hash.hex()
+
+    def get_bip21_URI(
+        self,
+        *,
+        lightning_invoice: Optional[str] = None,
+    ) -> Optional[str]:
+        from electrum.util import create_bip21_uri
+        addr = self.get_address()
+        amount = self.get_amount_sat()
+        if amount is not None:
+            amount = int(amount)
+        message = self.message
+        extra = {}
+        if self.time and self.exp:
+            extra['time'] = str(int(self.time))
+            extra['exp'] = str(int(self.exp))
+        if lightning_invoice:
+            extra['lightning'] = lightning_invoice
+        if not addr and lightning_invoice:
+            return "groestlcoin:?lightning="+lightning_invoice
+        if not addr and not lightning_invoice:
+            return None
+        uri = create_bip21_uri(addr, amount, message, extra_query_params=extra)
+        return str(uri)
 
 
-def get_id_from_onchain_outputs(outputs: List[PartialTxOutput], *, timestamp: int) -> str:
+def get_id_from_onchain_outputs(outputs: Sequence[PartialTxOutput], *, timestamp: int) -> str:
     outputs_str = "\n".join(f"{txout.scriptpubkey.hex()}, {txout.value}" for txout in outputs)
     return sha256d(outputs_str + "%d" % timestamp).hex()[0:10]

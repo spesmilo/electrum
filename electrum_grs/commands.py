@@ -66,6 +66,7 @@ from . import submarine_swaps
 from . import GuiImportError
 from . import crypto
 from . import constants
+from . import descriptor
 
 if TYPE_CHECKING:
     from .network import Network
@@ -394,9 +395,8 @@ class Commands:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
                 pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
                 keypairs[pubkey] = privkey, compressed
-                txin.script_type = txin_type
-                txin.pubkeys = [bfh(pubkey)]
-                txin.num_sig = 1
+                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+                txin.script_descriptor = desc
             inputs.append(txin)
 
         outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
@@ -420,11 +420,11 @@ class Commands:
         for priv in privkey:
             txin_type, priv2, compressed = bitcoin.deserialize_privkey(priv)
             pubkey = ecc.ECPrivkey(priv2).get_public_key_bytes(compressed=compressed)
-            address = bitcoin.pubkey_to_address(txin_type, pubkey.hex())
+            desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
+            address = desc.expand().address()
             if address in txins_dict.keys():
                 for txin in txins_dict[address]:
-                    txin.pubkeys = [pubkey]
-                    txin.script_type = txin_type
+                    txin.script_descriptor = desc
                 tx.sign({pubkey.hex(): (priv2, compressed)})
 
         return tx.serialize()

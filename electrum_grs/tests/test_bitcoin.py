@@ -815,6 +815,28 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertFalse(is_xprv('xprv1nval1d'))
         self.assertFalse(is_xprv('xprv661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
 
+    def test_bip32_from_xkey(self):
+        bip32node1 = BIP32Node.from_xkey("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy")
+        self.assertEqual(
+            BIP32Node(
+                xtype='standard',
+                eckey=ecc.ECPubkey(bytes.fromhex("022a471424da5e657499d1ff51cb43c47481a03b1e77f951fe64cec9f5a48f7011")),
+                chaincode=bytes.fromhex("c783e67b921d2beb8f6b389cc646d7263b4145701dadd2161548a8b078e65e9e"),
+                depth=5,
+                fingerprint=bytes.fromhex("d880d7d8"),
+                child_number=bytes.fromhex("3b9aca00"),
+            ),
+            bip32node1)
+        with self.assertRaises(ValueError):
+            BIP32Node.from_xkey(
+                "zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8",
+                allow_custom_headers=False)
+        bip32node2 = BIP32Node.from_xkey(
+            "zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8",
+            allow_custom_headers=True)
+        self.assertEqual(bytes.fromhex("03f18e53f3386a5f9a9d2c369ad3b84b429eb397b4bc69ce600f2d833b54ba32f4"),
+                         bip32node2.eckey.get_public_key_bytes(compressed=True))
+
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))

@@ -127,6 +127,7 @@ class QEDaemon(AuthMixin, QObject):
     newWalletWizardChanged = pyqtSignal()
     serverConnectWizardChanged = pyqtSignal()
     loadingChanged = pyqtSignal()
+    passwordChangeFailed = pyqtSignal()
 
     walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
     walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
@@ -316,11 +317,10 @@ class QEDaemon(AuthMixin, QObject):
     @pyqtSlot(str)
     def setPassword(self, password):
         assert self._use_single_password
-        # map empty string password to None
-        if password == '':
-            password = None
-        self._logger.debug('about to set password for ALL wallets')
-        self.daemon.update_password_for_directory(old_password=self._password, new_password=password)
+        assert password
+        if not self.daemon.update_password_for_directory(old_password=self._password, new_password=password):
+            self.passwordChangeFailed.emit()
+            return
         self._password = password
 
     @pyqtProperty(QENewWalletWizard, notify=newWalletWizardChanged)

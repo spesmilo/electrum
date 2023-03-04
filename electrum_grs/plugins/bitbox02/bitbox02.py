@@ -444,9 +444,10 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
+            assert (desc := txin.script_descriptor)
             if tx_script_type is None:
-                tx_script_type = txin.script_type
-            elif tx_script_type != txin.script_type:
+                tx_script_type = desc.to_legacy_electrum_script_type()
+            elif tx_script_type != desc.to_legacy_electrum_script_type():
                 raise Exception("Cannot mix different input script types")
 
         if tx_script_type == "p2wpkh":

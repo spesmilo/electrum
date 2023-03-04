@@ -8,6 +8,7 @@ from enum import Enum, auto
 from .util import bfh
 from .bitcoin import redeem_script_to_address, dust_threshold, construct_witness
 from .invoices import PR_PAID
+from . import descriptor
 from . import ecc
 from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 
 
 _logger = get_logger(__name__)
+# note: better to use chan.logger instead, when applicable
 
 
 class SweepInfo(NamedTuple):
@@ -215,7 +217,7 @@ def create_sweeptxs_for_our_ctx(
         found_to_remote = False
     if not found_to_local and not found_to_remote:
         return
-    _logger.debug(f'found our ctx: {to_local_address} {to_remote_address}')
+    chan.logger.debug(f'(lnsweep) found our ctx: {to_local_address} {to_remote_address}')
     # other outputs are htlcs
     # if they are spent, we need to generate the script
     # so, second-stage htlc sweep should not be returned here
@@ -241,7 +243,7 @@ def create_sweeptxs_for_our_ctx(
             gen_tx=sweep_tx)
     we_breached = ctn < chan.get_oldest_unrevoked_ctn(LOCAL)
     if we_breached:
-        _logger.info("we breached.")
+        chan.logger.info(f"(lnsweep) we breached. txid: {ctx.txid()}")
         # return only our_ctx_to_local, because we don't keep htlc_signatures for old states
         return txs
 
@@ -328,7 +330,7 @@ def analyze_ctx(chan: 'Channel', ctx: Transaction):
             return
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
         is_revocation = True
-        #_logger.info(f'tx for revoked: {list(txs.keys())}')
+        #chan.logger.debug(f'(lnsweep) tx for revoked: {list(txs.keys())}')
     elif chan.get_data_loss_protect_remote_pcp(ctn):
         their_pcp = chan.get_data_loss_protect_remote_pcp(ctn)
         is_revocation = False
@@ -368,7 +370,7 @@ def create_sweeptxs_for_their_ctx(
         found_to_remote = False
     if not found_to_local and not found_to_remote:
         return
-    _logger.debug(f'found their ctx: {to_local_address} {to_remote_address}')
+    chan.logger.debug(f'(lnsweep) found their ctx: {to_local_address} {to_remote_address}')
     if is_revocation:
         our_revocation_privkey = derive_blinded_privkey(our_conf.revocation_basepoint.privkey, per_commitment_secret)
         gen_tx = create_sweeptx_for_their_revoked_ctx(chan, ctx, per_commitment_secret, chan.sweep_address)
@@ -512,9 +514,8 @@ def create_sweeptx_their_ctx_to_remote(
     prevout = TxOutpoint(txid=bfh(ctx.txid()), out_idx=output_idx)
     txin = PartialTxInput(prevout=prevout)
     txin._trusted_value_sats = val
-    txin.script_type = 'p2wpkh'
-    txin.pubkeys = [bfh(our_payment_pubkey)]
-    txin.num_sig = 1
+    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=our_payment_pubkey, script_type='p2wpkh')
+    txin.script_descriptor = desc
     sweep_inputs = [txin]
     tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
     fee = config.estimate_fee(tx_size_bytes, allow_fallback_to_static_rates=True)

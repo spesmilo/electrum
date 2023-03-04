@@ -124,7 +124,6 @@ def create_claim_tx(
     """Create tx to either claim successful reverse-swap,
     or to get refunded for timed-out forward-swap.
     """
-    txin.script_type = 'p2wsh'
     txin.script_sig = b''
     txin.witness_script = witness_script
     txout = PartialTxOutput.from_address_and_value(address, amount_sat)
@@ -261,14 +260,16 @@ class SwapManager(Logger):
         assert self.lnwatcher
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
-        lnaddr, invoice = self.lnworker.create_invoice(
-            amount_msat=lightning_amount_sat * 1000,
+        amount_msat = lightning_amount_sat * 1000
+        payment_hash = self.lnworker.create_payment_info(lightning_amount_sat)
+        lnaddr, invoice = self.lnworker.get_bolt11_invoice(
+            payment_hash=payment_hash,
+            amount_msat=amount_msat,
             message='swap',
             expiry=3600 * 24,
             fallback_address=None,
             channels=channels,
         )
-        payment_hash = lnaddr.paymenthash
         preimage = self.lnworker.get_preimage(payment_hash)
         request_data = {
             "type": "submarine",
@@ -620,8 +621,6 @@ class SwapManager(Logger):
             return
         preimage = swap.preimage if swap.is_reverse else 0
         witness_script = swap.redeem_script
-        txin.script_type = 'p2wsh'
-        txin.num_sig = 1  # hack so that txin not considered "is_complete"
         txin.script_sig = b''
         txin.witness_script = witness_script
         sig_dummy = b'\x00' * 71  # DER-encoded ECDSA sig, with low S and low R
@@ -635,7 +634,6 @@ class SwapManager(Logger):
         txin = tx.inputs()[0]
         assert len(tx.inputs()) == 1, f"expected 1 input for swap claim tx. found {len(tx.inputs())}"
         assert txin.prevout.txid.hex() == swap.funding_txid
-        txin.script_type = 'p2wsh'
         txin.script_sig = b''
         txin.witness_script = witness_script
         sig = bytes.fromhex(tx.sign_txin(0, swap.privkey))
