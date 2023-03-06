@@ -141,6 +141,7 @@ WizardComponent {
                 visible: !is2fa
                 text: qsTr('Seed Type')
             }
+
             ComboBox {
                 id: seed_variant_cb
                 visible: !is2fa
@@ -157,15 +158,19 @@ WizardComponent {
                     checkValid()
                 }
             }
+
             InfoTextArea {
                 id: infotext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
             }
+
             Label {
-                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
+                Layout.topMargin: constants.paddingMedium
                 Layout.columnSpan: 2
+                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
             }
+
             SeedTextArea {
                 id: seedtext
                 Layout.fillWidth: true

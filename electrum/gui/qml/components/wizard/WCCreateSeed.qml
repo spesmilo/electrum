@@ -48,7 +48,12 @@ WizardComponent {
                 Layout.fillWidth: true
                 iconStyle: InfoTextArea.IconStyle.Warn
             }
-            Label { text: qsTr('Your wallet generation seed is:') }
+
+            Label {
+                Layout.topMargin: constants.paddingMedium
+                text: qsTr('Your wallet generation seed is:')
+            }
+
             SeedTextArea {
                 id: seedtext
                 readOnly: true
@@ -60,16 +65,19 @@ WizardComponent {
                     visible: seedtext.text == ''
                 }
             }
+
             CheckBox {
                 id: extendcb
                 text: qsTr('Extend seed with custom words')
             }
+
             TextField {
                 id: customwordstext
                 visible: extendcb.checked
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
             }
+
             Component.onCompleted : {
                 setWarningText(12)
             }

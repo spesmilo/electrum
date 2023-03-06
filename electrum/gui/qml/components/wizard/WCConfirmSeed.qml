@@ -34,6 +34,7 @@ WizardComponent {
             }
 
             Label {
+                Layout.topMargin: constants.paddingMedium
                 text: qsTr('Confirm your seed (re-enter)')
             }
 
