@@ -45,7 +45,7 @@ ElDialog {
                 Layout.columnSpan: 4
                 Layout.fillWidth: true
 
-                visible: Daemon.currentWallet.lightningCanReceive
+                visible: !Daemon.currentWallet.lightningCanReceive.isEmpty
 
                 RowLayout {
                     width: parent.width
@@ -55,6 +55,8 @@ ElDialog {
                         font.pixelSize: constants.fontSizeSmall
                         color: Material.accentColor
                         wrapMode: Text.Wrap
+                        // try to fill/wrap in remaining space
+                        Layout.preferredWidth: Math.min(implicitWidth, parent.width - 2*parent.spacing - constants.iconSizeSmall - lnMaxAmount.implicitWidth)
                     }
                     Image {
                         Layout.preferredWidth: constants.iconSizeSmall
@@ -62,6 +64,7 @@ ElDialog {
                         source: '../../icons/lightning.png'
                     }
                     FormattedAmount {
+                        id: lnMaxAmount
                         amount: Daemon.currentWallet.lightningCanReceive
                     }
                 }

@@ -39,6 +39,7 @@ Item {
             }
 
             Label {
+                Layout.alignment: Qt.AlignRight
                 font.pixelSize: constants.fontSizeXLarge
                 font.family: FixedFont
                 text: formattedTotalBalance
