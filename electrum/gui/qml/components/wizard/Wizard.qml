@@ -11,6 +11,7 @@ ElDialog {
 
     width: parent.width
     height: parent.height
+    padding: 0
 
     title: wizardTitle + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
     iconSource: '../../../icons/electrum.png'
@@ -103,6 +104,7 @@ ElDialog {
             id: pages
             Layout.fillWidth: true
             Layout.fillHeight: true
+
             interactive: false
 
             clip:true

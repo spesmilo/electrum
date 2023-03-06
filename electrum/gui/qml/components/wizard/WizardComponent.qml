@@ -1,6 +1,8 @@
 import QtQuick 2.0
+import QtQuick.Controls 2.3
+import QtQuick.Controls.Material 2.0
 
-Item {
+Pane {
     id: root
     signal next
     signal prev
@@ -9,6 +11,13 @@ Item {
     property bool valid
     property bool last: false
     property string title: ''
+
+    leftPadding: constants.paddingXLarge
+    rightPadding: constants.paddingXLarge
+
+    background: Rectangle {
+        color: Material.dialogColor
+    }
 
     onAccept: {
         apply()
