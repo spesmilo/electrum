@@ -334,7 +334,7 @@ class QETxFinalizer(TxFeeSlider):
             invoice_amt=amount, tx_size=tx.estimated_size(), fee=tx.get_fee())
         if fee_warning_tuple:
             allow_send, long_warning, short_warning = fee_warning_tuple
-            self.warning = long_warning
+            self.warning = _('Warning') + ': ' + long_warning
         else:
             self.warning = ''
 

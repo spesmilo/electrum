@@ -67,7 +67,8 @@ class TxEditor(WindowModalDialog):
         self.make_tx = make_tx
         self.output_value = output_value
         self.tx = None  # type: Optional[PartialTransaction]
-        self.message = '' # set by side effect
+        self.message = '' # set by side effect in RBF dialogs
+        self.warning = '' # set by side effect
         self.error = ''   # set by side effect
 
         self.config = window.config
@@ -93,9 +94,12 @@ class TxEditor(WindowModalDialog):
 
         vbox.addLayout(top)
         vbox.addLayout(grid)
-        self.message_label = WWLabel('\n')
+        self.message_label = WWLabel('')
         vbox.addWidget(self.message_label)
         vbox.addWidget(self.io_widget)
+        self.warning_label = WWLabel('')
+        vbox.addWidget(self.warning_label)
+
         buttons = self.create_buttons_bar()
         vbox.addStretch(1)
         vbox.addLayout(buttons)
@@ -531,7 +535,7 @@ class TxEditor(WindowModalDialog):
                 self.io_widget.update(None)
             self.set_feerounding_visibility(False)
         else:
-            self.check_tx_fee_warning()
+            self.check_warnings()
             self.update_fee_fields()
             if self.locktime_e.get_locktime() is None:
                 self.locktime_e.set_locktime(self.tx.locktime)
@@ -542,8 +546,9 @@ class TxEditor(WindowModalDialog):
         self._update_send_button()
         self._update_message()
 
-    def check_tx_fee_warning(self):
-        # side effects: self.error, self.message
+    def check_warnings(self):
+        # side effects: self.error, self.warning
+        warnings = []
         fee = self.tx.get_fee()
         assert fee is not None
         amount = self.tx.output_value() if self.output_value == '!' else self.output_value
@@ -555,8 +560,17 @@ class TxEditor(WindowModalDialog):
             if not allow_send:
                 self.error = long_warning
             else:
-                # note: this may overrride existing message
-                self.message = long_warning
+                warnings.append(long_warning)
+        # warn if spending unconf
+        if any(txin.block_height<=0 for txin in self.tx.inputs()):
+            warnings.append(_('This transaction spends unconfirmed coins.'))
+        # warn if we merge from mempool
+        base_tx = self.wallet.get_unconfirmed_base_tx_for_batching()
+        if self.config.get('batch_rbf', False) and base_tx:
+            warnings.append(_('This payment was merged with another existing transaction.'))
+        # TODO: warn if we send change back to input address
+        self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
+        self._update_warning()
 
     def set_locktime(self):
         if not self.tx:
@@ -572,9 +586,14 @@ class TxEditor(WindowModalDialog):
         pass
 
     def _update_message(self):
-        style = ColorScheme.RED if self.error else ColorScheme.BLUE
+        style = ColorScheme.BLUE
         self.message_label.setStyleSheet(style.as_stylesheet())
-        self.message_label.setText(self.error or self.message)
+        self.message_label.setText(self.message)
+
+    def _update_warning(self):
+        style = ColorScheme.RED if self.error else ColorScheme.BLUE
+        self.warning_label.setStyleSheet(style.as_stylesheet())
+        self.warning_label.setText(self.error or self.warning)
 
     def _update_send_button(self):
         enabled = bool(self.tx) and not self.error

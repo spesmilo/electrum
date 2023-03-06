@@ -2859,12 +2859,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             allow_send = False
         elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
             long_warning = (
-                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    _("The fee for this transaction seems unusually high.")
                     + f' ({fee_ratio*100:.2f}% of amount)')
             short_warning = _("high fee ratio") + "!"
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             long_warning = (
-                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    _("The fee for this transaction seems unusually high.")
                     + f' (feerate: {feerate:.2f} sat/byte)')
             short_warning = _("high fee rate") + "!"
         if long_warning is None:
