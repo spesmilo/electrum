@@ -1335,6 +1335,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def set_frozen_state_of_coins(self, utxos: Sequence[PartialTxInput], freeze: bool):
         utxos_str = {utxo.prevout.to_str() for utxo in utxos}
         self.wallet.set_frozen_state_of_coins(utxos_str, freeze)
+        self.address_list.refresh_all()
         self.utxo_list.refresh_all()
         self.utxo_list.selectionModel().clearSelection()
 
