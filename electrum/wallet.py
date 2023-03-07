@@ -1664,6 +1664,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             raise Exception(f'Invalid argument fee: {fee}')
 
+        # set if we merge with another transaction
+        rbf_merge_txid = None
+
         if len(i_max) == 0:
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
@@ -1686,6 +1689,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
+                rbf_merge_txid = base_tx.txid()
             else:
                 txi = []
                 txo = []
@@ -1727,6 +1731,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
+        tx.rbf_merge_txid = rbf_merge_txid
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)

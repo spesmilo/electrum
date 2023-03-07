@@ -1651,6 +1651,7 @@ class PartialTransaction(Transaction):
         self._inputs = []  # type: List[PartialTxInput]
         self._outputs = []  # type: List[PartialTxOutput]
         self._unknown = {}  # type: Dict[bytes, bytes]
+        self.rbf_merge_txid = None
 
     def to_json(self) -> dict:
         d = super().to_json()

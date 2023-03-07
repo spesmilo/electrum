@@ -567,8 +567,7 @@ class TxEditor(WindowModalDialog):
         if any(txin.block_height<=0 for txin in self.tx.inputs()):
             warnings.append(_('This transaction spends unconfirmed coins.'))
         # warn if we merge from mempool
-        base_tx = self.wallet.get_unconfirmed_base_tx_for_batching()
-        if self.config.get('batch_rbf', False) and base_tx:
+        if self.tx.rbf_merge_txid:
             warnings.append(_('This payment was merged with another existing transaction.'))
         # TODO: warn if we send change back to input address
         self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
