@@ -534,6 +534,7 @@ class TxEditor(WindowModalDialog):
             if self.not_enough_funds:
                 self.io_widget.update(None)
             self.set_feerounding_visibility(False)
+            self.warning = ''
         else:
             self.check_warnings()
             self.update_fee_fields()
@@ -545,6 +546,7 @@ class TxEditor(WindowModalDialog):
 
         self._update_send_button()
         self._update_message()
+        self._update_warning()
 
     def check_warnings(self):
         # side effects: self.error, self.warning
@@ -570,7 +572,6 @@ class TxEditor(WindowModalDialog):
             warnings.append(_('This payment was merged with another existing transaction.'))
         # TODO: warn if we send change back to input address
         self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
-        self._update_warning()
 
     def set_locktime(self):
         if not self.tx:
