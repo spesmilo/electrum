@@ -120,6 +120,17 @@ Pane {
                         text: txdetails.status
                     }
 
+                    Label {
+                        text: qsTr('Mempool depth')
+                        color: Material.accentColor
+                        visible: txdetails.mempoolDepth
+                    }
+
+                    Label {
+                        text: txdetails.mempoolDepth
+                        visible: txdetails.mempoolDepth
+                    }
+
                     TextHighlightPane {
                         Layout.fillWidth: true
                         Layout.columnSpan: 2
@@ -173,17 +184,6 @@ Pane {
                             }
                         }
 
-                    }
-
-                    Label {
-                        text: qsTr('Mempool depth')
-                        color: Material.accentColor
-                        visible: txdetails.mempoolDepth
-                    }
-
-                    Label {
-                        text: txdetails.mempoolDepth
-                        visible: txdetails.mempoolDepth
                     }
 
                     Label {

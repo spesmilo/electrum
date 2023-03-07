@@ -26,14 +26,13 @@ WizardComponent {
     ColumnLayout {
         width: parent.width
 
-        Label { text: qsTr('Import Groestlcoin Addresses') }
-
         InfoTextArea {
             Layout.preferredWidth: parent.width
             text: qsTr('Enter a list of Groestlcoin addresses (this will create a watching-only wallet), or a list of private keys.')
         }
 
         RowLayout {
+            Layout.topMargin: constants.paddingMedium
             TextArea {
                 id: import_ta
                 Layout.fillWidth: true

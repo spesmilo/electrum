@@ -153,12 +153,12 @@ class BumpFeeDialog(_BaseRBFDialog):
             txid=txid,
             title=_('Bump Fee'))
 
-    def rbf_func(self, fee_rate):
+    def rbf_func(self, fee_rate, *, confirmed_only=False):
         return self.wallet.bump_fee(
             tx=self.old_tx,
             txid=self.old_txid,
             new_fee_rate=fee_rate,
-            coins=self.main_window.get_coins(),
+            coins=self.main_window.get_coins(nonlocal_only=True, confirmed_only=confirmed_only),
             decrease_payment=self.is_decrease_payment())
 
 
@@ -183,5 +183,5 @@ class DSCancelDialog(_BaseRBFDialog):
         self.method_label.setVisible(False)
         self.method_combo.setVisible(False)
 
-    def rbf_func(self, fee_rate):
+    def rbf_func(self, fee_rate, *, confirmed_only=False):
         return self.wallet.dscancel(tx=self.old_tx, new_fee_rate=fee_rate)

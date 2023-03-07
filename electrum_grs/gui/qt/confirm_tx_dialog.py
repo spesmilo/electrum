@@ -67,7 +67,8 @@ class TxEditor(WindowModalDialog):
         self.make_tx = make_tx
         self.output_value = output_value
         self.tx = None  # type: Optional[PartialTransaction]
-        self.message = '' # set by side effect
+        self.message = '' # set by side effect in RBF dialogs
+        self.warning = '' # set by side effect
         self.error = ''   # set by side effect
 
         self.config = window.config
@@ -93,9 +94,12 @@ class TxEditor(WindowModalDialog):
 
         vbox.addLayout(top)
         vbox.addLayout(grid)
-        self.message_label = WWLabel('\n')
+        self.message_label = WWLabel('')
         vbox.addWidget(self.message_label)
         vbox.addWidget(self.io_widget)
+        self.warning_label = WWLabel('')
+        vbox.addWidget(self.warning_label)
+
         buttons = self.create_buttons_bar()
         vbox.addStretch(1)
         vbox.addLayout(buttons)
@@ -374,12 +378,58 @@ class TxEditor(WindowModalDialog):
 
     def create_top_bar(self, text):
         self.pref_menu = QMenu()
-        self.m1 = self.pref_menu.addAction('Show inputs/outputs', self.toggle_io_visibility)
-        self.m1.setCheckable(True)
-        self.m2 = self.pref_menu.addAction('Edit fees', self.toggle_fee_details)
-        self.m2.setCheckable(True)
-        self.m3 = self.pref_menu.addAction('Edit Locktime', self.toggle_locktime)
-        self.m3.setCheckable(True)
+        self.pref_menu.setToolTipsVisible(True)
+        def add_pref_action(b, action, text, tooltip):
+            m = self.pref_menu.addAction(text, action)
+            m.setCheckable(True)
+            m.setChecked(b)
+            m.setToolTip(tooltip)
+            return m
+        add_pref_action(
+            self.config.get('show_tx_io', False),
+            self.toggle_io_visibility,
+            _('Show inputs and outputs'), '')
+        add_pref_action(
+            self.config.get('show_tx_fee_details', False),
+            self.toggle_fee_details,
+            _('Edit fees manually'), '')
+        add_pref_action(
+            self.config.get('show_tx_locktime', False),
+            self.toggle_locktime,
+            _('Edit Locktime'), '')
+        self.pref_menu.addSeparator()
+        add_pref_action(
+            self.wallet.use_change,
+            self.toggle_use_change,
+            _('Use change addresses'),
+            _('Using change addresses makes it more difficult for other people to track your transactions.'))
+        self.use_multi_change_menu = add_pref_action(
+            self.wallet.multiple_change, self.toggle_multiple_change,
+            _('Use multiple change addresses',),
+            '\n'.join([
+                _('In some cases, use up to 3 change addresses in order to break '
+                  'up large coin amounts and obfuscate the recipient address.'),
+                _('This may result in higher transactions fees.')
+            ]))
+        self.use_multi_change_menu.setEnabled(self.wallet.use_change)
+        add_pref_action(
+            self.config.get('batch_rbf', False),
+            self.toggle_batch_rbf,
+            _('Batch unconfirmed transactions'),
+            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
+            _('This will save fees, but might have unwanted effects in terms of privacy'))
+        add_pref_action(
+            self.config.get('confirmed_only', False),
+            self.toggle_confirmed_only,
+            _('Spend only confirmed coins'),
+            _('Spend only confirmed inputs.'))
+        add_pref_action(
+            self.config.get('coin_chooser_output_rounding', True),
+            self.toggle_confirmed_only,
+            _('Enable output value rounding'),
+            _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' + \
+            _('This might improve your privacy somewhat.') + '\n' + \
+            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
         self.pref_button = QToolButton()
         self.pref_button.setIcon(read_QIcon("preferences.png"))
         self.pref_button.setMenu(self.pref_menu)
@@ -396,6 +446,27 @@ class TxEditor(WindowModalDialog):
         size = self.layout().sizeHint()
         self.resize(size)
         self.resize(size)
+
+    def toggle_use_change(self):
+        self.wallet.use_change = not self.wallet.use_change
+        self.wallet.db.put('use_change', self.wallet.use_change)
+        self.use_multi_change_menu.setEnabled(self.wallet.use_change)
+        self.trigger_update()
+
+    def toggle_multiple_change(self):
+        self.wallet.multiple_change = not self.wallet.multiple_change
+        self.wallet.db.put('multiple_change', self.wallet.multiple_change)
+        self.trigger_update()
+
+    def toggle_batch_rbf(self):
+        b = not self.config.get('batch_rbf', False)
+        self.config.set_key('batch_rbf', b)
+        self.trigger_update()
+
+    def toggle_confirmed_only(self):
+        b = not self.config.get('confirmed_only', False)
+        self.config.set_key('confirmed_only', b)
+        self.trigger_update()
 
     def toggle_io_visibility(self):
         b = not self.config.get('show_tx_io', False)
@@ -417,7 +488,6 @@ class TxEditor(WindowModalDialog):
 
     def set_io_visible(self, b):
         self.io_widget.setVisible(b)
-        self.m1.setChecked(b)
 
     def set_fee_edit_visible(self, b):
         detailed = [self.feerounding_icon, self.feerate_e, self.fee_e]
@@ -427,14 +497,12 @@ class TxEditor(WindowModalDialog):
             w.hide()
         for w in (detailed if b else basic):
             w.show()
-        self.m2.setChecked(b)
 
     def set_locktime_visible(self, b):
         for w in [
                 self.locktime_e,
                 self.locktime_label]:
             w.setVisible(b)
-        self.m3.setChecked(b)
 
     def run(self):
         cancelled = not self.exec_()
@@ -452,11 +520,23 @@ class TxEditor(WindowModalDialog):
     def _update_widgets(self):
         self._update_amount_label()
         if self.not_enough_funds:
-            self.error = self.main_window.send_tab.get_text_not_enough_funds_mentioning_frozen()
-        if not self.tx:
-            self.set_feerounding_visibility(False)
+            self.error = _('Not enough funds.')
+            confirmed_only = self.config.get('confirmed_only', False)
+            if confirmed_only and self.can_pay_assuming_zero_fees(confirmed_only=False):
+                self.error += ' ' + _('Change your settings to allow spending unconfirmed coins.')
+            elif self.can_pay_assuming_zero_fees(confirmed_only=confirmed_only):
+                self.error += ' ' + _('You need to set a lower fee.')
+            else:
+                self.error += ''
         else:
-            self.check_tx_fee_warning()
+            self.error = ''
+        if not self.tx:
+            if self.not_enough_funds:
+                self.io_widget.update(None)
+            self.set_feerounding_visibility(False)
+            self.warning = ''
+        else:
+            self.check_warnings()
             self.update_fee_fields()
             if self.locktime_e.get_locktime() is None:
                 self.locktime_e.set_locktime(self.tx.locktime)
@@ -466,10 +546,11 @@ class TxEditor(WindowModalDialog):
 
         self._update_send_button()
         self._update_message()
+        self._update_warning()
 
-
-    def check_tx_fee_warning(self):
-        # side effects: self.error, self.message
+    def check_warnings(self):
+        # side effects: self.error, self.warning
+        warnings = []
         fee = self.tx.get_fee()
         assert fee is not None
         amount = self.tx.output_value() if self.output_value == '!' else self.output_value
@@ -481,8 +562,16 @@ class TxEditor(WindowModalDialog):
             if not allow_send:
                 self.error = long_warning
             else:
-                # note: this may overrride existing message
-                self.message = long_warning
+                warnings.append(long_warning)
+        # warn if spending unconf
+        if any(txin.block_height<=0 for txin in self.tx.inputs()):
+            warnings.append(_('This transaction spends unconfirmed coins.'))
+        # warn if we merge from mempool
+        base_tx = self.wallet.get_unconfirmed_base_tx_for_batching()
+        if self.config.get('batch_rbf', False) and base_tx:
+            warnings.append(_('This payment was merged with another existing transaction.'))
+        # TODO: warn if we send change back to input address
+        self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
 
     def set_locktime(self):
         if not self.tx:
@@ -498,9 +587,14 @@ class TxEditor(WindowModalDialog):
         pass
 
     def _update_message(self):
-        style = ColorScheme.RED if self.error else ColorScheme.BLUE
+        style = ColorScheme.BLUE
         self.message_label.setStyleSheet(style.as_stylesheet())
-        self.message_label.setText(self.error or self.message)
+        self.message_label.setText(self.message)
+
+    def _update_warning(self):
+        style = ColorScheme.RED if self.error else ColorScheme.BLUE
+        self.warning_label.setStyleSheet(style.as_stylesheet())
+        self.warning_label.setText(self.error or self.warning)
 
     def _update_send_button(self):
         enabled = bool(self.tx) and not self.error
@@ -538,8 +632,9 @@ class ConfirmTxDialog(TxEditor):
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         fee_estimator = self.get_fee_estimator()
+        confirmed_only = self.config.get('confirmed_only', False)
         try:
-            self.tx = self.make_tx(fee_estimator)
+            self.tx = self.make_tx(fee_estimator, confirmed_only=confirmed_only)
             self.not_enough_funds = False
             self.no_dynfee_estimates = False
             error = ''
@@ -549,7 +644,7 @@ class ConfirmTxDialog(TxEditor):
             self.tx = None
             if fallback_to_zero_fee:
                 try:
-                    self.tx = self.make_tx(0)
+                    self.tx = self.make_tx(0, confirmed_only=confirmed_only)
                 except BaseException:
                     return
             else:
@@ -558,7 +653,7 @@ class ConfirmTxDialog(TxEditor):
             self.no_dynfee_estimates = True
             self.tx = None
             try:
-                self.tx = self.make_tx(0)
+                self.tx = self.make_tx(0, confirmed_only=confirmed_only)
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 return
@@ -570,10 +665,10 @@ class ConfirmTxDialog(TxEditor):
             raise
         self.tx.set_rbf(True)
 
-    def have_enough_funds_assuming_zero_fees(self) -> bool:
+    def can_pay_assuming_zero_fees(self, confirmed_only) -> bool:
         # called in send_tab.py
         try:
-            tx = self.make_tx(0)
+            tx = self.make_tx(0, confirmed_only=confirmed_only)
         except NotEnoughFunds:
             return False
         else:

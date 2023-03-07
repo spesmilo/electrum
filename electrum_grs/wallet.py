@@ -926,8 +926,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain: Optional[Iterable[str]] = None,
             *,
             nonlocal_only: bool = False,
+            confirmed_only: bool = False,
     ) -> Sequence[PartialTxInput]:
-        confirmed_only = self.config.get('confirmed_only', False)
         with self._freeze_lock:
             frozen_addresses = self._frozen_addresses.copy()
         utxos = self.get_utxos(
@@ -1668,8 +1668,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching()
-            if self.config.get('batch_rbf', False) and base_tx:
+            base_tx = self.get_unconfirmed_base_tx_for_batching() if self.config.get('batch_rbf', False) else None
+            if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
@@ -2859,12 +2859,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             allow_send = False
         elif fee_ratio >= FEE_RATIO_HIGH_WARNING:
             long_warning = (
-                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    _("The fee for this transaction seems unusually high.")
                     + f' ({fee_ratio*100:.2f}% of amount)')
             short_warning = _("high fee ratio") + "!"
         elif feerate > FEERATE_WARNING_HIGH_FEE / 1000:
             long_warning = (
-                    _('Warning') + ': ' + _("The fee for this transaction seems unusually high.")
+                    _("The fee for this transaction seems unusually high.")
                     + f' (feerate: {feerate:.2f} gro/byte)')
             short_warning = _("high fee rate") + "!"
         if long_warning is None:

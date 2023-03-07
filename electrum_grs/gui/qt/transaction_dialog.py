@@ -132,12 +132,17 @@ class TxInOutWidget(QWidget):
         vbox.addWidget(self.outputs_textedit)
         self.setLayout(vbox)
 
-    def update(self, tx):
+    def update(self, tx: Optional[Transaction]):
         self.tx = tx
+        if tx is None:
+            self.inputs_header.setText('')
+            self.inputs_textedit.setText('')
+            self.outputs_header.setText('')
+            self.outputs_textedit.setText('')
+            return
+
         inputs_header_text = _("Inputs") + ' (%d)'%len(self.tx.inputs())
-
         self.inputs_header.setText(inputs_header_text)
-
         ext = QTextCharFormat()  # "external"
         lnk = QTextCharFormat()
         lnk.setToolTip(_('Click to open, right-click for menu'))

@@ -179,12 +179,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         outputs = self.payto_e.get_outputs(True)
         if not outputs:
             return
-        make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
             coins=self.window.get_coins(),
             outputs=outputs,
             fee=fee_est,
             is_sweep=False)
-
         try:
             try:
                 tx = make_tx(None)
@@ -216,32 +215,30 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         QToolTip.showText(self.max_button.mapToGlobal(QPoint(0, 0)), msg)
 
     def pay_onchain_dialog(
-            self, inputs: Sequence[PartialTxInput],
+            self,
             outputs: List[PartialTxOutput], *,
+            nonlocal_only=False,
             external_keypairs=None) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
         is_sweep = bool(external_keypairs)
-        make_tx = lambda fee_est: self.wallet.make_unsigned_transaction(
-            coins=inputs,
+        # we call get_coins inside make_tx, so that inputs can be changed dynamically
+        make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
+            coins=self.window.get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
             outputs=outputs,
             fee=fee_est,
             is_sweep=is_sweep)
         output_values = [x.value for x in outputs]
-        if any(parse_max_spend(outval) for outval in output_values):
-            output_value = '!'
-        else:
-            output_value = sum(output_values)
+        is_max = any(parse_max_spend(outval) for outval in output_values)
+        output_value = '!' if is_max else sum(output_values)
         conf_dlg = ConfirmTxDialog(window=self.window, make_tx=make_tx, output_value=output_value)
         if conf_dlg.not_enough_funds:
-            # Check if we had enough funds excluding fees,
-            # if so, still provide opportunity to set lower fees.
-            if not conf_dlg.have_enough_funds_assuming_zero_fees():
+            confirmed_only = self.config.get('confirmed_only', False)
+            if not conf_dlg.can_pay_assuming_zero_fees(confirmed_only=False):
                 text = self.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
                 return
-
         tx = conf_dlg.run()
         if tx is None:
             # user cancelled
@@ -250,14 +247,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if is_preview:
             self.window.show_transaction(tx)
             return
-
         self.save_pending_invoice()
         def sign_done(success):
             if success:
                 self.window.broadcast_or_show(tx)
             else:
                 raise
-
         self.window.sign_tx(
             tx,
             callback=sign_done,
@@ -564,13 +559,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         outputs = []
         for invoice in invoices:
             outputs += invoice.outputs
-        self.pay_onchain_dialog(self.window.get_coins(), outputs)
+        self.pay_onchain_dialog(outputs)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
         if invoice.is_lightning():
             self.pay_lightning_invoice(invoice)
         else:
-            self.pay_onchain_dialog(self.window.get_coins(), invoice.outputs)
+            self.pay_onchain_dialog(invoice.outputs)
 
     def read_outputs(self) -> List[PartialTxOutput]:
         if self.payment_request:
@@ -695,7 +690,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
                 elif r == 3:
-                    self.pay_onchain_dialog(coins, invoice.get_outputs())
+                    self.pay_onchain_dialog(invoice.get_outputs(), nonlocal_only=True)
             return
 
         assert lnworker is not None

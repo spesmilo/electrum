@@ -11,6 +11,7 @@ ElDialog {
 
     width: parent.width
     height: parent.height
+    padding: 0
 
     title: wizardTitle + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')
     iconSource: '../../../icons/electrum.png'
@@ -103,6 +104,7 @@ ElDialog {
             id: pages
             Layout.fillWidth: true
             Layout.fillHeight: true
+
             interactive: false
 
             clip:true
@@ -150,36 +152,42 @@ ElDialog {
                 currentIndex: pages.currentIndex
             }
 
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Button {
+            ButtonContainer {
+                Layout.fillWidth: true
+
+                FlatButton {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     visible: pages.currentIndex == 0
                     text: qsTr("Cancel")
                     onClicked: wizard.reject()
                 }
-
-                Button {
+                FlatButton {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     visible: pages.currentIndex > 0
                     text: qsTr('Back')
                     onClicked: pages.prev()
                 }
-
-                Button {
+                FlatButton {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     text: qsTr("Next")
                     visible: !pages.lastpage
                     enabled: pages.pagevalid
                     onClicked: pages.next()
                 }
-
-                Button {
+                FlatButton {
                     id: finishButton
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
                     text: qsTr("Finish")
                     visible: pages.lastpage
                     enabled: pages.pagevalid
                     onClicked: pages.finish()
                 }
-
             }
+
         }
     }
 
