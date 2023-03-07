@@ -1513,7 +1513,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
+    def get_unconfirmed_base_tx_for_batching(self, outputs, coins) -> Optional[Transaction]:
         candidate = None
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
@@ -1544,6 +1544,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 continue
             # tx must have opted-in for RBF (even if local, for consistency)
             if tx.is_final():
+                continue
+            # reject merge if we need to spend outputs from the base tx
+            remaining_amount = sum(c.value_sats() for c in coins if c.prevout.txid.hex() != tx.txid())
+            change_amount = sum(o.value for o in tx.outputs() if self.is_change(o.address))
+            output_amount = sum(o.value for o in outputs)
+            if output_amount > remaining_amount + change_amount:
                 continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
@@ -1671,7 +1677,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching() if self.config.get('batch_rbf', False) else None
+            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if self.config.get('batch_rbf', False) else None
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
