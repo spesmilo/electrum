@@ -1668,8 +1668,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching()
-            if self.config.get('batch_rbf', False) and base_tx:
+            base_tx = self.get_unconfirmed_base_tx_for_batching() if self.config.get('batch_rbf', False) else None
+            if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
                 is_local = self.adb.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
