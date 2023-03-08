@@ -569,6 +569,10 @@ class TxEditor(WindowModalDialog):
         # warn if we merge from mempool
         if self.tx.rbf_merge_txid:
             warnings.append(_('This payment was merged with another existing transaction.'))
+        # warn if we use multiple change outputs
+        num_change = sum(int(o.is_change) for o in self.tx.outputs())
+        if num_change > 1:
+            warnings.append(_('This transaction has {} change outputs.'.format(num_change)))
         # TODO: warn if we send change back to input address
         self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
 
