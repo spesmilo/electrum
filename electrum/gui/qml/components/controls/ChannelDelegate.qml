@@ -22,7 +22,7 @@ ItemDelegate {
             left: parent.left
             right: parent.right
             leftMargin: constants.paddingSmall
-            rightMargin: constants.paddingSmall
+            rightMargin: constants.paddingMedium
         }
 
         columns: 2

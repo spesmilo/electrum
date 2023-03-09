@@ -44,7 +44,9 @@ ElDialog {
 
             InfoTextArea {
                 id: notice
-                text: qsTr("Wallet <b>%1</b> requires password to unlock").arg(name)
+                text: Daemon.singlePasswordEnabled
+                    ? qsTr('Please enter password')
+                    : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
                 visible: wallet_db.needsPassword
                 iconStyle: InfoTextArea.IconStyle.Warn
                 Layout.fillWidth: true
