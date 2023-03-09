@@ -405,6 +405,30 @@ Pane {
                                         columns: 2
 
                                         Label {
+                                            text: qsTr('Keystore type')
+                                            visible: modelData.keystore_type
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.keystore_type
+                                            visible: modelData.keystore_type
+                                        }
+
+                                        Label {
+                                            text: modelData.watch_only
+                                                ? qsTr('Imported addresses')
+                                                : qsTr('Imported keys')
+                                            visible: modelData.num_imported
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.num_imported
+                                            visible: modelData.num_imported
+                                        }
+
+                                        Label {
                                             text: qsTr('Derivation prefix')
                                             visible: modelData.derivation_prefix
                                             color: Material.accentColor
@@ -438,6 +462,7 @@ Pane {
                                             Layout.fillWidth: true
                                             Layout.columnSpan: 2
                                             Layout.leftMargin: constants.paddingLarge
+                                            visible: modelData.master_pubkey
                                             Label {
                                                 text: modelData.master_pubkey
                                                 wrapMode: Text.Wrap
