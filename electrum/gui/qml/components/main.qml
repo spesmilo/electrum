@@ -485,6 +485,9 @@ ApplicationWindow
         }
     }
 
+    property var _lastCorrectPinTime: 0
+    property int _pinValidSeconds: 5*60
+
     function handleAuthRequired(qtobject, method) {
         console.log('auth using method ' + method)
         if (method == 'wallet') {
@@ -510,8 +513,14 @@ ApplicationWindow
                 // no PIN configured
                 qtobject.authProceed()
             } else {
+                if (Date.now() - _lastCorrectPinTime > _pinValidSeconds * 1000) {
+                    // correct pin entered recently, accept.
+                    qtobject.authProceed()
+                    return
+                }
                 var dialog = app.pinDialog.createObject(app, {mode: 'check', pincode: Config.pinCode})
                 dialog.accepted.connect(function() {
+                    _lastCorrectPinTime = Date.now()
                     qtobject.authProceed()
                     dialog.close()
                 })
@@ -527,21 +536,22 @@ ApplicationWindow
     }
 
     property var _lastActive: 0 // record time of last activity
-    property int _maxInactive: 30 // seconds
     property bool _lockDialogShown: false
 
     onActiveChanged: {
         console.log('app active = ' + active)
-        if (!active) {
-            // deactivated
-            _lastActive = Date.now()
-        } else {
+        if (active) {
+            if (!_lastActive) {
+                _lastActive = Date.now()
+                return
+            }
             // activated
-            if (_lastActive != 0 && Date.now() - _lastActive > _maxInactive * 1000) {
+            if (Date.now() - _lastCorrectPinTime > _pinValidSeconds * 1000) {
                 if (_lockDialogShown || Config.pinCode == '')
                     return
                 var dialog = app.pinDialog.createObject(app, {mode: 'check', canCancel: false, pincode: Config.pinCode})
                 dialog.accepted.connect(function() {
+                    _lastCorrectPinTime = Date.now()
                     dialog.close()
                     _lockDialogShown = false
                 })
