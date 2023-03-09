@@ -159,11 +159,6 @@ Pane {
                         }
                     }
 
-                    PrefsHeading {
-                        Layout.columnSpan: 2
-                        text: qsTr('Wallet behavior')
-                    }
-
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: -constants.paddingSmall
@@ -219,6 +214,11 @@ Pane {
                                 dialog.open()
                             }
                         }
+                    }
+
+                    PrefsHeading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Wallet behavior')
                     }
 
                     RowLayout {
