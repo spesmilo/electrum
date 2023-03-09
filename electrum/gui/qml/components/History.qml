@@ -82,12 +82,12 @@ Pane {
         ScrollIndicator.vertical: ScrollIndicator { }
 
         Label {
-            visible: Daemon.currentWallet.historyModel.count == 0
+            visible: Daemon.currentWallet.historyModel.count == 0 && !Daemon.currentWallet.synchronizing
             anchors.centerIn: parent
             width: listview.width * 4/5
             font.pixelSize: constants.fontSizeXXLarge
             color: constants.mutedForeground
-            text: qsTr('No transactions yet in this wallet')
+            text: qsTr('No transactions in this wallet yet')
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
         }
