@@ -212,7 +212,7 @@ class LNWatcher(Logger, EventListener):
         if not self.adb.is_mine(address):
             return
         spenders = self.inspect_tx_candidate(funding_outpoint, 0)
-        # inspect_tx_candidate might have added new addresses, in which case we return ealy
+        # inspect_tx_candidate might have added new addresses, in which case we return early
         if not self.adb.is_up_to_date():
             return
         funding_txid = funding_outpoint.split(':')[0]
