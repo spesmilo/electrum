@@ -569,11 +569,11 @@ class TxEditor(WindowModalDialog):
             else:
                 warnings.append(long_warning)
         # warn if spending unconf
-        if any(txin.block_height<=0 for txin in self.tx.inputs()):
-            warnings.append(_('This transaction spends unconfirmed coins.'))
+        if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
+            warnings.append(_('This transaction will spend unconfirmed coins.'))
         # warn if we merge from mempool
         if self.tx.rbf_merge_txid:
-            warnings.append(_('This payment was merged with another existing transaction.'))
+            warnings.append(_('This payment will be merged with another existing transaction.'))
         # warn if we use multiple change outputs
         num_change = sum(int(o.is_change) for o in self.tx.outputs())
         if num_change > 1:
