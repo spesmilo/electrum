@@ -1000,7 +1000,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
             monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
-            yield {
+            d = {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
                 'height': hist_item.tx_mined_status.height,
@@ -1014,6 +1014,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
+            if wanted_height := hist_item.tx_mined_status.wanted_height:
+                d['wanted_height'] = wanted_height
+            yield d
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
         height = self.adb.get_local_height()
@@ -1473,8 +1476,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         conf = tx_mined_info.conf
         timestamp = tx_mined_info.timestamp
         if height == TX_HEIGHT_FUTURE:
-            assert conf < 0, conf
-            num_blocks_remainining = -conf
+            num_blocks_remainining = tx_mined_info.wanted_height - self.adb.get_local_height()
+            num_blocks_remainining = max(0, num_blocks_remainining)
             return 2, f'in {num_blocks_remainining} blocks'
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
