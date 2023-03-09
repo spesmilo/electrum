@@ -41,6 +41,7 @@ WizardComponent {
             SeedTextArea {
                 id: confirm
                 Layout.fillWidth: true
+                placeholderText: qsTr('Enter your seed')
                 onTextChanged: checkValid()
             }
 
