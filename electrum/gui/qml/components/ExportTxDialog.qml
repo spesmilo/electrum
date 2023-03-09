@@ -15,7 +15,7 @@ ElDialog {
     // if text_qr is undefined text will be used
     property string text_help
 
-    title: qsTr('Export Transaction')
+    title: qsTr('Share Transaction')
 
     parent: Overlay.overlay
     modal: true
