@@ -88,6 +88,8 @@ class HistoryColumns(IntEnum):
     FIAT_ACQ_PRICE = 5
     FIAT_CAP_GAINS = 6
     TXID = 7
+    SHORT_ID = 8  # ~SCID
+
 
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
@@ -121,6 +123,7 @@ class HistoryNode(CustomNode):
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
         timestamp = tx_item['timestamp']
+        short_id = None
         if is_lightning:
             status = 0
             if timestamp is None:
@@ -129,6 +132,9 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
+            txpos_in_block = tx_item.get('txpos_in_block')
+            if txpos_in_block is not None and txpos_in_block >= 0:
+                short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
@@ -155,6 +161,7 @@ class HistoryNode(CustomNode):
                 HistoryColumns.FIAT_CAP_GAINS:
                     tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
                 HistoryColumns.TXID: tx_hash if not is_lightning else None,
+                HistoryColumns.SHORT_ID: short_id,
             }
             return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
@@ -219,6 +226,8 @@ class HistoryNode(CustomNode):
             return QVariant(window.fx.format_fiat(cg))
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
+        elif col == HistoryColumns.SHORT_ID:
+            return QVariant(short_id or "")
         return QVariant()
 
 
@@ -350,6 +359,7 @@ class HistoryModel(CustomModel, Logger):
             self.view.showColumn(col) if b else self.view.hideColumn(col)
         # txid
         set_visible(HistoryColumns.TXID, False)
+        set_visible(HistoryColumns.SHORT_ID, False)
         # fiat
         history = self.window.fx.show_history()
         cap_gains = self.window.fx.get_history_capital_gains_config()
@@ -415,6 +425,7 @@ class HistoryModel(CustomModel, Logger):
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
             HistoryColumns.TXID: 'TXID',
+            HistoryColumns.SHORT_ID: 'Short ID',
         }[section]
 
     def flags(self, idx: QModelIndex) -> int:
@@ -436,10 +447,13 @@ class HistoryModel(CustomModel, Logger):
 
 
 class HistoryList(MyTreeView, AcceptFileDragDrop):
-    filter_columns = [HistoryColumns.STATUS,
-                      HistoryColumns.DESCRIPTION,
-                      HistoryColumns.AMOUNT,
-                      HistoryColumns.TXID]
+    filter_columns = [
+        HistoryColumns.STATUS,
+        HistoryColumns.DESCRIPTION,
+        HistoryColumns.AMOUNT,
+        HistoryColumns.TXID,
+        HistoryColumns.SHORT_ID,
+    ]
 
     def tx_item_from_proxy_row(self, proxy_row):
         hm_idx = self.model().mapToSource(self.model().index(proxy_row, 0))

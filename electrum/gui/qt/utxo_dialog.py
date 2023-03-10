@@ -38,6 +38,7 @@ from .qrtextedit import ShowQRTextEdit
 from .transaction_dialog import TxOutputColoring, QTextBrowserWithDefaultSize
 
 if TYPE_CHECKING:
+    from electrum.transaction import PartialTxInput
     from .main_window import ElectrumWindow
 
 # todo:
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
 
 class UTXODialog(WindowModalDialog):
 
-    def __init__(self, window: 'ElectrumWindow', utxo):
+    def __init__(self, window: 'ElectrumWindow', utxo: 'PartialTxInput'):
         WindowModalDialog.__init__(self, window, _("Coin Privacy Analysis"))
         self.main_window = window
         self.config = window.config
