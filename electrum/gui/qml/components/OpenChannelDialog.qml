@@ -236,7 +236,6 @@ ElDialog {
                 app.channelOpenProgressDialog.channelBackup = channelopener.channelBackup(cid)
             }
             // TODO: handle incomplete TX
-            channelopener.wallet.channelModel.new_channel(cid)
             root.close()
         }
     }
