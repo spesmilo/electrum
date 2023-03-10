@@ -186,8 +186,8 @@ ElDialog {
         FlatButton {
             Layout.columnSpan: 2
             Layout.fillWidth: true
-            text: qsTr('Swap')
-            icon.source: Qt.resolvedUrl('../../icons/update.png')
+            text: qsTr('Ok')
+            icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
             enabled: swaphelper.valid
             onClicked: swaphelper.executeSwap()
         }
