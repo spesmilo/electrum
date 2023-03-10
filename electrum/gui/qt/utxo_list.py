@@ -239,7 +239,7 @@ class UTXOList(MyTreeView):
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
-        self.parent.send_tab.pay_onchain_dialog(coins, outputs)
+        self.parent.send_tab.pay_onchain_dialog(outputs)
         self.clear_coincontrol()
 
     def create_menu(self, position):
