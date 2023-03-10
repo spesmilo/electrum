@@ -238,6 +238,16 @@ Item {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onBroadcastFailed(txid, code, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
+            dialog.open()
+        }
+    }
+
     Component {
         id: invoiceDialog
         InvoiceDialog {
