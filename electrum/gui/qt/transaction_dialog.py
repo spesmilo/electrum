@@ -70,6 +70,7 @@ _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
+
 class TxSizeLabel(QLabel):
     def setAmount(self, byte_size):
         self.setText(('x   %s bytes   =' % byte_size) if byte_size else '')
@@ -97,7 +98,7 @@ class TxInOutWidget(QWidget):
         self.main_window = main_window
         self.tx = None  # type: Optional[Transaction]
         self.inputs_header = QLabel()
-        self.inputs_textedit = QTextBrowserWithDefaultSize(950, 100)
+        self.inputs_textedit = QTextBrowserWithDefaultSize(750, 100)
         self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.inputs_textedit.setTextInteractionFlags(
@@ -111,7 +112,7 @@ class TxInOutWidget(QWidget):
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
         self.outputs_header = QLabel()
-        self.outputs_textedit = QTextBrowserWithDefaultSize(950, 100)
+        self.outputs_textedit = QTextBrowserWithDefaultSize(750, 100)
         self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.outputs_textedit.setTextInteractionFlags(
@@ -195,9 +196,14 @@ class TxInOutWidget(QWidget):
                 cursor.insertText(" " * max(0, 15 - len(short_id)), tcf_ext)  # padding
                 cursor.insertText('\t', tcf_ext)
                 # addr
-                address_str = addr or '<address unknown>'
+                if addr is None:
+                    address_str = '<address unknown>'
+                elif len(addr) <= 42:
+                    address_str = addr
+                else:
+                    address_str = addr[0:30] + '…' + addr[-11:]
                 cursor.insertText(address_str, tcf_addr)
-                cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
+                cursor.insertText(" " * max(0, 42 - len(address_str)), tcf_ext)  # padding
                 cursor.insertText('\t', tcf_ext)
                 # value
                 value_str = self.main_window.format_amount(value, whitespaces=True)
