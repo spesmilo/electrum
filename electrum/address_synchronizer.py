@@ -138,9 +138,8 @@ class AddressSynchronizer(Logger, EventListener):
         return len(self._history_local.get(addr, ()))
 
     def get_txin_address(self, txin: TxInput) -> Optional[str]:
-        if isinstance(txin, PartialTxInput):
-            if txin.address:
-                return txin.address
+        if txin.address:
+            return txin.address
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
         for addr in self.db.get_txo_addresses(prevout_hash):

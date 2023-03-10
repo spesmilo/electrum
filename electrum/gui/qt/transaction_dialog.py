@@ -51,6 +51,7 @@ from electrum import simple_config
 from electrum.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput, TxOutpoint
 from electrum.logging import get_logger
 from electrum.util import ShortID
+from electrum.network import Network
 
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
@@ -477,11 +478,14 @@ class TxDialog(QDialog, MessageBoxMixin):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        BlockingWaitingDialog(
-            self,
-            _("Adding info to tx, from wallet and network..."),
-            lambda: tx.add_info_from_wallet(self.wallet),
-        )
+        tx.add_info_from_wallet(self.wallet)
+        # TODO fetch prev txs for any tx; guarded with a config key
+        if not tx.is_complete() and tx.is_missing_info_from_network():
+            BlockingWaitingDialog(
+                self,
+                _("Adding info to tx, from network..."),
+                lambda: Network.run_from_another_thread(tx.add_info_from_network(self.wallet.network)),
+            )
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
@@ -535,7 +539,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         if not isinstance(self.tx, PartialTransaction):
             raise Exception("Can only export partial transactions for hardware device.")
         tx = copy.deepcopy(self.tx)
-        tx.prepare_for_export_for_hardware_device(self.wallet)
+        Network.run_from_another_thread(
+            tx.prepare_for_export_for_hardware_device(self.wallet))
         return tx
 
     def copy_to_clipboard(self, *, tx: Transaction = None):

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
@@ -8,6 +9,10 @@ from electrum.util import Satoshis, TxMinedInfo
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+
 
 class QETransactionListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -22,7 +27,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     requestRefresh = pyqtSignal()
 
-    def __init__(self, wallet, parent=None, *, onchain_domain=None, include_lightning=True):
+    def __init__(self, wallet: 'Abstract_Wallet', parent=None, *, onchain_domain=None, include_lightning=True):
         super().__init__(parent)
         self.wallet = wallet
         self.onchain_domain = onchain_domain
@@ -101,7 +106,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             item['balance'] = QEAmount(amount_sat=item['balance'].value)
 
         if 'txid' in item:
-            tx = self.wallet.get_input_tx(item['txid'])
+            tx = self.wallet.db.get_transaction(item['txid'])
+            assert tx is not None
             item['complete'] = tx.is_complete()
 
         # newly arriving txs, or (partially/fully signed) local txs have no (block) timestamp

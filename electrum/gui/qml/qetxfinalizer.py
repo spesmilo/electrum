@@ -494,7 +494,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
 
     def get_tx(self):
         assert self._txid
-        self._orig_tx = self._wallet.wallet.get_input_tx(self._txid)
+        self._orig_tx = self._wallet.wallet.db.get_transaction(self._txid)
         assert self._orig_tx
 
         if self._wallet.wallet.get_swap_by_funding_tx(self._orig_tx):
@@ -504,7 +504,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         if not isinstance(self._orig_tx, PartialTransaction):
             self._orig_tx = PartialTransaction.from_tx(self._orig_tx)
 
-        if not self._add_info_to_tx_from_wallet_and_network(self._orig_tx):
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
             return
 
         self.update_from_tx(self._orig_tx)
@@ -512,21 +512,6 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
         self.oldfee = self.fee
         self.oldfeeRate = self.feeRate
         self.update()
-
-    # TODO: duplicated from kivy gui, candidate for moving into backend wallet
-    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
-        """Returns whether successful."""
-        # note side-effect: tx is being mutated
-        assert isinstance(tx, PartialTransaction)
-        try:
-            # note: this might download input utxos over network
-            # FIXME network code in gui thread...
-            tx.add_info_from_wallet(self._wallet.wallet, ignore_network_issues=False)
-        except NetworkException as e:
-            # self.app.show_error(repr(e))
-            self._logger.error(repr(e))
-            return False
-        return True
 
     def update(self):
         if not self._txid:
@@ -616,13 +601,13 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
 
     def get_tx(self):
         assert self._txid
-        self._orig_tx = self._wallet.wallet.get_input_tx(self._txid)
+        self._orig_tx = self._wallet.wallet.db.get_transaction(self._txid)
         assert self._orig_tx
 
         if not isinstance(self._orig_tx, PartialTransaction):
             self._orig_tx = PartialTransaction.from_tx(self._orig_tx)
 
-        if not self._add_info_to_tx_from_wallet_and_network(self._orig_tx):
+        if not self._orig_tx.add_info_from_wallet_and_network(wallet=self._wallet.wallet, show_error=self._logger.error):
             return
 
         self.update_from_tx(self._orig_tx)
@@ -630,21 +615,6 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         self.oldfee = self.fee
         self.oldfeeRate = self.feeRate
         self.update()
-
-    # TODO: duplicated from kivy gui, candidate for moving into backend wallet
-    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
-        """Returns whether successful."""
-        # note side-effect: tx is being mutated
-        assert isinstance(tx, PartialTransaction)
-        try:
-            # note: this might download input utxos over network
-            # FIXME network code in gui thread...
-            tx.add_info_from_wallet(self._wallet.wallet, ignore_network_issues=False)
-        except NetworkException as e:
-            # self.app.show_error(repr(e))
-            self._logger.error(repr(e))
-            return False
-        return True
 
     def update(self):
         if not self._txid:
@@ -757,7 +727,7 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
 
     def get_tx(self):
         assert self._txid
-        self._parent_tx = self._wallet.wallet.get_input_tx(self._txid)
+        self._parent_tx = self._wallet.wallet.db.get_transaction(self._txid)
         assert self._parent_tx
 
         if isinstance(self._parent_tx, PartialTransaction):
