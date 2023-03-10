@@ -236,7 +236,7 @@ class BIP32Node(NamedTuple):
         if path is None:
             raise Exception("derivation path must not be None")
         if isinstance(path, str):
-            path = convert_bip32_path_to_list_of_uint32(path)
+            path = convert_bip32_strpath_to_intpath(path)
         if not self.is_private():
             raise Exception("cannot do bip32 private derivation; private key missing")
         if not path:
@@ -262,7 +262,7 @@ class BIP32Node(NamedTuple):
         if path is None:
             raise Exception("derivation path must not be None")
         if isinstance(path, str):
-            path = convert_bip32_path_to_list_of_uint32(path)
+            path = convert_bip32_strpath_to_intpath(path)
         if not path:
             return self.convert_to_public()
         depth = self.depth
@@ -313,8 +313,8 @@ def xpub_from_xprv(xprv):
     return BIP32Node.from_xkey(xprv).to_xpub()
 
 
-def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
-    """Convert bip32 path to list of uint32 integers with prime flags
+def convert_bip32_strpath_to_intpath(n: str) -> List[int]:
+    """Convert bip32 path str to list of uint32 integers with prime flags
     m/0/-1/1' -> [0, 0x80000001, 0x80000001]
 
     based on code in trezorlib
@@ -373,7 +373,7 @@ def is_bip32_derivation(s: str) -> bool:
     try:
         if not (s == 'm' or s.startswith('m/')):
             return False
-        convert_bip32_path_to_list_of_uint32(s)
+        convert_bip32_strpath_to_intpath(s)
     except:
         return False
     else:
@@ -385,14 +385,14 @@ def normalize_bip32_derivation(s: Optional[str]) -> Optional[str]:
         return None
     if not is_bip32_derivation(s):
         raise ValueError(f"invalid bip32 derivation: {s}")
-    ints = convert_bip32_path_to_list_of_uint32(s)
+    ints = convert_bip32_strpath_to_intpath(s)
     return convert_bip32_intpath_to_strpath(ints)
 
 
 def is_all_public_derivation(path: Union[str, Iterable[int]]) -> bool:
     """Returns whether all levels in path use non-hardened derivation."""
     if isinstance(path, str):
-        path = convert_bip32_path_to_list_of_uint32(path)
+        path = convert_bip32_strpath_to_intpath(path)
     for child_index in path:
         if child_index < 0:
             raise ValueError('the bip32 index needs to be non-negative')
@@ -425,7 +425,7 @@ def is_xkey_consistent_with_key_origin_info(xkey: str, *,
     bip32node = BIP32Node.from_xkey(xkey)
     int_path = None
     if derivation_prefix is not None:
-        int_path = convert_bip32_path_to_list_of_uint32(derivation_prefix)
+        int_path = convert_bip32_strpath_to_intpath(derivation_prefix)
     if int_path is not None and len(int_path) != bip32node.depth:
         return False
     if bip32node.depth == 0:
@@ -503,7 +503,7 @@ class KeyOriginInfo:
         fingerprint = binascii.unhexlify(s[0:8])
         path: Sequence[int] = []
         if len(entries) > 1:
-            path = convert_bip32_path_to_list_of_uint32(s[9:])
+            path = convert_bip32_strpath_to_intpath(s[9:])
         return cls(fingerprint, path)
 
     def get_derivation_path(self) -> str:

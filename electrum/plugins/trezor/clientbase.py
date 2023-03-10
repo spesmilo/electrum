@@ -5,7 +5,7 @@ from electrum import ecc
 from electrum.i18n import _
 from electrum.util import UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath as parse_path
 from electrum.logging import Logger
 from electrum.plugin import runs_in_hwd_thread
 from electrum.plugins.hw_wallet.plugin import OutdatedHwFirmwareException, HardwareClientBase

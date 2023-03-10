@@ -15,7 +15,7 @@ from electrum import segwit_addr
 from electrum.segwit_addr import DecodedBech32
 from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
-                            is_xpub, convert_bip32_path_to_list_of_uint32,
+                            is_xpub, convert_bip32_strpath_to_intpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
@@ -760,7 +760,7 @@ class Test_xprv_xpub(ElectrumTestCase):
     def _do_test_bip32(self, seed: str, sequence: str):
         node = BIP32Node.from_rootseed(bfh(seed), xtype='standard')
         xprv, xpub = node.to_xprv(), node.to_xpub()
-        int_path = convert_bip32_path_to_list_of_uint32(sequence)
+        int_path = convert_bip32_strpath_to_intpath(sequence)
         for n in int_path:
             if n & bip32.BIP32_PRIME == 0:
                 xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation([n]).to_xpub()
@@ -852,10 +852,10 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertFalse(is_bip32_derivation("m/q8462"))
         self.assertFalse(is_bip32_derivation("m/-8h"))
 
-    def test_convert_bip32_path_to_list_of_uint32(self):
-        self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_path_to_list_of_uint32("m/0/-1/1'"))
-        self.assertEqual([], convert_bip32_path_to_list_of_uint32("m/"))
-        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
+    def test_convert_bip32_strpath_to_intpath(self):
+        self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_strpath_to_intpath("m/0/-1/1'"))
+        self.assertEqual([], convert_bip32_strpath_to_intpath("m/"))
+        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_strpath_to_intpath("m/44'/5241h/221"))
 
     def test_convert_bip32_intpath_to_strpath(self):
         self.assertEqual("m/0/1h/1h", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))

@@ -16,7 +16,7 @@
 
 import enum
 
-from .bip32 import convert_bip32_path_to_list_of_uint32, BIP32Node, KeyOriginInfo, BIP32_PRIME
+from .bip32 import convert_bip32_strpath_to_intpath, BIP32Node, KeyOriginInfo, BIP32_PRIME
 from . import bitcoin
 from .bitcoin import construct_script, opcodes, construct_witness
 from . import constants
@@ -250,7 +250,7 @@ class PubkeyProvider(object):
                 if self.is_range():
                     assert path_str[-1] == "*"
                     path_str = path_str[:-1] + str(pos)
-                path = convert_bip32_path_to_list_of_uint32(path_str)
+                path = convert_bip32_strpath_to_intpath(path_str)
                 child_key = self.extkey.subkey_at_public_derivation(path)
                 return child_key.eckey.get_public_key_bytes(compressed=compressed)
         else:
@@ -286,7 +286,7 @@ class PubkeyProvider(object):
         der_suffix = self.deriv_path
         assert (wc_count := der_suffix.count("*")) <= 1, wc_count
         der_suffix = der_suffix.replace("*", str(pos))
-        return convert_bip32_path_to_list_of_uint32(der_suffix)
+        return convert_bip32_strpath_to_intpath(der_suffix)
 
     def __lt__(self, other: 'PubkeyProvider') -> bool:
         return self.pubkey < other.pubkey

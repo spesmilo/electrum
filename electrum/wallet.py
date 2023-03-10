@@ -50,7 +50,7 @@ import asyncio
 from aiorpcx import timeout_after, TaskTimeout, ignore_after, run_in_thread
 
 from .i18n import _
-from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_path_to_list_of_uint32
+from .bip32 import BIP32Node, convert_bip32_intpath_to_strpath, convert_bip32_strpath_to_intpath
 from .crypto import sha256
 from . import util
 from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore_exceptions,
@@ -3298,7 +3298,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def export_private_key_for_path(self, path: Union[Sequence[int], str], password: Optional[str]) -> str:
         if isinstance(path, str):
-            path = convert_bip32_path_to_list_of_uint32(path)
+            path = convert_bip32_strpath_to_intpath(path)
         pk, compressed = self.keystore.get_private_key(path, password)
         txin_type = self.get_txin_type()  # assumes no mixed-scripts in wallet
         return bitcoin.serialize_privkey(pk, compressed, txin_type)

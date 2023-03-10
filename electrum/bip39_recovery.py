@@ -8,7 +8,7 @@ import itertools
 from . import bitcoin
 from .constants import BIP39_WALLET_FORMATS
 from .bip32 import BIP32_PRIME, BIP32Node
-from .bip32 import convert_bip32_path_to_list_of_uint32 as bip32_str_to_ints
+from .bip32 import convert_bip32_strpath_to_intpath as bip32_str_to_ints
 from .bip32 import convert_bip32_intpath_to_strpath as bip32_ints_to_str
 from .util import OldTaskGroup
 
