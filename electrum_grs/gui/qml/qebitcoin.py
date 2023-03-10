@@ -10,7 +10,8 @@ from electrum_grs.logging import get_logger
 from electrum_grs.slip39 import decode_mnemonic, Slip39Error
 from electrum_grs.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
 from electrum_grs.transaction import tx_from_any
-from electrum_grs.mnemonic import is_any_2fa_seed_type
+from electrum_grs.mnemonic import Mnemonic, is_any_2fa_seed_type
+from electrum_grs.old_mnemonic import wordlist as old_wordlist
 
 from .qetypes import QEAmount
 
@@ -25,6 +26,8 @@ class QEBitcoin(QObject):
 
     validationMessageChanged = pyqtSignal()
     _validationMessage = ''
+
+    _words = None
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -165,3 +168,11 @@ class QEBitcoin(QObject):
     @pyqtSlot(str, result=bool)
     def isPrivateKeyList(self, csv: str):
         return keystore.is_private_key_list(csv)
+
+    @pyqtSlot(str, result='QVariantList')
+    def mnemonicsFor(self, fragment):
+        if not fragment:
+            return []
+        if not self._words:
+            self._words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
+        return sorted(filter(lambda x: x.startswith(fragment), self._words))

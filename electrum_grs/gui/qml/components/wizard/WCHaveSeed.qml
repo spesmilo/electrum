@@ -165,16 +165,13 @@ WizardComponent {
                 Layout.columnSpan: 2
             }
 
-            Label {
-                Layout.topMargin: constants.paddingMedium
-                Layout.columnSpan: 2
-                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
-            }
-
             SeedTextArea {
                 id: seedtext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+
+                placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
+
                 onTextChanged: {
                     validationTimer.restart()
                 }

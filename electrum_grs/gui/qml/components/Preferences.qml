@@ -95,22 +95,6 @@ Pane {
                     }
 
                     RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
-                        spacing: 0
-                        Switch {
-                            id: checkSoftware
-                            enabled: false
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Automatically check for software updates')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
                         Layout.leftMargin: -constants.paddingSmall
                         spacing: 0
                         Switch {
@@ -175,11 +159,6 @@ Pane {
                         }
                     }
 
-                    PrefsHeading {
-                        Layout.columnSpan: 2
-                        text: qsTr('Wallet behavior')
-                    }
-
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.leftMargin: -constants.paddingSmall
@@ -235,6 +214,11 @@ Pane {
                                 dialog.open()
                             }
                         }
+                    }
+
+                    PrefsHeading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Wallet behavior')
                     }
 
                     RowLayout {

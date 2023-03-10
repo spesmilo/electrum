@@ -169,6 +169,7 @@ ElDialog {
         FlatButton {
             Layout.fillWidth: true
             text: qsTr('Open Channel')
+            icon.source: '../../icons/confirmed.png'
             enabled: channelopener.valid
             onClicked: channelopener.open_channel()
         }
@@ -235,7 +236,6 @@ ElDialog {
                 app.channelOpenProgressDialog.channelBackup = channelopener.channelBackup(cid)
             }
             // TODO: handle incomplete TX
-            channelopener.wallet.channelModel.new_channel(cid)
             root.close()
         }
     }

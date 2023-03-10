@@ -73,6 +73,7 @@ class TxEditor(WindowModalDialog):
 
         self.config = window.config
         self.wallet = window.wallet
+        self.feerounding_sats = 0
         self.not_enough_funds = False
         self.no_dynfee_estimates = False
         self.needs_update = False
@@ -187,7 +188,7 @@ class TxEditor(WindowModalDialog):
         self.fee_combo.setFocusPolicy(Qt.NoFocus)
 
         def feerounding_onclick():
-            text = (self.feerounding_text + '\n\n' +
+            text = (self.feerounding_text() + '\n\n' +
                     _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
                     _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
                     _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
@@ -268,9 +269,8 @@ class TxEditor(WindowModalDialog):
         return self.feerate_e.isVisible() and self.feerate_e.isModified() \
                and (self.feerate_e.text() or self.feerate_e.hasFocus())
 
-    def set_feerounding_text(self, num_satoshis_added):
-        self.feerounding_text = (_('Additional {} satoshis are going to be added.')
-                                 .format(num_satoshis_added))
+    def feerounding_text(self):
+        return (_('Additional {} satoshis are going to be added.').format(self.feerounding_sats))
 
     def set_feerounding_visibility(self, b:bool):
         # we do not use setVisible because it affects the layout
@@ -360,8 +360,8 @@ class TxEditor(WindowModalDialog):
 
         # set fee rounding icon to empty if there is no rounding
         feerounding = (fee - displayed_fee) if (fee and displayed_fee is not None) else 0
-        self.set_feerounding_text(int(feerounding))
-        self.feerounding_icon.setToolTip(self.feerounding_text)
+        self.feerounding_sats = int(feerounding)
+        self.feerounding_icon.setToolTip(self.feerounding_text())
         self.set_feerounding_visibility(abs(feerounding) >= 1)
         # feerate_label needs to be updated from feerate_e
         self.update_feerate_label()
@@ -425,7 +425,7 @@ class TxEditor(WindowModalDialog):
             _('Spend only confirmed inputs.'))
         add_pref_action(
             self.config.get('coin_chooser_output_rounding', True),
-            self.toggle_confirmed_only,
+            self.toggle_output_rounding,
             _('Enable output value rounding'),
             _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' + \
             _('This might improve your privacy somewhat.') + '\n' + \
@@ -446,6 +446,11 @@ class TxEditor(WindowModalDialog):
         size = self.layout().sizeHint()
         self.resize(size)
         self.resize(size)
+
+    def toggle_output_rounding(self):
+        b = not self.config.get('coin_chooser_output_rounding', True)
+        self.config.set_key('coin_chooser_output_rounding', b)
+        self.trigger_update()
 
     def toggle_use_change(self):
         self.wallet.use_change = not self.wallet.use_change
@@ -564,12 +569,15 @@ class TxEditor(WindowModalDialog):
             else:
                 warnings.append(long_warning)
         # warn if spending unconf
-        if any(txin.block_height<=0 for txin in self.tx.inputs()):
-            warnings.append(_('This transaction spends unconfirmed coins.'))
+        if any((txin.block_height is not None and txin.block_height<=0) for txin in self.tx.inputs()):
+            warnings.append(_('This transaction will spend unconfirmed coins.'))
         # warn if we merge from mempool
-        base_tx = self.wallet.get_unconfirmed_base_tx_for_batching()
-        if self.config.get('batch_rbf', False) and base_tx:
-            warnings.append(_('This payment was merged with another existing transaction.'))
+        if self.tx.rbf_merge_txid:
+            warnings.append(_('This payment will be merged with another existing transaction.'))
+        # warn if we use multiple change outputs
+        num_change = sum(int(o.is_change) for o in self.tx.outputs())
+        if num_change > 1:
+            warnings.append(_('This transaction has {} change outputs.'.format(num_change)))
         # TODO: warn if we send change back to input address
         self.warning = _('Warning') + ': ' + '\n'.join(warnings) if warnings else ''
 

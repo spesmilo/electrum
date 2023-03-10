@@ -83,6 +83,8 @@ class QTextBrowserWithDefaultSize(QTextBrowser):
         self._width = width
         self._height = height
         QTextBrowser.__init__(self)
+        self.setLineWrapMode(QTextBrowser.NoWrap)
+
     def sizeHint(self):
         return QSize(self._width, self._height)
 

@@ -1000,7 +1000,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
             monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
-            yield {
+            d = {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
                 'height': hist_item.tx_mined_status.height,
@@ -1014,6 +1014,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 'label': self.get_label_for_txid(hist_item.txid),
                 'txpos_in_block': hist_item.tx_mined_status.txpos,
             }
+            if wanted_height := hist_item.tx_mined_status.wanted_height:
+                d['wanted_height'] = wanted_height
+            yield d
 
     def create_invoice(self, *, outputs: List[PartialTxOutput], message, pr, URI) -> Invoice:
         height = self.adb.get_local_height()
@@ -1473,8 +1476,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         conf = tx_mined_info.conf
         timestamp = tx_mined_info.timestamp
         if height == TX_HEIGHT_FUTURE:
-            assert conf < 0, conf
-            num_blocks_remainining = -conf
+            num_blocks_remainining = tx_mined_info.wanted_height - self.adb.get_local_height()
+            num_blocks_remainining = max(0, num_blocks_remainining)
             return 2, f'in {num_blocks_remainining} blocks'
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
@@ -1513,7 +1516,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
+    def get_unconfirmed_base_tx_for_batching(self, outputs, coins) -> Optional[Transaction]:
         candidate = None
         domain = self.get_addresses()
         for hist_item in self.adb.get_history(domain):
@@ -1544,6 +1547,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 continue
             # tx must have opted-in for RBF (even if local, for consistency)
             if tx.is_final():
+                continue
+            # reject merge if we need to spend outputs from the base tx
+            remaining_amount = sum(c.value_sats() for c in coins if c.prevout.txid.hex() != tx.txid())
+            change_amount = sum(o.value for o in tx.outputs() if self.is_change(o.address))
+            output_amount = sum(o.value for o in outputs)
+            if output_amount > remaining_amount + change_amount:
                 continue
             # prefer txns already in mempool (vs local)
             if hist_item.tx_mined_status.height == TX_HEIGHT_LOCAL:
@@ -1664,11 +1673,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         else:
             raise Exception(f'Invalid argument fee: {fee}')
 
+        # set if we merge with another transaction
+        rbf_merge_txid = None
+
         if len(i_max) == 0:
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching() if self.config.get('batch_rbf', False) else None
+            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if self.config.get('batch_rbf', False) else None
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
@@ -1686,6 +1698,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
                 old_change_addrs = [o.address for o in base_tx.outputs() if self.is_change(o.address)]
+                rbf_merge_txid = base_tx.txid()
             else:
                 txi = []
                 txo = []
@@ -1727,6 +1740,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
         # Timelock tx to current height.
         tx.locktime = get_locktime_for_new_transaction(self.network)
+        tx.rbf_merge_txid = rbf_merge_txid
         tx.set_rbf(rbf)
         tx.add_info_from_wallet(self)
         run_hook('make_unsigned_transaction', self, tx)

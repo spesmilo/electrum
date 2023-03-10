@@ -425,10 +425,15 @@ class HistoryModel(CustomModel, Logger):
 
     @staticmethod
     def tx_mined_info_from_tx_item(tx_item):
-        tx_mined_info = TxMinedInfo(height=tx_item['height'],
-                                    conf=tx_item['confirmations'],
-                                    timestamp=tx_item['timestamp'])
+        # FIXME a bit hackish to have to reconstruct the TxMinedInfo...
+        tx_mined_info = TxMinedInfo(
+            height=tx_item['height'],
+            conf=tx_item['confirmations'],
+            timestamp=tx_item['timestamp'],
+            wanted_height=tx_item.get('wanted_height', None),
+        )
         return tx_mined_info
+
 
 class HistoryList(MyTreeView, AcceptFileDragDrop):
     filter_columns = [HistoryColumns.STATUS,

@@ -1035,53 +1035,71 @@ class TestWalletSending(ElectrumTestCase):
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_rbf(self, mock_save_db):
         self.maxDiff = None
-        config = SimpleConfig({'electrum_path': self.electrum_path})
-        config.set_key('coin_chooser_output_rounding', False)
+
+        class TmpConfig(tempfile.TemporaryDirectory):  # to avoid sub-tests side-effecting each other
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.config = SimpleConfig({'electrum_path': self.name})
+                self.config.set_key('coin_chooser_output_rounding', False)
+            def __enter__(self):
+                return self.config
+
         for simulate_moving_txs in (False, True):
-            with self.subTest(msg="_bump_fee_p2pkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2pkh_when_there_is_a_change_address(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2wpkh_when_there_is_a_change_address(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_when_user_sends_max", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_when_user_sends_max(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_when_new_inputs_need_to_be_added", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_when_new_inputs_need_to_be_added(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_rbf_batching", simulate_moving_txs=simulate_moving_txs):
-                self._rbf_batching(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2wpkh_decrease_payment(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
-            with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment_batch", simulate_moving_txs=simulate_moving_txs):
-                self._bump_fee_p2wpkh_decrease_payment_batch(
-                    simulate_moving_txs=simulate_moving_txs,
-                    config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2pkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2pkh_when_there_is_a_change_address(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2wpkh_when_there_is_a_change_address(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_when_user_sends_max", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_when_user_sends_max(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_when_new_inputs_need_to_be_added", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_when_new_inputs_need_to_be_added(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_rbf_batching", simulate_moving_txs=simulate_moving_txs):
+                    self._rbf_batching(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2wpkh_decrease_payment(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment_batch", simulate_moving_txs=simulate_moving_txs):
+                    self._bump_fee_p2wpkh_decrease_payment_batch(
+                        simulate_moving_txs=simulate_moving_txs,
+                        config=config)
 
     def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
@@ -1796,6 +1814,41 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 3_900_000, 0), wallet.get_balance())
+
+    async def test_rbf_batching__cannot_batch_as_would_need_to_use_ismine_outputs_of_basetx(self):
+        """Wallet history contains unconf tx1 that spends all its coins to two ismine outputs,
+        one 'recv' address (20k sats) and one 'change' (80k sats).
+        The user tries to create tx2, that pays an invoice for 90k sats.
+        Even if batch_rbf==True, no batching should be done. Instead, the outputs of tx1 should be used.
+        """
+        wallet = self.create_standard_wallet_from_seed('cause carbon luggage air humble mistake melt paper supreme sense gravity void',
+                                                       config=self.config)
+
+        # bootstrap wallet (incoming funding_tx0)
+        funding_tx = Transaction('020000000001021798e10f8b7220c57ea0d605316a52453ca9b3eed99996b5b7bdf4699548bb520000000000fdffffff277d82678d238ca45dd3490ac9fbb49272f0980b093b9197ff70ec8eb082cfb00100000000fdffffff028c360100000000001600147a9bfd90821be827275023849dd91ee80d494957a08601000000000016001476efaaa243327bf3a2c0f5380cb3914099448cec024730440220354b2a74f5ac039cca3618f7ff98229d243b89ac40550c8b027894f2c5cb88ff022064cb5ab1539b4c5367c2e01a8362e0aa12c2732bc8d08c3fce6eab9e56b7fe19012103e0a1499cb3d8047492c60466722c435dfbcffae8da9b83e758fbd203d12728f502473044022073cef8b0cfb093aed5b8eaacbb58c2fa6a69405a8e266cd65e76b726c9151d7602204d5820b23ab96acc57c272aac96d94740a20a6b89c016aa5aed7c06d1e6b9100012102f09e50a265c6a0dcf7c87153ea73d7b12a0fbe9d7d0bbec5db626b2402c1e85c02fa2400')
+        funding_txid = funding_tx.txid()
+        wallet.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # to_self_payment tx1
+        toself_tx = Transaction('02000000000101ce05b8ae96fe8d2875fd1efcb591b6fb5c5d924bf05d75d880a0e44498fe14b80100000000fdffffff02204e0000000000001600142266c890fad71396f106319368107d5b2a1146feb837010000000000160014b113a47f3718da3fd161339a6681c150fef2cfe3024730440220197bfea1bc5c86c35d68029422342de97c1e5d9adc12e48d99ae359940211a660220770ddb228ae75698f827e2fddc574f0c8eb2a3e109678a2a2b6bc9cbb9593b1c012102b07ca318381fcef5998f34ee4197e96c17aa19867cbe99c544d321807db95ed2f1f92400')
+        toself_txid = toself_tx.txid()
+        wallet.adb.receive_tx_callback(toself_txid, toself_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # create outgoing tx2
+        outputs = [PartialTxOutput.from_address_and_value("tb1qkfn0fude7z789uys2u7sf80kd4805zpvs3na0h", 90_000)]
+        for batch_rbf in (False, True):
+            with self.subTest(batch_rbf=batch_rbf):
+                coins = wallet.get_spendable_coins(domain=None)
+                self.assertEqual(2, len(coins))
+
+                wallet.config.set_key('batch_rbf', batch_rbf)
+                tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
+                tx.set_rbf(True)
+                tx.locktime = 2423302
+                tx.version = 2
+                wallet.sign_transaction(tx, password=None)
+                self.assertEqual('02000000000102bbef0182c2c746bd28517b6fd27ba9eef9c7fb5982efd27bd612cc5a28615a3a0000000000fdffffffbbef0182c2c746bd28517b6fd27ba9eef9c7fb5982efd27bd612cc5a28615a3a0100000000fdffffff02602200000000000016001413fabce9be995554a722fc4e1c5ae53ebfd58164905f010000000000160014b266f4f1b9f0bc72f090573d049df66d4efa082c0247304402205c50b9ddb1b3ead6214d7d9707c74ba29ff547880d017aae2459db156bf85b9b022041134562fffa3dccf1ac05d9b07da62a8d57dd158d25d22d1965a011325e64aa012102c72b815ba00ccb0b469cc61a0ceb843d974e630cf34abcfac178838f1974f68f02473044022049774c32b0ad046b7acdb4acc38107b6b1be57c0d167643a48cbc045850c86c202205189ed61342fc52a377c2865a879c4c2606de98eebd6bf4d73874d62329668c70121033484c8ed83c359d1c3e569accb04b77988daab9408fc82869051c10d0749ac2006fa2400',
+                                 str(tx))
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_cpfp_p2wpkh(self, mock_save_db):

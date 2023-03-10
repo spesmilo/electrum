@@ -444,12 +444,18 @@ class SwapManager(Logger):
         self._add_or_reindex_swap(swap)
         # add callback to lnwatcher
         self.add_lnwatcher_callback(swap)
-        # initiate payment.
+        # initiate fee payment.
         if fee_invoice:
             self.prepayments[prepay_hash] = preimage_hash
             asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice, attempts=10))
-        # initiate payment.
-        success, log = await self.lnworker.pay_invoice(invoice, attempts=10, channels=channels)
+        # we return if we detect funding
+        async def wait_for_funding(swap):
+            while swap.spending_txid is None:
+                await asyncio.sleep(1)
+        # initiate main payment
+        tasks = [self.lnworker.pay_invoice(invoice, attempts=10, channels=channels), wait_for_funding(swap)]
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        success = swap.spending_txid is not None
         return success
 
     def _add_or_reindex_swap(self, swap: SwapData) -> None:

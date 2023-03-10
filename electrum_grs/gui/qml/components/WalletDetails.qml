@@ -405,6 +405,30 @@ Pane {
                                         columns: 2
 
                                         Label {
+                                            text: qsTr('Keystore type')
+                                            visible: modelData.keystore_type
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.keystore_type
+                                            visible: modelData.keystore_type
+                                        }
+
+                                        Label {
+                                            text: modelData.watch_only
+                                                ? qsTr('Imported addresses')
+                                                : qsTr('Imported keys')
+                                            visible: modelData.num_imported
+                                            color: Material.accentColor
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.num_imported
+                                            visible: modelData.num_imported
+                                        }
+
+                                        Label {
                                             text: qsTr('Derivation prefix')
                                             visible: modelData.derivation_prefix
                                             color: Material.accentColor
@@ -438,6 +462,7 @@ Pane {
                                             Layout.fillWidth: true
                                             Layout.columnSpan: 2
                                             Layout.leftMargin: constants.paddingLarge
+                                            visible: modelData.master_pubkey
                                             Label {
                                                 text: modelData.master_pubkey
                                                 wrapMode: Text.Wrap
@@ -473,12 +498,9 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                visible: Daemon.currentWallet.walletType == 'imported'
-                text: Daemon.currentWallet.isWatchOnly
-                        ? qsTr('Add addresses')
-                        : qsTr('Add keys')
-                icon.source: '../../icons/add.png'
-                onClicked: rootItem.importAddressesKeys()
+                text: qsTr('Delete Wallet')
+                onClicked: rootItem.deleteWallet()
+                icon.source: '../../icons/delete.png'
             }
             FlatButton {
                 Layout.fillWidth: true
@@ -490,9 +512,12 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Delete Wallet')
-                onClicked: rootItem.deleteWallet()
-                icon.source: '../../icons/delete.png'
+                visible: Daemon.currentWallet.walletType == 'imported'
+                text: Daemon.currentWallet.isWatchOnly
+                        ? qsTr('Add addresses')
+                        : qsTr('Add keys')
+                icon.source: '../../icons/add.png'
+                onClicked: rootItem.importAddressesKeys()
             }
             FlatButton {
                 Layout.fillWidth: true
@@ -501,6 +526,16 @@ Pane {
                 onClicked: rootItem.enableLightning()
                 visible: Daemon.currentWallet && Daemon.currentWallet.canHaveLightning && !Daemon.currentWallet.isLightning
                 icon.source: '../../icons/lightning.png'
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Channel backups')
+                visible: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                icon.source: '../../icons/lightning.png'
+                onClicked: {
+                    app.stack.push(Qt.resolvedUrl('ChannelBackups.qml'))
+                }
             }
         }
     }

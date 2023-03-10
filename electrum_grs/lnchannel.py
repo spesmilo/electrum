@@ -1647,7 +1647,7 @@ class Channel(AbstractChannel):
         funding_idx = self.funding_outpoint.output_index
         conf = funding_height.conf
         if conf < self.funding_txn_minimum_depth():
-            self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
+            #self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return False
         assert conf > 0
         # check funding_tx amount and script

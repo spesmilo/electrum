@@ -362,10 +362,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         result = []
         for k in self.wallet.get_keystores():
             result.append({
-                'derivation_prefix': k.get_derivation_prefix() or '',
-                'master_pubkey': k.get_master_public_key() or '',
-                'fingerprint': k.get_root_fingerprint() or '',
-                'watch_only': k.is_watching_only()
+                'keystore_type': k.type,
+                'watch_only': k.is_watching_only(),
+                'derivation_prefix': (k.get_derivation_prefix() if k.is_deterministic() else '') or '',
+                'master_pubkey': (k.get_master_public_key() if k.is_deterministic() else '') or '',
+                'fingerprint': (k.get_root_fingerprint() if k.is_deterministic() else '') or '',
+                'num_imported': len(k.keypairs) if k.can_import() else 0,
             })
         return result
 

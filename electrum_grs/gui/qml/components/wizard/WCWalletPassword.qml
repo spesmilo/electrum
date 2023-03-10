@@ -12,14 +12,19 @@ WizardComponent {
         wizard_data['encrypt'] = password1.text != ''
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('Password protect wallet?') }
+    ColumnLayout {
+        Label {
+            text: Daemon.singlePasswordEnabled
+                ? qsTr('Enter password')
+                : qsTr('Enter password for %1').arg(wizard_data['wallet_name'])
+        }
         PasswordField {
             id: password1
         }
         PasswordField {
             id: password2
+            showReveal: false
+            echoMode: password1.echoMode
         }
     }
 }

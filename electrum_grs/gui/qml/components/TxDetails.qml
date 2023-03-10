@@ -377,7 +377,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
-                text: qsTr('Export')
+                text: qsTr('Share')
                 onClicked: {
                     var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
                     dialog.open()

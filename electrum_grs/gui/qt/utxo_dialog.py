@@ -35,7 +35,7 @@ from electrum_grs.i18n import _
 from .util import WindowModalDialog, ButtonsLineEdit, ShowQRLineEdit, ColorScheme, Buttons, CloseButton, MONOSPACE_FONT, WWLabel
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
-from .transaction_dialog import TxOutputColoring
+from .transaction_dialog import TxOutputColoring, QTextBrowserWithDefaultSize
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -58,15 +58,12 @@ class UTXODialog(WindowModalDialog):
         num_parents = len(parents)
         parents_copy = copy.deepcopy(parents)
 
-        self.parents_list = QTextBrowser()
+        self.parents_list = QTextBrowserWithDefaultSize(800, 400)
         self.parents_list.setOpenLinks(False)  # disable automatic link opening
         self.parents_list.anchorClicked.connect(self.open_tx)  # send links to our handler
         self.parents_list.setFont(QFont(MONOSPACE_FONT))
         self.parents_list.setReadOnly(True)
         self.parents_list.setTextInteractionFlags(self.parents_list.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
-        self.parents_list.setMinimumWidth(900)
-        self.parents_list.setMinimumHeight(400)
-        self.parents_list.setLineWrapMode(QTextBrowser.NoWrap)
         self.txo_color_parent = TxOutputColoring(
             legend=_("Direct parent"), color=ColorScheme.BLUE, tooltip=_("Direct parent"))
         self.txo_color_uncle = TxOutputColoring(

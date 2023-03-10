@@ -674,10 +674,9 @@ class AddressSynchronizer(Logger, EventListener):
             elif tx_hash in self.unconfirmed_tx:
                 height = self.unconfirmed_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
-            elif tx_hash in self.future_tx:
-                num_blocks_remainining = self.future_tx[tx_hash] - self.get_local_height()
-                if num_blocks_remainining > 0:
-                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
+            elif wanted_height := self.future_tx.get(tx_hash):
+                if wanted_height > self.get_local_height():
+                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
                 else:
                     return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
             else:

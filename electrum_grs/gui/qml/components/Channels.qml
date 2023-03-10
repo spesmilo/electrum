@@ -133,15 +133,6 @@ Pane {
                 icon.source: '../../icons/lightning.png'
             }
 
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                text: qsTr('Channel backups')
-                onClicked: {
-                    app.stack.push(Qt.resolvedUrl('ChannelBackups.qml'))
-                }
-                icon.source: '../../icons/file.png'
-            }
         }
 
     }
