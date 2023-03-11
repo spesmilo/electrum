@@ -691,20 +691,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
         wallet_menu.addSeparator()
 
-        addresses_menu = wallet_menu.addMenu(_("&Addresses"))
-        addresses_menu.addAction(_("&Filter"), lambda: self.address_list.toggle_toolbar(self.config))
         labels_menu = wallet_menu.addMenu(_("&Labels"))
         labels_menu.addAction(_("&Import"), self.do_import_labels)
         labels_menu.addAction(_("&Export"), self.do_export_labels)
-        history_menu = wallet_menu.addMenu(_("&History"))
-        history_menu.addAction(_("&Filter"), lambda: self.history_list.toggle_toolbar(self.config))
-        history_menu.addAction(_("&Summary"), self.history_list.show_summary)
-        history_menu.addAction(_("&Plot"), self.history_list.plot_history_dialog)
-        history_menu.addAction(_("&Export"), self.history_list.export_history_dialog)
-        contacts_menu = wallet_menu.addMenu(_("Contacts"))
-        contacts_menu.addAction(_("&New"), self.new_contact_dialog)
-        contacts_menu.addAction(_("Import"), lambda: self.import_contacts())
-        contacts_menu.addAction(_("Export"), lambda: self.export_contacts())
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -1048,8 +1037,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.history_model.set_view(self.history_list)
         l.searchable_list = l
         tab = self.create_list_tab(self.history_list)
-        toolbar_shown = bool(self.config.get('show_toolbar_history', False))
-        l.show_toolbar(toolbar_shown)
         return tab
 
     def show_address(self, addr: str, *, parent: QWidget = None):
@@ -1347,8 +1334,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .address_list import AddressList
         self.address_list = AddressList(self)
         tab =  self.create_list_tab(self.address_list)
-        toolbar_shown = bool(self.config.get('show_toolbar_addresses', False))
-        self.address_list.show_toolbar(toolbar_shown)
         return tab
 
     def create_utxo_tab(self):

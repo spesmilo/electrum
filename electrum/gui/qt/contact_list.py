@@ -75,11 +75,7 @@ class ContactList(MyTreeView):
         for s_idx in self.selected_in_column(self.Columns.NAME):
             sel_key = self.model().itemFromIndex(s_idx).data(self.ROLE_CONTACT_KEY)
             selected_keys.append(sel_key)
-        if not selected_keys or not idx.isValid():
-            menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
-            menu.addAction(_("Import file"), lambda: self.parent.import_contacts())
-            menu.addAction(_("Export file"), lambda: self.parent.export_contacts())
-        else:
+        if selected_keys and idx.isValid():
             column_title = self.model().horizontalHeaderItem(column).text()
             column_data = '\n'.join(self.model().itemFromIndex(s_idx).text()
                                     for s_idx in self.selected_in_column(column))
@@ -131,3 +127,11 @@ class ContactList(MyTreeView):
         if col != self.Columns.NAME:
             return None
         return self.get_role_data_from_coordinate(row, col, role=self.ROLE_CONTACT_KEY)
+
+    def create_toolbar(self, config):
+        toolbar = self.create_toolbar_with_menu('', [
+            (_("&New contact"), self.parent.new_contact_dialog),
+            (_("Import"), lambda: self.parent.import_contacts()),
+            (_("Export"), lambda: self.parent.export_contacts()),
+        ])
+        return toolbar

@@ -483,7 +483,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_date = None
         self.end_date = None
         self.years = []
-        self.create_toolbar_buttons()
+        self.period_combo = QComboBox()
+        self.start_button = QPushButton('-')
+        self.start_button.pressed.connect(self.select_start_date)
+        self.start_button.setEnabled(False)
+        self.end_button = QPushButton('-')
+        self.end_button.pressed.connect(self.select_end_date)
+        self.end_button.setEnabled(False)
+        self.period_combo.addItems([_('All'), _('Custom')])
+        self.period_combo.activated.connect(self.on_combo)
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
         self.sortByColumn(HistoryColumns.STATUS, Qt.AscendingOrder)
         self.setRootIsDecorated(True)
@@ -520,18 +528,18 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.hide_rows()
 
     def create_toolbar(self, config):
-        return self.create_toolbar_with_buttons(config)
+        toolbar = self.create_toolbar_with_menu('', [
+            (_("&Filter Period"), lambda: self.toggle_toolbar(self.config)),
+            (_("&Summary"), self.show_summary),
+            (_("&Plot"), self.plot_history_dialog),
+            (_("&Export"), self.export_history_dialog),
+        ])
+        hbox = self.create_toolbar_buttons()
+        toolbar.insertLayout(1, hbox)
+        return toolbar
 
-    def create_toolbar_buttons(self):
-        self.period_combo = QComboBox()
-        self.start_button = QPushButton('-')
-        self.start_button.pressed.connect(self.select_start_date)
-        self.start_button.setEnabled(False)
-        self.end_button = QPushButton('-')
-        self.end_button.pressed.connect(self.select_end_date)
-        self.end_button.setEnabled(False)
-        self.period_combo.addItems([_('All'), _('Custom')])
-        self.period_combo.activated.connect(self.on_combo)
+    def toggle_filter(self):
+        pass
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
@@ -540,9 +548,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_date = None
         self.end_date = None
         self.hide_rows()
-
-    def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_history', state)
 
     def select_start_date(self):
         self.start_date = self.select_date(self.start_button)
