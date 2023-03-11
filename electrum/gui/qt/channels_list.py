@@ -353,7 +353,7 @@ class ChannelsList(MyTreeView):
         else:
             self.swap_button.setEnabled(False)
 
-    def get_toolbar(self):
+    def create_toolbar(self, config):
         h = QHBoxLayout()
         self.can_send_label = QLabel('')
         h.addWidget(self.can_send_label)

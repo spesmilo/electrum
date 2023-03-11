@@ -742,7 +742,10 @@ class MyTreeView(QTreeView):
         for row in range(self.model().rowCount()):
             self.hide_row(row)
 
-    def create_toolbar(self, config=None):
+    def create_toolbar(self, config):
+        return
+
+    def create_toolbar_with_buttons(self, config=None):
         hbox = QHBoxLayout()
         buttons = self.get_toolbar_buttons()
         for b in buttons:

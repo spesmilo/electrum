@@ -1040,16 +1040,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def create_channels_tab(self):
         self.channels_list = ChannelsList(self)
-        t = self.channels_list.get_toolbar()
-        return self.create_list_tab(self.channels_list, t)
+        return self.create_list_tab(self.channels_list)
 
     def create_history_tab(self):
         self.history_model = HistoryModel(self)
         self.history_list = l = HistoryList(self, self.history_model)
         self.history_model.set_view(self.history_list)
         l.searchable_list = l
-        toolbar = l.create_toolbar(self.config)
-        tab = self.create_list_tab(l, toolbar)
+        tab = self.create_list_tab(self.history_list)
         toolbar_shown = bool(self.config.get('show_toolbar_history', False))
         l.show_toolbar(toolbar_shown)
         return tab
@@ -1332,13 +1330,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.utxo_list.refresh_all()
         self.utxo_list.selectionModel().clearSelection()
 
-    def create_list_tab(self, l, toolbar=None):
+    def create_list_tab(self, l):
         w = QWidget()
         w.searchable_list = l
         vbox = QVBoxLayout()
         w.setLayout(vbox)
         #vbox.setContentsMargins(0, 0, 0, 0)
         #vbox.setSpacing(0)
+        toolbar = l.create_toolbar(self.config)
         if toolbar:
             vbox.addLayout(toolbar)
         vbox.addWidget(l)
@@ -1346,11 +1345,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def create_addresses_tab(self):
         from .address_list import AddressList
-        self.address_list = l = AddressList(self)
-        toolbar = l.create_toolbar(self.config)
-        tab =  self.create_list_tab(l, toolbar)
+        self.address_list = AddressList(self)
+        tab =  self.create_list_tab(self.address_list)
         toolbar_shown = bool(self.config.get('show_toolbar_addresses', False))
-        l.show_toolbar(toolbar_shown)
+        self.address_list.show_toolbar(toolbar_shown)
         return tab
 
     def create_utxo_tab(self):

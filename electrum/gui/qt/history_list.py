@@ -519,6 +519,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.end_button.setText(_('To') + ' ' + self.format_date(self.end_date))
         self.hide_rows()
 
+    def create_toolbar(self, config):
+        return self.create_toolbar_with_buttons(config)
+
     def create_toolbar_buttons(self):
         self.period_combo = QComboBox()
         self.start_button = QPushButton('-')

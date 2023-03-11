@@ -108,6 +108,9 @@ class AddressList(MyTreeView):
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
+    def create_toolbar(self, config):
+        return self.create_toolbar_with_buttons(config)
+
     def get_toolbar_buttons(self):
         return QLabel(_("Filter:")), self.change_button, self.used_button
 
