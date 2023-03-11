@@ -168,12 +168,14 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setSizePolicy(receive_tabs_sp)
         self.receive_tabs.setVisible(False)
 
-        self.receive_requests_label = QLabel(_('Receive queue'))
-        # with QDarkStyle, this label may partially cover the qrcode widget.
-        # setMaximumWidth prevents that
-        self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
+        self.toolbar = self.request_list.create_toolbar_with_menu(
+            _('Requests'),
+            [
+                (_("Import requests"), self.window.import_requests),
+                (_("Export requests"), self.window.export_requests),
+            ])
 
         # layout
         vbox_g = QVBoxLayout()
@@ -188,7 +190,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox = QVBoxLayout(self)
         vbox.addLayout(hbox)
         vbox.addStretch()
-        vbox.addWidget(self.receive_requests_label)
+        vbox.addLayout(self.toolbar)
         vbox.addWidget(self.request_list)
         vbox.setStretchFactor(hbox, 40)
         vbox.setStretchFactor(self.request_list, 60)

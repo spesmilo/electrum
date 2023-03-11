@@ -167,7 +167,6 @@ class RequestList(MyTreeView):
     def hide_if_empty(self):
         b = self.std_model.rowCount() > 0
         self.setVisible(b)
-        self.receive_tab.receive_requests_label.setVisible(b)
         if not b:
             # list got hidden, so selected item should also be cleared:
             self.item_changed(None)

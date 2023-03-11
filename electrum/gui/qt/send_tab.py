@@ -146,9 +146,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.set_onchain(False)
 
-        self.invoices_label = QLabel(_('Send queue'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
+        self.toolbar = self.invoice_list.create_toolbar_with_menu(
+            _('Invoices'),
+            [
+                (_("Import invoices"), self.window.import_invoices),
+                (_("Export invoices"), self.window.export_invoices),
+            ])
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
@@ -159,7 +164,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         vbox = QVBoxLayout(self)
         vbox.addLayout(hbox)
         vbox.addStretch(1)
-        vbox.addWidget(self.invoices_label)
+        vbox.addLayout(self.toolbar)
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
         self.searchable_list = self.invoice_list

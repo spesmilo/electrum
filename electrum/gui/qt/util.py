@@ -756,6 +756,22 @@ class MyTreeView(QTreeView):
         hbox.addWidget(hide_button)
         return hbox
 
+    def create_toolbar_with_menu(self, title, menu_items):
+        menu = QMenu()
+        menu.setToolTipsVisible(True)
+        for k, v in menu_items:
+            menu.addAction(k, v)
+        toolbar_button = QToolButton()
+        toolbar_button.setIcon(read_QIcon("preferences.png"))
+        toolbar_button.setMenu(menu)
+        toolbar_button.setPopupMode(QToolButton.InstantPopup)
+        toolbar_button.setFocusPolicy(Qt.NoFocus)
+        toolbar = QHBoxLayout()
+        toolbar.addWidget(QLabel(title))
+        toolbar.addStretch()
+        toolbar.addWidget(toolbar_button)
+        return toolbar
+
     def save_toolbar_state(self, state, config):
         pass  # implemented in subclasses
 
