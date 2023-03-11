@@ -134,6 +134,7 @@ class InvoiceList(MyTreeView):
     def hide_if_empty(self):
         b = self.std_model.rowCount() > 0
         self.setVisible(b)
+        self.send_tab.invoices_label.setVisible(b)
 
     def create_menu(self, position):
         wallet = self.wallet

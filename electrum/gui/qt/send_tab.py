@@ -146,11 +146,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.set_onchain(False)
 
+        self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
         self.toolbar = self.invoice_list.create_toolbar_with_menu(
-            _('Invoices'),
+            '',
             [
+                (_("&Pay to many"), self.paytomany),
                 (_("Import invoices"), self.window.import_invoices),
                 (_("Export invoices"), self.window.export_invoices),
             ])
@@ -162,9 +164,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         hbox.addStretch(1)
 
         vbox = QVBoxLayout(self)
+        vbox.addLayout(self.toolbar)
         vbox.addLayout(hbox)
         vbox.addStretch(1)
-        vbox.addLayout(self.toolbar)
+        vbox.addWidget(self.invoices_label)
         vbox.addWidget(self.invoice_list)
         vbox.setStretchFactor(self.invoice_list, 1000)
         self.searchable_list = self.invoice_list
