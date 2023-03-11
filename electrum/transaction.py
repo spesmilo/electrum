@@ -1207,8 +1207,8 @@ class PartialTxInput(TxInput, PSBTSection):
         # 'utxo' field in PSBT cannot be another PSBT:
         if not tx.is_complete():
             return
+        self.validate_data(utxo=tx)
         self._utxo = tx
-        self.validate_data()
 
     @property
     def witness_utxo(self):
@@ -1216,8 +1216,8 @@ class PartialTxInput(TxInput, PSBTSection):
 
     @witness_utxo.setter
     def witness_utxo(self, value: Optional[TxOutput]):
+        self.validate_data(witness_utxo=value)
         self._witness_utxo = value
-        self.validate_data()
 
     @property
     def pubkeys(self) -> Set[bytes]:
@@ -1270,20 +1270,29 @@ class PartialTxInput(TxInput, PSBTSection):
                              is_coinbase_output=txin.is_coinbase_output())
         return res
 
-    def validate_data(self, *, for_signing=False) -> None:
-        if self.utxo:
-            if self.prevout.txid.hex() != self.utxo.txid():
+    def validate_data(
+        self,
+        *,
+        for_signing=False,
+        # allow passing provisional fields for 'self', before setting them:
+        utxo: Optional[Transaction] = None,
+        witness_utxo: Optional[TxOutput] = None,
+    ) -> None:
+        utxo = utxo or self.utxo
+        witness_utxo = witness_utxo or self.witness_utxo
+        if utxo:
+            if self.prevout.txid.hex() != utxo.txid():
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a non-witness UTXO is provided, its hash must match the hash specified in the prevout")
-            if self.witness_utxo:
-                if self.utxo.outputs()[self.prevout.out_idx] != self.witness_utxo:
+            if witness_utxo:
+                if utxo.outputs()[self.prevout.out_idx] != witness_utxo:
                     raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                       f"If both non-witness UTXO and witness UTXO are provided, they must be consistent")
         # The following test is disabled, so we are willing to sign non-segwit inputs
         # without verifying the input amount. This means, given a maliciously modified PSBT,
         # for non-segwit inputs, we might end up burning coins as miner fees.
         if for_signing and False:
-            if not self.is_segwit() and self.witness_utxo:
+            if not self.is_segwit() and witness_utxo:
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a witness UTXO is provided, no non-witness signature may be created")
         if self.redeem_script and self.address:
