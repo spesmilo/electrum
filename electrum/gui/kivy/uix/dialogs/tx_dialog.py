@@ -134,7 +134,7 @@ class TxDialog(Factory.Popup):
         tx.add_info_from_wallet(self.wallet)
         if not tx.is_complete() and tx.is_missing_info_from_network():
             Network.run_from_another_thread(
-                tx.add_info_from_network(self.wallet.network))  # FIXME is this needed?...
+                tx.add_info_from_network(self.wallet.network, timeout=10))  # FIXME is this needed?...
 
     def on_open(self):
         self.update()

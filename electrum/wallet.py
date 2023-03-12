@@ -277,6 +277,7 @@ class TxWalletDetails(NamedTuple):
     mempool_depth_bytes: Optional[int]
     can_remove: bool  # whether user should be allowed to delete tx
     is_lightning_funding_tx: bool
+    is_related_to_wallet: bool
 
 
 class Abstract_Wallet(ABC, Logger, EventListener):
@@ -862,6 +863,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             mempool_depth_bytes=exp_n,
             can_remove=can_remove,
             is_lightning_funding_tx=is_lightning_funding_tx,
+            is_related_to_wallet=is_relevant,
         )
 
     def get_tx_parents(self, txid) -> Dict:

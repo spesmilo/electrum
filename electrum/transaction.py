@@ -91,6 +91,13 @@ class MissingTxInputAmount(Exception):
     pass
 
 
+class TxinDataFetchProgress(NamedTuple):
+    num_tasks_done: int
+    num_tasks_total: int
+    has_errored: bool
+    has_finished: bool
+
+
 class Sighash(IntEnum):
     # note: this is not an IntFlag, as ALL|NONE != SINGLE
 
@@ -361,13 +368,15 @@ class TxInput:
             network: Optional['Network'],
             *,
             ignore_network_issues: bool = True,
-    ) -> None:
+            timeout=None,
+    ) -> bool:
+        """Returns True iff successful."""
         from .network import NetworkException
         async def fetch_from_network(txid) -> Optional[Transaction]:
             tx = None
             if network and network.has_internet_connection():
                 try:
-                    raw_tx = await network.get_transaction(txid, timeout=10)
+                    raw_tx = await network.get_transaction(txid, timeout=timeout)
                 except NetworkException as e:
                     _logger.info(f'got network error getting input txn. err: {repr(e)}. txid: {txid}. '
                                  f'if you are intentionally offline, consider using the --offline flag')
@@ -381,6 +390,7 @@ class TxInput:
 
         if self.utxo is None:
             self.utxo = await fetch_from_network(txid=self.prevout.txid.hex())
+        return self.utxo is not None
 
 
 class BCDataStream(object):
@@ -967,14 +977,49 @@ class Transaction:
         for txin in self.inputs():
             wallet.add_input_info(txin)
 
-    async def add_info_from_network(self, network: Optional['Network'], *, ignore_network_issues: bool = True) -> None:
+    async def add_info_from_network(
+        self,
+        network: Optional['Network'],
+        *,
+        ignore_network_issues: bool = True,
+        progress_cb: Callable[[TxinDataFetchProgress], None] = None,
+        timeout=None,
+    ) -> None:
         """note: it is recommended to call add_info_from_wallet first, as this can save some network requests"""
         if not self.is_missing_info_from_network():
             return
-        async with OldTaskGroup() as group:
-            for txin in self.inputs():
-                if txin.utxo is None:
-                    await group.spawn(txin.add_info_from_network(network=network, ignore_network_issues=ignore_network_issues))
+        if progress_cb is None:
+            progress_cb = lambda *args, **kwargs: None
+        num_tasks_done = 0
+        num_tasks_total = 0
+        has_errored = False
+        has_finished = False
+        async def add_info_to_txin(txin: TxInput):
+            nonlocal num_tasks_done, has_errored
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+            success = await txin.add_info_from_network(
+                network=network,
+                ignore_network_issues=ignore_network_issues,
+                timeout=timeout,
+            )
+            if success:
+                num_tasks_done += 1
+            else:
+                has_errored = True
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+        # schedule a network task for each txin
+        try:
+            async with OldTaskGroup() as group:
+                for txin in self.inputs():
+                    if txin.utxo is None:
+                        num_tasks_total += 1
+                        await group.spawn(add_info_to_txin(txin=txin))
+        except Exception as e:
+            has_errored = True
+            _logger.error(f"tx.add_info_from_network() got exc: {e!r}")
+        finally:
+            has_finished = True
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
 
     def is_missing_info_from_network(self) -> bool:
         return any(txin.utxo is None for txin in self.inputs())

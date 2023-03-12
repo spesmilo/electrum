@@ -241,7 +241,7 @@ class QETxDetails(QObject, QtEventListener):
         self._tx.add_info_from_wallet(self._wallet.wallet)
         if not self._tx.is_complete() and self._tx.is_missing_info_from_network():
             Network.run_from_another_thread(
-                self._tx.add_info_from_network(self._wallet.wallet.network))  # FIXME is this needed?...
+                self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
         self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
         self._outputs = list(map(lambda x: {
