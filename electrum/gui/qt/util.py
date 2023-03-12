@@ -582,6 +582,20 @@ class MyMenu(QMenu):
         m.setToolTip(tooltip)
         return m
 
+    def addConfig(self, text:str, name:str, default:bool, *, tooltip='', callback=None):
+        b = self.config.get(name, default)
+        m = self.addAction(text, lambda: self._do_toggle_config(name, default, callback))
+        m.setCheckable(True)
+        m.setChecked(b)
+        m.setToolTip(tooltip)
+        return m
+
+    def _do_toggle_config(self, name, default, callback):
+        b = self.config.get(name, default)
+        self.config.set_key(name, not b)
+        if callback:
+            callback()
+
 
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100

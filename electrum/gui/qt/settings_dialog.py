@@ -104,21 +104,6 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
 
-        # invoices
-        bolt11_fallback_cb = QCheckBox(_('Add on-chain fallback to lightning invoices'))
-        bolt11_fallback_cb.setChecked(bool(self.config.get('bolt11_fallback', True)))
-        bolt11_fallback_cb.setToolTip(_('Add fallback addresses to BOLT11 lightning invoices.'))
-        def on_bolt11_fallback(x):
-            self.config.set_key('bolt11_fallback', bool(x))
-        bolt11_fallback_cb.stateChanged.connect(on_bolt11_fallback)
-
-        bip21_lightning_cb = QCheckBox(_('Add lightning invoice to bitcoin URIs'))
-        bip21_lightning_cb.setChecked(bool(self.config.get('bip21_lightning', False)))
-        bip21_lightning_cb.setToolTip(_('This may create larger qr codes.'))
-        def on_bip21_lightning(x):
-            self.config.set_key('bip21_lightning', bool(x))
-        bip21_lightning_cb.stateChanged.connect(on_bip21_lightning)
-
         # lightning
         help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
         recov_cb = QCheckBox(_("Create recoverable channels"))
@@ -426,10 +411,6 @@ class SettingsDialog(QDialog, QtEventListener):
         gui_widgets.append((nz_label, nz))
         gui_widgets.append((msat_cb, None))
         gui_widgets.append((thousandsep_cb, None))
-        invoices_widgets = []
-        invoices_widgets.append((bolt11_fallback_cb, None))
-        invoices_widgets.append((bip21_lightning_cb, None))
-
         lightning_widgets = []
         lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
@@ -452,7 +433,6 @@ class SettingsDialog(QDialog, QtEventListener):
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
-            (invoices_widgets, _('Invoices')),
             (lightning_widgets, _('Lightning')),
             (fiat_widgets, _('Fiat')),
             (misc_widgets, _('Misc')),
