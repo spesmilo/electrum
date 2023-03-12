@@ -1,9 +1,12 @@
+from typing import Optional
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import format_time, AddTransactionException
 from electrum.transaction import tx_from_any
+from electrum.network import Network
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -23,7 +26,7 @@ class QETxDetails(QObject, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._txid = ''
         self._rawtx = ''
         self._label = ''
@@ -229,13 +232,16 @@ class QETxDetails(QObject, QtEventListener):
             return
 
         if not self._rawtx:
-            # abusing get_input_tx to get tx from txid
-            self._tx = self._wallet.wallet.get_input_tx(self._txid)
+            self._tx = self._wallet.wallet.db.get_transaction(self._txid)
+            assert self._tx is not None
 
         #self._logger.debug(repr(self._tx.to_json()))
 
         self._logger.debug('adding info from wallet')
         self._tx.add_info_from_wallet(self._wallet.wallet)
+        if not self._tx.is_complete() and self._tx.is_missing_info_from_network():
+            Network.run_from_another_thread(
+                self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
         self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
         self._outputs = list(map(lambda x: {

@@ -277,6 +277,7 @@ class TxWalletDetails(NamedTuple):
     mempool_depth_bytes: Optional[int]
     can_remove: bool  # whether user should be allowed to delete tx
     is_lightning_funding_tx: bool
+    is_related_to_wallet: bool
 
 
 class Abstract_Wallet(ABC, Logger, EventListener):
@@ -862,6 +863,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             mempool_depth_bytes=exp_n,
             can_remove=can_remove,
             is_lightning_funding_tx=is_lightning_funding_tx,
+            is_related_to_wallet=is_relevant,
         )
 
     def get_tx_parents(self, txid) -> Dict:
@@ -1861,6 +1863,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """Increase the miner fee of 'tx'.
         'new_fee_rate' is the target min rate in sat/vbyte
         'coins' is a list of UTXOs we can choose from as potential new inputs to be added
+
+        note: it is the caller's responsibility to have already called tx.add_info_from_network().
+              Without that, all txins must be ismine.
         """
         txid = txid or tx.txid()
         assert txid
@@ -1872,11 +1877,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if tx.is_final():
             raise CannotBumpFee(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
-        try:
-            # note: this might download input utxos over network
-            tx.add_info_from_wallet(self, ignore_network_issues=False)
-        except NetworkException as e:
-            raise CannotBumpFee(repr(e))
+        tx.add_info_from_wallet(self)
+        if tx.is_missing_info_from_network():
+            raise Exception("tx missing info from network")
         old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
@@ -2123,6 +2126,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         """Double-Spend-Cancel: cancel an unconfirmed tx by double-spending
         its inputs, paying ourselves.
         'new_fee_rate' is the target min rate in sat/vbyte
+
+        note: it is the caller's responsibility to have already called tx.add_info_from_network().
+              Without that, all txins must be ismine.
         """
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
@@ -2132,11 +2138,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if tx.is_final():
             raise CannotDoubleSpendTx(_('Transaction is final'))
         new_fee_rate = quantize_feerate(new_fee_rate)  # strip excess precision
-        try:
-            # note: this might download input utxos over network
-            tx.add_info_from_wallet(self, ignore_network_issues=False)
-        except NetworkException as e:
-            raise CannotDoubleSpendTx(repr(e))
+        tx.add_info_from_wallet(self)
+        if tx.is_missing_info_from_network():
+            raise Exception("tx missing info from network")
         old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
@@ -2178,7 +2182,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             txin: PartialTxInput,
             *,
             address: str = None,
-            ignore_network_issues: bool = True,
     ) -> None:
         # - We prefer to include UTXO (full tx), even for segwit inputs (see #6198).
         # - For witness v0 inputs, we include *both* UTXO and WITNESS_UTXO. UTXO is a strict superset,
@@ -2194,7 +2197,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 txin_value = item[2]
                 txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
         if txin.utxo is None:
-            txin.utxo = self.get_input_tx(txin.prevout.txid.hex(), ignore_network_issues=ignore_network_issues)
+            txin.utxo = self.db.get_transaction(txin.prevout.txid.hex())
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                                         address: str) -> bool:
@@ -2206,14 +2209,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def add_input_info(
             self,
-            txin: PartialTxInput,
+            txin: TxInput,
             *,
             only_der_suffix: bool = False,
-            ignore_network_issues: bool = True,
     ) -> None:
-        address = self.adb.get_txin_address(txin)
+        """Populates the txin, using info the wallet already has.
+        That is, network requests are *not* done to fetch missing prev txs!
+        For that, use txin.add_info_from_network.
+        """
         # note: we add input utxos regardless of is_mine
-        self._add_input_utxo_info(txin, ignore_network_issues=ignore_network_issues, address=address)
+        if txin.utxo is None:
+            txin.utxo = self.db.get_transaction(txin.prevout.txid.hex())
+        if not isinstance(txin, PartialTxInput):
+            return
+        address = self.adb.get_txin_address(txin)
+        self._add_input_utxo_info(txin, address=address)
         is_mine = self.is_mine(address)
         if not is_mine:
             is_mine = self._learn_derivation_path_for_address_from_txinout(txin, address)
@@ -2278,31 +2288,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if self.get_swap_by_claim_tx(tx):
             return True
         return False
-
-    def _get_rawtx_from_network(self, txid: str) -> str:
-        """legacy hack. do not use in new code."""
-        assert self.network
-        return self.network.run_from_another_thread(
-            self.network.get_transaction(txid, timeout=10))
-
-    def get_input_tx(self, tx_hash: str, *, ignore_network_issues=False) -> Optional[Transaction]:
-        # First look up an input transaction in the wallet where it
-        # will likely be.  If co-signing a transaction it may not have
-        # all the input txs, in which case we ask the network.
-        tx = self.db.get_transaction(tx_hash)
-        if not tx and self.network and self.network.has_internet_connection():
-            try:
-                raw_tx = self._get_rawtx_from_network(tx_hash)
-            except NetworkException as e:
-                _logger.info(f'got network error getting input txn. err: {repr(e)}. txid: {tx_hash}. '
-                             f'if you are intentionally offline, consider using the --offline flag')
-                if not ignore_network_issues:
-                    raise e
-            else:
-                tx = Transaction(raw_tx)
-        if not tx and not ignore_network_issues:
-            raise NetworkException('failed to get prev tx from network')
-        return tx
 
     def add_output_info(self, txout: PartialTxOutput, *, only_der_suffix: bool = False) -> None:
         address = txout.address
