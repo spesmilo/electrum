@@ -109,9 +109,8 @@ class AddressList(MyTreeView):
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
     def create_toolbar(self, config):
-        toolbar = self.create_toolbar_with_menu('', [
-            (_("&Filter"), lambda: self.toggle_toolbar(self.config)),
-        ])
+        toolbar, menu = self.create_toolbar_with_menu('')
+        menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar(self.config))
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
         return toolbar

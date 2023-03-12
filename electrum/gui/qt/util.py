@@ -569,6 +569,20 @@ class ElectrumItemDelegate(QStyledItemDelegate):
             return custom_data.sizeHint(default_size)
 
 
+class MyMenu(QMenu):
+
+    def __init__(self, config):
+        QMenu.__init__(self)
+        self.setToolTipsVisible(True)
+        self.config = config
+
+    def addToggle(self, text: str, callback, *, tooltip=''):
+        m = self.addAction(text, callback)
+        m.setCheckable(True)
+        m.setToolTip(tooltip)
+        return m
+
+
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
     ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
@@ -754,11 +768,8 @@ class MyTreeView(QTreeView):
         self.toolbar_buttons = buttons
         return hbox
 
-    def create_toolbar_with_menu(self, title, menu_items):
-        menu = QMenu()
-        menu.setToolTipsVisible(True)
-        for k, v in menu_items:
-            menu.addAction(k, v)
+    def create_toolbar_with_menu(self, title):
+        menu = MyMenu(self.config)
         toolbar_button = QToolButton()
         toolbar_button.setIcon(read_QIcon("preferences.png"))
         toolbar_button.setMenu(menu)
@@ -768,7 +779,7 @@ class MyTreeView(QTreeView):
         toolbar.addWidget(QLabel(title))
         toolbar.addStretch()
         toolbar.addWidget(toolbar_button)
-        return toolbar
+        return toolbar, menu
 
     def show_toolbar(self, state, config=None):
         if state == self.toolbar_shown:

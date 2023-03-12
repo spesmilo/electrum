@@ -528,18 +528,14 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.hide_rows()
 
     def create_toolbar(self, config):
-        toolbar = self.create_toolbar_with_menu('', [
-            (_("&Filter Period"), lambda: self.toggle_toolbar(self.config)),
-            (_("&Summary"), self.show_summary),
-            (_("&Plot"), self.plot_history_dialog),
-            (_("&Export"), self.export_history_dialog),
-        ])
+        toolbar, menu = self.create_toolbar_with_menu('')
+        menu.addToggle(_("&Filter Period"), lambda: self.toggle_toolbar(self.config))
+        menu.addAction(_("&Summary"), self.show_summary)
+        menu.addAction(_("&Plot"), self.plot_history_dialog)
+        menu.addAction(_("&Export"), self.export_history_dialog)
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
         return toolbar
-
-    def toggle_filter(self):
-        pass
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button

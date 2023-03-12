@@ -149,13 +149,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
-        self.toolbar = self.invoice_list.create_toolbar_with_menu(
-            '',
-            [
-                (_("&Pay to many"), self.paytomany),
-                (_("Import invoices"), self.window.import_invoices),
-                (_("Export invoices"), self.window.export_invoices),
-            ])
+        self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+        menu.addToggle(_("&Pay to many"), self.paytomany)
+        menu.addAction(_("Import invoices"), self.window.import_invoices)
+        menu.addAction(_("Export invoices"), self.window.export_invoices)
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
@@ -754,15 +751,17 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                       broadcast_thread, broadcast_done, self.window.on_error)
 
     def paytomany(self):
-        self.window.show_send_tab()
+        if self.payto_e.is_multiline():
+            self.payto_e.do_clear()
+            return
         self.payto_e.paytomany()
-        msg = '\n'.join([
+        message = '\n'.join([
             _('Enter a list of outputs in the \'Pay to\' field.'),
             _('One output per line.'),
             _('Format: address, amount'),
             _('You may load a CSV file using the file icon.')
         ])
-        self.show_message(msg, title=_('Pay to many'))
+        self.window.show_tooltip_after_delay(message)
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]

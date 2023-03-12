@@ -174,13 +174,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
-        self.toolbar = self.request_list.create_toolbar_with_menu(
-            '',
-            [
-                (_("Toggle QR code window"), self.window.toggle_qr_window),
-                (_("Import requests"), self.window.import_requests),
-                (_("Export requests"), self.window.export_requests),
-            ])
+        self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
+        menu.addToggle(_("Show QR code window"), self.window.toggle_qr_window)
+        menu.addAction(_("Import requests"), self.window.import_requests)
+        menu.addAction(_("Export requests"), self.window.export_requests)
 
         # layout
         vbox_g = QVBoxLayout()

@@ -129,9 +129,8 @@ class ContactList(MyTreeView):
         return self.get_role_data_from_coordinate(row, col, role=self.ROLE_CONTACT_KEY)
 
     def create_toolbar(self, config):
-        toolbar = self.create_toolbar_with_menu('', [
-            (_("&New contact"), self.parent.new_contact_dialog),
-            (_("Import"), lambda: self.parent.import_contacts()),
-            (_("Export"), lambda: self.parent.export_contacts()),
-        ])
+        toolbar, menu = self.create_toolbar_with_menu('')
+        menu.addAction(_("&New contact"), self.parent.new_contact_dialog)
+        menu.addAction(_("Import"), lambda: self.parent.import_contacts())
+        menu.addAction(_("Export"), lambda: self.parent.export_contacts())
         return toolbar
