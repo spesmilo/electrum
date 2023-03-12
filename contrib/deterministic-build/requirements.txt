@@ -39,9 +39,9 @@ aiohttp==3.7.4.post0 \
 aiohttp-socks==0.6.0 \
     --hash=sha256:b95dcfba3740c8499f4ff633846d72108459d25650ebc1ae8b299cb817088013 \
     --hash=sha256:db7aa48c0758ee45d7dbc1fde499912ec6fb77eab77a6e2808825d1f41d4e300
-aiorpcX==0.18.7 \
-    --hash=sha256:7fa48423e1c06cd0ffb7b60f2cca7e819b6cbbf57d4bc8a82944994ef5038f05 \
-    --hash=sha256:808a9ec9172df11677a0f7b459b69d1a6cf8b19c19da55541fa31fb1afce5ce7
+aiorpcX==0.22.1 \
+    --hash=sha256:e74f9fbed3fd21598e71fe05066618fc2c06feec504fe29490ddda05fdbdde62 \
+    --hash=sha256:6026f7bed3432e206589c94dcf599be8cd85b5736b118c7275845c1bd922a553
 async-timeout==3.0.1 \
     --hash=sha256:0c3c816a028d47f659d6ff5c745cb2acf1f966da1fe5c19c77a70282b25f4c5f \
     --hash=sha256:4291ca197d287d274d0b6cb5d6f8f8f82d434ed288f962539ff18cc9012f9ea3
@@ -201,9 +201,9 @@ zipp==3.4.1 \
 colorama==0.4.4 \
     --hash=sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b \
     --hash=sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2
-scrypt==0.8.18 \
-    --hash=sha256:bcf04257af12e6d52974d177a7b08e314b66f350a73f9b6f7b232d69a6a1e041 \
-https://github.com/FeatherCoin/neoscrypt-python/archive/refs/tags/1.3.tar.gz  \
-    hash=sha256:04c256912a4271ad2a0856737800e06965431412bd5b36d361febffb67dc30ba
+scrypt==0.8.20 \
+    --hash=sha256:ae606705fa1d54aa0d5ba8e3272bb4d3f801543c8090e11ced00de46c4feff40 \
+    --hash=sha256:776b6778d6bdd0794b404f20af9509c8e09dc0b7bc5683e2b6612a6ca8231b11
+
 
 
