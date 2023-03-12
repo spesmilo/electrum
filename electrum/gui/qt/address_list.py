@@ -88,6 +88,7 @@ class AddressList(MyTreeView):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.LABEL,
                          editable_columns=[self.Columns.LABEL])
+        self.main_window = parent
         self.wallet = self.parent.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -111,9 +112,13 @@ class AddressList(MyTreeView):
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
         menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar(self.config))
+        menu.addConfig(_('Show Fiat balances'), 'fiat_address', False, callback=self.main_window.app.update_fiat_signal.emit)
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
         return toolbar
+
+    def should_show_fiat(self):
+        return self.parent.fx and self.parent.fx.is_enabled() and self.config.get('fiat_address', False)
 
     def get_toolbar_buttons(self):
         return QLabel(_("Filter:")), self.change_button, self.used_button
@@ -124,9 +129,8 @@ class AddressList(MyTreeView):
         self.update()
 
     def refresh_headers(self):
-        fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
-            ccy = fx.get_currency()
+        if self.should_show_fiat():
+            ccy = self.parent.fx.get_currency()
         else:
             ccy = _('Fiat')
         headers = {
@@ -211,7 +215,7 @@ class AddressList(MyTreeView):
                 set_address = QPersistentModelIndex(address_idx)
         self.set_current_idx(set_address)
         # show/hide columns
-        if fx and fx.get_fiat_address_config():
+        if self.should_show_fiat():
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
@@ -228,7 +232,7 @@ class AddressList(MyTreeView):
         balance_text = self.parent.format_amount(balance, whitespaces=True)
         # create item
         fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
+        if self.should_show_fiat():
             rate = fx.exchange_rate()
             fiat_balance_str = fx.value_str(balance, rate)
         else:

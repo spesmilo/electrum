@@ -262,6 +262,17 @@ class HistoryModel(CustomModel, Logger):
         """Overridden in address_dialog.py"""
         return True
 
+    def should_show_fiat(self):
+        if not self.window.config.get('history_rates', False):
+            return False
+        fx = self.window.fx
+        if not fx or not fx.is_enabled():
+            return False
+        return fx.has_history()
+
+    def should_show_capital_gains(self):
+        return self.should_show_fiat() and self.window.config.get('history_rates_capital_gains', False)
+
     @profiler
     def refresh(self, reason: str):
         self.logger.info(f"refreshing... reason: {reason}")
@@ -280,7 +291,9 @@ class HistoryModel(CustomModel, Logger):
         transactions = wallet.get_full_history(
             self.window.fx,
             onchain_domain=self.get_domain(),
-            include_lightning=self.should_include_lightning_payments())
+            include_lightning=self.should_include_lightning_payments(),
+            include_fiat=self.should_show_fiat(),
+        )
         if transactions == self.transactions:
             return
         old_length = self._root.childCount()
@@ -361,8 +374,8 @@ class HistoryModel(CustomModel, Logger):
         set_visible(HistoryColumns.TXID, False)
         set_visible(HistoryColumns.SHORT_ID, False)
         # fiat
-        history = self.window.fx.show_history()
-        cap_gains = self.window.fx.get_history_capital_gains_config()
+        history = self.should_show_fiat()
+        cap_gains = self.should_show_capital_gains()
         set_visible(HistoryColumns.FIAT_VALUE, history)
         set_visible(HistoryColumns.FIAT_ACQ_PRICE, history and cap_gains)
         set_visible(HistoryColumns.FIAT_CAP_GAINS, history and cap_gains)
@@ -412,7 +425,7 @@ class HistoryModel(CustomModel, Logger):
         fiat_title = 'n/a fiat value'
         fiat_acq_title = 'n/a fiat acquisition price'
         fiat_cg_title = 'n/a fiat capital gains'
-        if fx and fx.show_history():
+        if self.should_show_fiat():
             fiat_title = '%s '%fx.ccy + _('Value')
             fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
             fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
@@ -473,6 +486,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         super().__init__(parent, self.create_menu,
                          stretch_column=HistoryColumns.DESCRIPTION,
                          editable_columns=[HistoryColumns.DESCRIPTION, HistoryColumns.FIAT_VALUE])
+        self.main_window = parent
         self.config = parent.config
         self.hm = model
         self.proxy = HistorySortModel(self)
@@ -529,13 +543,22 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
-        menu.addToggle(_("&Filter Period"), lambda: self.toggle_toolbar(self.config))
+        menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar(self.config))
+        self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
+        self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)
         menu.addAction(_("&Summary"), self.show_summary)
         menu.addAction(_("&Plot"), self.plot_history_dialog)
         menu.addAction(_("&Export"), self.export_history_dialog)
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
+        self.update_toolbar_menu()
         return toolbar
+
+    def update_toolbar_menu(self):
+        fx = self.main_window.fx
+        b = fx and fx.is_enabled() and fx.has_history()
+        self.menu_fiat.setEnabled(b)
+        self.menu_capgains.setEnabled(b)
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
@@ -574,11 +597,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return datetime.datetime(date.year, date.month, date.day)
 
     def show_summary(self):
-        fx = self.parent.fx
-        show_fiat = fx and fx.is_enabled() and fx.get_history_config()
-        if not show_fiat:
+        if not self.hm.should_show_fiat():
             self.parent.show_message(_("Enable fiat exchange rate with history."))
             return
+        fx = self.parent.fx
         h = self.wallet.get_detailed_history(
             from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
             to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,

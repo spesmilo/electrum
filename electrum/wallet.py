@@ -1189,7 +1189,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return is_paid, conf_needed
 
     @profiler
-    def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True):
+    def get_full_history(self, fx=None, *, onchain_domain=None, include_lightning=True, include_fiat=False):
         transactions_tmp = OrderedDictWithIndex()
         # add on-chain txns
         onchain_history = self.get_onchain_history(domain=onchain_domain)
@@ -1245,7 +1245,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             item['value'] = Satoshis(value)
             balance += value
             item['balance'] = Satoshis(balance)
-            if fx and fx.is_enabled() and fx.get_history_config():
+            if include_fiat:
                 txid = item.get('txid')
                 if not item.get('lightning') and txid:
                     fiat_fields = self.get_tx_item_fiat(tx_hash=txid, amount_sat=value, fx=fx, tx_fee=item['fee_sat'])
@@ -1272,7 +1272,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 and (from_height is not None or to_height is not None):
             raise Exception('timestamp and block height based filtering cannot be used together')
 
-        show_fiat = fx and fx.is_enabled() and fx.get_history_config()
+        show_fiat = fx and fx.is_enabled() and fx.has_history()
         out = []
         income = 0
         expenditures = 0

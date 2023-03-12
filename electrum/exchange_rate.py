@@ -583,7 +583,7 @@ class FxThread(ThreadJob, EventListener):
                     await self._trigger.wait()
                     self._trigger.clear()
                 # we were manually triggered, so get historical rates
-                if self.is_enabled() and self.show_history():
+                if self.is_enabled() and self.has_history():
                     self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             except TaskTimeout:
                 pass
@@ -597,26 +597,8 @@ class FxThread(ThreadJob, EventListener):
         self.config.set_key('use_exchange_rate', bool(b))
         self.trigger_update()
 
-    def get_history_config(self, *, allow_none=False):
-        val = self.config.get('history_rates', None)
-        if val is None and allow_none:
-            return None
-        return bool(val)
-
-    def set_history_config(self, b):
-        self.config.set_key('history_rates', bool(b))
-
-    def get_history_capital_gains_config(self):
-        return bool(self.config.get('history_rates_capital_gains', False))
-
-    def set_history_capital_gains_config(self, b):
-        self.config.set_key('history_rates_capital_gains', bool(b))
-
-    def get_fiat_address_config(self):
-        return bool(self.config.get('fiat_address'))
-
-    def set_fiat_address_config(self, b):
-        self.config.set_key('fiat_address', bool(b))
+    def has_history(self):
+        return self.is_enabled() and self.ccy in self.exchange.history_ccys()
 
     def get_currency(self) -> str:
         '''Use when dynamic fetching is needed'''
@@ -624,9 +606,6 @@ class FxThread(ThreadJob, EventListener):
 
     def config_exchange(self):
         return self.config.get('use_exchange', DEFAULT_EXCHANGE)
-
-    def show_history(self):
-        return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
 
     def set_currency(self, ccy: str):
         self.ccy = ccy

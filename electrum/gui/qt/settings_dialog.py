@@ -313,41 +313,25 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_hbox_w.setLayout(block_ex_hbox)
 
         # Fiat Currency
-        hist_checkbox = QCheckBox()
-        hist_capgains_checkbox = QCheckBox()
-        fiat_address_checkbox = QCheckBox()
+        self.require_history_checkbox = QCheckBox()
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
         def update_currencies():
             if not self.fx:
                 return
-            currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
+            currencies = sorted(self.fx.get_currencies(self.require_history_checkbox.isChecked()))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
                 ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
-
-        def update_history_cb():
-            if not self.fx: return
-            hist_checkbox.setChecked(self.fx.get_history_config())
-            hist_checkbox.setEnabled(self.fx.is_enabled())
-
-        def update_fiat_address_cb():
-            if not self.fx: return
-            fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
-
-        def update_history_capgains_cb():
-            if not self.fx: return
-            hist_capgains_checkbox.setChecked(self.fx.get_history_capital_gains_config())
-            hist_capgains_checkbox.setEnabled(hist_checkbox.isChecked())
 
         def update_exchanges():
             if not self.fx: return
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.fx.get_history_config()
+                h = self.require_history_checkbox.isChecked()
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -365,7 +349,6 @@ class SettingsDialog(QDialog, QtEventListener):
             self.fx.set_enabled(b)
             if b and ccy != self.fx.ccy:
                 self.fx.set_currency(ccy)
-            update_history_cb()
             update_exchanges()
             self.app.update_fiat_signal.emit()
 
@@ -373,35 +356,17 @@ class SettingsDialog(QDialog, QtEventListener):
             exchange = str(ex_combo.currentText())
             if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
                 self.fx.set_exchange(exchange)
+            self.app.update_fiat_signal.emit()
 
-        def on_history(checked):
-            if not self.fx: return
-            self.fx.set_history_config(checked)
+        def on_require_history(checked):
+            if not self.fx:
+                return
             update_exchanges()
-            if self.fx.is_enabled() and checked:
-                self.fx.trigger_update()
-            update_history_capgains_cb()
-            self.app.update_fiat_signal.emit()
-
-        def on_history_capgains(checked):
-            if not self.fx: return
-            self.fx.set_history_capital_gains_config(checked)
-            self.app.update_fiat_signal.emit()
-
-        def on_fiat_address(checked):
-            if not self.fx: return
-            self.fx.set_fiat_address_config(checked)
-            self.app.update_fiat_signal.emit()
 
         update_currencies()
-        update_history_cb()
-        update_history_capgains_cb()
-        update_fiat_address_cb()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        hist_checkbox.stateChanged.connect(on_history)
-        hist_capgains_checkbox.stateChanged.connect(on_history_capgains)
-        fiat_address_checkbox.stateChanged.connect(on_fiat_address)
+        self.require_history_checkbox.stateChanged.connect(on_require_history)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         gui_widgets = []
@@ -419,9 +384,7 @@ class SettingsDialog(QDialog, QtEventListener):
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
-        fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
+        fiat_widgets.append((QLabel(_('Show sources with historical data')), self.require_history_checkbox))
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))

@@ -157,8 +157,11 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             return
 
         self._logger.debug('retrieving history')
-        history = self.wallet.get_full_history(onchain_domain=self.onchain_domain,
-                                               include_lightning=self.include_lightning)
+        history = self.wallet.get_full_history(
+            onchain_domain=self.onchain_domain,
+            include_lightning=self.include_lightning,
+            include_fiat=False,
+        )
         txs = []
         for key, tx in history.items():
             txs.append(self.tx_to_model(tx))
