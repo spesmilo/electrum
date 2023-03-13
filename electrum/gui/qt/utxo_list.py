@@ -92,9 +92,10 @@ class UTXOList(MyTreeView):
         for idx, utxo in enumerate(utxos):
             name = utxo.prevout.to_str()
             self._utxo_dict[name] = utxo
-            address = utxo.address
-            amount_str = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
-            labels = [str(utxo.short_id), address, '', amount_str, '']
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.OUTPOINT] = str(utxo.short_id)
+            labels[self.Columns.ADDRESS] = utxo.address
+            labels[self.Columns.AMOUNT] = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)

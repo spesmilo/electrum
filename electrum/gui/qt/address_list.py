@@ -187,7 +187,8 @@ class AddressList(MyTreeView):
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
             num_shown += 1
-            labels = ['', address, '', '', '', '']
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.ADDRESS] = address
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):

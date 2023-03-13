@@ -110,13 +110,13 @@ class InvoiceList(MyTreeView):
                 if item.bip70:
                     icon_name = 'seal.png'
             status = self.wallet.get_invoice_status(item)
-            status_str = item.get_status_str(status)
-            message = item.message
             amount = item.get_amount_sat()
             timestamp = item.time or 0
-            date_str = format_time(timestamp) if timestamp else _('Unknown')
-            amount_str = self.parent.format_amount(amount, whitespaces=True)
-            labels = [date_str, message, amount_str, status_str]
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.DATE] = format_time(timestamp) if timestamp else _('Unknown')
+            labels[self.Columns.DESCRIPTION] = item.message
+            labels[self.Columns.AMOUNT] = self.parent.format_amount(amount, whitespaces=True)
+            labels[self.Columns.STATUS] = item.get_status_str(status)
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
