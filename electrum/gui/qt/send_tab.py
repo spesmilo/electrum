@@ -27,6 +27,7 @@ from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLErr
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .util import WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit
+from .util import get_iconname_camera, get_iconname_qrcode, read_QIcon
 from .confirm_tx_dialog import ConfirmTxDialog
 
 if TYPE_CHECKING:
@@ -150,7 +151,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
         self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+        menu.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
+        menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
+        menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
         menu.addToggle(_("&Pay to many"), self.paytomany)
+        menu.addSeparator()
         menu.addAction(_("Import invoices"), self.window.import_invoices)
         menu.addAction(_("Export invoices"), self.window.export_invoices)
 
