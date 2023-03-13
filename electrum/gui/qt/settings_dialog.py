@@ -352,10 +352,12 @@ class SettingsDialog(QDialog, QtEventListener):
         gui_widgets = []
         gui_widgets.append((lang_label, lang_combo))
         gui_widgets.append((colortheme_label, colortheme_combo))
-        gui_widgets.append((unit_label, unit_combo))
-        gui_widgets.append((nz_label, nz))
-        gui_widgets.append((msat_cb, None))
-        gui_widgets.append((thousandsep_cb, None))
+        gui_widgets.append((block_ex_label, block_ex_hbox_w))
+        units_widgets = []
+        units_widgets.append((unit_label, unit_combo))
+        units_widgets.append((nz_label, nz))
+        units_widgets.append((msat_cb, None))
+        units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
         lightning_widgets.append((trampoline_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
@@ -368,14 +370,14 @@ class SettingsDialog(QDialog, QtEventListener):
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
-        misc_widgets.append((block_ex_label, block_ex_hbox_w))
         if len(choosers) > 1:
             misc_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
-            (lightning_widgets, _('Lightning')),
+            (units_widgets, _('Units')),
             (fiat_widgets, _('Fiat')),
+            (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
         ]
         for widgets, name in tabs_info:
