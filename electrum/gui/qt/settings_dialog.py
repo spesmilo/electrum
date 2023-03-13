@@ -105,16 +105,6 @@ class SettingsDialog(QDialog, QtEventListener):
         nz.valueChanged.connect(on_nz)
 
         # lightning
-        help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
-        recov_cb = QCheckBox(_("Create recoverable channels"))
-        enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
-        recov_cb.setEnabled(enable_toggle_use_recoverable_channels)
-        recov_cb.setToolTip(messages.to_rtf(help_recov))
-        recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)) and enable_toggle_use_recoverable_channels)
-        def on_recov_checked(x):
-            self.config.set_key('use_recoverable_channels', bool(x))
-        recov_cb.stateChanged.connect(on_recov_checked)
-
         help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
         trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
         trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
@@ -377,7 +367,6 @@ class SettingsDialog(QDialog, QtEventListener):
         gui_widgets.append((msat_cb, None))
         gui_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
-        lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
         lightning_widgets.append((instant_swaps_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))

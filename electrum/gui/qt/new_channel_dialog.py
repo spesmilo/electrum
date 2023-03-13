@@ -9,7 +9,8 @@ from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum import ecc
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 
-
+from electrum.gui import messages
+from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel,
                    char_width_in_lineedit)
@@ -33,6 +34,13 @@ class NewChannelDialog(WindowModalDialog):
         self.trampoline_names = list(self.trampolines.keys())
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
+        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        recov_tooltip = messages.to_rtf(_(messages.MSG_RECOVERABLE_CHANNELS))
+        menu.addConfig(
+            _("Create recoverable channels"), 'use_recoverable_channels', True,
+            tooltip=recov_tooltip,
+        ).setEnabled(self.lnworker.can_have_recoverable_channels())
+        vbox.addLayout(toolbar)
         msg = _('Choose a remote node and an amount to fund the channel.')
         if min_amount_sat:
             # only displayed if min_amount_sat is passed as parameter
