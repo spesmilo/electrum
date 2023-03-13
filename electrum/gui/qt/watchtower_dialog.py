@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import enum
+
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton, QLabel)
@@ -32,10 +34,22 @@ from .util import MyTreeView, Buttons
 
 
 class WatcherList(MyTreeView):
+
+    class Columns(MyTreeView.BaseColumnsEnum):
+        OUTPOINT = enum.auto()
+        TX_COUNT = enum.auto()
+        STATUS = enum.auto()
+
+    headers = {
+        Columns.OUTPOINT: _('Outpoint'),
+        Columns.TX_COUNT: _('Tx'),
+        Columns.STATUS: _('Status'),
+    }
+
     def __init__(self, parent: 'WatchtowerDialog'):
         super().__init__(
             parent=parent,
-            stretch_column=0,
+            stretch_column=self.Columns.OUTPOINT,
         )
         self.parent = parent
         self.setModel(QStandardItemModel(self))
@@ -46,13 +60,18 @@ class WatcherList(MyTreeView):
         if self.parent.lnwatcher is None:
             return
         self.model().clear()
-        self.update_headers({0:_('Outpoint'), 1:_('Tx'), 2:_('Status')})
+        self.update_headers(self.__class__.headers)
         lnwatcher = self.parent.lnwatcher
         l = lnwatcher.list_sweep_tx()
         for outpoint in l:
             n = lnwatcher.get_num_tx(outpoint)
             status = lnwatcher.get_channel_status(outpoint)
-            items = [QStandardItem(e) for e in [outpoint, "%d"%n, status]]
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.OUTPOINT] = outpoint
+            labels[self.Columns.TX_COUNT] = str(n)
+            labels[self.Columns.STATUS] = status
+            items = [QStandardItem(e) for e in labels]
+            self.set_editability(items)
             self.model().insertRow(self.model().rowCount(), items)
         size = lnwatcher.sweepstore.filesize()
         self.parent.size_label.setText('Database size: %.2f Mb'%(size/1024/1024.))

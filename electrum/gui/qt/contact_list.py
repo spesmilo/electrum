@@ -110,7 +110,10 @@ class ContactList(MyTreeView):
         set_current = None
         for key in sorted(self.main_window.contacts.keys()):
             contact_type, name = self.main_window.contacts[key]
-            items = [QStandardItem(x) for x in (name, key)]
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.NAME] = name
+            labels[self.Columns.ADDRESS] = key
+            items = [QStandardItem(x) for x in labels]
             items[self.Columns.NAME].setEditable(contact_type != 'openalias')
             items[self.Columns.ADDRESS].setEditable(False)
             items[self.Columns.NAME].setData(key, self.ROLE_CONTACT_KEY)
