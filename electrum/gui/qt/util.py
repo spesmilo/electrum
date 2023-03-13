@@ -626,14 +626,21 @@ class MyTreeView(QTreeView):
 
     Columns: Type[BaseColumnsEnum]
 
-    def __init__(self, parent: 'ElectrumWindow', create_menu, *,
-                 stretch_column=None, editable_columns=None):
+    def __init__(
+        self,
+        *,
+        parent: Optional[QWidget] = None,
+        main_window: Optional['ElectrumWindow'] = None,
+        stretch_column: Optional[int] = None,
+        editable_columns: Optional[Sequence[int]] = None,
+    ):
+        parent = parent or main_window
         super().__init__(parent)
-        self.parent = parent
-        self.config = self.parent.config
+        self.main_window = main_window
+        self.config = self.main_window.config if self.main_window else None
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(create_menu)
+        self.customContextMenuRequested.connect(self.create_menu)
         self.setUniformRowHeights(True)
 
         # Control which columns are editable
@@ -658,6 +665,9 @@ class MyTreeView(QTreeView):
         self._forced_update = False
 
         self._default_bg_brush = QStandardItem().background()
+
+    def create_menu(self, position: QPoint) -> None:
+        pass
 
     def set_editability(self, items):
         for idx, i in enumerate(items):
@@ -836,7 +846,7 @@ class MyTreeView(QTreeView):
         return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
-        self.parent.do_copy(text, title=title)
+        self.main_window.do_copy(text, title=title)
 
     def showEvent(self, e: 'QShowEvent'):
         super().showEvent(e)

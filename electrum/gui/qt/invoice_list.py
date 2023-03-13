@@ -69,8 +69,10 @@ class InvoiceList(MyTreeView):
 
     def __init__(self, send_tab: 'SendTab'):
         window = send_tab.window
-        super().__init__(window, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION)
+        super().__init__(
+            main_window=window,
+            stretch_column=self.Columns.DESCRIPTION,
+        )
         self.wallet = window.wallet
         self.send_tab = send_tab
         self.std_model = QStandardItemModel(self)
@@ -115,7 +117,7 @@ class InvoiceList(MyTreeView):
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = format_time(timestamp) if timestamp else _('Unknown')
             labels[self.Columns.DESCRIPTION] = item.message
-            labels[self.Columns.AMOUNT] = self.parent.format_amount(amount, whitespaces=True)
+            labels[self.Columns.AMOUNT] = self.main_window.format_amount(amount, whitespaces=True)
             labels[self.Columns.STATUS] = item.get_status_str(status)
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
@@ -160,11 +162,11 @@ class InvoiceList(MyTreeView):
         copy_menu = self.add_copy_menu(menu, idx)
         address = invoice.get_address()
         if address:
-            copy_menu.addAction(_("Address"), lambda: self.parent.do_copy(invoice.get_address(), title='Bitcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Bitcoin Address'))
         if invoice.is_lightning():
-            menu.addAction(_("Details"), lambda: self.parent.show_lightning_invoice(invoice))
+            menu.addAction(_("Details"), lambda: self.main_window.show_lightning_invoice(invoice))
         else:
-            menu.addAction(_("Details"), lambda: self.parent.show_onchain_invoice(invoice))
+            menu.addAction(_("Details"), lambda: self.main_window.show_onchain_invoice(invoice))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))

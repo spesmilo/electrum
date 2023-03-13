@@ -73,8 +73,10 @@ class RequestList(MyTreeView):
 
     def __init__(self, receive_tab: 'ReceiveTab'):
         window = receive_tab.window
-        super().__init__(window, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION)
+        super().__init__(
+            main_window=window,
+            stretch_column=self.Columns.DESCRIPTION,
+        )
         self.wallet = window.wallet
         self.receive_tab = receive_tab
         self.std_model = QStandardItemModel(self)
@@ -141,7 +143,7 @@ class RequestList(MyTreeView):
             amount = req.get_amount_sat()
             message = req.get_message()
             date = format_time(timestamp)
-            amount_str = self.parent.format_amount(amount) if amount else ""
+            amount_str = self.main_window.format_amount(amount) if amount else ""
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = date
             labels[self.Columns.DESCRIPTION] = message
@@ -193,15 +195,15 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         copy_menu = self.add_copy_menu(menu, idx)
         if req.get_address():
-            copy_menu.addAction(_("Address"), lambda: self.parent.do_copy(req.get_address(), title='Bitcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(req.get_address(), title='Bitcoin Address'))
         if URI := self.wallet.get_request_URI(req):
-            copy_menu.addAction(_("Bitcoin URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
+            copy_menu.addAction(_("Bitcoin URI"), lambda: self.main_window.do_copy(URI, title='Bitcoin URI'))
         if req.is_lightning():
-            copy_menu.addAction(_("Lightning Request"), lambda: self.parent.do_copy(self.wallet.get_bolt11_invoice(req), title='Lightning Request'))
+            copy_menu.addAction(_("Lightning Request"), lambda: self.main_window.do_copy(self.wallet.get_bolt11_invoice(req), title='Lightning Request'))
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
-        run_hook('receive_list_menu', self.parent, menu, key)
+        run_hook('receive_list_menu', self.main_window, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):

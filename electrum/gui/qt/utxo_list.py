@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from typing import Optional, List, Dict, Sequence, Set
+from typing import Optional, List, Dict, Sequence, Set, TYPE_CHECKING
 import enum
 import copy
 
@@ -38,6 +38,9 @@ from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
 
 from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
 from .new_channel_dialog import NewChannelDialog
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 class UTXOList(MyTreeView):
@@ -64,12 +67,14 @@ class UTXOList(MyTreeView):
     ROLE_PREVOUT_STR = Qt.UserRole + 1000
     key_role = ROLE_PREVOUT_STR
 
-    def __init__(self, parent):
-        super().__init__(parent, self.create_menu,
-                         stretch_column=self.stretch_column)
+    def __init__(self, main_window: 'ElectrumWindow'):
+        super().__init__(
+            main_window=main_window,
+            stretch_column=self.stretch_column,
+        )
         self._spend_set = set()
         self._utxo_dict = {}
-        self.wallet = self.parent.wallet
+        self.wallet = self.main_window.wallet
         self.std_model = QStandardItemModel(self)
         self.setModel(self.std_model)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -95,7 +100,7 @@ class UTXOList(MyTreeView):
             labels = [""] * len(self.Columns)
             labels[self.Columns.OUTPOINT] = str(utxo.short_id)
             labels[self.Columns.ADDRESS] = utxo.address
-            labels[self.Columns.AMOUNT] = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
+            labels[self.Columns.AMOUNT] = self.main_window.format_amount(utxo.value_sats(), whitespaces=True)
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
@@ -115,11 +120,11 @@ class UTXOList(MyTreeView):
             coins = [self._utxo_dict[x] for x in self._spend_set]
             coins = self._filter_frozen_coins(coins)
             amount = sum(x.value_sats() for x in coins)
-            amount_str = self.parent.format_amount_and_units(amount)
+            amount_str = self.main_window.format_amount_and_units(amount)
             num_outputs_str = _("{} outputs available ({} total)").format(len(coins), len(self._utxo_dict))
-            self.parent.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
+            self.main_window.set_coincontrol_msg(_("Coin control active") + f': {num_outputs_str}, {amount_str}')
         else:
-            self.parent.set_coincontrol_msg(None)
+            self.main_window.set_coincontrol_msg(None)
 
     def refresh_row(self, key, row):
         assert row is not None
@@ -184,7 +189,7 @@ class UTXOList(MyTreeView):
         selected = self.get_selected_outpoints()
         coins = [self._utxo_dict[name] for name in selected]
         if not coins:
-            self.parent.show_error(_('You need to select coins from the list first.\nUse ctrl+left mouse button to select multiple items'))
+            self.main_window.show_error(_('You need to select coins from the list first.\nUse ctrl+left mouse button to select multiple items'))
             return
         self.add_to_coincontrol(coins)
 
@@ -223,7 +228,7 @@ class UTXOList(MyTreeView):
     def swap_coins(self, coins):
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
-        self.parent.run_swap_dialog(is_reverse=False, recv_amount_sat='!')
+        self.main_window.run_swap_dialog(is_reverse=False, recv_amount_sat='!')
         self.clear_coincontrol()
 
     def can_open_channel(self, coins):
@@ -236,7 +241,7 @@ class UTXOList(MyTreeView):
         # todo : use a single dialog in new flow
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
-        d = NewChannelDialog(self.parent)
+        d = NewChannelDialog(self.main_window)
         d.max_button.setChecked(True)
         d.max_button.setEnabled(False)
         d.min_button.setEnabled(False)
@@ -247,15 +252,15 @@ class UTXOList(MyTreeView):
         self.clear_coincontrol()
 
     def clipboard_contains_address(self):
-        text = self.parent.app.clipboard().text()
+        text = self.main_window.app.clipboard().text()
         return is_address(text)
 
     def pay_to_clipboard_address(self, coins):
-        addr = self.parent.app.clipboard().text()
+        addr = self.main_window.app.clipboard().text()
         outputs = [PartialTxOutput.from_address_and_value(addr, '!')]
         #self.clear_coincontrol()
         self.add_to_coincontrol(coins)
-        self.parent.send_tab.pay_onchain_dialog(outputs)
+        self.main_window.send_tab.pay_onchain_dialog(outputs)
         self.clear_coincontrol()
 
     def create_menu(self, position):
@@ -277,7 +282,7 @@ class UTXOList(MyTreeView):
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("Privacy analysis"), lambda: self.parent.show_utxo(utxo))
+                menu.addAction(_("Privacy analysis"), lambda: self.main_window.show_utxo(utxo))
         # fully spend
         menu_spend = menu.addMenu(_("Fully spend") + '…')
         m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))
@@ -297,13 +302,13 @@ class UTXOList(MyTreeView):
             addr = utxo.address
             menu_freeze = menu.addMenu(_("Freeze"))
             if not self.wallet.is_frozen_coin(utxo):
-                menu_freeze.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], True))
+                menu_freeze.addAction(_("Freeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], True))
             else:
-                menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo], False))
+                menu_freeze.addAction(_("Unfreeze Coin"), lambda: self.main_window.set_frozen_state_of_coins([utxo], False))
             if not self.wallet.is_frozen_address(addr):
-                menu_freeze.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
+                menu_freeze.addAction(_("Freeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
             else:
-                menu_freeze.addAction(_("Unfreeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
+                menu_freeze.addAction(_("Unfreeze Address"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
         elif len(coins) > 1:  # multiple items selected
             menu.addSeparator()
             addrs = [utxo.address for utxo in coins]
@@ -311,13 +316,13 @@ class UTXOList(MyTreeView):
             is_addr_frozen = [self.wallet.is_frozen_address(utxo.address) for utxo in coins]
             menu_freeze = menu.addMenu(_("Freeze"))
             if not all(is_coin_frozen):
-                menu_freeze.addAction(_("Freeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, True))
+                menu_freeze.addAction(_("Freeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, True))
             if any(is_coin_frozen):
-                menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, False))
+                menu_freeze.addAction(_("Unfreeze Coins"), lambda: self.main_window.set_frozen_state_of_coins(coins, False))
             if not all(is_addr_frozen):
-                menu_freeze.addAction(_("Freeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
+                menu_freeze.addAction(_("Freeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
             if any(is_addr_frozen):
-                menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+                menu_freeze.addAction(_("Unfreeze Addresses"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
 
         menu.exec_(self.viewport().mapToGlobal(position))
 

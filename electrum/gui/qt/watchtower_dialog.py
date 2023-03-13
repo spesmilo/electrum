@@ -32,14 +32,15 @@ from .util import MyTreeView, Buttons
 
 
 class WatcherList(MyTreeView):
-    def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=0)
+    def __init__(self, parent: 'WatchtowerDialog'):
+        super().__init__(
+            parent=parent,
+            stretch_column=0,
+        )
+        self.parent = parent
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()
-
-    def create_menu(self, x):
-        pass
 
     def update(self):
         if self.parent.lnwatcher is None:

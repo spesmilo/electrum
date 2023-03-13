@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import enum
+from typing import TYPE_CHECKING
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
@@ -35,6 +36,9 @@ from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
 from .util import MyTreeView, webopen
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 class ContactList(MyTreeView):
@@ -52,10 +56,12 @@ class ContactList(MyTreeView):
     ROLE_CONTACT_KEY = Qt.UserRole + 1000
     key_role = ROLE_CONTACT_KEY
 
-    def __init__(self, parent):
-        super().__init__(parent, self.create_menu,
-                         stretch_column=self.Columns.NAME,
-                         editable_columns=[self.Columns.NAME])
+    def __init__(self, main_window: 'ElectrumWindow'):
+        super().__init__(
+            main_window=main_window,
+            stretch_column=self.Columns.NAME,
+            editable_columns=[self.Columns.NAME],
+        )
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -63,8 +69,8 @@ class ContactList(MyTreeView):
         self.update()
 
     def on_edited(self, idx, edit_key, *, text):
-        _type, prior_name = self.parent.contacts.pop(edit_key)
-        self.parent.set_contact(text, edit_key)
+        _type, prior_name = self.main_window.contacts.pop(edit_key)
+        self.main_window.set_contact(text, edit_key)
         self.update()
 
     def create_menu(self, position):
@@ -86,8 +92,8 @@ class ContactList(MyTreeView):
                     # would not be editable if openalias
                     persistent = QPersistentModelIndex(idx)
                     menu.addAction(_("Edit {}").format(column_title), lambda p=persistent: self.edit(QModelIndex(p)))
-            menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(selected_keys))
-            menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(selected_keys))
+            menu.addAction(_("Pay to"), lambda: self.main_window.payto_contacts(selected_keys))
+            menu.addAction(_("Delete"), lambda: self.main_window.delete_contacts(selected_keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, selected_keys)]
             if URLs:
                 menu.addAction(_("View on block explorer"), lambda: [webopen(u) for u in URLs])
@@ -102,8 +108,8 @@ class ContactList(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
         set_current = None
-        for key in sorted(self.parent.contacts.keys()):
-            contact_type, name = self.parent.contacts[key]
+        for key in sorted(self.main_window.contacts.keys()):
+            contact_type, name = self.main_window.contacts[key]
             items = [QStandardItem(x) for x in (name, key)]
             items[self.Columns.NAME].setEditable(contact_type != 'openalias')
             items[self.Columns.ADDRESS].setEditable(False)
@@ -130,7 +136,7 @@ class ContactList(MyTreeView):
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
-        menu.addAction(_("&New contact"), self.parent.new_contact_dialog)
-        menu.addAction(_("Import"), lambda: self.parent.import_contacts())
-        menu.addAction(_("Export"), lambda: self.parent.export_contacts())
+        menu.addAction(_("&New contact"), self.main_window.new_contact_dialog)
+        menu.addAction(_("Import"), lambda: self.main_window.import_contacts())
+        menu.addAction(_("Export"), lambda: self.main_window.export_contacts())
         return toolbar
