@@ -11,7 +11,7 @@ import webbrowser
 from decimal import Decimal
 from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple)
+                    Sequence, Iterable, Tuple, Type)
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
@@ -623,6 +623,8 @@ class MyTreeView(QTreeView):
         def _generate_next_value_(name: str, start: int, count: int, last_values):
             # this is overridden to get a 0-based counter
             return count
+
+    Columns: Type[BaseColumnsEnum]
 
     def __init__(self, parent: 'ElectrumWindow', create_menu, *,
                  stretch_column=None, editable_columns=None):

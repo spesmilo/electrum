@@ -30,7 +30,7 @@ import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
 import threading
-from enum import IntEnum
+import enum
 from decimal import Decimal
 
 from PyQt5.QtGui import QMouseEvent, QFont, QBrush, QColor
@@ -77,18 +77,6 @@ TX_ICONS = [
 
 
 ROLE_SORT_ORDER = Qt.UserRole + 1000
-
-
-class HistoryColumns(IntEnum):
-    STATUS = 0
-    DESCRIPTION = 1
-    AMOUNT = 2
-    BALANCE = 3
-    FIAT_VALUE = 4
-    FIAT_ACQ_PRICE = 5
-    FIAT_CAP_GAINS = 6
-    TXID = 7
-    SHORT_ID = 8  # ~SCID
 
 
 class HistorySortModel(QSortFilterProxyModel):
@@ -464,12 +452,24 @@ class HistoryModel(CustomModel, Logger):
 
 
 class HistoryList(MyTreeView, AcceptFileDragDrop):
+
+    class Columns(MyTreeView.BaseColumnsEnum):
+        STATUS = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        BALANCE = enum.auto()
+        FIAT_VALUE = enum.auto()
+        FIAT_ACQ_PRICE = enum.auto()
+        FIAT_CAP_GAINS = enum.auto()
+        TXID = enum.auto()
+        SHORT_ID = enum.auto()  # ~SCID
+
     filter_columns = [
-        HistoryColumns.STATUS,
-        HistoryColumns.DESCRIPTION,
-        HistoryColumns.AMOUNT,
-        HistoryColumns.TXID,
-        HistoryColumns.SHORT_ID,
+        Columns.STATUS,
+        Columns.DESCRIPTION,
+        Columns.AMOUNT,
+        Columns.TXID,
+        Columns.SHORT_ID,
     ]
 
     def tx_item_from_proxy_row(self, proxy_row):
@@ -892,3 +892,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def get_role_data_from_coordinate(self, row, col, *, role):
         idx = self.model().mapToSource(self.model().index(row, col))
         return self.hm.data(idx, role).value()
+
+
+HistoryColumns = HistoryList.Columns
