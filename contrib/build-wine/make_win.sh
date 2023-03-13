@@ -6,8 +6,9 @@ here="$(dirname "$(readlink -e "$0")")"
 test -n "$here" -a -d "$here" || exit
 
 if [ -z "$WIN_ARCH" ] ; then
-    export WIN_ARCH="win32"  # default
+    export WIN_ARCH="win64"  # default
 fi
+
 if [ "$WIN_ARCH" = "win32" ] ; then
     export GCC_TRIPLET_HOST="i686-w64-mingw32"
 elif [ "$WIN_ARCH" = "win64" ] ; then
@@ -16,7 +17,7 @@ else
     echo "unexpected WIN_ARCH: $WIN_ARCH"
     exit 1
 fi
-
+ echo "winarch: $WIN_ARCH"
 export BUILD_TYPE="wine"
 export GCC_TRIPLET_BUILD="x86_64-pc-linux-gnu"
 export GCC_STRIP_BINARIES="1"
@@ -40,13 +41,19 @@ rm "$here"/build/* -rf
 rm "$here"/dist/* -rf
 
 mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR" "$PIP_CACHE_DIR"
-#
-#if [ -f "$DLL_TARGET_DIR/libneoscrypt-0.dll" ]; then
-#    info "libneoscrypt already built, skipping"
-#else
-#    "$CONTRIB"/make_neoscrypt.sh || fail "Could not build libneoscrypt"
-#fi
 
+if [ -f "$DLL_TARGET_DIR/libscrypt-0.dll" ]; then
+    info "libscrypt already built, skipping"
+else
+"$CONTRIB"/compile_scrypt_lib.sh || fail "Could not build scrypt"
+
+fi
+
+if [ -f "$DLL_TARGET_DIR/libneoscrypt-0.dll" ]; then
+    info "libneoscrypt already built, skipping"
+else
+"$CONTRIB"/compile_neoscrypt_lib.sh || fail "Could not build neoscrypt"
+fi
 if [ -f "$DLL_TARGET_DIR/libsecp256k1-0.dll" ]; then
     info "libsecp256k1 already built, skipping"
 else
@@ -69,11 +76,9 @@ fi
 
 info "Resetting modification time in C:\Python..."
 # (Because of some bugs in pyinstaller)
-pushd /opt/wine64/drive_c/python*
+pushd $WINEPREFIX/drive_c/python*
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
-
 popd
-ls -l $WINEPREFIX/drive_c/python*
 
 "$here/build-electrum-git.sh" || fail "build-electrum-git failed"
 
