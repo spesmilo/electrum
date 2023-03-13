@@ -771,14 +771,15 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp: Optional[int]) -> Optional[datetime]:
+def timestamp_to_datetime(timestamp: Union[int, float, None]) -> Optional[datetime]:
     if timestamp is None:
         return None
     return datetime.fromtimestamp(timestamp)
 
-def format_time(timestamp):
+
+def format_time(timestamp: Union[int, float, None]) -> str:
     date = timestamp_to_datetime(timestamp)
-    return date.isoformat(' ')[:-3] if date else _("Unknown")
+    return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
 
 
 # Takes a timestamp and returns a string with the approximation of the age
