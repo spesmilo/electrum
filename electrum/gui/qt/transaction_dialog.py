@@ -38,7 +38,7 @@ from PyQt5.QtCore import QSize, Qt, QUrl, QPoint, pyqtSignal
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QCursor
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
                              QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
-                             QApplication)
+                             QApplication, QSizePolicy)
 import qrcode
 from qrcode import exceptions
 
@@ -145,6 +145,7 @@ class TxInOutWidget(QWidget):
         vbox.addLayout(outheader_hbox)
         vbox.addWidget(self.outputs_textedit)
         self.setLayout(vbox)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def update(self, tx: Optional[Transaction]):
         self.tx = tx
@@ -852,6 +853,10 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()
+        hbox_stats.setContentsMargins(0, 0, 0, 0)
+        hbox_stats_w = QWidget()
+        hbox_stats_w.setLayout(hbox_stats)
+        hbox_stats_w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
         # left column
         vbox_left = QVBoxLayout()
@@ -904,7 +909,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
-        vbox.addLayout(hbox_stats)
+        vbox.addWidget(hbox_stats_w)
 
         # below columns
         self.block_hash_label = TxDetailLabel(word_wrap=True)
