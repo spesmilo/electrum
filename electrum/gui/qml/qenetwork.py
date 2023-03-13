@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.logging import get_logger
 from electrum import constants
 from electrum.interface import ServerAddr
+from electrum.simple_config import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
@@ -102,7 +103,7 @@ class QENetwork(QObject, QtEventListener):
                 break
             slot = min(item[1], bytes_limit-bytes_current)
             bytes_current += slot
-            capped_histogram.append([max(1, item[0]), slot]) # clamped to [1,inf]
+            capped_histogram.append([max(FEERATE_DEFAULT_RELAY/1000, item[0]), slot]) # clamped to [FEERATE_DEFAULT_RELAY/1000,inf]
 
         # add clamping attributes for the GUI
         self._fee_histogram = {
