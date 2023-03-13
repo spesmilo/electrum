@@ -366,6 +366,10 @@ class HistoryModel(CustomModel, Logger):
             if not tx_item.get('lightning', False):
                 tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
                 self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
+        # update counter
+        num_tx = len(self.transactions)
+        if self.view:
+            self.view.num_tx_label.setText(_("{} transactions").format(num_tx))
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
@@ -543,6 +547,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
+        self.num_tx_label = toolbar.itemAt(0).widget()
         menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar(self.config))
         self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
         self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)

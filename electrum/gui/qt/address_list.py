@@ -111,6 +111,7 @@ class AddressList(MyTreeView):
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
+        self.num_addr_label = toolbar.itemAt(0).widget()
         menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar(self.config))
         menu.addConfig(_('Show Fiat balances'), 'fiat_address', False, callback=self.main_window.app.update_fiat_signal.emit)
         hbox = self.create_toolbar_buttons()
@@ -221,6 +222,8 @@ class AddressList(MyTreeView):
             self.hideColumn(self.Columns.FIAT_BALANCE)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
+        # update counter
+        self.num_addr_label.setText(_("{} addresses").format(len(addr_list)))
 
     def refresh_row(self, key, row):
         assert row is not None
