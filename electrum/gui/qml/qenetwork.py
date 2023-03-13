@@ -102,7 +102,7 @@ class QENetwork(QObject, QtEventListener):
                 break
             slot = min(item[1], bytes_limit-bytes_current)
             bytes_current += slot
-            capped_histogram.append([item[0], slot])
+            capped_histogram.append([max(1, item[0]), slot]) # clamped to [1,inf]
 
         # add clamping attributes for the GUI
         self._fee_histogram = {
