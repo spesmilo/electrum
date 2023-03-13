@@ -9,8 +9,10 @@ import importlib.util
 import argparse
 import subprocess
 
+from distutils import core
 from setuptools import setup, find_packages
 from setuptools.command.install import install
+from setuptools.command.build_py import build_py
 
 MIN_PYTHON_VERSION = "3.8.0"
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -54,17 +56,38 @@ extras_require['full'] = [pkg for sublist in
 extras_require['fast'] = extras_require['crypto']
 
 
+class CustomInstallCommand(install):
+    def run(self):
+        setup = core.run_setup('neoscrypt_module/setup.py', stop_after='commandline')
+        if platform.system() == 'Windows':
+            setup.command_options['build_ext'] = {'compiler': ('build_ext', 'mingw32')}
+            print("\n ---------\n", setup.command_options['build_ext'])
+        setup.run_command('install')
+        install.run(self)
+
+class BuildPyCommand(build_py):
+    def run(self):
+        build_py.run(self)
+        with open('build/lib/electrum_ftc/version.py', 'r+') as fp:
+            verfile = fp.readlines()
+            verfile[0] = "ELECTRUM_FTC_VERSION = '{}'\n".format(
+                version.ELECTRUM_FTC_VERSION)
+            fp.seek(0)
+            fp.writelines(verfile)
+            fp.truncate()
+
 setup(
     name="Electrum-FTC",
     version=version.ELECTRUM_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
-    packages=(['electrum',]
-              + [('electrum.'+pkg) for pkg in
-                 find_packages('electrum', exclude=["tests", "gui.kivy", "gui.kivy.*"])]),
+    packages=[
+        pkg.replace("electrum", "electrum_ftc") for pkg in find_packages(
+            exclude=['*.tests', '*.kivy', '*.kivy.*'])
+    ],
     package_dir={
-        'electrum': 'electrum'
+        'electrum_ftc': 'electrum'
     },
     # Note: MANIFEST.in lists what gets included in the tar.gz, and the
     # package_data kwarg lists what gets put in site-packages when pip installing the tar.gz.
