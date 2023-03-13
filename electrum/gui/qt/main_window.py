@@ -1729,28 +1729,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
-        grid.addWidget(WWLabel(_("Wallet name")+ ':'), 0, 0)
-        grid.addWidget(WWLabel(basename), 0, 1)
-        grid.addWidget(WWLabel(_("Wallet type")+ ':'), 1, 0)
-        grid.addWidget(WWLabel(wallet_type), 1, 1)
-        grid.addWidget(WWLabel(_("Script type")+ ':'), 2, 0)
-        grid.addWidget(WWLabel(self.wallet.txin_type), 2, 1)
-        grid.addWidget(WWLabel(_("Seed available") + ':'), 3, 0)
-        grid.addWidget(WWLabel(str(seed_available)), 3, 1)
+        cur_row = 0
+        grid.addWidget(WWLabel(_("Wallet name")+ ':'), cur_row, 0)
+        grid.addWidget(WWLabel(basename), cur_row, 1)
+        cur_row += 1
+        grid.addWidget(WWLabel(_("Wallet type")+ ':'), cur_row, 0)
+        grid.addWidget(WWLabel(wallet_type), cur_row, 1)
+        cur_row += 1
+        grid.addWidget(WWLabel(_("Script type")+ ':'), cur_row, 0)
+        grid.addWidget(WWLabel(self.wallet.txin_type), cur_row, 1)
+        cur_row += 1
+        grid.addWidget(WWLabel(_("Seed available") + ':'), cur_row, 0)
+        grid.addWidget(WWLabel(str(seed_available)), cur_row, 1)
+        cur_row += 1
         if len(keystore_types) <= 1:
-            grid.addWidget(WWLabel(_("Keystore type") + ':'), 4, 0)
+            grid.addWidget(WWLabel(_("Keystore type") + ':'), cur_row, 0)
             ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
-            grid.addWidget(WWLabel(ks_type), 4, 1)
+            grid.addWidget(WWLabel(ks_type), cur_row, 1)
+            cur_row += 1
         # lightning
-        grid.addWidget(WWLabel(_('Lightning') + ':'), 5, 0)
+        grid.addWidget(WWLabel(_('Lightning') + ':'), cur_row, 0)
         from .util import IconLabel
         if self.wallet.has_lightning():
             if self.wallet.lnworker.has_deterministic_node_id():
-                grid.addWidget(WWLabel(_('Enabled')), 5, 1)
+                grid.addWidget(WWLabel(_('Enabled')), cur_row, 1)
             else:
                 label = IconLabel(text='Enabled, non-recoverable channels')
                 label.setIcon(read_QIcon('nocloud'))
-                grid.addWidget(label, 5, 1)
+                grid.addWidget(label, cur_row, 1)
                 if self.wallet.db.get('seed_type') == 'segwit':
                     msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
@@ -1759,20 +1765,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                     msg = _("Your channels cannot be recovered from seed. "
                             "This means that you must save a backup of your wallet everytime you create a new channel.\n\n"
                             "If you want to have recoverable channels, you must create a new wallet with an Electrum seed")
-                grid.addWidget(HelpButton(msg), 5, 3)
-            grid.addWidget(WWLabel(_('Lightning Node ID:')), 7, 0)
+                grid.addWidget(HelpButton(msg), cur_row, 3)
+            cur_row += 1
+            grid.addWidget(WWLabel(_('Lightning Node ID:')), cur_row, 0)
+            cur_row += 1
             nodeid_text = self.wallet.lnworker.node_keypair.pubkey.hex()
             nodeid_e = ShowQRLineEdit(nodeid_text, self.config, title=_("Node ID"))
-            grid.addWidget(nodeid_e, 8, 0, 1, 4)
+            grid.addWidget(nodeid_e, cur_row, 0, 1, 4)
+            cur_row += 1
         else:
             if self.wallet.can_have_lightning():
-                grid.addWidget(WWLabel('Not enabled'), 5, 1)
+                grid.addWidget(WWLabel('Not enabled'), cur_row, 1)
                 button = QPushButton(_("Enable"))
                 button.pressed.connect(lambda: self.init_lightning_dialog(dialog))
-                grid.addWidget(button, 5, 3)
+                grid.addWidget(button, cur_row, 3)
             else:
-                grid.addWidget(WWLabel(_("Not available for this wallet.")), 5, 1)
-                grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), 5, 2)
+                grid.addWidget(WWLabel(_("Not available for this wallet.")), cur_row, 1)
+                grid.addWidget(HelpButton(_("Lightning is currently restricted to HD wallets with p2wpkh addresses.")), cur_row, 2)
+            cur_row += 1
         vbox.addLayout(grid)
 
         labels_clayout = None
