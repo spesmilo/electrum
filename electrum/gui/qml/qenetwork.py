@@ -87,8 +87,30 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_fee_histogram(self, histogram):
-        self._logger.debug('fee histogram updated')
-        self._fee_histogram = histogram if histogram else []
+        self._logger.debug(f'fee histogram updated: {repr(histogram)}')
+        if histogram is None:
+            histogram = []
+        self.update_histogram(histogram)
+
+    def update_histogram(self, histogram):
+        # cap the histogram to a limited number of megabytes
+        bytes_limit=25*1000*1000
+        bytes_current = 0
+        capped_histogram = []
+        for item in sorted(histogram, key=lambda x: x[0], reverse=True):
+            if bytes_current >= bytes_limit:
+                break
+            slot = min(item[1], bytes_limit-bytes_current)
+            bytes_current += slot
+            capped_histogram.append([item[0], slot])
+
+        # add clamping attributes for the GUI
+        self._fee_histogram = {
+            'histogram': capped_histogram,
+            'total': bytes_current,
+            'min_fee': capped_histogram[-1][0],
+            'max_fee': capped_histogram[0][0]
+        }
         self.feeHistogramUpdated.emit()
 
     @event_listener
