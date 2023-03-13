@@ -117,8 +117,7 @@ class SettingsDialog(QDialog, QtEventListener):
                         _("Without this option, Electrum will need to sync with the Lightning network on every start."),
                         _("This may impact the reliability of your payments."),
                 ])):
-                    # FIXME: Qt bug? stateChanged not triggered on second click
-                    trampoline_cb.setChecked(True)
+                    trampoline_cb.setCheckState(Qt.Checked)
                     return
             self.config.set_key('use_gossip', not use_trampoline)
             if not use_trampoline:
