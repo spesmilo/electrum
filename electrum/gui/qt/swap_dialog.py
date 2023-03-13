@@ -8,6 +8,8 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum.lnutil import ln_dummy_address
 from electrum.transaction import PartialTxOutput, PartialTransaction
 
+from electrum.gui import messages
+from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
@@ -39,6 +41,12 @@ class SwapDialog(WindowModalDialog):
         self.channels = channels
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
+        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        menu.addConfig(
+            _("Allow instant swaps"), 'allow_instant_swaps', False,
+            tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
+        ).setEnabled(self.lnworker.can_have_recoverable_channels())
+        vbox.addLayout(toolbar)
         self.description_label = WWLabel(self.get_description())
         self.send_amount_e = BTCAmountEdit(self.window.get_decimal_point)
         self.recv_amount_e = BTCAmountEdit(self.window.get_decimal_point)
@@ -302,7 +310,7 @@ class SwapDialog(WindowModalDialog):
         onchain_funds = "onchain funds"
         lightning_funds = "lightning funds"
 
-        return "Swap {fromType} for {toType}. This will increase your {capacityType} capacity. This service is powered by the Boltz backend.".format(
+        return "Swap {fromType} for {toType}.\nThis will increase your {capacityType} capacity.".format(
             fromType=lightning_funds if self.is_reverse else onchain_funds,
             toType=onchain_funds if self.is_reverse else lightning_funds,
             capacityType="receiving" if self.is_reverse else "sending",
