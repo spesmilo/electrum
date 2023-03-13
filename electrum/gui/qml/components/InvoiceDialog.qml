@@ -254,6 +254,7 @@ ElDialog {
                             }
 
                             Label {
+                                Layout.alignment: Qt.AlignRight
                                 visible: !invoice.amount.isMax
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
@@ -271,6 +272,7 @@ ElDialog {
 
                             Label {
                                 id: fiatValue
+                                Layout.alignment: Qt.AlignRight
                                 visible: Daemon.fx.enabled && !invoice.amount.isMax
                                 text: Daemon.fx.fiatValue(invoice.amount, false)
                                 font.pixelSize: constants.fontSizeMedium

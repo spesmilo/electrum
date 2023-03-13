@@ -240,6 +240,15 @@ Item {
 
     Connections {
         target: Daemon.currentWallet
+        function onOtpRequested() {
+            console.log('OTP requested')
+            var dialog = otpDialog.createObject(mainView)
+            dialog.accepted.connect(function() {
+                console.log('accepted ' + dialog.otpauth)
+                Daemon.currentWallet.finish_otp(dialog.otpauth)
+            })
+            dialog.open()
+        }
         function onBroadcastFailed(txid, code, message) {
             var dialog = app.messageDialog.createObject(app, {
                 text: message
@@ -286,22 +295,6 @@ Item {
             }
 
             onClosed: destroy()
-        }
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onOtpRequested() {
-            console.log('OTP requested')
-            var dialog = otpDialog.createObject(mainView)
-            dialog.accepted.connect(function() {
-                console.log('accepted ' + dialog.otpauth)
-                Daemon.currentWallet.finish_otp(dialog.otpauth)
-            })
-            dialog.open()
-        }
-        function onBroadcastFailed() {
-            notificationPopup.show(qsTr('Broadcast transaction failed'))
         }
     }
 
