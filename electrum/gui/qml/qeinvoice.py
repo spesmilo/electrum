@@ -115,7 +115,7 @@ class QEInvoice(QObject):
         return spendable
 
     def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send()
+        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
 class QEInvoiceParser(QEInvoice):
     _logger = get_logger(__name__)
