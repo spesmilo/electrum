@@ -1,4 +1,5 @@
 import asyncio
+import enum
 import os.path
 import time
 import sys
@@ -616,6 +617,12 @@ class MyTreeView(QTreeView):
     ROLE_FILTER_DATA    = Qt.UserRole + 103
 
     filter_columns: Iterable[int]
+
+    class BaseColumnsEnum(enum.IntEnum):
+        @staticmethod
+        def _generate_next_value_(name: str, start: int, count: int, last_values):
+            # this is overridden to get a 0-based counter
+            return count
 
     def __init__(self, parent: 'ElectrumWindow', create_menu, *,
                  stretch_column=None, editable_columns=None):

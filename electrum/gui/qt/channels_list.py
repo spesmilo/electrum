@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import traceback
-from enum import IntEnum
+import enum
 from typing import Sequence, Optional, Dict
 from abc import abstractmethod, ABC
 
@@ -33,15 +33,15 @@ class ChannelsList(MyTreeView):
     update_single_row = QtCore.pyqtSignal(Abstract_Wallet, AbstractChannel)
     gossip_db_loaded = QtCore.pyqtSignal()
 
-    class Columns(IntEnum):
-        FEATURES = 0
-        SHORT_CHANID = 1
-        NODE_ALIAS = 2
-        CAPACITY = 3
-        LOCAL_BALANCE = 4
-        REMOTE_BALANCE = 5
-        CHANNEL_STATUS = 6
-        LONG_CHANID = 7
+    class Columns(MyTreeView.BaseColumnsEnum):
+        FEATURES = enum.auto()
+        SHORT_CHANID = enum.auto()
+        NODE_ALIAS = enum.auto()
+        CAPACITY = enum.auto()
+        LOCAL_BALANCE = enum.auto()
+        REMOTE_BALANCE = enum.auto()
+        CHANNEL_STATUS = enum.auto()
+        LONG_CHANID = enum.auto()
 
     headers = {
         Columns.SHORT_CHANID: _('Short Channel ID'),

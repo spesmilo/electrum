@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+import enum
 from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -50,13 +50,13 @@ ROLE_SORT_ORDER = Qt.UserRole + 2
 class RequestList(MyTreeView):
     key_role = ROLE_KEY
 
-    class Columns(IntEnum):
-        DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
-        ADDRESS = 4
-        LN_RHASH = 5
+    class Columns(MyTreeView.BaseColumnsEnum):
+        DATE = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        STATUS = enum.auto()
+        ADDRESS = enum.auto()
+        LN_RHASH = enum.auto()
 
     headers = {
         Columns.DATE: _('Date'),

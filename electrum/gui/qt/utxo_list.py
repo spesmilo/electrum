@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 from typing import Optional, List, Dict, Sequence, Set
-from enum import IntEnum
+import enum
 import copy
 
 from PyQt5.QtCore import Qt
@@ -44,12 +44,12 @@ class UTXOList(MyTreeView):
     _spend_set: Set[str]  # coins selected by the user to spend from
     _utxo_dict: Dict[str, PartialTxInput]  # coin name -> coin
 
-    class Columns(IntEnum):
-        OUTPOINT = 0
-        ADDRESS = 1
-        LABEL = 2
-        AMOUNT = 3
-        PARENTS = 4
+    class Columns(MyTreeView.BaseColumnsEnum):
+        OUTPOINT = enum.auto()
+        ADDRESS = enum.auto()
+        LABEL = enum.auto()
+        AMOUNT = enum.auto()
+        PARENTS = enum.auto()
 
     headers = {
         Columns.OUTPOINT: _('Output point'),

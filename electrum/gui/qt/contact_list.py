@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+import enum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
@@ -39,9 +39,9 @@ from .util import MyTreeView, webopen
 
 class ContactList(MyTreeView):
 
-    class Columns(IntEnum):
-        NAME = 0
-        ADDRESS = 1
+    class Columns(MyTreeView.BaseColumnsEnum):
+        NAME = enum.auto()
+        ADDRESS = enum.auto()
 
     headers = {
         Columns.NAME: _('Name'),

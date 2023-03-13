@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import enum
 from enum import IntEnum
 
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
@@ -70,13 +71,13 @@ class AddressTypeFilter(IntEnum):
 
 class AddressList(MyTreeView):
 
-    class Columns(IntEnum):
-        TYPE = 0
-        ADDRESS = 1
-        LABEL = 2
-        COIN_BALANCE = 3
-        FIAT_BALANCE = 4
-        NUM_TXS = 5
+    class Columns(MyTreeView.BaseColumnsEnum):
+        TYPE = enum.auto()
+        ADDRESS = enum.auto()
+        LABEL = enum.auto()
+        COIN_BALANCE = enum.auto()
+        FIAT_BALANCE = enum.auto()
+        NUM_TXS = enum.auto()
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
