@@ -70,12 +70,16 @@ class UTXOList(MyTreeView):
         self._spend_set = set()
         self._utxo_dict = {}
         self.wallet = self.parent.wallet
-
         self.std_model = QStandardItemModel(self)
         self.setModel(self.std_model)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
-        self.update()
+
+    def create_toolbar(self, config):
+        toolbar, menu = self.create_toolbar_with_menu('')
+        self.num_coins_label = toolbar.itemAt(0).widget()
+        menu.addAction(_('Coin control'), lambda: self.add_selection_to_coincontrol())
+        return toolbar
 
     def update(self):
         # not calling maybe_defer_update() as it interferes with coincontrol status bar
@@ -103,6 +107,7 @@ class UTXOList(MyTreeView):
             self.refresh_row(name, idx)
         self.filter()
         self.update_coincontrol_bar()
+        self.num_coins_label.setText(_('{} unspent transaction outputs').format(len(utxos)))
 
     def update_coincontrol_bar(self):
         # update coincontrol status bar
@@ -142,9 +147,9 @@ class UTXOList(MyTreeView):
             utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
             utxo_item[self.Columns.OUTPOINT].setToolTip(f"{key}\n{_('Coin is frozen')}")
 
-    def get_selected_outpoints(self) -> Optional[List[str]]:
+    def get_selected_outpoints(self) -> List[str]:
         if not self.model():
-            return None
+            return []
         items = self.selected_in_column(self.Columns.OUTPOINT)
         return [x.data(self.ROLE_PREVOUT_STR) for x in items]
 
@@ -171,6 +176,17 @@ class UTXOList(MyTreeView):
     def clear_coincontrol(self):
         self._spend_set.clear()
         self._refresh_coincontrol()
+
+    def add_selection_to_coincontrol(self):
+        if bool(self._spend_set):
+            self.clear_coincontrol()
+            return
+        selected = self.get_selected_outpoints()
+        coins = [self._utxo_dict[name] for name in selected]
+        if not coins:
+            self.parent.show_error(_('You need to select coins from the list first.\nUse ctrl+left mouse button to select multiple items'))
+            return
+        self.add_to_coincontrol(coins)
 
     def _refresh_coincontrol(self):
         self.refresh_all()
@@ -244,8 +260,6 @@ class UTXOList(MyTreeView):
 
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
-        if selected is None:
-            return
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         coins = [self._utxo_dict[name] for name in selected]
