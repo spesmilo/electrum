@@ -98,7 +98,6 @@ class UTXOList(MyTreeView):
             labels[self.Columns.AMOUNT] = self.parent.format_amount(utxo.value_sats(), whitespaces=True)
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
-            utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_CLIPBOARD_DATA)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
             utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
@@ -270,9 +269,10 @@ class UTXOList(MyTreeView):
             idx = self.indexAt(position)
             if not idx.isValid():
                 return
-            self.add_copy_menu(menu, idx)
             utxo = coins[0]
             txid = utxo.prevout.txid.hex()
+            cc = self.add_copy_menu(menu, idx)
+            cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
             # "Details"
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
