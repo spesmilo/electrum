@@ -65,7 +65,8 @@ wine "$CACHEDIR/$NSIS_FILENAME" /S
 cp "$DLL_TARGET_DIR/libsecp256k1-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libsecp to its destination"
 cp "$DLL_TARGET_DIR/libzbar-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libzbar to its destination"
 cp "$DLL_TARGET_DIR/libusb-1.0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libusb to its destination"
-
+cp "$DLL_TARGET_DIR/libneoscrypt-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libneoscrypt to its destination"
+cp "$DLL_TARGET_DIR/libscrypt-0.dll" $WINEPREFIX/drive_c/tmp/ || fail "Could not copy libscrypt to its destination"
 
 info "Building PyInstaller."
 # we build our own PyInstaller boot loader as the default one has high

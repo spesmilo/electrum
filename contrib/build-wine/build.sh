@@ -2,7 +2,8 @@
 #
 # env vars:
 # - ELECBUILD_NOCACHE: if set, forces rebuild of docker image
-# - ELECBUILD_COMMIT: if set, do a fresh clone and git checkout
+# -
+: if set, do a fresh clone and git checkout
 
 set -e
 
@@ -46,8 +47,8 @@ fi
 info "building binary..."
 docker run -it \
     --name electrum-wine-builder-cont \
-    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/wine64/drive_c/electrum \
     --rm \
+    -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/opt/wine64/drive_c/electrum \
     --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
     electrum-wine-builder-img \
     ./make_win.sh

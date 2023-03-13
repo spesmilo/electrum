@@ -36,14 +36,17 @@ prepare:
 		cp -f blacklist.txt .buildozer/android/platform/python-for-android/src/blacklist.txt;\
 		rm -rf ./.buildozer/android/platform/python-for-android/dist;\
 	fi
+	#end prepare
 apk:
 	@make prepare
+	pwd
 	@-cd ../..; buildozer android debug
+	pwd
 	@make clean
 release:
 	@make prepare
 	@-cd ../..; buildozer android release
-	@make clean
+	#@make clean
 clean:
 	# Cleaning up
 	# rename main.py to electrum

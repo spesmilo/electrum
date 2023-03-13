@@ -1,6 +1,12 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrum-ftc
+
+export WINEPREFIX=/opt/wine64
+export WINEDEBUG=-all
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONHASHSEED=22
+export WINEPATH="c:\\mingw32\\bin"
 
 export PYTHONDONTWRITEBYTECODE=1  # don't create __pycache__/ folders with .pyc files
 
@@ -27,7 +33,7 @@ rm -rf "$LOCALE"
 
 find -exec touch -h -d '2000-11-11T11:11:11+00:00' {} +
 popd
-pwd
+
 
 
 # opt out of compiling C extensions
@@ -37,7 +43,7 @@ export MULTIDICT_NO_EXTENSIONS=1
 export FROZENLIST_NO_EXTENSIONS=1
 
 info "Installing requirements..."
-$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies  --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements.txt
 info "Installing dependencies specific to binaries..."
 # TODO use "--no-binary :all:" (but we don't have a C compiler...)

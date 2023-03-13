@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+import os
+import io
+import zipfile
+import requests
+
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+
+
+# Download & unzip
+print('Download translations')
+s = requests.request('GET', 'https://crowdin.com/backend/download/project/electrum.zip').content
+zfobj = zipfile.ZipFile(io.BytesIO(s))
+
+print('Unzip translations')
+for name in zfobj.namelist():
+    if not name.startswith('electrum-client/locale'):
+        continue
+    if name.endswith('/'):
+        if not os.path.exists(name[16:]):
+            os.mkdir(name[16:])
+    else:
+        with open(name[16:], 'wb') as output:
+            output.write(zfobj.read(name))
+
+# Convert .po to .mo
+print('Installing')
+for lang in os.listdir('locale'):
+    po = 'locale/%s/electrum.po' % lang
+    cmd = "git add %s"%po
+    os.system(cmd)
+
+os.system("git commit -a -m 'update translations'")
+print("please push")
