@@ -1111,6 +1111,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if not self.network:
             self.show_error(_("You are offline."))
             return
+        if not self.wallet.lnworker.num_sats_can_send() and not self.wallet.lnworker.num_sats_can_receive():
+            self.show_error(_("You do not have liquidity in your active channels."))
+            return
         def get_pairs_thread():
             self.network.run_from_another_thread(self.wallet.lnworker.swap_manager.get_pairs())
         try:

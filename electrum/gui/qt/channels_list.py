@@ -74,7 +74,6 @@ class ChannelsList(MyTreeView):
         self.network = self.parent.network
         self.wallet = self.parent.wallet
         self.setSortingEnabled(True)
-        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
     @property
     # property because lnworker might be initialized at runtime
@@ -208,24 +207,22 @@ class ChannelsList(MyTreeView):
 
     def on_rebalance(self):
         chan1, chan2 = self.get_rebalance_pair()
+        if chan1 is None:
+            self.parent.show_error("Select two active channels to rebalance.")
+            return
         self.parent.rebalance_dialog(chan1, chan2)
-
-    def on_selection_changed(self):
-        chan1, chan2 = self.get_rebalance_pair()
-        self.rebalance_button.setEnabled(chan1 is not None)
 
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
         selected = self.selected_in_column(self.Columns.NODE_ALIAS)
         if not selected:
-            menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         if len(selected) == 2:
             chan1, chan2 = self.get_rebalance_pair()
             if chan1 and chan2:
-                menu.addAction(_("Rebalance"), lambda: self.parent.rebalance_dialog(chan1, chan2))
+                menu.addAction(_("Rebalance channels"), lambda: self.parent.rebalance_dialog(chan1, chan2))
                 menu.exec_(self.viewport().mapToGlobal(position))
             return
         elif len(selected) > 2:
@@ -345,31 +342,18 @@ class ChannelsList(MyTreeView):
               + _('can receive') + ' ' + self.parent.format_amount(lnworker.num_sats_can_receive())\
               + ' ' + self.parent.base_unit()
         self.can_send_label.setText(msg)
-        self.update_swap_button(lnworker)
-
-    def update_swap_button(self, lnworker: LNWallet):
-        if lnworker.num_sats_can_send() or lnworker.num_sats_can_receive():
-            self.swap_button.setEnabled(True)
-        else:
-            self.swap_button.setEnabled(False)
 
     def create_toolbar(self, config):
-        h = QHBoxLayout()
-        self.can_send_label = QLabel('')
-        h.addWidget(self.can_send_label)
-        h.addStretch()
-        self.rebalance_button = EnterButton(_('Rebalance'), lambda x: self.on_rebalance())
-        self.rebalance_button.setToolTip("Select two active channels to rebalance.")
-        self.rebalance_button.setDisabled(True)
-        self.swap_button = EnterButton(_('Swap'), lambda x: self.parent.run_swap_dialog())
-        self.swap_button.setToolTip("Have at least one channel to do swaps.")
-        self.swap_button.setDisabled(True)
-        self.new_channel_button = EnterButton(_('Open Channel'), self.new_channel_with_warning)
+        toolbar, menu = self.create_toolbar_with_menu('')
+        self.can_send_label = toolbar.itemAt(0).widget()
+        menu.addAction(_('Rebalance channels'), lambda: self.on_rebalance())
+        menu.addAction(_('Submarine swap'), lambda: self.parent.run_swap_dialog())
+        menu.addSeparator()
+        menu.addAction(_("Import channel backup"), lambda: self.parent.do_process_from_text_channel_backup())
+        self.new_channel_button = EnterButton(_('New Channel'), self.new_channel_with_warning)
         self.new_channel_button.setEnabled(self.parent.wallet.has_lightning())
-        h.addWidget(self.new_channel_button)
-        h.addWidget(self.rebalance_button)
-        h.addWidget(self.swap_button)
-        return h
+        toolbar.insertWidget(2, self.new_channel_button)
+        return toolbar
 
     def new_channel_with_warning(self):
         lnworker = self.parent.wallet.lnworker
