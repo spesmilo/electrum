@@ -255,11 +255,11 @@ Item {
             height: parent.height
 
             onDoPay: {
-                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                if (invoice.invoiceType == Invoice.OnchainInvoice || (invoice.invoiceType == Invoice.LightningInvoice && invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend ) ) {
                     var dialog = confirmPaymentDialog.createObject(mainView, {
-                            'address': invoice.address,
-                            'satoshis': invoice.amount,
-                            'message': invoice.message
+                            address: invoice.address,
+                            satoshis: invoice.amount,
+                            message: invoice.message
                     })
                     var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
                     dialog.txaccepted.connect(function() {

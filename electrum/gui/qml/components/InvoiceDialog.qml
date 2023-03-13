@@ -78,7 +78,9 @@ ElDialog {
                         text: invoice.invoiceType == Invoice.OnchainInvoice
                                 ? qsTr('On chain')
                                 : invoice.invoiceType == Invoice.LightningInvoice
-                                    ? qsTr('Lightning')
+                                    ? invoice.address
+                                        ? qsTr('Lightning with on-chain fallback address')
+                                        : qsTr('Lightning')
                                     : ''
                         Layout.fillWidth: true
                     }
