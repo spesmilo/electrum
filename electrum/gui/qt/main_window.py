@@ -1084,6 +1084,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             else:
                 self.qr_window_geometry = self.qr_window.geometry()
                 self.qr_window.setVisible(False)
+        self.receive_tab.update_receive_qr_window()
 
     def show_send_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.send_tab))

@@ -35,7 +35,7 @@ class QR_Window(QWidget):
 
     def __init__(self, win):
         QWidget.__init__(self)
-        self.win = win
+        self.main_window = win
         self.setWindowTitle('Electrum - '+_('Payment Request'))
         self.setMinimumSize(800, 800)
         self.setFocusPolicy(Qt.NoFocus)
@@ -43,3 +43,6 @@ class QR_Window(QWidget):
         self.qrw = QRCodeWidget()
         main_box.addWidget(self.qrw, 1)
         self.setLayout(main_box)
+
+    def closeEvent(self, event):
+        self.main_window.receive_tab.qr_menu_action.setChecked(False)
