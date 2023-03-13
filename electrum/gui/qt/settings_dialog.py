@@ -106,13 +106,22 @@ class SettingsDialog(QDialog, QtEventListener):
 
         # lightning
         help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
-        trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
+        trampoline_cb = QCheckBox(_("Use trampoline routing"))
         trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
         trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
         def on_trampoline_checked(use_trampoline):
-            use_gossip = not bool(use_trampoline)
-            self.config.set_key('use_gossip', use_gossip)
-            if use_gossip:
+            use_trampoline = bool(use_trampoline)
+            if not use_trampoline:
+                if not window.question('\n'.join([
+                        _("Are you sure you want to disable trampoline?"),
+                        _("Without this option, Electrum will need to sync with the Lightning network on every start."),
+                        _("This may impact the reliability of your payments."),
+                ])):
+                    # FIXME: Qt bug? stateChanged not triggered on second click
+                    trampoline_cb.setChecked(True)
+                    return
+            self.config.set_key('use_gossip', not use_trampoline)
+            if not use_trampoline:
                 self.network.start_gossip()
             else:
                 self.network.run_from_another_thread(
@@ -121,7 +130,6 @@ class SettingsDialog(QDialog, QtEventListener):
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
-
 
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
