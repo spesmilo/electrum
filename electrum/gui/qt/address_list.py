@@ -47,7 +47,7 @@ class AddressUsageStateFilter(IntEnum):
 
     def ui_text(self) -> str:
         return {
-            self.ALL: _('All'),
+            self.ALL: _('All status'),
             self.UNUSED: _('Unused'),
             self.FUNDED: _('Funded'),
             self.USED_AND_EMPTY: _('Used'),
@@ -62,7 +62,7 @@ class AddressTypeFilter(IntEnum):
 
     def ui_text(self) -> str:
         return {
-            self.ALL: _('All'),
+            self.ALL: _('All types'),
             self.RECEIVING: _('Receiving'),
             self.CHANGE: _('Change'),
         }[self]
@@ -122,7 +122,7 @@ class AddressList(MyTreeView):
         return self.parent.fx and self.parent.fx.is_enabled() and self.config.get('fiat_address', False)
 
     def get_toolbar_buttons(self):
-        return QLabel(_("Filter:")), self.change_button, self.used_button
+        return self.change_button, self.used_button
 
     def on_hide_toolbar(self):
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
