@@ -262,7 +262,7 @@ class UTXOList(MyTreeView):
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("View parents"), lambda: self.parent.show_utxo(utxo))
+                menu.addAction(_("Privacy analysis"), lambda: self.parent.show_utxo(utxo))
         # fully spend
         menu_spend = menu.addMenu(_("Fully spend") + '…')
         m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))

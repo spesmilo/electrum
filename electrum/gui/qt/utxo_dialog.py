@@ -84,6 +84,7 @@ class UTXODialog(WindowModalDialog):
             ASCII_PIPE   = '│'
             ASCII_SPACE  = ' '
 
+        self.num_reuse = 0
         def print_ascii_tree(_txid, prefix, is_last, is_uncle):
             if _txid not in parents:
                 return
@@ -95,6 +96,7 @@ class UTXODialog(WindowModalDialog):
             c = '' if _txid == txid else (ASCII_EDGE if is_last else ASCII_BRANCH)
             cursor.insertText(prefix + c, ext)
             if is_uncle:
+                self.num_reuse += 1
                 lnk = QTextCharFormat(self.txo_color_uncle.text_char_format)
             else:
                 lnk = QTextCharFormat(self.txo_color_parent.text_char_format)
@@ -119,7 +121,10 @@ class UTXODialog(WindowModalDialog):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Output point") + ": " + str(self.utxo.short_id)))
         vbox.addWidget(QLabel(_("Amount") + ": " + self.main_window.format_amount_and_units(self.utxo.value_sats())))
-        vbox.addWidget(QLabel(_("This UTXO has {} parent transactions in your wallet").format(num_parents)))
+        msg = _("This UTXO has {} parent transactions in your wallet.").format(num_parents)
+        if self.num_reuse:
+            msg += '\n' + _('This does not include transactions that are downstream of address reuse.')
+        vbox.addWidget(WWLabel(msg))
         vbox.addWidget(self.parents_list)
         legend_hbox = QHBoxLayout()
         legend_hbox.setContentsMargins(0, 0, 0, 0)
@@ -128,7 +133,7 @@ class UTXODialog(WindowModalDialog):
         legend_hbox.addWidget(self.txo_color_uncle.legend_label)
         vbox.addLayout(legend_hbox)
         self.txo_color_parent.legend_label.setVisible(True)
-        self.txo_color_uncle.legend_label.setVisible(True)
+        self.txo_color_uncle.legend_label.setVisible(bool(self.num_reuse))
         vbox.addLayout(Buttons(CloseButton(self)))
         self.setLayout(vbox)
         # set cursor to top
