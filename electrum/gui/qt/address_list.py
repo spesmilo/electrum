@@ -172,6 +172,7 @@ class AddressList(MyTreeView):
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
+        num_shown = 0
         self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
@@ -185,6 +186,7 @@ class AddressList(MyTreeView):
                 continue
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
+            num_shown += 1
             labels = ['', address, '', '', '', '']
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
@@ -223,7 +225,7 @@ class AddressList(MyTreeView):
         self.filter()
         self.proxy.setDynamicSortFilter(True)
         # update counter
-        self.num_addr_label.setText(_("{} addresses").format(len(addr_list)))
+        self.num_addr_label.setText(_("{} addresses").format(num_shown))
 
     def refresh_row(self, key, row):
         assert row is not None
