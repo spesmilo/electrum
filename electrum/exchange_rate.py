@@ -35,7 +35,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0,
-                  'EUR': 3}
+                  'EUR': 3, 'USD': 3, 'GBP' : 3}
 
 
 def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
@@ -327,9 +327,8 @@ class CoinDesk(ExchangeBase):
 class CoinGecko(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('api.coingecko.com', '/api/v3/exchange_rates')
-        return dict([(ccy.upper(), to_decimal(d['value']))
-                     for ccy, d in json['rates'].items()])
+        json = await self.get_json('api.coingecko.com', '/api/v3/coins/markets?vs_currency=%s&ids=feathercoin&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h' % ccy)
+        return {ccy.upper():  to_decimal(json[0]['current_price'])}
 
     def history_ccys(self):
         # CoinGecko seems to have historical data for all ccys it supports
