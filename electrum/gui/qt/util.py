@@ -596,6 +596,18 @@ class MyMenu(QMenu):
         if callback:
             callback()
 
+def create_toolbar_with_menu(config, title):
+    menu = MyMenu(config)
+    toolbar_button = QToolButton()
+    toolbar_button.setIcon(read_QIcon("preferences.png"))
+    toolbar_button.setMenu(menu)
+    toolbar_button.setPopupMode(QToolButton.InstantPopup)
+    toolbar_button.setFocusPolicy(Qt.NoFocus)
+    toolbar = QHBoxLayout()
+    toolbar.addWidget(QLabel(title))
+    toolbar.addStretch()
+    toolbar.addWidget(toolbar_button)
+    return toolbar, menu
 
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
@@ -783,17 +795,7 @@ class MyTreeView(QTreeView):
         return hbox
 
     def create_toolbar_with_menu(self, title):
-        menu = MyMenu(self.config)
-        toolbar_button = QToolButton()
-        toolbar_button.setIcon(read_QIcon("preferences.png"))
-        toolbar_button.setMenu(menu)
-        toolbar_button.setPopupMode(QToolButton.InstantPopup)
-        toolbar_button.setFocusPolicy(Qt.NoFocus)
-        toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel(title))
-        toolbar.addStretch()
-        toolbar.addWidget(toolbar_button)
-        return toolbar, menu
+        return create_toolbar_with_menu(self.config, title)
 
     def show_toolbar(self, state, config=None):
         if state == self.toolbar_shown:

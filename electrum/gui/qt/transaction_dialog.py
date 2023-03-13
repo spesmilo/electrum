@@ -56,6 +56,7 @@ from electrum.logging import get_logger
 from electrum.util import ShortID, get_asyncio_loop
 from electrum.network import Network
 
+from . import util
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
@@ -407,6 +408,14 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
+        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        menu.addConfig(
+            _('Download missing data'), 'tx_dialog_fetch_txin_data', False,
+            tooltip=_(
+                'Download parent transactions from the network.\n'
+                'Allows filling in missing fee and input details.'),
+            callback=self.maybe_fetch_txin_data)
+        vbox.addLayout(toolbar)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e = ShowQRLineEdit('', self.config, title='Transaction ID')
@@ -418,20 +427,6 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self.io_widget = TxInOutWidget(self.main_window, self.wallet)
         vbox.addWidget(self.io_widget)
-
-        # add "fetch_txin_data" checkbox to io_widget
-        fetch_txin_data_cb = QCheckBox(_('Download input data'))
-        fetch_txin_data_cb.setChecked(bool(self.config.get('tx_dialog_fetch_txin_data', False)))
-        fetch_txin_data_cb.setToolTip(_('Download parent transactions from the network.\n'
-                                        'Allows filling in missing fee and address details.'))
-        def on_fetch_txin_data_cb(x):
-            self.config.set_key('tx_dialog_fetch_txin_data', bool(x))
-            if x:
-                self.initiate_fetch_txin_data()
-        fetch_txin_data_cb.stateChanged.connect(on_fetch_txin_data_cb)
-        self.io_widget.inheader_hbox.addStretch(1)
-        self.io_widget.inheader_hbox.addWidget(fetch_txin_data_cb)
-        self.io_widget.inheader_hbox.addStretch(10)
 
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
@@ -517,8 +512,8 @@ class TxDialog(QDialog, MessageBoxMixin):
                 lambda: Network.run_from_another_thread(
                     tx.add_info_from_network(self.wallet.network, timeout=10)),
             )
-        elif self.config.get('tx_dialog_fetch_txin_data', False):
-            self.initiate_fetch_txin_data()
+        else:
+            self.maybe_fetch_txin_data()
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
@@ -932,12 +927,14 @@ class TxDialog(QDialog, MessageBoxMixin):
     def update_fee_fields(self):
         pass  # overridden in subclass
 
-    def initiate_fetch_txin_data(self):
+    def maybe_fetch_txin_data(self):
         """Download missing input data from the network, asynchronously.
         Note: we fetch the prev txs, which allows calculating the fee and showing "input addresses".
               We could also SPV-verify the tx, to fill in missing tx_mined_status (block height, blockhash, timestamp),
               but this is not done currently.
         """
+        if not self.config.get('tx_dialog_fetch_txin_data', False):
+            return
         tx = self.tx
         if not tx:
             return
