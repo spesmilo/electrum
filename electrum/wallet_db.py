@@ -24,12 +24,16 @@
 # SOFTWARE.
 import os
 import ast
+import datetime
 import json
 import copy
 import threading
 from collections import defaultdict
 from typing import Dict, Optional, List, Tuple, Set, Iterable, NamedTuple, Sequence, TYPE_CHECKING, Union
 import binascii
+import time
+
+import attr
 
 from . import util, bitcoin
 from .util import profiler, WalletFileException, multisig_type, TxMinedInfo, bfh
@@ -40,9 +44,10 @@ from .logging import Logger
 from .lnutil import LOCAL, REMOTE, FeeUpdate, UpdateAddHtlc, LocalConfig, RemoteConfig, ChannelType
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnutil import ChannelConstraints, Outpoint, ShachainElement
-from .json_db import StoredDict, JsonDB, locked, modifier
+from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject
 from .plugin import run_hook, plugin_loaders
 from .submarine_swaps import SwapData
+from .version import ELECTRUM_VERSION
 
 if TYPE_CHECKING:
     from .storage import WalletStorage
@@ -62,6 +67,20 @@ class TxFeesValue(NamedTuple):
     num_inputs: Optional[int] = None
 
 
+@attr.s
+class DBMetadata(StoredObject):
+    creation_timestamp = attr.ib(default=None, type=int)
+    first_electrum_version_used = attr.ib(default=None, type=str)
+
+    def to_str(self) -> str:
+        ts = self.creation_timestamp
+        ver = self.first_electrum_version_used
+        if ts is None or ver is None:
+            return "unknown"
+        date_str = datetime.date.fromtimestamp(ts).isoformat()
+        return f"using {ver}, on {date_str}"
+
+
 class WalletDB(JsonDB):
 
     def __init__(self, raw, *, manual_upgrades: bool):
@@ -73,6 +92,7 @@ class WalletDB(JsonDB):
             self.load_plugins()
         else:  # creating new db
             self.put('seed_version', FINAL_SEED_VERSION)
+            self._add_db_creation_metadata()
             self._after_upgrade_tasks()
 
     def load_data(self, s):
@@ -1074,6 +1094,19 @@ class WalletDB(JsonDB):
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)
 
+    def _add_db_creation_metadata(self):
+        # store this for debugging purposes
+        v = DBMetadata(
+            creation_timestamp=int(time.time()),
+            first_electrum_version_used=ELECTRUM_VERSION,
+        )
+        assert self.get("db_metadata", None) is None
+        self.put("db_metadata", v)
+
+    def get_db_metadata(self) -> Optional[DBMetadata]:
+        # field only present for wallet files created with ver 4.4.0 or later
+        return self.get("db_metadata")
+
     @locked
     def get_txi_addresses(self, tx_hash: str) -> List[str]:
         """Returns list of is_mine addresses that appear as inputs in tx."""
@@ -1517,6 +1550,8 @@ class WalletDB(JsonDB):
             v = Outpoint(**v)
         elif key == 'channel_type':
             v = ChannelType(v)
+        elif key == 'db_metadata':
+            v = DBMetadata(**v)
         return v
 
     def _should_convert_to_stored_dict(self, key) -> bool:

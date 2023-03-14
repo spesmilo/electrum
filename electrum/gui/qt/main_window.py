@@ -1735,6 +1735,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(WWLabel(_("Wallet name")+ ':'), cur_row, 0)
         grid.addWidget(WWLabel(basename), cur_row, 1)
         cur_row += 1
+        if db_metadata := self.wallet.db.get_db_metadata():
+            grid.addWidget(WWLabel(_("File created") + ':'), cur_row, 0)
+            grid.addWidget(WWLabel(db_metadata.to_str()), cur_row, 1)
+            cur_row += 1
         grid.addWidget(WWLabel(_("Wallet type")+ ':'), cur_row, 0)
         grid.addWidget(WWLabel(wallet_type), cur_row, 1)
         cur_row += 1
