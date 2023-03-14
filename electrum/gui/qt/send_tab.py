@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from PyQt5.QtCore import pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
-                             QHBoxLayout, QCompleter, QWidget, QToolTip)
+                             QHBoxLayout, QCompleter, QWidget, QToolTip, QPushButton)
 
 from electrum import util, paymentrequest
 from electrum import lnutil
@@ -85,20 +85,21 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
-        grid.addWidget(self.payto_e, 1, 1, 1, -1)
+        grid.addWidget(self.payto_e.line_edit, 1, 1, 1, 4)
+        grid.addWidget(self.payto_e.text_edit, 1, 1, 1, 4)
 
-        completer = QCompleter()
-        completer.setCaseSensitivity(False)
-        self.payto_e.set_completer(completer)
-        completer.setModel(self.window.completions)
+        #completer = QCompleter()
+        #completer.setCaseSensitivity(False)
+        #self.payto_e.set_completer(completer)
+        #completer.setModel(self.window.completions)
 
         msg = _('Description of the transaction (not mandatory).') + '\n\n' \
               + _(
             'The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
         description_label = HelpLabel(_('Description'), msg)
         grid.addWidget(description_label, 2, 0)
-        self.message_e = SizedFreezableLineEdit(width=700)
-        grid.addWidget(self.message_e, 2, 1, 1, -1)
+        self.message_e = SizedFreezableLineEdit(width=600)
+        grid.addWidget(self.message_e, 2, 1, 1, 4)
 
         msg = (_('The amount to be received by the recipient.') + ' '
                + _('Fees are paid by the sender.') + '\n\n'
@@ -127,9 +128,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
         self.send_button = EnterButton(_("Pay") + "...", self.do_pay_or_get_invoice)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
+        self.paste_button = QPushButton()
+        self.paste_button.clicked.connect(lambda: self.payto_e._on_input_btn(self.window.app.clipboard().text()))
+        self.paste_button.setIcon(read_QIcon('copy.png'))
+        self.paste_button.setToolTip(_('Paste invoice from clipboard'))
+        self.paste_button.setMaximumWidth(35)
+        grid.addWidget(self.paste_button, 1, 5)
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
+        #buttons.addWidget(self.paste_button)
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.save_button)
         buttons.addWidget(self.send_button)
@@ -151,10 +159,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
         self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+
+
         menu.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
         menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
         menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
-        menu.addToggle(_("&Pay to many"), self.paytomany)
+        self.paytomany_menu = menu.addToggle(_("&Pay to many"), self.toggle_paytomany)
         menu.addSeparator()
         menu.addAction(_("Import invoices"), self.window.import_invoices)
         menu.addAction(_("Export invoices"), self.window.export_invoices)
@@ -755,18 +765,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
 
-    def paytomany(self):
-        if self.payto_e.is_multiline():
-            self.payto_e.do_clear()
-            return
-        self.payto_e.paytomany()
-        message = '\n'.join([
-            _('Enter a list of outputs in the \'Pay to\' field.'),
-            _('One output per line.'),
-            _('Format: address, amount'),
-            _('You may load a CSV file using the file icon.')
-        ])
-        self.window.show_tooltip_after_delay(message)
+    def toggle_paytomany(self):
+        self.payto_e.toggle_paytomany()
+        if self.payto_e.is_paytomany():
+            message = '\n'.join([
+                _('Enter a list of outputs in the \'Pay to\' field.'),
+                _('One output per line.'),
+                _('Format: address, amount'),
+                _('You may load a CSV file using the file icon.')
+            ])
+            self.window.show_tooltip_after_delay(message)
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
