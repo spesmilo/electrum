@@ -308,6 +308,20 @@ Item {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
                 close()
             }
+            onChannelBackupFound: {
+                var dialog = app.messageDialog.createObject(app, {
+                    text: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.yesClicked.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                    close()
+                })
+                dialog.rejected.connect(function() {
+                    close()
+                })
+                dialog.open()
+            }
             onClosed: destroy()
         }
     }
