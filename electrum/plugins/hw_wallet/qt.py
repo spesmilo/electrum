@@ -220,10 +220,11 @@ class QtPluginBase(object):
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self._on_status_bar_button_click, window=window, keystore=keystore)
-            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb)
+            sb = window.statusBar()
+            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb, sb.height())
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
-            window.statusBar().addPermanentWidget(button)
+            sb.addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
