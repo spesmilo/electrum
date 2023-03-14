@@ -206,17 +206,30 @@ ElDialog {
                         color: Material.accentColor
                     }
                     Label {
+                        visible: request.message
                         Layout.fillWidth: true
                         text: request.message
                         wrapMode: Text.Wrap
+                    }
+                    Label {
+                        visible: !request.message
+                        Layout.fillWidth: true
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
                     }
                     Label {
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
                     FormattedAmount {
+                        visible: !request.amount.isEmpty
                         valid: !request.amount.isEmpty
                         amount: request.amount
+                    }
+                    Label {
+                        visible: request.amount.isEmpty
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
                     }
                 }
 
@@ -323,13 +336,7 @@ ElDialog {
 
     function createRequest() {
         var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
-        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
-            console.log('Creating OnChain request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, _ignore_gaplimit, _reuse_address)
-        } else {
-            console.log('Creating Lightning request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true, _ignore_gaplimit, _reuse_address)
-        }
+        Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, _ignore_gaplimit, _reuse_address)
     }
 
     function createDefaultRequest() {

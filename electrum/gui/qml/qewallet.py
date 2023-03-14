@@ -616,12 +616,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
-    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False, reuse_address: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, ignore_gap: bool = False, reuse_address: bool = False):
         try:
-            if is_lightning:
-                if not self.wallet.lnworker.channels:
-                    self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
-                    return
+            if self.wallet.lnworker and self.wallet.lnworker.channels:
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
                 # TODO fallback address robustness
                 addr = self.wallet.get_unused_address()
