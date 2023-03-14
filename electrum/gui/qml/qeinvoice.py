@@ -1,4 +1,5 @@
 import threading
+from typing import TYPE_CHECKING
 import asyncio
 from urllib.parse import urlparse
 
@@ -17,10 +18,12 @@ from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier)
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
+from electrum.paymentrequest import PaymentRequest
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval
+
 
 class QEInvoice(QObject):
     class Type:
@@ -131,6 +134,8 @@ class QEInvoiceParser(QEInvoice):
     lnurlRetrieved = pyqtSignal()
     lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
 
+    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['request'])
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -143,6 +148,8 @@ class QEInvoiceParser(QEInvoice):
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self.updateStatusString)
+
+        self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
 
         self.clear()
 
@@ -364,6 +371,13 @@ class QEInvoiceParser(QEInvoice):
             URI=uri
             )
 
+    def _bip70_payment_request_resolved(self, request: 'PaymentRequest'):
+        self._logger.debug('resolved payment request')
+        outputs = request.get_outputs()
+        invoice = self.create_onchain_invoice(outputs, None, request, None)
+        self.setValidOnchainInvoice(invoice)
+        self.validationSuccess.emit()
+
     def validateRecipient(self, recipient):
         if not recipient:
             self.setInvoiceType(QEInvoice.Type.Invalid)
@@ -371,14 +385,8 @@ class QEInvoiceParser(QEInvoice):
 
         maybe_lightning_invoice = recipient
 
-        def _payment_request_resolved(request):
-            self._logger.debug('resolved payment request')
-            outputs = request.get_outputs()
-            invoice = self.create_onchain_invoice(outputs, None, request, None)
-            self.setValidOnchainInvoice(invoice)
-
         try:
-            self._bip21 = parse_URI(recipient, _payment_request_resolved)
+            self._bip21 = parse_URI(recipient, lambda pr: self._bip70PrResolvedSignal.emit(pr))
             if self._bip21:
                 if 'r' in self._bip21 or ('name' in self._bip21 and 'sig' in self._bip21): # TODO set flag in util?
                     # let callback handle state

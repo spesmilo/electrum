@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .interface import Interface
     from .simple_config import SimpleConfig
+    from .paymentrequest import PaymentRequest
 
 
 _logger = get_logger(__name__)
@@ -966,7 +967,12 @@ class InvalidBitcoinURI(Exception): pass
 
 
 # TODO rename to parse_bip21_uri or similar
-def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
+def parse_URI(
+    uri: str,
+    on_pr: Callable[['PaymentRequest'], None] = None,
+    *,
+    loop: asyncio.AbstractEventLoop = None,
+) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
