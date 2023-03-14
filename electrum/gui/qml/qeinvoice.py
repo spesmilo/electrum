@@ -1,5 +1,5 @@
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import asyncio
 from urllib.parse import urlparse
 
@@ -50,7 +50,7 @@ class QEInvoice(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._canSave = False
         self._canPay = False
         self._key = None
@@ -134,7 +134,7 @@ class QEInvoiceParser(QEInvoice):
     lnurlRetrieved = pyqtSignal()
     lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['request'])
+    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['pr'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -371,12 +371,19 @@ class QEInvoiceParser(QEInvoice):
             URI=uri
             )
 
-    def _bip70_payment_request_resolved(self, request: 'PaymentRequest'):
+    def _bip70_payment_request_resolved(self, pr: 'PaymentRequest'):
         self._logger.debug('resolved payment request')
-        outputs = request.get_outputs()
-        invoice = self.create_onchain_invoice(outputs, None, request, None)
-        self.setValidOnchainInvoice(invoice)
-        self.validationSuccess.emit()
+        if pr.verify(self._wallet.wallet.contacts):
+            invoice = Invoice.from_bip70_payreq(pr, height=0)
+            if self._wallet.wallet.get_invoice_status(invoice) == PR_PAID:
+                self.validationError.emit('unknown', _('Invoice already paid'))
+            elif pr.has_expired():
+                self.validationError.emit('unknown', _('Payment request has expired'))
+            else:
+                self.setValidOnchainInvoice(invoice)
+                self.validationSuccess.emit()
+        else:
+            self.validationError.emit('unknown', f"invoice error:\n{pr.error}")
 
     def validateRecipient(self, recipient):
         if not recipient:
