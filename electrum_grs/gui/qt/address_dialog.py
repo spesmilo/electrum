@@ -102,10 +102,11 @@ class AddressDialog(WindowModalDialog):
             der_path_e.setReadOnly(True)
             vbox.addWidget(der_path_e)
 
-        vbox.addWidget(QLabel(_("History")))
         addr_hist_model = AddressHistoryModel(self.window, self.address)
         self.hw = HistoryList(self.window, addr_hist_model)
+        self.hw.num_tx_label = QLabel('')
         addr_hist_model.set_view(self.hw)
+        vbox.addWidget(self.hw.num_tx_label)
         vbox.addWidget(self.hw)
 
         vbox.addLayout(Buttons(CloseButton(self)))

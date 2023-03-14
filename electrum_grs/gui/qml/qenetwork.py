@@ -3,6 +3,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum_grs.logging import get_logger
 from electrum_grs import constants
 from electrum_grs.interface import ServerAddr
+from electrum_grs.simple_config import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
@@ -87,8 +88,30 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_fee_histogram(self, histogram):
-        self._logger.debug('fee histogram updated')
-        self._fee_histogram = histogram if histogram else []
+        self._logger.debug(f'fee histogram updated: {repr(histogram)}')
+        if histogram is None:
+            histogram = []
+        self.update_histogram(histogram)
+
+    def update_histogram(self, histogram):
+        # cap the histogram to a limited number of megabytes
+        bytes_limit=25*1000*1000
+        bytes_current = 0
+        capped_histogram = []
+        for item in sorted(histogram, key=lambda x: x[0], reverse=True):
+            if bytes_current >= bytes_limit:
+                break
+            slot = min(item[1], bytes_limit-bytes_current)
+            bytes_current += slot
+            capped_histogram.append([max(FEERATE_DEFAULT_RELAY/1000, item[0]), slot]) # clamped to [FEERATE_DEFAULT_RELAY/1000,inf]
+
+        # add clamping attributes for the GUI
+        self._fee_histogram = {
+            'histogram': capped_histogram,
+            'total': bytes_current,
+            'min_fee': capped_histogram[-1][0],
+            'max_fee': capped_histogram[0][0]
+        }
         self.feeHistogramUpdated.emit()
 
     @event_listener

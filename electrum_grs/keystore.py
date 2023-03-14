@@ -34,7 +34,7 @@ from abc import ABC, abstractmethod
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import deserialize_privkey, serialize_privkey, BaseDecodeError
 from .transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, TxInput
-from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
+from .bip32 import (convert_bip32_strpath_to_intpath, BIP32_PRIME,
                     is_xpub, is_xprv, BIP32Node, normalize_bip32_derivation,
                     convert_bip32_intpath_to_strpath, is_xkey_consistent_with_key_origin_info,
                     KeyOriginInfo)
@@ -454,7 +454,7 @@ class MasterPublicKeyMixin(ABC):
         # 1. try fp against our root
         ks_root_fingerprint_hex = self.get_root_fingerprint()
         ks_der_prefix_str = self.get_derivation_prefix()
-        ks_der_prefix = convert_bip32_path_to_list_of_uint32(ks_der_prefix_str) if ks_der_prefix_str else None
+        ks_der_prefix = convert_bip32_strpath_to_intpath(ks_der_prefix_str) if ks_der_prefix_str else None
         if (ks_root_fingerprint_hex is not None and ks_der_prefix is not None and
                 fp_found.hex() == ks_root_fingerprint_hex):
             if path_found[:len(ks_der_prefix)] == ks_der_prefix:
@@ -524,11 +524,11 @@ class Xpub(MasterPublicKeyMixin):
         if not only_der_suffix and fingerprint_hex is not None and der_prefix_str is not None:
             # use root fp, and true full path
             fingerprint_bytes = bfh(fingerprint_hex)
-            der_prefix_ints = convert_bip32_path_to_list_of_uint32(der_prefix_str)
+            der_prefix_ints = convert_bip32_strpath_to_intpath(der_prefix_str)
         else:
             # use intermediate fp, and claim der suffix is the full path
             fingerprint_bytes = self.get_bip32_node_for_xpub().calc_fingerprint_of_this_node()
-            der_prefix_ints = convert_bip32_path_to_list_of_uint32('m')
+            der_prefix_ints = convert_bip32_strpath_to_intpath('m')
         der_full = der_prefix_ints + list(der_suffix)
         return fingerprint_bytes, der_full
 
@@ -832,7 +832,7 @@ class Old_KeyStore(MasterPublicKeyMixin, Deterministic_KeyStore):
         fingerprint_hex = self.get_root_fingerprint()
         der_prefix_str = self.get_derivation_prefix()
         fingerprint_bytes = bfh(fingerprint_hex)
-        der_prefix_ints = convert_bip32_path_to_list_of_uint32(der_prefix_str)
+        der_prefix_ints = convert_bip32_strpath_to_intpath(der_prefix_str)
         der_full = der_prefix_ints + list(der_suffix)
         return fingerprint_bytes, der_full
 
@@ -1030,7 +1030,7 @@ PURPOSE48_SCRIPT_TYPES_INV = inv_dict(PURPOSE48_SCRIPT_TYPES)
 
 def xtype_from_derivation(derivation: str) -> str:
     """Returns the script type to be used for this derivation."""
-    bip32_indices = convert_bip32_path_to_list_of_uint32(derivation)
+    bip32_indices = convert_bip32_strpath_to_intpath(derivation)
     if len(bip32_indices) >= 1:
         if bip32_indices[0] == 84 + BIP32_PRIME:
             return 'p2wpkh'

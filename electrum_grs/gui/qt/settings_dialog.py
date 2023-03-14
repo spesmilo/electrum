@@ -104,40 +104,23 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
 
-        # invoices
-        bolt11_fallback_cb = QCheckBox(_('Add on-chain fallback to lightning invoices'))
-        bolt11_fallback_cb.setChecked(bool(self.config.get('bolt11_fallback', True)))
-        bolt11_fallback_cb.setToolTip(_('Add fallback addresses to BOLT11 lightning invoices.'))
-        def on_bolt11_fallback(x):
-            self.config.set_key('bolt11_fallback', bool(x))
-        bolt11_fallback_cb.stateChanged.connect(on_bolt11_fallback)
-
-        bip21_lightning_cb = QCheckBox(_('Add lightning invoice to bitcoin URIs'))
-        bip21_lightning_cb.setChecked(bool(self.config.get('bip21_lightning', False)))
-        bip21_lightning_cb.setToolTip(_('This may create larger qr codes.'))
-        def on_bip21_lightning(x):
-            self.config.set_key('bip21_lightning', bool(x))
-        bip21_lightning_cb.stateChanged.connect(on_bip21_lightning)
-
         # lightning
-        help_recov = _(messages.MSG_RECOVERABLE_CHANNELS)
-        recov_cb = QCheckBox(_("Create recoverable channels"))
-        enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
-        recov_cb.setEnabled(enable_toggle_use_recoverable_channels)
-        recov_cb.setToolTip(messages.to_rtf(help_recov))
-        recov_cb.setChecked(bool(self.config.get('use_recoverable_channels', True)) and enable_toggle_use_recoverable_channels)
-        def on_recov_checked(x):
-            self.config.set_key('use_recoverable_channels', bool(x))
-        recov_cb.stateChanged.connect(on_recov_checked)
-
         help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
-        trampoline_cb = QCheckBox(_("Use trampoline routing (disable gossip)"))
+        trampoline_cb = QCheckBox(_("Use trampoline routing"))
         trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
         trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
         def on_trampoline_checked(use_trampoline):
-            use_gossip = not bool(use_trampoline)
-            self.config.set_key('use_gossip', use_gossip)
-            if use_gossip:
+            use_trampoline = bool(use_trampoline)
+            if not use_trampoline:
+                if not window.question('\n'.join([
+                        _("Are you sure you want to disable trampoline?"),
+                        _("Without this option, Electrum will need to sync with the Lightning network on every start."),
+                        _("This may impact the reliability of your payments."),
+                ])):
+                    trampoline_cb.setCheckState(Qt.Checked)
+                    return
+            self.config.set_key('use_gossip', not use_trampoline)
+            if not use_trampoline:
                 self.network.start_gossip()
             else:
                 self.network.run_from_another_thread(
@@ -146,17 +129,6 @@ class SettingsDialog(QDialog, QtEventListener):
             # FIXME: update all wallet windows
             util.trigger_callback('channels_updated', self.wallet)
         trampoline_cb.stateChanged.connect(on_trampoline_checked)
-
-        help_instant_swaps = ' '.join([
-            _("If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed."),
-            _("Note you are at risk of losing the funds in the swap, if the funding transaction never confirms.")
-            ])
-        instant_swaps_cb = QCheckBox(_("Allow instant swaps"))
-        instant_swaps_cb.setToolTip(messages.to_rtf(help_instant_swaps))
-        instant_swaps_cb.setChecked(bool(self.config.get('allow_instant_swaps', False)))
-        def on_instant_swaps_checked(allow_instant_swaps):
-            self.config.set_key('allow_instant_swaps', bool(allow_instant_swaps))
-        instant_swaps_cb.stateChanged.connect(on_instant_swaps_checked)
 
         help_remote_wt = ' '.join([
             _("A watchtower is a daemon that watches your channels and prevents the other party from stealing funds by broadcasting an old state."),
@@ -328,41 +300,25 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_hbox_w.setLayout(block_ex_hbox)
 
         # Fiat Currency
-        hist_checkbox = QCheckBox()
-        hist_capgains_checkbox = QCheckBox()
-        fiat_address_checkbox = QCheckBox()
+        self.require_history_checkbox = QCheckBox()
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
         def update_currencies():
             if not self.fx:
                 return
-            currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
+            currencies = sorted(self.fx.get_currencies(self.require_history_checkbox.isChecked()))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
                 ccy_combo.setCurrentIndex(ccy_combo.findText(self.fx.get_currency()))
-
-        def update_history_cb():
-            if not self.fx: return
-            hist_checkbox.setChecked(self.fx.get_history_config())
-            hist_checkbox.setEnabled(self.fx.is_enabled())
-
-        def update_fiat_address_cb():
-            if not self.fx: return
-            fiat_address_checkbox.setChecked(self.fx.get_fiat_address_config())
-
-        def update_history_capgains_cb():
-            if not self.fx: return
-            hist_capgains_checkbox.setChecked(self.fx.get_history_capital_gains_config())
-            hist_capgains_checkbox.setEnabled(hist_checkbox.isChecked())
 
         def update_exchanges():
             if not self.fx: return
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.fx.get_history_config()
+                h = self.require_history_checkbox.isChecked()
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -380,7 +336,6 @@ class SettingsDialog(QDialog, QtEventListener):
             self.fx.set_enabled(b)
             if b and ccy != self.fx.ccy:
                 self.fx.set_currency(ccy)
-            update_history_cb()
             update_exchanges()
             self.app.update_fiat_signal.emit()
 
@@ -388,73 +343,48 @@ class SettingsDialog(QDialog, QtEventListener):
             exchange = str(ex_combo.currentText())
             if self.fx and self.fx.is_enabled() and exchange and exchange != self.fx.exchange.name():
                 self.fx.set_exchange(exchange)
+            self.app.update_fiat_signal.emit()
 
-        def on_history(checked):
-            if not self.fx: return
-            self.fx.set_history_config(checked)
+        def on_require_history(checked):
+            if not self.fx:
+                return
             update_exchanges()
-            if self.fx.is_enabled() and checked:
-                self.fx.trigger_update()
-            update_history_capgains_cb()
-            self.app.update_fiat_signal.emit()
-
-        def on_history_capgains(checked):
-            if not self.fx: return
-            self.fx.set_history_capital_gains_config(checked)
-            self.app.update_fiat_signal.emit()
-
-        def on_fiat_address(checked):
-            if not self.fx: return
-            self.fx.set_fiat_address_config(checked)
-            self.app.update_fiat_signal.emit()
 
         update_currencies()
-        update_history_cb()
-        update_history_capgains_cb()
-        update_fiat_address_cb()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        hist_checkbox.stateChanged.connect(on_history)
-        hist_capgains_checkbox.stateChanged.connect(on_history_capgains)
-        fiat_address_checkbox.stateChanged.connect(on_fiat_address)
+        self.require_history_checkbox.stateChanged.connect(on_require_history)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         gui_widgets = []
         gui_widgets.append((lang_label, lang_combo))
         gui_widgets.append((colortheme_label, colortheme_combo))
-        gui_widgets.append((unit_label, unit_combo))
-        gui_widgets.append((nz_label, nz))
-        gui_widgets.append((msat_cb, None))
-        gui_widgets.append((thousandsep_cb, None))
-        invoices_widgets = []
-        invoices_widgets.append((bolt11_fallback_cb, None))
-        invoices_widgets.append((bip21_lightning_cb, None))
-
+        gui_widgets.append((block_ex_label, block_ex_hbox_w))
+        units_widgets = []
+        units_widgets.append((unit_label, unit_combo))
+        units_widgets.append((nz_label, nz))
+        units_widgets.append((msat_cb, None))
+        units_widgets.append((thousandsep_cb, None))
         lightning_widgets = []
-        lightning_widgets.append((recov_cb, None))
         lightning_widgets.append((trampoline_cb, None))
-        lightning_widgets.append((instant_swaps_cb, None))
         lightning_widgets.append((remote_wt_cb, self.watchtower_url_e))
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show history rates')), hist_checkbox))
-        fiat_widgets.append((QLabel(_('Show capital gains in history')), hist_capgains_checkbox))
-        fiat_widgets.append((QLabel(_('Show Fiat balance for addresses')), fiat_address_checkbox))
+        fiat_widgets.append((QLabel(_('Show sources with historical data')), self.require_history_checkbox))
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))
         misc_widgets.append((alias_label, self.alias_e))
         misc_widgets.append((qr_label, qr_combo))
-        misc_widgets.append((block_ex_label, block_ex_hbox_w))
         if len(choosers) > 1:
             misc_widgets.append((chooser_label, chooser_combo))
 
         tabs_info = [
             (gui_widgets, _('Appearance')),
-            (invoices_widgets, _('Invoices')),
-            (lightning_widgets, _('Lightning')),
+            (units_widgets, _('Units')),
             (fiat_widgets, _('Fiat')),
+            (lightning_widgets, _('Lightning')),
             (misc_widgets, _('Misc')),
         ]
         for widgets, name in tabs_info:

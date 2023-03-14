@@ -23,7 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import asyncio
 import sys
+import concurrent.futures
 import copy
 import datetime
 import traceback
@@ -32,11 +34,11 @@ from typing import TYPE_CHECKING, Callable, Optional, List, Union, Tuple
 from functools import partial
 from decimal import Decimal
 
-from PyQt5.QtCore import QSize, Qt, QUrl, QPoint
+from PyQt5.QtCore import QSize, Qt, QUrl, QPoint, pyqtSignal
 from PyQt5.QtGui import QTextCharFormat, QBrush, QFont, QPixmap, QCursor
 from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QGridLayout,
                              QTextEdit, QFrame, QAction, QToolButton, QMenu, QCheckBox, QTextBrowser, QToolTip,
-                             QApplication)
+                             QApplication, QSizePolicy)
 import qrcode
 from qrcode import exceptions
 
@@ -49,9 +51,12 @@ from electrum_grs.i18n import _
 from electrum_grs.plugin import run_hook
 from electrum_grs import simple_config
 from electrum_grs.transaction import SerializationError, Transaction, PartialTransaction, PartialTxInput, TxOutpoint
+from electrum_grs.transaction import TxinDataFetchProgress
 from electrum_grs.logging import get_logger
-from electrum_grs.util import ShortID
+from electrum_grs.util import ShortID, get_asyncio_loop
+from electrum_grs.network import Network
 
+from . import util
 from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    MONOSPACE_FONT, ColorScheme, ButtonsLineEdit, ShowQRLineEdit, text_dialog,
                    char_width_in_lineedit, TRANSACTION_FILE_EXTENSION_FILTER_SEPARATE,
@@ -59,6 +64,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    TRANSACTION_FILE_EXTENSION_FILTER_ONLY_PARTIAL_TX,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
                    get_iconname_qrcode)
+from .rate_limiter import rate_limited
 
 
 if TYPE_CHECKING:
@@ -68,6 +74,7 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+
 
 
 class TxSizeLabel(QLabel):
@@ -97,13 +104,18 @@ class TxInOutWidget(QWidget):
         self.main_window = main_window
         self.tx = None  # type: Optional[Transaction]
         self.inputs_header = QLabel()
-        self.inputs_textedit = QTextBrowserWithDefaultSize(950, 100)
+        self.inputs_textedit = QTextBrowserWithDefaultSize(750, 100)
         self.inputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.inputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.inputs_textedit.setTextInteractionFlags(
             self.inputs_textedit.textInteractionFlags() | Qt.LinksAccessibleByMouse | Qt.LinksAccessibleByKeyboard)
         self.inputs_textedit.setContextMenuPolicy(Qt.CustomContextMenu)
         self.inputs_textedit.customContextMenuRequested.connect(self.on_context_menu_for_inputs)
+
+        self.inheader_hbox = QHBoxLayout()
+        self.inheader_hbox.setContentsMargins(0, 0, 0, 0)
+        self.inheader_hbox.addWidget(self.inputs_header)
+
         self.txo_color_recv = TxOutputColoring(
             legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
         self.txo_color_change = TxOutputColoring(
@@ -111,7 +123,7 @@ class TxInOutWidget(QWidget):
         self.txo_color_2fa = TxOutputColoring(
             legend=_("TrustedCoin (2FA) batch fee"), color=ColorScheme.BLUE, tooltip=_("TrustedCoin (2FA) fee for the next batch of transactions"))
         self.outputs_header = QLabel()
-        self.outputs_textedit = QTextBrowserWithDefaultSize(950, 100)
+        self.outputs_textedit = QTextBrowserWithDefaultSize(750, 100)
         self.outputs_textedit.setOpenLinks(False)  # disable automatic link opening
         self.outputs_textedit.anchorClicked.connect(self._open_internal_link)  # send links to our handler
         self.outputs_textedit.setTextInteractionFlags(
@@ -128,11 +140,12 @@ class TxInOutWidget(QWidget):
         outheader_hbox.addWidget(self.txo_color_2fa.legend_label)
 
         vbox = QVBoxLayout()
-        vbox.addWidget(self.inputs_header)
+        vbox.addLayout(self.inheader_hbox)
         vbox.addWidget(self.inputs_textedit)
         vbox.addLayout(outheader_hbox)
         vbox.addWidget(self.outputs_textedit)
         self.setLayout(vbox)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def update(self, tx: Optional[Transaction]):
         self.tx = tx
@@ -195,9 +208,14 @@ class TxInOutWidget(QWidget):
                 cursor.insertText(" " * max(0, 15 - len(short_id)), tcf_ext)  # padding
                 cursor.insertText('\t', tcf_ext)
                 # addr
-                address_str = addr or '<address unknown>'
+                if addr is None:
+                    address_str = '<address unknown>'
+                elif len(addr) <= 42:
+                    address_str = addr
+                else:
+                    address_str = addr[0:30] + '…' + addr[-11:]
                 cursor.insertText(address_str, tcf_addr)
-                cursor.insertText(" " * max(0, 62 - len(address_str)), tcf_ext)  # padding
+                cursor.insertText(" " * max(0, 42 - len(address_str)), tcf_ext)  # padding
                 cursor.insertText('\t', tcf_ext)
                 # value
                 value_str = self.main_window.format_amount(value, whitespaces=True)
@@ -367,6 +385,8 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_uns
 
 class TxDialog(QDialog, MessageBoxMixin):
 
+    throttled_update_sig = pyqtSignal()  # emit from thread to do update in main thread
+
     def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
@@ -389,6 +409,14 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
+        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        menu.addConfig(
+            _('Download missing data'), 'tx_dialog_fetch_txin_data', False,
+            tooltip=_(
+                'Download parent transactions from the network.\n'
+                'Allows filling in missing fee and input details.'),
+            callback=self.maybe_fetch_txin_data)
+        vbox.addLayout(toolbar)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e = ShowQRLineEdit('', self.config, title='Transaction ID')
@@ -454,6 +482,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addLayout(hbox)
         dialogs.append(self)
 
+        self._fetch_txin_data_fut = None  # type: Optional[concurrent.futures.Future]
+        self._fetch_txin_data_progress = None  # type: Optional[TxinDataFetchProgress]
+        self.throttled_update_sig.connect(self._throttled_update, Qt.QueuedConnection)
+
         self.set_tx(tx)
         self.update()
         self.set_title()
@@ -471,11 +503,18 @@ class TxDialog(QDialog, MessageBoxMixin):
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        BlockingWaitingDialog(
-            self,
-            _("Adding info to tx, from wallet and network..."),
-            lambda: tx.add_info_from_wallet(self.wallet),
-        )
+        tx.add_info_from_wallet(self.wallet)
+        # FIXME for PSBTs, we do a blocking fetch, as the missing data might be needed for e.g. signing
+        # - otherwise, the missing data is for display-completeness only, e.g. fee, input addresses (we do it async)
+        if not tx.is_complete() and tx.is_missing_info_from_network():
+            BlockingWaitingDialog(
+                self,
+                _("Adding info to tx, from network..."),
+                lambda: Network.run_from_another_thread(
+                    tx.add_info_from_network(self.wallet.network, timeout=10)),
+            )
+        else:
+            self.maybe_fetch_txin_data()
 
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
@@ -497,6 +536,9 @@ class TxDialog(QDialog, MessageBoxMixin):
                 dialogs.remove(self)
             except ValueError:
                 pass  # was not in list already
+        if self._fetch_txin_data_fut:
+            self._fetch_txin_data_fut.cancel()
+            self._fetch_txin_data_fut = None
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)
@@ -529,7 +571,8 @@ class TxDialog(QDialog, MessageBoxMixin):
         if not isinstance(self.tx, PartialTransaction):
             raise Exception("Can only export partial transactions for hardware device.")
         tx = copy.deepcopy(self.tx)
-        tx.prepare_for_export_for_hardware_device(self.wallet)
+        Network.run_from_another_thread(
+            tx.prepare_for_export_for_hardware_device(self.wallet))
         return tx
 
     def copy_to_clipboard(self, *, tx: Transaction = None):
@@ -649,6 +692,10 @@ class TxDialog(QDialog, MessageBoxMixin):
             return
         self.update()
 
+    @rate_limited(0.5, ts_after=True)
+    def _throttled_update(self):
+        self.update()
+
     def update(self):
         if self.tx is None:
             return
@@ -731,25 +778,30 @@ class TxDialog(QDialog, MessageBoxMixin):
             else:
                 amount_str = _("Amount sent:") + ' %s' % format_amount(-amount) + ' ' + base_unit
             if fx.is_enabled():
-                if tx_item_fiat:
-                    amount_str += ' (%s)' % tx_item_fiat['fiat_value'].to_ui_string()
-                else:
-                    amount_str += ' (%s)' % format_fiat_and_units(abs(amount))
+                if tx_item_fiat:  # historical tx -> using historical price
+                    amount_str += ' ({})'.format(tx_item_fiat['fiat_value'].to_ui_string())
+                elif tx_details.is_related_to_wallet:  # probably "tx preview" -> using current price
+                    amount_str += ' ({})'.format(format_fiat_and_units(abs(amount)))
         if amount_str:
             self.amount_label.setText(amount_str)
         else:
             self.amount_label.hide()
         size_str = _("Size:") + ' %d bytes'% size
         if fee is None:
-            fee_str = _("Fee") + ': ' + _("unknown")
+            if prog := self._fetch_txin_data_progress:
+                if not prog.has_errored:
+                    fee_str = _("Downloading input data...") + f" ({prog.num_tasks_done}/{prog.num_tasks_total})"
+                else:
+                    fee_str = _("Downloading input data...") + f" error."
+            else:
+                fee_str = _("Fee") + ': ' + _("unknown")
         else:
             fee_str = _("Fee") + f': {format_amount(fee)} {base_unit}'
             if fx.is_enabled():
-                if tx_item_fiat:
-                    fiat_fee_str = tx_item_fiat['fiat_fee'].to_ui_string()
-                else:
-                    fiat_fee_str = format_fiat_and_units(fee)
-                fee_str += f' ({fiat_fee_str})'
+                if tx_item_fiat:  # historical tx -> using historical price
+                    fee_str += ' ({})'.format(tx_item_fiat['fiat_fee'].to_ui_string())
+                elif tx_details.is_related_to_wallet:  # probably "tx preview" -> using current price
+                    fee_str += ' ({})'.format(format_fiat_and_units(fee))
         if fee is not None:
             fee_rate = Decimal(fee) / size  # sat/byte
             fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate * 1000)
@@ -801,6 +853,10 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def add_tx_stats(self, vbox):
         hbox_stats = QHBoxLayout()
+        hbox_stats.setContentsMargins(0, 0, 0, 0)
+        hbox_stats_w = QWidget()
+        hbox_stats_w.setLayout(hbox_stats)
+        hbox_stats_w.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
         # left column
         vbox_left = QVBoxLayout()
@@ -853,7 +909,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox_right.addStretch(1)
         hbox_stats.addLayout(vbox_right, 50)
 
-        vbox.addLayout(hbox_stats)
+        vbox.addWidget(hbox_stats_w)
 
         # below columns
         self.block_hash_label = TxDetailLabel(word_wrap=True)
@@ -875,6 +931,32 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def update_fee_fields(self):
         pass  # overridden in subclass
+
+    def maybe_fetch_txin_data(self):
+        """Download missing input data from the network, asynchronously.
+        Note: we fetch the prev txs, which allows calculating the fee and showing "input addresses".
+              We could also SPV-verify the tx, to fill in missing tx_mined_status (block height, blockhash, timestamp),
+              but this is not done currently.
+        """
+        if not self.config.get('tx_dialog_fetch_txin_data', False):
+            return
+        tx = self.tx
+        if not tx:
+            return
+        if self._fetch_txin_data_fut is not None:
+            return
+        network = self.wallet.network
+        def progress_cb(prog: TxinDataFetchProgress):
+            self._fetch_txin_data_progress = prog
+            self.throttled_update_sig.emit()
+        async def wrapper():
+            try:
+                await tx.add_info_from_network(network, progress_cb=progress_cb)
+            finally:
+                self._fetch_txin_data_fut = None
+
+        self._fetch_txin_data_progress = None
+        self._fetch_txin_data_fut = asyncio.run_coroutine_threadsafe(wrapper(), get_asyncio_loop())
 
 
 class TxDetailLabel(QLabel):

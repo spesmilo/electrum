@@ -13,6 +13,7 @@ ElDialog {
     property InvoiceParser invoiceParser
 
     signal txFound(data: string)
+    signal channelBackupFound(data: string)
 
     parent: Overlay.overlay
     modal: true
@@ -32,6 +33,8 @@ ElDialog {
     function dispatch(data) {
         if (bitcoin.isRawTx(data)) {
             txFound(data)
+        } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+            channelBackupFound(data)
         } else {
             invoiceParser.recipient = data
         }

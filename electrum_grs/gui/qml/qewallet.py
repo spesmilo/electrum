@@ -541,10 +541,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
-                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',str(e))
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
-                self.broadcastFailed.emit(tx.txid(),'',repr(e))
+                self.broadcastFailed.emit(tx.txid(),'',str(e))
             else:
                 self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())

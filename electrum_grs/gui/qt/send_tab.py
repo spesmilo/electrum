@@ -27,6 +27,7 @@ from electrum_grs.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNUR
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .util import WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton, char_width_in_lineedit
+from .util import get_iconname_camera, get_iconname_qrcode, read_QIcon
 from .confirm_tx_dialog import ConfirmTxDialog
 
 if TYPE_CHECKING:
@@ -146,9 +147,17 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         self.set_onchain(False)
 
-        self.invoices_label = QLabel(_('Send queue'))
+        self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
+        self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+        menu.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
+        menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
+        menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
+        menu.addToggle(_("&Pay to many"), self.paytomany)
+        menu.addSeparator()
+        menu.addAction(_("Import invoices"), self.window.import_invoices)
+        menu.addAction(_("Export invoices"), self.window.export_invoices)
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)
@@ -157,6 +166,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         hbox.addStretch(1)
 
         vbox = QVBoxLayout(self)
+        vbox.addLayout(self.toolbar)
         vbox.addLayout(hbox)
         vbox.addStretch(1)
         vbox.addWidget(self.invoices_label)
@@ -746,15 +756,17 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                       broadcast_thread, broadcast_done, self.window.on_error)
 
     def paytomany(self):
-        self.window.show_send_tab()
+        if self.payto_e.is_multiline():
+            self.payto_e.do_clear()
+            return
         self.payto_e.paytomany()
-        msg = '\n'.join([
+        message = '\n'.join([
             _('Enter a list of outputs in the \'Pay to\' field.'),
             _('One output per line.'),
             _('Format: address, amount'),
             _('You may load a CSV file using the file icon.')
         ])
-        self.show_message(msg, title=_('Pay to many'))
+        self.window.show_tooltip_after_delay(message)
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]

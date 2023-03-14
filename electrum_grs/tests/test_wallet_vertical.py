@@ -1047,61 +1047,61 @@ class TestWalletSending(ElectrumTestCase):
         for simulate_moving_txs in (False, True):
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2pkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2pkh_when_there_is_a_change_address(
+                    await self._bump_fee_p2pkh_when_there_is_a_change_address(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2wpkh_when_there_is_a_change_address(
+                    await self._bump_fee_p2wpkh_when_there_is_a_change_address(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(
+                    await self._bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_when_user_sends_max", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_when_user_sends_max(
+                    await self._bump_fee_when_user_sends_max(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_when_new_inputs_need_to_be_added", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_when_new_inputs_need_to_be_added(
+                    await self._bump_fee_when_new_inputs_need_to_be_added(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(
+                    await self._bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_rbf_batching", simulate_moving_txs=simulate_moving_txs):
-                    self._rbf_batching(
+                    await self._rbf_batching(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(
+                    await self._bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(
+                    await self._bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2wpkh_decrease_payment(
+                    await self._bump_fee_p2wpkh_decrease_payment(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
             with TmpConfig() as config:
                 with self.subTest(msg="_bump_fee_p2wpkh_decrease_payment_batch", simulate_moving_txs=simulate_moving_txs):
-                    self._bump_fee_p2wpkh_decrease_payment_batch(
+                    await self._bump_fee_p2wpkh_decrease_payment_batch(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
 
-    def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
                                                        config=config)
 
@@ -1165,7 +1165,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 7484320, 0), wallet.get_balance())
 
-    def _bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2pkh_when_there_are_two_ismine_outs_one_change_one_recv(self, *, simulate_moving_txs, config):
         """This tests a regression where sometimes we created a replacement tx
         that spent from the original (which is clearly invalid).
         """
@@ -1207,7 +1207,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 461600, 0), wallet.get_balance())
 
-    def _bump_fee_p2wpkh_decrease_payment(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2wpkh_decrease_payment(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('leader company camera enlist crash sleep insane aware anger hole hammer label',
                                                        config=config)
 
@@ -1249,7 +1249,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 45000, 0), wallet.get_balance())
 
-    def _bump_fee_p2wpkh_decrease_payment_batch(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2wpkh_decrease_payment_batch(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('leader company camera enlist crash sleep insane aware anger hole hammer label',
                                                        config=config)
 
@@ -1324,7 +1324,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
 
-    def _bump_fee_p2wpkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2wpkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -1388,13 +1388,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 7490060, 0), wallet.get_balance())
 
-    def _bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(self, *, simulate_moving_txs, config):
+    async def _bump_fee_when_not_all_inputs_are_ismine_subcase_some_outputs_are_ismine_but_not_all(self, *, simulate_moving_txs, config):
         class NetworkMock:
             relay_fee = 1000
             async def get_transaction(self, txid, timeout=None):
-                return self._gettx(txid)
-            @staticmethod
-            def _gettx(txid):
                 if txid == "597098f9077cd2a7bf5bb2a03c9ae5fcd9d1f07c0891cb42cbb129cf9eaf57fd":
                     return "02000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c00"
                 else:
@@ -1413,7 +1410,6 @@ class TestWalletSending(ElectrumTestCase):
         wallet = self.create_standard_wallet_from_seed('mix total present junior leader live state athlete mistake crack wall valve',
                                                        config=config)
         wallet.network = NetworkMock()
-        wallet._get_rawtx_from_network = NetworkMock._gettx
 
         # bootstrap wallet
         funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
@@ -1427,7 +1423,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
-        tx = wallet.bump_fee(tx=tx_from_any(orig_rbf_tx.serialize()), new_fee_rate=70)
+        orig_rbf_tx = tx_from_any(orig_rbf_tx.serialize())
+        orig_rbf_tx.add_info_from_wallet(wallet=wallet)
+        await orig_rbf_tx.add_info_from_network(network=wallet.network)
+        tx = wallet.bump_fee(tx=orig_rbf_tx, new_fee_rate=70)
         tx.locktime = 1898268
         tx.version = 2
         if simulate_moving_txs:
@@ -1445,13 +1444,10 @@ class TestWalletSending(ElectrumTestCase):
                          tx_copy.serialize_as_bytes().hex())
         self.assertEqual('6a8ed07cd97a10ace851b67a65035f04ff477d67cde62bb8679007e87b214e79', tx_copy.txid())
 
-    def _bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
+    async def _bump_fee_when_not_all_inputs_are_ismine_subcase_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
         class NetworkMock:
             relay_fee = 1000
             async def get_transaction(self, txid, timeout=None):
-                return self._gettx(txid)
-            @staticmethod
-            def _gettx(txid):
                 if txid == "08557327673db61cc921e1a30826608599b86457836be3021105c13940d9a9a3":
                     return "02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00"
                 else:
@@ -1473,7 +1469,6 @@ class TestWalletSending(ElectrumTestCase):
             gap_limit=4,
         )
         wallet.network = NetworkMock()
-        wallet._get_rawtx_from_network = NetworkMock._gettx
 
         # bootstrap wallet
         funding_tx = Transaction('02000000000102c247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0000000000fdffffffc247447533b530cacc3e716aae84621857f04a483252374cbdccfdf8b4ef816b0100000000fdffffff01d63f0f00000000001600141ef4658adb12ec745a1a1fef6ab8897f04bade060247304402201dc5be86749d8ce33571a6f1a2f8bbfceba89b9dbf2b4683e66c8c17cf7df6090220729199516cb894569ebbe3e998d47fc74030231ed30f110c9babd8a9dc361115012102728251a5f5f55375eef3c14fe59ab0755ba4d5f388619895238033ac9b51aad20247304402202e5d416489c20810e96e931b98a84b0c0c4fc32d2d34d3470b7ee16810246a4c022040f86cf8030d2117d6487bbe6e23d68d6d70408b002d8055de1f33d038d3a0550121039c009e7e7dad07e74ec5a8ac9f9e3499420dd9fe9709995525c714170152512620f71c00')
@@ -1487,7 +1482,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
-        tx = wallet.bump_fee(tx=tx_from_any(orig_rbf_tx.serialize()), new_fee_rate=50)
+        orig_rbf_tx = tx_from_any(orig_rbf_tx.serialize())
+        orig_rbf_tx.add_info_from_wallet(wallet=wallet)
+        await orig_rbf_tx.add_info_from_network(network=wallet.network)
+        tx = wallet.bump_fee(tx=orig_rbf_tx, new_fee_rate=50)
         tx.locktime = 1898273
         tx.version = 2
         if simulate_moving_txs:
@@ -1506,7 +1504,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual('b46cdce7e7564dfd09618ab9008ec3a921c6372f3dcdab2f6094735b024485f0', tx_copy.txid())
 
 
-    def _bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(self, *, simulate_moving_txs, config):
+    async def _bump_fee_p2wpkh_when_there_is_only_a_single_output_and_that_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -1568,7 +1566,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9991750, 0), wallet.get_balance())
 
-    def _bump_fee_when_user_sends_max(self, *, simulate_moving_txs, config):
+    async def _bump_fee_when_user_sends_max(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -1631,7 +1629,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 0, 0), wallet.get_balance())
 
-    def _bump_fee_when_new_inputs_need_to_be_added(self, *, simulate_moving_txs, config):
+    async def _bump_fee_when_new_inputs_need_to_be_added(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -1703,7 +1701,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 4_990_300, 0), wallet.get_balance())
 
-    def _rbf_batching(self, *, simulate_moving_txs, config):
+    async def _rbf_batching(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
         wallet.config.set_key('batch_rbf', True)
@@ -2177,23 +2175,23 @@ class TestWalletSending(ElectrumTestCase):
 
         for simulate_moving_txs in (False, True):
             with self.subTest(msg="_dscancel_when_all_outputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
-                self._dscancel_when_all_outputs_are_ismine(
+                await self._dscancel_when_all_outputs_are_ismine(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
             with self.subTest(msg="_dscancel_p2wpkh_when_there_is_a_change_address", simulate_moving_txs=simulate_moving_txs):
-                self._dscancel_p2wpkh_when_there_is_a_change_address(
+                await self._dscancel_p2wpkh_when_there_is_a_change_address(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
             with self.subTest(msg="_dscancel_when_user_sends_max", simulate_moving_txs=simulate_moving_txs):
-                self._dscancel_when_user_sends_max(
+                await self._dscancel_when_user_sends_max(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
             with self.subTest(msg="_dscancel_when_not_all_inputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
-                self._dscancel_when_not_all_inputs_are_ismine(
+                await self._dscancel_when_not_all_inputs_are_ismine(
                     simulate_moving_txs=simulate_moving_txs,
                     config=config)
 
-    def _dscancel_when_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
+    async def _dscancel_when_all_outputs_are_ismine(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
                                                        config=config)
 
@@ -2238,7 +2236,7 @@ class TestWalletSending(ElectrumTestCase):
         tx_details = wallet.get_tx_info(tx_from_any(tx.serialize()))
         self.assertFalse(tx_details.can_dscancel)
 
-    def _dscancel_p2wpkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
+    async def _dscancel_p2wpkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -2304,7 +2302,7 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9992300, 0), wallet.get_balance())
 
-    def _dscancel_when_user_sends_max(self, *, simulate_moving_txs, config):
+    async def _dscancel_when_user_sends_max(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
 
@@ -2369,13 +2367,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 9992300, 0), wallet.get_balance())
 
-    def _dscancel_when_not_all_inputs_are_ismine(self, *, simulate_moving_txs, config):
+    async def _dscancel_when_not_all_inputs_are_ismine(self, *, simulate_moving_txs, config):
         class NetworkMock:
             relay_fee = 1000
             async def get_transaction(self, txid, timeout=None):
-                return self._gettx(txid)
-            @staticmethod
-            def _gettx(txid):
                 if txid == "597098f9077cd2a7bf5bb2a03c9ae5fcd9d1f07c0891cb42cbb129cf9eaf57fd":
                     return "02000000000102a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540000000000fdffffffbdeb0175b1c51c96843d1952f7e1c49c1703717d7d020048d4de0a8eed94dad50000000000fdffffff03b2a00700000000001600140cd6c9f8ce0aa73d77fcf7f156c74f5cbec6906bb2a00700000000001600146435504ddc95e6019a90bb7dfc7ca81a88a8633106d790000000000016001444bd3017ee214370abf683abaa7f6204c9f40210024730440220652a04a2a301d9a031a034f3ae48174e204e17acf7bfc27f0dcab14243f73e2202207b29e964c434dfb2c515232d36566a40dccd4dd93ccb7fd15260ecbda10f0d9801210231994e564a0530068d17a9b0f85bec58d1352517a2861ea99e5b3070d2c5dbda02473044022072186473874919019da0e3d92b6e0aa4f88cba448ed5434615e5a3c8e2b7c42a02203ec05cef66960d5bc45d0f3d25675190cf8035b11a05ed4b719fd9c3a894899b012102f5fdca8c4e30ba0a1babf9cf9ebe62519b08aead351c349ed1ffc8316c24f542d7f61c00"
                 else:
@@ -2394,7 +2389,6 @@ class TestWalletSending(ElectrumTestCase):
         wallet = self.create_standard_wallet_from_seed('mix total present junior leader live state athlete mistake crack wall valve',
                                                        config=config)
         wallet.network = NetworkMock()
-        wallet._get_rawtx_from_network = NetworkMock._gettx
 
         # bootstrap wallet
         funding_tx = Transaction('02000000000101a5883f3de780d260e6f26cf85144403c7744a65a44cd38f9ff45aecadf010c540100000000fdffffff0220a1070000000000160014db44724ac632ae47ee5765954d64796dd5fec72708de3c000000000016001424b32aadb42a89016c4de8f11741c3b29b15f21c02473044022045cc6c1cc875cbb0c0d8fe323dc1de9716e49ed5659741b0fb3dd9a196894066022077c242640071d12ec5763c5870f482a4823d8713e4bd14353dd621ed29a7f96d012102aea8d439a0f79d8b58e8d7bda83009f587e1f3da350adaa484329bf47cd03465fef61c00')
@@ -2408,7 +2402,10 @@ class TestWalletSending(ElectrumTestCase):
         wallet.adb.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
 
         # bump tx
-        tx = wallet.dscancel(tx=tx_from_any(orig_rbf_tx.serialize()), new_fee_rate=70)
+        orig_rbf_tx = tx_from_any(orig_rbf_tx.serialize())
+        orig_rbf_tx.add_info_from_wallet(wallet=wallet)
+        await orig_rbf_tx.add_info_from_network(network=wallet.network)
+        tx = wallet.dscancel(tx=orig_rbf_tx, new_fee_rate=70)
         tx.locktime = 1898278
         tx.version = 2
         if simulate_moving_txs:
@@ -2686,7 +2683,7 @@ class TestWalletSending(ElectrumTestCase):
             tx.inputs()[0].to_json()['bip32_paths'])
         self.assertEqual("70736274ff01007d020000000122c3730eb6314cf59e11988c41bfdd73f70cb55b294ec6f2eda828b5c939c0980100000000fdffffff0240e20100000000001600147e45d43294b0ff2b08a5f45232649815e516cff058ab05000000000022002014d2823afee4d75f0f83b91a9d625972df41be222c1373d28e068c3eaae9e00a7b4a24000001012b20a10700000000002200207f50b9d6eb4d899c710d8c48903de33d966ff52445d5a57b5210d02a5dd7e3bf0100fd7e0102000000000102deab5844de4aadc177d992696fda2aa6e4692403633d31a4b4073710594d2fca0000000000fdffffffdeab5844de4aadc177d992696fda2aa6e4692403633d31a4b4073710594d2fca0100000000fdffffff02f49f070000000000160014473b34b7da0aa9f7add803019f649e0729fd39d220a10700000000002200207f50b9d6eb4d899c710d8c48903de33d966ff52445d5a57b5210d02a5dd7e3bf0247304402202a4ec3df7bf2b82505bcd4833eeb32875784b4e93d09ac3cf4a8981dc89a049b02205239bad290877fb810a12538a275d5467f3f6afc88d1e0be3d8f6dc4876e6793012103e48cae7f140e15440f4ad6b3d96cb0deb471bbb45daf527e6eb4d5f6c5e26ec802473044022031028192a8307e52829ad1428941000629de73726306ca71d18c5bcfcb98a4a602205ad0240f7dd6c83686ea257f3146ba595b787d7f68b514569962fd5d3692b07c0121033c8af340bd9abf4a56c7cf7554f52e84a1128e5206ffe5da166ca18a57a260077b4a24000105475221022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc482750492103cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca52ae2206022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc48275049109559fbd10f2700800000000000000000220603cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca0c015148ee000000000000000000000101475221027f7f2eaf9a44316c2cd98b67584d1e71ccaced29a347673f3364efe16f5919e221028d9b8ff374e0f60fbc698c5a494c12d9a31a3ce364b1f81ae4a46f48ae45acdd52ae2202027f7f2eaf9a44316c2cd98b67584d1e71ccaced29a347673f3364efe16f5919e2109559fbd10f27008001000000000000002202028d9b8ff374e0f60fbc698c5a494c12d9a31a3ce364b1f81ae4a46f48ae45acdd0c015148ee010000000000000000",
                          tx.serialize_as_bytes().hex())
-        tx.prepare_for_export_for_hardware_device(wallet)
+        await tx.prepare_for_export_for_hardware_device(wallet)
         # As the keystores were created from just xpubs, they are missing key origin information
         # (derivation prefix and root fingerprint).
         # Note that info for ks1 contains the expected bip32 path (m/9999') and fingerprint, but not ks0.
@@ -2716,7 +2713,7 @@ class TestWalletSending(ElectrumTestCase):
             tx.inputs()[0].to_json()['bip32_paths'])
         self.assertEqual("70736274ff01007d020000000122c3730eb6314cf59e11988c41bfdd73f70cb55b294ec6f2eda828b5c939c0980100000000fdffffff0240e20100000000001600147e45d43294b0ff2b08a5f45232649815e516cff058ab05000000000022002014d2823afee4d75f0f83b91a9d625972df41be222c1373d28e068c3eaae9e00a7b4a24000001012b20a10700000000002200207f50b9d6eb4d899c710d8c48903de33d966ff52445d5a57b5210d02a5dd7e3bf0100fd7e0102000000000102deab5844de4aadc177d992696fda2aa6e4692403633d31a4b4073710594d2fca0000000000fdffffffdeab5844de4aadc177d992696fda2aa6e4692403633d31a4b4073710594d2fca0100000000fdffffff02f49f070000000000160014473b34b7da0aa9f7add803019f649e0729fd39d220a10700000000002200207f50b9d6eb4d899c710d8c48903de33d966ff52445d5a57b5210d02a5dd7e3bf0247304402202a4ec3df7bf2b82505bcd4833eeb32875784b4e93d09ac3cf4a8981dc89a049b02205239bad290877fb810a12538a275d5467f3f6afc88d1e0be3d8f6dc4876e6793012103e48cae7f140e15440f4ad6b3d96cb0deb471bbb45daf527e6eb4d5f6c5e26ec802473044022031028192a8307e52829ad1428941000629de73726306ca71d18c5bcfcb98a4a602205ad0240f7dd6c83686ea257f3146ba595b787d7f68b514569962fd5d3692b07c0121033c8af340bd9abf4a56c7cf7554f52e84a1128e5206ffe5da166ca18a57a260077b4a24000105475221022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc482750492103cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca52ae2206022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc48275049109559fbd10f2700800000000000000000220603cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca1c30cf1be530000080010000800000008002000080000000000000000000000101475221027f7f2eaf9a44316c2cd98b67584d1e71ccaced29a347673f3364efe16f5919e221028d9b8ff374e0f60fbc698c5a494c12d9a31a3ce364b1f81ae4a46f48ae45acdd52ae2202027f7f2eaf9a44316c2cd98b67584d1e71ccaced29a347673f3364efe16f5919e2109559fbd10f27008001000000000000002202028d9b8ff374e0f60fbc698c5a494c12d9a31a3ce364b1f81ae4a46f48ae45acdd1c30cf1be530000080010000800000008002000080010000000000000000",
                          tx.serialize_as_bytes().hex())
-        tx.prepare_for_export_for_hardware_device(wallet)
+        await tx.prepare_for_export_for_hardware_device(wallet)
         self.assertEqual(
             {'tpubDFF7YPCSGHZy55HkQj6HJkXCR8DWbKKXpTYBH38fSHf6VuoEzNmZQZdAoKEVy36S8zXkbGeV4XQU6vaRXGsQfgptFYPR4HSpAenqkY7J7Lg': ('30cf1be5', "m/48h/1h/0h/2h"),
              'tpubD9MoDeHnEQnU5EMgt9mc4yKU6SURbfq2ooMToY5GH95B8Li1CEsuo9dBKXM2sdjuDGq4KCXLuigss3y22fZULzVrfVuZDxEN55Sp6CcU9DK': ('9559fbd1', "m/9999h")},
@@ -2754,7 +2751,7 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual("70736274ff0100710200000001916fa04d7080ae0cb19bd08671d37dbe3dc925be383737bb34b3097d82830dc70000000000fdffffff0240e20100000000001600147e45d43294b0ff2b08a5f45232649815e516cff0ceaa05000000000016001456ec9cad206160ab578fa1dfbe13311b3be4a3107f4a24000001011f96a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd70100fd2e010200000000010122c3730eb6314cf59e11988c41bfdd73f70cb55b294ec6f2eda828b5c939c0980100000000fdffffff0196a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd704004730440220112840ce5486c6b2d15bc3b12e45c2a4518828e1b34f9bb0b3a78220c0cec52f02205b146a1f683289909ecbd3f53932d5acc321444101d8002e435b38a54adbf47201473044022058dfb4c75de119595119f35dcd7b1b2c28c40d7e2e746baeae83f09396c6bb9e02201c3c40fb684253638f12392af3934a90a6c6a512441aac861022f927473c952001475221022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc482750492103cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca52ae4a4a24002206029e65093d22877cbfcc27cb754c58d144ec96635af1fcc63e5a7b90b23bb6acb81830cf1be5540000800100008000000080000000000000000000002202031503b2e74b21d4583b7f0d9e65b2c0ef19fd6e8aae7d0524fc770a1d2b2127501830cf1be5540000800100008000000080010000000000000000",
                          tx.serialize_as_bytes().hex())
         # if there are no multisig inputs, we never include xpubs in the psbt:
-        tx.prepare_for_export_for_hardware_device(wallet)
+        await tx.prepare_for_export_for_hardware_device(wallet)
         self.assertEqual({}, tx.to_json()['xpubs'])
         self.assertEqual("70736274ff0100710200000001916fa04d7080ae0cb19bd08671d37dbe3dc925be383737bb34b3097d82830dc70000000000fdffffff0240e20100000000001600147e45d43294b0ff2b08a5f45232649815e516cff0ceaa05000000000016001456ec9cad206160ab578fa1dfbe13311b3be4a3107f4a24000001011f96a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd70100fd2e010200000000010122c3730eb6314cf59e11988c41bfdd73f70cb55b294ec6f2eda828b5c939c0980100000000fdffffff0196a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd704004730440220112840ce5486c6b2d15bc3b12e45c2a4518828e1b34f9bb0b3a78220c0cec52f02205b146a1f683289909ecbd3f53932d5acc321444101d8002e435b38a54adbf47201473044022058dfb4c75de119595119f35dcd7b1b2c28c40d7e2e746baeae83f09396c6bb9e02201c3c40fb684253638f12392af3934a90a6c6a512441aac861022f927473c952001475221022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc482750492103cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca52ae4a4a24002206029e65093d22877cbfcc27cb754c58d144ec96635af1fcc63e5a7b90b23bb6acb81830cf1be5540000800100008000000080000000000000000000002202031503b2e74b21d4583b7f0d9e65b2c0ef19fd6e8aae7d0524fc770a1d2b2127501830cf1be5540000800100008000000080010000000000000000",
                          tx.serialize_as_bytes().hex())

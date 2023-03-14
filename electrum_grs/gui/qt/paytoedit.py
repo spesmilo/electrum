@@ -65,7 +65,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, Logger):
 
     def __init__(self, send_tab: 'SendTab'):
         CompletionTextEdit.__init__(self)
-        ScanQRTextEdit.__init__(self, config=send_tab.config, setText=self._on_input_btn)
+        ScanQRTextEdit.__init__(self, config=send_tab.config, setText=self._on_input_btn, is_payto=True)
         Logger.__init__(self)
         self.send_tab = send_tab
         self.win = send_tab.window

@@ -1,9 +1,12 @@
+from typing import Optional
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
 from electrum_grs.util import format_time, AddTransactionException
 from electrum_grs.transaction import tx_from_any
+from electrum_grs.network import Network
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
@@ -23,7 +26,7 @@ class QETxDetails(QObject, QtEventListener):
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._txid = ''
         self._rawtx = ''
         self._label = ''
@@ -65,6 +68,12 @@ class QETxDetails(QObject, QtEventListener):
     def on_event_verified(self, wallet, txid, info):
         if wallet == self._wallet.wallet and txid == self._txid:
             self._logger.debug('verified event for our txid %s' % txid)
+            self.update()
+
+    @event_listener
+    def on_event_new_transaction(self, wallet, tx):
+        if wallet == self._wallet.wallet and tx.txid() == self._txid:
+            self._logger.debug('new_transaction event for our txid %s' % self._txid)
             self.update()
 
     walletChanged = pyqtSignal()
@@ -223,13 +232,16 @@ class QETxDetails(QObject, QtEventListener):
             return
 
         if not self._rawtx:
-            # abusing get_input_tx to get tx from txid
-            self._tx = self._wallet.wallet.get_input_tx(self._txid)
+            self._tx = self._wallet.wallet.db.get_transaction(self._txid)
+            assert self._tx is not None
 
         #self._logger.debug(repr(self._tx.to_json()))
 
         self._logger.debug('adding info from wallet')
         self._tx.add_info_from_wallet(self._wallet.wallet)
+        if not self._tx.is_complete() and self._tx.is_missing_info_from_network():
+            Network.run_from_another_thread(
+                self._tx.add_info_from_network(self._wallet.wallet.network, timeout=10))  # FIXME is this needed?...
 
         self._inputs = list(map(lambda x: x.to_json(), self._tx.inputs()))
         self._outputs = list(map(lambda x: {
@@ -293,24 +305,23 @@ class QETxDetails(QObject, QtEventListener):
         self._header_hash = tx_mined_info.header_hash
 
     @pyqtSlot()
-    def sign(self):
+    @pyqtSlot(bool)
+    def sign(self, broadcast = False):
+        # TODO: connecting/disconnecting signal handlers here is hmm
         try:
             self._wallet.transactionSigned.disconnect(self.onSigned)
+            self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+            if broadcast:
+                self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
         except:
             pass
         self._wallet.transactionSigned.connect(self.onSigned)
-        self._wallet.sign(self._tx)
+        self._wallet.broadcastSucceeded.connect(self.onBroadcastSucceeded)
+        if broadcast:
+            self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
+        self._wallet.sign(self._tx, broadcast=broadcast)
         # side-effect: signing updates self._tx
         # we rely on this for broadcast
-
-    @pyqtSlot(str)
-    def onSigned(self, txid):
-        if txid != self._txid:
-            return
-
-        self._logger.debug('onSigned')
-        self._wallet.transactionSigned.disconnect(self.onSigned)
-        self.update()
 
     @pyqtSlot()
     def broadcast(self):
@@ -326,6 +337,26 @@ class QETxDetails(QObject, QtEventListener):
         self.detailsChanged.emit()
 
         self._wallet.broadcast(self._tx)
+
+    @pyqtSlot(str)
+    def onSigned(self, txid):
+        if txid != self._txid:
+            return
+
+        self._logger.debug('onSigned')
+        self._wallet.transactionSigned.disconnect(self.onSigned)
+        self.update()
+
+    @pyqtSlot(str)
+    def onBroadcastSucceeded(self, txid):
+        if txid != self._txid:
+            return
+
+        self._logger.debug('onBroadcastSucceeded')
+        self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+
+        self._can_broadcast = False
+        self.detailsChanged.emit()
 
     @pyqtSlot(str,str,str)
     def onBroadcastFailed(self, txid, code, reason):

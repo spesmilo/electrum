@@ -27,8 +27,7 @@ class QEInvoice(QObject):
         Invalid = -1
         OnchainInvoice = 0
         LightningInvoice = 1
-        LightningAndOnchainInvoice = 2
-        LNURLPayRequest = 3
+        LNURLPayRequest = 2
 
     class Status:
         Unpaid = PR_UNPAID
@@ -115,7 +114,7 @@ class QEInvoice(QObject):
         return spendable
 
     def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send()
+        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
 class QEInvoiceParser(QEInvoice):
     _logger = get_logger(__name__)
@@ -307,6 +306,10 @@ class QEInvoiceParser(QEInvoice):
                         self.userinfo = _('Cannot pay less than the amount specified in the invoice')
                     else:
                         self.canPay = True
+                elif self.address and self.get_max_spendable_onchain() > self.amount.satsInt:
+                    # TODO: validate address?
+                    # TODO: subtract fee?
+                    self.canPay = True
                 else:
                     self.userinfo = _('Insufficient balance')
             else:
@@ -323,7 +326,7 @@ class QEInvoiceParser(QEInvoice):
                     # TODO: dust limit?
                     self.canPay = True
                 elif self.get_max_spendable_onchain() >= self.amount.satsInt:
-                    # TODO: dust limit?
+                    # TODO: subtract fee?
                     self.canPay = True
                 else:
                     self.userinfo = _('Insufficient balance')

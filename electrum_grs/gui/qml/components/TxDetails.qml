@@ -133,6 +133,7 @@ Pane {
 
                     TextHighlightPane {
                         Layout.fillWidth: true
+                        Layout.topMargin: constants.paddingSmall
                         Layout.columnSpan: 2
                         borderColor: constants.colorWarning
                         visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
@@ -447,7 +448,15 @@ Pane {
 
             onTxaccepted: {
                 root.rawtx = rbffeebumper.getNewTx()
-                // TODO: sign & send when possible?
+                if (txdetails.wallet.canSignWithoutCosigner) {
+                    txdetails.sign(true)
+                    // close txdetails?
+                } else {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Transaction fee updated.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                    })
+                    dialog.open()
+                }
             }
             onClosed: destroy()
         }
@@ -466,7 +475,15 @@ Pane {
             onTxaccepted: {
                 // replaces parent tx with cpfp tx
                 root.rawtx = cpfpfeebumper.getNewTx()
-                // TODO: sign & send when possible?
+                if (txdetails.wallet.canSignWithoutCosigner) {
+                    txdetails.sign(true)
+                    // close txdetails?
+                } else {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: qsTr('CPFP fee bump transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                    })
+                    dialog.open()
+                }
             }
             onClosed: destroy()
         }
@@ -484,7 +501,15 @@ Pane {
 
             onTxaccepted: {
                 root.rawtx = txcanceller.getNewTx()
-                // TODO: sign & send when possible?
+                if (txdetails.wallet.canSignWithoutCosigner) {
+                    txdetails.sign(true)
+                    // close txdetails?
+                } else {
+                    var dialog = app.messageDialog.createObject(app, {
+                        text: qsTr('Cancel transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                    })
+                    dialog.open()
+                }
             }
             onClosed: destroy()
         }

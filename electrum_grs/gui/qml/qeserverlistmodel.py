@@ -132,7 +132,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['name'] = s.net_addr_str()
                 server['address'] = server['name']
 
-                self._logger.debug(f'adding server: {repr(server)}')
+                # self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)

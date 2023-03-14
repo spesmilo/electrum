@@ -762,6 +762,8 @@ class Commands:
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+        tx.add_info_from_wallet(wallet)
+        await tx.add_info_from_network(self.network)
         new_tx = wallet.bump_fee(
             tx=tx,
             txid=tx.txid(),

@@ -77,7 +77,7 @@ Pane {
             font.bold: true
             font.pixelSize: constants.fontSizeLarge
             font.family: FixedFont
-            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhPreferLowercase | Qt.ImhNoPredictiveText
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
 
             background: Rectangle {
                 color: constants.darkerBackground

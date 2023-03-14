@@ -126,14 +126,18 @@ class _BaseRBFDialog(TxEditor):
             except CannotBumpFee as e:
                 self.tx = None
                 self.error = str(e)
+
+    def get_messages(self):
+        messages = super().get_messages()
         if not self.tx:
             return
         delta = self.tx.get_fee() - self.old_tx.get_fee()
         if not self.is_decrease_payment():
-            self.message = _("You will pay {} more.").format(self.main_window.format_amount_and_units(delta))
+            msg = _("You will pay {} more.").format(self.main_window.format_amount_and_units(delta))
         else:
-            self.message = _("The recipient will receive {} less.").format(self.main_window.format_amount_and_units(delta))
-
+            msg = _("The recipient will receive {} less.").format(self.main_window.format_amount_and_units(delta))
+        messages.insert(0, msg)
+        return messages
 
 
 class BumpFeeDialog(_BaseRBFDialog):

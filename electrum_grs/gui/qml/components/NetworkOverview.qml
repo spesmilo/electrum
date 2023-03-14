@@ -79,8 +79,76 @@ Pane {
                     text: qsTr('Network fees:');
                     color: Material.accentColor
                 }
-                Label {
-                    id: feeHistogram
+                Item {
+                    id: histogramRoot
+                    Layout.fillWidth: true
+                    implicitHeight: histogramLayout.height
+
+                    ColumnLayout {
+                        id: histogramLayout
+                        width: parent.width
+                        spacing: 0
+                        RowLayout {
+                            Layout.fillWidth: true
+                            height: 28
+                            spacing: 0
+                            Repeater {
+                                model: Network.feeHistogram.histogram
+                                Rectangle {
+                                    Layout.preferredWidth: 300 * (modelData[1] / Network.feeHistogram.total)
+                                    Layout.fillWidth: true
+                                    height: parent.height
+                                    color: Qt.hsva(2/3-(2/3*(Math.log(modelData[0])/Math.log(Math.max(25, Network.feeHistogram.max_fee)))), 0.8, 1, 1)
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            height: 3
+                            spacing: 0
+
+                            Repeater {
+                                model: Network.feeHistogram.total / 1000000
+                                RowLayout {
+                                    height: parent.height
+                                    spacing: 0
+                                    Rectangle {
+                                        Layout.preferredWidth: 1
+                                        Layout.fillWidth: false
+                                        height: parent.height
+                                        width: 1
+                                        color: 'white'
+                                    }
+                                    Item {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: parent.height
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                Layout.preferredWidth: 1
+                                Layout.fillWidth: false
+                                height: parent.height
+                                width: 1
+                                color: 'white'
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label {
+                                text: '< ' + qsTr('%1 sat/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
+                                font.pixelSize: constants.fontSizeXSmall
+                                color: Material.accentColor
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignRight
+                                text: qsTr('%1 sat/vB').arg(Math.floor(Network.feeHistogram.min_fee)) + ' >'
+                                font.pixelSize: constants.fontSizeXSmall
+                                color: Material.accentColor
+                            }
+                        }
+                    }
                 }
 
                 Heading {
@@ -191,21 +259,6 @@ Pane {
         }
     }
 
-    function setFeeHistogram() {
-        var txt = ''
-        Network.feeHistogram.forEach(function(item) {
-            txt = txt + item[0] + ': ' + item[1] + '\n';
-        })
-        feeHistogram.text = txt.trim()
-    }
-
-    Connections {
-        target: Network
-        function onFeeHistogramUpdated() {
-            setFeeHistogram()
-        }
-    }
-
     Component {
         id: serverConfig
         ServerConfigDialog {
@@ -219,6 +272,4 @@ Pane {
             onClosed: destroy()
         }
     }
-
-    Component.onCompleted: setFeeHistogram()
 }

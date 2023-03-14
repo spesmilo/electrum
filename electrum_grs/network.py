@@ -894,10 +894,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @best_effort_reliable
     @catch_server_exceptions
     async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int) -> dict:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.get_merkle_for_transaction(tx_hash=tx_hash, tx_height=tx_height)
 
     @best_effort_reliable
     async def broadcast_transaction(self, tx: 'Transaction', *, timeout=None) -> None:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         if timeout is None:
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         try:
@@ -1106,31 +1110,43 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     @best_effort_reliable
     @catch_server_exceptions
     async def request_chunk(self, height: int, tip=None, *, can_return_early=False):
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
     @best_effort_reliable
     @catch_server_exceptions
     async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.get_transaction(tx_hash=tx_hash, timeout=timeout)
 
     @best_effort_reliable
     @catch_server_exceptions
     async def get_history_for_scripthash(self, sh: str) -> List[dict]:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.get_history_for_scripthash(sh)
 
     @best_effort_reliable
     @catch_server_exceptions
     async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.listunspent_for_scripthash(sh)
 
     @best_effort_reliable
     @catch_server_exceptions
     async def get_balance_for_scripthash(self, sh: str) -> dict:
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.get_balance_for_scripthash(sh)
 
     @best_effort_reliable
     @catch_server_exceptions
     async def get_txid_from_txpos(self, tx_height, tx_pos, merkle):
+        if self.interface is None:  # handled by best_effort_reliable
+            raise RequestTimedOut()
         return await self.interface.get_txid_from_txpos(tx_height, tx_pos, merkle)
 
     def blockchain(self) -> Blockchain:

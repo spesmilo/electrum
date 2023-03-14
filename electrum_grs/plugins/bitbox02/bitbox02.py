@@ -201,7 +201,7 @@ class BitBox02Client(HardwareClientBase):
     @runs_in_hwd_thread
     def get_password_for_storage_encryption(self) -> str:
         derivation = get_derivation_used_for_hw_device_encryption()
-        derivation_list = bip32.convert_bip32_path_to_list_of_uint32(derivation)
+        derivation_list = bip32.convert_bip32_strpath_to_intpath(derivation)
         xpub = self.bitbox02_device.electrum_encryption_key(derivation_list)
         node = bip32.BIP32Node.from_xkey(xpub, net = constants.BitcoinMainnet()).subkey_at_public_derivation(())
         return node.eckey.get_public_key_bytes(compressed=True).hex()
@@ -218,7 +218,7 @@ class BitBox02Client(HardwareClientBase):
 
         self.fail_if_not_initialized()
 
-        xpub_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        xpub_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if xtype == "p2wpkh":
@@ -341,7 +341,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        address_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        address_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if address_type == "p2wpkh":
@@ -548,7 +548,7 @@ class BitBox02Client(HardwareClientBase):
                 script_config=bitbox02.btc.BTCScriptConfig(
                     simple_type=simple_type,
                 ),
-                keypath=bip32.convert_bip32_path_to_list_of_uint32(keypath),
+                keypath=bip32.convert_bip32_strpath_to_intpath(keypath),
             ),
             message,
         )

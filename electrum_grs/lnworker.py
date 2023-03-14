@@ -874,7 +874,8 @@ class LNWallet(LNWorker):
                 'fee_msat': None,
                 'height': tx_height.height,
                 'confirmations': tx_height.conf,
-            }
+                'txpos_in_block': tx_height.txpos,
+            }  # FIXME this data structure needs to be kept in ~sync with wallet.get_onchain_history
             out[funding_txid] = item
             item = chan.get_closing_height()
             if item is None:
@@ -895,7 +896,8 @@ class LNWallet(LNWorker):
                 'fee_msat': None,
                 'height': tx_height.height,
                 'confirmations': tx_height.conf,
-            }
+                'txpos_in_block': tx_height.txpos,
+            }  # FIXME this data structure needs to be kept in ~sync with wallet.get_onchain_history
             out[closing_txid] = item
         # add info about submarine swaps
         settled_payments = self.get_payments(status='settled')

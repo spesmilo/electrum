@@ -1,4 +1,5 @@
 import asyncio
+import enum
 import os.path
 import time
 import sys
@@ -10,7 +11,7 @@ import webbrowser
 from decimal import Decimal
 from functools import partial, lru_cache, wraps
 from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict, Any,
-                    Sequence, Iterable, Tuple)
+                    Sequence, Iterable, Tuple, Type)
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
@@ -569,6 +570,46 @@ class ElectrumItemDelegate(QStyledItemDelegate):
             return custom_data.sizeHint(default_size)
 
 
+class MyMenu(QMenu):
+
+    def __init__(self, config):
+        QMenu.__init__(self)
+        self.setToolTipsVisible(True)
+        self.config = config
+
+    def addToggle(self, text: str, callback, *, tooltip=''):
+        m = self.addAction(text, callback)
+        m.setCheckable(True)
+        m.setToolTip(tooltip)
+        return m
+
+    def addConfig(self, text:str, name:str, default:bool, *, tooltip='', callback=None):
+        b = self.config.get(name, default)
+        m = self.addAction(text, lambda: self._do_toggle_config(name, default, callback))
+        m.setCheckable(True)
+        m.setChecked(b)
+        m.setToolTip(tooltip)
+        return m
+
+    def _do_toggle_config(self, name, default, callback):
+        b = self.config.get(name, default)
+        self.config.set_key(name, not b)
+        if callback:
+            callback()
+
+def create_toolbar_with_menu(config, title):
+    menu = MyMenu(config)
+    toolbar_button = QToolButton()
+    toolbar_button.setIcon(read_QIcon("preferences.png"))
+    toolbar_button.setMenu(menu)
+    toolbar_button.setPopupMode(QToolButton.InstantPopup)
+    toolbar_button.setFocusPolicy(Qt.NoFocus)
+    toolbar = QHBoxLayout()
+    toolbar.addWidget(QLabel(title))
+    toolbar.addStretch()
+    toolbar.addWidget(toolbar_button)
+    return toolbar, menu
+
 class MyTreeView(QTreeView):
     ROLE_CLIPBOARD_DATA = Qt.UserRole + 100
     ROLE_CUSTOM_PAINT   = Qt.UserRole + 101
@@ -577,14 +618,29 @@ class MyTreeView(QTreeView):
 
     filter_columns: Iterable[int]
 
-    def __init__(self, parent: 'ElectrumWindow', create_menu, *,
-                 stretch_column=None, editable_columns=None):
+    class BaseColumnsEnum(enum.IntEnum):
+        @staticmethod
+        def _generate_next_value_(name: str, start: int, count: int, last_values):
+            # this is overridden to get a 0-based counter
+            return count
+
+    Columns: Type[BaseColumnsEnum]
+
+    def __init__(
+        self,
+        *,
+        parent: Optional[QWidget] = None,
+        main_window: Optional['ElectrumWindow'] = None,
+        stretch_column: Optional[int] = None,
+        editable_columns: Optional[Sequence[int]] = None,
+    ):
+        parent = parent or main_window
         super().__init__(parent)
-        self.parent = parent
-        self.config = self.parent.config
+        self.main_window = main_window
+        self.config = self.main_window.config if self.main_window else None
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(create_menu)
+        self.customContextMenuRequested.connect(self.create_menu)
         self.setUniformRowHeights(True)
 
         # Control which columns are editable
@@ -609,6 +665,9 @@ class MyTreeView(QTreeView):
         self._forced_update = False
 
         self._default_bg_brush = QStandardItem().background()
+
+    def create_menu(self, position: QPoint) -> None:
+        pass
 
     def set_editability(self, items):
         for idx, i in enumerate(items):
@@ -742,29 +801,25 @@ class MyTreeView(QTreeView):
         for row in range(self.model().rowCount()):
             self.hide_row(row)
 
-    def create_toolbar(self, config=None):
+    def create_toolbar(self, config):
+        return
+
+    def create_toolbar_buttons(self):
         hbox = QHBoxLayout()
         buttons = self.get_toolbar_buttons()
         for b in buttons:
             b.setVisible(False)
             hbox.addWidget(b)
-        hide_button = QPushButton('x')
-        hide_button.setVisible(False)
-        hide_button.pressed.connect(lambda: self.show_toolbar(False, config))
-        self.toolbar_buttons = buttons + (hide_button,)
-        hbox.addStretch()
-        hbox.addWidget(hide_button)
+        self.toolbar_buttons = buttons
         return hbox
 
-    def save_toolbar_state(self, state, config):
-        pass  # implemented in subclasses
+    def create_toolbar_with_menu(self, title):
+        return create_toolbar_with_menu(self.config, title)
 
     def show_toolbar(self, state, config=None):
         if state == self.toolbar_shown:
             return
         self.toolbar_shown = state
-        if config:
-            self.save_toolbar_state(state, config)
         for b in self.toolbar_buttons:
             b.setVisible(state)
         if not state:
@@ -791,7 +846,7 @@ class MyTreeView(QTreeView):
         return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
-        self.parent.do_copy(text, title=title)
+        self.main_window.do_copy(text, title=title)
 
     def showEvent(self, e: 'QShowEvent'):
         super().showEvent(e)

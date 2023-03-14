@@ -12,6 +12,12 @@ Note that static backups only allow you to request a force-close with the remote
 If this is enabled, other nodes cannot open a channel to you. Channel recovery data is encrypted, so that only your wallet can decrypt it. However, blockchain analysis will be able to tell that the transaction was probably created by Electrum.
 """
 
+MSG_CONFIG_INSTANT_SWAPS = """
+If this option is checked, your client will complete reverse swaps before the funding transaction is confirmed.
+
+Note you are at risk of losing the funds in the swap, if the funding transaction never confirms.
+"""
+
 MSG_COOPERATIVE_CLOSE = """
 Your node will negotiate the transaction fee with the remote node. This method of closing the channel usually results in the lowest fees."""
 

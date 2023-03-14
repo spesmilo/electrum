@@ -168,13 +168,23 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setSizePolicy(receive_tabs_sp)
         self.receive_tabs.setVisible(False)
 
-        self.receive_requests_label = QLabel(_('Receive queue'))
+        self.receive_requests_label = QLabel(_('Requests'))
         # with QDarkStyle, this label may partially cover the qrcode widget.
         # setMaximumWidth prevents that
         self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
-
+        self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
+        menu.addConfig(
+            _('Add on-chain fallback to lightning requests'), 'bolt11_fallback', True,
+            callback=self.on_toggle_bolt11_fallback)
+        menu.addConfig(
+            _('Add lightning requests to bitcoin URIs'), 'bip21_lightning', False,
+            tooltip=_('This may result in large QR codes'),
+            callback=self.update_current_request)
+        self.qr_menu_action = menu.addToggle(_("Show QR code window"), self.window.toggle_qr_window)
+        menu.addAction(_("Import requests"), self.window.import_requests)
+        menu.addAction(_("Export requests"), self.window.export_requests)
         # layout
         vbox_g = QVBoxLayout()
         vbox_g.addLayout(grid)
@@ -186,6 +196,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.searchable_list = self.request_list
         vbox = QVBoxLayout(self)
+        vbox.addLayout(self.toolbar)
         vbox.addLayout(hbox)
         vbox.addStretch()
         vbox.addWidget(self.receive_requests_label)
@@ -193,6 +204,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox.setStretchFactor(hbox, 40)
         vbox.setStretchFactor(self.request_list, 60)
         self.request_list.update()  # after parented and put into a layout, can update without flickering
+
+    def on_toggle_bolt11_fallback(self):
+        if not self.wallet.lnworker:
+            return
+        self.wallet.lnworker.clear_invoices_cache()
+        self.update_current_request()
 
     def on_tab_changed(self, i):
         self.config.set_key('receive_tabs_index', i)

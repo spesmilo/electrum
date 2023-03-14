@@ -78,7 +78,9 @@ ElDialog {
                         text: invoice.invoiceType == Invoice.OnchainInvoice
                                 ? qsTr('On chain')
                                 : invoice.invoiceType == Invoice.LightningInvoice
-                                    ? qsTr('Lightning')
+                                    ? invoice.address
+                                        ? qsTr('Lightning with on-chain fallback address')
+                                        : qsTr('Lightning')
                                     : ''
                         Layout.fillWidth: true
                     }
@@ -252,6 +254,7 @@ ElDialog {
                             }
 
                             Label {
+                                Layout.alignment: Qt.AlignRight
                                 visible: !invoice.amount.isMax
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
@@ -269,6 +272,7 @@ ElDialog {
 
                             Label {
                                 id: fiatValue
+                                Layout.alignment: Qt.AlignRight
                                 visible: Daemon.fx.enabled && !invoice.amount.isMax
                                 text: Daemon.fx.fiatValue(invoice.amount, false)
                                 font.pixelSize: constants.fontSizeMedium

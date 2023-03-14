@@ -238,6 +238,25 @@ Item {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onOtpRequested() {
+            console.log('OTP requested')
+            var dialog = otpDialog.createObject(mainView)
+            dialog.accepted.connect(function() {
+                console.log('accepted ' + dialog.otpauth)
+                Daemon.currentWallet.finish_otp(dialog.otpauth)
+            })
+            dialog.open()
+        }
+        function onBroadcastFailed(txid, code, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
+            dialog.open()
+        }
+    }
+
     Component {
         id: invoiceDialog
         InvoiceDialog {
@@ -245,11 +264,11 @@ Item {
             height: parent.height
 
             onDoPay: {
-                if (invoice.invoiceType == Invoice.OnchainInvoice) {
+                if (invoice.invoiceType == Invoice.OnchainInvoice || (invoice.invoiceType == Invoice.LightningInvoice && invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend ) ) {
                     var dialog = confirmPaymentDialog.createObject(mainView, {
-                            'address': invoice.address,
-                            'satoshis': invoice.amount,
-                            'message': invoice.message
+                            address: invoice.address,
+                            satoshis: invoice.amount,
+                            message: invoice.message
                     })
                     var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
                     dialog.txaccepted.connect(function() {
@@ -279,22 +298,6 @@ Item {
         }
     }
 
-    Connections {
-        target: Daemon.currentWallet
-        function onOtpRequested() {
-            console.log('OTP requested')
-            var dialog = otpDialog.createObject(mainView)
-            dialog.accepted.connect(function() {
-                console.log('accepted ' + dialog.otpauth)
-                Daemon.currentWallet.finish_otp(dialog.otpauth)
-            })
-            dialog.open()
-        }
-        function onBroadcastFailed() {
-            notificationPopup.show(qsTr('Broadcast transaction failed'))
-        }
-    }
-
     Component {
         id: sendDialog
         SendDialog {
@@ -304,6 +307,20 @@ Item {
             onTxFound: {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
                 close()
+            }
+            onChannelBackupFound: {
+                var dialog = app.messageDialog.createObject(app, {
+                    text: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.yesClicked.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                    close()
+                })
+                dialog.rejected.connect(function() {
+                    close()
+                })
+                dialog.open()
             }
             onClosed: destroy()
         }

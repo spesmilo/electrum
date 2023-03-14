@@ -3,7 +3,7 @@ import sys
 from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING, Sequence
 
 from electrum_grs.util import bfh, versiontuple, UserCancelled, UserFacingException
-from electrum_grs.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrum_grs.bip32 import BIP32Node
 from electrum_grs import descriptor
 from electrum_grs import constants
 from electrum_grs.i18n import _

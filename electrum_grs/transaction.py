@@ -51,11 +51,12 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       base_encode, construct_witness, construct_script)
 from .crypto import sha256d, sha256
 from .logging import get_logger
-from .util import ShortID
+from .util import ShortID, OldTaskGroup
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
+    from .network import Network
 
 
 _logger = get_logger(__name__)
@@ -88,6 +89,13 @@ class MalformedBitcoinScript(Exception):
 
 class MissingTxInputAmount(Exception):
     pass
+
+
+class TxinDataFetchProgress(NamedTuple):
+    num_tasks_done: int
+    num_tasks_total: int
+    has_errored: bool
+    has_finished: bool
 
 
 class Sighash(IntEnum):
@@ -256,6 +264,7 @@ class TxInput:
         self.block_txpos = None
         self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
         self.spent_txid = None  # type: Optional[str]  # txid of the spender
+        self._utxo = None  # type: Optional[Transaction]
 
     @property
     def short_id(self):
@@ -263,6 +272,30 @@ class TxInput:
             return ShortID.from_components(self.block_height, self.block_txpos, self.prevout.out_idx)
         else:
             return self.prevout.short_name()
+
+    @property
+    def utxo(self):
+        return self._utxo
+
+    @utxo.setter
+    def utxo(self, tx: Optional['Transaction']):
+        if tx is None:
+            return
+        # note that tx might be a PartialTransaction
+        # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
+        tx = tx_from_any(str(tx))
+        # 'utxo' field should not be a PSBT:
+        if not tx.is_complete():
+            return
+        self.validate_data(utxo=tx)
+        self._utxo = tx
+
+    def validate_data(self, *, utxo: Optional['Transaction'] = None, **kwargs) -> None:
+        utxo = utxo or self.utxo
+        if utxo:
+            if self.prevout.txid.hex() != utxo.txid():
+                raise PSBTInputConsistencyFailure(f"PSBT input validation: "
+                                                  f"If a non-witness UTXO is provided, its hash must match the hash specified in the prevout")
 
     def is_coinbase_input(self) -> bool:
         """Whether this is the input of a coinbase tx."""
@@ -275,6 +308,22 @@ class TxInput:
         return self._is_coinbase_output
 
     def value_sats(self) -> Optional[int]:
+        if self.utxo:
+            out_idx = self.prevout.out_idx
+            return self.utxo.outputs()[out_idx].value
+        return None
+
+    @property
+    def address(self) -> Optional[str]:
+        if self.scriptpubkey:
+            return get_address_from_output_script(self.scriptpubkey)
+        return None
+
+    @property
+    def scriptpubkey(self) -> Optional[bytes]:
+        if self.utxo:
+            out_idx = self.prevout.out_idx
+            return self.utxo.outputs()[out_idx].scriptpubkey
         return None
 
     def to_json(self):
@@ -313,6 +362,35 @@ class TxInput:
         if self.witness not in (b'\x00', b'', None):
             return True
         return False
+
+    async def add_info_from_network(
+            self,
+            network: Optional['Network'],
+            *,
+            ignore_network_issues: bool = True,
+            timeout=None,
+    ) -> bool:
+        """Returns True iff successful."""
+        from .network import NetworkException
+        async def fetch_from_network(txid) -> Optional[Transaction]:
+            tx = None
+            if network and network.has_internet_connection():
+                try:
+                    raw_tx = await network.get_transaction(txid, timeout=timeout)
+                except NetworkException as e:
+                    _logger.info(f'got network error getting input txn. err: {repr(e)}. txid: {txid}. '
+                                 f'if you are intentionally offline, consider using the --offline flag')
+                    if not ignore_network_issues:
+                        raise e
+                else:
+                    tx = Transaction(raw_tx)
+            if not tx and not ignore_network_issues:
+                raise NetworkException('failed to get prev tx from network')
+            return tx
+
+        if self.utxo is None:
+            self.utxo = await fetch_from_network(txid=self.prevout.txid.hex())
+        return self.utxo is not None
 
 
 class BCDataStream(object):
@@ -895,7 +973,75 @@ class Transaction:
         return sha256(bfh(ser))[::-1].hex()
 
     def add_info_from_wallet(self, wallet: 'Abstract_Wallet', **kwargs) -> None:
-        return  # no-op
+        # populate prev_txs
+        for txin in self.inputs():
+            wallet.add_input_info(txin)
+
+    async def add_info_from_network(
+        self,
+        network: Optional['Network'],
+        *,
+        ignore_network_issues: bool = True,
+        progress_cb: Callable[[TxinDataFetchProgress], None] = None,
+        timeout=None,
+    ) -> None:
+        """note: it is recommended to call add_info_from_wallet first, as this can save some network requests"""
+        if not self.is_missing_info_from_network():
+            return
+        if progress_cb is None:
+            progress_cb = lambda *args, **kwargs: None
+        num_tasks_done = 0
+        num_tasks_total = 0
+        has_errored = False
+        has_finished = False
+        async def add_info_to_txin(txin: TxInput):
+            nonlocal num_tasks_done, has_errored
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+            success = await txin.add_info_from_network(
+                network=network,
+                ignore_network_issues=ignore_network_issues,
+                timeout=timeout,
+            )
+            if success:
+                num_tasks_done += 1
+            else:
+                has_errored = True
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+        # schedule a network task for each txin
+        try:
+            async with OldTaskGroup() as group:
+                for txin in self.inputs():
+                    if txin.utxo is None:
+                        num_tasks_total += 1
+                        await group.spawn(add_info_to_txin(txin=txin))
+        except Exception as e:
+            has_errored = True
+            _logger.error(f"tx.add_info_from_network() got exc: {e!r}")
+        finally:
+            has_finished = True
+            progress_cb(TxinDataFetchProgress(num_tasks_done, num_tasks_total, has_errored, has_finished))
+
+    def is_missing_info_from_network(self) -> bool:
+        return any(txin.utxo is None for txin in self.inputs())
+
+    def add_info_from_wallet_and_network(
+        self, *, wallet: 'Abstract_Wallet', show_error: Callable[[str], None],
+    ) -> bool:
+        """Returns whether successful.
+        note: This is sort of a legacy hack... doing network requests in non-async code.
+              Relatedly, this should *not* be called from the network thread.
+        """
+        # note side-effect: tx is being mutated
+        from .network import NetworkException
+        self.add_info_from_wallet(wallet)
+        try:
+            if self.is_missing_info_from_network():
+                Network.run_from_another_thread(
+                    self.add_info_from_network(wallet.network, ignore_network_issues=False))
+        except NetworkException as e:
+            show_error(repr(e))
+            return False
+        return True
 
     def is_final(self) -> bool:
         """Whether RBF is disabled."""
@@ -1003,6 +1149,21 @@ class Transaction:
                 return o.value
         else:
             raise Exception('output not found', addr)
+
+    def input_value(self) -> int:
+        input_values = [txin.value_sats() for txin in self.inputs()]
+        if any([val is None for val in input_values]):
+            raise MissingTxInputAmount()
+        return sum(input_values)
+
+    def output_value(self) -> int:
+        return sum(o.value for o in self.outputs())
+
+    def get_fee(self) -> Optional[int]:
+        try:
+            return self.input_value() - self.output_value()
+        except MissingTxInputAmount:
+            return None
 
     def get_input_idx_that_spent_prevout(self, prevout: TxOutpoint) -> Optional[int]:
         # build cache if there isn't one yet
@@ -1177,7 +1338,6 @@ class PSBTSection:
 class PartialTxInput(TxInput, PSBTSection):
     def __init__(self, *args, **kwargs):
         TxInput.__init__(self, *args, **kwargs)
-        self._utxo = None  # type: Optional[Transaction]
         self._witness_utxo = None  # type: Optional[TxOutput]
         self.part_sigs = {}  # type: Dict[bytes, bytes]  # pubkey -> sig
         self.sighash = None  # type: Optional[int]
@@ -1194,30 +1354,13 @@ class PartialTxInput(TxInput, PSBTSection):
         self.witness_sizehint = None  # type: Optional[int]  # byte size of serialized complete witness, for tx size est
 
     @property
-    def utxo(self):
-        return self._utxo
-
-    @utxo.setter
-    def utxo(self, tx: Optional[Transaction]):
-        if tx is None:
-            return
-        # note that tx might be a PartialTransaction
-        # serialize and de-serialize tx now. this might e.g. convert a complete PartialTx to a Tx
-        tx = tx_from_any(str(tx))
-        # 'utxo' field in PSBT cannot be another PSBT:
-        if not tx.is_complete():
-            return
-        self._utxo = tx
-        self.validate_data()
-
-    @property
     def witness_utxo(self):
         return self._witness_utxo
 
     @witness_utxo.setter
     def witness_utxo(self, value: Optional[TxOutput]):
+        self.validate_data(witness_utxo=value)
         self._witness_utxo = value
-        self.validate_data()
 
     @property
     def pubkeys(self) -> Set[bytes]:
@@ -1268,22 +1411,32 @@ class PartialTxInput(TxInput, PSBTSection):
                              nsequence=txin.nsequence,
                              witness=None if strip_witness else txin.witness,
                              is_coinbase_output=txin.is_coinbase_output())
+        res.utxo = txin.utxo
         return res
 
-    def validate_data(self, *, for_signing=False) -> None:
-        if self.utxo:
-            if self.prevout.txid.hex() != self.utxo.txid():
+    def validate_data(
+        self,
+        *,
+        for_signing=False,
+        # allow passing provisional fields for 'self', before setting them:
+        utxo: Optional[Transaction] = None,
+        witness_utxo: Optional[TxOutput] = None,
+    ) -> None:
+        utxo = utxo or self.utxo
+        witness_utxo = witness_utxo or self.witness_utxo
+        if utxo:
+            if self.prevout.txid.hex() != utxo.txid():
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a non-witness UTXO is provided, its hash must match the hash specified in the prevout")
-            if self.witness_utxo:
-                if self.utxo.outputs()[self.prevout.out_idx] != self.witness_utxo:
+            if witness_utxo:
+                if utxo.outputs()[self.prevout.out_idx] != witness_utxo:
                     raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                       f"If both non-witness UTXO and witness UTXO are provided, they must be consistent")
         # The following test is disabled, so we are willing to sign non-segwit inputs
         # without verifying the input amount. This means, given a maliciously modified PSBT,
         # for non-segwit inputs, we might end up burning coins as miner fees.
         if for_signing and False:
-            if not self.is_segwit() and self.witness_utxo:
+            if not self.is_segwit() and witness_utxo:
                 raise PSBTInputConsistencyFailure(f"PSBT input validation: "
                                                   f"If a witness UTXO is provided, no non-witness signature may be created")
         if self.redeem_script and self.address:
@@ -1388,31 +1541,28 @@ class PartialTxInput(TxInput, PSBTSection):
             wr(key_type, val, key=key)
 
     def value_sats(self) -> Optional[int]:
+        if (val := super().value_sats()) is not None:
+            return val
         if self._trusted_value_sats is not None:
             return self._trusted_value_sats
-        if self.utxo:
-            out_idx = self.prevout.out_idx
-            return self.utxo.outputs()[out_idx].value
         if self.witness_utxo:
             return self.witness_utxo.value
         return None
 
     @property
     def address(self) -> Optional[str]:
+        if (addr := super().address) is not None:
+            return addr
         if self._trusted_address is not None:
             return self._trusted_address
-        scriptpubkey = self.scriptpubkey
-        if scriptpubkey:
-            return get_address_from_output_script(scriptpubkey)
         return None
 
     @property
     def scriptpubkey(self) -> Optional[bytes]:
+        if (spk := super().scriptpubkey) is not None:
+            return spk
         if self._trusted_address is not None:
             return bfh(bitcoin.address_to_script(self._trusted_address))
-        if self.utxo:
-            out_idx = self.prevout.out_idx
-            return self.utxo.outputs()[out_idx].scriptpubkey
         if self.witness_utxo:
             return self.witness_utxo.scriptpubkey
         return None
@@ -1877,21 +2027,6 @@ class PartialTransaction(Transaction):
             self._outputs.sort(key = lambda o: (o.value, o.scriptpubkey))
         self.invalidate_ser_cache()
 
-    def input_value(self) -> int:
-        input_values = [txin.value_sats() for txin in self.inputs()]
-        if any([val is None for val in input_values]):
-            raise MissingTxInputAmount()
-        return sum(input_values)
-
-    def output_value(self) -> int:
-        return sum(o.value for o in self.outputs())
-
-    def get_fee(self) -> Optional[int]:
-        try:
-            return self.input_value() - self.output_value()
-        except MissingTxInputAmount:
-            return None
-
     def serialize_preimage(self, txin_index: int, *,
                            bip143_shared_txdigest_fields: BIP143SharedTxDigestFields = None) -> str:
         nVersion = int_to_hex(self.version, 4)
@@ -2043,7 +2178,6 @@ class PartialTransaction(Transaction):
             wallet: 'Abstract_Wallet',
             *,
             include_xpubs: bool = False,
-            ignore_network_issues: bool = True,
     ) -> None:
         if self.is_complete():
             return
@@ -2065,7 +2199,6 @@ class PartialTransaction(Transaction):
             wallet.add_input_info(
                 txin,
                 only_der_suffix=False,
-                ignore_network_issues=ignore_network_issues,
             )
         for txout in self.outputs():
             wallet.add_output_info(
@@ -2095,8 +2228,9 @@ class PartialTransaction(Transaction):
             txout.bip32_paths.clear()
             txout._unknown.clear()
 
-    def prepare_for_export_for_hardware_device(self, wallet: 'Abstract_Wallet') -> None:
+    async def prepare_for_export_for_hardware_device(self, wallet: 'Abstract_Wallet') -> None:
         self.add_info_from_wallet(wallet, include_xpubs=True)
+        await self.add_info_from_network(wallet.network)
         # log warning if PSBT_*_BIP32_DERIVATION fields cannot be filled with full path due to missing info
         from .keystore import Xpub
         def is_ks_missing_info(ks):

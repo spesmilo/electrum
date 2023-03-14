@@ -453,7 +453,7 @@ class SwapManager(Logger):
             while swap.spending_txid is None:
                 await asyncio.sleep(1)
         # initiate main payment
-        tasks = [self.lnworker.pay_invoice(invoice, attempts=10, channels=channels), wait_for_funding(swap)]
+        tasks = [asyncio.create_task(self.lnworker.pay_invoice(invoice, attempts=10, channels=channels)), asyncio.create_task(wait_for_funding(swap))]
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         success = swap.spending_txid is not None
         return success

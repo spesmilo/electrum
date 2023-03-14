@@ -55,7 +55,7 @@ def _register_multisig_wallet(wallet, keystore, address):
     for kstore in wallet.get_keystores():
         fingerprint = kstore.get_root_fingerprint()
         bip32_path_prefix = kstore.get_derivation_prefix()
-        derivation_path = bip32.convert_bip32_path_to_list_of_uint32(bip32_path_prefix)
+        derivation_path = bip32.convert_bip32_strpath_to_intpath(bip32_path_prefix)
 
         # Jade only understands standard xtypes, so convert here
         node = bip32.BIP32Node.from_xkey(kstore.xpub)
@@ -169,7 +169,7 @@ class Jade_Client(HardwareClientBase):
         self.authenticate()
 
         # Jade only provides traditional xpubs ...
-        path = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        path = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         xpub = self.jade.get_xpub(self._network(), path)
 
         # ... so convert to relevant xtype locally
@@ -180,7 +180,7 @@ class Jade_Client(HardwareClientBase):
     def sign_message(self, bip32_path_prefix, sequence, message):
         self.authenticate()
 
-        path = bip32.convert_bip32_path_to_list_of_uint32(bip32_path_prefix)
+        path = bip32.convert_bip32_strpath_to_intpath(bip32_path_prefix)
         path.extend(sequence)
 
         if isinstance(message, bytes) or isinstance(message, bytearray):
@@ -214,7 +214,7 @@ class Jade_Client(HardwareClientBase):
     @runs_in_hwd_thread
     def show_address(self, bip32_path_prefix, sequence, txin_type):
         self.authenticate()
-        path = bip32.convert_bip32_path_to_list_of_uint32(bip32_path_prefix)
+        path = bip32.convert_bip32_strpath_to_intpath(bip32_path_prefix)
         path.extend(sequence)
         script_variant = self._convertAddrType(txin_type, multisig=False)
         address = self.jade.get_receive_address(self._network(), path, variant=script_variant)

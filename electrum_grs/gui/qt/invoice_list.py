@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+import enum
 from typing import Sequence, TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QItemSelectionModel
@@ -53,11 +53,11 @@ ROLE_SORT_ORDER = Qt.UserRole + 2
 class InvoiceList(MyTreeView):
     key_role = ROLE_REQUEST_ID
 
-    class Columns(IntEnum):
-        DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
+    class Columns(MyTreeView.BaseColumnsEnum):
+        DATE = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        STATUS = enum.auto()
 
     headers = {
         Columns.DATE: _('Date'),
@@ -69,8 +69,10 @@ class InvoiceList(MyTreeView):
 
     def __init__(self, send_tab: 'SendTab'):
         window = send_tab.window
-        super().__init__(window, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION)
+        super().__init__(
+            main_window=window,
+            stretch_column=self.Columns.DESCRIPTION,
+        )
         self.wallet = window.wallet
         self.send_tab = send_tab
         self.std_model = QStandardItemModel(self)
@@ -110,13 +112,13 @@ class InvoiceList(MyTreeView):
                 if item.bip70:
                     icon_name = 'seal.png'
             status = self.wallet.get_invoice_status(item)
-            status_str = item.get_status_str(status)
-            message = item.message
             amount = item.get_amount_sat()
             timestamp = item.time or 0
-            date_str = format_time(timestamp) if timestamp else _('Unknown')
-            amount_str = self.parent.format_amount(amount, whitespaces=True)
-            labels = [date_str, message, amount_str, status_str]
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.DATE] = format_time(timestamp) if timestamp else _('Unknown')
+            labels[self.Columns.DESCRIPTION] = item.message
+            labels[self.Columns.AMOUNT] = self.main_window.format_amount(amount, whitespaces=True)
+            labels[self.Columns.STATUS] = item.get_status_str(status)
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon(icon_name))
@@ -160,11 +162,11 @@ class InvoiceList(MyTreeView):
         copy_menu = self.add_copy_menu(menu, idx)
         address = invoice.get_address()
         if address:
-            copy_menu.addAction(_("Address"), lambda: self.parent.do_copy(invoice.get_address(), title='Groestlcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Groestlcoin Address'))
         if invoice.is_lightning():
-            menu.addAction(_("Details"), lambda: self.parent.show_lightning_invoice(invoice))
+            menu.addAction(_("Details"), lambda: self.main_window.show_lightning_invoice(invoice))
         else:
-            menu.addAction(_("Details"), lambda: self.parent.show_onchain_invoice(invoice))
+            menu.addAction(_("Details"), lambda: self.main_window.show_onchain_invoice(invoice))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
