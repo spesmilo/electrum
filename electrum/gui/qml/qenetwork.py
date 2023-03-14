@@ -95,7 +95,7 @@ class QENetwork(QObject, QtEventListener):
 
     def update_histogram(self, histogram):
         # cap the histogram to a limited number of megabytes
-        bytes_limit=25*1000*1000
+        bytes_limit=10*1000*1000
         bytes_current = 0
         capped_histogram = []
         for item in sorted(histogram, key=lambda x: x[0], reverse=True):
@@ -109,8 +109,8 @@ class QENetwork(QObject, QtEventListener):
         self._fee_histogram = {
             'histogram': capped_histogram,
             'total': bytes_current,
-            'min_fee': capped_histogram[-1][0],
-            'max_fee': capped_histogram[0][0]
+            'min_fee': capped_histogram[-1][0] if capped_histogram else FEERATE_DEFAULT_RELAY/1000,
+            'max_fee': capped_histogram[0][0] if capped_histogram else FEERATE_DEFAULT_RELAY/1000
         }
         self.feeHistogramUpdated.emit()
 
