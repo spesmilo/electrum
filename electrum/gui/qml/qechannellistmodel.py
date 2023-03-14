@@ -17,7 +17,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     _ROLE_NAMES=('cid','state','state_code','initiator','capacity','can_send',
                  'can_receive','l_csv_delay','r_csv_delay','send_frozen','receive_frozen',
                  'type','node_id','node_alias','short_cid','funding_tx','is_trampoline',
-                 'is_backup', 'is_imported')
+                 'is_backup', 'is_imported', 'local_capacity', 'remote_capacity')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
@@ -91,10 +91,14 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         if lnc.is_backup():
             item['can_send'] = QEAmount()
             item['can_receive'] = QEAmount()
+            item['local_capacity'] = QEAmount()
+            item['remote_capacity'] = QEAmount()
             item['is_imported'] = lnc.is_imported
         else:
             item['can_send'] = QEAmount(amount_msat=lnc.available_to_spend(LOCAL))
             item['can_receive'] = QEAmount(amount_msat=lnc.available_to_spend(REMOTE))
+            item['local_capacity'] = QEAmount(amount_msat=lnc.balance(LOCAL))
+            item['remote_capacity'] = QEAmount(amount_msat=lnc.balance(REMOTE))
             item['is_imported'] = False
         return item
 

@@ -113,10 +113,10 @@ ItemDelegate {
             onWidthChanged: {
                 var cap = model.capacity.satsInt * 1000
                 var twocap = cap * 2
-                b1.width = width * (cap - model.can_send.msatsInt) / twocap
-                b2.width = width * model.can_send.msatsInt / twocap
-                b3.width = width * model.can_receive.msatsInt / twocap
-                b4.width = width * (cap - model.can_receive.msatsInt) / twocap
+                b1.width = width * (cap - model.local_capacity.msatsInt) / twocap
+                b2.width = width * model.local_capacity.msatsInt / twocap
+                b3.width = width * model.remote_capacity.msatsInt / twocap
+                b4.width = width * (cap - model.remote_capacity.msatsInt) / twocap
             }
             Rectangle {
                 id: b1
