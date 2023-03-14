@@ -119,7 +119,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
 
         # sort, for now simply by state
         def chan_sort_score(c):
-            return c['state_code']
+            return c['state_code'] + (10 if c['is_backup'] else 0)
         channels.sort(key=chan_sort_score)
 
         self.clear()

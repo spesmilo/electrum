@@ -78,7 +78,22 @@ Pane {
                     Layout.preferredWidth: parent.width
                     Layout.fillHeight: true
                     clip: true
-                    model: Daemon.currentWallet.channelModel.filterModelNoBackups()
+                    model: Daemon.currentWallet.channelModel
+
+                    section.property: 'is_backup'
+                    section.criteria: ViewSection.FullString
+                    section.delegate: RowLayout {
+                        width: ListView.view.width
+                        required property string section
+                        Label {
+                            visible: section == 'true'
+                            text: qsTr('Channel backups')
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingLarge
+                            font.pixelSize: constants.fontSizeSmall
+                            color: Material.accentColor
+                        }
+                    }
 
                     delegate: ChannelDelegate {
                         onClicked: {
@@ -101,7 +116,6 @@ Pane {
                 }
             }
         }
-
 
         ButtonContainer {
             Layout.fillWidth: true
@@ -155,6 +169,21 @@ Pane {
         id: openChannelDialog
         OpenChannelDialog {
             onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: importChannelBackupDialog
+        ImportChannelBackupDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(root, { text: message })
+            dialog.open()
         }
     }
 
