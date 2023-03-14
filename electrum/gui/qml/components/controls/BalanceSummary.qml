@@ -40,6 +40,7 @@ Item {
         rightPadding: constants.paddingXLarge
 
         GridLayout {
+            id: balanceLayout
             columns: 3
             opacity: Daemon.currentWallet.synchronizing ? 0 : 1
 
@@ -63,13 +64,15 @@ Item {
 
             Item {
                 visible: Daemon.fx.enabled && root.state == 'fiat'
-                Layout.preferredHeight: 1
+                // attempt at making fiat state as tall as btc state:
+                Layout.preferredHeight: fontMetrics.lineSpacing * 2 + balanceLayout.rowSpacing + 2
                 Layout.preferredWidth: 1
             }
             Label {
                 Layout.alignment: Qt.AlignRight
                 visible: Daemon.fx.enabled && root.state == 'fiat'
                 font.pixelSize: constants.fontSizeLarge
+                font.family: FixedFont
                 color: constants.mutedForeground
                 text: formattedTotalBalanceFiat
             }
@@ -120,6 +123,7 @@ Item {
                 }
             }
             Label {
+                id: formattedConfirmedBalanceLabel
                 visible: root.state == 'btc'
                 Layout.alignment: Qt.AlignRight
                 text: formattedConfirmedBalance
@@ -174,6 +178,11 @@ Item {
         function onBalanceChanged() {
             setBalances()
         }
+    }
+
+    FontMetrics {
+        id: fontMetrics
+        font: formattedConfirmedBalanceLabel.font
     }
 
     Component.onCompleted: setBalances()
