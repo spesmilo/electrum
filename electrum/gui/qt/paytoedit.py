@@ -268,6 +268,7 @@ class PayToEdit(Logger, GenericInputHandler):
         if full_check:
             self.previous_payto = str(text).strip()
         self.errors = []
+        errors = []
         if self.disable_checks:
             return
         # filter out empty lines
@@ -301,7 +302,7 @@ class PayToEdit(Logger, GenericInputHandler):
             try:
                 self.payto_scriptpubkey = self.parse_output(data)
             except Exception as e:
-                self.errors.append(PayToLineError(line_content=data, exc=e))
+                errors.append(PayToLineError(line_content=data, exc=e))
             else:
                 self.send_tab.set_onchain(True)
                 self.send_tab.lock_amount(False)
@@ -312,6 +313,9 @@ class PayToEdit(Logger, GenericInputHandler):
                 if oa_data:
                     self._set_openalias(key=data, data=oa_data)
                     return
+            # all parsing attempts failed, so now expose the errors:
+            if errors:
+                self.errors = errors
         else:
             # there are multiple lines
             self._parse_as_multiline(lines, raise_errors=False)
@@ -389,7 +393,7 @@ class PayToEdit(Logger, GenericInputHandler):
         address = data.get('address')
         name = data.get('name')
         new_url = key + ' <' + address + '>'
-        self.setTextNoCheck(new_url)
+        self.setText(new_url)
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
