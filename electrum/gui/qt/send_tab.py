@@ -347,7 +347,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.message_e.setText(pr.get_memo())
         self.set_onchain(True)
         self.max_button.setEnabled(False)
-        for btn in [self.send_button, self.clear_button]:
+        # note: allow saving bip70 reqs, as we save them anyway when paying them
+        for btn in [self.send_button, self.clear_button, self.save_button]:
             btn.setEnabled(True)
         # signal to set fee
         self.amount_e.textEdited.emit("")
