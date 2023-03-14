@@ -179,7 +179,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('Add on-chain fallback to lightning requests'), 'bolt11_fallback', True,
             callback=self.on_toggle_bolt11_fallback)
         menu.addConfig(
-            _('Add lightning requests to bitcoin URIs'), 'bip21_lightning', False,
+            _('Add lightning requests to groestlcoin URIs'), 'bip21_lightning', False,
             tooltip=_('This may result in large QR codes'),
             callback=self.update_current_request)
         self.qr_menu_action = menu.addToggle(_("Show QR code window"), self.window.toggle_qr_window)

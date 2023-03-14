@@ -123,7 +123,7 @@ class Ledger_Client(HardwareClientBase):
         if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
         bip32_path = bip32.normalize_bip32_derivation(bip32_path)
-        bip32_intpath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        bip32_intpath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
             prevPath = bip32.convert_bip32_intpath_to_strpath(bip32_intpath[:-1])[2:]

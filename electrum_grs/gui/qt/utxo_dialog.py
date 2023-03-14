@@ -38,7 +38,7 @@ from .qrtextedit import ShowQRTextEdit
 from .transaction_dialog import TxOutputColoring, QTextBrowserWithDefaultSize
 
 if TYPE_CHECKING:
-    from electrum.transaction import PartialTxInput
+    from electrum_grs.transaction import PartialTxInput
     from .main_window import ElectrumWindow
 
 # todo:

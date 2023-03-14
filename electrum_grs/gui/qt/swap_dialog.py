@@ -8,7 +8,7 @@ from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates
 from electrum_grs.lnutil import ln_dummy_address
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction
 
-from electrum.gui import messages
+from electrum_grs.gui import messages
 from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)

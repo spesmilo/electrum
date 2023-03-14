@@ -9,7 +9,7 @@ from electrum_grs.lnworker import hardcoded_trampoline_nodes
 from electrum_grs import ecc
 from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates
 
-from electrum.gui import messages
+from electrum_grs.gui import messages
 from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel,
