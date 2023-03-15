@@ -263,6 +263,11 @@ class UTXOList(MyTreeView):
         self.main_window.send_tab.pay_onchain_dialog(outputs)
         self.clear_coincontrol()
 
+    def on_double_click(self, idx):
+        outpoint = idx.sibling(idx.row(), self.Columns.OUTPOINT).data(self.ROLE_PREVOUT_STR)
+        utxo = self._utxo_dict[outpoint]
+        self.main_window.show_utxo(utxo)
+
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
         menu = QMenu()

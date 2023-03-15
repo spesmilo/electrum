@@ -33,7 +33,7 @@ import threading
 import enum
 from decimal import Decimal
 
-from PyQt5.QtGui import QMouseEvent, QFont, QBrush, QColor
+from PyQt5.QtGui import QFont, QBrush, QColor
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
 from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
@@ -708,25 +708,17 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             assert False
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        org_idx: QModelIndex = self.indexAt(event.pos())
-        idx = self.proxy.mapToSource(org_idx)
-        if not idx.isValid():
-            # can happen e.g. before list is populated for the first time
-            return
+    def on_double_click(self, idx):
         tx_item = idx.internalPointer().get_data()
-        if self.hm.flags(idx) & Qt.ItemIsEditable:
-            super().mouseDoubleClickEvent(event)
-        else:
-            if tx_item.get('lightning'):
-                if tx_item['type'] == 'payment':
-                    self.main_window.show_lightning_transaction(tx_item)
-                return
-            tx_hash = tx_item['txid']
-            tx = self.wallet.adb.get_transaction(tx_hash)
-            if not tx:
-                return
-            self.main_window.show_transaction(tx)
+        if tx_item.get('lightning'):
+            if tx_item['type'] == 'payment':
+                self.main_window.show_lightning_transaction(tx_item)
+            return
+        tx_hash = tx_item['txid']
+        tx = self.wallet.adb.get_transaction(tx_hash)
+        if not tx:
+            return
+        self.main_window.show_transaction(tx)
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))

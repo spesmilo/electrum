@@ -15,7 +15,7 @@ from typing import (NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, 
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem, QImage,
-                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent)
+                         QPalette, QIcon, QFontMetrics, QShowEvent, QPainter, QHelpEvent, QMouseEvent)
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
                           QCoreApplication, QItemSelectionModel, QThread,
                           QSortFilterProxyModel, QSize, QLocale, QAbstractItemModel,
@@ -665,6 +665,7 @@ class MyTreeView(QTreeView):
         self._forced_update = False
 
         self._default_bg_brush = QStandardItem().background()
+        self.proxy = None # history, and address tabs use a proxy
 
     def create_menu(self, position: QPoint) -> None:
         pass
@@ -723,6 +724,18 @@ class MyTreeView(QTreeView):
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent):
+        idx: QModelIndex = self.indexAt(event.pos())
+        if self.proxy:
+            idx = self.proxy.mapToSource(idx)
+        if not idx.isValid():
+            # can happen e.g. before list is populated for the first time
+            return
+        self.on_double_click(idx)
+
+    def on_double_click(self, idx):
+        pass
 
     def on_activated(self, idx):
         # on 'enter' we show the menu

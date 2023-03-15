@@ -115,6 +115,10 @@ class AddressList(MyTreeView):
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
+    def on_double_click(self, idx):
+        addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
+        self.main_window.show_address(addr)
+
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_addr_label = toolbar.itemAt(0).widget()

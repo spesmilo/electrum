@@ -217,6 +217,11 @@ class ChannelsList(MyTreeView):
             return
         self.main_window.rebalance_dialog(chan1, chan2)
 
+    def on_double_click(self, idx):
+        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
+        self.main_window.show_channel_details(chan)
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
