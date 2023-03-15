@@ -50,8 +50,9 @@ from electrum.logging import get_logger, Logger
 
 from .custom_model import CustomNode, CustomModel
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
-                   filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
+                   filename_field, AcceptFileDragDrop, WindowModalDialog,
                    CloseButton, webopen, WWLabel)
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet

@@ -35,7 +35,8 @@ from electrum.util import format_time
 from electrum.plugin import run_hook
 from electrum.invoices import Invoice
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+from .util import pr_icons, read_QIcon, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

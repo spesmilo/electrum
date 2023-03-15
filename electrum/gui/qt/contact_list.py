@@ -35,7 +35,8 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeView, webopen
+from .util import webopen
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

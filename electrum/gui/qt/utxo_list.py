@@ -36,7 +36,8 @@ from electrum.bitcoin import is_address
 from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
 
-from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
+from .util import ColorScheme, MONOSPACE_FONT, EnterButton
+from .my_treeview import MyTreeView
 from .new_channel_dialog import NewChannelDialog
 
 if TYPE_CHECKING:

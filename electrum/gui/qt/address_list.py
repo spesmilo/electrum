@@ -37,7 +37,8 @@ from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen, MySortModel
+from .util import MONOSPACE_FONT, ColorScheme, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

@@ -65,7 +65,7 @@ from .util import (MessageBoxMixin, read_QIcon, Buttons, icon_path,
                    BlockingWaitingDialog, getSaveFileName, ColorSchemeItem,
                    get_iconname_qrcode)
 from .rate_limiter import rate_limited
-
+from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -409,7 +409,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
-        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
             _('Download missing data'), 'tx_dialog_fetch_txin_data', False,
             tooltip=_(

@@ -36,9 +36,11 @@ from electrum.util import format_time
 from electrum.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum.lnutil import HtlcLog
 
-from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
+from .util import read_QIcon, pr_icons
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
+
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow

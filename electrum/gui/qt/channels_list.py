@@ -19,10 +19,11 @@ from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnworker import LNWallet
 from electrum.gui import messages
 
-from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .util import read_QIcon, font_height
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
