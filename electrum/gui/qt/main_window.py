@@ -341,8 +341,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
-        item_text = (_("Hide {}") if show else _("Show {}")).format(tab.tab_description)
-        tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
             index = len(self.tabs)
@@ -701,8 +699,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         def add_toggle_action(view_menu, tab):
             is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
-            item_name = (_("Hide {}") if is_shown else _("Show {}")).format(tab.tab_description)
-            tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
+            tab.menu_action = view_menu.addAction(tab.tab_description, lambda: self.toggle_tab(tab))
+            tab.menu_action.setCheckable(True)
+            tab.menu_action.setChecked(is_shown)
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
