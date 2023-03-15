@@ -187,7 +187,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def expiry_dialog(self):
         msg = ''.join([
-            _('Expiration date of your request.'), ' ',
+            _('Expiration period of your request.'), ' ',
             _('This information is seen by the recipient if you send them a signed payment request.'),
             '\n\n',
             _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
@@ -197,7 +197,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiration date'), default_choice=expiry)
+        v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiry'), default_choice=expiry)
         if v is None:
             return
         self.config.set_key('request_expiry', v)
