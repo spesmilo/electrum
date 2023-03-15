@@ -100,10 +100,7 @@ class UTXODialog(WindowModalDialog):
             ASCII_PIPE   = '│'
             ASCII_SPACE  = ' '
 
-        # set cursor to top
-        cursor.setPosition(0)
         self.parents_list.clear()
-        self.parents_list.setTextCursor(cursor)
         self.num_reuse = 0
         def print_ascii_tree(_txid, prefix, is_last, is_uncle):
             if _txid not in parents:
@@ -144,6 +141,9 @@ class UTXODialog(WindowModalDialog):
         self.stats_label.setText(msg)
         self.txo_color_parent.legend_label.setVisible(True)
         self.txo_color_uncle.legend_label.setVisible(bool(self.num_reuse))
+        # set cursor to top
+        cursor.setPosition(0)
+        self.parents_list.setTextCursor(cursor)
 
     def open_tx(self, txid):
         if isinstance(txid, QUrl):
