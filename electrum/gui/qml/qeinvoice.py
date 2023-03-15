@@ -16,6 +16,7 @@ from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier)
+from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
@@ -144,6 +145,7 @@ class QEInvoiceParser(QEInvoice):
         self._effectiveInvoice = None
         self._amount = QEAmount()
         self._userinfo = ''
+        self._lnprops = {}
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -227,24 +229,35 @@ class QEInvoiceParser(QEInvoice):
         status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
         return self._effectiveInvoice.get_status_str(status)
 
-    # single address only, TODO: n outputs
     @pyqtProperty(str, notify=invoiceChanged)
     def address(self):
         return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
     @pyqtProperty('QVariantMap', notify=invoiceChanged)
     def lnprops(self):
+        return self._lnprops
+
+    def set_lnprops(self):
+        self._lnprops = {}
         if not self.invoiceType == QEInvoice.Type.LightningInvoice:
-            return {}
+            return
+
         lnaddr = self._effectiveInvoice._lnaddr
-        self._logger.debug(str(lnaddr))
-        self._logger.debug(str(lnaddr.get_routing_info('t')))
-        return {
+        ln_routing_info = lnaddr.get_routing_info('r')
+        self._logger.debug(str(ln_routing_info))
+
+        self._lnprops = {
             'pubkey': lnaddr.pubkey.serialize().hex(),
             'payment_hash': lnaddr.paymenthash.hex(),
-            't': '', #lnaddr.get_routing_info('t')[0][0].hex(),
-            'r': '' #lnaddr.get_routing_info('r')[0][0][0].hex()
+            'r': [{
+                'node': self.name_for_node_id(x[-1][0]),
+                'scid': format_short_channel_id(x[-1][1])
+                } for x in ln_routing_info] if ln_routing_info else []
         }
+
+    def name_for_node_id(self, node_id):
+        node_info = self._wallet.wallet.lnworker.channel_db.get_node_info_for_node_id(node_id=node_id)
+        return node_info.alias if node_info.alias else node_id.hex()
 
     @pyqtSlot()
     def clear(self):
@@ -275,6 +288,8 @@ class QEInvoiceParser(QEInvoice):
             self.setInvoiceType(QEInvoice.Type.LightningInvoice)
         else:
             self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
+
+        self.set_lnprops()
 
         self.canSave = True
 
