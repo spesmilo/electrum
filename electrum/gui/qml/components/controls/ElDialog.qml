@@ -29,57 +29,42 @@ Dialog {
         }
     }
 
-    header: Item {
-        implicitWidth: rootLayout.implicitWidth
-        implicitHeight: rootLayout.implicitHeight
+    header: ColumnLayout {
+        spacing: 0
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                // hack to allow titlebar click to remove on screen keyboard by
-                // moving focus to label
-                titleLabel.forceActiveFocus()
-            }
-        }
-
-        ColumnLayout {
-            id: rootLayout
+        RowLayout {
             spacing: 0
 
-            RowLayout {
-                spacing: 0
-
-                Image {
-                    visible: iconSource
-                    source: iconSource
-                    Layout.preferredWidth: constants.iconSizeXLarge
-                    Layout.preferredHeight: constants.iconSizeXLarge
-                    Layout.leftMargin: constants.paddingMedium
-                    Layout.topMargin: constants.paddingMedium
-                    Layout.bottomMargin: constants.paddingMedium
-                }
-
-                Label {
-                    id: titleLabel
-                    text: title
-                    elide: Label.ElideRight
-                    Layout.fillWidth: true
-                    leftPadding: constants.paddingXLarge
-                    topPadding: constants.paddingXLarge
-                    bottomPadding: constants.paddingXLarge
-                    rightPadding: constants.paddingXLarge
-                    font.bold: true
-                    font.pixelSize: constants.fontSizeMedium
-                }
+            Image {
+                visible: iconSource
+                source: iconSource
+                Layout.preferredWidth: constants.iconSizeXLarge
+                Layout.preferredHeight: constants.iconSizeXLarge
+                Layout.leftMargin: constants.paddingMedium
+                Layout.topMargin: constants.paddingMedium
+                Layout.bottomMargin: constants.paddingMedium
             }
 
-            Rectangle {
+            Label {
+                text: title
+                elide: Label.ElideRight
                 Layout.fillWidth: true
-                Layout.leftMargin: constants.paddingXXSmall
-                Layout.rightMargin: constants.paddingXXSmall
-                height: 1
-                color: Qt.rgba(0,0,0,0.5)
+                leftPadding: constants.paddingXLarge
+                topPadding: constants.paddingXLarge
+                bottomPadding: constants.paddingXLarge
+                rightPadding: constants.paddingXLarge
+                font.bold: true
+                font.pixelSize: constants.fontSizeMedium
             }
         }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingXXSmall
+            Layout.rightMargin: constants.paddingXXSmall
+            height: 1
+            color: Qt.rgba(0,0,0,0.5)
+        }
     }
+
 }
