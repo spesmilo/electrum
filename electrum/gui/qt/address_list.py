@@ -282,10 +282,10 @@ class AddressList(MyTreeView):
             if not item:
                 return
             addr = addrs[0]
+            menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             addr_column_title = self.std_model.horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
             self.add_copy_menu(menu, idx)
-            menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
             #menu.addAction(_("Request payment"), lambda: self.main_window.receive_at(addr))

@@ -170,11 +170,11 @@ class InvoiceList(MyTreeView):
         key = item_col0.data(ROLE_REQUEST_ID)
         invoice = self.wallet.get_invoice(key)
         menu = QMenu(self)
+        menu.addAction(_("Details"), lambda: self.show_invoice(key))
         copy_menu = self.add_copy_menu(menu, idx)
         address = invoice.get_address()
         if address:
             copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Bitcoin Address'))
-        menu.addAction(_("Details"), lambda: self.show_invoice(key))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
             menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))

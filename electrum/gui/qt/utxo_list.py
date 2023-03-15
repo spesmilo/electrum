@@ -281,13 +281,13 @@ class UTXOList(MyTreeView):
                 return
             utxo = coins[0]
             txid = utxo.prevout.txid.hex()
-            cc = self.add_copy_menu(menu, idx)
-            cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
             # "Details"
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("Privacy analysis"), lambda: self.main_window.show_utxo(utxo))
+                menu.addAction(_("Details"), lambda: self.main_window.show_utxo(utxo))
+            cc = self.add_copy_menu(menu, idx)
+            cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
         # fully spend
         menu_spend = menu.addMenu(_("Fully spend") + '…')
         m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))

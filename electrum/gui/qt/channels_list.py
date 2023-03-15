@@ -245,7 +245,7 @@ class ChannelsList(MyTreeView):
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
-        menu.addAction(_("Details..."), lambda: self.main_window.show_channel_details(chan))
+        menu.addAction(_("Details"), lambda: self.main_window.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
