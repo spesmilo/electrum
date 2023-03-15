@@ -58,38 +58,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.window.connect_fields(self.receive_amount_e, self.fiat_receive_e)
 
-        self.expires_combo = QComboBox()
-        evl = sorted(pr_expiration_values.items())
-        evl_keys = [i[0] for i in evl]
-        evl_values = [i[1] for i in evl]
-        default_expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        try:
-            i = evl_keys.index(default_expiry)
-        except ValueError:
-            i = 0
-        self.expires_combo.addItems(evl_values)
-        self.expires_combo.setCurrentIndex(i)
-        def on_expiry(i):
-            self.config.set_key('request_expiry', evl_keys[i])
-        self.expires_combo.currentIndexChanged.connect(on_expiry)
-        msg = ''.join([
-            _('Expiration date of your request.'), ' ',
-            _('This information is seen by the recipient if you send them a signed payment request.'),
-            '\n\n',
-            _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
-            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
-            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
-            '\n\n',
-            _('For Lightning requests, payments will not be accepted after the expiration.'),
-        ])
-        grid.addWidget(HelpLabel(_('Expires after') + ' (?)', msg), 2, 0)
-        grid.addWidget(self.expires_combo, 2, 1)
-        self.expires_label = QLineEdit('')
-        self.expires_label.setReadOnly(1)
-        self.expires_label.setFocusPolicy(Qt.NoFocus)
-        self.expires_label.hide()
-        grid.addWidget(self.expires_label, 2, 1)
-
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.do_clear)
         self.create_invoice_button = QPushButton(_('Create Request'))
@@ -185,6 +153,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.qr_menu_action = menu.addToggle(_("Show QR code window"), self.window.toggle_qr_window)
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
+
+        self.expiry_button = QPushButton('exp')
+        self.expiry_button.clicked.connect(self.expiry_dialog)
+        self.toolbar.insertWidget(2, self.expiry_button)
         # layout
         vbox_g = QVBoxLayout()
         vbox_g.addLayout(grid)
@@ -204,6 +176,30 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox.setStretchFactor(hbox, 40)
         vbox.setStretchFactor(self.request_list, 60)
         self.request_list.update()  # after parented and put into a layout, can update without flickering
+        self.update_expiry_text()
+
+    def update_expiry_text(self):
+        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        text = _('Expiry') + ': ' + pr_expiration_values[expiry]
+        self.expiry_button.setText(text)
+
+    def expiry_dialog(self):
+        msg = ''.join([
+            _('Expiration date of your request.'), ' ',
+            _('This information is seen by the recipient if you send them a signed payment request.'),
+            '\n\n',
+            _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
+            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
+            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
+            '\n\n',
+            _('For Lightning requests, payments will not be accepted after the expiration.'),
+        ])
+        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiration date'), default_choice=expiry)
+        if v is None:
+            return
+        self.config.set_key('request_expiry', v)
+        self.update_expiry_text()
 
     def on_toggle_bolt11_fallback(self):
         if not self.wallet.lnworker:
@@ -356,8 +352,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_tabs.setVisible(False)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
-        self.expires_label.hide()
-        self.expires_combo.show()
         self.request_list.clearSelection()
 
     def update_textedit_warning(self, *, text_e: ButtonsTextEdit, warning_text: Optional[str]):

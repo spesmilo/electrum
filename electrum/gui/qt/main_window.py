@@ -1291,14 +1291,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.show_message(message)
 
-    def query_choice(self, msg, choices):
+    def query_choice(self, msg, choices, title=_('Question'), default_choice=None):
         # Needed by QtHandler for hardware wallets
-        dialog = WindowModalDialog(self.top_level_window(), title='Question')
+        dialog = WindowModalDialog(self.top_level_window(), title=title)
         dialog.setMinimumWidth(400)
-        clayout = ChoicesLayout(msg, choices)
+        clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
-        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
+        cancel_button.setFocus()
         if not dialog.exec_():
             return None
         return clayout.selected_index()
