@@ -14,6 +14,7 @@ from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
+from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -41,7 +42,7 @@ class SwapDialog(WindowModalDialog):
         self.channels = channels
         self.is_reverse = is_reverse if is_reverse is not None else True
         vbox = QVBoxLayout(self)
-        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
             _("Allow instant swaps"), 'allow_instant_swaps', False,
             tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
