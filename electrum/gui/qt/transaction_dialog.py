@@ -117,7 +117,7 @@ class TxInOutWidget(QWidget):
         self.inheader_hbox.addWidget(self.inputs_header)
 
         self.txo_color_recv = TxOutputColoring(
-            legend=_("Receiving Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receive address"))
+            legend=_("Wallet Address"), color=ColorScheme.GREEN, tooltip=_("Wallet receiving address"))
         self.txo_color_change = TxOutputColoring(
             legend=_("Change Address"), color=ColorScheme.YELLOW, tooltip=_("Wallet change address"))
         self.txo_color_2fa = TxOutputColoring(
