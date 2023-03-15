@@ -1,3 +1,21 @@
+# Release 4.4 (not released yet)
+ * New Android app, using QML instead of Kivy
+ * Qt GUI improvements
+   - New onchain tx creation flow
+   - Advanced options have been moved to toolbars, where their effect
+     can be more directly observed.
+ * Privacy features:
+    - lightning: support for option scid_alias.
+    - UTXO privacy analysis that displays the parents of a coin (Qt
+      GUI).
+    - Option to fully spend a selection of UTXOs into a new channel or
+      submarine swap (Qt GUI).
+ * Internal:
+    - Lightning invoices are regenerated everytime routing hints are
+      deprecated due to liquidity changes.
+    - Script descriptors are used internally to sign transactions.
+
+
 # Release 4.3.4 - Copyright is Dubious (January 26, 2023)
  * Lightning:
    - make sending trampoline payments more reliable (5251e7f8)
