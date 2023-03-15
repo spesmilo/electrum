@@ -62,6 +62,9 @@ from electrum.qrreader import MissingQrDetectionLib
 
 from .util import read_QIcon
 
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
+
 
 class MyMenu(QMenu):
 
