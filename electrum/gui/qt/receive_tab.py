@@ -58,6 +58,11 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.window.connect_fields(self.receive_amount_e, self.fiat_receive_e)
 
+        self.expiry_button = QPushButton('')
+        self.expiry_button.clicked.connect(self.expiry_dialog)
+        grid.addWidget(QLabel(_('Expiry')), 2, 0)
+        grid.addWidget(self.expiry_button, 2, 1)
+
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.do_clear)
         self.create_invoice_button = QPushButton(_('Create Request'))
@@ -154,9 +159,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
 
-        self.expiry_button = QPushButton('exp')
-        self.expiry_button.clicked.connect(self.expiry_dialog)
-        self.toolbar.insertWidget(2, self.expiry_button)
         # layout
         vbox_g = QVBoxLayout()
         vbox_g.addLayout(grid)
@@ -180,7 +182,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def update_expiry_text(self):
         expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        text = _('Expiry') + ': ' + pr_expiration_values[expiry]
+        text = pr_expiration_values[expiry]
         self.expiry_button.setText(text)
 
     def expiry_dialog(self):
