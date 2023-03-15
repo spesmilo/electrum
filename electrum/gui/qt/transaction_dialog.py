@@ -419,8 +419,20 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addLayout(toolbar)
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
-        self.tx_hash_e = ShowQRLineEdit('', self.config, title='Transaction ID')
+        self.tx_hash_e = ShowQRLineEdit('', self.config, title=_('Transaction ID'))
         vbox.addWidget(self.tx_hash_e)
+        self.tx_desc_label = QLabel(_("Description:"))
+        vbox.addWidget(self.tx_desc_label)
+        self.tx_desc = ButtonsLineEdit('')
+        def on_edited():
+            text = self.tx_desc.text()
+            if self.wallet.set_label(txid, text):
+                self.main_window.history_list.update()
+                self.main_window.utxo_list.update()
+                self.main_window.labels_changed_signal.emit()
+        self.tx_desc.editingFinished.connect(on_edited)
+        self.tx_desc.addCopyButton()
+        vbox.addWidget(self.tx_desc)
 
         self.add_tx_stats(vbox)
 
@@ -733,11 +745,13 @@ class TxDialog(QDialog, MessageBoxMixin):
             # note: when not finalized, RBF and locktime changes do not trigger
             #       a make_tx, so the txid is unreliable, hence:
             self.tx_hash_e.setText(_('Unknown'))
-        if not desc:
+        if not self.wallet.adb.get_transaction(txid):
             self.tx_desc.hide()
+            self.tx_desc_label.hide()
         else:
-            self.tx_desc.setText(_("Description") + ': ' + desc)
+            self.tx_desc.setText(desc)
             self.tx_desc.show()
+            self.tx_desc_label.show()
         self.status_label.setText(_('Status:') + ' ' + tx_details.status)
 
         if tx_mined_status.timestamp:
@@ -761,12 +775,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.rbf_label.setText(_('Replace by fee') + f": {not self.tx.is_final()}")
 
         if tx_mined_status.header_hash:
-            self.block_hash_label.setText(_("Included in block: {}")
-                                          .format(tx_mined_status.header_hash))
             self.block_height_label.setText(_("At block height: {}")
                                             .format(tx_mined_status.height))
         else:
-            self.block_hash_label.hide()
             self.block_height_label.hide()
         if amount is None and ln_amount is None:
             amount_str = _("Transaction unrelated to your wallet")
@@ -860,8 +871,6 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # left column
         vbox_left = QVBoxLayout()
-        self.tx_desc = TxDetailLabel(word_wrap=True)
-        vbox_left.addWidget(self.tx_desc)
         self.status_label = TxDetailLabel()
         vbox_left.addWidget(self.status_label)
         self.date_label = TxDetailLabel()
@@ -910,10 +919,6 @@ class TxDialog(QDialog, MessageBoxMixin):
         hbox_stats.addLayout(vbox_right, 50)
 
         vbox.addWidget(hbox_stats_w)
-
-        # below columns
-        self.block_hash_label = TxDetailLabel(word_wrap=True)
-        vbox.addWidget(self.block_hash_label)
 
         # set visibility after parenting can be determined by Qt
         self.rbf_label.setVisible(True)
