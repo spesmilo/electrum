@@ -412,19 +412,6 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Pay')
-                icon.source: '../../icons/confirmed.png'
-                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay && !amountContainer.editmode
-                onClicked: {
-                    if (invoice_key == '') // save invoice if not retrieved from key
-                        invoice.save_invoice()
-                    dialog.close()
-                    doPay() // only signal here
-                }
-            }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
                 text: qsTr('Delete')
                 icon.source: '../../icons/delete.png'
                 visible: invoice_key != ''
@@ -433,7 +420,6 @@ ElDialog {
                     dialog.close()
                 }
             }
-
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
@@ -445,6 +431,19 @@ ElDialog {
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     invoice.save_invoice()
                     dialog.close()
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Pay')
+                icon.source: '../../icons/confirmed.png'
+                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay && !amountContainer.editmode
+                onClicked: {
+                    if (invoice_key == '') // save invoice if not retrieved from key
+                        invoice.save_invoice()
+                    dialog.close()
+                    doPay() // only signal here
                 }
             }
         }
