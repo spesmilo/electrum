@@ -17,7 +17,7 @@ WizardComponent {
 
         Label {
             Layout.fillWidth: true
-            text: qsTr('Do you want to connect through TOR, or through another service to reach to the internet?')
+            text: qsTr('Do you use a local proxy service such as TOR to reach the internet?')
             wrapMode: Text.Wrap
         }
 
