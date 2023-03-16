@@ -435,8 +435,11 @@ class ServerConnectWizard(AbstractWizard):
     def __init__(self, daemon):
         self.navmap = {
             'autoconnect': {
-                'next': 'proxy_config',
+                'next': 'proxy_ask',
                 'last': lambda v,d: d['autoconnect']
+            },
+            'proxy_ask': {
+                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'server_config'
             },
             'proxy_config': {
                 'next': 'server_config'
