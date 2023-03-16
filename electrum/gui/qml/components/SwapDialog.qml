@@ -164,6 +164,42 @@ ElDialog {
 
             Layout.fillWidth: true
 
+            background: Rectangle {
+                x: swapslider.leftPadding
+                y: swapslider.topPadding + swapslider.availableHeight / 2 - height / 2
+                implicitWidth: 200
+                implicitHeight: 4
+                width: swapslider.availableWidth
+                height: implicitHeight
+                radius: 2
+                color: Color.transparent(control.Material.accentColor, 0.33)
+
+                // full width somehow misaligns with handle, define rangeWidth
+                property int rangeWidth: width - swapslider.leftPadding
+
+                Rectangle {
+                    x: swapslider.visualPosition > swapslider.scenter
+                        ? swapslider.scenter * parent.rangeWidth
+                        : swapslider.visualPosition * parent.rangeWidth
+                    width: swapslider.visualPosition > swapslider.scenter
+                        ? (swapslider.visualPosition-swapslider.scenter) * parent.rangeWidth
+                        : (swapslider.scenter-swapslider.visualPosition) * parent.rangeWidth
+                    height: parent.height
+                    color: Material.accentColor
+                    radius: 2
+                }
+
+                Rectangle {
+                    x: swapslider.scenter * parent.rangeWidth
+                    y: -4
+                    width: 1
+                    height: parent.height + 2*4
+                    color: parent.color
+                }
+            }
+
+            property real scenter: -swapslider.from/(swapslider.to-swapslider.from)
+
             from: swaphelper.rangeMin
             to: swaphelper.rangeMax
 
