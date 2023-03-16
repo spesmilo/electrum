@@ -71,6 +71,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     otpSuccess = pyqtSignal()
     otpFailed = pyqtSignal([str,str], arguments=['code','message'])
     peersUpdated = pyqtSignal()
+    seedRetrieved = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -97,6 +98,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._lightningcanreceive = QEAmount()
         self._lightningcansend = QEAmount()
 
+        self._seed = ''
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -330,10 +332,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def seed(self):
-        try:
-            return self.wallet.get_seed(self.password)
-        except:
-            return ''
+        return self._seed
 
     @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
@@ -736,3 +735,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return True
         except Exception as e:
             return False
+
+    @pyqtSlot()
+    def requestShowSeed(self):
+        self.retrieve_seed()
+
+    @auth_protect
+    def retrieve_seed(self):
+        try:
+            self._seed = self.wallet.get_seed(self.password)
+            self.seedRetrieved.emit()
+        except:
+            self._seed = ''
+
+        self.dataChanged.emit()

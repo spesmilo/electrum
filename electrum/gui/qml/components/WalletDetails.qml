@@ -259,8 +259,12 @@ Pane {
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        seedText.visible = true
-                                        showSeedText.visible = false
+                                        if (showSeedText.visible) {
+                                            Daemon.currentWallet.requestShowSeed()
+                                        } else {
+                                            seedText.visible = false
+                                            showSeedText.visible = true
+                                        }
                                     }
                                 }
                             }
@@ -589,6 +593,10 @@ Pane {
         }
         function onBalanceChanged() {
             piechart.updateSlices()
+        }
+        function onSeedRetrieved() {
+            seedText.visible = true
+            showSeedText.visible = false
         }
     }
 
