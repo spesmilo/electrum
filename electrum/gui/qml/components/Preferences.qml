@@ -191,7 +191,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('PIN')
+                            text: qsTr('PIN protect payments')
                             wrapMode: Text.Wrap
                         }
                     }
