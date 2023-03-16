@@ -134,7 +134,6 @@ ApplicationWindow
                     font.pixelSize: constants.fontSizeMedium
                     font.bold: true
                     MouseArea {
-                        // height: toolbarTopLayout.height
                         anchors.fill: parent
                         onClicked: {
                             stack.getRoot().menu.open()
@@ -144,48 +143,57 @@ ApplicationWindow
                 }
 
                 Item {
-                    visible: Network.isTestNet
-                    width: column.width
-                    height: column.height
+                    implicitHeight: 48
+                    implicitWidth: statusIconsLayout.width
 
-                    ColumnLayout {
-                        id: column
-                        spacing: 0
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: openAppMenu()
+                    }
+
+                    RowLayout {
+                        id: statusIconsLayout
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Item {
+                            Layout.preferredWidth: constants.paddingLarge
+                            Layout.preferredHeight: 1
+                        }
+
+                        Item {
+                            visible: Network.isTestNet
+                            width: column.width
+                            height: column.height
+
+                            ColumnLayout {
+                                id: column
+                                spacing: 0
+                                Image {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: constants.iconSizeSmall
+                                    Layout.preferredHeight: constants.iconSizeSmall
+                                    source: "../../icons/info.png"
+                                }
+
+                                Label {
+                                    id: networkNameLabel
+                                    text: Network.networkName
+                                    color: Material.accentColor
+                                    font.pixelSize: constants.fontSizeXSmall
+                                }
+                            }
+                        }
+
                         Image {
-                            Layout.alignment: Qt.AlignHCenter
                             Layout.preferredWidth: constants.iconSizeSmall
                             Layout.preferredHeight: constants.iconSizeSmall
-                            source: "../../icons/info.png"
+                            visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
+                            source: '../../icons/eye1.png'
+                            scale: 1.5
                         }
 
-                        Label {
-                            id: networkNameLabel
-                            text: Network.networkName
-                            color: Material.accentColor
-                            font.pixelSize: constants.fontSizeXSmall
-                        }
-                    }
-                }
-
-                Image {
-                    Layout.preferredWidth: constants.iconSizeSmall
-                    Layout.preferredHeight: constants.iconSizeSmall
-                    visible: Daemon.currentWallet && Daemon.currentWallet.isWatchOnly
-                    source: '../../icons/eye1.png'
-                    scale: 1.5
-                }
-
-                LightningNetworkStatusIndicator {
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: openAppMenu()
-                    }
-                }
-
-                OnchainNetworkStatusIndicator {
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: openAppMenu()
+                        LightningNetworkStatusIndicator {}
+                        OnchainNetworkStatusIndicator {}
                     }
                 }
             }
