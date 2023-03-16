@@ -530,7 +530,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def submitOtp(self, otp):
         def submit_otp_task():
             self._otp_on_submit(otp)
-        threading.Thread(target=submit_otp_task).start()
+        threading.Thread(target=submit_otp_task, daemon=True).start()
 
     def broadcast(self, tx):
         assert tx.is_complete()
@@ -550,7 +550,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit() # via qt thread
 
-        threading.Thread(target=broadcast_thread).start()
+        threading.Thread(target=broadcast_thread, daemon=True).start()
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
 
@@ -576,7 +576,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 self.paymentFailed.emit(invoice.get_id(), repr(e))
 
-        threading.Thread(target=pay_thread).start()
+        threading.Thread(target=pay_thread, daemon=True).start()
 
     def create_bitcoin_request(self, amount: int, message: str, expiration: int, *, ignore_gap: bool = False, reuse_address: bool = False) -> Optional[Tuple]:
         addr = self.wallet.get_unused_address()
