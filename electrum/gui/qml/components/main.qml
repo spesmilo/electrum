@@ -513,7 +513,7 @@ ApplicationWindow
                 // no PIN configured
                 qtobject.authProceed()
             } else {
-                if (Date.now() - _lastCorrectPinTime > _pinValidSeconds * 1000) {
+                if (Date.now() - _lastCorrectPinTime <= _pinValidSeconds * 1000) {
                     // correct pin entered recently, accept.
                     qtobject.authProceed()
                     return
