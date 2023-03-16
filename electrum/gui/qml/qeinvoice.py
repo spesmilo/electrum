@@ -256,8 +256,7 @@ class QEInvoiceParser(QEInvoice):
         }
 
     def name_for_node_id(self, node_id):
-        node_info = self._wallet.wallet.lnworker.channel_db.get_node_info_for_node_id(node_id=node_id)
-        return node_info.alias if node_info.alias else node_id.hex()
+        node_alias = self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
 
     @pyqtSlot()
     def clear(self):
