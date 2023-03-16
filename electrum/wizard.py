@@ -9,6 +9,8 @@ from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import keystore
 from electrum import bitcoin
+from electrum.mnemonic import is_any_2fa_seed_type
+
 
 class WizardViewState(NamedTuple):
     view: str
@@ -365,7 +367,7 @@ class NewWalletWizard(AbstractWizard):
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
-            elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa '2fa'
+            elif is_any_2fa_seed_type(data['seed_type']):
                 self._logger.debug('creating keystore from 2fa seed')
                 k = keystore.from_xprv(data['x1/']['xprv'])
             else:
