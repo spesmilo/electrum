@@ -239,19 +239,6 @@ Pane {
                         }
                     }
 
-                    Label {
-                        text: qsTr('Default request expiry')
-                        Layout.fillWidth: false
-                    }
-
-                    RequestExpiryComboBox {
-                        includeNever: false
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.requestExpiry = currentValue
-                        }
-                    }
-
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Lightning')
