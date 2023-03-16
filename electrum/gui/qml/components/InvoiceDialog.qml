@@ -292,6 +292,7 @@ ElDialog {
 
                 Heading {
                     Layout.columnSpan: 2
+                    visible: invoice.invoiceType == Invoice.LightningInvoice
                     text: qsTr('Technical properties')
                 }
 
