@@ -89,11 +89,11 @@ class QENetwork(QObject, QtEventListener):
     @event_listener
     def on_event_fee_histogram(self, histogram):
         self._logger.debug(f'fee histogram updated: {repr(histogram)}')
-        if histogram is None:
-            histogram = []
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
+        if not histogram:
+            histogram = [[FEERATE_DEFAULT_RELAY/1000,1]]
         # cap the histogram to a limited number of megabytes
         bytes_limit=10*1000*1000
         bytes_current = 0
