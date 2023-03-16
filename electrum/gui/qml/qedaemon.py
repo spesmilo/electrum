@@ -262,7 +262,7 @@ class QEDaemon(AuthMixin, QObject):
         self._logger.debug('deleting wallet with path %s' % path)
         self._current_wallet = None
         # TODO walletLoaded signal is confusing
-        self.walletLoaded.emit()
+        self.walletLoaded.emit(None, None)
 
         if not self.daemon.delete_wallet(path):
             self.walletDeleteError.emit('error', _('Problem deleting wallet'))
