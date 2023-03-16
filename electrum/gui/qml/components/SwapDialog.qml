@@ -172,7 +172,7 @@ ElDialog {
                 width: swapslider.availableWidth
                 height: implicitHeight
                 radius: 2
-                color: Color.transparent(control.Material.accentColor, 0.33)
+                color: Color.transparent(Material.accentColor, 0.33)
 
                 // full width somehow misaligns with handle, define rangeWidth
                 property int rangeWidth: width - swapslider.leftPadding
@@ -187,6 +187,15 @@ ElDialog {
                     height: parent.height
                     color: Material.accentColor
                     radius: 2
+                }
+
+                Rectangle {
+                    x: - (swapslider.parent.width - 2 * constants.paddingXXLarge) * swaphelper.leftVoid
+                    z: -1
+                    // width makes rectangle go outside the control, into the Layout margins
+                    width: parent.width + (swapslider.parent.width - 2 * constants.paddingXXLarge) * swaphelper.rightVoid
+                    height: parent.height
+                    color: Material.sliderDisabledColor
                 }
 
                 Rectangle {
