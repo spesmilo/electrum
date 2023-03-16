@@ -437,14 +437,14 @@ class ServerConnectWizard(AbstractWizard):
     def __init__(self, daemon):
         self.navmap = {
             'autoconnect': {
-                'next': 'proxy_ask',
+                'next': 'server_config',
                 'last': lambda v,d: d['autoconnect']
             },
             'proxy_ask': {
-                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'server_config'
+                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
             },
             'proxy_config': {
-                'next': 'server_config'
+                'next': 'autoconnect'
             },
             'server_config': {
                 'last': True
@@ -454,5 +454,5 @@ class ServerConnectWizard(AbstractWizard):
 
     def start(self, initial_data = {}):
         self.reset()
-        self._current = WizardViewState('autoconnect', initial_data, {})
+        self._current = WizardViewState('proxy_ask', initial_data, {})
         return self._current
