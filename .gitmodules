@@ -7,6 +7,3 @@
 [submodule "contrib/osx/CalinsQRReader"]
 	path = contrib/osx/CalinsQRReader
 	url = https://github.com/cculianu/CalinsQRReader
-[submodule "contrib/litecoin_scrypt"]
-	path = contrib/litecoin_scrypt
-	url = https://github.com/Tydus/litecoin_scrypt.git
