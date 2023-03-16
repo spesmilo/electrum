@@ -562,9 +562,10 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def update_toolbar_menu(self):
         fx = self.main_window.fx
-        b = fx and fx.is_enabled() and fx.has_history()
-        self.menu_fiat.setEnabled(b)
-        self.menu_capgains.setEnabled(b)
+        self.menu_fiat.setEnabled(fx and fx.can_have_history())
+        # setChecked because has_history can be modified through settings dialog
+        self.menu_fiat.setChecked(fx and fx.has_history())
+        self.menu_capgains.setEnabled(fx and fx.has_history())
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
