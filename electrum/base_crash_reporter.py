@@ -25,12 +25,19 @@ import locale
 import traceback
 import sys
 import queue
+from typing import NamedTuple, Optional
 
 from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
 from .util import make_aiohttp_session
 from .logging import describe_os_version, Logger, get_git_version
+
+
+class CrashReportResponse(NamedTuple):
+    status: Optional[str]
+    text: str
+    url: Optional[str]
 
 
 class BaseCrashReporter(Logger):
@@ -63,16 +70,33 @@ class BaseCrashReporter(Logger):
         Logger.__init__(self)
         self.exc_args = (exctype, value, tb)
 
-    def send_report(self, asyncio_loop, proxy, endpoint="/crash", *, timeout=None):
+    def send_report(self, asyncio_loop, proxy, *, timeout=None) -> CrashReportResponse:
+        # FIXME the caller needs to catch generic "Exception", as this method does not have a well-defined API...
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
-        coro = self.do_post(proxy, BaseCrashReporter.report_server + endpoint, data=report)
+        coro = self.do_post(proxy, BaseCrashReporter.report_server + "/crash.json", data=report)
         response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(timeout)
-        return response
+        self.logger.info(f"Crash report sent. Got response [DO NOT TRUST THIS MESSAGE]: {response!r}")
+        response = json.loads(response)
+        assert isinstance(response, dict), type(response)
+        # sanitize URL
+        if location := response.get("location"):
+            assert isinstance(location, str)
+            base_issues_url = constants.GIT_REPO_ISSUES_URL
+            if not base_issues_url.endswith("/"):
+                base_issues_url = base_issues_url + "/"
+            if not location.startswith(base_issues_url):
+                location = None
+        ret = CrashReportResponse(
+            status=response.get("status"),
+            url=location,
+            text=_("Thanks for reporting this issue!"),
+        )
+        return ret
 
     async def do_post(self, proxy, url, data):
         async with make_aiohttp_session(proxy) as session:
