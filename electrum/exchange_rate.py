@@ -161,8 +161,13 @@ class ExchangeBase(Logger):
         return []
 
     def historical_rate(self, ccy: str, d_t: datetime) -> Decimal:
-        rate = self._history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d')) or 'NaN'
-        return Decimal(rate)
+        date_str = d_t.strftime('%Y-%m-%d')
+        rate = self._history.get(ccy, {}).get(date_str) or 'NaN'
+        try:
+            return Decimal(rate)
+        except Exception:  # guard against garbage coming from exchange
+            #self.logger.debug(f"found corrupted historical_rate: {rate=!r}. for {ccy=} at {date_str}")
+            return Decimal('NaN')
 
     async def request_history(self, ccy: str) -> Dict[str, Union[str, float]]:
         raise NotImplementedError()  # implemented by subclasses
