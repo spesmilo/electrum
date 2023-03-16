@@ -443,7 +443,7 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
     def tooltip(self) -> str:
         return _("This channel cannot be recovered from your seed. You must back it up manually.")
     def icon(self) -> QIcon:
-        return read_QIcon("nocloud")
+        return read_QIcon("cloud_no")
 
 
 class ChannelFeatureIcons:

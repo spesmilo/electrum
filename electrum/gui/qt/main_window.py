@@ -1761,7 +1761,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 grid.addWidget(WWLabel(_('Enabled')), cur_row, 1)
             else:
                 label = IconLabel(text='Enabled, non-recoverable channels')
-                label.setIcon(read_QIcon('nocloud'))
+                label.setIcon(read_QIcon('cloud_no'))
                 grid.addWidget(label, cur_row, 1)
                 if self.wallet.db.get('seed_type') == 'segwit':
                     msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
