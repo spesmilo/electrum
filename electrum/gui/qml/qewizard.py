@@ -92,7 +92,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
         data = js_data.toVariant()
-        self._logger.debug(str(data))
+        #self._logger.debug(str(data))
 
         if single_password_enabled and single_password:
             data['encrypt'] = True
