@@ -42,7 +42,7 @@ Item {
         GridLayout {
             id: balanceLayout
             columns: 3
-            opacity: Daemon.currentWallet.synchronizing ? 0 : 1
+            opacity: Daemon.currentWallet.synchronizing || Network.status == 'disconnected' ? 0 : 1
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
@@ -140,9 +140,17 @@ Item {
     }
 
     Label {
-        opacity: Daemon.currentWallet.synchronizing ? 1 : 0
+        opacity: Daemon.currentWallet.synchronizing && Network.status != 'disconnected' ? 1 : 0
         anchors.centerIn: balancePane
         text: Daemon.currentWallet.synchronizingProgress
+        color: Material.accentColor
+        font.pixelSize: constants.fontSizeLarge
+    }
+
+    Label {
+        opacity: Network.status == 'disconnected' ? 1 : 0
+        anchors.centerIn: balancePane
+        text: qsTr('Disconnected')
         color: Material.accentColor
         font.pixelSize: constants.fontSizeLarge
     }
