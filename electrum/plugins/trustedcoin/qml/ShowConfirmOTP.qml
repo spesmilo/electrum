@@ -25,11 +25,13 @@ WizardComponent {
 
         InfoTextArea {
             id: errorBox
+            Layout.fillWidth: true
             iconStyle: InfoTextArea.IconStyle.Error
             visible: !otpVerified && plugin.remoteKeyState == 'error'
         }
 
         InfoTextArea {
+            Layout.fillWidth: true
             iconStyle: InfoTextArea.IconStyle.Warn
             visible: plugin.remoteKeyState == 'wallet_known'
             text: qsTr('This wallet is already registered with TrustedCoin. ')
@@ -55,15 +57,15 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             visible: !otpVerified && plugin.otpSecret
-            Layout.preferredWidth: parent.width
             wrapMode: Text.Wrap
             text: qsTr('Enter or scan into authenticator app. Then authenticate below')
         }
 
         Label {
+            Layout.fillWidth: true
             visible: !otpVerified && plugin.remoteKeyState == 'wallet_known'
-            Layout.preferredWidth: parent.width
             wrapMode: Text.Wrap
             text: qsTr('If you still have your OTP secret, then authenticate below')
         }
