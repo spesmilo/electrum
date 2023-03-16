@@ -70,9 +70,16 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
     sed -i -e 's/\.exe//g' "${APPDIR}/usr/lib/python${PY_VER_MAJOR}"/_sysconfigdata*
 )
 
-
+info "building libsecp"
 "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 cp -f "$PROJECT_ROOT/electrum/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+
+info "building libscrypt"
+"$CONTRIB"/compile_scrypt_lib.sh || fail "Could not build libscrypt"
+
+info "building libneoscrypt"
+"$CONTRIB"/compile_neoscrypt_lib.sh || fail "Could not build libneoscrypt"
+
 
 
 appdir_python() {
