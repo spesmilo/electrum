@@ -99,22 +99,10 @@ class QESwapHelper(AuthMixin, QObject):
     def leftVoid(self):
         return self._leftVoid
 
-    @leftVoid.setter
-    def leftVoid(self, leftVoid):
-        if self._leftVoid != leftVoid:
-            self._leftVoid = leftVoid
-            self.leftVoidChanged.emit()
-
     rightVoidChanged = pyqtSignal()
     @pyqtProperty(float, notify=rightVoidChanged)
     def rightVoid(self):
         return self._rightVoid
-
-    @rightVoid.setter
-    def rightVoid(self, rightVoid):
-        if self._rightVoid != rightVoid:
-            self._rightVoid = rightVoid
-            self.rightVoidChanged.emit()
 
     validChanged = pyqtSignal()
     @pyqtProperty(bool, notify=validChanged)
@@ -242,14 +230,16 @@ class QESwapHelper(AuthMixin, QObject):
         self.rangeMax = forward
         # percentage of void, right or left
         if reverse < forward:
-            self.leftVoid = 0.5 * (forward - reverse) / forward
-            self.rightVoid = 0
+            self._leftVoid = 0.5 * (forward - reverse) / forward
+            self._rightVoid = 0
         elif reverse > forward:
-            self.leftVoid = 0
-            self.rightVoid = - 0.5 * (forward - reverse) / reverse
+            self._leftVoid = 0
+            self._rightVoid = - 0.5 * (forward - reverse) / reverse
         else:
-            self.leftVoid = 0
-            self.rightVoid = 0
+            self._leftVoid = 0
+            self._rightVoid = 0
+        self.leftVoidChanged.emit()
+        self.rightVoidChanged.emit()
 
         self.swap_slider_moved()
 
