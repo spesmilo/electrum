@@ -37,7 +37,7 @@ class QESwapHelper(AuthMixin, QObject):
         self._tosend = QEAmount()
         self._toreceive = QEAmount()
         self._serverfeeperc = ''
-        self._serverfee = QEAmount()
+        self._server_miningfee = QEAmount()
         self._miningfee = QEAmount()
         self._isReverse = False
 
@@ -148,16 +148,16 @@ class QESwapHelper(AuthMixin, QObject):
             self._toreceive = toreceive
             self.toreceiveChanged.emit()
 
-    serverfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=serverfeeChanged)
-    def serverfee(self):
-        return self._serverfee
+    server_miningfeeChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=server_miningfeeChanged)
+    def server_miningfee(self):
+        return self._server_miningfee
 
-    @serverfee.setter
-    def serverfee(self, serverfee):
-        if self._serverfee != serverfee:
-            self._serverfee = serverfee
-            self.serverfeeChanged.emit()
+    @server_miningfee.setter
+    def server_miningfee(self, server_miningfee):
+        if self._server_miningfee != server_miningfee:
+            self._server_miningfee = server_miningfee
+            self.server_miningfeeChanged.emit()
 
     serverfeepercChanged = pyqtSignal()
     @pyqtProperty(str, notify=serverfeepercChanged)
@@ -285,8 +285,8 @@ class QESwapHelper(AuthMixin, QObject):
 
             # fee breakdown
             self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            serverfee = math.ceil(swap_manager.percentage * pay_amount / 100) + swap_manager.lockup_fee
-            self.serverfee = QEAmount(amount_sat=serverfee)
+            server_miningfee = swap_manager.lockup_fee
+            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
             self.miningfee = QEAmount(amount_sat=swap_manager.get_claim_fee())
 
         else:  # forward (normal) swap
@@ -305,8 +305,8 @@ class QESwapHelper(AuthMixin, QObject):
 
             # fee breakdown
             self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            serverfee = math.ceil(swap_manager.percentage * pay_amount / 100) + swap_manager.normal_fee
-            self.serverfee = QEAmount(amount_sat=serverfee)
+            server_miningfee = swap_manager.normal_fee
+            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
             self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
 
         if pay_amount and receive_amount:

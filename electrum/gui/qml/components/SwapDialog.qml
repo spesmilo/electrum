@@ -119,7 +119,7 @@ ElDialog {
                 Layout.preferredWidth: 1
                 Layout.fillWidth: true
                 Label {
-                    text: Config.formatSats(swaphelper.serverfee)
+                    text: Config.formatSats(swaphelper.server_miningfee)
                     font.family: FixedFont
                 }
                 Label {
@@ -128,7 +128,7 @@ ElDialog {
                 }
                 Label {
                     text: swaphelper.serverfeeperc
-                        ? '(' + swaphelper.serverfeeperc + ')'
+                        ? '+ ' + swaphelper.serverfeeperc
                         : ''
                 }
             }
