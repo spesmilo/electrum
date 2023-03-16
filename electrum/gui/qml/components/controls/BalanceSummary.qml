@@ -150,7 +150,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         onClicked: {
-            root.state = root.state == 'fiat' ? 'btc' : 'fiat'
+            root.state = root.state == 'fiat' && Daemon.currentWallet.isLightning ? 'btc' : 'fiat'
         }
     }
 
@@ -164,7 +164,11 @@ Item {
 
     Connections {
         target: Daemon
-        function onWalletLoaded() { setBalances() }
+        function onWalletLoaded() {
+            setBalances()
+            if (!Daemon.currentWallet.isLightning)
+                root.state = 'fiat'
+        }
     }
 
     Connections {
