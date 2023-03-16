@@ -159,8 +159,9 @@ ElDialog {
             id: swapslider
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
-            Layout.leftMargin: constants.paddingXXLarge
-            Layout.rightMargin: constants.paddingXXLarge
+            Layout.leftMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.leftVoid
+            Layout.rightMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.rightVoid
+
             Layout.fillWidth: true
 
             from: swaphelper.rangeMin
