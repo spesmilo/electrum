@@ -16,6 +16,9 @@ Item {
     property var _sendDialog
     property string _intentUri
 
+    property bool _ignore_gaplimit: false
+    property bool _reuse_address: false
+
     function openInvoice(key) {
         var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
         dialog.open()
@@ -168,7 +171,7 @@ Item {
                 icon.source: '../../icons/tab_receive.png'
                 text: qsTr('Receive')
                 onClicked: {
-                    var dialog = receiveDialog.createObject(mainView)
+                    var dialog = receiveDetails.createObject(mainView)
                     dialog.open()
                 }
             }
@@ -238,6 +241,31 @@ Item {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onRequestCreateSuccess(key) {
+	    openRequest(key)
+        }
+        function onRequestCreateError(code, error) {
+            if (code == 'gaplimit') {
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
+                dialog.yesClicked.connect(function() {
+                    _ignore_gaplimit = true
+                    createDefaultRequest()
+                })
+            } else if (code == 'non-deterministic') {
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
+                dialog.yesClicked.connect(function() {
+                    _reuse_address = true
+                    createDefaultRequest()
+                })
+            } else {
+                console.log(error)
+                var dialog = app.messageDialog.createObject(app, {text: error})
+            }
+            dialog.open()
+        }
+    }
     Connections {
         target: Daemon.currentWallet
         function onOtpRequested() {
@@ -323,6 +351,27 @@ Item {
                 dialog.open()
             }
             onClosed: destroy()
+        }
+    }
+
+    function createRequest(receiveDetailsDialog) {
+        var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
+	Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, _ignore_gaplimit, _reuse_address)
+    }
+
+    Component {
+        id: receiveDetails
+        ReceiveDetailsDialog {
+            id: receiveDetailsDialog
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+            onAccepted: {
+                console.log('accepted')
+                createRequest(receiveDetailsDialog)
+            }
+            onRejected: {
+                console.log('rejected')
+            }
         }
     }
 

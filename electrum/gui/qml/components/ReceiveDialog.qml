@@ -22,8 +22,6 @@ ElDialog {
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
     property bool _ispaid: false
-    property bool _ignore_gaplimit: false
-    property bool _reuse_address: false
 
     parent: Overlay.overlay
     modal: true
@@ -283,14 +281,6 @@ ElDialog {
                     enabled = true
                 }
             }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-
-                icon.source: '../../icons/pen.png'
-                text: qsTr('Edit')
-                onClicked: receiveDetailsDialog.open()
-            }
         }
     }
 
@@ -334,41 +324,6 @@ ElDialog {
         FocusScope { id: parkFocus }
     }
 
-    function createRequest() {
-        var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
-        Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, _ignore_gaplimit, _reuse_address)
-    }
-
-    function createDefaultRequest() {
-        console.log('Creating default request')
-        Daemon.currentWallet.createDefaultRequest(_ignore_gaplimit, _reuse_address)
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onRequestCreateSuccess(key) {
-            request.key = key
-        }
-        function onRequestCreateError(code, error) {
-            if (code == 'gaplimit') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _ignore_gaplimit = true
-                    createDefaultRequest()
-                })
-            } else if (code == 'non-deterministic') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _reuse_address = true
-                    createDefaultRequest()
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
-            dialog.open()
-        }
-    }
 
     RequestDetails {
         id: request
@@ -393,22 +348,6 @@ ElDialog {
             if (status == RequestDetails.Paid || status == RequestDetails.Unconfirmed) {
                 _ispaid = true
             }
-        }
-    }
-
-    ReceiveDetailsDialog {
-        id: receiveDetailsDialog
-
-        width: parent.width * 0.9
-        anchors.centerIn: parent
-
-        onAccepted: {
-            console.log('accepted')
-            Daemon.currentWallet.delete_request(request.key)
-            createRequest()
-        }
-        onRejected: {
-            console.log('rejected')
         }
     }
 
