@@ -42,7 +42,7 @@ Item {
         GridLayout {
             id: balanceLayout
             columns: 3
-            opacity: Daemon.currentWallet.synchronizing || Network.status == 'disconnected' ? 0 : 1
+            opacity: Daemon.currentWallet.synchronizing || Network.server_status == 'disconnected' ? 0 : 1
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
@@ -148,7 +148,7 @@ Item {
     }
 
     Label {
-        opacity: Network.status == 'disconnected' ? 1 : 0
+        opacity: Network.server_status == 'disconnected' ? 1 : 0
         anchors.centerIn: balancePane
         text: qsTr('Disconnected')
         color: Material.accentColor
