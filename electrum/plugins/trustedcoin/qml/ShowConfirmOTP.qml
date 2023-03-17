@@ -87,8 +87,8 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             visible: !otpVerified && plugin.remoteKeyState == 'wallet_known'
-            Layout.preferredWidth: parent.width
             wrapMode: Text.Wrap
             text: qsTr('Otherwise, you can request your OTP secret from the server, by pressing the button below')
         }
