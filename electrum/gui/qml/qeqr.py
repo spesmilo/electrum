@@ -138,7 +138,6 @@ class QEQRImageProvider(QQuickImageProvider):
             uri = uri._replace(query=query)
             qstr = urllib.parse.urlunparse(uri)
 
-        #self._logger.debug('QR requested for %s' % qstr)
         qr = qrcode.QRCode(version=1, border=2)
         qr.add_data(qstr)
 
