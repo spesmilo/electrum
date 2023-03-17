@@ -128,6 +128,7 @@ class QEDaemon(AuthMixin, QObject):
     serverConnectWizardChanged = pyqtSignal()
     loadingChanged = pyqtSignal()
     passwordChangeFailed = pyqtSignal()
+    requestNewPassword = pyqtSignal()
 
     walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
     walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
@@ -305,9 +306,8 @@ class QEDaemon(AuthMixin, QObject):
             i = i + 1
         return f'wallet_{i}'
 
-    requestNewPassword = pyqtSignal()
     @pyqtSlot()
-    @auth_protect
+    @auth_protect(method='wallet')
     def startChangePassword(self):
         if self._use_single_password:
             self.requestNewPassword.emit()
