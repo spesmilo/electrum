@@ -140,7 +140,7 @@ Item {
     }
 
     Label {
-        opacity: Daemon.currentWallet.synchronizing && Network.status != 'disconnected' ? 1 : 0
+        opacity: Daemon.currentWallet.synchronizing && Network.server_status != 'disconnected' ? 1 : 0
         anchors.centerIn: balancePane
         text: Daemon.currentWallet.synchronizingProgress
         color: Material.accentColor
