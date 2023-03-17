@@ -235,7 +235,7 @@ class NewWalletWizard(AbstractWizard):
         raise NotImplementedError()
 
     def is_bip39_seed(self, wizard_data):
-        return wizard_data['seed_variant'] == 'bip39'
+        return wizard_data.get('seed_variant') == 'bip39'
 
     def is_multisig(self, wizard_data):
         return wizard_data['wallet_type'] == 'multisig'
