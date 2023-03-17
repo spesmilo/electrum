@@ -518,6 +518,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         with self.interfaces_lock:
             return list(self.interfaces)
 
+    def get_status(self):
+        n = len(self.get_interfaces())
+        return _("Connected to {0} nodes.").format(n) if n > 1 else _("Connected to {0} node.").format(n) if n == 1 else _("Not connected")
+
     def get_fee_estimates(self):
         from statistics import median
         from .simple_config import FEE_ETA_TARGETS

@@ -27,7 +27,8 @@ class QENetwork(QObject, QtEventListener):
     dataChanged = pyqtSignal()
 
     _height = 0
-    _status = ""
+    _server_status = ""
+    _network_status = ""
     _chaintips = 1
     _islagging = False
     _fee_histogram = []
@@ -71,9 +72,14 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_status(self, *args):
-        self._logger.debug('status updated: %s' % self.network.connection_status)
-        if self._status != self.network.connection_status:
-            self._status = self.network.connection_status
+        network_status = self.network.get_status()
+        if self._network_status != network_status:
+            self._network_status = network_status
+            self.statusChanged.emit()
+        server_status = self.network.connection_status
+        self._logger.debug('server_status updated: %s' % server_status)
+        if self._server_status != server_status:
+            self._server_status = server_status
             self.statusChanged.emit()
         chains = len(self.network.get_blockchains())
         if chains != self._chaintips:
@@ -166,7 +172,11 @@ class QENetwork(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=statusChanged)
     def status(self):
-        return self._status
+        return self._network_status
+
+    @pyqtProperty(str, notify=statusChanged)
+    def server_status(self):
+        return self._server_status
 
     @pyqtProperty(int, notify=chaintipsChanged)
     def chaintips(self):
