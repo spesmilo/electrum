@@ -169,17 +169,26 @@ ElDialog {
                             columns: 2
 
                             Label {
-                                visible: invoice.amount.isMax
                                 Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                visible: invoice.amount.isMax
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.bold: true
-                                Layout.fillWidth: true
                                 text: qsTr('All on-chain funds')
                             }
 
                             Label {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                visible: invoice.amount.isEmpty
+                                font.pixelSize: constants.fontSizeXLarge
+                                color: constants.mutedForeground
+                                text: qsTr('not specified')
+                            }
+
+                            Label {
                                 Layout.alignment: Qt.AlignRight
-                                visible: !invoice.amount.isMax
+                                visible: !invoice.amount.isMax && !invoice.amount.isEmpty
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
                                 font.bold: true
@@ -187,8 +196,8 @@ ElDialog {
                             }
 
                             Label {
-                                visible: !invoice.amount.isMax
                                 Layout.fillWidth: true
+                                visible: !invoice.amount.isMax && !invoice.amount.isEmpty
                                 text: Config.baseUnit
                                 color: Material.accentColor
                                 font.pixelSize: constants.fontSizeXLarge
@@ -197,15 +206,15 @@ ElDialog {
                             Label {
                                 id: fiatValue
                                 Layout.alignment: Qt.AlignRight
-                                visible: Daemon.fx.enabled && !invoice.amount.isMax
+                                visible: Daemon.fx.enabled && !invoice.amount.isMax && !invoice.amount.isEmpty
                                 text: Daemon.fx.fiatValue(invoice.amount, false)
                                 font.pixelSize: constants.fontSizeMedium
                                 color: constants.mutedForeground
                             }
 
                             Label {
-                                visible: Daemon.fx.enabled && !invoice.amount.isMax
                                 Layout.fillWidth: true
+                                visible: Daemon.fx.enabled && !invoice.amount.isMax && !invoice.amount.isEmpty
                                 text: Daemon.fx.fiatCurrency
                                 font.pixelSize: constants.fontSizeMedium
                                 color: constants.mutedForeground
@@ -213,16 +222,13 @@ ElDialog {
 
                         }
 
-                        ToolButton {
-                            visible: !amountContainer.editmode
-                            icon.source: '../../icons/pen.png'
-                            icon.color: 'transparent'
-                            onClicked: enterAmountEdit()
-                        }
                         GridLayout {
-                            visible: amountContainer.editmode
                             Layout.fillWidth: true
+                            visible: amountContainer.editmode
+                            enabled: !(invoice.status == Invoice.Expired && invoice.amount.isEmpty)
+
                             columns: 3
+
                             BtcField {
                                 id: amountBtc
                                 fiatfield: amountFiat
@@ -239,6 +245,7 @@ ElDialog {
                                 text: Config.baseUnit
                                 color: Material.accentColor
                             }
+
                             Switch {
                                 id: amountMax
                                 Layout.fillWidth: true
@@ -265,20 +272,6 @@ ElDialog {
                                 text: Daemon.fx.fiatCurrency
                                 color: Material.accentColor
                             }
-                        }
-                        ToolButton {
-                            Layout.fillWidth: false
-                            visible: amountContainer.editmode
-                            icon.source: '../../icons/confirmed.png'
-                            icon.color: 'transparent'
-                            onClicked: applyAmountEdit()
-                        }
-                        ToolButton {
-                            Layout.fillWidth: false
-                            visible: amountContainer.editmode
-                            icon.source: '../../icons/closebutton.png'
-                            icon.color: 'transparent'
-                            onClicked: cancelAmountEdit()
                         }
                     }
 
@@ -434,8 +427,6 @@ ElDialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
-                    if (amountContainer.editmode)
-                        applyAmountEdit()
                     if (invoice_key == '') // save invoice if not retrieved from key
                         invoice.save_invoice()
                     dialog.close()
@@ -446,29 +437,11 @@ ElDialog {
 
     }
 
-    function enterAmountEdit() {
-        amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
-        amountMax.checked = invoice.amount.isMax
-        amountContainer.editmode = true
-        amountBtc.focus = true
-    }
-
-    function applyAmountEdit() {
-        amountContainer.editmode = false
-        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
-        invoiceAmountChanged()
-    }
-
-    function cancelAmountEdit() {
-        amountContainer.editmode = false
-        invoice.amountOverride.clear()
-    }
-
     Component.onCompleted: {
         if (invoice_key != '') {
             invoice.initFromKey(invoice_key)
         }
-        if (invoice.amount.isEmpty) {
+        if (invoice.amount.isEmpty && !invoice.status == Invoice.Expired) {
             amountContainer.editmode = true
         } else if (invoice.amount.isMax) {
             amountMax.checked = true

@@ -179,6 +179,7 @@ class QEInvoiceParser(QEInvoice):
         self.canPay = False
         self._recipient = recipient
         self._lnurlData = None
+        self.amountOverride = QEAmount()
         if recipient:
             self.validateRecipient(recipient)
         self.recipientChanged.emit()
@@ -327,6 +328,8 @@ class QEInvoiceParser(QEInvoice):
                 if interval > 0:
                     self._timer.setInterval(interval)  # msec
                     self._timer.start()
+        else:
+            self.determine_can_pay() # status went to PR_EXPIRED
 
     @pyqtSlot()
     def updateStatusString(self):
