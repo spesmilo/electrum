@@ -279,6 +279,7 @@ class QEInvoiceParser(QEInvoice):
 
     def name_for_node_id(self, node_id):
         node_alias = self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
+        return node_alias
 
     @pyqtSlot()
     def clear(self):
