@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
+from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QTextEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum.bitcoin import is_address
@@ -73,7 +73,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         grid.addLayout(buttons, 4, 0, 1, -1)
 
-        self.receive_address_e = ButtonsTextEdit()
+        self.receive_address_e = QTextEdit()
         self.receive_address_help_text = WWLabel('')
         vbox = QVBoxLayout()
         vbox.addWidget(self.receive_address_help_text)
@@ -81,9 +81,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_address_help.setVisible(False)
         self.receive_address_help.setLayout(vbox)
 
-        self.receive_URI_e = ButtonsTextEdit()
+        self.receive_URI_e = QTextEdit()
         self.receive_URI_help = WWLabel('')
-        self.receive_lightning_e = ButtonsTextEdit()
+        self.receive_lightning_e = QTextEdit()
         self.receive_lightning_help_text = WWLabel('')
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
@@ -114,8 +114,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
             e.setFont(QFont(MONOSPACE_FONT))
-            e.addCopyButton()
             e.setReadOnly(True)
+            e.setContextMenuPolicy(Qt.NoContextMenu)
+            e.setTextInteractionFlags(Qt.NoTextInteraction)
 
         self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
 
@@ -147,7 +148,15 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
+        # toolbar
         self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
+        self.toggle_qr_button = QPushButton('')
+        self.toggle_qr_button.setIcon(read_QIcon('qrcode.png'))
+        self.toggle_qr_button.setToolTip(_('Switch between text and QR code view'))
+        self.toggle_qr_button.clicked.connect(self.toggle_receive_qr)
+        self.toggle_qr_button.setEnabled(False)
+        self.toolbar.insertWidget(2, self.toggle_qr_button)
+        # menu
         menu.addConfig(
             _('Add on-chain fallback to lightning requests'), 'bolt11_fallback', True,
             callback=self.on_toggle_bolt11_fallback)
@@ -159,6 +168,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
         menu.addAction(_("Delete expired requests"), self.request_list.delete_expired_requests)
+        self.toolbar_menu = menu
 
         # layout
         vbox_g = QVBoxLayout()
@@ -216,9 +226,14 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.window.do_copy(data, title=title)
         self.update_receive_qr_window()
 
-    def toggle_receive_qr(self, e):
+    def do_copy(self, e):
         if e.button() != Qt.LeftButton:
             return
+        i = self.receive_tabs.currentIndex()
+        title, data = self.get_tab_data(i)
+        self.window.do_copy(data, title=title)
+
+    def toggle_receive_qr(self):
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()
@@ -275,15 +290,16 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_address_e.repaint()
         # always show
         self.receive_tabs.setVisible(True)
+        self.toggle_qr_button.setEnabled(True)
         self.update_receive_qr_window()
 
     def get_tab_data(self, i):
         if i == 0:
-            return _('Bitcoin URI'), self.receive_URI_e.text()
+            return _('Bitcoin URI'), self.receive_URI_e.toPlainText()
         elif i == 1:
-            return _('Address'), self.receive_address_e.text()
+            return _('Address'), self.receive_address_e.toPlainText()
         else:
-            return _('Lightning Request'), self.receive_lightning_e.text()
+            return _('Lightning Request'), self.receive_lightning_e.toPlainText()
 
     def update_receive_qr_window(self):
         if self.window.qr_window and self.window.qr_window.isVisible():
@@ -353,17 +369,18 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_URI_e.setText('')
         self.receive_lightning_e.setText('')
         self.receive_tabs.setVisible(False)
+        self.toggle_qr_button.setEnabled(False)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
         self.request_list.clearSelection()
 
     def update_textedit_warning(self, *, text_e: ButtonsTextEdit, warning_text: Optional[str]):
-        if bool(text_e.text()) and warning_text:
+        if bool(text_e.toPlainText()) and warning_text:
             text_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             text_e.setToolTip(warning_text)
         else:
             text_e.setStyleSheet("")
-            text_e.setToolTip(text_e._default_tooltip)
+            text_e.setToolTip('')
 
 
 class ReceiveTabWidget(QWidget):
@@ -376,12 +393,11 @@ class ReceiveTabWidget(QWidget):
         QWidget.__init__(self)
         for w in [textedit, qr, help_widget]:
             w.setMinimumSize(self.min_size)
+
         for w in [textedit, qr]:
-            w.mousePressEvent = receive_tab.toggle_receive_qr
-            tooltip = _('Click to switch between text and QR code view')
-            w._default_tooltip = tooltip
-            w.setToolTip(tooltip)
+            w.mousePressEvent = receive_tab.do_copy
             w.setCursor(QCursor(Qt.PointingHandCursor))
+
         textedit.setFocusPolicy(Qt.NoFocus)
         if isinstance(help_widget, QLabel):
             help_widget.setFrameStyle(QFrame.StyledPanel)
@@ -394,7 +410,7 @@ class ReceiveTabWidget(QWidget):
         self.setLayout(hbox)
 
     def update_visibility(self, is_qr):
-        if str(self.textedit.text()):
+        if str(self.textedit.toPlainText()):
             self.help_widget.setVisible(False)
             self.textedit.setVisible(not is_qr)
             self.qr.setVisible(is_qr)
