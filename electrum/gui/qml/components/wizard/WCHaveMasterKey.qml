@@ -119,6 +119,7 @@ WizardComponent {
                     if (activeFocus)
                         verifyMasterKey(text)
                 }
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
             }
             ColumnLayout {
                 ToolButton {

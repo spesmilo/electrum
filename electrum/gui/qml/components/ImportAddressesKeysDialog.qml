@@ -64,6 +64,7 @@ ElDialog {
                     focus: true
                     wrapMode: TextEdit.WrapAnywhere
                     onTextChanged: valid = verify(text)
+                    inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
                 }
                 ColumnLayout {
                     Layout.alignment: Qt.AlignTop
