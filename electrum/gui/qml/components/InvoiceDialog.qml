@@ -91,8 +91,27 @@ ElDialog {
                     color: Material.accentColor
                 }
 
-                Label {
-                    text: invoice.status_str
+                RowLayout {
+                    Image {
+                        Layout.preferredWidth: constants.iconSizeSmall
+                        Layout.preferredHeight: constants.iconSizeSmall
+                        source: invoice.status == Invoice.Expired
+                            ? '../../icons/expired.png'
+                            : invoice.status == Invoice.Unpaid
+                                ? '../../icons/unpaid.png'
+                                : invoice.status == Invoice.Failed || invoice.status == Invoice.Unknown
+                                    ? '../../icons/warning.png'
+                                    : invoice.status == Invoice.Inflight || invoice.status == Invoice.Routing
+                                        ? '../../icons/status_waiting.png'
+                                        : invoice.status == Invoice.Unconfirmed
+                                            ? '../../icons/unconfirmed.png'
+                                            : invoice.status == Invoice.Paid
+                                                ? '../../icons/confirmed.png'
+                                                : ''
+                    }
+                    Label {
+                        text: invoice.status_str
+                    }
                 }
 
                 Label {
