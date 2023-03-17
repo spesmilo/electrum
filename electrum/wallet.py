@@ -548,7 +548,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return []
 
     def basename(self) -> str:
-        return self.storage.basename() if self.storage else 'no name'
+        return self.storage.basename() if self.storage else 'no_name'
 
     def test_addresses_sanity(self) -> None:
         addrs = self.get_receiving_addresses()
