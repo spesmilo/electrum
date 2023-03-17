@@ -214,15 +214,10 @@ ElDialog {
                         }
 
                         ToolButton {
-                            visible: !amountContainer.editmode && invoice.canPay
+                            visible: !amountContainer.editmode
                             icon.source: '../../icons/pen.png'
                             icon.color: 'transparent'
-                            onClicked: {
-                                amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
-                                amountMax.checked = invoice.amount.isMax
-                                amountContainer.editmode = true
-                                amountBtc.focus = true
-                            }
+                            onClicked: enterAmountEdit()
                         }
                         GridLayout {
                             visible: amountContainer.editmode
@@ -232,6 +227,9 @@ ElDialog {
                                 id: amountBtc
                                 fiatfield: amountFiat
                                 enabled: !amountMax.checked
+                                onTextAsSatsChanged: {
+                                    invoice.amountOverride = textAsSats
+                                }
                             }
 
                             Label {
@@ -250,7 +248,7 @@ ElDialog {
                                 checked: false
                                 onCheckedChanged: {
                                     if (activeFocus)
-                                        invoice.amount.isMax = checked
+                                        invoice.amountOverride.isMax = checked
                                 }
                             }
 
@@ -269,22 +267,18 @@ ElDialog {
                             }
                         }
                         ToolButton {
-                            visible: amountContainer.editmode
                             Layout.fillWidth: false
+                            visible: amountContainer.editmode
                             icon.source: '../../icons/confirmed.png'
                             icon.color: 'transparent'
-                            onClicked: {
-                                amountContainer.editmode = false
-                                invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
-                                invoiceAmountChanged()
-                            }
+                            onClicked: applyAmountEdit()
                         }
                         ToolButton {
-                            visible: amountContainer.editmode
                             Layout.fillWidth: false
+                            visible: amountContainer.editmode
                             icon.source: '../../icons/closebutton.png'
                             icon.color: 'transparent'
-                            onClicked: amountContainer.editmode = false
+                            onClicked: cancelAmountEdit()
                         }
                     }
 
@@ -438,8 +432,10 @@ ElDialog {
                 Layout.preferredWidth: 1
                 text: qsTr('Pay')
                 icon.source: '../../icons/confirmed.png'
-                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay && !amountContainer.editmode
+                enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
+                    if (amountContainer.editmode)
+                        applyAmountEdit()
                     if (invoice_key == '') // save invoice if not retrieved from key
                         invoice.save_invoice()
                     dialog.close()
@@ -448,6 +444,24 @@ ElDialog {
             }
         }
 
+    }
+
+    function enterAmountEdit() {
+        amountBtc.text = invoice.amount.satsInt == 0 ? '' : Config.formatSats(invoice.amount)
+        amountMax.checked = invoice.amount.isMax
+        amountContainer.editmode = true
+        amountBtc.focus = true
+    }
+
+    function applyAmountEdit() {
+        amountContainer.editmode = false
+        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+        invoiceAmountChanged()
+    }
+
+    function cancelAmountEdit() {
+        amountContainer.editmode = false
+        invoice.amountOverride.clear()
     }
 
     Component.onCompleted: {
