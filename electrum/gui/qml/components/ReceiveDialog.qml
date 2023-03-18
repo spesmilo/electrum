@@ -356,12 +356,7 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        if (dialog.key) {
-            request.key = dialog.key
-        } else {
-            // callLater to make sure any popups are on top of the dialog stacking order
-            Qt.callLater(createDefaultRequest)
-        }
+        request.key = dialog.key
     }
 
     // hack. delay qr rendering until dialog is shown
