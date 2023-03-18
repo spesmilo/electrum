@@ -591,6 +591,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                     _('All your addresses are used by unpaid requests.'),
                 ]
                 msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
+                self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
                 return
 
         req_key = self.wallet.create_request(amount, message, expiration, addr)
@@ -612,7 +613,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             key = self.create_bitcoin_request(amount.satsInt, message, expiration, lightning_only=lightning_only, reuse_address=reuse_address)
             if not key:
-                self.requestCreateError.emit('ln' if self.wallet.has_lightning() else 'reuse_addr', ' '.join(msg))
                 return
             self.addressModel.setDirty()
         except InvoiceError as e:
