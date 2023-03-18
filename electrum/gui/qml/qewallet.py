@@ -577,49 +577,43 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         threading.Thread(target=pay_thread, daemon=True).start()
 
-    def create_bitcoin_request(self, amount: int, message: str, expiration: int, *, lightning_only: bool = False, reuse_address: bool = False) -> Optional[Tuple]:
-        addr = self.wallet.get_unused_address()
-        if addr is None:
-            if reuse_address:
-                addr = self.wallet.get_receiving_address()
-            elif lightning_only:
-                addr = None
-            else:
-                has_lightning = self.wallet.has_lightning()
-                msg = [
-                    _('No more unused addresses in your wallet.'),
-                    _('All your addresses are used by unpaid requests.'),
-                ]
-                msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
-                self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
-                return
 
-        req_key = self.wallet.create_request(amount, message, expiration, addr)
-        self._logger.debug(f'created request with key {req_key} addr {addr}')
-
-        return req_key
-
-    def _delete_expired_requests(self):
-        keys = self.wallet.delete_expired_requests()
-        for key in keys:
-            self.requestModel.delete_invoice(key)
 
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        self._delete_expired_requests()
+        # delete expired_requests
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
         try:
-            key = self.create_bitcoin_request(amount.satsInt, message, expiration, lightning_only=lightning_only, reuse_address=reuse_address)
-            if not key:
-                return
-            self.addressModel.setDirty()
+            amount = amount.satsInt
+            addr = self.wallet.get_unused_address()
+            if addr is None:
+                if reuse_address:
+                    addr = self.wallet.get_receiving_address()
+                elif lightning_only:
+                    addr = None
+                else:
+                    has_lightning = self.wallet.has_lightning()
+                    msg = [
+                        _('No more unused addresses in your wallet.'),
+                        _('All your addresses are used by unpaid requests.'),
+                    ]
+                    msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
+                    self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
+                    return
+
+            key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
+        self._logger.debug(f'created request with key {key} addr {addr}')
+        self.addressModel.setDirty()
         self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
