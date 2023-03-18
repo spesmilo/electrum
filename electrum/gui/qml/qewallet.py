@@ -611,11 +611,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         return req_key, addr
 
+    def _delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
+
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, ignore_gap: bool = False, reuse_address: bool = False):
+        self._delete_expired_requests()
         try:
             if self.wallet.lnworker and self.wallet.lnworker.channels:
                 # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
@@ -639,6 +645,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(bool)
     @pyqtSlot(bool, bool)
     def createDefaultRequest(self, ignore_gap: bool = False, reuse_address: bool = False):
+        self._delete_expired_requests()
         try:
             default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
             if self.wallet.lnworker and self.wallet.lnworker.channels:

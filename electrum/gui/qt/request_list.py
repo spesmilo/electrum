@@ -208,10 +208,15 @@ class RequestList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):
+        self.wallet.delete_requests(keys)
         for key in keys:
-            self.wallet.delete_request(key, write_to_disk=False)
             self.delete_item(key)
-        self.wallet.save_db()
+        self.receive_tab.do_clear()
+
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.delete_item(key)
         self.receive_tab.do_clear()
 
     def set_visibility_of_columns(self):

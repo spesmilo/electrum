@@ -2611,6 +2611,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         out.sort(key=lambda x: x.time)
         return out
 
+    def delete_expired_requests(self):
+        keys = [k for k, v in self._receive_requests.items() if self.get_invoice_status(v) == PR_EXPIRED]
+        self.delete_requests(keys)
+        return keys
+
+    def delete_requests(self, keys):
+        for key in keys:
+            self.delete_request(key, write_to_disk=False)
+        if keys:
+            self.save_db()
+
     @abstractmethod
     def get_fingerprint(self) -> str:
         """Returns a string that can be used to identify this wallet.
