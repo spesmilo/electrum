@@ -435,6 +435,9 @@ ElDialog {
                 enabled: invoice.canSave
                 onClicked: {
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                    if (invoice.amount.isEmpty) {
+                        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                    }
                     invoice.save_invoice()
                     dialog.close()
                 }
@@ -446,8 +449,18 @@ ElDialog {
                 icon.source: '../../icons/confirmed.png'
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
-                    if (invoice_key == '') // save invoice if not retrieved from key
+                    if (invoice.amount.isEmpty) {
+                        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                        if (invoice_key != '') {
+                            // delete the existing invoice because this affects get_id()
+                            invoice.wallet.delete_invoice(invoice_key)
+                            invoice_key = ''
+                        }
+                    }
+                    if (invoice_key == '') {
+                        // save invoice if new or modified
                         invoice.save_invoice()
+                    }
                     dialog.close()
                     doPay() // only signal here
                 }

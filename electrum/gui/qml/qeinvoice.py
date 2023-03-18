@@ -313,8 +313,6 @@ class QEInvoiceParser(QEInvoice):
 
         self.set_lnprops()
 
-        self.canSave = True
-
         self.determine_can_pay()
 
         self.invoiceChanged.emit()
@@ -339,12 +337,15 @@ class QEInvoiceParser(QEInvoice):
 
     def determine_can_pay(self):
         self.canPay = False
+        self.canSave = False
         self.userinfo = ''
 
         if not self.amountOverride.isEmpty:
             amount = self.amountOverride
         else:
             amount = self.amount
+
+        self.canSave = True
 
         if amount.isEmpty: # unspecified amount
             return
@@ -652,6 +653,8 @@ class QEUserEnteredPayment(QEInvoice):
             self.validationError.emit('recipient', _('Invalid Bitcoin address'))
             return
 
+        self.canSave = True
+
         if self._amount.isEmpty:
             self.validationError.emit('amount', _('Invalid amount'))
             return
@@ -659,7 +662,6 @@ class QEUserEnteredPayment(QEInvoice):
         if self._amount.isMax:
             self.canPay = True
         else:
-            self.canSave = True
             if self.get_max_spendable_onchain() >= self._amount.satsInt:
                 self.canPay = True
 
