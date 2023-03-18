@@ -59,7 +59,7 @@ ElDialog {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_receive.png'
-                text: qsTr('Invoices')
+                text: qsTr('Saved Invoices')
                 enabled: Daemon.currentWallet.invoiceModel.rowCount() // TODO: only count non-expired
                 onClicked: {
                     dialog.close()
