@@ -141,12 +141,12 @@ ElDialog {
                     Layout.columnSpan: 2
                     Layout.maximumWidth: parent.width
 
-                    Label {
+                    InfoTextArea {
                         id: errorText
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: parent.width
-                        visible: !_closing && errorText
-                        wrapMode: Text.Wrap
+                        visible: !_closing && errorText.text
+                        iconStyle: InfoTextArea.IconStyle.Error
                     }
                     Label {
                         Layout.alignment: Qt.AlignHCenter
