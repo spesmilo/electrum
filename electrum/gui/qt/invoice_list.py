@@ -179,7 +179,10 @@ class InvoiceList(MyTreeView):
             copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Bitcoin Address'))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
-            menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
+            if bool(invoice.get_amount_sat()):
+                menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
+            else:
+                menu.addAction(_("Edit amount") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.send_tab.do_pay_invoice(invoice))
         if self.wallet.lnworker:

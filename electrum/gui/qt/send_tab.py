@@ -500,9 +500,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     amount_sat = self.amount_e.get_amount()
                     if amount_sat:
                         invoice.amount_msat = int(amount_sat * 1000)
-                    else:
-                        self.show_error(_('No amount'))
-                        return
                 if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
                     self.show_error(_('Lightning is disabled'))
                     return
@@ -582,7 +579,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs += invoice.outputs
         self.pay_onchain_dialog(outputs)
 
+    def do_edit_invoice(self, invoice: 'Invoice'):
+        assert not bool(invoice.get_amount_sat())
+        text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
+        self.payto_e._on_input_btn(text)
+        self.amount_e.setFocus()
+
     def do_pay_invoice(self, invoice: 'Invoice'):
+        if not bool(invoice.get_amount_sat()):
+            self.show_error(_('No amount'))
+            return
         if invoice.is_lightning():
             self.pay_lightning_invoice(invoice)
         else:

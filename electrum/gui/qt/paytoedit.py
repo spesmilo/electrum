@@ -364,9 +364,7 @@ class PayToEdit(Logger, GenericInputHandler):
             if is_max:
                 amount = '!'
             else:
-                amount = self.amount_edit.get_amount()
-                if amount is None:
-                    return []
+                amount = self.amount_edit.get_amount() or 0
             self.outputs = [PartialTxOutput(scriptpubkey=self.payto_scriptpubkey, value=amount)]
 
         return self.outputs[:]
