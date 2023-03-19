@@ -209,8 +209,7 @@ class RequestList(MyTreeView):
 
     def delete_requests(self, keys):
         self.wallet.delete_requests(keys)
-        for key in keys:
-            self.delete_item(key)
+        self.update()
         self.receive_tab.do_clear()
 
     def delete_expired_requests(self):
