@@ -488,7 +488,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.window.show_send_tab()
 
     def read_invoice(self) -> Optional[Invoice]:
-        if self.check_send_tab_payto_line_and_show_errors():
+        if self.check_payto_line_and_show_errors():
             return
         try:
             if not self._is_onchain:
@@ -506,7 +506,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 return invoice
             else:
                 outputs = self.read_outputs()
-                if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
+                if self.check_onchain_outputs_and_show_errors(outputs):
                     return
                 message = self.message_e.text()
                 return self.wallet.create_invoice(
@@ -601,7 +601,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
         return outputs
 
-    def check_send_tab_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
+    def check_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
@@ -619,7 +619,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def check_send_tab_payto_line_and_show_errors(self) -> bool:
+    def check_payto_line_and_show_errors(self) -> bool:
         """Returns whether there are errors.
         Also shows error dialog to user if so.
         """
