@@ -288,19 +288,20 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
         return ImportedChannelBackupStorage(
-            is_initiator = vds.read_boolean(),
-            privkey = vds.read_bytes(32).hex(),
-            channel_seed = vds.read_bytes(32).hex(),
-            node_id = vds.read_bytes(33).hex(),
-            funding_txid = vds.read_bytes(32).hex(),
-            funding_index = vds.read_int16(),
-            funding_address = vds.read_string(),
-            remote_payment_pubkey = vds.read_bytes(33).hex(),
-            remote_revocation_pubkey = vds.read_bytes(33).hex(),
-            local_delay = vds.read_int16(),
-            remote_delay = vds.read_int16(),
-            host = vds.read_string(),
-            port = vds.read_int16())
+            is_initiator=vds.read_boolean(),
+            privkey=vds.read_bytes(32),
+            channel_seed=vds.read_bytes(32),
+            node_id=vds.read_bytes(33),
+            funding_txid=vds.read_bytes(32).hex(),
+            funding_index=vds.read_int16(),
+            funding_address=vds.read_string(),
+            remote_payment_pubkey=vds.read_bytes(33),
+            remote_revocation_pubkey=vds.read_bytes(33),
+            local_delay=vds.read_int16(),
+            remote_delay=vds.read_int16(),
+            host=vds.read_string(),
+            port=vds.read_int16(),
+        )
 
     @staticmethod
     def from_encrypted_str(data: str, *, password: str) -> "ImportedChannelBackupStorage":
