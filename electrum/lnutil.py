@@ -264,27 +264,27 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
-        vds.write_int16(CHANNEL_BACKUP_VERSION)
+        vds.write_uint16(CHANNEL_BACKUP_VERSION)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
         vds.write_bytes(self.node_id, 33)
         vds.write_bytes(bfh(self.funding_txid), 32)
-        vds.write_int16(self.funding_index)
+        vds.write_uint16(self.funding_index)
         vds.write_string(self.funding_address)
         vds.write_bytes(self.remote_payment_pubkey, 33)
         vds.write_bytes(self.remote_revocation_pubkey, 33)
-        vds.write_int16(self.local_delay)
-        vds.write_int16(self.remote_delay)
+        vds.write_uint16(self.local_delay)
+        vds.write_uint16(self.remote_delay)
         vds.write_string(self.host)
-        vds.write_int16(self.port)
+        vds.write_uint16(self.port)
         return bytes(vds.input)
 
     @staticmethod
     def from_bytes(s: bytes) -> "ImportedChannelBackupStorage":
         vds = BCDataStream()
         vds.write(s)
-        version = vds.read_int16()
+        version = vds.read_uint16()
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
         return ImportedChannelBackupStorage(
@@ -293,14 +293,14 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
             channel_seed=vds.read_bytes(32),
             node_id=vds.read_bytes(33),
             funding_txid=vds.read_bytes(32).hex(),
-            funding_index=vds.read_int16(),
+            funding_index=vds.read_uint16(),
             funding_address=vds.read_string(),
             remote_payment_pubkey=vds.read_bytes(33),
             remote_revocation_pubkey=vds.read_bytes(33),
-            local_delay=vds.read_int16(),
-            remote_delay=vds.read_int16(),
+            local_delay=vds.read_uint16(),
+            remote_delay=vds.read_uint16(),
             host=vds.read_string(),
-            port=vds.read_int16(),
+            port=vds.read_uint16(),
         )
 
     @staticmethod
