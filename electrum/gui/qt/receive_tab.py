@@ -281,9 +281,13 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
         self.receive_lightning_help_text.setText(ln_help)
         self.receive_lightning_qr.setData(lnaddr.upper())
-        self.update_textedit_warning(text_e=self.receive_address_e, warning_text=address_help)
-        self.update_textedit_warning(text_e=self.receive_URI_e, warning_text=URI_help)
-        self.update_textedit_warning(text_e=self.receive_lightning_e, warning_text=ln_help)
+        def update_warnings(text_e, qr_e, warning_text):
+            for w in [text_e, qr_e]:
+                w.setEnabled(bool(text_e.toPlainText()) and not warning_text)
+                w.setToolTip(warning_text)
+        update_warnings(self.receive_address_e,   self.receive_address_qr,   address_help)
+        update_warnings(self.receive_URI_e,       self.receive_URI_qr,       URI_help)
+        update_warnings(self.receive_lightning_e, self.receive_lightning_qr, ln_help)
         # macOS hack (similar to #4777)
         self.receive_lightning_e.repaint()
         self.receive_URI_e.repaint()
@@ -374,13 +378,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.receive_amount_e.setAmount(None)
         self.request_list.clearSelection()
 
-    def update_textedit_warning(self, *, text_e: ButtonsTextEdit, warning_text: Optional[str]):
-        if bool(text_e.toPlainText()) and warning_text:
-            text_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-            text_e.setToolTip(warning_text)
-        else:
-            text_e.setStyleSheet("")
-            text_e.setToolTip('')
 
 
 class ReceiveTabWidget(QWidget):
