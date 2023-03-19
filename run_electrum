@@ -93,6 +93,7 @@ sys._ELECTRUM_RUNNING_VIA_RUNELECTRUM = True  # used by logging.py
 
 from electrum.logging import get_logger, configure_logging  # import logging submodule first
 from electrum import util
+from electrum.payment_identifier import PaymentIdentifier
 from electrum import constants
 from electrum import SimpleConfig
 from electrum.wallet_db import WalletDB
@@ -364,9 +365,9 @@ def main():
     if not config_options.get('verbosity'):
         warnings.simplefilter('ignore', DeprecationWarning)
 
-    # check uri
+    # check if we received a valid payment identifier
     uri = config_options.get('url')
-    if uri and not util.is_uri(uri):
+    if uri and not PaymentIdentifier(None, None, uri).is_valid():
         print_stderr('unknown command:', uri)
         sys.exit(1)
 

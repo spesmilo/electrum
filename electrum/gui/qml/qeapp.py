@@ -16,7 +16,7 @@ from PyQt5.QtQml import qmlRegisterType, qmlRegisterUncreatableType, QQmlApplica
 from electrum import version, constants
 from electrum.i18n import _
 from electrum.logging import Logger, get_logger
-from electrum.util import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
+from electrum.payment_identifier import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.network import Network
 

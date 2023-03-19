@@ -87,7 +87,7 @@ class OpenFileEventFilter(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.FileOpen:
             if len(self.windows) >= 1:
-                self.windows[0].handle_payment_identifier(event.url().toString())
+                self.windows[0].set_payment_identifier(event.url().toString())
                 return True
         return False
 
@@ -393,7 +393,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         window.activateWindow()
         if uri:
-            window.handle_payment_identifier(uri)
+            window.send_tab.set_payment_identifier(uri)
         return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:

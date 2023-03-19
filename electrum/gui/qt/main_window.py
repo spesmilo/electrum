@@ -58,9 +58,10 @@ from electrum.i18n import _
 from electrum.util import (format_time, get_asyncio_loop,
                            UserCancelled, profiler,
                            bfh, InvalidPassword,
-                           UserFacingException, FailedToParsePaymentIdentifier,
+                           UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME, os_chmod)
+                           AddTransactionException, os_chmod)
+from electrum.payment_identifier import FailedToParsePaymentIdentifier, BITCOIN_BIP21_URI_SCHEME
 from electrum.invoices import PR_PAID, Invoice
 from electrum.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
