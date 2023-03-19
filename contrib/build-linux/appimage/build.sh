@@ -11,6 +11,7 @@ PROJECT_ROOT_OR_FRESHCLONE_ROOT="$PROJECT_ROOT"
 CONTRIB="$PROJECT_ROOT/contrib"
 CONTRIB_APPIMAGE="$CONTRIB/build-linux/appimage"
 DISTDIR="$PROJECT_ROOT/dist"
+BUILD_UID=$(/usr/bin/stat -c %u "$PROJECT_ROOT")
 
 . "$CONTRIB"/build_tools_util.sh
 
@@ -24,6 +25,7 @@ fi
 info "building docker image."
 docker build \
     $DOCKER_BUILD_FLAGS \
+    --build-arg UID=$BUILD_UID \
     -t electrum-appimage-builder-img \
     "$CONTRIB_APPIMAGE"
 
