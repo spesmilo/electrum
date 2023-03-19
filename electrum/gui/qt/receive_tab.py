@@ -164,7 +164,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             _('Add lightning requests to bitcoin URIs'), 'bip21_lightning', False,
             tooltip=_('This may result in large QR codes'),
             callback=self.update_current_request)
-        self.qr_menu_action = menu.addToggle(_("Show QR code window"), self.window.toggle_qr_window)
+        self.qr_menu_action = menu.addToggle(_("Show detached QR code window"), self.window.toggle_qr_window)
         menu.addAction(_("Import requests"), self.window.import_requests)
         menu.addAction(_("Export requests"), self.window.export_requests)
         menu.addAction(_("Delete expired requests"), self.request_list.delete_expired_requests)
