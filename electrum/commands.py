@@ -371,9 +371,17 @@ class Commands:
 
     @command('')
     async def serialize(self, jsontx):
-        """Create a transaction from json inputs.
-        Inputs must have a redeemPubkey.
-        Outputs must be a list of {'address':address, 'value':satoshi_amount}.
+        """Create a signed raw transaction from a json tx template.
+
+        Example value for "jsontx" arg: {
+            "inputs": [
+                {"prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539", "prevout_n": 1,
+                 "value_sats": 1000000, "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD"}
+            ],
+            "outputs": [
+                {"address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd", "value_sats": 990000}
+            ]
+        }
         """
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
@@ -386,7 +394,10 @@ class Commands:
             else:
                 raise Exception("missing prevout for txin")
             txin = PartialTxInput(prevout=prevout)
-            txin._trusted_value_sats = int(txin_dict.get('value', txin_dict['value_sats']))
+            try:
+                txin._trusted_value_sats = int(txin_dict.get('value') or txin_dict['value_sats'])
+            except KeyError:
+                raise Exception("missing 'value_sats' field for txin")
             nsequence = txin_dict.get('nsequence', None)
             if nsequence is not None:
                 txin.nsequence = nsequence
@@ -399,8 +410,19 @@ class Commands:
                 txin.script_descriptor = desc
             inputs.append(txin)
 
-        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
-                   for txout in jsontx.get('outputs')]
+        outputs = []  # type: List[PartialTxOutput]
+        for txout_dict in jsontx.get('outputs'):
+            try:
+                txout_addr = txout_dict['address']
+            except KeyError:
+                raise Exception("missing 'address' field for txout")
+            try:
+                txout_val = int(txout_dict.get('value') or txout_dict['value_sats'])
+            except KeyError:
+                raise Exception("missing 'value_sats' field for txout")
+            txout = PartialTxOutput.from_address_and_value(txout_addr, txout_val)
+            outputs.append(txout)
+
         tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.serialize()
