@@ -8,7 +8,8 @@ from electrum.i18n import _
 from electrum.bip32 import is_bip32_derivation, normalize_bip32_derivation, xpub_type
 from electrum.logging import get_logger
 from electrum.slip39 import decode_mnemonic, Slip39Error
-from electrum.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
+from electrum.util import get_asyncio_loop
+from electrum.payment_identifier import create_bip21_uri, InvalidBitcoinURI
 from electrum.transaction import tx_from_any
 from electrum.mnemonic import Mnemonic, is_any_2fa_seed_type
 from electrum.old_mnemonic import wordlist as old_wordlist

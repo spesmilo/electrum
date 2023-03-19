@@ -7,6 +7,7 @@ import attr
 from .json_db import StoredObject
 from .i18n import _
 from .util import age, InvoiceError
+from .payment_identifier import create_bip21_uri
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode, LnAddr
 from . import constants
@@ -300,7 +301,6 @@ class Request(BaseInvoice):
         *,
         lightning_invoice: Optional[str] = None,
     ) -> Optional[str]:
-        from electrum.util import create_bip21_uri
         addr = self.get_address()
         amount = self.get_amount_sat()
         if amount is not None:

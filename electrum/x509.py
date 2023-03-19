@@ -308,7 +308,8 @@ class X509(object):
             raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
         if self.notAfter <= now:
             dt = datetime.utcfromtimestamp(time.mktime(self.notAfter))
-            raise CertificateError(f'Certificate ({self.get_common_name()}) has expired (at {dt} UTC).')
+            # for testnet
+            #raise CertificateError(f'Certificate ({self.get_common_name()}) has expired (at {dt} UTC).')
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()

@@ -14,8 +14,8 @@ from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_IN
 from electrum.lnaddr import LnInvoiceException
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
-from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
-                           maybe_extract_lightning_payment_identifier)
+from electrum.util import InvoiceError
+from electrum.payment_identifier import PaymentIdentifier, InvalidBitcoinURI, maybe_extract_lightning_payment_identifier
 from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
@@ -132,12 +132,12 @@ class QEInvoiceParser(QEInvoice):
 
     invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    lnurlRetrieved = pyqtSignal()
-    lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
 
     amountOverrideChanged = pyqtSignal()
 
-    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['pr'])
+    _round_1_signal = pyqtSignal(object)
+    _round_2_signal = pyqtSignal(object)
+    _round_3_signal = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -156,7 +156,9 @@ class QEInvoiceParser(QEInvoice):
         self._amountOverride = QEAmount()
         self._amountOverride.valueChanged.connect(self._on_amountoverride_value_changed)
 
-        self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
+        self._round_1_signal.connect(self._on_round_1)
+        self._round_2_signal.connect(self._on_round_2)
+        self._round_3_signal.connect(self._on_round_3)
 
         self.clear()
 
@@ -183,10 +185,6 @@ class QEInvoiceParser(QEInvoice):
         if recipient:
             self.validateRecipient(recipient)
         self.recipientChanged.emit()
-
-    @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
-    def lnurlData(self):
-        return self._lnurlData
 
     @pyqtProperty(str, notify=invoiceChanged)
     def message(self):
@@ -417,106 +415,38 @@ class QEInvoiceParser(QEInvoice):
             URI=uri
             )
 
-    def _bip70_payment_request_resolved(self, pr: 'PaymentRequest'):
-        self._logger.debug('resolved payment request')
-        if pr.verify(self._wallet.wallet.contacts):
-            invoice = Invoice.from_bip70_payreq(pr, height=0)
-            if self._wallet.wallet.get_invoice_status(invoice) == PR_PAID:
-                self.validationError.emit('unknown', _('Invoice already paid'))
-            elif pr.has_expired():
-                self.validationError.emit('unknown', _('Payment request has expired'))
-            else:
-                self.setValidOnchainInvoice(invoice)
-                self.validationSuccess.emit()
+    def _on_round_1(self, pi: 'PaymentIdentifier'):
+        if pi.needs_round_2():
+            coro = pi.round_2(self._round_2_signal.emit, amount_sat=1)
+            asyncio.run_coroutine_threadsafe(coro,  self._wallet.wallet.network.asyncio_loop)
         else:
-            self.validationError.emit('unknown', f"invoice error:\n{pr.error}")
+            self.read_invoice(pi)
+
+    def _on_round_2(self, pi: 'PaymentIdentifier'):
+        self.read_invoice(pi)
+
+    def _on_round_3(self, pi: 'PaymentIdentifier'):
+        pass
 
     def validateRecipient(self, recipient):
-        if not recipient:
+        pi = PaymentIdentifier(self._wallet.wallet.config, None, recipient)
+        if not pi.is_valid():
             self.setInvoiceType(QEInvoice.Type.Invalid)
             return
-
-        maybe_lightning_invoice = recipient
-
-        try:
-            self._bip21 = parse_URI(recipient, lambda pr: self._bip70PrResolvedSignal.emit(pr))
-            if self._bip21:
-                if 'r' in self._bip21 or ('name' in self._bip21 and 'sig' in self._bip21): # TODO set flag in util?
-                    # let callback handle state
-                    return
-                if ':' not in recipient:
-                    # address only
-                    # create bare invoice
-                    outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], 0)]
-                    invoice = self.create_onchain_invoice(outputs, None, None, None)
-                    self._logger.debug(repr(invoice))
-                    self.setValidOnchainInvoice(invoice)
-                    self.validationSuccess.emit()
-                    return
-                else:
-                    # fallback lightning invoice?
-                    if 'lightning' in self._bip21:
-                        maybe_lightning_invoice = self._bip21['lightning']
-        except InvalidBitcoinURI as e:
-            self._bip21 = None
-            self._logger.debug(repr(e))
-
-        lninvoice = None
-        maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
-        if maybe_lightning_invoice is not None:
-            if maybe_lightning_invoice.startswith('lnurl'):
-                self.resolve_lnurl(maybe_lightning_invoice)
-                return
-            try:
-                lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
-            except InvoiceError as e:
-                e2 = e.__cause__
-                if isinstance(e2, LnInvoiceException):
-                    self.validationError.emit('unknown', _("Error parsing Lightning invoice") + f":\n{e2}")
-                    self.clear()
-                    return
-                if isinstance(e2, lnutil.IncompatibleOrInsaneFeatures):
-                    self.validationError.emit('unknown', _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e2!r}")
-                    self.clear()
-                    return
-                self._logger.exception(repr(e))
-
-        if not lninvoice and not self._bip21:
-            self.validationError.emit('unknown',_('Unknown invoice'))
-            self.clear()
+        recipient, amount, description, comment, validated = pi.get_fields_for_GUI(self._wallet.wallet)
+        if pi.needs_round_1():
+            coro = pi.round_1(on_success=self._round_1_signal.emit)
+            asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
             return
+        self.read_invoice(pi)
 
-        if lninvoice:
-            if not self._wallet.wallet.has_lightning():
-                if not self._bip21:
-                    # TODO: lightning onchain fallback in ln invoice
-                    #self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet'))
-                    self.setValidLightningInvoice(lninvoice)
-                    self.validationSuccess.emit()
-                    # self.clear()
-                    return
-                else:
-                    self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
-                    self.setValidOnchainInvoice(self._bip21['address'])
-            else:
-                self.setValidLightningInvoice(lninvoice)
-                if not self._wallet.wallet.lnworker.channels:
-                    self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
-                else:
-                    self.validationSuccess.emit()
+    def read_invoice(self, pi):
+        invoice = pi.get_invoice(self._wallet.wallet, message='', amount_sat=0)
+        if invoice.is_lightning():
+            self.setValidLightningInvoice(invoice)
         else:
-            self._logger.debug('flow without LN but having bip21 uri')
-            if 'amount' not in self._bip21:
-                amount = 0
-            else:
-                amount = self._bip21['amount']
-            outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], amount)]
-            self._logger.debug(outputs)
-            message = self._bip21['message'] if 'message' in self._bip21 else ''
-            invoice = self.create_onchain_invoice(outputs, message, None, self._bip21)
-            self._logger.debug(repr(invoice))
             self.setValidOnchainInvoice(invoice)
-            self.validationSuccess.emit()
+        self.validationSuccess.emit()
 
     def resolve_lnurl(self, lnurl):
         self._logger.debug('resolve_lnurl')
@@ -532,21 +462,6 @@ class QEInvoiceParser(QEInvoice):
                 self.validationError.emit('lnurl', repr(e))
 
         threading.Thread(target=resolve_task).start()
-
-    def on_lnurl(self, lnurldata):
-        self._logger.debug('on_lnurl')
-        self._logger.debug(f'{repr(lnurldata)}')
-
-        self._lnurlData = {
-            'domain': urlparse(lnurldata.callback_url).netloc,
-            'callback_url' : lnurldata.callback_url,
-            'min_sendable_sat': lnurldata.min_sendable_sat,
-            'max_sendable_sat': lnurldata.max_sendable_sat,
-            'metadata_plaintext': lnurldata.metadata_plaintext,
-            'comment_allowed': lnurldata.comment_allowed
-        }
-        self.setValidLNURLPayRequest()
-        self.lnurlRetrieved.emit()
 
     @pyqtSlot('quint64')
     @pyqtSlot('quint64', str)

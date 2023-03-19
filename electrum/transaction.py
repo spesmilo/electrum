@@ -42,7 +42,8 @@ import copy
 
 from . import ecc, bitcoin, constants, segwit_addr, bip32
 from .bip32 import BIP32Node
-from .util import profiler, to_bytes, bfh, chunks, is_hex_str, parse_max_spend
+from .util import profiler, to_bytes, bfh, chunks, is_hex_str
+from .payment_identifier import parse_max_spend
 from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,

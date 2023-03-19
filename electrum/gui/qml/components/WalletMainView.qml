@@ -213,10 +213,6 @@ Item {
         }
         onInvoiceCreateError: console.log(code + ' ' + message)
 
-        onLnurlRetrieved: {
-            var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
-            dialog.open()
-        }
     }
 
     Connections {
