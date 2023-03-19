@@ -16,7 +16,7 @@ from .util import list_enabled_bits
 from .util import ShortID as ShortChannelID
 from .util import format_short_id as format_short_channel_id
 
-from .crypto import sha256
+from .crypto import sha256, pw_decode_with_version_and_mac
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
@@ -281,7 +281,7 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
         return bytes(vds.input)
 
     @staticmethod
-    def from_bytes(s):
+    def from_bytes(s: bytes) -> "ImportedChannelBackupStorage":
         vds = BCDataStream()
         vds.write(s)
         version = vds.read_int16()
@@ -302,6 +302,13 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
             host = vds.read_string(),
             port = vds.read_int16())
 
+    @staticmethod
+    def from_encrypted_str(data: str, *, password: str) -> "ImportedChannelBackupStorage":
+        if not data.startswith('channel_backup:'):
+            raise ValueError("missing or invalid magic bytes")
+        encrypted = data[15:]
+        decrypted = pw_decode_with_version_and_mac(encrypted, password)
+        return ImportedChannelBackupStorage.from_bytes(decrypted)
 
 
 class ScriptHtlc(NamedTuple):
