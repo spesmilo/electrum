@@ -25,172 +25,182 @@ ElDialog {
         anchors.fill: parent
         spacing: 0
 
-        GridLayout {
+        Flickable {
             Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
+            Layout.fillHeight: true
 
-            columns: 2
+            leftMargin: constants.paddingLarge
+            rightMargin: constants.paddingLarge
 
-            Label {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                text: qsTr('Cancel an unconfirmed RBF transaction by double-spending its inputs back to your wallet with a higher fee.')
-                wrapMode: Text.Wrap
-            }
+            contentHeight: rootLayout.height
+            clip: true
+            interactive: height < contentHeight
 
-            Label {
-                text: qsTr('Old fee')
-                color: Material.accentColor
-            }
+            GridLayout {
+                id: rootLayout
+                width: parent.width
+                columns: 2
 
-            FormattedAmount {
-                amount: txcanceller.oldfee
-            }
-
-            Label {
-                text: qsTr('Old fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
                 Label {
-                    id: oldfeeRate
-                    text: txcanceller.oldfeeRate
-                    font.family: FixedFont
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    text: qsTr('Cancel an unconfirmed RBF transaction by double-spending its inputs back to your wallet with a higher fee.')
+                    wrapMode: Text.Wrap
                 }
 
                 Label {
-                    text: 'sat/vB'
+                    text: qsTr('Old fee')
                     color: Material.accentColor
                 }
-            }
 
-            Label {
-                text: qsTr('Mining fee')
-                color: Material.accentColor
-            }
+                FormattedAmount {
+                    amount: txcanceller.oldfee
+                }
 
-            FormattedAmount {
-                amount: txcanceller.fee
-                valid: txcanceller.valid
-            }
-
-            Label {
-                text: qsTr('Fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
                 Label {
-                    id: feeRate
-                    text: txcanceller.valid ? txcanceller.feeRate : ''
-                    font.family: FixedFont
+                    text: qsTr('Old fee rate')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    Label {
+                        id: oldfeeRate
+                        text: txcanceller.oldfeeRate
+                        font.family: FixedFont
+                    }
+
+                    Label {
+                        text: 'sat/vB'
+                        color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    text: qsTr('Mining fee')
+                    color: Material.accentColor
+                }
+
+                FormattedAmount {
+                    amount: txcanceller.fee
+                    valid: txcanceller.valid
+                }
+
+                Label {
+                    text: qsTr('Fee rate')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    Label {
+                        id: feeRate
+                        text: txcanceller.valid ? txcanceller.feeRate : ''
+                        font.family: FixedFont
+                    }
+
+                    Label {
+                        visible: txcanceller.valid
+                        text: 'sat/vB'
+                        color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    text: qsTr('Target')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    id: targetdesc
+                    text: txcanceller.target
+                }
+
+                RowLayout {
+                    Layout.columnSpan: 2
+                    Slider {
+                        id: feeslider
+                        leftPadding: constants.paddingMedium
+                        snapMode: Slider.SnapOnRelease
+                        stepSize: 1
+                        from: 0
+                        to: txcanceller.sliderSteps
+                        onValueChanged: {
+                            if (activeFocus)
+                                txcanceller.sliderPos = value
+                        }
+                        Component.onCompleted: {
+                            value = txcanceller.sliderPos
+                        }
+                        Connections {
+                            target: txcanceller
+                            function onSliderPosChanged() {
+                                feeslider.value = txcanceller.sliderPos
+                            }
+                        }
+                    }
+
+                    FeeMethodComboBox {
+                        id: target
+                        feeslider: txcanceller
+                    }
+                }
+
+                CheckBox {
+                    id: final_cb
+                    text: qsTr('Replace-by-Fee')
+                    Layout.columnSpan: 2
+                    checked: txcanceller.rbf
+                    onCheckedChanged: {
+                        if (activeFocus)
+                            txcanceller.rbf = checked
+                    }
+                }
+
+                InfoTextArea {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: txcanceller.warning != ''
+                    text: txcanceller.warning
+                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
                 Label {
                     visible: txcanceller.valid
-                    text: 'sat/vB'
+                    text: qsTr('Outputs')
+                    Layout.columnSpan: 2
                     color: Material.accentColor
                 }
-            }
 
-            Label {
-                text: qsTr('Target')
-                color: Material.accentColor
-            }
+                Repeater {
+                    model: txcanceller.valid ? txcanceller.outputs : []
+                    delegate: TextHighlightPane {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
 
-            Label {
-                id: targetdesc
-                text: txcanceller.target
-            }
-
-            Slider {
-                id: feeslider
-                leftPadding: constants.paddingMedium
-                snapMode: Slider.SnapOnRelease
-                stepSize: 1
-                from: 0
-                to: txcanceller.sliderSteps
-                onValueChanged: {
-                    if (activeFocus)
-                        txcanceller.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = txcanceller.sliderPos
-                }
-                Connections {
-                    target: txcanceller
-                    function onSliderPosChanged() {
-                        feeslider.value = txcanceller.sliderPos
-                    }
-                }
-            }
-
-            FeeMethodComboBox {
-                id: target
-                feeslider: txcanceller
-            }
-
-            CheckBox {
-                id: final_cb
-                text: qsTr('Replace-by-Fee')
-                Layout.columnSpan: 2
-                checked: txcanceller.rbf
-                onCheckedChanged: {
-                    if (activeFocus)
-                        txcanceller.rbf = checked
-                }
-            }
-
-            InfoTextArea {
-                Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width * 3/4
-                Layout.alignment: Qt.AlignHCenter
-                visible: txcanceller.warning != ''
-                text: txcanceller.warning
-                iconStyle: InfoTextArea.IconStyle.Warn
-            }
-
-            Label {
-                visible: txcanceller.valid
-                text: qsTr('Outputs')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
-
-            Repeater {
-                model: txcanceller.valid ? txcanceller.outputs : []
-                delegate: TextHighlightPane {
-                    Layout.columnSpan: 2
-                    Layout.fillWidth: true
-
-                    RowLayout {
-                        width: parent.width
-                        Label {
-                            text: modelData.address
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
-                        }
-                        Label {
-                            text: Config.formatSats(modelData.value_sats)
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
-                        }
-                        Label {
-                            text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
+                        RowLayout {
+                            width: parent.width
+                            Label {
+                                text: modelData.address
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+                                font.pixelSize: constants.fontSizeLarge
+                                font.family: FixedFont
+                                color: modelData.is_mine ? constants.colorMine : Material.foreground
+                            }
+                            Label {
+                                text: Config.formatSats(modelData.value_sats)
+                                font.pixelSize: constants.fontSizeMedium
+                                font.family: FixedFont
+                            }
+                            Label {
+                                text: Config.baseUnit
+                                font.pixelSize: constants.fontSizeMedium
+                                color: Material.accentColor
+                            }
                         }
                     }
                 }
             }
         }
-
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
         FlatButton {
             id: confirmButton
