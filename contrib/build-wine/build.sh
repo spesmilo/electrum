@@ -24,10 +24,13 @@ if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
     DOCKER_BUILD_FLAGS="--pull --no-cache"
 fi
 
+if [ -z "$ELECBUILD_COMMIT" ] ; then  # local dev build
+    DOCKER_BUILD_FLAGS="$DOCKER_BUILD_FLAGS --build-arg UID=$BUILD_UID"
+fi
+
 info "building docker image."
 docker build \
     $DOCKER_BUILD_FLAGS \
-    --build-arg UID=$BUILD_UID \
     -t electrum-wine-builder-img \
     "$CONTRIB_WINE"
 

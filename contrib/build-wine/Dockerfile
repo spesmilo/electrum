@@ -1,7 +1,5 @@
 FROM debian:bullseye@sha256:43ef0c6c3585d5b406caa7a0f232ff5a19c1402aeb415f68bcd1cf9d10180af8
 
-ARG UID=1000
-
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
     ca-certificates
@@ -61,6 +59,7 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-get clean
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+ARG UID=1000
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
