@@ -10,7 +10,7 @@ TextField {
 
     font.family: FixedFont
     placeholderText: qsTr('Amount')
-    inputMethodHints: Qt.ImhPreferNumbers
+    inputMethodHints: Qt.ImhDigitsOnly
     onTextChanged: {
         if (amountFiat.activeFocus)
             btcfield.text = text == ''

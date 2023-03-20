@@ -10,7 +10,7 @@ TextField {
 
     font.family: FixedFont
     placeholderText: qsTr('Amount')
-    inputMethodHints: Qt.ImhPreferNumbers
+    inputMethodHints: Qt.ImhDigitsOnly
     property Amount textAsSats
     onTextChanged: {
         textAsSats = Config.unitsToSats(amount.text)
