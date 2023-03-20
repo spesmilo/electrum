@@ -52,11 +52,11 @@ docker build \
 # maybe do fresh clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
-    FRESH_CLONE="$CONTRIB_ANDROID/fresh_clone/electrum" && \
-        rm -rf "$FRESH_CLONE" && \
-        umask 0022 && \
-        git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
-        cd "$FRESH_CLONE"
+    FRESH_CLONE="/tmp/electrum_build/android/fresh_clone/electrum"
+    rm -rf "$FRESH_CLONE" 2>/dev/null || ( info "we need sudo to rm prev FRESH_CLONE." && sudo rm -rf "$FRESH_CLONE" )
+    umask 0022
+    git clone "$PROJECT_ROOT" "$FRESH_CLONE"
+    cd "$FRESH_CLONE"
     git checkout "$ELECBUILD_COMMIT"
     PROJECT_ROOT_OR_FRESHCLONE_ROOT="$FRESH_CLONE"
 else
@@ -72,6 +72,13 @@ fi
 
 info "building binary..."
 mkdir --parents "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle
+# check uid and maybe chown. see #8261
+if [ ! -z "$ELECBUILD_COMMIT" ] ; then  # fresh clone (reproducible build)
+    if [ $(id -u) != "1000" ] || [ $(id -g) != "1000" ] ; then
+        info "need to chown -R FRESH_CLONE dir. prompting for sudo."
+        sudo chown -R 1000:1000 "$FRESH_CLONE"
+    fi
+fi
 docker run -it --rm \
     --name electrum-android-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/home/user/wspace/electrum \
