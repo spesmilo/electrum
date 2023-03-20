@@ -497,7 +497,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     return
                 invoice = Invoice.from_bech32(invoice_str)
                 if invoice.amount_msat is None:
-                    amount_sat = self.amount_e.get_amount()
+                    amount_sat = self.get_amount()
                     if amount_sat:
                         invoice.amount_msat = int(amount_sat * 1000)
                 if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
@@ -531,9 +531,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.pending_invoice = None
 
+    def get_amount(self) -> int:
+        # must not be None
+        return self.amount_e.get_amount() or 0
+
     def _lnurl_get_invoice(self) -> None:
         assert self._lnurl_data
-        amount = self.amount_e.get_amount()
+        amount = self.get_amount()
         if not (self._lnurl_data.min_sendable_sat <= amount <= self._lnurl_data.max_sendable_sat):
             self.show_error(f'Amount must be between {self._lnurl_data.min_sendable_sat} and {self._lnurl_data.max_sendable_sat} sat.')
             return
@@ -542,7 +546,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             try:
                 invoice_data = await callback_lnurl(
                     self._lnurl_data.callback_url,
-                    params={'amount': self.amount_e.get_amount() * 1000},
+                    params={'amount': self.get_amount() * 1000},
                 )
             except LNURLError as e:
                 self.show_error_signal.emit(f"LNURL request encountered error: {e}")

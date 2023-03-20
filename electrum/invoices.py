@@ -161,8 +161,7 @@ class BaseInvoice(StoredObject):
         Returns an integer satoshi amount, or '!' or None.
         Callers who need msat precision should call get_amount_msat()
         """
-        # return strictly positive value or None
-        amount_msat = self.amount_msat or None
+        amount_msat = self.amount_msat
         if amount_msat in [None, "!"]:
             return amount_msat
         return int(amount_msat // 1000)
