@@ -3591,9 +3591,16 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
-                             passphrase=None, password=None, encrypt_file=True,
-                             gap_limit=None) -> dict:
+def restore_wallet_from_text(
+    text: str,
+    *,
+    path: Optional[str],
+    config: SimpleConfig,
+    passphrase: Optional[str] = None,
+    password: Optional[str] = None,
+    encrypt_file: Optional[bool] = None,
+    gap_limit: Optional[int] = None,
+) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of bitcoin addresses
     or bitcoin private keys."""
@@ -3603,6 +3610,8 @@ def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
         storage = WalletStorage(path)
         if storage.file_exists():
             raise Exception("Remove the existing wallet first!")
+    if encrypt_file is None:
+        encrypt_file = True
     db = WalletDB('', manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):

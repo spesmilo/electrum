@@ -604,6 +604,11 @@ class Daemon(Logger):
             if not os.path.isfile(path):
                 continue
             wallet = self.get_wallet(path)
+            # note: we only create a new wallet object if one was not loaded into the wallet already.
+            #       This is to avoid having two wallet objects contending for the same file.
+            #       Take care: this only works if the daemon knows about all wallet objects.
+            #                  if other code already has created a Wallet() for a file but did not tell the daemon,
+            #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
                     wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
