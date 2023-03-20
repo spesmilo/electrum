@@ -207,12 +207,21 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     chain = network.blockchain()
     if chain.is_tip_stale():
         return 0
+    # figure out current block height
+    chain_height = chain.height()  # learnt from all connected servers, SPV-checked
+    server_height = network.get_server_height()  # height claimed by main server, unverified
+    # note: main server might be lagging (either is slow, is malicious, or there is an SPV-invisible-hard-fork)
+    #       - if it's lagging too much, it is the network's job to switch away
+    if server_height < chain_height - 10:
+        # the diff is suspiciously large... give up and use something non-fingerprintable
+        return 0
     # discourage "fee sniping"
-    locktime = chain.height()
+    locktime = min(chain_height, server_height)
     # sometimes pick locktime a bit further back, to help privacy
     # of setups that need more time (offline/multisig/coinjoin/...)
     if random.randint(0, 9) == 0:
         locktime = max(0, locktime - random.randint(0, 99))
+    locktime = max(0, locktime)
     return locktime
 
 
