@@ -18,12 +18,6 @@ ElDialog {
     property bool _waiting: false
     property string _otpError
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     focus: true
 
     ColumnLayout {

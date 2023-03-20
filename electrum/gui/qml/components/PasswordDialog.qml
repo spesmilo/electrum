@@ -17,16 +17,9 @@ ElDialog {
     property string password
     property string infotext
 
-    parent: Overlay.overlay
-    modal: true
-
     anchors.centerIn: parent
     width: parent.width * 4/5
     padding: 0
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     ColumnLayout {
         id: rootLayout

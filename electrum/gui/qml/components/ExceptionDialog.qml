@@ -15,12 +15,6 @@ ElDialog
 
     property bool _sending: false
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     width: parent.width
     height: parent.height
 
@@ -113,11 +107,6 @@ ElDialog
             property string reportText
 
             z: 3000
-            modal: true
-            parent: Overlay.overlay
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
 
             width: parent.width
             height: parent.height

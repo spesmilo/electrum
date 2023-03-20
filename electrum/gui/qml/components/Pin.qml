@@ -17,8 +17,6 @@ ElDialog {
 
     anchors.centerIn: parent
 
-    modal: true
-    parent: Overlay.overlay
     Overlay.modal: Rectangle {
         color: canCancel ? "#aa000000" : "#ff000000"
     }

@@ -18,12 +18,6 @@ ElDialog {
     title: qsTr('Lightning Swap')
     iconSource: Qt.resolvedUrl('../../icons/update.png')
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     padding: 0
 
     ColumnLayout {

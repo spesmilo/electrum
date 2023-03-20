@@ -15,13 +15,6 @@ ElDialog {
     signal txFound(data: string)
     signal channelBackupFound(data: string)
 
-    parent: Overlay.overlay
-    modal: true
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     header: Item {}
     padding: 0
     topPadding: 0

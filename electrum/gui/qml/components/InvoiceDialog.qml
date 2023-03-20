@@ -21,12 +21,6 @@ ElDialog {
 
     padding: 0
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
 
     ColumnLayout {

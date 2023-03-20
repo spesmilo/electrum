@@ -15,12 +15,6 @@ ElDialog {
 
     property InvoiceParser invoiceParser
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     padding: 0
 
     property bool valid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']

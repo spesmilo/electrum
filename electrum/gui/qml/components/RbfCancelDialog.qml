@@ -21,12 +21,6 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

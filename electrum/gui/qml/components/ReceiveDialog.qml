@@ -23,13 +23,7 @@ ElDialog {
 
     property bool _ispaid: false
 
-    parent: Overlay.overlay
-    modal: true
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 

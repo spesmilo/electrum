@@ -16,12 +16,6 @@ ElDialog {
 
     allowClose: false
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     property alias state: s.state
     property alias error: errorText.text
     property alias info: infoText.text

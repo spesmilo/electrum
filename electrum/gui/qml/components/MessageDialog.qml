@@ -18,15 +18,9 @@ ElDialog {
 
     signal yesClicked
 
-    parent: Overlay.overlay
-    modal: true
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
     anchors.centerIn: parent
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -36,7 +30,7 @@ ElDialog {
             Layout.alignment: Qt.AlignHCenter
             TextArea {
                 id: message
-                Layout.preferredWidth: Overlay.overlay.width *2/3
+                Layout.preferredWidth: dialog.parent.width * 2/3
                 readOnly: true
                 wrapMode: TextInput.WordWrap
                 textFormat: richText ? TextEdit.RichText : TextEdit.PlainText

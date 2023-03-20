@@ -17,13 +17,6 @@ ElDialog {
     property alias description: message.text
     property alias expiry: expires.currentValue
 
-    parent: Overlay.overlay
-    modal: true
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     padding: 0
 
     ColumnLayout {

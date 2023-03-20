@@ -13,11 +13,7 @@ ElDialog {
     title: qsTr('Loading Wallet')
     iconSource: Qt.resolvedUrl('../../icons/wallet.png')
 
-    modal: true
     parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     x: Math.floor((parent.width - implicitWidth) / 2)
     y: Math.floor((parent.height - implicitHeight) / 2)
