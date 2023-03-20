@@ -623,13 +623,18 @@ class Daemon(Logger):
             if not wallet.storage.is_encrypted():
                 is_unified = False
             try:
-                wallet.check_password(old_password)
+                try:
+                    wallet.check_password(old_password)
+                    old_password_real = old_password
+                except util.InvalidPassword:
+                    wallet.check_password(None)
+                    old_password_real = None
             except Exception:
                 failed.append(path)
                 continue
             if new_password:
                 self.logger.info(f'updating password for wallet: {path!r}')
-                wallet.update_password(old_password, new_password, encrypt_storage=True)
+                wallet.update_password(old_password_real, new_password, encrypt_storage=True)
         can_be_unified = failed == []
         is_unified = can_be_unified and is_unified
         return can_be_unified, is_unified

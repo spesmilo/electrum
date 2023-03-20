@@ -2682,7 +2682,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def may_have_password(cls):
         return True
 
-    def check_password(self, password):
+    def check_password(self, password: Optional[str]) -> None:
+        """Raises an InvalidPassword exception on invalid password"""
+        if not self.has_password():
+            if password is not None:
+                raise InvalidPassword("password given but wallet has no password")
+            return
         if self.has_keystore_encryption():
             self.keystore.check_password(password)
         if self.has_storage_encryption():
