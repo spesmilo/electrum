@@ -1,0 +1,6 @@
+tmp/
+build/
+.cache/
+dist/
+signed/
+fresh_clone/
