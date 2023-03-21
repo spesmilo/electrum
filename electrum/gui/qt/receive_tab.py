@@ -290,8 +290,6 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
     def update_receive_qr_window(self):
         if self.window.qr_window and self.window.qr_window.isVisible():
             text, data, help_text, title = self.get_tab_data()
-            if i == 2:
-                data = data.upper()
             self.window.qr_window.qrw.setData(data)
 
     def create_invoice(self):
