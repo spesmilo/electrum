@@ -39,6 +39,11 @@ Pane {
 
                 columns: 2
 
+                Heading {
+                    Layout.columnSpan: 2
+                    text: qsTr('Address details')
+                }
+
                 Label {
                     text: qsTr('Address')
                     Layout.columnSpan: 2
