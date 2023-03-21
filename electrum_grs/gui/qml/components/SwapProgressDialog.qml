@@ -20,12 +20,6 @@ ElDialog {
         ? qsTr('Reverse swap...')
         : qsTr('Swap...')
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     Item {
         id: s
         state: ''

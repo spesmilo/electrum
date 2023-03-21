@@ -50,6 +50,7 @@ class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
         self.electrum_path = tempfile.mkdtemp()
 
     async def asyncSetUp(self):
+        await super().asyncSetUp()
         loop = util.get_asyncio_loop()
         # IsolatedAsyncioTestCase creates event loops with debug=True, which makes the tests take ~4x time
         if not (os.environ.get("PYTHONASYNCIODEBUG") or os.environ.get("PYTHONDEVMODE")):

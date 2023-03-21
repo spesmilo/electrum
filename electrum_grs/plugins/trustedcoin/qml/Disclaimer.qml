@@ -15,7 +15,7 @@ WizardComponent {
         width: parent.width
 
         Label {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             text: plugin ? plugin.disclaimer : ''
             wrapMode: Text.Wrap
         }

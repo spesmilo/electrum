@@ -19,10 +19,11 @@ from electrum_grs.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum_grs.lnworker import LNWallet
 from electrum_grs.gui import messages
 
-from .util import (MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton,
+from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, WaitingDialog, MONOSPACE_FONT, ColorScheme)
 from .amountedit import BTCAmountEdit, FreezableLineEdit
 from .util import read_QIcon, font_height
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -172,7 +173,9 @@ class ChannelsList(MyTreeView):
 
     def export_channel_backup(self, channel_id):
         msg = ' '.join([
-            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Channel backups can be imported in another instance of the same wallet."),
+            _("In the Electrum mobile app, use the 'Send' button to scan this QR code."),
+            '\n\n',
             _("Please note that channel backups cannot be used to restore your channels."),
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])
@@ -217,6 +220,11 @@ class ChannelsList(MyTreeView):
             return
         self.main_window.rebalance_dialog(chan1, chan2)
 
+    def on_double_click(self, idx):
+        channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
+        chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
+        self.main_window.show_channel_details(chan)
+
     def create_menu(self, position):
         menu = QMenu()
         menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
@@ -240,7 +248,7 @@ class ChannelsList(MyTreeView):
             return
         channel_id = idx.sibling(idx.row(), self.Columns.NODE_ALIAS).data(ROLE_CHANNEL_ID)
         chan = self.lnworker.get_channel_by_id(channel_id) or self.lnworker.channel_backups[channel_id]
-        menu.addAction(_("Details..."), lambda: self.main_window.show_channel_details(chan))
+        menu.addAction(_("Details"), lambda: self.main_window.show_channel_details(chan))
         menu.addSeparator()
         cc = self.add_copy_menu(menu, idx)
         cc.addAction(_("Node ID"), lambda: self.place_text_on_clipboard(
@@ -437,7 +445,7 @@ class ChanFeatNoOnchainBackup(ChannelFeature):
     def tooltip(self) -> str:
         return _("This channel cannot be recovered from your seed. You must back it up manually.")
     def icon(self) -> QIcon:
-        return read_QIcon("nocloud")
+        return read_QIcon("cloud_no")
 
 
 class ChannelFeatureIcons:

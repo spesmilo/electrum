@@ -6,11 +6,11 @@ import "../controls"
 
 ElDialog {
     id: wizard
-    modal: true
     focus: true
 
     width: parent.width
     height: parent.height
+
     padding: 0
 
     title: wizardTitle + (pages.currentItem.title ? ' - ' + pages.currentItem.title : '')

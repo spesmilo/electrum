@@ -12,15 +12,8 @@ ElDialog {
 
     title: qsTr('Proxy settings')
 
-    parent: Overlay.overlay
-    modal: true
-
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 

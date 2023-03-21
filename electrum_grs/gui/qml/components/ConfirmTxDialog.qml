@@ -30,12 +30,6 @@ ElDialog {
     height: parent.height
     padding: 0
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     function updateAmountText() {
         btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
         fiatValue.text = Daemon.fx.enabled

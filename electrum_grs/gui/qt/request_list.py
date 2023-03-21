@@ -35,7 +35,8 @@ from electrum_grs.util import format_time
 from electrum_grs.plugin import run_hook
 from electrum_grs.invoices import Invoice
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+from .util import pr_icons, read_QIcon, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -207,10 +208,14 @@ class RequestList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):
+        self.wallet.delete_requests(keys)
+        self.update()
+        self.receive_tab.do_clear()
+
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
         for key in keys:
-            self.wallet.delete_request(key, write_to_disk=False)
             self.delete_item(key)
-        self.wallet.save_db()
         self.receive_tab.do_clear()
 
     def set_visibility_of_columns(self):

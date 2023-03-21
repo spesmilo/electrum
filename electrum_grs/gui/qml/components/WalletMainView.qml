@@ -16,6 +16,10 @@ Item {
     property var _sendDialog
     property string _intentUri
 
+    property string _request_amount
+    property string _request_description
+    property string _request_expiry
+
     function openInvoice(key) {
         var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
         dialog.open()
@@ -168,7 +172,7 @@ Item {
                 icon.source: '../../icons/tab_receive.png'
                 text: qsTr('Receive')
                 onClicked: {
-                    var dialog = receiveDialog.createObject(mainView)
+                    var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
             }
@@ -238,6 +242,29 @@ Item {
         }
     }
 
+    Connections {
+        target: Daemon.currentWallet
+        function onRequestCreateSuccess(key) {
+            openRequest(key)
+        }
+        function onRequestCreateError(code, error) {
+            if (code == 'ln') {
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
+                dialog.yesClicked.connect(function() {
+		    createRequest(true, false)
+                })
+            } else if (code == 'reuse_addr') {
+                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
+                dialog.yesClicked.connect(function() {
+                    createRequest(false, true)
+                })
+            } else {
+                console.log(error)
+                var dialog = app.messageDialog.createObject(app, {text: error})
+            }
+            dialog.open()
+        }
+    }
     Connections {
         target: Daemon.currentWallet
         function onOtpRequested() {
@@ -324,6 +351,32 @@ Item {
             }
             onClosed: destroy()
         }
+    }
+
+    function createRequest(lightning_only, reuse_address) {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
+    }
+
+    Component {
+        id: receiveDetailsDialog
+
+        ReceiveDetailsDialog {
+            id: _receiveDetailsDialog
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+            onAccepted: {
+                console.log('accepted')
+                _request_amount = _receiveDetailsDialog.amount
+                _request_description = _receiveDetailsDialog.description
+                _request_expiry = _receiveDetailsDialog.expiry
+                createRequest(false, false)
+            }
+            onRejected: {
+                console.log('rejected')
+            }
+            onClosed: destroy()
+	}
     }
 
     Component {

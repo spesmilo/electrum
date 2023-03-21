@@ -13,16 +13,10 @@ ElDialog {
     title: qsTr("Open Lightning Channel")
     iconSource: Qt.resolvedUrl('../../icons/lightning.png')
 
-    parent: Overlay.overlay
-    modal: true
     padding: 0
 
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     ColumnLayout {
         anchors.fill: parent

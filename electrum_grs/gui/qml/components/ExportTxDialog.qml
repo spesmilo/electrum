@@ -17,15 +17,8 @@ ElDialog {
 
     title: qsTr('Share Transaction')
 
-    parent: Overlay.overlay
-    modal: true
-
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 

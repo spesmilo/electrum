@@ -21,7 +21,8 @@ WizardComponent {
 
         ProxyConfig {
             id: pc
-            width: parent.width
+            Layout.fillWidth: true
+            proxy_enabled: true
         }
     }
 }

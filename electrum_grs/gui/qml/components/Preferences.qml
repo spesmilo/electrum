@@ -191,7 +191,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('PIN')
+                            text: qsTr('PIN protect payments')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -236,19 +236,6 @@ Pane {
                             Layout.fillWidth: true
                             text: qsTr('Spend unconfirmed')
                             wrapMode: Text.Wrap
-                        }
-                    }
-
-                    Label {
-                        text: qsTr('Default request expiry')
-                        Layout.fillWidth: false
-                    }
-
-                    RequestExpiryComboBox {
-                        includeNever: false
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.requestExpiry = currentValue
                         }
                     }
 

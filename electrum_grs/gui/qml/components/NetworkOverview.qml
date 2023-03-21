@@ -32,12 +32,10 @@ Pane {
                 id: contentLayout
                 width: parent.width
                 columns: 2
-
                 Heading {
                     Layout.columnSpan: 2
                     text: qsTr('On-chain')
                 }
-
                 Label {
                     text: qsTr('Network:');
                     color: Material.accentColor
@@ -45,15 +43,23 @@ Pane {
                 Label {
                     text: Network.networkName
                 }
-
+                Label {
+                    text: qsTr('Status:');
+                    color: Material.accentColor
+                }
+                Label {
+                    text: Network.status
+                }
                 Label {
                     text: qsTr('Server:');
                     color: Material.accentColor
                 }
-                Label {
-                    text: Network.server
+                RowLayout {
+                    Label {
+                        text: Network.server
+                    }
+                    OnchainNetworkStatusIndicator {}
                 }
-
                 Label {
                     text: qsTr('Local Height:');
                     color: Material.accentColor
@@ -61,26 +67,13 @@ Pane {
                 Label {
                     text: Network.height
                 }
-
-                Label {
-                    text: qsTr('Status:');
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    OnchainNetworkStatusIndicator {}
-
-                    Label {
-                        text: Network.status
-                    }
-                }
-
-                Label {
-                    text: qsTr('Network fees:');
-                    color: Material.accentColor
+                Heading {
+                    Layout.columnSpan: 2
+                    text: qsTr('Mempool fees')
                 }
                 Item {
                     id: histogramRoot
+                    Layout.columnSpan: 2
                     Layout.fillWidth: true
                     implicitHeight: histogramLayout.height
 
@@ -98,7 +91,7 @@ Pane {
                                     Layout.preferredWidth: 300 * (modelData[1] / Network.feeHistogram.total)
                                     Layout.fillWidth: true
                                     height: parent.height
-                                    color: Qt.hsva(2/3-(2/3*(Math.log(modelData[0])/Math.log(Math.max(25, Network.feeHistogram.max_fee)))), 0.8, 1, 1)
+                                    color: Qt.hsva(2/3-(2/3*(Math.log(Math.min(600, modelData[0]))/Math.log(600))), 0.8, 1, 1)
                                 }
                             }
                         }
@@ -189,7 +182,7 @@ Pane {
 
                 Heading {
                     Layout.columnSpan: 2
-                    text: qsTr('Network')
+                    text: qsTr('Proxy')
                 }
 
                 Label {

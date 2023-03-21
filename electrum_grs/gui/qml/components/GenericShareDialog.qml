@@ -15,15 +15,8 @@ ElDialog {
 
     title: ''
 
-    parent: Overlay.overlay
-    modal: true
-
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -57,6 +50,7 @@ ElDialog {
                     Layout.leftMargin: constants.paddingMedium
                     Layout.rightMargin: constants.paddingMedium
                     Layout.fillWidth: true
+                    visible: dialog.text
                     Label {
                         width: parent.width
                         text: dialog.text
@@ -68,15 +62,13 @@ ElDialog {
                     }
                 }
 
-                Label {
+                InfoTextArea {
                     Layout.leftMargin: constants.paddingMedium
                     Layout.rightMargin: constants.paddingMedium
                     visible: dialog.text_help
                     text: dialog.text_help
-                    wrapMode: Text.Wrap
                     Layout.fillWidth: true
                 }
-
             }
         }
 

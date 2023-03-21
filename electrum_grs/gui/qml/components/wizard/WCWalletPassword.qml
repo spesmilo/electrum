@@ -5,7 +5,7 @@ import QtQuick.Controls 2.1
 import "../controls"
 
 WizardComponent {
-    valid: password1.text === password2.text && password1.text.length > 4
+    valid: password1.text === password2.text && password1.text.length >= 6
 
     function apply() {
         wizard_data['password'] = password1.text
@@ -25,6 +25,7 @@ WizardComponent {
             id: password2
             showReveal: false
             echoMode: password1.echoMode
+            enabled: password1.text.length >= 6
         }
     }
 }

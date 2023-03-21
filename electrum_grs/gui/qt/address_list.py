@@ -37,7 +37,8 @@ from electrum_grs.plugin import run_hook
 from electrum_grs.bitcoin import is_address
 from electrum_grs.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen, MySortModel
+from .util import MONOSPACE_FONT, ColorScheme, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -114,6 +115,10 @@ class AddressList(MyTreeView):
         self.setModel(self.proxy)
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
+
+    def on_double_click(self, idx):
+        addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
+        self.main_window.show_address(addr)
 
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
@@ -278,10 +283,10 @@ class AddressList(MyTreeView):
             if not item:
                 return
             addr = addrs[0]
+            menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             addr_column_title = self.std_model.horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
             self.add_copy_menu(menu, idx)
-            menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
             #menu.addAction(_("Request payment"), lambda: self.main_window.receive_at(addr))

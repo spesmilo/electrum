@@ -220,10 +220,11 @@ class QtPluginBase(object):
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
             cb = partial(self._on_status_bar_button_click, window=window, keystore=keystore)
-            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb)
+            sb = window.statusBar()
+            button = StatusBarButton(read_QIcon(self.icon_unpaired), tooltip, cb, sb.height())
             button.icon_paired = self.icon_paired
             button.icon_unpaired = self.icon_unpaired
-            window.statusBar().addPermanentWidget(button)
+            sb.addPermanentWidget(button)
             handler = self.create_handler(window)
             handler.button = button
             keystore.handler = handler
@@ -289,7 +290,7 @@ class QtPluginBase(object):
             addr = str(receive_address_e.text())
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
         dev_name = f"{plugin.device} ({keystore.label})"
-        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(dev_name))
+        main_window.receive_tab.toolbar_menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(dev_name), show_address)
 
     def create_handler(self, window: Union[ElectrumWindow, InstallWizard]) -> 'QtHandlerBase':
         raise NotImplementedError()

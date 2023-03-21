@@ -604,6 +604,11 @@ class Daemon(Logger):
             if not os.path.isfile(path):
                 continue
             wallet = self.get_wallet(path)
+            # note: we only create a new wallet object if one was not loaded into the wallet already.
+            #       This is to avoid having two wallet objects contending for the same file.
+            #       Take care: this only works if the daemon knows about all wallet objects.
+            #                  if other code already has created a Wallet() for a file but did not tell the daemon,
+            #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
                     wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
@@ -618,13 +623,18 @@ class Daemon(Logger):
             if not wallet.storage.is_encrypted():
                 is_unified = False
             try:
-                wallet.check_password(old_password)
+                try:
+                    wallet.check_password(old_password)
+                    old_password_real = old_password
+                except util.InvalidPassword:
+                    wallet.check_password(None)
+                    old_password_real = None
             except Exception:
                 failed.append(path)
                 continue
             if new_password:
                 self.logger.info(f'updating password for wallet: {path!r}')
-                wallet.update_password(old_password, new_password, encrypt_storage=True)
+                wallet.update_password(old_password_real, new_password, encrypt_storage=True)
         can_be_unified = failed == []
         is_unified = can_be_unified and is_unified
         return can_be_unified, is_unified

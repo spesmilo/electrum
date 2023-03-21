@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from PyQt5.QtCore import pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
-                             QHBoxLayout, QCompleter, QWidget, QToolTip)
+                             QHBoxLayout, QCompleter, QWidget, QToolTip, QPushButton)
 
 from electrum_grs import util, paymentrequest
 from electrum_grs import lnutil
@@ -85,20 +85,21 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
-        grid.addWidget(self.payto_e, 1, 1, 1, -1)
+        grid.addWidget(self.payto_e.line_edit, 1, 1, 1, 4)
+        grid.addWidget(self.payto_e.text_edit, 1, 1, 1, 4)
 
-        completer = QCompleter()
-        completer.setCaseSensitivity(False)
-        self.payto_e.set_completer(completer)
-        completer.setModel(self.window.completions)
+        #completer = QCompleter()
+        #completer.setCaseSensitivity(False)
+        #self.payto_e.set_completer(completer)
+        #completer.setModel(self.window.completions)
 
         msg = _('Description of the transaction (not mandatory).') + '\n\n' \
               + _(
             'The description is not sent to the recipient of the funds. It is stored in your wallet file, and displayed in the \'History\' tab.')
         description_label = HelpLabel(_('Description'), msg)
         grid.addWidget(description_label, 2, 0)
-        self.message_e = SizedFreezableLineEdit(width=700)
-        grid.addWidget(self.message_e, 2, 1, 1, -1)
+        self.message_e = SizedFreezableLineEdit(width=600)
+        grid.addWidget(self.message_e, 2, 1, 1, 4)
 
         msg = (_('The amount to be received by the recipient.') + ' '
                + _('Fees are paid by the sender.') + '\n\n'
@@ -127,9 +128,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.save_button = EnterButton(_("Save"), self.do_save_invoice)
         self.send_button = EnterButton(_("Pay") + "...", self.do_pay_or_get_invoice)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
+        self.paste_button = QPushButton()
+        self.paste_button.clicked.connect(lambda: self.payto_e._on_input_btn(self.window.app.clipboard().text()))
+        self.paste_button.setIcon(read_QIcon('copy.png'))
+        self.paste_button.setToolTip(_('Paste invoice from clipboard'))
+        self.paste_button.setMaximumWidth(35)
+        grid.addWidget(self.paste_button, 1, 5)
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
+        #buttons.addWidget(self.paste_button)
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.save_button)
         buttons.addWidget(self.send_button)
@@ -151,10 +159,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
         self.toolbar, menu = self.invoice_list.create_toolbar_with_menu('')
+
+
         menu.addAction(read_QIcon(get_iconname_camera()),    _("Read QR code with camera"), self.payto_e.on_qr_from_camera_input_btn)
         menu.addAction(read_QIcon("picture_in_picture.png"), _("Read QR code from screen"), self.payto_e.on_qr_from_screenshot_input_btn)
         menu.addAction(read_QIcon("file.png"), _("Read invoice from file"), self.payto_e.on_input_file)
-        menu.addToggle(_("&Pay to many"), self.paytomany)
+        self.paytomany_menu = menu.addToggle(_("&Pay to many"), self.toggle_paytomany)
         menu.addSeparator()
         menu.addAction(_("Import invoices"), self.window.import_invoices)
         menu.addAction(_("Export invoices"), self.window.export_invoices)
@@ -337,7 +347,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.message_e.setText(pr.get_memo())
         self.set_onchain(True)
         self.max_button.setEnabled(False)
-        for btn in [self.send_button, self.clear_button]:
+        # note: allow saving bip70 reqs, as we save them anyway when paying them
+        for btn in [self.send_button, self.clear_button, self.save_button]:
             btn.setEnabled(True)
         # signal to set fee
         self.amount_e.textEdited.emit("")
@@ -477,7 +488,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.window.show_send_tab()
 
     def read_invoice(self) -> Optional[Invoice]:
-        if self.check_send_tab_payto_line_and_show_errors():
+        if self.check_payto_line_and_show_errors():
             return
         try:
             if not self._is_onchain:
@@ -486,19 +497,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     return
                 invoice = Invoice.from_bech32(invoice_str)
                 if invoice.amount_msat is None:
-                    amount_sat = self.amount_e.get_amount()
+                    amount_sat = self.get_amount()
                     if amount_sat:
                         invoice.amount_msat = int(amount_sat * 1000)
-                    else:
-                        self.show_error(_('No amount'))
-                        return
                 if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
                     self.show_error(_('Lightning is disabled'))
                     return
                 return invoice
             else:
                 outputs = self.read_outputs()
-                if self.check_send_tab_onchain_outputs_and_show_errors(outputs):
+                if self.check_onchain_outputs_and_show_errors(outputs):
                     return
                 message = self.message_e.text()
                 return self.wallet.create_invoice(
@@ -523,9 +531,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.pending_invoice = None
 
+    def get_amount(self) -> int:
+        # must not be None
+        return self.amount_e.get_amount() or 0
+
     def _lnurl_get_invoice(self) -> None:
         assert self._lnurl_data
-        amount = self.amount_e.get_amount()
+        amount = self.get_amount()
         if not (self._lnurl_data.min_sendable_sat <= amount <= self._lnurl_data.max_sendable_sat):
             self.show_error(f'Amount must be between {self._lnurl_data.min_sendable_sat} and {self._lnurl_data.max_sendable_sat} sat.')
             return
@@ -534,7 +546,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             try:
                 invoice_data = await callback_lnurl(
                     self._lnurl_data.callback_url,
-                    params={'amount': self.amount_e.get_amount() * 1000},
+                    params={'amount': self.get_amount() * 1000},
                 )
             except LNURLError as e:
                 self.show_error_signal.emit(f"LNURL request encountered error: {e}")
@@ -571,7 +583,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs += invoice.outputs
         self.pay_onchain_dialog(outputs)
 
+    def do_edit_invoice(self, invoice: 'Invoice'):
+        assert not bool(invoice.get_amount_sat())
+        text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
+        self.payto_e._on_input_btn(text)
+        self.amount_e.setFocus()
+
     def do_pay_invoice(self, invoice: 'Invoice'):
+        if not bool(invoice.get_amount_sat()):
+            self.show_error(_('No amount'))
+            return
         if invoice.is_lightning():
             self.pay_lightning_invoice(invoice)
         else:
@@ -584,7 +605,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs = self.payto_e.get_outputs(self.max_button.isChecked())
         return outputs
 
-    def check_send_tab_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
+    def check_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
         """Returns whether there are errors with outputs.
         Also shows error dialog to user if so.
         """
@@ -602,7 +623,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         return False  # no errors
 
-    def check_send_tab_payto_line_and_show_errors(self) -> bool:
+    def check_payto_line_and_show_errors(self) -> bool:
         """Returns whether there are errors.
         Also shows error dialog to user if so.
         """
@@ -755,18 +776,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
 
-    def paytomany(self):
-        if self.payto_e.is_multiline():
-            self.payto_e.do_clear()
-            return
-        self.payto_e.paytomany()
-        message = '\n'.join([
-            _('Enter a list of outputs in the \'Pay to\' field.'),
-            _('One output per line.'),
-            _('Format: address, amount'),
-            _('You may load a CSV file using the file icon.')
-        ])
-        self.window.show_tooltip_after_delay(message)
+    def toggle_paytomany(self):
+        self.payto_e.toggle_paytomany()
+        if self.payto_e.is_paytomany():
+            message = '\n'.join([
+                _('Enter a list of outputs in the \'Pay to\' field.'),
+                _('One output per line.'),
+                _('Format: address, amount'),
+                _('You may load a CSV file using the file icon.')
+            ])
+            self.window.show_tooltip_after_delay(message)
 
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]

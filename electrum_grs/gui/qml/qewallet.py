@@ -71,6 +71,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     otpSuccess = pyqtSignal()
     otpFailed = pyqtSignal([str,str], arguments=['code','message'])
     peersUpdated = pyqtSignal()
+    seedRetrieved = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -97,6 +98,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self._lightningcanreceive = QEAmount()
         self._lightningcansend = QEAmount()
 
+        self._seed = ''
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
@@ -330,10 +332,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtProperty(str, notify=dataChanged)
     def seed(self):
-        try:
-            return self.wallet.get_seed(self.password)
-        except:
-            return ''
+        return self._seed
 
     @pyqtProperty(str, notify=dataChanged)
     def txinType(self):
@@ -530,7 +529,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def submitOtp(self, otp):
         def submit_otp_task():
             self._otp_on_submit(otp)
-        threading.Thread(target=submit_otp_task).start()
+        threading.Thread(target=submit_otp_task, daemon=True).start()
 
     def broadcast(self, tx):
         assert tx.is_complete()
@@ -550,7 +549,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit() # via qt thread
 
-        threading.Thread(target=broadcast_thread).start()
+        threading.Thread(target=broadcast_thread, daemon=True).start()
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
 
@@ -576,92 +575,45 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 self.paymentFailed.emit(invoice.get_id(), repr(e))
 
-        threading.Thread(target=pay_thread).start()
+        threading.Thread(target=pay_thread, daemon=True).start()
 
-    def create_bitcoin_request(self, amount: int, message: str, expiration: int, *, ignore_gap: bool = False, reuse_address: bool = False) -> Optional[Tuple]:
-        addr = self.wallet.get_unused_address()
-        if addr is None:
-            if not self.wallet.is_deterministic():  # imported wallet
-                if not reuse_address:
-                    msg = [
-                        _('No more addresses in your wallet.'), ' ',
-                        _('You are using a non-deterministic wallet, which cannot create new addresses.'), ' ',
-                        _('If you want to create new addresses, use a deterministic wallet instead.'), '\n\n',
-                        _('Creating a new payment request will reuse one of your addresses and overwrite an existing request. Continue anyway?'),
-                    ]
-                    self.requestCreateError.emit('non-deterministic',''.join(msg))
-                    return
-                addr = self.wallet.get_receiving_address()
-            else:  # deterministic wallet
-                if not ignore_gap:
-                    self.requestCreateError.emit('gaplimit',_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?"))
-                    return
-                addr = self.wallet.create_new_address(False)
 
-        req_key = self.wallet.create_request(amount, message, expiration, addr)
-        self._logger.debug(f'created request with key {req_key}')
-        #try:
-            #self.wallet.add_payment_request(req)
-        #except Exception as e:
-            #self.logger.exception('Error adding payment request')
-            #self.requestCreateError.emit('fatal',_('Error adding payment request') + ':\n' + repr(e))
-        #else:
-            ## TODO: check this flow. Only if alias is defined in config. OpenAlias?
-            #pass
-            ##self.sign_payment_request(addr)
-
-        return req_key, addr
 
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
-    def createRequest(self, amount: QEAmount, message: str, expiration: int, is_lightning: bool = False, ignore_gap: bool = False, reuse_address: bool = False):
+    def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
+        # delete expired_requests
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
         try:
-            if is_lightning:
-                if not self.wallet.lnworker.channels:
-                    self.requestCreateError.emit('fatal',_("You need to open a Lightning channel first."))
+            amount = amount.satsInt
+            addr = self.wallet.get_unused_address()
+            if addr is None:
+                if reuse_address:
+                    addr = self.wallet.get_receiving_address()
+                elif lightning_only:
+                    addr = None
+                else:
+                    has_lightning = self.wallet.has_lightning()
+                    msg = [
+                        _('No more unused addresses in your wallet.'),
+                        _('All your addresses are used by unpaid requests.'),
+                    ]
+                    msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
+                    self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
                     return
-                # TODO maybe show a warning if amount exceeds lnworker.num_sats_can_receive (as in kivy)
-                # TODO fallback address robustness
-                addr = self.wallet.get_unused_address()
-                key = self.wallet.create_request(amount.satsInt, message, expiration, addr)
-            else:
-                key, addr = self.create_bitcoin_request(amount.satsInt, message, expiration, ignore_gap=ignore_gap, reuse_address=reuse_address)
-                if not key:
-                    return
-                self.addressModel.setDirty()
+
+            key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
             self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
-        self.requestModel.add_invoice(self.wallet.get_request(key))
-        self.requestCreateSuccess.emit(key)
-
-    @pyqtSlot()
-    @pyqtSlot(bool)
-    @pyqtSlot(bool, bool)
-    def createDefaultRequest(self, ignore_gap: bool = False, reuse_address: bool = False):
-        try:
-            default_expiry = self.wallet.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-            if self.wallet.lnworker and self.wallet.lnworker.channels:
-                addr = self.wallet.get_unused_address()
-                # if addr is None, we ran out of addresses
-                if addr is None:
-                    # TODO: remove oldest unpaid request having a fallback address and try again
-                    pass
-                key = self.wallet.create_request(None, None, default_expiry, addr)
-            else:
-                req = self.create_bitcoin_request(None, None, default_expiry, ignore_gap=ignore_gap, reuse_address=reuse_address)
-                if not req:
-                    return
-                key, addr = req
-        except InvoiceError as e:
-            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
-            return
-
-        assert key is not None
+        self._logger.debug(f'created request with key {key} addr {addr}')
+        self.addressModel.setDirty()
         self.requestModel.add_invoice(self.wallet.get_request(key))
         self.requestCreateSuccess.emit(key)
 
@@ -739,3 +691,17 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return True
         except Exception as e:
             return False
+
+    @pyqtSlot()
+    def requestShowSeed(self):
+        self.retrieve_seed()
+
+    @auth_protect
+    def retrieve_seed(self):
+        try:
+            self._seed = self.wallet.get_seed(self.password)
+            self.seedRetrieved.emit()
+        except:
+            self._seed = ''
+
+        self.dataChanged.emit()

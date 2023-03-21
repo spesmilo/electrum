@@ -300,14 +300,15 @@ class SettingsDialog(QDialog, QtEventListener):
         block_ex_hbox_w.setLayout(block_ex_hbox)
 
         # Fiat Currency
-        self.require_history_checkbox = QCheckBox()
+        self.history_rates_cb = QCheckBox(_('Download historical rates'))
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
 
         def update_currencies():
             if not self.fx:
                 return
-            currencies = sorted(self.fx.get_currencies(self.require_history_checkbox.isChecked()))
+            h = self.config.get('history_rates', False)
+            currencies = sorted(self.fx.get_currencies(h))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
             if self.fx.is_enabled():
@@ -318,7 +319,7 @@ class SettingsDialog(QDialog, QtEventListener):
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.require_history_checkbox.isChecked()
+                h = self.config.get('history_rates', False)
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -345,15 +346,18 @@ class SettingsDialog(QDialog, QtEventListener):
                 self.fx.set_exchange(exchange)
             self.app.update_fiat_signal.emit()
 
-        def on_require_history(checked):
+        def on_history_rates(checked):
+            self.config.set_key('history_rates', bool(checked))
             if not self.fx:
                 return
             update_exchanges()
+            window.app.update_fiat_signal.emit()
 
         update_currencies()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        self.require_history_checkbox.stateChanged.connect(on_require_history)
+        self.history_rates_cb.setChecked(self.config.get('history_rates', False))
+        self.history_rates_cb.stateChanged.connect(on_history_rates)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
         gui_widgets = []
@@ -371,7 +375,7 @@ class SettingsDialog(QDialog, QtEventListener):
         fiat_widgets = []
         fiat_widgets.append((QLabel(_('Fiat currency')), ccy_combo))
         fiat_widgets.append((QLabel(_('Source')), ex_combo))
-        fiat_widgets.append((QLabel(_('Show sources with historical data')), self.require_history_checkbox))
+        fiat_widgets.append((self.history_rates_cb, None))
         misc_widgets = []
         misc_widgets.append((updatecheck_cb, None))
         misc_widgets.append((filelogging_cb, None))

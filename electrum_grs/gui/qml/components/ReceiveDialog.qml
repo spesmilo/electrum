@@ -22,16 +22,8 @@ ElDialog {
     property bool _render_qr: false // delay qr rendering until dialog is shown
 
     property bool _ispaid: false
-    property bool _ignore_gaplimit: false
-    property bool _reuse_address: false
 
-    parent: Overlay.overlay
-    modal: true
     iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -206,17 +198,30 @@ ElDialog {
                         color: Material.accentColor
                     }
                     Label {
+                        visible: request.message
                         Layout.fillWidth: true
                         text: request.message
                         wrapMode: Text.Wrap
+                    }
+                    Label {
+                        visible: !request.message
+                        Layout.fillWidth: true
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
                     }
                     Label {
                         text: qsTr('Amount')
                         color: Material.accentColor
                     }
                     FormattedAmount {
+                        visible: !request.amount.isEmpty
                         valid: !request.amount.isEmpty
                         amount: request.amount
+                    }
+                    Label {
+                        visible: request.amount.isEmpty
+                        text: qsTr('unspecified')
+                        color: constants.mutedForeground
                     }
                 }
 
@@ -270,14 +275,6 @@ ElDialog {
                     enabled = true
                 }
             }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-
-                icon.source: '../../icons/pen.png'
-                text: qsTr('Edit')
-                onClicked: receiveDetailsDialog.open()
-            }
         }
     }
 
@@ -321,47 +318,6 @@ ElDialog {
         FocusScope { id: parkFocus }
     }
 
-    function createRequest() {
-        var qamt = Config.unitsToSats(receiveDetailsDialog.amount)
-        if (qamt.satsInt > Daemon.currentWallet.lightningCanReceive.satsInt) {
-            console.log('Creating OnChain request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, false, _ignore_gaplimit, _reuse_address)
-        } else {
-            console.log('Creating Lightning request')
-            Daemon.currentWallet.createRequest(qamt, receiveDetailsDialog.description, receiveDetailsDialog.expiry, true, _ignore_gaplimit, _reuse_address)
-        }
-    }
-
-    function createDefaultRequest() {
-        console.log('Creating default request')
-        Daemon.currentWallet.createDefaultRequest(_ignore_gaplimit, _reuse_address)
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onRequestCreateSuccess(key) {
-            request.key = key
-        }
-        function onRequestCreateError(code, error) {
-            if (code == 'gaplimit') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _ignore_gaplimit = true
-                    createDefaultRequest()
-                })
-            } else if (code == 'non-deterministic') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    _reuse_address = true
-                    createDefaultRequest()
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
-            dialog.open()
-        }
-    }
 
     RequestDetails {
         id: request
@@ -389,33 +345,12 @@ ElDialog {
         }
     }
 
-    ReceiveDetailsDialog {
-        id: receiveDetailsDialog
-
-        width: parent.width * 0.9
-        anchors.centerIn: parent
-
-        onAccepted: {
-            console.log('accepted')
-            Daemon.currentWallet.delete_request(request.key)
-            createRequest()
-        }
-        onRejected: {
-            console.log('rejected')
-        }
-    }
-
     Toaster {
         id: toaster
     }
 
     Component.onCompleted: {
-        if (dialog.key) {
-            request.key = dialog.key
-        } else {
-            // callLater to make sure any popups are on top of the dialog stacking order
-            Qt.callLater(createDefaultRequest)
-        }
+        request.key = dialog.key
     }
 
     // hack. delay qr rendering until dialog is shown

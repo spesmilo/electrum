@@ -207,12 +207,21 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     chain = network.blockchain()
     if chain.is_tip_stale():
         return 0
+    # figure out current block height
+    chain_height = chain.height()  # learnt from all connected servers, SPV-checked
+    server_height = network.get_server_height()  # height claimed by main server, unverified
+    # note: main server might be lagging (either is slow, is malicious, or there is an SPV-invisible-hard-fork)
+    #       - if it's lagging too much, it is the network's job to switch away
+    if server_height < chain_height - 10:
+        # the diff is suspiciously large... give up and use something non-fingerprintable
+        return 0
     # discourage "fee sniping"
-    locktime = chain.height()
+    locktime = min(chain_height, server_height)
     # sometimes pick locktime a bit further back, to help privacy
     # of setups that need more time (offline/multisig/coinjoin/...)
     if random.randint(0, 9) == 0:
         locktime = max(0, locktime - random.randint(0, 99))
+    locktime = max(0, locktime)
     return locktime
 
 
@@ -548,7 +557,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         return []
 
     def basename(self) -> str:
-        return self.storage.basename() if self.storage else 'no name'
+        return self.storage.basename() if self.storage else 'no_name'
 
     def test_addresses_sanity(self) -> None:
         addrs = self.get_receiving_addresses()
@@ -2611,6 +2620,17 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         out.sort(key=lambda x: x.time)
         return out
 
+    def delete_expired_requests(self):
+        keys = [k for k, v in self._receive_requests.items() if self.get_invoice_status(v) == PR_EXPIRED]
+        self.delete_requests(keys)
+        return keys
+
+    def delete_requests(self, keys):
+        for key in keys:
+            self.delete_request(key, write_to_disk=False)
+        if keys:
+            self.save_db()
+
     @abstractmethod
     def get_fingerprint(self) -> str:
         """Returns a string that can be used to identify this wallet.
@@ -2662,7 +2682,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def may_have_password(cls):
         return True
 
-    def check_password(self, password):
+    def check_password(self, password: Optional[str]) -> None:
+        """Raises an InvalidPassword exception on invalid password"""
+        if not self.has_password():
+            if password is not None:
+                raise InvalidPassword("password given but wallet has no password")
+            return
         if self.has_keystore_encryption():
             self.keystore.check_password(password)
         if self.has_storage_encryption():
@@ -3571,9 +3596,16 @@ def create_new_wallet(*, path, config: SimpleConfig, passphrase=None, password=N
     return {'seed': seed, 'wallet': wallet, 'msg': msg}
 
 
-def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
-                             passphrase=None, password=None, encrypt_file=True,
-                             gap_limit=None) -> dict:
+def restore_wallet_from_text(
+    text: str,
+    *,
+    path: Optional[str],
+    config: SimpleConfig,
+    passphrase: Optional[str] = None,
+    password: Optional[str] = None,
+    encrypt_file: Optional[bool] = None,
+    gap_limit: Optional[int] = None,
+) -> dict:
     """Restore a wallet from text. Text can be a seed phrase, a master
     public key, a master private key, a list of groestlcoin addresses
     or groestlcoin private keys."""
@@ -3583,6 +3615,8 @@ def restore_wallet_from_text(text, *, path: Optional[str], config: SimpleConfig,
         storage = WalletStorage(path)
         if storage.file_exists():
             raise Exception("Remove the existing wallet first!")
+    if encrypt_file is None:
+        encrypt_file = True
     db = WalletDB('', manual_upgrades=False)
     text = text.strip()
     if keystore.is_address_list(text):

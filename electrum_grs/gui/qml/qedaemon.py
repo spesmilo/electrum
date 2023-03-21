@@ -128,6 +128,7 @@ class QEDaemon(AuthMixin, QObject):
     serverConnectWizardChanged = pyqtSignal()
     loadingChanged = pyqtSignal()
     passwordChangeFailed = pyqtSignal()
+    requestNewPassword = pyqtSignal()
 
     walletLoaded = pyqtSignal([str,str], arguments=['name','path'])
     walletRequiresPassword = pyqtSignal([str,str], arguments=['name','path'])
@@ -262,7 +263,7 @@ class QEDaemon(AuthMixin, QObject):
         self._logger.debug('deleting wallet with path %s' % path)
         self._current_wallet = None
         # TODO walletLoaded signal is confusing
-        self.walletLoaded.emit()
+        self.walletLoaded.emit(None, None)
 
         if not self.daemon.delete_wallet(path):
             self.walletDeleteError.emit('error', _('Problem deleting wallet'))
@@ -305,9 +306,8 @@ class QEDaemon(AuthMixin, QObject):
             i = i + 1
         return f'wallet_{i}'
 
-    requestNewPassword = pyqtSignal()
     @pyqtSlot()
-    @auth_protect
+    @auth_protect(method='wallet')
     def startChangePassword(self):
         if self._use_single_password:
             self.requestNewPassword.emit()

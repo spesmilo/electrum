@@ -11,11 +11,6 @@ ElDialog {
 
     property bool valid: false
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
     width: parent.width
     height: parent.height
 

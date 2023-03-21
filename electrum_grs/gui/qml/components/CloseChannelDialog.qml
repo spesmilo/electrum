@@ -18,11 +18,6 @@ ElDialog {
     title: qsTr('Close Channel')
     iconSource: Qt.resolvedUrl('../../icons/lightning_disconnected.png')
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
     property bool _closing: false
 
     closePolicy: Popup.NoAutoClose
@@ -141,12 +136,12 @@ ElDialog {
                     Layout.columnSpan: 2
                     Layout.maximumWidth: parent.width
 
-                    Label {
+                    InfoTextArea {
                         id: errorText
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: parent.width
-                        visible: !_closing && errorText
-                        wrapMode: Text.Wrap
+                        visible: !_closing && errorText.text
+                        iconStyle: InfoTextArea.IconStyle.Error
                     }
                     Label {
                         Layout.alignment: Qt.AlignHCenter

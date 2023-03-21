@@ -27,7 +27,8 @@ class QENetwork(QObject, QtEventListener):
     dataChanged = pyqtSignal()
 
     _height = 0
-    _status = ""
+    _server_status = ""
+    _network_status = ""
     _chaintips = 1
     _islagging = False
     _fee_histogram = []
@@ -71,9 +72,14 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_status(self, *args):
-        self._logger.debug('status updated: %s' % self.network.connection_status)
-        if self._status != self.network.connection_status:
-            self._status = self.network.connection_status
+        network_status = self.network.get_status()
+        if self._network_status != network_status:
+            self._network_status = network_status
+            self.statusChanged.emit()
+        server_status = self.network.connection_status
+        self._logger.debug('server_status updated: %s' % server_status)
+        if self._server_status != server_status:
+            self._server_status = server_status
             self.statusChanged.emit()
         chains = len(self.network.get_blockchains())
         if chains != self._chaintips:
@@ -89,13 +95,13 @@ class QENetwork(QObject, QtEventListener):
     @event_listener
     def on_event_fee_histogram(self, histogram):
         self._logger.debug(f'fee histogram updated: {repr(histogram)}')
-        if histogram is None:
-            histogram = []
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
+        if not histogram:
+            histogram = [[FEERATE_DEFAULT_RELAY/1000,1]]
         # cap the histogram to a limited number of megabytes
-        bytes_limit=25*1000*1000
+        bytes_limit=10*1000*1000
         bytes_current = 0
         capped_histogram = []
         for item in sorted(histogram, key=lambda x: x[0], reverse=True):
@@ -109,8 +115,8 @@ class QENetwork(QObject, QtEventListener):
         self._fee_histogram = {
             'histogram': capped_histogram,
             'total': bytes_current,
-            'min_fee': capped_histogram[-1][0],
-            'max_fee': capped_histogram[0][0]
+            'min_fee': capped_histogram[-1][0] if capped_histogram else FEERATE_DEFAULT_RELAY/1000,
+            'max_fee': capped_histogram[0][0] if capped_histogram else FEERATE_DEFAULT_RELAY/1000
         }
         self.feeHistogramUpdated.emit()
 
@@ -161,12 +167,16 @@ class QENetwork(QObject, QtEventListener):
             if not server: raise Exception("failed to parse")
         except Exception:
             return
-        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect, oneserver=not self._qeconfig.autoConnect)
+        net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     @pyqtProperty(str, notify=statusChanged)
     def status(self):
-        return self._status
+        return self._network_status
+
+    @pyqtProperty(str, notify=statusChanged)
+    def server_status(self):
+        return self._server_status
 
     @pyqtProperty(int, notify=chaintipsChanged)
     def chaintips(self):

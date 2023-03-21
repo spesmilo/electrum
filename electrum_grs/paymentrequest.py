@@ -152,6 +152,7 @@ class PaymentRequest:
         self.payment_url = self.details.payment_url
 
     def verify(self, contacts):
+        # FIXME: we should enforce that this method was called before we attempt payment
         if self.error:
             return False
         if not self.raw:

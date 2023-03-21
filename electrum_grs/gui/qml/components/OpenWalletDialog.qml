@@ -18,12 +18,6 @@ ElDialog {
     title: qsTr('Open Wallet')
     iconSource: Qt.resolvedUrl('../../icons/wallet.png')
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     focus: true
 
     width: parent.width * 4/5

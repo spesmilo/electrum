@@ -30,7 +30,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QPushButton, QLabel)
 
 from electrum_grs.i18n import _
-from .util import MyTreeView, Buttons
+from .util import Buttons
+from .my_treeview import MyTreeView
 
 
 class WatcherList(MyTreeView):

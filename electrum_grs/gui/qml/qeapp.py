@@ -247,13 +247,17 @@ class QEAppController(BaseCrashReporter, QObject):
         def report_task():
             try:
                 response = BaseCrashReporter.send_report(self, network.asyncio_loop, proxy)
-                self.sendingBugreportSuccess.emit(response)
             except Exception as e:
                 self.logger.error('There was a problem with the automatic reporting', exc_info=e)
                 self.sendingBugreportFailure.emit(_('There was a problem with the automatic reporting:') + '<br/>' +
                                         repr(e)[:120] + '<br/><br/>' +
                                         _("Please report this issue manually") +
                                         f' <a href="{constants.GIT_REPO_ISSUES_URL}">on GitHub</a>.')
+            else:
+                text = response.text
+                if response.url:
+                    text += f" You can track further progress on <a href='{response.url}'>GitHub</a>."
+                self.sendingBugreportSuccess.emit(text)
 
         self.sendingBugreport.emit()
         threading.Thread(target=report_task).start()

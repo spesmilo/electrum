@@ -41,8 +41,6 @@ if TYPE_CHECKING:
     from electrum_grs.transaction import PartialTxInput
     from .main_window import ElectrumWindow
 
-# todo:
-#  - edit label in tx detail window
 
 
 class UTXODialog(WindowModalDialog):
@@ -53,11 +51,6 @@ class UTXODialog(WindowModalDialog):
         self.config = window.config
         self.wallet = window.wallet
         self.utxo = utxo
-
-        txid = self.utxo.prevout.txid.hex()
-        parents = self.wallet.get_tx_parents(txid)
-        num_parents = len(parents)
-        parents_copy = copy.deepcopy(parents)
 
         self.parents_list = QTextBrowserWithDefaultSize(800, 400)
         self.parents_list.setOpenLinks(False)  # disable automatic link opening
@@ -70,6 +63,29 @@ class UTXODialog(WindowModalDialog):
         self.txo_color_uncle = TxOutputColoring(
             legend=_("Address reuse"), color=ColorScheme.RED, tooltip=_("Address reuse"))
 
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(_("Output point") + ": " + str(self.utxo.short_id)))
+        vbox.addWidget(QLabel(_("Amount") + ": " + self.main_window.format_amount_and_units(self.utxo.value_sats())))
+        self.stats_label = WWLabel()
+        vbox.addWidget(self.stats_label)
+        vbox.addWidget(self.parents_list)
+        legend_hbox = QHBoxLayout()
+        legend_hbox.setContentsMargins(0, 0, 0, 0)
+        legend_hbox.addStretch(2)
+        legend_hbox.addWidget(self.txo_color_parent.legend_label)
+        legend_hbox.addWidget(self.txo_color_uncle.legend_label)
+        vbox.addLayout(legend_hbox)
+        vbox.addLayout(Buttons(CloseButton(self)))
+        self.setLayout(vbox)
+        self.update()
+        self.main_window.labels_changed_signal.connect(self.update)
+
+    def update(self):
+
+        txid = self.utxo.prevout.txid.hex()
+        parents = self.wallet.get_tx_parents(txid)
+        num_parents = len(parents)
+        parents_copy = copy.deepcopy(parents)
         cursor = self.parents_list.textCursor()
         ext = QTextCharFormat()
 
@@ -84,6 +100,7 @@ class UTXODialog(WindowModalDialog):
             ASCII_PIPE   = '│'
             ASCII_SPACE  = ' '
 
+        self.parents_list.clear()
         self.num_reuse = 0
         def print_ascii_tree(_txid, prefix, is_last, is_uncle):
             if _txid not in parents:
@@ -118,24 +135,12 @@ class UTXODialog(WindowModalDialog):
 
         # recursively build the tree
         print_ascii_tree(txid, '', False, False)
-        vbox = QVBoxLayout()
-        vbox.addWidget(QLabel(_("Output point") + ": " + str(self.utxo.short_id)))
-        vbox.addWidget(QLabel(_("Amount") + ": " + self.main_window.format_amount_and_units(self.utxo.value_sats())))
         msg = _("This UTXO has {} parent transactions in your wallet.").format(num_parents)
         if self.num_reuse:
             msg += '\n' + _('This does not include transactions that are downstream of address reuse.')
-        vbox.addWidget(WWLabel(msg))
-        vbox.addWidget(self.parents_list)
-        legend_hbox = QHBoxLayout()
-        legend_hbox.setContentsMargins(0, 0, 0, 0)
-        legend_hbox.addStretch(2)
-        legend_hbox.addWidget(self.txo_color_parent.legend_label)
-        legend_hbox.addWidget(self.txo_color_uncle.legend_label)
-        vbox.addLayout(legend_hbox)
+        self.stats_label.setText(msg)
         self.txo_color_parent.legend_label.setVisible(True)
         self.txo_color_uncle.legend_label.setVisible(bool(self.num_reuse))
-        vbox.addLayout(Buttons(CloseButton(self)))
-        self.setLayout(vbox)
         # set cursor to top
         cursor.setPosition(0)
         self.parents_list.setTextCursor(cursor)

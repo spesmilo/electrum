@@ -61,10 +61,10 @@ class Plugin(RevealerPlugin):
         self.extension = False
 
     @hook
-    def create_status_bar(self, parent):
+    def create_status_bar(self, sb):
         b = StatusBarButton(read_QIcon('revealer.png'), "Revealer "+_("Visual Cryptography Plugin"),
-                            partial(self.setup_dialog, parent))
-        parent.addPermanentWidget(b)
+                            partial(self.setup_dialog, sb), sb.height())
+        sb.addPermanentWidget(b)
 
     def requires_settings(self):
         return True

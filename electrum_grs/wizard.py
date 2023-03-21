@@ -9,6 +9,8 @@ from electrum_grs.wallet_db import WalletDB
 from electrum_grs.bip32 import normalize_bip32_derivation, xpub_type
 from electrum_grs import keystore
 from electrum_grs import bitcoin
+from electrum_grs.mnemonic import is_any_2fa_seed_type
+
 
 class WizardViewState(NamedTuple):
     view: str
@@ -233,7 +235,7 @@ class NewWalletWizard(AbstractWizard):
         raise NotImplementedError()
 
     def is_bip39_seed(self, wizard_data):
-        return wizard_data['seed_variant'] == 'bip39'
+        return wizard_data.get('seed_variant') == 'bip39'
 
     def is_multisig(self, wizard_data):
         return wizard_data['wallet_type'] == 'multisig'
@@ -365,7 +367,7 @@ class NewWalletWizard(AbstractWizard):
                 derivation = normalize_bip32_derivation(data['derivation_path'])
                 script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
-            elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa '2fa'
+            elif is_any_2fa_seed_type(data['seed_type']):
                 self._logger.debug('creating keystore from 2fa seed')
                 k = keystore.from_xprv(data['x1/']['xprv'])
             else:
@@ -435,11 +437,14 @@ class ServerConnectWizard(AbstractWizard):
     def __init__(self, daemon):
         self.navmap = {
             'autoconnect': {
-                'next': 'proxy_config',
+                'next': 'server_config',
                 'last': lambda v,d: d['autoconnect']
             },
+            'proxy_ask': {
+                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
+            },
             'proxy_config': {
-                'next': 'server_config'
+                'next': 'autoconnect'
             },
             'server_config': {
                 'last': True
@@ -449,5 +454,5 @@ class ServerConnectWizard(AbstractWizard):
 
     def start(self, initial_data = {}):
         self.reset()
-        self._current = WizardViewState('autoconnect', initial_data, {})
+        self._current = WizardViewState('proxy_ask', initial_data, {})
         return self._current

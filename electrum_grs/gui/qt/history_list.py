@@ -33,7 +33,7 @@ import threading
 import enum
 from decimal import Decimal
 
-from PyQt5.QtGui import QMouseEvent, QFont, QBrush, QColor
+from PyQt5.QtGui import QFont, QBrush, QColor
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
 from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
@@ -50,8 +50,9 @@ from electrum_grs.logging import get_logger, Logger
 
 from .custom_model import CustomNode, CustomModel
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
-                   filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
+                   filename_field, AcceptFileDragDrop, WindowModalDialog,
                    CloseButton, webopen, WWLabel)
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from electrum_grs.wallet import Abstract_Wallet
@@ -551,7 +552,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar(self.config))
         self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
         self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)
-        menu.addAction(_("&Summary"), self.show_summary)
+        self.menu_summary = menu.addAction(_("&Summary"), self.show_summary)
         menu.addAction(_("&Plot"), self.plot_history_dialog)
         menu.addAction(_("&Export"), self.export_history_dialog)
         hbox = self.create_toolbar_buttons()
@@ -561,9 +562,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def update_toolbar_menu(self):
         fx = self.main_window.fx
-        b = fx and fx.is_enabled() and fx.has_history()
-        self.menu_fiat.setEnabled(b)
-        self.menu_capgains.setEnabled(b)
+        self.menu_fiat.setEnabled(fx and fx.can_have_history())
+        # setChecked because has_history can be modified through settings dialog
+        self.menu_fiat.setChecked(fx and fx.has_history())
+        self.menu_capgains.setEnabled(fx and fx.has_history())
+        self.menu_summary.setEnabled(fx and fx.has_history())
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
@@ -708,25 +711,17 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             assert False
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        org_idx: QModelIndex = self.indexAt(event.pos())
-        idx = self.proxy.mapToSource(org_idx)
-        if not idx.isValid():
-            # can happen e.g. before list is populated for the first time
-            return
+    def on_double_click(self, idx):
         tx_item = idx.internalPointer().get_data()
-        if self.hm.flags(idx) & Qt.ItemIsEditable:
-            super().mouseDoubleClickEvent(event)
-        else:
-            if tx_item.get('lightning'):
-                if tx_item['type'] == 'payment':
-                    self.main_window.show_lightning_transaction(tx_item)
-                return
-            tx_hash = tx_item['txid']
-            tx = self.wallet.adb.get_transaction(tx_hash)
-            if not tx:
-                return
-            self.main_window.show_transaction(tx)
+        if tx_item.get('lightning'):
+            if tx_item['type'] == 'payment':
+                self.main_window.show_lightning_transaction(tx_item)
+            return
+        tx_hash = tx_item['txid']
+        tx = self.wallet.adb.get_transaction(tx_hash)
+        if not tx:
+            return
+        self.main_window.show_transaction(tx)
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))
@@ -751,7 +746,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_item = idx.internalPointer().get_data()
         if tx_item.get('lightning') and tx_item['type'] == 'payment':
             menu = QMenu()
-            menu.addAction(_("View Payment"), lambda: self.main_window.show_lightning_transaction(tx_item))
+            menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
             cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
@@ -769,6 +764,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_details = self.wallet.get_tx_info(tx)
         is_unconfirmed = tx_details.tx_mined_status.height <= 0
         menu = QMenu()
+        menu.addAction(_("Details"), lambda: self.main_window.show_transaction(tx))
         if tx_details.can_remove:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         copy_menu = self.add_copy_menu(menu, idx)
@@ -780,7 +776,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
             menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("View Transaction"), lambda: self.main_window.show_transaction(tx))
         channel_id = tx_item.get('channel_id')
         if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
             menu.addAction(_("View Channel"), lambda: self.main_window.show_channel_details(chan))
@@ -832,7 +827,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d = WindowModalDialog(self, _('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-grs-history.csv')
+        defaultname = f'electrum-grs-history-{self.wallet.basename()}.csv'
         select_msg = _('Select file to export your wallet transactions to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)

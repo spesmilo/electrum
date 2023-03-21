@@ -36,9 +36,11 @@ from electrum_grs.util import format_time
 from electrum_grs.invoices import Invoice, PR_UNPAID, PR_PAID, PR_INFLIGHT, PR_FAILED
 from electrum_grs.lnutil import HtlcLog
 
-from .util import MyTreeView, read_QIcon, MySortModel, pr_icons
+from .util import read_QIcon, pr_icons
 from .util import CloseButton, Buttons
 from .util import WindowModalDialog
+
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -81,6 +83,10 @@ class InvoiceList(MyTreeView):
         self.setModel(self.proxy)
         self.setSortingEnabled(True)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+
+    def on_double_click(self, idx):
+        key = idx.sibling(idx.row(), self.Columns.DATE).data(ROLE_REQUEST_ID)
+        self.show_invoice(key)
 
     def refresh_row(self, key, row):
         assert row is not None
@@ -133,6 +139,13 @@ class InvoiceList(MyTreeView):
         self.sortByColumn(self.Columns.DATE, Qt.DescendingOrder)
         self.hide_if_empty()
 
+    def show_invoice(self, key):
+        invoice = self.wallet.get_invoice(key)
+        if invoice.is_lightning():
+            self.main_window.show_lightning_invoice(invoice)
+        else:
+            self.main_window.show_onchain_invoice(invoice)
+
     def hide_if_empty(self):
         b = self.std_model.rowCount() > 0
         self.setVisible(b)
@@ -159,17 +172,17 @@ class InvoiceList(MyTreeView):
         key = item_col0.data(ROLE_REQUEST_ID)
         invoice = self.wallet.get_invoice(key)
         menu = QMenu(self)
+        menu.addAction(_("Details"), lambda: self.show_invoice(key))
         copy_menu = self.add_copy_menu(menu, idx)
         address = invoice.get_address()
         if address:
             copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(invoice.get_address(), title='Groestlcoin Address'))
-        if invoice.is_lightning():
-            menu.addAction(_("Details"), lambda: self.main_window.show_lightning_invoice(invoice))
-        else:
-            menu.addAction(_("Details"), lambda: self.main_window.show_onchain_invoice(invoice))
         status = wallet.get_invoice_status(invoice)
         if status == PR_UNPAID:
-            menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
+            if bool(invoice.get_amount_sat()):
+                menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
+            else:
+                menu.addAction(_("Edit amount") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.send_tab.do_pay_invoice(invoice))
         if self.wallet.lnworker:

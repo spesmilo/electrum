@@ -15,7 +15,7 @@ from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel,
                    char_width_in_lineedit)
 from .amountedit import BTCAmountEdit
-
+from .my_treeview import create_toolbar_with_menu
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -34,7 +34,7 @@ class NewChannelDialog(WindowModalDialog):
         self.trampoline_names = list(self.trampolines.keys())
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
-        toolbar, menu = util.create_toolbar_with_menu(self.config, '')
+        toolbar, menu = create_toolbar_with_menu(self.config, '')
         recov_tooltip = messages.to_rtf(_(messages.MSG_RECOVERABLE_CHANNELS))
         menu.addConfig(
             _("Create recoverable channels"), 'use_recoverable_channels', True,

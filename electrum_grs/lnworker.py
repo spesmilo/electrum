@@ -2421,11 +2421,8 @@ class LNWallet(LNWorker):
             raise Exception(f'Unknown channel {channel_id.hex()}')
 
     def import_channel_backup(self, data):
-        assert data.startswith('channel_backup:')
-        encrypted = data[15:]
         xpub = self.wallet.get_fingerprint()
-        decrypted = pw_decode_with_version_and_mac(encrypted, xpub)
-        cb_storage = ImportedChannelBackupStorage.from_bytes(decrypted)
+        cb_storage = ImportedChannelBackupStorage.from_encrypted_str(data, password=xpub)
         channel_id = cb_storage.channel_id()
         if channel_id.hex() in self.db.get_dict("channels"):
             raise Exception('Channel already in wallet')

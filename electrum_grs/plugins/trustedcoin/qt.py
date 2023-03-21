@@ -103,8 +103,9 @@ class Plugin(TrustedCoinPlugin):
         else:
             action = partial(self.settings_dialog, window)
             icon = read_QIcon("trustedcoin-status.png")
-        button = StatusBarButton(icon, _("TrustedCoin"), action)
-        window.statusBar().addPermanentWidget(button)
+        sb = window.statusBar()
+        button = StatusBarButton(icon, _("TrustedCoin"), action, sb.height())
+        sb.addPermanentWidget(button)
         self.start_request_thread(window.wallet)
 
     def auth_dialog(self, window):

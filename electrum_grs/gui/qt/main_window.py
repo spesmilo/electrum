@@ -111,15 +111,14 @@ LN_NUM_PAYMENT_ATTEMPTS = 10
 
 class StatusBarButton(QToolButton):
     # note: this class has a custom stylesheet applied in stylesheet_patcher.py
-    def __init__(self, icon, tooltip, func, size=0):
+    def __init__(self, icon, tooltip, func, sb_height):
         QToolButton.__init__(self)
         self.setText('')
         self.setIcon(icon)
         self.setToolTip(tooltip)
         self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.setAutoRaise(True)
-        if not size:
-            size = max(25, round(1.8 * font_height()))
+        size = max(25, round(0.9 * sb_height))
         self.setMaximumWidth(size)
         self.clicked.connect(self.onPress)
         self.func = func
@@ -165,6 +164,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     show_error_signal = pyqtSignal(str)
+    labels_changed_signal = pyqtSignal()
 
     def __init__(self, gui_object: 'ElectrumGui', wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
@@ -341,8 +341,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
-        item_text = (_("Hide {}") if show else _("Show {}")).format(tab.tab_description)
-        tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
             index = len(self.tabs)
@@ -701,8 +699,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
         def add_toggle_action(view_menu, tab):
             is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
-            item_name = (_("Hide {}") if is_shown else _("Show {}")).format(tab.tab_description)
-            tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
+            tab.menu_action = view_menu.addAction(tab.tab_description, lambda: self.toggle_tab(tab))
+            tab.menu_action.setCheckable(True)
+            tab.menu_action.setChecked(is_shown)
 
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
@@ -1292,14 +1291,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.show_message(message)
 
-    def query_choice(self, msg, choices):
+    def query_choice(self, msg, choices, title=_('Question'), default_choice=None):
         # Needed by QtHandler for hardware wallets
-        dialog = WindowModalDialog(self.top_level_window(), title='Question')
+        dialog = WindowModalDialog(self.top_level_window(), title=title)
         dialog.setMinimumWidth(400)
-        clayout = ChoicesLayout(msg, choices)
+        clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
         vbox = QVBoxLayout(dialog)
         vbox.addLayout(clayout.layout())
-        vbox.addLayout(Buttons(CancelButton(dialog), OkButton(dialog)))
+        cancel_button = CancelButton(dialog)
+        vbox.addLayout(Buttons(cancel_button, OkButton(dialog)))
+        cancel_button.setFocus()
         if not dialog.exec_():
             return None
         return clayout.selected_index()
@@ -1455,16 +1456,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             grid.addWidget(QLabel(_("Expiration time") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(invoice.time + invoice.exp)), 4, 1)
         grid.addWidget(QLabel(_('Features') + ':'), 5, 0)
-        grid.addWidget(QLabel('\n'.join(lnaddr.get_features().get_names())), 5, 1)
+        grid.addWidget(QLabel(', '.join(lnaddr.get_features().get_names())), 5, 1)
         payhash_e = ShowQRLineEdit(lnaddr.paymenthash.hex(), self.config, title=_("Payment Hash"))
         grid.addWidget(QLabel(_("Payment Hash") + ':'), 6, 0)
         grid.addWidget(payhash_e, 6, 1)
+        fallback = lnaddr.get_fallback_address()
+        if fallback:
+            fallback_e = ShowQRLineEdit(fallback, self.config, title=_("Fallback address"))
+            grid.addWidget(QLabel(_("Fallback address") + ':'), 7, 0)
+            grid.addWidget(fallback_e, 7, 1)
         invoice_e = ShowQRTextEdit(config=self.config)
         invoice_e.setFont(QFont(MONOSPACE_FONT))
         invoice_e.addCopyButton()
         invoice_e.setText(invoice.lightning_invoice)
-        grid.addWidget(QLabel(_('Text') + ':'), 7, 0)
-        grid.addWidget(invoice_e, 7, 1)
+        grid.addWidget(QLabel(_('Text') + ':'), 8, 0)
+        grid.addWidget(invoice_e, 8, 1)
         vbox.addLayout(grid)
         vbox.addLayout(Buttons(CloseButton(d),))
         d.exec_()
@@ -1528,7 +1534,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         font_height = QFontMetrics(self.balance_label.font()).height()
         sb_height = max(35, int(2 * font_height))
         sb.setFixedHeight(sb_height)
-        sb_inner_height = sb.childrenRect().height()
 
         # remove border of all items in status bar
         self.setStyleSheet("QStatusBar::item { border: 0px;} ")
@@ -1548,18 +1553,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.tasks_label = QLabel('')
         sb.addPermanentWidget(self.tasks_label)
 
-        self.password_button = StatusBarButton(QIcon(), _("Password"), self.change_password_dialog, sb_inner_height)
+        self.password_button = StatusBarButton(QIcon(), _("Password"), self.change_password_dialog, sb_height)
         sb.addPermanentWidget(self.password_button)
 
-        sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog, sb_inner_height))
-        self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog, sb_inner_height)
+        sb.addPermanentWidget(StatusBarButton(read_QIcon("preferences.png"), _("Preferences"), self.settings_dialog, sb_height))
+        self.seed_button = StatusBarButton(read_QIcon("seed.png"), _("Seed"), self.show_seed_dialog, sb_height)
         sb.addPermanentWidget(self.seed_button)
-        self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog, sb_inner_height)
+        self.lightning_button = StatusBarButton(read_QIcon("lightning.png"), _("Lightning Network"), self.gui_object.show_lightning_dialog, sb_height)
         sb.addPermanentWidget(self.lightning_button)
         self.update_lightning_icon()
         self.status_button = None
         if self.network:
-            self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog, sb_inner_height)
+            self.status_button = StatusBarButton(read_QIcon("status_disconnected.png"), _("Network"), self.gui_object.show_network_dialog, sb_height)
             sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
         self.setStatusBar(sb)
@@ -1735,6 +1740,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         grid.addWidget(WWLabel(_("Wallet name")+ ':'), cur_row, 0)
         grid.addWidget(WWLabel(basename), cur_row, 1)
         cur_row += 1
+        if db_metadata := self.wallet.db.get_db_metadata():
+            grid.addWidget(WWLabel(_("File created") + ':'), cur_row, 0)
+            grid.addWidget(WWLabel(db_metadata.to_str()), cur_row, 1)
+            cur_row += 1
         grid.addWidget(WWLabel(_("Wallet type")+ ':'), cur_row, 0)
         grid.addWidget(WWLabel(wallet_type), cur_row, 1)
         cur_row += 1
@@ -1757,7 +1766,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
                 grid.addWidget(WWLabel(_('Enabled')), cur_row, 1)
             else:
                 label = IconLabel(text='Enabled, non-recoverable channels')
-                label.setIcon(read_QIcon('nocloud'))
+                label.setIcon(read_QIcon('cloud_no'))
                 grid.addWidget(label, cur_row, 1)
                 if self.wallet.db.get('seed_type') == 'segwit':
                     msg = _("Your channels cannot be recovered from seed, because they were created with an old version of Electrum. "
@@ -2247,7 +2256,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         e.setReadOnly(True)
         vbox.addWidget(e)
 
-        defaultname = 'electrum-grs-private-keys.csv'
+        defaultname = f'electrum-grs-private-keys-{self.wallet.basename()}.csv'
         select_msg = _('Select file to export your private keys to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)

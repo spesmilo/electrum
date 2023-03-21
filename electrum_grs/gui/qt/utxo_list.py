@@ -36,7 +36,8 @@ from electrum_grs.bitcoin import is_address
 from electrum_grs.transaction import PartialTxInput, PartialTxOutput
 from electrum_grs.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
 
-from .util import MyTreeView, ColorScheme, MONOSPACE_FONT, EnterButton
+from .util import ColorScheme, MONOSPACE_FONT, EnterButton
+from .my_treeview import MyTreeView
 from .new_channel_dialog import NewChannelDialog
 
 if TYPE_CHECKING:
@@ -263,6 +264,11 @@ class UTXOList(MyTreeView):
         self.main_window.send_tab.pay_onchain_dialog(outputs)
         self.clear_coincontrol()
 
+    def on_double_click(self, idx):
+        outpoint = idx.sibling(idx.row(), self.Columns.OUTPOINT).data(self.ROLE_PREVOUT_STR)
+        utxo = self._utxo_dict[outpoint]
+        self.main_window.show_utxo(utxo)
+
     def create_menu(self, position):
         selected = self.get_selected_outpoints()
         menu = QMenu()
@@ -276,13 +282,13 @@ class UTXOList(MyTreeView):
                 return
             utxo = coins[0]
             txid = utxo.prevout.txid.hex()
-            cc = self.add_copy_menu(menu, idx)
-            cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
             # "Details"
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("Privacy analysis"), lambda: self.main_window.show_utxo(utxo))
+                menu.addAction(_("Details"), lambda: self.main_window.show_utxo(utxo))
+            cc = self.add_copy_menu(menu, idx)
+            cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
         # fully spend
         menu_spend = menu.addMenu(_("Fully spend") + '…')
         m = menu_spend.addAction(_("send to address in clipboard"), lambda: self.pay_to_clipboard_address(coins))

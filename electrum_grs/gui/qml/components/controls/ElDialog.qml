@@ -12,6 +12,12 @@ Dialog {
         close()
     }
 
+    parent: Overlay.overlay
+    modal: true
+    Overlay.modal: Rectangle {
+        color: "#aa000000"
+    }
+
     closePolicy: allowClose
         ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
         : Popup.NoAutoClose

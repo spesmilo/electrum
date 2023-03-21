@@ -1,2 +1,2 @@
-deb https://snapshot.debian.org/archive/debian/20230226T090712Z/ bullseye main non-free contrib
-deb-src https://snapshot.debian.org/archive/debian/20230226T090712Z/ bullseye main non-free contrib
+deb https://snapshot.debian.org/archive/debian/20230317T205011Z/ bullseye main contrib
+deb-src https://snapshot.debian.org/archive/debian/20230317T205011Z/ bullseye main contrib

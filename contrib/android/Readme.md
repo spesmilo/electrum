@@ -114,7 +114,8 @@ of Android does not let you access the internal storage of an app without root.
 ```
 $ adb shell
 $ run-as org.groestlcoin.electrumgrs ls /data/data/org.groestlcoin.electrumgrs/files/data
-$ run-as org.groestlcoin.electrumgrs cp /data/data/org.groestlcoin.electrumgrs/files/data/wallets/my_wallet /sdcard/some_path/my_wallet
+$ exit  # to exit adb
+$ adb exec-out run-as org.groestlcoin.electrumgrs cat /data/data/org.groestlcoin.electrumgrs/files/data/wallets/my_wallet > my_wallet
 ```
 
 Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).
