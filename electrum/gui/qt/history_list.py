@@ -552,7 +552,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar(self.config))
         self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
         self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)
-        menu.addAction(_("&Summary"), self.show_summary)
+        self.menu_summary = menu.addAction(_("&Summary"), self.show_summary)
         menu.addAction(_("&Plot"), self.plot_history_dialog)
         menu.addAction(_("&Export"), self.export_history_dialog)
         hbox = self.create_toolbar_buttons()
@@ -566,6 +566,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         # setChecked because has_history can be modified through settings dialog
         self.menu_fiat.setChecked(fx and fx.has_history())
         self.menu_capgains.setEnabled(fx and fx.has_history())
+        self.menu_summary.setEnabled(fx and fx.has_history())
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
