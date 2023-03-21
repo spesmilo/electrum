@@ -7,7 +7,7 @@ util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__
 
 
 assert PlyRecipe._version == "3.11"
-assert PlyRecipe.depends == ['packaging']
+assert PlyRecipe.depends == ['packaging', 'python3']
 assert PlyRecipe.python_depends == []
 
 
