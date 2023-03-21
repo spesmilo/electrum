@@ -376,10 +376,10 @@ class Commands:
         Example value for "jsontx" arg: {
             "inputs": [
                 {"prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539", "prevout_n": 1,
-                 "value_sats": 1000000, "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD"}
+                 "value_sats": 1000000, "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6Ey5hfc1"}
             ],
             "outputs": [
-                {"address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd", "value_sats": 990000}
+                {"address": "tgrs1q9pzjpjq4nqx5ycnywekcmycqz0wjp2nqsv2vqc", "value_sats": 990000}
             ]
         }
         """
