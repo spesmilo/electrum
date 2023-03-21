@@ -212,7 +212,7 @@ p4a.local_recipes = %(source.dir)s/contrib/android/p4a_recipes/
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
-log_level = 1
+log_level = 2
 
 # (str) Path to build output (i.e. .apk, .ipa) storage
 bin_dir = ./dist
