@@ -19,7 +19,7 @@ Dialog {
     }
 
     closePolicy: allowClose
-        ? Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        ? Popup.CloseOnPressOutside
         : Popup.NoAutoClose
 
     onOpenedChanged: {
