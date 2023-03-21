@@ -47,6 +47,7 @@ ElDialog {
                 Label {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
+                    Layout.bottomMargin: constants.paddingLarge
                     text: qsTr('Increase your transaction\'s fee to improve its position in the mempool')
                     wrapMode: Text.Wrap
                 }

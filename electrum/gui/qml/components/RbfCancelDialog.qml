@@ -44,6 +44,7 @@ ElDialog {
                 Label {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
+                    Layout.bottomMargin: constants.paddingLarge
                     text: qsTr('Cancel an unconfirmed RBF transaction by double-spending its inputs back to your wallet with a higher fee.')
                     wrapMode: Text.Wrap
                 }
