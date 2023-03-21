@@ -116,7 +116,7 @@ ElDialog {
                 }
 
                 Label {
-                    text: 'sat/vB'
+                    text: 'gro/vB'
                     color: Material.accentColor
                 }
             }

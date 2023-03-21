@@ -164,7 +164,7 @@ ElDialog {
 
                     Label {
                         visible: cpfpfeebumper.valid
-                        text: 'sat/vB'
+                        text: 'gro/vB'
                         color: Material.accentColor
                     }
                 }

@@ -1892,7 +1892,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
-        old_fee_rate = old_fee / old_tx_size  # sat/vbyte
+        old_fee_rate = old_fee / old_tx_size  # gro/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotBumpFee(_("The new fee rate needs to be higher than the old fee rate."))
 
@@ -2153,7 +2153,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         old_tx_size = tx.estimated_size()
         old_fee = tx.get_fee()
         assert old_fee is not None
-        old_fee_rate = old_fee / old_tx_size  # sat/vbyte
+        old_fee_rate = old_fee / old_tx_size  # gro/vbyte
         if new_fee_rate <= old_fee_rate:
             raise CannotDoubleSpendTx(_("The new fee rate needs to be higher than the old fee rate."))
         # grab all ismine inputs

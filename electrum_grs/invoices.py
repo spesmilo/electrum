@@ -300,7 +300,7 @@ class Request(BaseInvoice):
         *,
         lightning_invoice: Optional[str] = None,
     ) -> Optional[str]:
-        from electrum.util import create_bip21_uri
+        from electrum_grs.util import create_bip21_uri
         addr = self.get_address()
         amount = self.get_amount_sat()
         if amount is not None:

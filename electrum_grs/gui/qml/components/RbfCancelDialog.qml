@@ -71,7 +71,7 @@ ElDialog {
                     }
 
                     Label {
-                        text: 'sat/vB'
+                        text: 'gro/vB'
                         color: Material.accentColor
                     }
                 }
@@ -100,7 +100,7 @@ ElDialog {
 
                     Label {
                         visible: txcanceller.valid
-                        text: 'sat/vB'
+                        text: 'gro/vB'
                         color: Material.accentColor
                     }
                 }
