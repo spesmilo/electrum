@@ -112,32 +112,41 @@ ApplicationWindow
                 Layout.alignment: Qt.AlignVCenter
 
                 Item {
-                    Layout.preferredWidth: constants.paddingXLarge
-                    Layout.preferredHeight: 1
-                }
-
-                Image {
-                    Layout.preferredWidth: constants.iconSizeSmall
-                    Layout.preferredHeight: constants.iconSizeSmall
-                    visible: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
-                    source: '../../icons/wallet.png'
-                }
-
-                Label {
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
-                    text: stack.currentItem.title
-                        ? stack.currentItem.title
-                        : Daemon.currentWallet.name
-                    elide: Label.ElideRight
-                    verticalAlignment: Qt.AlignVCenter
-                    font.pixelSize: constants.fontSizeMedium
-                    font.bold: true
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            stack.getRoot().menu.open()
+                            stack.getRoot().menu.open()  // open wallet-menu
                             stack.getRoot().menu.y = toolbar.height
+                        }
+                    }
+
+                    RowLayout {
+
+                        Item {
+                            Layout.preferredWidth: constants.paddingXLarge
+                            Layout.preferredHeight: 1
+                        }
+
+                        Image {
+                            Layout.preferredWidth: constants.iconSizeSmall
+                            Layout.preferredHeight: constants.iconSizeSmall
+                            visible: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
+                            source: '../../icons/wallet.png'
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Math.max(implicitHeight, toolbarTopLayout.height)
+                            text: stack.currentItem.title
+                                ? stack.currentItem.title
+                                : Daemon.currentWallet.name
+                            elide: Label.ElideRight
+                            verticalAlignment: Qt.AlignVCenter
+                            font.pixelSize: constants.fontSizeMedium
+                            font.bold: true
                         }
                     }
                 }
@@ -148,7 +157,7 @@ ApplicationWindow
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: openAppMenu()
+                        onClicked: openAppMenu()  // open global-app-menu
                     }
 
                     RowLayout {
