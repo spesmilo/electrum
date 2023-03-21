@@ -12,7 +12,7 @@ Dialog {
         close()
     }
 
-    parent: Overlay.overlay
+    parent: Overlay.overlay.children[0]
     modal: true
     Overlay.modal: Rectangle {
         color: "#aa000000"

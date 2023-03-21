@@ -48,8 +48,14 @@ class ElectrumGui(Logger):
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         set_language(config.get('language', self.get_default_language()))
         Logger.__init__(self)
-        #os.environ['QML_IMPORT_TRACE'] = '1'
-        #os.environ['QT_DEBUG_PLUGINS'] = '1'
+
+        # uncomment to debug plugin and import tracing
+        # os.environ['QML_IMPORT_TRACE'] = '1'
+        # os.environ['QT_DEBUG_PLUGINS'] = '1'
+
+        os.environ['QT_IM_MODULE'] = 'qtvirtualkeyboard'
+        os.environ['QT_VIRTUALKEYBOARD_STYLE'] = 'Electrum'
+        os.environ['QML2_IMPORT_PATH'] = 'electrum/gui/qml'
 
         self.logger.info(f"Qml GUI starting up... Qt={QT_VERSION_STR}, PyQt={PYQT_VERSION_STR}")
         self.logger.info("CWD=%s" % os.getcwd())

@@ -6,6 +6,7 @@ import QtQuick.Controls.Material.impl 2.12
 
 import QtQml 2.6
 import QtMultimedia 5.6
+import QtQuick.VirtualKeyboard 2.15
 
 import org.electrum 1.0
 
@@ -30,6 +31,7 @@ ApplicationWindow
     Constants { id: appconstants }
 
     property alias stack: mainStackView
+    property alias inputPanel: inputPanel
 
     property variant activeDialogs: []
 
@@ -216,8 +218,9 @@ ApplicationWindow
 
     StackView {
         id: mainStackView
-        anchors.fill: parent
-
+        // anchors.fill: parent
+        width: parent.width
+        height: inputPanel.y - header.height
         initialItem: Qt.resolvedUrl('WalletMainView.qml')
 
         function getRoot() {
@@ -258,26 +261,51 @@ ApplicationWindow
         }
     }
 
+    Item {
+        // Item as first child in Overlay that adjusts its size to the available
+        // screen space minus the virtual keyboard (e.g. to center dialogs in)
+        parent: Overlay.overlay
+        width: parent.width
+        height: inputPanel.y
+    }
+
+    InputPanel {
+        id: inputPanel
+        width: parent.width
+        y: parent.height
+
+        states: State {
+            name: "visible"
+            when: inputPanel.active
+            PropertyChanges {
+                target: inputPanel
+                y: parent.height - height
+            }
+        }
+        transitions: Transition {
+            from: ''
+            to: 'visible'
+            reversible: true
+            ParallelAnimation {
+                NumberAnimation {
+                    properties: "y"
+                    duration: 250
+                    easing.type: Easing.OutQuad
+                }
+            }
+        }
+    }
+
     property alias newWalletWizard: _newWalletWizard
     Component {
         id: _newWalletWizard
-        NewWalletWizard {
-            parent: Overlay.overlay
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
-        }
+        NewWalletWizard { }
     }
 
     property alias serverConnectWizard: _serverConnectWizard
     Component {
         id: _serverConnectWizard
-        ServerConnectWizard {
-            parent: Overlay.overlay
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
-        }
+        ServerConnectWizard { }
     }
 
     property alias messageDialog: _messageDialog
