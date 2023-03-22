@@ -7,12 +7,13 @@ Dialog {
 
     property bool allowClose: true
     property string iconSource
+    property bool resizeWithKeyboard: true
 
     function doClose() {
         close()
     }
 
-    parent: Overlay.overlay.children[0]
+    parent: resizeWithKeyboard ? Overlay.overlay.children[0] : Overlay.overlay
     modal: true
     Overlay.modal: Rectangle {
         color: "#aa000000"

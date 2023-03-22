@@ -264,6 +264,7 @@ ApplicationWindow
     Item {
         // Item as first child in Overlay that adjusts its size to the available
         // screen space minus the virtual keyboard (e.g. to center dialogs in)
+        // see ElDialog.resizeWithKeyboard property
         parent: Overlay.overlay
         width: parent.width
         height: inputPanel.y
