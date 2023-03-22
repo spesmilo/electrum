@@ -46,8 +46,8 @@ class ElectrumGui(Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        set_language(config.get('language', self.get_default_language()))
         Logger.__init__(self)
+        set_language(config.get('language', self.get_default_language()))
 
         # uncomment to debug plugin and import tracing
         # os.environ['QML_IMPORT_TRACE'] = '1'
@@ -56,6 +56,11 @@ class ElectrumGui(Logger):
         os.environ['QT_IM_MODULE'] = 'qtvirtualkeyboard'
         os.environ['QT_VIRTUALKEYBOARD_STYLE'] = 'Electrum'
         os.environ['QML2_IMPORT_PATH'] = 'electrum/gui/qml'
+
+        # set default locale to en_GB. This is for l10n (e.g. number formatting, number input etc),
+        # but not for i18n, which is handled by the Translator
+        # this can be removed once the backend wallet is fully l10n aware
+        QLocale.setDefault(QLocale('en_GB'))
 
         self.logger.info(f"Qml GUI starting up... Qt={QT_VERSION_STR}, PyQt={PYQT_VERSION_STR}")
         self.logger.info("CWD=%s" % os.getcwd())
@@ -111,5 +116,8 @@ class ElectrumGui(Logger):
         self.app.quit()
 
     def get_default_language(self):
+        # On Android this does not return the system locale
+        # TODO: retrieve through Android API
         name = QLocale.system().name()
-        return name if name in languages else 'en_UK'
+        self.logger.debug(f'System default locale: {name}')
+        return name if name in languages else 'en_GB'
