@@ -205,6 +205,17 @@ class UserCancelled(Exception):
     pass
 
 
+def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
+    # helper function mainly for float->Decimal conversion, i.e.:
+    #   >>> Decimal(41754.681)
+    #   Decimal('41754.680999999996856786310672760009765625')
+    #   >>> Decimal("41754.681")
+    #   Decimal('41754.681')
+    if isinstance(x, Decimal):
+        return x
+    return Decimal(str(x))
+
+
 # note: this is not a NamedTuple as then its json encoding cannot be customized
 class Satoshis(object):
     __slots__ = ('value',)

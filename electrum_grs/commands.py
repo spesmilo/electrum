@@ -42,7 +42,7 @@ import os
 
 from .import util, ecc
 from .util import (bfh, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend)
+                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -85,10 +85,10 @@ def satoshis_or_max(amount):
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN*Decimal(amount)) if amount is not None else None
+    return int(COIN*to_decimal(amount)) if amount is not None else None
 
 def format_satoshis(x):
-    return str(Decimal(x)/COIN) if x is not None else None
+    return str(to_decimal(x)/COIN) if x is not None else None
 
 
 class Command:
@@ -357,7 +357,7 @@ class Commands:
         for txin in wallet.get_utxos():
             d = txin.to_json()
             v = d.pop("value_sats")
-            d["value"] = str(Decimal(v)/COIN) if v is not None else None
+            d["value"] = str(to_decimal(v)/COIN) if v is not None else None
             coins.append(d)
         return coins
 
@@ -543,13 +543,13 @@ class Commands:
         """Return the balance of your wallet. """
         c, u, x = wallet.get_balance()
         l = wallet.lnworker.get_balance() if wallet.lnworker else None
-        out = {"confirmed": str(Decimal(c)/COIN)}
+        out = {"confirmed": str(to_decimal(c)/COIN)}
         if u:
-            out["unconfirmed"] = str(Decimal(u)/COIN)
+            out["unconfirmed"] = str(to_decimal(u)/COIN)
         if x:
-            out["unmatured"] = str(Decimal(x)/COIN)
+            out["unmatured"] = str(to_decimal(x)/COIN)
         if l:
-            out["lightning"] = str(Decimal(l)/COIN)
+            out["lightning"] = str(to_decimal(l)/COIN)
         return out
 
     @command('n')
@@ -559,8 +559,8 @@ class Commands:
         """
         sh = bitcoin.address_to_scripthash(address)
         out = await self.network.get_balance_for_scripthash(sh)
-        out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
-        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
+        out["confirmed"] =  str(to_decimal(out["confirmed"])/COIN)
+        out["unconfirmed"] =  str(to_decimal(out["unconfirmed"])/COIN)
         return out
 
     @command('n')
@@ -1056,7 +1056,7 @@ class Commands:
         else:
             raise Exception('Invalid fee estimation method: {}'.format(fee_method))
         if fee_level is not None:
-            fee_level = Decimal(fee_level)
+            fee_level = to_decimal(fee_level)
         return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
 
     @command('w')
@@ -1358,7 +1358,7 @@ class Commands:
             raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
         # Conversion
         try:
-            from_amount = Decimal(from_amount)
+            from_amount = to_decimal(from_amount)
             to_amount = from_amount / rate_from * rate_to
         except InvalidOperation:
             raise Exception("from_amount is not a number")
@@ -1456,7 +1456,7 @@ command_options = {
 
 # don't use floats because of rounding errors
 from .transaction import convert_raw_tx_to_hex
-json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
+json_loads = lambda x: json.loads(x, parse_float=lambda x: str(to_decimal(x)))
 arg_types = {
     'num': int,
     'nbits': int,
@@ -1469,8 +1469,8 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'fee': lambda x: str(Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if not parse_max_spend(x) else x,
+    'fee': lambda x: str(to_decimal(x)) if x is not None else None,
+    'amount': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
     'locktime': int,
     'addtransaction': eval_bool,
     'fee_method': str,

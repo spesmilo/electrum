@@ -19,7 +19,7 @@ from electrum_grs.logging import Logger
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget
 from .util import read_QIcon, ColorScheme, HelpLabel, WWLabel, MessageBoxMixin, MONOSPACE_FONT
-from .util import ButtonsTextEdit
+from .util import ButtonsTextEdit, get_iconname_qrcode
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -125,7 +125,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
 
         self.toggle_qr_button = QPushButton('')
-        self.toggle_qr_button.setIcon(read_QIcon('qrcode.png'))
+        self.toggle_qr_button.setIcon(read_QIcon(get_iconname_qrcode()))
         self.toggle_qr_button.setToolTip(_('Switch between text and QR code view'))
         self.toggle_qr_button.clicked.connect(self.toggle_receive_qr)
         self.toggle_qr_button.setEnabled(False)

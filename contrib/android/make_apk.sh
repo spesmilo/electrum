@@ -45,7 +45,7 @@ info "apk building phase starts."
 # So, in particular, to build a testnet apk, simply uncomment:
 #export APP_PACKAGE_DOMAIN=org.groestlcoin.testnet
 
-if [ ! $CI ]; then
+if [ $CI ]; then
     # override log level specified in buildozer.spec to "debug":
     export BUILDOZER_LOG_LEVEL=2
 fi

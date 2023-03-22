@@ -295,7 +295,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def do_clear(self):
         self._lnurl_data = None
-        self.send_button.restore_original_text()
         self.max_button.setChecked(False)
         self.payment_request = None
         self.payto_URI = None
@@ -396,7 +395,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.message_e.setText(f"lnurl: {domain}: {lnurl_data.metadata_plaintext}")
         self.amount_e.setAmount(lnurl_data.min_sendable_sat)
         self.amount_e.setFrozen(False)
-        self.send_button.setText(_('Get Invoice'))
         for btn in [self.send_button, self.clear_button]:
             btn.setEnabled(True)
         self.set_onchain(False)
@@ -559,14 +557,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.prepare_for_send_tab_network_lookup()
 
     def on_lnurl6_round2(self, bolt11_invoice: str):
-        self.set_bolt11(bolt11_invoice)
-        self.payto_e.setFrozen(True)
-        self.amount_e.setEnabled(False)
-        self.fiat_send_e.setEnabled(False)
-        for btn in [self.send_button, self.clear_button, self.save_button]:
-            btn.setEnabled(True)
-        self.send_button.restore_original_text()
         self._lnurl_data = None
+        invoice = Invoice.from_bech32(bolt11_invoice)
+        assert invoice.get_amount_sat() == self.get_amount(), (invoice.get_amount_sat(), self.get_amount())
+        self.do_clear()
+        self.payto_e.setText(bolt11_invoice)
+        self.pending_invoice = invoice
+        self.do_pay_invoice(invoice)
 
     def do_pay_or_get_invoice(self):
         if self._lnurl_data:

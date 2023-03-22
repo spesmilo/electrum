@@ -59,11 +59,12 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-get clean
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+#ARG UID=1000
 #ENV USER="user"
 #ENV HOME_DIR="/home/${USER}"
 #ENV WORK_DIR="${HOME_DIR}/wspace" \
 #    PATH="${HOME_DIR}/.local/bin:${PATH}"
-#RUN useradd --create-home --shell /bin/bash ${USER}
+#RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
 #RUN usermod -append --groups sudo ${USER}
 #RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 #WORKDIR ${WORK_DIR}

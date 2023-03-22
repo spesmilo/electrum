@@ -141,11 +141,12 @@ RUN apt -y update -qq \
 
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+#ARG UID=1000
 ENV USER="root"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
-#RUN useradd --create-home --shell /bin/bash ${USER}
+#RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
 #RUN usermod -append --groups sudo ${USER}
 #RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 WORKDIR ${WORK_DIR}
@@ -180,7 +181,7 @@ RUN cd /opt \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
     # commit: from branch accumulator/electrum_20210421d (note: careful with force-pushing! see #8162)
-    && git checkout "8589243afb48fdb116d791dc5b3973382e83273f^{commit}" \
+    && git checkout "a3add4f5f2a15a0b56f0c09d729418e4dbef475f^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars
