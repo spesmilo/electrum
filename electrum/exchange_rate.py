@@ -17,7 +17,7 @@ from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener)
+                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal)
 from .network import Network
 from .simple_config import SimpleConfig
 from .logging import Logger
@@ -38,18 +38,6 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   # Cryptocurrencies
                   'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,
                   }
-
-
-def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
-    # helper function mainly for float->Decimal conversion, i.e.:
-    #   >>> Decimal(41754.681)
-    #   Decimal('41754.680999999996856786310672760009765625')
-    #   >>> Decimal("41754.681")
-    #   Decimal('41754.681')
-    if isinstance(x, Decimal):
-        return x
-    return Decimal(str(x))
-
 
 POLL_PERIOD_SPOT_RATE = 150  # approx. every 2.5 minutes, try to refresh spot price
 EXPIRY_SPOT_RATE = 600       # spot price becomes stale after 10 minutes
