@@ -13,7 +13,7 @@ ElDialog {
     title: qsTr('Loading Wallet')
     iconSource: Qt.resolvedUrl('../../icons/wallet.png')
 
-    parent: Overlay.overlay
+    resizeWithKeyboard: false
 
     x: Math.floor((parent.width - implicitWidth) / 2)
     y: Math.floor((parent.height - implicitHeight) / 2)
