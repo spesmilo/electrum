@@ -1141,7 +1141,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             msg += '\n' + req.get_message()
             self.notify(msg)
             self.receive_tab.request_list.delete_item(key)
-            self.receive_tab.receive_tabs.setVisible(False)
+            self.receive_tab.do_clear()
             self.need_update.set()
         else:
             self.receive_tab.request_list.refresh_item(key)
