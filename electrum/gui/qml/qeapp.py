@@ -137,6 +137,8 @@ class QEAppController(BaseCrashReporter, QObject):
             self.logger.error(repr(e))
 
     def bindIntent(self):
+        if not self.isAndroid():
+            return
         try:
             from android import activity
             from jnius import autoclass
