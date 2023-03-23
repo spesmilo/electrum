@@ -55,10 +55,11 @@ ElDialog {
             BtcField {
                 id: amountBtc
                 text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
-		enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                color: Material.foreground // override gray-out on disabled
                 fiatfield: null
                 Layout.preferredWidth: parent.width /3
-		onTextAsSatsChanged: {
+                onTextAsSatsChanged: {
                     invoiceParser.amountOverride = textAsSats
                 }
             }
@@ -100,4 +101,13 @@ ElDialog {
             }
         }
     }
+
+    Connections {
+        target: invoiceParser
+        function onLnurlError(code, message) {
+            var dialog = app.messageDialog.createObject(app, { text: message })
+            dialog.open()
+        }
+    }
+
 }
