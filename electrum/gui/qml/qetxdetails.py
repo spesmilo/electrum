@@ -4,7 +4,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.i18n import _
 from electrum.logging import get_logger
-from electrum.util import format_time, AddTransactionException
+from electrum.util import format_time, AddTransactionException, TxMinedInfo
 from electrum.transaction import tx_from_any
 from electrum.network import Network
 
@@ -56,10 +56,9 @@ class QETxDetails(QObject, QtEventListener):
         self._mempool_depth = ''
 
         self._date = ''
-        self._height = 0
         self._confirmations = 0
-        self._txpos = -1
         self._header_hash = ''
+        self._short_id = ""
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -167,16 +166,12 @@ class QETxDetails(QObject, QtEventListener):
         return self._date
 
     @pyqtProperty(int, notify=detailsChanged)
-    def height(self):
-        return self._height
-
-    @pyqtProperty(int, notify=detailsChanged)
     def confirmations(self):
         return self._confirmations
 
-    @pyqtProperty(int, notify=detailsChanged)
-    def txpos(self):
-        return self._txpos
+    @pyqtProperty(str, notify=detailsChanged)
+    def shortId(self):
+        return self._short_id
 
     @pyqtProperty(str, notify=detailsChanged)
     def headerHash(self):
@@ -296,13 +291,12 @@ class QETxDetails(QObject, QtEventListener):
             self._label = txinfo.label
             self.labelChanged.emit()
 
-    def update_mined_status(self, tx_mined_info):
+    def update_mined_status(self, tx_mined_info: TxMinedInfo):
         self._mempool_depth = ''
         self._date = format_time(tx_mined_info.timestamp)
-        self._height = tx_mined_info.height
         self._confirmations = tx_mined_info.conf
-        self._txpos = tx_mined_info.txpos
         self._header_hash = tx_mined_info.header_hash
+        self._short_id = tx_mined_info.short_id() or ""
 
     @pyqtSlot()
     @pyqtSlot(bool)

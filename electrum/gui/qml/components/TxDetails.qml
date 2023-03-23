@@ -207,24 +207,13 @@ Pane {
 
                     Label {
                         visible: txdetails.isMined
-                        text: qsTr('Height')
+                        text: qsTr('Mined at')
                         color: Material.accentColor
                     }
 
                     Label {
                         visible: txdetails.isMined
-                        text: txdetails.height
-                    }
-
-                    Label {
-                        visible: txdetails.isMined
-                        text: qsTr('TX index')
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        visible: txdetails.isMined
-                        text: txdetails.txpos
+                        text: txdetails.shortId
                     }
 
                     Label {
