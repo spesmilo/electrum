@@ -439,14 +439,6 @@ ApplicationWindow
         }
     }
 
-    Shortcut {
-        context: Qt.ApplicationShortcut
-        sequence: "Esc"
-        onActivated: {
-            close()
-        }
-    }
-
     Connections {
         target: Daemon
         function onWalletRequiresPassword(name, path) {
