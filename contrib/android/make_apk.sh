@@ -93,8 +93,8 @@ if [[ "$2" == "all" ]] ; then
     make $TARGET
     #export APP_ANDROID_ARCH=x86
     #make $TARGET
-    export APP_ANDROID_ARCH=x86_64
-    make $TARGET
+    #export APP_ANDROID_ARCH=x86_64
+    #make $TARGET
 else
     export APP_ANDROID_ARCH=$2
     make $TARGET
