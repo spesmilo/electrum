@@ -3,7 +3,7 @@ import threading
 import math
 from typing import Union
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 
 from electrum.i18n import _
 from electrum.lnutil import ln_dummy_address
@@ -47,6 +47,12 @@ class QESwapHelper(AuthMixin, QObject):
 
         self._leftVoid = 0
         self._rightVoid = 0
+
+        self._fwd_swap_updatetx_timer = QTimer(self)
+        self._fwd_swap_updatetx_timer.setSingleShot(True)
+        # self._fwd_swap_updatetx_timer.setInterval(500)
+        self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
+
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -274,14 +280,12 @@ class QESwapHelper(AuthMixin, QObject):
             self.userinfo = _('Adds Lightning receiving capacity.')
             self.isReverse = True
 
-            pay_amount = abs(position)
-            self._send_amount = pay_amount
-            self.tosend = QEAmount(amount_sat=pay_amount)
+            self._send_amount = abs(position)
+            self.tosend = QEAmount(amount_sat=self._send_amount)
 
-            receive_amount = swap_manager.get_recv_amount(
-                send_amount=pay_amount, is_reverse=True)
-            self._receive_amount = receive_amount
-            self.toreceive = QEAmount(amount_sat=receive_amount)
+            self._receive_amount = swap_manager.get_recv_amount(
+                send_amount=self._send_amount, is_reverse=True)
+            self.toreceive = QEAmount(amount_sat=self._receive_amount)
 
             # fee breakdown
             self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
@@ -289,32 +293,41 @@ class QESwapHelper(AuthMixin, QObject):
             self.server_miningfee = QEAmount(amount_sat=server_miningfee)
             self.miningfee = QEAmount(amount_sat=swap_manager.get_claim_fee())
 
+            self.check_valid(self._send_amount, self._receive_amount)
         else:  # forward (normal) swap
             self.userinfo = _('Adds Lightning sending capacity.')
             self.isReverse = False
             self._send_amount = position
 
-            self.update_tx(self._send_amount)
-            # add lockup fees, but the swap amount is position
-            pay_amount = position + self._tx.get_fee() if self._tx else 0
-            self.tosend = QEAmount(amount_sat=pay_amount)
-
-            receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
-            self._receive_amount = receive_amount
-            self.toreceive = QEAmount(amount_sat=receive_amount)
+            self._receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
+            self.toreceive = QEAmount(amount_sat=self._receive_amount)
 
             # fee breakdown
             self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
             server_miningfee = swap_manager.normal_fee
             self.server_miningfee = QEAmount(amount_sat=server_miningfee)
-            self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
 
-        if pay_amount and receive_amount:
+            # the slow stuff we delegate to a delay timer which triggers after slider
+            # doesn't update for a while
+            self.valid = False # wait for timer
+            self._fwd_swap_updatetx_timer.start(250)
+
+    def check_valid(self, send_amount, receive_amount):
+        if send_amount and receive_amount:
             self.valid = True
         else:
             # add more nuanced error reporting?
             self.userinfo = _('Swap below minimal swap size, change the slider.')
             self.valid = False
+
+    def fwd_swap_updatetx(self):
+        self.update_tx(self._send_amount)
+        # add lockup fees, but the swap amount is position
+        pay_amount = self._send_amount + self._tx.get_fee() if self._tx else 0
+        self.tosend = QEAmount(amount_sat=pay_amount)
+
+        self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
+        self.check_valid(pay_amount, self._receive_amount)
 
     def do_normal_swap(self, lightning_amount, onchain_amount):
         assert self._tx
