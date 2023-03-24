@@ -1,7 +1,9 @@
-# Kivy GUI
+# Qml GUI
 
-The Kivy GUI is used with Electrum on Android devices.
+The Qml GUI is used with Electrum on Android devices, since Electrum 4.4.
 To generate an APK file, follow these instructions.
+
+(note: older versions of Electrum for Android used the "kivy" GUI)
 
 ## Android binary with Docker
 
@@ -21,11 +23,11 @@ similar system.
     ```
     $ ./build.sh
     ```
-    For development, consider e.g. `$ ./build.sh kivy arm64-v8a debug`
+    For development, consider e.g. `$ ./build.sh qml arm64-v8a debug`
 
     If you want reproducibility, try instead e.g.:
     ```
-    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh kivy all release-unsigned
+    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh qml all release-unsigned
     ```
 
 3. The generated binary is in `./dist`.
@@ -90,7 +92,20 @@ adb logcat | grep -F "`adb shell ps | grep org.electrum.electrum | cut -c14-19`"
 ```
 
 
-### Kivy can be run directly on Linux Desktop. How?
+### The Qml GUI can be run directly on Linux Desktop. How?
+Install requirements (debian-based distros):
+```
+sudo apt-get install python3-pyqt5 python3-pyqt5.qtquick python3-pyqt5.qtmultimedia
+sudo apt-get install python3-pil
+sudo apt-get install qml-module-qtquick-controls2 qml-module-qtquick-layouts \
+    qml-module-qtquick-window2 qml-module-qtmultimedia \
+    libqt5multimedia5-plugins qml-module-qt-labs-folderlistmodel
+sudo apt-get install qtvirtualkeyboard-plugin
+```
+
+Run electrum with the `-g` switch: `electrum -g qml`
+
+### The Kivy GUI can be run directly on Linux Desktop. How?
 Install Kivy.
 
 Build atlas: `(cd contrib/android/; make theming)`
