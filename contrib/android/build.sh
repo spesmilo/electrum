@@ -18,11 +18,11 @@ BUILD_UID=$(/usr/bin/stat -c %u "$PROJECT_ROOT")
 # check arguments
 if [[ -n "$3" \
 	  && ( "$1" == "kivy" || "$1" == "qml" ) \
-	  && ( "$2" == "all"  || "$2" == "armeabi-v7a" || "$2" == "arm64-v8a" || "$2" == "x86" ) \
+	  && ( "$2" == "all"  || "$2" == "armeabi-v7a" || "$2" == "arm64-v8a" || "$2" == "x86" || "$2" == "x86_64" ) \
 	  && ( "$3" == "debug"  || "$3" == "release" || "$3" == "release-unsigned" ) ]] ; then
     info "arguments $*"
 else
-    fail "usage: build.sh <kivy|qml> <arm64-v8a|armeabi-v7a|x86|all> <debug|release|release-unsigned>"
+    fail "usage: build.sh <kivy|qml> <arm64-v8a|armeabi-v7a|x86|x86_64|all> <debug|release|release-unsigned>"
     exit 1
 fi
 

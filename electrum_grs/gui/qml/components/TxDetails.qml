@@ -138,17 +138,23 @@ Pane {
                         borderColor: constants.colorWarning
                         visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
 
-                        RowLayout {
+                        GridLayout {
                             width: parent.width
+                            columns: actionButtonsLayout.implicitWidth > parent.width/2
+                                ? 1
+                                : 2
                             Label {
                                 Layout.fillWidth: true
-                                text: qsTr('This transaction is still unconfirmed.') + '\n' +
-                                qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
+                                text: qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
+                                    ? qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
+                                    : qsTr('You can increase fees to speed up the transaction'))
                                 wrapMode: Text.Wrap
                             }
                             ColumnLayout {
+                                id: actionButtonsLayout
                                 Layout.alignment: Qt.AlignHCenter
                                 Pane {
+                                    Layout.alignment: Qt.AlignHCenter
                                     background: Rectangle { color: Material.dialogColor }
                                     padding: 0
                                     visible: txdetails.canBump || txdetails.canCpfp
@@ -168,6 +174,7 @@ Pane {
                                     }
                                 }
                                 Pane {
+                                    Layout.alignment: Qt.AlignHCenter
                                     background: Rectangle { color: Material.dialogColor }
                                     padding: 0
                                     visible: txdetails.canCancel
@@ -200,24 +207,13 @@ Pane {
 
                     Label {
                         visible: txdetails.isMined
-                        text: qsTr('Height')
+                        text: qsTr('Mined at')
                         color: Material.accentColor
                     }
 
                     Label {
                         visible: txdetails.isMined
-                        text: txdetails.height
-                    }
-
-                    Label {
-                        visible: txdetails.isMined
-                        text: qsTr('TX index')
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        visible: txdetails.isMined
-                        text: txdetails.txpos
+                        text: txdetails.shortId
                     }
 
                     Label {

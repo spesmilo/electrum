@@ -1263,6 +1263,12 @@ class TxMinedInfo(NamedTuple):
     header_hash: Optional[str] = None  # hash of block that mined tx
     wanted_height: Optional[int] = None  # in case of timelock, min abs block height
 
+    def short_id(self) -> Optional[str]:
+        if self.txpos is not None and self.txpos >= 0:
+            assert self.height > 0
+            return f"{self.height}x{self.txpos}"
+        return None
+
 
 class ShortID(bytes):
 

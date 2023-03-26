@@ -696,7 +696,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def requestShowSeed(self):
         self.retrieve_seed()
 
-    @auth_protect
+    @auth_protect(method='wallet')
     def retrieve_seed(self):
         try:
             self._seed = self.wallet.get_seed(self.password)

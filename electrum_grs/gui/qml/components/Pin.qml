@@ -23,7 +23,7 @@ ElDialog {
 
     focus: true
 
-    closePolicy: canCancel ? Popup.CloseOnPressOutside : Popup.NoAutoClose
+    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
 
     property bool canCancel: true
 

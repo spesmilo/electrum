@@ -46,18 +46,28 @@ ElDialog {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
             }
+
             Label {
-                text: invoiceParser.lnurlData['min_sendable_sat'] == invoiceParser.lnurlData['max_sendable_sat']
-                        ? qsTr('Amount')
-                        : qsTr('Amount range')
+                text: qsTr('Amount')
                 color: Material.accentColor
             }
+
+            BtcField {
+                id: amountBtc
+                text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
+                enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                color: Material.foreground // override gray-out on disabled
+                fiatfield: null
+                Layout.preferredWidth: parent.width /3
+                onTextAsSatsChanged: {
+                    invoiceParser.amountOverride = textAsSats
+                }
+            }
             Label {
+                Layout.columnSpan: 2
                 text: invoiceParser.lnurlData['min_sendable_sat'] == invoiceParser.lnurlData['max_sendable_sat']
-                        ? invoiceParser.lnurlData['min_sendable_sat'] == 0
-                            ? qsTr('Unspecified')
-                            : invoiceParser.lnurlData['min_sendable_sat']
-                        : invoiceParser.lnurlData['min_sendable_sat'] + ' < amount < ' + invoiceParser.lnurlData['max_sendable_sat']
+                        ? ''
+                        : qsTr('Amount must be between %1 and %2').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])) + Config.baseUnit
             }
 
             TextArea {
@@ -86,9 +96,18 @@ ElDialog {
             icon.source: '../../icons/confirmed.png'
             enabled: valid
             onClicked: {
-                invoiceParser.lnurlGetInvoice(invoiceParser.lnurlData['min_sendable_sat'], comment.text)
+                invoiceParser.lnurlGetInvoice(comment.text)
                 dialog.close()
             }
         }
     }
+
+    Connections {
+        target: invoiceParser
+        function onLnurlError(code, message) {
+            var dialog = app.messageDialog.createObject(app, { text: message })
+            dialog.open()
+        }
+    }
+
 }

@@ -10,11 +10,16 @@ Pane {
     implicitHeight: rootLayout.height
     padding: 0
 
+    property string text
     property alias readOnly: seedtextarea.readOnly
-    property alias text: seedtextarea.text
     property alias placeholderText: seedtextarea.placeholderText
 
     property var _suggestions: []
+
+    onTextChanged: {
+        if (seedtextarea.text != text)
+            seedtextarea.text = text
+    }
 
     background: Rectangle {
         color: "transparent"
@@ -84,6 +89,12 @@ Pane {
             }
 
             onTextChanged: {
+                // work around Qt issue, TextArea fires spurious textChanged events
+                // NOTE: might be Qt virtual keyboard, or Qt upgrade from 5.15.2 to 5.15.7
+                if (root.text != text)
+                    root.text = text
+
+                // update suggestions
                 _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
                 // TODO: cursorPosition only on suggestion apply
                 cursorPosition = text.length

@@ -21,6 +21,9 @@ WizardComponent {
         PasswordField {
             id: password1
         }
+        Label {
+            text: qsTr('Enter password (again)')
+        }
         PasswordField {
             id: password2
             showReveal: false

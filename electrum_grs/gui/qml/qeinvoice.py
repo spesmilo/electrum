@@ -552,6 +552,15 @@ class QEInvoiceParser(QEInvoice):
     def lnurlGetInvoice(self, amount, comment=None):
         assert self._lnurlData
 
+        amount = self.amountOverride.satsInt
+        if self.lnurlData['min_sendable_sat'] != 0:
+            try:
+                assert amount >= self.lnurlData['min_sendable_sat']
+                assert amount <= self.lnurlData['max_sendable_sat']
+            except:
+                self.lnurlError.emit('amount', _('Amount out of bounds'))
+                return
+
         if self._lnurlData['comment_allowed'] == 0:
             comment = None
 

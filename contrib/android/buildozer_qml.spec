@@ -13,7 +13,7 @@ package.domain = org.groestlcoin
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so
+source.include_exts = py,png,jpg,qml,qmltypes,ttf,txt,gif,pem,mo,json,csv,so,svg
 
 # (list) Source files to exclude (let empty to not exclude anything)
 source.exclude_exts = spec

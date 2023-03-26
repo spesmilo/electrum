@@ -173,7 +173,7 @@ WizardComponent {
                 placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
 
                 onTextChanged: {
-                    validationTimer.restart()
+                    startValidationTimer()
                 }
 
                 Rectangle {
@@ -207,7 +207,7 @@ WizardComponent {
                 id: extendcb
                 Layout.columnSpan: 2
                 text: qsTr('Extend seed with custom words')
-                onCheckedChanged: validationTimer.restart()
+                onCheckedChanged: startValidationTimer()
             }
             TextField {
                 id: customwordstext
@@ -215,7 +215,7 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
-                onTextChanged: validationTimer.restart()
+                onTextChanged: startValidationTimer()
             }
         }
     }
@@ -224,6 +224,12 @@ WizardComponent {
         id: bitcoin
         onSeedTypeChanged: contentText.text = bitcoin.seed_type
         onValidationMessageChanged: validationtext.text = validationMessage
+    }
+
+    function startValidationTimer() {
+        valid = false
+        contentText.text = ''
+        validationTimer.restart()
     }
 
     Timer {

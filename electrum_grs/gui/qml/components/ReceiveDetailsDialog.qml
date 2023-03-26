@@ -74,7 +74,7 @@ ElDialog {
             }
 
             Label {
-                text: qsTr('Request')
+                text: qsTr('Amount')
                 wrapMode: Text.WordWrap
                 Layout.rightMargin: constants.paddingXLarge
             }
