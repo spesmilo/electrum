@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Feathercoin client
 # Copyright (C) 2018 The Electrum Developers
 #
 # Permission is hereby granted, free of charge, to any person

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Feathercoin client
 # Copyright (C) 2019 The Electrum Developers
 #
 # Permission is hereby granted, free of charge, to any person

@@ -1,4 +1,4 @@
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Feathercoin client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -2514,7 +2514,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             addr = req.get_address() or ""
             if sanity_checks:
                 if not bitcoin.is_address(addr):
-                    raise Exception(_('Invalid Bitcoin address.'))
+                    raise Exception(_('Invalid Feathercoin address.'))
                 if not self.is_mine(addr):
                     raise Exception(_('Address not in wallet.'))
             key = addr
