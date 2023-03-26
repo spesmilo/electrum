@@ -392,7 +392,7 @@ def sha256d(x: Union[bytes, str]) -> bytes:
 def PoWHash(x):
     x = create_string_buffer(to_bytes(x, 'utf8'))
     y = create_string_buffer(32)
-    scrypt.hash(byref(x), y)
+    scrypt.scrypt_1024_1_1_256(byref(x), y)
     return y
 
 
