@@ -23,6 +23,8 @@ ElDialog {
 
     property bool _canMax: invoice.invoiceType == Invoice.OnchainInvoice
 
+    property Amount _invoice_amount: invoice.amount
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -184,7 +186,7 @@ ElDialog {
                             Label {
                                 Layout.columnSpan: 2
                                 Layout.fillWidth: true
-                                visible: invoice.amount.isMax
+                                visible: _invoice_amount.isMax
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.bold: true
                                 text: qsTr('All on-chain funds')
@@ -193,7 +195,7 @@ ElDialog {
                             Label {
                                 Layout.columnSpan: 2
                                 Layout.fillWidth: true
-                                visible: invoice.amount.isEmpty
+                                visible: _invoice_amount.isEmpty
                                 font.pixelSize: constants.fontSizeXLarge
                                 color: constants.mutedForeground
                                 text: qsTr('not specified')
@@ -201,7 +203,7 @@ ElDialog {
 
                             Label {
                                 Layout.alignment: Qt.AlignRight
-                                visible: !invoice.amount.isMax && !invoice.amount.isEmpty
+                                visible: !_invoice_amount.isMax && !_invoice_amount.isEmpty
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
                                 font.bold: true
@@ -210,7 +212,7 @@ ElDialog {
 
                             Label {
                                 Layout.fillWidth: true
-                                visible: !invoice.amount.isMax && !invoice.amount.isEmpty
+                                visible: !_invoice_amount.isMax && !_invoice_amount.isEmpty
                                 text: Config.baseUnit
                                 color: Material.accentColor
                                 font.pixelSize: constants.fontSizeXLarge
@@ -219,7 +221,7 @@ ElDialog {
                             Label {
                                 id: fiatValue
                                 Layout.alignment: Qt.AlignRight
-                                visible: Daemon.fx.enabled && !invoice.amount.isMax && !invoice.amount.isEmpty
+                                visible: Daemon.fx.enabled && !_invoice_amount.isMax && !_invoice_amount.isEmpty
                                 text: Daemon.fx.fiatValue(invoice.amount, false)
                                 font.pixelSize: constants.fontSizeMedium
                                 color: constants.mutedForeground
@@ -227,7 +229,7 @@ ElDialog {
 
                             Label {
                                 Layout.fillWidth: true
-                                visible: Daemon.fx.enabled && !invoice.amount.isMax && !invoice.amount.isEmpty
+                                visible: Daemon.fx.enabled && !_invoice_amount.isMax && !_invoice_amount.isEmpty
                                 text: Daemon.fx.fiatCurrency
                                 font.pixelSize: constants.fontSizeMedium
                                 color: constants.mutedForeground
