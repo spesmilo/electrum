@@ -63,6 +63,8 @@ ElDialog {
         Object.assign(wdata_copy, wdata)
         var page = comp.createObject(pages, {wizard_data: wdata_copy})
         page.validChanged.connect(function() {
+            if (page != pages.currentItem)
+                return
             pages.pagevalid = page.valid
         } )
         page.lastChanged.connect(function() {
