@@ -4,8 +4,7 @@
 *.swp
 build/
 dist/
-*.egg/
-Electrum.egg-info/
+*.egg-info
 electrum/locale/
 .devlocaltmp/
 *_trial_temp
