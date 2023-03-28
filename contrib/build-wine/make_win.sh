@@ -35,6 +35,8 @@ export WINE_PYTHON="wine $WINE_PYHOME/python.exe -OO -B"
 
 . "$CONTRIB"/build_tools_util.sh
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 info "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -rf
 rm "$here"/dist/* -rf
