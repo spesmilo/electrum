@@ -771,7 +771,7 @@ class Commands:
             kwargs['to_timestamp'] = time.mktime(end_date.timetuple())
         if show_fiat:
             from .exchange_rate import FxThread
-            fx = FxThread(self.config, None)
+            fx = FxThread(config=self.config)
             kwargs['fx'] = fx
 
         return json_normalize(wallet.get_detailed_history(**kwargs))

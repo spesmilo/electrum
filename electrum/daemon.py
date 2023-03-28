@@ -395,7 +395,7 @@ class Daemon(Logger):
         self.network = None
         if not config.get('offline'):
             self.network = Network(config, daemon=self)
-        self.fx = FxThread(config, self.network)
+        self.fx = FxThread(config=config)
         self.gui_object = None
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
