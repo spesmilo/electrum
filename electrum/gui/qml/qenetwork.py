@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
@@ -7,6 +9,11 @@ from electrum.simple_config import FEERATE_DEFAULT_RELAY
 
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
+
+if TYPE_CHECKING:
+    from .qeconfig import QEConfig
+    from electrum.network import Network
+
 
 class QENetwork(QObject, QtEventListener):
     _logger = get_logger(__name__)
@@ -38,7 +45,7 @@ class QENetwork(QObject, QtEventListener):
     _gossipDbChannels = 0
     _gossipDbPolicies = 0
 
-    def __init__(self, network, qeconfig, parent=None):
+    def __init__(self, network: 'Network', qeconfig: 'QEConfig', parent=None):
         super().__init__(parent)
         self.network = network
         self._qeconfig = qeconfig

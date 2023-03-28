@@ -44,6 +44,8 @@ from .qemodelfilter import QEFilterProxyModel
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
     from electrum.wallet import Abstract_Wallet
+    from electrum.daemon import Daemon
+    from electrum.plugin import Plugins
 
 notification = None
 
@@ -290,7 +292,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
 
-    def __init__(self, args, config, daemon, plugins):
+    def __init__(self, args, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         super().__init__(args)
 
         self.logger = get_logger(__name__)
