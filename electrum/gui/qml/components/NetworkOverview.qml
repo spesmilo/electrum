@@ -54,10 +54,10 @@ Pane {
                     text: qsTr('Server:');
                     color: Material.accentColor
                 }
-                RowLayout {
-                    Label {
-                        text: Network.server
-                    }
+                Label {
+                    text: Network.server
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
                 }
                 Label {
                     text: qsTr('Local Height:');
