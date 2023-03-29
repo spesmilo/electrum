@@ -58,6 +58,7 @@ class QENetwork(QObject, QtEventListener):
     @event_listener
     def on_event_network_updated(self, *args):
         self.networkUpdated.emit()
+        self._update_network_status()
 
     @event_listener
     def on_event_blockchain_updated(self):
@@ -77,12 +78,15 @@ class QENetwork(QObject, QtEventListener):
         self.proxySet.emit()
         self.proxyTorChanged.emit()
 
-    @event_listener
-    def on_event_status(self, *args):
+    def _update_network_status(self):
         network_status = self.network.get_status()
         if self._network_status != network_status:
             self._network_status = network_status
             self.statusChanged.emit()
+
+    @event_listener
+    def on_event_status(self, *args):
+        self._update_network_status()
         server_status = self.network.connection_status
         self._logger.debug('server_status updated: %s' % server_status)
         if self._server_status != server_status:
