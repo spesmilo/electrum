@@ -51,13 +51,12 @@ ElDialog {
                     }
                 }
 
-                Label {
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.margins: constants.paddingLarge
                     visible: dialog.text_help
                     text: dialog.text_help
-                    wrapMode: Text.Wrap
-                    Layout.fillWidth: true
                 }
-
             }
         }
 

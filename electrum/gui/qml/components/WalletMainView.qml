@@ -400,7 +400,7 @@ Item {
                 onFinishedSave: {
                     // tx was (partially) signed and saved. Show QR for co-signers or online wallet
                     var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
-                    page.showExport()
+                    page.showExport(qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer'))
                     _confirmPaymentDialog.destroy()
                 }
             }

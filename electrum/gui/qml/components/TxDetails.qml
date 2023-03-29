@@ -24,8 +24,11 @@ Pane {
         app.stack.pop()
     }
 
-    function showExport() {
-        var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
+    function showExport(helptext) {
+        var dialog = exportTxDialog.createObject(root, {
+            txdetails: txdetails,
+            text_help: helptext
+        })
         dialog.open()
     }
 
