@@ -38,7 +38,7 @@ Pane {
 
                 Heading {
                     Layout.columnSpan: 2
-                    text: qsTr('Channel details')
+                    text: !channeldetails.isBackup ? qsTr('Lightning Channel') : qsTr('Channel Backup')
                 }
 
                 Label {
