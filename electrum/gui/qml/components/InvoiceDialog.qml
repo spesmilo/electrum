@@ -207,7 +207,7 @@ ElDialog {
                                 font.pixelSize: constants.fontSizeXLarge
                                 font.family: FixedFont
                                 font.bold: true
-                                text: Config.formatSats(_invoice_amount, false)
+                                text: Config.formatSats(invoice.amount, false)
                             }
 
                             Label {
@@ -222,7 +222,7 @@ ElDialog {
                                 id: fiatValue
                                 Layout.alignment: Qt.AlignRight
                                 visible: Daemon.fx.enabled && !_invoice_amount.isMax && !_invoice_amount.isEmpty
-                                text: Daemon.fx.fiatValue(_invoice_amount, false)
+                                text: Daemon.fx.fiatValue(invoice.amount, false)
                                 font.pixelSize: constants.fontSizeMedium
                                 color: constants.mutedForeground
                             }
