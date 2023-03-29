@@ -298,6 +298,7 @@ class QESwapHelper(AuthMixin, QObject):
             self.userinfo = _('Adds Lightning sending capacity.')
             self.isReverse = False
             self._send_amount = position
+            self.tosend = QEAmount(amount_sat=self._send_amount)
 
             self._receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
             self.toreceive = QEAmount(amount_sat=self._receive_amount)
@@ -324,8 +325,6 @@ class QESwapHelper(AuthMixin, QObject):
         self.update_tx(self._send_amount)
         # add lockup fees, but the swap amount is position
         pay_amount = self._send_amount + self._tx.get_fee() if self._tx else 0
-        self.tosend = QEAmount(amount_sat=pay_amount)
-
         self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
         self.check_valid(pay_amount, self._receive_amount)
 
