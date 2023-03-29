@@ -24,7 +24,6 @@ Wizard {
         Config.autoConnect = wizard_data['autoconnect']
         if (!wizard_data['autoconnect']) {
             Network.server = wizard_data['server']
-            Config.serverString = wizard_data['server']
         }
     }
 

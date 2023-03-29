@@ -42,7 +42,6 @@ ElDialog {
             icon.source: '../../icons/confirmed.png'
             onClicked: {
                 Config.autoConnect = serverconfig.auto_connect
-                Config.serverString = serverconfig.address
                 Network.server = serverconfig.address
                 rootItem.close()
             }
