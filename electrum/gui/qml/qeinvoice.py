@@ -348,6 +348,7 @@ class QEInvoiceParser(QEInvoice):
         self.canSave = True
 
         if amount.isEmpty: # unspecified amount
+            self.userinfo = _('Enter the amount you want to send')
             return
 
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
@@ -368,8 +369,8 @@ class QEInvoiceParser(QEInvoice):
                 self.userinfo = {
                         PR_EXPIRED: _('Invoice is expired'),
                         PR_PAID: _('Invoice is already paid'),
-                        PR_INFLIGHT: _('Invoice is already being paid'),
-                        PR_ROUTING: _('Invoice is already being paid'),
+                        PR_INFLIGHT: _('Payment in progress...'),
+                        PR_ROUTING: _('Payment in progress'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
