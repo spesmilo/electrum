@@ -47,10 +47,11 @@ ElDialog {
                 columns: 2
 
                 InfoTextArea {
+                    id: helpText
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
-                    visible: invoice.userinfo
+                    visible: text
                     text: invoice.userinfo
                     iconStyle: InfoTextArea.IconStyle.Warn
                 }
@@ -457,12 +458,32 @@ ElDialog {
                         // save invoice if new or modified
                         invoice.save_invoice()
                     }
-                    dialog.close()
                     doPay() // only signal here
+                    helpText.text = qsTr('Payment in progress...')
                 }
             }
         }
 
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onPaymentSucceeded(key) {
+            if (key != invoice.key) {
+                console.log('wrong invoice ' + key + ' != ' + invoice.key)
+                return
+            }
+            console.log('payment succeeded!')
+            helpText.text = qsTr('Paid!')
+        }
+        function onPaymentFailed(key, reason) {
+            if (key != invoice.key) {
+                console.log('wrong invoice ' + key + ' != ' + invoice.key)
+                return
+            }
+            console.log('payment failed: ' + reason)
+            helpText.text = qsTr('Payment failed: ' + reason)
+        }
     }
 
     Component.onCompleted: {

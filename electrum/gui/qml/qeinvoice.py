@@ -347,8 +347,10 @@ class QEInvoiceParser(QEInvoice):
 
         self.canSave = True
 
-        if amount.isEmpty: # unspecified amount
+        if self.amount.isEmpty:
             self.userinfo = _('Enter the amount you want to send')
+
+        if amount.isEmpty and self.status == PR_UNPAID: # unspecified amount
             return
 
         if self.invoiceType == QEInvoice.Type.LightningInvoice:

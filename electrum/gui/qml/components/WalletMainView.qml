@@ -312,13 +312,8 @@ Item {
                         console.log('No invoice key, aborting')
                         return
                     }
-                    var dialog = lightningPaymentProgressDialog.createObject(mainView, {
-                        invoice_key: invoice.key
-                    })
-                    dialog.open()
                     Daemon.currentWallet.pay_lightning_invoice(invoice.key)
                 }
-                close()
             }
 
             onClosed: destroy()
