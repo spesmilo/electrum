@@ -23,7 +23,7 @@ from electrum.paymentrequest import PaymentRequest
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import status_update_timer_interval
+from .util import status_update_timer_interval, QtEventListener, event_listener
 
 
 class QEInvoice(QObject):
@@ -120,7 +120,7 @@ class QEInvoice(QObject):
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
-class QEInvoiceParser(QEInvoice):
+class QEInvoiceParser(QEInvoice, QtEventListener):
     _logger = get_logger(__name__)
 
     invoiceChanged = pyqtSignal()
@@ -159,6 +159,31 @@ class QEInvoiceParser(QEInvoice):
         self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
 
         self.clear()
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.userinfo = _('Paid!')
+
+    @event_listener
+    def on_event_payment_failed(self, wallet, key, reason):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.userinfo = _('Payment failed: ') + reason
+
+    @event_listener
+    def on_event_invoice_status(self, wallet, key, status):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            if status in [PR_INFLIGHT, PR_ROUTING]:
+                self.userinfo = _('In progress...')
 
     @pyqtProperty(int, notify=invoiceChanged)
     def invoiceType(self):

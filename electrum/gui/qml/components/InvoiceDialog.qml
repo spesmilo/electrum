@@ -53,7 +53,9 @@ ElDialog {
                     Layout.bottomMargin: constants.paddingLarge
                     visible: text
                     text: invoice.userinfo
-                    iconStyle: InfoTextArea.IconStyle.Warn
+                    iconStyle: invoice.status == Invoice.Failed || invoice.status == Invoice.Expired
+                        ? InfoTextArea.IconStyle.Warn
+                        : InfoTextArea.IconStyle.Info
                 }
 
                 Label {
@@ -459,31 +461,10 @@ ElDialog {
                         invoice.save_invoice()
                     }
                     doPay() // only signal here
-                    helpText.text = qsTr('Payment in progress...')
                 }
             }
         }
 
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onPaymentSucceeded(key) {
-            if (key != invoice.key) {
-                console.log('wrong invoice ' + key + ' != ' + invoice.key)
-                return
-            }
-            console.log('payment succeeded!')
-            helpText.text = qsTr('Paid!')
-        }
-        function onPaymentFailed(key, reason) {
-            if (key != invoice.key) {
-                console.log('wrong invoice ' + key + ' != ' + invoice.key)
-                return
-            }
-            console.log('payment failed: ' + reason)
-            helpText.text = qsTr('Payment failed: ' + reason)
-        }
     }
 
     Component.onCompleted: {
