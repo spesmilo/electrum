@@ -177,7 +177,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
 
     def main(self):
-        while self.done == 0: self.main_command()
+        self.daemon.start_network()
+        while self.done == 0:
+            self.main_command()
 
     def do_send(self):
         if not is_address(self.str_recipient):

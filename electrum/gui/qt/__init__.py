@@ -428,12 +428,15 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.daemon.stop_wallet(window.wallet.storage.path)
 
     def init_network(self):
-        # Show network dialog if config does not exist
+        """Start the network, including showing a first-start network dialog if config does not exist."""
         if self.daemon.network:
+            # first-start network-setup
             if self.config.get('auto_connect') is None:
                 wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
+            # start network
+            self.daemon.start_network()
 
     def main(self):
         # setup Ctrl-C handling and tear-down code first, so that user can easily exit whenever
@@ -443,7 +446,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
         # hook for crash reporter
         Exception_Hook.maybe_setup(config=self.config)
-        # first-start network-setup
+        # start network, and maybe show first-start network-setup
         try:
             self.init_network()
         except UserCancelled:

@@ -331,6 +331,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._set_status('disconnected')
         self._has_ever_managed_to_connect_to_server = False
+        self._was_started = False
 
         # lightning network
         if self.config.get('run_watchtower', False):
@@ -647,6 +648,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         oneserver_changed = self.oneserver != net_params.oneserver
         default_server_changed = self.default_server != server
         self._init_parameters_from_config()
+        if not self._was_started:
+            return
 
         async with self.restart_lock:
             if proxy_changed or oneserver_changed:
@@ -1268,11 +1271,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         Note: the jobs will *restart* every time the network restarts, e.g. on proxy
         setting changes.
         """
+        self._was_started = True
         self._jobs = jobs or []
         asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
 
     @log_exceptions
     async def stop(self, *, full_shutdown: bool = True):
+        if not self._was_started:
+            self.logger.info("not stopping network as it was never started")
+            return
         self.logger.info("stopping network")
         # timeout: if full_shutdown, it is up to the caller to time us out,
         #          otherwise if e.g. restarting due to proxy changes, we time out fast

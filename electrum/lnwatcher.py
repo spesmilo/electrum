@@ -141,7 +141,7 @@ class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
-    def __init__(self, adb, network: 'Network'):
+    def __init__(self, adb: 'AddressSynchronizer', network: 'Network'):
 
         Logger.__init__(self)
         self.adb = adb

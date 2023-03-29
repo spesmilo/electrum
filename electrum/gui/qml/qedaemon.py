@@ -10,6 +10,7 @@ from electrum.util import WalletFileException, standardize_path
 from electrum.wallet import Abstract_Wallet
 from electrum.plugin import run_hook
 from electrum.lnchannel import ChannelState
+from electrum.daemon import Daemon
 
 from .auth import AuthMixin, auth_protect
 from .qefx import QEFX
@@ -135,7 +136,7 @@ class QEDaemon(AuthMixin, QObject):
     walletOpenError = pyqtSignal([str], arguments=["error"])
     walletDeleteError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    def __init__(self, daemon, parent=None):
+    def __init__(self, daemon: 'Daemon', parent=None):
         super().__init__(parent)
         self.daemon = daemon
         self.qefx = QEFX(daemon.fx, daemon.config)
@@ -336,3 +337,7 @@ class QEDaemon(AuthMixin, QObject):
             self._server_connect_wizard = QEServerConnectWizard(self)
 
         return self._server_connect_wizard
+
+    @pyqtSlot()
+    def startNetwork(self):
+        self.daemon.start_network()
