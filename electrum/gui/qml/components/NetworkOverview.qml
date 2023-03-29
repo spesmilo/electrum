@@ -58,7 +58,6 @@ Pane {
                     Label {
                         text: Network.server
                     }
-                    OnchainNetworkStatusIndicator {}
                 }
                 Label {
                     text: qsTr('Local Height:');
