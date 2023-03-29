@@ -216,7 +216,7 @@ Pane {
                     }
                     Label {
                         visible: 'mode' in Network.proxy
-                        text: Network.isProxyTor ? 'TOR' : Network.proxy['mode']
+                        text: Network.isProxyTor ? 'TOR' : (Network.proxy['mode'] || '')
                     }
                 }
 
