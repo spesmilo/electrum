@@ -28,6 +28,14 @@ if TYPE_CHECKING:
 
 class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
+    # strings updated by update_current_request
+    addr = ''
+    lnaddr = ''
+    URI = ''
+    address_help = ''
+    URI_help = ''
+    ln_help = ''
+
     def __init__(self, window: 'ElectrumWindow'):
         QWidget.__init__(self, window)
         Logger.__init__(self)
