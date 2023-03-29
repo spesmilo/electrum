@@ -47,6 +47,7 @@ class QENetwork(QObject, QtEventListener):
 
     def __init__(self, network: 'Network', qeconfig: 'QEConfig', parent=None):
         super().__init__(parent)
+        assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
         self._qeconfig = qeconfig
         self._serverListModel = None
