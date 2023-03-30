@@ -12,7 +12,7 @@ from .qeserverlistmodel import QEServerListModel
 
 if TYPE_CHECKING:
     from .qeconfig import QEConfig
-    from electrum.network import Network
+    from electrum_grs.network import Network
 
 
 class QENetwork(QObject, QtEventListener):
