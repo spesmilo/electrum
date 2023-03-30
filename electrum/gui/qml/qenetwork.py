@@ -86,11 +86,12 @@ class QENetwork(QObject, QtEventListener):
             self.statusChanged.emit()
         network_status = self.network.get_status()
         if self._network_status != network_status:
+            self._logger.debug('network_status updated: %s' % network_status)
             self._network_status = network_status
             self.statusChanged.emit()
         server_status = self.network.connection_status
-        self._logger.debug('server_status updated: %s' % server_status)
         if self._server_status != server_status:
+            self._logger.debug('server_status updated: %s' % server_status)
             self._server_status = server_status
             self.statusChanged.emit()
         chains = len(self.network.get_blockchains())
