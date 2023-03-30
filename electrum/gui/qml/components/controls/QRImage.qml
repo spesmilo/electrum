@@ -18,7 +18,7 @@ Item {
     }
 
     Image {
-        source: qrdata && render && qrprops.modules > 0 ? 'image://qrgen/' + qrdata : ''
+        source: qrdata && render ? 'image://qrgen/' + qrdata : ''
 
         Rectangle {
             visible: root.render && qrprops.valid
