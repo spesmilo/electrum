@@ -116,7 +116,7 @@ class NodesListWidget(QTreeWidget):
         elif item_type == self.ItemType.DISCONNECTED_SERVER:
             server = item.data(0, self.SERVER_ADDR_ROLE)  # type: ServerAddr
             def func():
-                self.parent.server_e.setText(server.net_addr_str())
+                self.parent.server_e.setText(str(server))
                 self.parent.set_server()
             menu.addAction(_("Use as server"), func)
         elif item_type == self.ItemType.CHAIN:
