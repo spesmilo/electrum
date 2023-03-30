@@ -63,8 +63,8 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                icon.source: '../../icons/paste.png'
-                text: qsTr('Paste from clipboard')
+                icon.source: '../../icons/copy_bw.png'
+                text: qsTr('Paste')
                 onClicked: dialog.dispatch(AppController.clipboardToText())
             }
         }
