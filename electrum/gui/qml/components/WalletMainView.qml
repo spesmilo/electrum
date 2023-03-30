@@ -188,8 +188,10 @@ Item {
                     var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
+                onPressAndHold: {
+                    app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                }
             }
-
             FlatButton {
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
@@ -197,6 +199,9 @@ Item {
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
                 onClicked: openSendDialog()
+                onPressAndHold: {
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                }
             }
         }
     }
