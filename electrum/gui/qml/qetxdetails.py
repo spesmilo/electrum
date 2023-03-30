@@ -393,8 +393,9 @@ class QETxDetails(QObject, QtEventListener):
 
     @pyqtSlot(result=str)
     @pyqtSlot(bool, result=str)
-    def serializedTx(self, for_qr=False):
+    def getSerializedTx(self, for_qr=False):
+        tx = self._tx
         if for_qr:
-            return self._tx.to_qr_data()
+            return tx.to_qr_data()
         else:
-            return str(self._tx)
+            return str(tx)

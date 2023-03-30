@@ -50,6 +50,19 @@ Item {
         }
     }
 
+    function showExportByTxid(txid, helptext) {
+        showExport(Daemon.currentWallet.getSerializedTx(txid, false), Daemon.currentWallet.getSerializedTx(txid, true), helptext)
+    }
+
+    function showExport(data, data_qr, helptext) {
+        var dialog = exportTxDialog.createObject(app, {
+            text: data,
+            text_qr: data_qr,
+            text_help: helptext
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
         parent: Overlay.overlay
         dim: true
@@ -251,7 +264,7 @@ Item {
             if (code == 'ln') {
                 var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
                 dialog.yesClicked.connect(function() {
-		    createRequest(true, false)
+                    createRequest(true, false)
                 })
             } else if (code == 'reuse_addr') {
                 var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
@@ -287,6 +300,8 @@ Item {
     Component {
         id: invoiceDialog
         InvoiceDialog {
+            id: _invoiceDialog
+
             width: parent.width
             height: parent.height
 
@@ -300,7 +315,11 @@ Item {
                     var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
                     dialog.txaccepted.connect(function() {
                         if (!canComplete) {
-                            dialog.finalizer.signAndSave()
+                            if (Daemon.currentWallet.isWatchOnly) {
+                                dialog.finalizer.save()
+                            } else {
+                                dialog.finalizer.signAndSave()
+                            }
                         } else {
                             dialog.finalizer.signAndSend()
                         }
@@ -317,6 +336,13 @@ Item {
             }
 
             onClosed: destroy()
+
+            Connections {
+                target: Daemon.currentWallet
+                function onSaveTxSuccess(txid) {
+                    _invoiceDialog.close()
+                }
+            }
         }
     }
 
@@ -371,7 +397,7 @@ Item {
                 console.log('rejected')
             }
             onClosed: destroy()
-	}
+        }
     }
 
     Component {
@@ -393,9 +419,13 @@ Item {
                 wallet: Daemon.currentWallet
                 canRbf: true
                 onFinishedSave: {
-                    // tx was (partially) signed and saved. Show QR for co-signers or online wallet
-                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
-                    page.showExport(qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer'))
+                    if (wallet.isWatchOnly) {
+                        // tx was saved. Show QR for signer(s)
+                        showExportByTxid(txid, qsTr('Transaction created. Present this QR code to the signing device'))
+                    } else {
+                        // tx was (partially) signed and saved. Show QR for co-signers or online wallet
+                        showExportByTxid(txid, qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer'))
+                    }
                     _confirmPaymentDialog.destroy()
                 }
             }
@@ -432,5 +462,13 @@ Item {
             onClosed: destroy()
         }
     }
+
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
 }
 

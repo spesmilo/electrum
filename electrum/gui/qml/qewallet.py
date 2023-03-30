@@ -329,6 +329,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return self.wallet.wallet_type
 
     @pyqtProperty(bool, notify=dataChanged)
+    def isMultisig(self):
+        return isinstance(self.wallet, Multisig_Wallet)
+
+    @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
         return self.wallet.has_seed()
 
@@ -723,3 +727,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._seed = ''
 
         self.dataChanged.emit()
+
+    @pyqtSlot(str, result=str)
+    @pyqtSlot(str, bool, result=str)
+    def getSerializedTx(self, txid, for_qr=False):
+        tx = self.wallet.db.get_transaction(txid)
+        if for_qr:
+            return tx.to_qr_data()
+        else:
+            return str(tx)
