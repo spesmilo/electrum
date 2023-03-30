@@ -332,7 +332,7 @@ class TxDialog(Factory.Popup):
 
     def show_qr(self):
         original_raw_tx = str(self.tx)
-        qr_data = self.tx.to_qr_data()
+        qr_data = self.tx.to_qr_data()[0]
         self.app.qr_dialog(_("Raw Transaction"), qr_data, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):

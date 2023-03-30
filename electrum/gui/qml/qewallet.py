@@ -733,6 +733,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def getSerializedTx(self, txid, for_qr=False):
         tx = self.wallet.db.get_transaction(txid)
         if for_qr:
-            return tx.to_qr_data()
+            return tx.to_qr_data()[0]
         else:
             return str(tx)

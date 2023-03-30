@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import format_time, AddTransactionException, TxMinedInfo
-from electrum.transaction import tx_from_any
+from electrum.transaction import tx_from_any, Transaction
 from electrum.network import Network
 
 from .qewallet import QEWallet
@@ -31,7 +31,7 @@ class QETxDetails(QObject, QtEventListener):
         self._rawtx = ''
         self._label = ''
 
-        self._tx = None
+        self._tx = None  # type: Optional[Transaction]
 
         self._status = ''
         self._amount = QEAmount()
@@ -396,6 +396,6 @@ class QETxDetails(QObject, QtEventListener):
     def getSerializedTx(self, for_qr=False):
         tx = self._tx
         if for_qr:
-            return tx.to_qr_data()
+            return tx.to_qr_data()[0]
         else:
             return str(tx)

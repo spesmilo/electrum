@@ -938,14 +938,19 @@ class Transaction:
         else:
             return nVersion + txins + txouts + nLocktime
 
-    def to_qr_data(self) -> str:
-        """Returns tx as data to be put into a QR code. No side-effects."""
+    def to_qr_data(self) -> Tuple[str, bool]:
+        """Returns (serialized_tx, is_complete). The tx is serialized to be put inside a QR code. No side-effects.
+        As space in a QR code is limited, some data might have to be omitted. This is signalled via is_complete=False.
+        """
+        is_complete = True
         tx = copy.deepcopy(self)  # make copy as we mutate tx
         if isinstance(tx, PartialTransaction):
             # this makes QR codes a lot smaller (or just possible in the first place!)
+            # note: will not apply if all inputs are taproot, due to new sighash.
             tx.convert_all_utxos_to_witness_utxos()
+            is_complete = False
         tx_bytes = tx.serialize_as_bytes()
-        return base_encode(tx_bytes, base=43)
+        return base_encode(tx_bytes, base=43), is_complete
 
     def txid(self) -> Optional[str]:
         if self._cached_txid is None:
