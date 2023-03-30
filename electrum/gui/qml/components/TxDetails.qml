@@ -421,7 +421,13 @@ Pane {
             })
             dialog.open()
         }
-        onSaveTxSuccess: {
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onSaveTxSuccess(txid) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, {
                 text: qsTr('Transaction added to wallet history.') + '\n\n' +
                       qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
@@ -429,7 +435,9 @@ Pane {
             dialog.open()
             root.close()
         }
-        onSaveTxError: {
+        function onSaveTxError(txid, code, message) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
