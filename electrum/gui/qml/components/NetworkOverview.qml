@@ -55,7 +55,7 @@ Pane {
                     color: Material.accentColor
                 }
                 Label {
-                    text: Network.server
+                    text: Network.serverWithStatus
                     wrapMode: Text.WrapAnywhere
                     Layout.fillWidth: true
                 }
