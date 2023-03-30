@@ -1,28 +1,48 @@
-import unittest
+from electrum_grs.interface import ServerAddr
 
-from electrum_grs import interface
-
-from . import SequentialTestCase
+from . import ElectrumTestCase
 
 
-class TestInterface(SequentialTestCase):
+class TestServerAddr(ElectrumTestCase):
 
-    def test_match_host_name(self):
-        self.assertTrue(interface._match_hostname('asd.fgh.com', 'asd.fgh.com'))
-        self.assertFalse(interface._match_hostname('asd.fgh.com', 'asd.zxc.com'))
-        self.assertTrue(interface._match_hostname('asd.fgh.com', '*.fgh.com'))
-        self.assertFalse(interface._match_hostname('asd.fgh.com', '*fgh.com'))
-        self.assertFalse(interface._match_hostname('asd.fgh.com', '*.zxc.com'))
+    def test_from_str(self):
+        self.assertEqual(ServerAddr(host="104.198.149.61", port=80, protocol="t"),
+                         ServerAddr.from_str("104.198.149.61:80:t"))
+        self.assertEqual(ServerAddr(host="ecdsa.net", port=110, protocol="s"),
+                         ServerAddr.from_str("ecdsa.net:110:s"))
+        self.assertEqual(ServerAddr(host="2400:6180:0:d1::86b:e001", port=50002, protocol="s"),
+                         ServerAddr.from_str("[2400:6180:0:d1::86b:e001]:50002:s"))
+        self.assertEqual(ServerAddr(host="localhost", port=8080, protocol="s"),
+                         ServerAddr.from_str("localhost:8080:s"))
 
-    def test_check_host_name(self):
-        i = interface.TcpConnection(server=':1:', queue=None, config_path=None)
+    def test_from_str_with_inference(self):
+        self.assertEqual(None, ServerAddr.from_str_with_inference("104.198.149.61"))
+        self.assertEqual(None, ServerAddr.from_str_with_inference("ecdsa.net"))
+        self.assertEqual(None, ServerAddr.from_str_with_inference("2400:6180:0:d1::86b:e001"))
+        self.assertEqual(None, ServerAddr.from_str_with_inference("[2400:6180:0:d1::86b:e001]"))
 
-        self.assertFalse(i.check_host_name(None, None))
-        self.assertFalse(i.check_host_name(
-            peercert={'subjectAltName': []}, name=''))
-        self.assertTrue(i.check_host_name(
-            peercert={'subjectAltName': [('DNS', 'foo.bar.com')]},
-            name='foo.bar.com'))
-        self.assertTrue(i.check_host_name(
-            peercert={'subject': [('commonName', 'foo.bar.com')]},
-            name='foo.bar.com'))
+        self.assertEqual(ServerAddr(host="104.198.149.61", port=80, protocol="s"),
+                         ServerAddr.from_str_with_inference("104.198.149.61:80"))
+        self.assertEqual(ServerAddr(host="ecdsa.net", port=110, protocol="s"),
+                         ServerAddr.from_str_with_inference("ecdsa.net:110"))
+        self.assertEqual(ServerAddr(host="2400:6180:0:d1::86b:e001", port=50002, protocol="s"),
+                         ServerAddr.from_str_with_inference("[2400:6180:0:d1::86b:e001]:50002"))
+
+        self.assertEqual(ServerAddr(host="104.198.149.61", port=80, protocol="t"),
+                         ServerAddr.from_str_with_inference("104.198.149.61:80:t"))
+        self.assertEqual(ServerAddr(host="ecdsa.net", port=110, protocol="s"),
+                         ServerAddr.from_str_with_inference("ecdsa.net:110:s"))
+        self.assertEqual(ServerAddr(host="2400:6180:0:d1::86b:e001", port=50002, protocol="s"),
+                         ServerAddr.from_str_with_inference("[2400:6180:0:d1::86b:e001]:50002:s"))
+
+    def test_to_friendly_name(self):
+        self.assertEqual("104.198.149.61:80:t",
+                         ServerAddr(host="104.198.149.61", port=80, protocol="t").to_friendly_name())
+        self.assertEqual("ecdsa.net:110",
+                         ServerAddr(host="ecdsa.net", port=110, protocol="s").to_friendly_name())
+        self.assertEqual("ecdsa.net:50001:t",
+                         ServerAddr(host="ecdsa.net", port=50001, protocol="t").to_friendly_name())
+        self.assertEqual("[2400:6180:0:d1::86b:e001]:50002",
+                         ServerAddr(host="2400:6180:0:d1::86b:e001", port=50002, protocol="s").to_friendly_name())
+        self.assertEqual("[2400:6180:0:d1::86b:e001]:50001:t",
+                         ServerAddr(host="2400:6180:0:d1::86b:e001", port=50001, protocol="t").to_friendly_name())

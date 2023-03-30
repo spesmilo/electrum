@@ -342,6 +342,15 @@ class QETxFinalizer(TxFeeSlider):
         self.validChanged.emit()
 
     @pyqtSlot()
+    def save(self):
+        if not self._valid or not self._tx:
+            self._logger.debug('no valid tx')
+            return
+
+        if self._wallet.save_tx(self._tx):
+            self.finishedSave.emit(self._tx.txid())
+
+    @pyqtSlot()
     def signAndSend(self):
         if not self._valid or not self._tx:
             self._logger.debug('no valid tx')
@@ -379,18 +388,10 @@ class QETxFinalizer(TxFeeSlider):
         self._logger.debug('onSigned')
         self._wallet.transactionSigned.disconnect(self.onSigned)
 
-        if not self._wallet.wallet.adb.add_transaction(self._tx):
+        if not self._wallet.save_tx(self._tx):
             self._logger.error('Could not save tx')
-
-        self.finishedSave.emit(self._tx.txid())
-
-    @pyqtSlot(result=str)
-    @pyqtSlot(bool, result=str)
-    def serializedTx(self, for_qr=False):
-        if for_qr:
-            return self._tx.to_qr_data()
         else:
-            return str(self._tx)
+            self.finishedSave.emit(self._tx.txid())
 
 # mixin for watching an existing TX based on its txid for verified event
 # requires self._wallet to contain a QEWallet instance

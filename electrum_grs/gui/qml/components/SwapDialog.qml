@@ -47,7 +47,6 @@ ElDialog {
                     source: swaphelper.isReverse
                         ? '../../icons/lightning.png'
                         : '../../icons/bitcoin.png'
-                    visible: swaphelper.valid
                 }
             }
 
@@ -58,12 +57,10 @@ ElDialog {
                     id: tosend
                     text: Config.formatSats(swaphelper.tosend)
                     font.family: FixedFont
-                    visible: swaphelper.valid
                 }
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
-                    visible: swaphelper.valid
                 }
             }
 
@@ -82,7 +79,6 @@ ElDialog {
                     source: swaphelper.isReverse
                         ? '../../icons/bitcoin.png'
                         : '../../icons/lightning.png'
-                    visible: swaphelper.valid
                 }
             }
 
@@ -93,12 +89,10 @@ ElDialog {
                     id: toreceive
                     text: Config.formatSats(swaphelper.toreceive)
                     font.family: FixedFont
-                    visible: swaphelper.valid
                 }
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
-                    visible: swaphelper.valid
                 }
             }
 
@@ -140,11 +134,12 @@ ElDialog {
                 Label {
                     text: Config.formatSats(swaphelper.miningfee)
                     font.family: FixedFont
+                    visible: swaphelper.valid
                 }
                 Label {
-                    Layout.fillWidth: true
                     text: Config.baseUnit
                     color: Material.accentColor
+                    visible: swaphelper.valid
                 }
             }
         }

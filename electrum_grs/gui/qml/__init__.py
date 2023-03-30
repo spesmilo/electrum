@@ -23,6 +23,7 @@ from electrum_grs.i18n import set_language, languages, language
 from electrum_grs.plugin import run_hook
 from electrum_grs.util import profiler
 from electrum_grs.logging import Logger
+from electrum_grs.gui import BaseElectrumGui
 
 if TYPE_CHECKING:
     from electrum_grs.daemon import Daemon
@@ -42,10 +43,11 @@ class ElectrumTranslator(QTranslator):
         return language.gettext(source_text)
 
 
-class ElectrumGui(Logger):
+class ElectrumGui(BaseElectrumGui, Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
         set_language(config.get('language', self.get_default_language()))
 
@@ -80,8 +82,7 @@ class ElectrumGui(Logger):
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
 
         self.gui_thread = threading.current_thread()
-        self.plugins = plugins
-        self.app = ElectrumQmlApplication(sys.argv, config, daemon, plugins)
+        self.app = ElectrumQmlApplication(sys.argv, config=config, daemon=daemon, plugins=plugins)
         self.translator = ElectrumTranslator()
         self.app.installTranslator(self.translator)
 

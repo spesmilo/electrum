@@ -353,10 +353,9 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob, EventListener):
 
-    def __init__(self, config: SimpleConfig, network: Optional[Network]):
+    def __init__(self, *, config: SimpleConfig):
         ThreadJob.__init__(self)
         self.config = config
-        self.network = network
         self.register_callbacks()
         self.ccy = self.get_currency()
         self.history_used_spot = False
@@ -444,8 +443,8 @@ class FxThread(ThreadJob, EventListener):
         self.on_quotes()
 
     def trigger_update(self):
-        if self.network:
-            self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
+        loop = util.get_asyncio_loop()
+        loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
         class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)

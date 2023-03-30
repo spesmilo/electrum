@@ -108,7 +108,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['address'] = i.server.to_friendly_name()
                 server['height'] = i.tip
 
-                self._logger.debug(f'adding server: {repr(server)}')
+                #self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         # disconnected servers

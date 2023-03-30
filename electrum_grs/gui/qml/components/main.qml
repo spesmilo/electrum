@@ -409,6 +409,7 @@ ApplicationWindow
                 Qt.callLater(Qt.quit)
             })
             dialog.accepted.connect(function() {
+                Daemon.startNetwork()
                 var newww = app.newWalletWizard.createObject(app)
                 newww.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
@@ -419,6 +420,7 @@ ApplicationWindow
             })
             dialog.open()
         } else {
+            Daemon.startNetwork()
             if (Daemon.availableWallets.rowCount() > 0) {
                 Daemon.load_wallet()
             } else {

@@ -25,6 +25,8 @@ mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
 
 cd "$PROJECT_ROOT"
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"

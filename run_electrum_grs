@@ -434,7 +434,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd)
+            d = daemon.Daemon(config, fd, start_network=False)
             try:
                 d.run_gui(config, plugins)
             except BaseException as e:

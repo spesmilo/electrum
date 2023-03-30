@@ -12,8 +12,8 @@ from electrum_grs.i18n import _
 from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID
 from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
-from electrum_grs.transaction import PartialTxOutput
-from electrum_grs.util import (parse_max_spend, InvalidPassword, event_listener)
+from electrum_grs.transaction import PartialTxOutput, PartialTransaction
+from electrum_grs.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import Multisig_Wallet
 from electrum_grs.crypto import pw_decode_with_version_and_mac
@@ -65,6 +65,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     transactionSigned = pyqtSignal([str], arguments=['txid'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
+    saveTxSuccess = pyqtSignal([str], arguments=['txid'])
+    saveTxError = pyqtSignal([str,str], arguments=['txid', 'code', 'message'])
     importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
@@ -327,6 +329,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         return self.wallet.wallet_type
 
     @pyqtProperty(bool, notify=dataChanged)
+    def isMultisig(self):
+        return isinstance(self.wallet, Multisig_Wallet)
+
+    @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
         return self.wallet.has_seed()
 
@@ -509,7 +515,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if broadcast:
             self.broadcast(tx)
         else:
-            # not broadcasted, so add to history now
+            # not broadcasted, so refresh history here
             self.historyModel.init_model(True)
 
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
@@ -552,6 +558,22 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         threading.Thread(target=broadcast_thread, daemon=True).start()
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
+
+    def save_tx(self, tx: 'PartialTransaction'):
+        assert tx
+
+        try:
+            if not self.wallet.adb.add_transaction(tx):
+                self.saveTxError.emit(tx.txid(), 'conflict',
+                        _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
+                return
+            self.wallet.save_db()
+            self.saveTxSuccess.emit(tx.txid())
+            self.historyModel.init_model(True)
+            return True
+        except AddTransactionException as e:
+            self.saveTxError.emit(tx.txid(), 'error', str(e))
+            return False
 
     paymentAuthRejected = pyqtSignal()
     def ln_auth_rejected(self):
@@ -705,3 +727,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._seed = ''
 
         self.dataChanged.emit()
+
+    @pyqtSlot(str, result=str)
+    @pyqtSlot(str, bool, result=str)
+    def getSerializedTx(self, txid, for_qr=False):
+        tx = self.wallet.db.get_transaction(txid)
+        if for_qr:
+            return tx.to_qr_data()
+        else:
+            return str(tx)

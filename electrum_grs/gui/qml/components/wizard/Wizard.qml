@@ -63,11 +63,15 @@ ElDialog {
         Object.assign(wdata_copy, wdata)
         var page = comp.createObject(pages, {wizard_data: wdata_copy})
         page.validChanged.connect(function() {
+            if (page != pages.currentItem)
+                return
             pages.pagevalid = page.valid
-        } )
+        })
         page.lastChanged.connect(function() {
+            if (page != pages.currentItem)
+                return
             pages.lastpage = page.last
-        } )
+        })
         page.next.connect(function() {
             var newview = wiz.submit(page.wizard_data)
             if (newview.view) {
@@ -79,7 +83,6 @@ ElDialog {
         })
         page.prev.connect(function() {
             var wdata = wiz.prev()
-            // console.log('prev view data: ' + JSON.stringify(wdata))
         })
 
         pages.pagevalid = page.valid

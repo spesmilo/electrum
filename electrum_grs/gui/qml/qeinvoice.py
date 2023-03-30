@@ -23,7 +23,7 @@ from electrum_grs.paymentrequest import PaymentRequest
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
-from .util import status_update_timer_interval
+from .util import status_update_timer_interval, QtEventListener, event_listener
 
 
 class QEInvoice(QObject):
@@ -120,7 +120,7 @@ class QEInvoice(QObject):
     def get_max_spendable_lightning(self):
         return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
 
-class QEInvoiceParser(QEInvoice):
+class QEInvoiceParser(QEInvoice, QtEventListener):
     _logger = get_logger(__name__)
 
     invoiceChanged = pyqtSignal()
@@ -159,6 +159,34 @@ class QEInvoiceParser(QEInvoice):
         self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
 
         self.clear()
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.determine_can_pay()
+            self.userinfo = _('Paid!')
+
+    @event_listener
+    def on_event_payment_failed(self, wallet, key, reason):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.determine_can_pay()
+            self.userinfo = _('Payment failed: ') + reason
+
+    @event_listener
+    def on_event_invoice_status(self, wallet, key, status):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            if status in [PR_INFLIGHT, PR_ROUTING]:
+                self.determine_can_pay()
+                self.userinfo = _('In progress...')
 
     @pyqtProperty(int, notify=invoiceChanged)
     def invoiceType(self):
@@ -206,6 +234,7 @@ class QEInvoiceParser(QEInvoice):
         if self._effectiveInvoice:
             self._effectiveInvoice.amount_msat = '!' if new_amount.isMax else int(new_amount.satsInt * 1000)
 
+        self.update_userinfo()
         self.determine_can_pay()
         self.invoiceChanged.emit()
 
@@ -217,12 +246,11 @@ class QEInvoiceParser(QEInvoice):
     def amountOverride(self, new_amount):
         self._logger.debug(f'set new override amount {repr(new_amount)}')
         self._amountOverride.copyFrom(new_amount)
-
-        self.determine_can_pay()
         self.amountOverrideChanged.emit()
 
     @pyqtSlot()
     def _on_amountoverride_value_changed(self):
+        self.update_userinfo()
         self.determine_can_pay()
 
     @pyqtProperty('quint64', notify=invoiceChanged)
@@ -313,6 +341,7 @@ class QEInvoiceParser(QEInvoice):
 
         self.set_lnprops()
 
+        self.update_userinfo()
         self.determine_can_pay()
 
         self.invoiceChanged.emit()
@@ -328,6 +357,7 @@ class QEInvoiceParser(QEInvoice):
                     self._timer.setInterval(interval)  # msec
                     self._timer.start()
         else:
+            self.update_userinfo()
             self.determine_can_pay() # status went to PR_EXPIRED
 
     @pyqtSlot()
@@ -335,9 +365,7 @@ class QEInvoiceParser(QEInvoice):
         self.statusChanged.emit()
         self.set_status_timer()
 
-    def determine_can_pay(self):
-        self.canPay = False
-        self.canSave = False
+    def update_userinfo(self):
         self.userinfo = ''
 
         if not self.amountOverride.isEmpty:
@@ -345,9 +373,10 @@ class QEInvoiceParser(QEInvoice):
         else:
             amount = self.amount
 
-        self.canSave = True
+        if self.amount.isEmpty:
+            self.userinfo = _('Enter the amount you want to send')
 
-        if amount.isEmpty: # unspecified amount
+        if amount.isEmpty and self.status == PR_UNPAID: # unspecified amount
             return
 
         if self.invoiceType == QEInvoice.Type.LightningInvoice:
@@ -356,31 +385,21 @@ class QEInvoiceParser(QEInvoice):
                     lnaddr = self._effectiveInvoice._lnaddr
                     if lnaddr.amount and amount.satsInt < lnaddr.amount * COIN:
                         self.userinfo = _('Cannot pay less than the amount specified in the invoice')
-                    else:
-                        self.canPay = True
-                elif self.address and self.get_max_spendable_onchain() > amount.satsInt:
+                elif self.address and self.get_max_spendable_onchain() < amount.satsInt:
                     # TODO: validate address?
                     # TODO: subtract fee?
-                    self.canPay = True
-                else:
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
                         PR_EXPIRED: _('Invoice is expired'),
                         PR_PAID: _('Invoice is already paid'),
-                        PR_INFLIGHT: _('Invoice is already being paid'),
-                        PR_ROUTING: _('Invoice is already being paid'),
+                        PR_INFLIGHT: _('Payment in progress...'),
+                        PR_ROUTING: _('Payment in progress'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
         elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
             if self.status in [PR_UNPAID, PR_FAILED]:
-                if amount.isMax and self.get_max_spendable_onchain() > 0:
-                    # TODO: dust limit?
-                    self.canPay = True
-                elif self.get_max_spendable_onchain() >= amount.satsInt:
-                    # TODO: subtract fee?
-                    self.canPay = True
-                else:
+                if not ((amount.isMax and self.get_max_spendable_onchain() > 0) or (self.get_max_spendable_onchain() >= amount.satsInt)):
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
@@ -389,6 +408,39 @@ class QEInvoiceParser(QEInvoice):
                         PR_UNCONFIRMED: _('Invoice is already paid'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
+
+    def determine_can_pay(self):
+        self.canPay = False
+        self.canSave = False
+
+        if not self.amountOverride.isEmpty:
+            amount = self.amountOverride
+        else:
+            amount = self.amount
+
+        self.canSave = True
+
+        if amount.isEmpty and self.status == PR_UNPAID: # unspecified amount
+            return
+
+        if self.invoiceType == QEInvoice.Type.LightningInvoice:
+            if self.status in [PR_UNPAID, PR_FAILED]:
+                if self.get_max_spendable_lightning() >= amount.satsInt:
+                    lnaddr = self._effectiveInvoice._lnaddr
+                    if not (lnaddr.amount and amount.satsInt < lnaddr.amount * COIN):
+                        self.canPay = True
+                elif self.address and self.get_max_spendable_onchain() > amount.satsInt:
+                    # TODO: validate address?
+                    # TODO: subtract fee?
+                    self.canPay = True
+        elif self.invoiceType == QEInvoice.Type.OnchainInvoice:
+            if self.status in [PR_UNPAID, PR_FAILED]:
+                if amount.isMax and self.get_max_spendable_onchain() > 0:
+                    # TODO: dust limit?
+                    self.canPay = True
+                elif self.get_max_spendable_onchain() >= amount.satsInt:
+                    # TODO: subtract fee?
+                    self.canPay = True
 
     def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')

@@ -64,6 +64,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.network = daemon.network
 
     def main(self):
+        self.daemon.start_network()
         from .main_window import ElectrumWindow
         w = ElectrumWindow(
             config=self.config,

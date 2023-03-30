@@ -57,16 +57,6 @@ class QEConfig(AuthMixin, QObject):
     def autoConnectDefined(self):
         return self.config.get('auto_connect') is not None
 
-    serverStringChanged = pyqtSignal()
-    @pyqtProperty('QString', notify=serverStringChanged)
-    def serverString(self):
-        return self.config.get('server')
-
-    @serverString.setter
-    def serverString(self, server):
-        self.config.set_key('server', server, True)
-        self.serverStringChanged.emit()
-
     manualServerChanged = pyqtSignal()
     @pyqtProperty(bool, notify=manualServerChanged)
     def manualServer(self):

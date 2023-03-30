@@ -24,11 +24,6 @@ Pane {
         app.stack.pop()
     }
 
-    function showExport() {
-        var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-        dialog.open()
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -375,9 +370,24 @@ Pane {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
                 text: qsTr('Share')
+                enabled: !txdetails.isUnrelated
                 onClicked: {
-                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-                    dialog.open()
+                    var msg = ''
+                    if (txdetails.isComplete) {
+                        // TODO: iff offline wallet?
+                        // TODO: or also if just temporarily offline?
+                        msg = qsTr('This transaction is complete. Please share it with an online device')
+                    } else if (txdetails.wallet.isWatchOnly) {
+                        msg = qsTr('This transaction should be signed. Present this QR code to the signing device')
+                    } else if (txdetails.wallet.isMultisig && txdetails.wallet.walletType != '2fa') {
+                        if (txdetails.canSign) {
+                            msg = qsTr('Note: this wallet can sign, but has not signed this transaction yet')
+                        } else {
+                            msg = qsTr('Transaction is partially signed by this wallet. Present this QR code to the next co-signer')
+                        }
+                    }
+
+                    app.stack.getRoot().showExport(txdetails.getSerializedTx(false), txdetails.getSerializedTx(true), msg)
                 }
             }
 
@@ -418,7 +428,13 @@ Pane {
             })
             dialog.open()
         }
-        onSaveTxSuccess: {
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onSaveTxSuccess(txid) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, {
                 text: qsTr('Transaction added to wallet history.') + '\n\n' +
                       qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
@@ -426,7 +442,9 @@ Pane {
             dialog.open()
             root.close()
         }
-        onSaveTxError: {
+        function onSaveTxError(txid, code, message) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
@@ -511,10 +529,4 @@ Pane {
         }
     }
 
-    Component {
-        id: exportTxDialog
-        ExportTxDialog {
-            onClosed: destroy()
-        }
-    }
 }

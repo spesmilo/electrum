@@ -6,7 +6,7 @@ import sys
 import html
 import threading
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Set
 
 from PyQt5.QtCore import (pyqtSlot, pyqtSignal, pyqtProperty, QObject, QUrl, QLocale,
                           qInstallMessageHandler, QTimer, QSortFilterProxyModel)
@@ -44,6 +44,8 @@ from .qemodelfilter import QEFilterProxyModel
 if TYPE_CHECKING:
     from electrum_grs.simple_config import SimpleConfig
     from electrum_grs.wallet import Abstract_Wallet
+    from electrum_grs.daemon import Daemon
+    from electrum_grs.plugin import Plugins
 
 notification = None
 
@@ -56,12 +58,13 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
 
-    def __init__(self, qedaemon, plugins):
+    def __init__(self, qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
         QObject.__init__(self)
 
         self._qedaemon = qedaemon
         self._plugins = plugins
+        self.config = qedaemon.daemon.config
 
         self._crash_user_text = ''
         self._app_started = False
@@ -290,7 +293,7 @@ class ElectrumQmlApplication(QGuiApplication):
 
     _valid = True
 
-    def __init__(self, args, config, daemon, plugins):
+    def __init__(self, args, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         super().__init__(args)
 
         self.logger = get_logger(__name__)

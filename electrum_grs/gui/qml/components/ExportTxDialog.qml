@@ -8,9 +8,7 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property QtObject txdetails
-
-    property string text
+    required property string text
     property string text_qr
     // if text_qr is undefined text will be used
     property string text_help
@@ -51,13 +49,12 @@ ElDialog {
                     }
                 }
 
-                Label {
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.margins: constants.paddingLarge
                     visible: dialog.text_help
                     text: dialog.text_help
-                    wrapMode: Text.Wrap
-                    Layout.fillWidth: true
                 }
-
             }
         }
 
@@ -97,10 +94,5 @@ ElDialog {
                 qr.render = true
             }
         }
-    }
-
-    Component.onCompleted: {
-        text = dialog.txdetails.serializedTx(false)
-        text_qr = dialog.txdetails.serializedTx(true)
     }
 }

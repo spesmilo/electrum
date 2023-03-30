@@ -292,6 +292,7 @@ class ServerAddr:
 
     @classmethod
     def from_str(cls, s: str) -> 'ServerAddr':
+        """Constructs a ServerAddr or raises ValueError."""
         # host might be IPv6 address, hence do rsplit:
         host, port, protocol = str(s).rsplit(':', 2)
         return ServerAddr(host=host, port=port, protocol=protocol)
@@ -299,20 +300,29 @@ class ServerAddr:
     @classmethod
     def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
         """Construct ServerAddr from str, guessing missing details.
+        Does not raise - just returns None if guessing failed.
         Ongoing compatibility not guaranteed.
         """
         if not s:
             return None
+        host = ""
+        if s[0] == "[" and "]" in s:  # IPv6 address
+            host_end = s.index("]")
+            host = s[1:host_end]
+            s = s[host_end+1:]
         items = str(s).rsplit(':', 2)
         if len(items) < 2:
             return None  # although maybe we could guess the port too?
-        host = items[0]
+        host = host or items[0]
         port = items[1]
         if len(items) >= 3:
             protocol = items[2]
         else:
             protocol = PREFERRED_NETWORK_PROTOCOL
-        return ServerAddr(host=host, port=port, protocol=protocol)
+        try:
+            return ServerAddr(host=host, port=port, protocol=protocol)
+        except ValueError:
+            return None
 
     def to_friendly_name(self) -> str:
         # note: this method is closely linked to from_str_with_inference

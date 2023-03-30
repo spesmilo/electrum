@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.logging import get_logger
@@ -8,13 +10,17 @@ from electrum_grs.simple_config import FEERATE_DEFAULT_RELAY
 from .util import QtEventListener, event_listener
 from .qeserverlistmodel import QEServerListModel
 
+if TYPE_CHECKING:
+    from .qeconfig import QEConfig
+    from electrum.network import Network
+
+
 class QENetwork(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     networkUpdated = pyqtSignal()
     blockchainUpdated = pyqtSignal()
     heightChanged = pyqtSignal([int], arguments=['height'])
-    defaultServerChanged = pyqtSignal()
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
     statusChanged = pyqtSignal()
@@ -27,6 +33,7 @@ class QENetwork(QObject, QtEventListener):
     dataChanged = pyqtSignal()
 
     _height = 0
+    _server = ""
     _server_status = ""
     _network_status = ""
     _chaintips = 1
@@ -38,8 +45,9 @@ class QENetwork(QObject, QtEventListener):
     _gossipDbChannels = 0
     _gossipDbPolicies = 0
 
-    def __init__(self, network, qeconfig, parent=None):
+    def __init__(self, network: 'Network', qeconfig: 'QEConfig', parent=None):
         super().__init__(parent)
+        assert network, "--offline is not yet implemented for this GUI"  # TODO
         self.network = network
         self._qeconfig = qeconfig
         self._serverListModel = None
@@ -51,6 +59,7 @@ class QENetwork(QObject, QtEventListener):
     @event_listener
     def on_event_network_updated(self, *args):
         self.networkUpdated.emit()
+        self._update_status()
 
     @event_listener
     def on_event_blockchain_updated(self):
@@ -62,7 +71,7 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_default_server_changed(self, *args):
-        self.defaultServerChanged.emit()
+        self._update_status()
 
     @event_listener
     def on_event_proxy_set(self, *args):
@@ -70,15 +79,19 @@ class QENetwork(QObject, QtEventListener):
         self.proxySet.emit()
         self.proxyTorChanged.emit()
 
-    @event_listener
-    def on_event_status(self, *args):
+    def _update_status(self):
+        server = str(self.network.get_parameters().server)
+        if self._server != server:
+            self._server = server
+            self.statusChanged.emit()
         network_status = self.network.get_status()
         if self._network_status != network_status:
+            self._logger.debug('network_status updated: %s' % network_status)
             self._network_status = network_status
             self.statusChanged.emit()
         server_status = self.network.connection_status
-        self._logger.debug('server_status updated: %s' % server_status)
         if self._server_status != server_status:
+            self._logger.debug('server_status updated: %s' % server_status)
             self._server_status = server_status
             self.statusChanged.emit()
         chains = len(self.network.get_blockchains())
@@ -91,6 +104,10 @@ class QENetwork(QObject, QtEventListener):
             self._logger.debug('lagging changed: %s', str(server_lag > 1))
             self._islagging = server_lag > 1
             self.isLaggingChanged.emit()
+
+    @event_listener
+    def on_event_status(self, *args):
+        self._update_status()
 
     @event_listener
     def on_event_fee_histogram(self, histogram):
@@ -155,12 +172,12 @@ class QENetwork(QObject, QtEventListener):
     def height(self):
         return self._height
 
-    @pyqtProperty(str, notify=defaultServerChanged)
+    @pyqtProperty(str, notify=statusChanged)
     def server(self):
-        return str(self.network.get_parameters().server)
+        return self._server
 
     @server.setter
-    def server(self, server):
+    def server(self, server: str):
         net_params = self.network.get_parameters()
         try:
             server = ServerAddr.from_str_with_inference(server)
@@ -169,6 +186,13 @@ class QENetwork(QObject, QtEventListener):
             return
         net_params = net_params._replace(server=server, auto_connect=self._qeconfig.autoConnect)
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
+
+    @pyqtProperty(str, notify=statusChanged)
+    def serverWithStatus(self):
+        server = self._server
+        if self._server_status != "connected":  # connecting or disconnected
+            return f"{server} (connecting...)"
+        return server
 
     @pyqtProperty(str, notify=statusChanged)
     def status(self):

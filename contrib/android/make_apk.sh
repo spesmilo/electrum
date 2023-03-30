@@ -10,6 +10,8 @@ LOCALE="$PROJECT_ROOT"/electrum_grs/locale/
 
 . "$CONTRIB"/build_tools_util.sh
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 
 # arguments have been checked in build.sh
 export ELEC_APK_GUI=$1

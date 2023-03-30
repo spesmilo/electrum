@@ -386,25 +386,16 @@ class QETxDetails(QObject, QtEventListener):
         if not self._tx:
             return
 
-        try:
-            if not self._wallet.wallet.adb.add_transaction(self._tx):
-                self.saveTxError.emit('conflict',
-                        _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
-                return
-            self._wallet.wallet.save_db()
-            self.saveTxSuccess.emit()
-            self._wallet.historyModel.init_model(True)
-        except AddTransactionException as e:
-            self.saveTxError.emit('error', str(e))
-        finally:
+        if self._wallet.save_tx(self._tx):
             self._can_save_as_local = False
             self._can_remove = True
             self.detailsChanged.emit()
 
     @pyqtSlot(result=str)
     @pyqtSlot(bool, result=str)
-    def serializedTx(self, for_qr=False):
+    def getSerializedTx(self, for_qr=False):
+        tx = self._tx
         if for_qr:
-            return self._tx.to_qr_data()
+            return tx.to_qr_data()
         else:
-            return str(self._tx)
+            return str(tx)

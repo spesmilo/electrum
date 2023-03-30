@@ -517,6 +517,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def main(self):
+        self.daemon.start_network()
         tty.setraw(sys.stdin)
         try:
             while self.tab != -1:

@@ -57,7 +57,7 @@ ElDialog {
             proxyconfig.proxy_port = p['port']
             proxyconfig.username = p['user']
             proxyconfig.password = p['password']
-            proxyconfig.proxy_type = proxyconfig.proxy_types.map(function(x) {
+            proxyconfig.proxy_type = proxyconfig.proxy_type_map.map(function(x) {
                 return x.value
             }).indexOf(p['mode'])
         } else {

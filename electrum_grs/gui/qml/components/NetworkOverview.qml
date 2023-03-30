@@ -54,11 +54,10 @@ Pane {
                     text: qsTr('Server:');
                     color: Material.accentColor
                 }
-                RowLayout {
-                    Label {
-                        text: Network.server
-                    }
-                    OnchainNetworkStatusIndicator {}
+                Label {
+                    text: Network.serverWithStatus
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
                 }
                 Label {
                     text: qsTr('Local Height:');
@@ -217,7 +216,7 @@ Pane {
                     }
                     Label {
                         visible: 'mode' in Network.proxy
-                        text: Network.isProxyTor ? 'TOR' : Network.proxy['mode']
+                        text: Network.isProxyTor ? 'TOR' : (Network.proxy['mode'] || '')
                     }
                 }
 

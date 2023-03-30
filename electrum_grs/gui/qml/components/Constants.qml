@@ -38,6 +38,8 @@ Item {
     property color colorInfo: Material.accentColor
     property color colorWarning: 'yellow'
     property color colorError: '#ffff8080'
+    property color colorProgress: '#ffffff80'
+    property color colorDone: '#ff80ff80'
 
     property color colorMine: "yellow"
     property color colorLightningLocal: "blue"
