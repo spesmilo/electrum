@@ -1,12 +1,14 @@
 import asyncio
 import qrcode
+from qrcode.exceptions import DataOverflowError
+
 import math
 import urllib
 
 from PIL import Image, ImageQt
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRect, QPoint
-from PyQt5.QtGui import QImage,QColor
+from PyQt5.QtGui import QImage, QColor
 from PyQt5.QtQuick import QQuickImageProvider
 
 from electrum.logging import get_logger
@@ -143,13 +145,20 @@ class QEQRImageProvider(QQuickImageProvider):
 
         # calculate best box_size
         pixelsize = min(self._max_size, 400)
-        modules = 17 + 4 * qr.best_fit() + qr.border * 2
-        qr.box_size = math.floor(pixelsize/modules)
+        try:
+            modules = 17 + 4 * qr.best_fit() + qr.border * 2
+            qr.box_size = math.floor(pixelsize/modules)
 
-        qr.make(fit=True)
+            qr.make(fit=True)
 
-        pimg = qr.make_image(fill_color='black', back_color='white')
-        self.qimg = ImageQt.ImageQt(pimg)
+            pimg = qr.make_image(fill_color='black', back_color='white')
+            self.qimg = ImageQt.ImageQt(pimg)
+        except DataOverflowError:
+            # fake it
+            modules = 17 + qr.border * 2
+            box_size = math.floor(pixelsize/modules)
+            self.qimg = QImage(box_size * modules, box_size * modules, QImage.Format_RGB32)
+            self.qimg.fill(QColor('gray'))
         return self.qimg, self.qimg.size()
 
 # helper for placing icon exactly where it should go on the QR code
@@ -167,12 +176,17 @@ class QEQRImageProviderHelper(QObject):
 
         # calculate best box_size
         pixelsize = min(self._max_size, 400)
-        modules = 17 + 4 * qr.best_fit() + qr.border * 2
-        qr.box_size = math.floor(pixelsize/modules)
+        try:
+            modules = 17 + 4 * qr.best_fit() + qr.border * 2
+            valid = True
+        except DataOverflowError:
+            # fake it
+            modules = 17 + qr.border * 2
+            valid = False
 
+        qr.box_size = math.floor(pixelsize/modules)
         # calculate icon width in modules
         icon_modules = int(modules / 5)
         icon_modules += (icon_modules+1)%2 # force odd
 
-        return { 'modules': modules, 'box_size': qr.box_size, 'icon_modules': icon_modules }
-
+        return { 'modules': modules, 'box_size': qr.box_size, 'icon_modules': icon_modules, 'valid' : valid }
