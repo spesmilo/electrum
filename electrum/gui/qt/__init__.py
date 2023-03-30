@@ -43,7 +43,7 @@ except Exception as e:
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
                              QMessageBox)
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, Qt, QDir
 import PyQt5.QtCore as QtCore
 
 try:
@@ -58,7 +58,7 @@ from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, profiler, send_exception_to_crash_reporter,
-                           WalletFileException, BitcoinException, get_new_wallet_name)
+                           WalletFileException, BitcoinException, get_new_wallet_name, resource_path)
 from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
@@ -147,6 +147,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app.quit_signal.connect(self.app.quit, Qt.QueuedConnection)
         # maybe set dark theme
         self._default_qtstylesheet = self.app.styleSheet()
+        QDir.addSearchPath('qdarkstyle_light', resource_path('gui', 'icons', 'qdarkstyle', 'light'))
         self.reload_app_stylesheet()
 
         run_hook('init_qt', self)
