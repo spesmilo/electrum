@@ -52,10 +52,18 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     visible: text
-                    text: invoice.userinfo
-                    iconStyle: invoice.status == Invoice.Failed || invoice.status == Invoice.Expired
+                    text:  invoice.userinfo ? invoice.userinfo : invoice.status_str
+                    iconStyle: invoice.status == Invoice.Failed || invoice.status == Invoice.Unknown
                         ? InfoTextArea.IconStyle.Warn
-                        : InfoTextArea.IconStyle.Info
+                        : invoice.status == Invoice.Expired
+                            ? InfoTextArea.IconStyle.Error
+                            : invoice.status == Invoice.Inflight || invoice.status == Invoice.Routing || invoice.status == Invoice.Unconfirmed
+                                ? InfoTextArea.IconStyle.Progress
+                                : invoice.status == Invoice.Paid
+                                    ? InfoTextArea.IconStyle.Done
+                                    : invoice.status == Invoice.Unpaid && invoice.expiration > 0
+                                        ? InfoTextArea.IconStyle.Pending
+                                        : InfoTextArea.IconStyle.Info
                 }
 
                 Label {
@@ -82,34 +90,6 @@ ElDialog {
                                         : qsTr('Lightning')
                                     : ''
                         Layout.fillWidth: true
-                    }
-                }
-
-                Label {
-                    text: qsTr('Status')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: invoice.status == Invoice.Expired
-                            ? '../../icons/expired.png'
-                            : invoice.status == Invoice.Unpaid
-                                ? '../../icons/unpaid.png'
-                                : invoice.status == Invoice.Failed || invoice.status == Invoice.Unknown
-                                    ? '../../icons/warning.png'
-                                    : invoice.status == Invoice.Inflight || invoice.status == Invoice.Routing
-                                        ? '../../icons/status_waiting.png'
-                                        : invoice.status == Invoice.Unconfirmed
-                                            ? '../../icons/unconfirmed.png'
-                                            : invoice.status == Invoice.Paid
-                                                ? '../../icons/confirmed.png'
-                                                : ''
-                    }
-                    Label {
-                        text: invoice.status_str
                     }
                 }
 
