@@ -381,6 +381,11 @@ class QETxDetails(QObject, QtEventListener):
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
 
+        # NOTE: from here, the tx/txid is unknown and all properties are invalid.
+        # UI should close TxDetails and avoid interacting with this qetxdetails instance.
+        self._txid = None
+        self._tx = None
+
     @pyqtSlot()
     def save(self):
         if not self._tx:
