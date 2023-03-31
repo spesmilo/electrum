@@ -506,7 +506,6 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                         maybe_lightning_invoice = self._bip21['lightning']
         except InvalidBitcoinURI as e:
             self._bip21 = None
-            self._logger.debug(repr(e))
 
         lninvoice = None
         maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
@@ -536,12 +535,11 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
         if lninvoice:
             if not self._wallet.wallet.has_lightning():
                 if not self._bip21:
-                    # TODO: lightning onchain fallback in ln invoice
-                    #self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet'))
-                    self.setValidLightningInvoice(lninvoice)
-                    self.validationSuccess.emit()
-                    # self.clear()
-                    return
+                    if lninvoice.get_address():
+                        self.setValidLightningInvoice(lninvoice)
+                        self.validationSuccess.emit()
+                    else:
+                        self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
                     self.setValidOnchainInvoice(self._bip21['address'])
