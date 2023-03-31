@@ -216,7 +216,7 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
     @pyqtProperty(bool, notify=lnurlRetrieved)
     def isLnurlPay(self):
-        return not self._lnurlData is None
+        return self._lnurlData is not None
 
     @pyqtProperty(str, notify=invoiceChanged)
     def message(self):
