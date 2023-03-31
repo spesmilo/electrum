@@ -12,6 +12,7 @@ import "controls"
 Pane {
     id: root
     objectName: 'ReceiveRequests'
+    property string selected_key
 
     ColumnLayout {
         anchors.fill: parent
@@ -38,14 +39,14 @@ Pane {
                     model: Daemon.currentWallet.requestModel
                     delegate: InvoiceDelegate {
                         onClicked: {
-                            // TODO: only open unpaid?
-                            if (model.status == Invoice.Unpaid) {
-                                app.stack.getRoot().openRequest(model.key)
-                            }
+                            app.stack.getRoot().openRequest(model.key)
+                            selected_key = ''
                         }
+                        onPressAndHold: {
+                            selected_key = model.key
+			}
                     }
                 }
-
                 add: Transition {
                     NumberAnimation { properties: 'scale'; from: 0.75; to: 1; duration: 500 }
                     NumberAnimation { properties: 'opacity'; from: 0; to: 1; duration: 500 }
@@ -66,6 +67,31 @@ Pane {
                 }
 
                 ScrollIndicator.vertical: ScrollIndicator { }
+            }
+        }
+        ButtonContainer {
+            Layout.fillWidth: true
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Delete')
+                icon.source: '../../icons/delete.png'
+                visible: selected_key != ''
+                onClicked: {
+                    Daemon.currentWallet.delete_request(selected_key)
+                    selected_key = ''
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('View')
+                icon.source: '../../icons/tab_receive.png'
+                visible: selected_key != ''
+                onClicked: {
+                    app.stack.getRoot().openRequest(selected_key)
+                    selected_key = ''
+                }
             }
         }
     }

@@ -608,17 +608,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         threading.Thread(target=pay_thread, daemon=True).start()
 
-
+    @pyqtSlot()
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
 
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        # delete expired_requests
-        keys = self.wallet.delete_expired_requests()
-        for key in keys:
-            self.requestModel.delete_invoice(key)
+        self.delete_expired_requests()
         try:
             amount = amount.satsInt
             addr = self.wallet.get_unused_address()

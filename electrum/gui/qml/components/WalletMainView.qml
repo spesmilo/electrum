@@ -192,6 +192,7 @@ Item {
                     dialog.open()
                 }
                 onPressAndHold: {
+                    Daemon.currentWallet.delete_expired_requests()
                     app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
                 }
             }
