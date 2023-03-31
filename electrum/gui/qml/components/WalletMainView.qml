@@ -265,21 +265,9 @@ Item {
         function onRequestCreateSuccess(key) {
             openRequest(key)
         }
-        function onRequestCreateError(code, error) {
-            if (code == 'ln') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    createRequest(true, false)
-                })
-            } else if (code == 'reuse_addr') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    createRequest(false, true)
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
+        function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {text: error})
             dialog.open()
         }
     }

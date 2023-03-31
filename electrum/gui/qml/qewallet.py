@@ -55,7 +55,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal([str], arguments=['key'])
-    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    requestCreateError = pyqtSignal([str], arguments=['error'])
     invoiceStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     invoiceCreateSuccess = pyqtSignal()
     invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
@@ -621,16 +621,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 else:
                     has_lightning = self.wallet.has_lightning()
                     msg = [
-                        _('No more unused addresses in your wallet.'),
-                        _('All your addresses are used by unpaid requests.'),
+                        _('No address available.'),
+                        _('All your addresses are used in pending requests.'),
+                        _('To see the list, press and hold the Receive button.'),
                     ]
-                    msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
-                    self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
+                    self.requestCreateError.emit(' '.join(msg))
                     return
 
             key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
-            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
+            self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
