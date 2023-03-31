@@ -456,5 +456,10 @@ ElDialog {
         } else if (invoice.amount.isMax) {
             amountMax.checked = true
         }
+        if (invoice.lnurlData) {
+            // we arrive from a lnurl-pay confirm dialog where the user already indicated the intent to pay.
+            if (invoice.canPay)
+                doPay()
+        }
     }
 }

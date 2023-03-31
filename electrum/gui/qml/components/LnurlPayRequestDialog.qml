@@ -92,7 +92,7 @@ ElDialog {
         FlatButton {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Proceed')
+            text: qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
             enabled: valid
             onClicked: {
