@@ -102,12 +102,4 @@ ElDialog {
         }
     }
 
-    Connections {
-        target: invoiceParser
-        function onLnurlError(code, message) {
-            var dialog = app.messageDialog.createObject(app, { text: message })
-            dialog.open()
-        }
-    }
-
 }

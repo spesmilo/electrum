@@ -620,15 +620,20 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     params['comment'] = comment
                 coro = callback_lnurl(self._lnurlData['callback_url'], params)
                 fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
-                self.on_lnurl_invoice(fut.result())
+                self.on_lnurl_invoice(amount, fut.result())
             except Exception as e:
-                self.lnurlError.emit('lnurl', repr(e))
+                self._logger.error(repr(e))
+                self.lnurlError.emit('lnurl', str(e))
 
         threading.Thread(target=fetch_invoice_task).start()
 
-    def on_lnurl_invoice(self, invoice):
+    def on_lnurl_invoice(self, orig_amount, invoice):
         self._logger.debug('on_lnurl_invoice')
         self._logger.debug(f'{repr(invoice)}')
+
+        # assure no shenanigans with the bolt11 invoice we get back
+        lninvoice = Invoice.from_bech32(invoice)
+        assert orig_amount * 1000 == lninvoice.amount_msat
 
         invoice = invoice['pr']
         self.recipient = invoice
