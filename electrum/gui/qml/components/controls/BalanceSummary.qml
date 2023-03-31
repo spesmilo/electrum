@@ -23,17 +23,6 @@ Item {
         }
     }
 
-    state: 'fiat'
-
-    states: [
-        State {
-            name: 'fiat'
-        },
-        State {
-            name: 'btc'
-        }
-    ]
-
     TextHighlightPane {
         id: balancePane
         leftPadding: constants.paddingXLarge
@@ -63,28 +52,28 @@ Item {
             }
 
             Item {
-                visible: Daemon.fx.enabled && root.state == 'fiat'
+                visible: Daemon.fx.enabled
                 // attempt at making fiat state as tall as btc state:
                 Layout.preferredHeight: fontMetrics.lineSpacing * 2 + balanceLayout.rowSpacing + 2
                 Layout.preferredWidth: 1
             }
             Label {
                 Layout.alignment: Qt.AlignRight
-                visible: Daemon.fx.enabled && root.state == 'fiat'
+                visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeLarge
                 font.family: FixedFont
                 color: constants.mutedForeground
                 text: formattedTotalBalanceFiat
             }
             Label {
-                visible: Daemon.fx.enabled && root.state == 'fiat'
+                visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeLarge
                 color: constants.mutedForeground
                 text: Daemon.fx.fiatCurrency
             }
 
             RowLayout {
-                visible: Daemon.currentWallet.isLightning && root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
@@ -97,20 +86,20 @@ Item {
                 }
             }
             Label {
-                visible: Daemon.currentWallet.isLightning && root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
                 text: formattedLightningBalance
                 font.family: FixedFont
             }
             Label {
-                visible: Daemon.currentWallet.isLightning && root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
             }
 
             RowLayout {
-                visible: root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
@@ -124,13 +113,13 @@ Item {
             }
             Label {
                 id: formattedConfirmedBalanceLabel
-                visible: root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
                 text: formattedConfirmedBalance
                 font.family: FixedFont
             }
             Label {
-                visible: root.state == 'btc'
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
@@ -157,8 +146,8 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: {
-            root.state = root.state == 'fiat' && Daemon.currentWallet.isLightning ? 'btc' : 'fiat'
+        onPressAndHold: {
+            app.stack.push(Qt.resolvedUrl('../BalanceDetails.qml'))
         }
     }
 
@@ -174,8 +163,6 @@ Item {
         target: Daemon
         function onWalletLoaded() {
             setBalances()
-            if (!Daemon.currentWallet.isLightning)
-                root.state = 'fiat'
         }
     }
 
