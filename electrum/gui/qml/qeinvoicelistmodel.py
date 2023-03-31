@@ -223,8 +223,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
         return item
 
     def get_invoice_list(self):
-        # disable for now, as QERequestListModel isn't used in UI
-        return [] #self.wallet.get_unpaid_requests()
+        return self.wallet.get_unpaid_requests()
 
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)
