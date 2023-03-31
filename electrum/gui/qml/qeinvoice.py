@@ -599,6 +599,7 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     @pyqtSlot('quint64', str)
     def lnurlGetInvoice(self, amount, comment=None):
         assert self._lnurlData
+        self._logger.debug(f'{repr(self._lnurlData)}')
 
         amount = self.amountOverride.satsInt
         if self.lnurlData['min_sendable_sat'] != 0:
@@ -632,7 +633,7 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
         self._logger.debug(f'{repr(invoice)}')
 
         # assure no shenanigans with the bolt11 invoice we get back
-        lninvoice = Invoice.from_bech32(invoice)
+        lninvoice = Invoice.from_bech32(invoice['pr'])
         assert orig_amount * 1000 == lninvoice.amount_msat
 
         invoice = invoice['pr']
