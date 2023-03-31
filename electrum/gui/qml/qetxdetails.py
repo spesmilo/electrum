@@ -365,6 +365,7 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtSlot()
     @pyqtSlot(bool)
     def removeLocalTx(self, confirm = False):
+        assert self._can_remove
         txid = self._txid
 
         if not confirm:
@@ -379,7 +380,6 @@ class QETxDetails(QObject, QtEventListener):
 
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
-        self._wallet.historyModel.init_model(True)
 
     @pyqtSlot()
     def save(self):

@@ -261,10 +261,6 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     def expiration(self):
         return self._effectiveInvoice.exp if self._effectiveInvoice else 0
 
-    @pyqtProperty('quint64', notify=invoiceChanged)
-    def time(self):
-        return self._effectiveInvoice.time if self._effectiveInvoice else 0
-
     statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
     def status(self):

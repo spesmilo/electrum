@@ -183,6 +183,15 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.add_tx_notification(tx)
             self.addressModel.setDirty()
             self.historyModel.setDirty() # assuming wallet.is_up_to_date triggers after
+            self.balanceChanged.emit()
+
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self._logger.info(f'removed transaction {tx.txid()}')
+            self.addressModel.setDirty()
+            self.historyModel.init_model(True) #setDirty()
+            self.balanceChanged.emit()
 
     @qt_event_listener
     def on_event_wallet_updated(self, wallet):
