@@ -391,11 +391,7 @@ class QETxDetails(QObject, QtEventListener):
             self._can_remove = True
             self.detailsChanged.emit()
 
-    @pyqtSlot(result=str)
-    @pyqtSlot(bool, result=str)
-    def getSerializedTx(self, for_qr=False):
-        tx = self._tx
-        if for_qr:
-            return tx.to_qr_data()[0]
-        else:
-            return str(tx)
+    @pyqtSlot(result='QVariantList')
+    def getSerializedTx(self):
+        txqr = self._tx.to_qr_data()
+        return [str(self._tx), txqr[0], txqr[1]]

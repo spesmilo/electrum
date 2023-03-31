@@ -374,9 +374,10 @@ Pane {
                 onClicked: {
                     var msg = ''
                     if (txdetails.isComplete) {
-                        // TODO: iff offline wallet?
-                        // TODO: or also if just temporarily offline?
-                        msg = qsTr('This transaction is complete. Please share it with an online device')
+                        if (!txdetails.isMined && !txdetails.mempoolDepth) // local
+                            // TODO: iff offline wallet?
+                            // TODO: or also if just temporarily offline?
+                            msg = qsTr('This transaction is complete. Please share it with an online device')
                     } else if (txdetails.wallet.isWatchOnly) {
                         msg = qsTr('This transaction should be signed. Present this QR code to the signing device')
                     } else if (txdetails.wallet.isMultisig && txdetails.wallet.walletType != '2fa') {
@@ -387,7 +388,7 @@ Pane {
                         }
                     }
 
-                    app.stack.getRoot().showExport(txdetails.getSerializedTx(false), txdetails.getSerializedTx(true), msg)
+                    app.stack.getRoot().showExport(txdetails.getSerializedTx(), msg)
                 }
             }
 

@@ -728,11 +728,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.dataChanged.emit()
 
-    @pyqtSlot(str, result=str)
-    @pyqtSlot(str, bool, result=str)
-    def getSerializedTx(self, txid, for_qr=False):
+    @pyqtSlot(str, result='QVariantList')
+    def getSerializedTx(self, txid):
         tx = self.wallet.db.get_transaction(txid)
-        if for_qr:
-            return tx.to_qr_data()[0]
-        else:
-            return str(tx)
+        txqr = tx.to_qr_data()
+        return [str(tx), txqr[0], txqr[1]]

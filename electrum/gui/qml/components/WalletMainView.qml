@@ -51,14 +51,17 @@ Item {
     }
 
     function showExportByTxid(txid, helptext) {
-        showExport(Daemon.currentWallet.getSerializedTx(txid, false), Daemon.currentWallet.getSerializedTx(txid, true), helptext)
+        showExport(Daemon.currentWallet.getSerializedTx(txid), helptext)
     }
 
-    function showExport(data, data_qr, helptext) {
+    function showExport(data, helptext) {
         var dialog = exportTxDialog.createObject(app, {
-            text: data,
-            text_qr: data_qr,
-            text_help: helptext
+            text: data[0],
+            text_qr: data[1],
+            text_help: helptext,
+            text_warn: data[2]
+                ? ''
+                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
         })
         dialog.open()
     }
