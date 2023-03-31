@@ -632,10 +632,10 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
         # assure no shenanigans with the bolt11 invoice we get back
         lninvoice = Invoice.from_bech32(invoice['pr'])
-        assert orig_amount * 1000 == lninvoice.amount_msat
+        if orig_amount * 1000 != lninvoice.amount_msat:
+            raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
 
-        invoice = invoice['pr']
-        self.recipient = invoice
+        self.recipient = invoice['pr']
 
     @pyqtSlot()
     def save_invoice(self):
