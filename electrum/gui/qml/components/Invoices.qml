@@ -14,7 +14,7 @@ Pane {
         anchors.fill: parent
 
         Heading {
-            text: qsTr('Invoices')
+            text: qsTr('Saved Invoices')
         }
 
         Frame {

@@ -17,7 +17,7 @@ Pane {
         anchors.fill: parent
 
         Heading {
-            text: qsTr('Receive requests')
+            text: qsTr('Pending requests')
         }
 
         Frame {
