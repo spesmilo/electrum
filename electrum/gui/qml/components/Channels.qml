@@ -117,6 +117,60 @@ Pane {
             }
         }
 
+        ButtonContainer {
+            Layout.fillWidth: true
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Swap');
+                visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                icon.source: Qt.resolvedUrl('../../icons/update.png')
+                onClicked: {
+                    var swaphelper = app.swaphelper.createObject(app)
+                    swaphelper.swapStarted.connect(function() {
+                        var dialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+                        dialog.open()
+                    })
+                    var dialog = swapDialog.createObject(root, { swaphelper: swaphelper })
+                    dialog.open()
+                }
+            }
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Open Channel')
+                onClicked: {
+                    var dialog = openChannelDialog.createObject(root)
+                    dialog.open()
+                }
+                icon.source: '../../icons/lightning.png'
+            }
+
+        }
+
+    }
+
+    Component {
+        id: swapDialog
+        SwapDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: swapProgressDialog
+        SwapProgressDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: openChannelDialog
+        OpenChannelDialog {
+            onClosed: destroy()
+        }
+    }
 
     Component {
         id: importChannelBackupDialog
