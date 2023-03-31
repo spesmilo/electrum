@@ -1081,12 +1081,12 @@ def getSaveFileName(
     return selected_path
 
 
-def icon_path(icon_basename):
+def icon_path(icon_basename: str):
     return resource_path('gui', 'icons', icon_basename)
 
 
 @lru_cache(maxsize=1000)
-def read_QIcon(icon_basename):
+def read_QIcon(icon_basename: str) -> QIcon:
     return QIcon(icon_path(icon_basename))
 
 class IconLabel(QWidget):
