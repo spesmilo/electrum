@@ -203,10 +203,8 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
     @recipient.setter
     def recipient(self, recipient: str):
-        #if self._recipient != recipient:
         self.canPay = False
         self._recipient = recipient
-        self._lnurlData = None
         self.amountOverride = QEAmount()
         if recipient:
             self.validateRecipient(recipient)
@@ -215,6 +213,10 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
     def lnurlData(self):
         return self._lnurlData
+
+    @pyqtProperty(bool, notify=lnurlRetrieved)
+    def isLnurlPay(self):
+        return not self._lnurlData is None
 
     @pyqtProperty(str, notify=invoiceChanged)
     def message(self):
