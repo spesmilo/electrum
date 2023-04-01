@@ -12,8 +12,8 @@ from electrum.i18n import _
 from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.transaction import PartialTxOutput
-from electrum.util import (parse_max_spend, InvalidPassword, event_listener)
+from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -55,7 +55,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal([str], arguments=['key'])
-    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    requestCreateError = pyqtSignal([str], arguments=['error'])
     invoiceStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     invoiceCreateSuccess = pyqtSignal()
     invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
@@ -65,6 +65,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     transactionSigned = pyqtSignal([str], arguments=['txid'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
+    saveTxSuccess = pyqtSignal([str], arguments=['txid'])
+    saveTxError = pyqtSignal([str,str,str], arguments=['txid', 'code', 'message'])
     importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
@@ -181,6 +183,15 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.add_tx_notification(tx)
             self.addressModel.setDirty()
             self.historyModel.setDirty() # assuming wallet.is_up_to_date triggers after
+            self.balanceChanged.emit()
+
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self._logger.info(f'removed transaction {tx.txid()}')
+            self.addressModel.setDirty()
+            self.historyModel.init_model(True) #setDirty()
+            self.balanceChanged.emit()
 
     @qt_event_listener
     def on_event_wallet_updated(self, wallet):
@@ -325,6 +336,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=dataChanged)
     def walletType(self):
         return self.wallet.wallet_type
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def isMultisig(self):
+        return isinstance(self.wallet, Multisig_Wallet)
 
     @pyqtProperty(bool, notify=dataChanged)
     def hasSeed(self):
@@ -509,7 +524,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if broadcast:
             self.broadcast(tx)
         else:
-            # not broadcasted, so add to history now
+            # not broadcasted, so refresh history here
             self.historyModel.init_model(True)
 
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
@@ -553,6 +568,22 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         #TODO: properly catch server side errors, e.g. bad-txns-inputs-missingorspent
 
+    def save_tx(self, tx: 'PartialTransaction'):
+        assert tx
+
+        try:
+            if not self.wallet.adb.add_transaction(tx):
+                self.saveTxError.emit(tx.txid(), 'conflict',
+                        _("Transaction could not be saved.") + "\n" + _("It conflicts with current history."))
+                return
+            self.wallet.save_db()
+            self.saveTxSuccess.emit(tx.txid())
+            self.historyModel.init_model(True)
+            return True
+        except AddTransactionException as e:
+            self.saveTxError.emit(tx.txid(), 'error', str(e))
+            return False
+
     paymentAuthRejected = pyqtSignal()
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
@@ -577,17 +608,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         threading.Thread(target=pay_thread, daemon=True).start()
 
-
+    @pyqtSlot()
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
 
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        # delete expired_requests
-        keys = self.wallet.delete_expired_requests()
-        for key in keys:
-            self.requestModel.delete_invoice(key)
+        self.delete_expired_requests()
         try:
             amount = amount.satsInt
             addr = self.wallet.get_unused_address()
@@ -599,16 +631,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 else:
                     has_lightning = self.wallet.has_lightning()
                     msg = [
-                        _('No more unused addresses in your wallet.'),
-                        _('All your addresses are used by unpaid requests.'),
+                        _('No address available.'),
+                        _('All your addresses are used in pending requests.'),
+                        _('To see the list, press and hold the Receive button.'),
                     ]
-                    msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
-                    self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
+                    self.requestCreateError.emit(' '.join(msg))
                     return
 
             key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
-            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
+            self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
@@ -705,3 +737,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._seed = ''
 
         self.dataChanged.emit()
+
+    @pyqtSlot(str, result='QVariantList')
+    def getSerializedTx(self, txid):
+        tx = self.wallet.db.get_transaction(txid)
+        txqr = tx.to_qr_data()
+        return [str(tx), txqr[0], txqr[1]]

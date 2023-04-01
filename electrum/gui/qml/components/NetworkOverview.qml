@@ -54,11 +54,10 @@ Pane {
                     text: qsTr('Server:');
                     color: Material.accentColor
                 }
-                RowLayout {
-                    Label {
-                        text: Network.server
-                    }
-                    OnchainNetworkStatusIndicator {}
+                Label {
+                    text: Network.serverWithStatus
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
                 }
                 Label {
                     text: qsTr('Local Height:');
@@ -92,6 +91,13 @@ Pane {
                                     Layout.fillWidth: true
                                     height: parent.height
                                     color: Qt.hsva(2/3-(2/3*(Math.log(Math.min(600, modelData[0]))/Math.log(600))), 0.8, 1, 1)
+                                    ToolTip.text: modelData[0] + " sat/vB around depth " + (modelData[2]/1000000).toFixed(2) + " MB"
+                                    ToolTip.visible: ma.containsMouse
+                                    MouseArea {
+                                        id: ma
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                    }
                                 }
                             }
                         }
@@ -129,7 +135,7 @@ Pane {
                         RowLayout {
                             Layout.fillWidth: true
                             Label {
-                                text: '< ' + qsTr('%1 sat/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
+                                text: '> ' + qsTr('%1 sat/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
                                 font.pixelSize: constants.fontSizeXSmall
                                 color: Material.accentColor
                             }
@@ -217,7 +223,7 @@ Pane {
                     }
                     Label {
                         visible: 'mode' in Network.proxy
-                        text: Network.isProxyTor ? 'TOR' : Network.proxy['mode']
+                        text: Network.isProxyTor ? 'TOR' : (Network.proxy['mode'] || '')
                     }
                 }
 

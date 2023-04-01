@@ -9,7 +9,7 @@ WizardComponent {
     last: true
 
     function apply() {
-        wizard_data['autoconnect'] = !sc.auto_connect
+        wizard_data['autoconnect'] = sc.auto_connect
         wizard_data['server'] = sc.address
     }
 

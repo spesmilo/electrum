@@ -1,5 +1,6 @@
 import copy
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
@@ -11,10 +12,14 @@ from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
 from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
 
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
+
 class QEConfig(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
-    def __init__(self, config, parent=None):
+    def __init__(self, config: 'SimpleConfig', parent=None):
         super().__init__(parent)
         self.config = config
 
@@ -56,16 +61,6 @@ class QEConfig(AuthMixin, QObject):
     @pyqtProperty(bool, notify=autoConnectChanged)
     def autoConnectDefined(self):
         return self.config.get('auto_connect') is not None
-
-    serverStringChanged = pyqtSignal()
-    @pyqtProperty('QString', notify=serverStringChanged)
-    def serverString(self):
-        return self.config.get('server')
-
-    @serverString.setter
-    def serverString(self, server):
-        self.config.set_key('server', server, True)
-        self.serverStringChanged.emit()
 
     manualServerChanged = pyqtSignal()
     @pyqtProperty(bool, notify=manualServerChanged)
@@ -223,15 +218,11 @@ class QEConfig(AuthMixin, QObject):
             msats = amount.msatsInt
         else:
             return '---'
-
-        s = format_satoshis(msats/1000,
-                            decimal_point=self.decimal_point(),
-                            precision=3)
-        return s
-        #if with_unit:
-            #return self.config.format_amount_and_units(msats)
-        #else:
-            #return self.config.format_amount(satoshis)
+        precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
+        if with_unit:
+            return self.config.format_amount_and_units(msats/1000, precision=precision)
+        else:
+            return self.config.format_amount(msats/1000, precision=precision)
 
     # TODO delegate all this to config.py/util.py
     def decimal_point(self):

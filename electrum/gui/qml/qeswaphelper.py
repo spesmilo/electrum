@@ -33,7 +33,10 @@ class QESwapHelper(AuthMixin, QObject):
         self._rangeMax = 0
         self._tx = None
         self._valid = False
-        self._userinfo = ''
+        self._userinfo = ' '.join([
+            _('Move the slider to set the amount and direction of the swap.'),
+            _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
+        ])
         self._tosend = QEAmount()
         self._toreceive = QEAmount()
         self._serverfeeperc = ''
@@ -277,7 +280,6 @@ class QESwapHelper(AuthMixin, QObject):
         # pay_amount and receive_amounts are always with fees already included
         # so they reflect the net balance change after the swap
         if position < 0:  # reverse swap
-            self.userinfo = _('Adds Lightning receiving capacity.')
             self.isReverse = True
 
             self._send_amount = abs(position)
@@ -295,9 +297,9 @@ class QESwapHelper(AuthMixin, QObject):
 
             self.check_valid(self._send_amount, self._receive_amount)
         else:  # forward (normal) swap
-            self.userinfo = _('Adds Lightning sending capacity.')
             self.isReverse = False
             self._send_amount = position
+            self.tosend = QEAmount(amount_sat=self._send_amount)
 
             self._receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
             self.toreceive = QEAmount(amount_sat=self._receive_amount)
@@ -317,15 +319,12 @@ class QESwapHelper(AuthMixin, QObject):
             self.valid = True
         else:
             # add more nuanced error reporting?
-            self.userinfo = _('Swap below minimal swap size, change the slider.')
             self.valid = False
 
     def fwd_swap_updatetx(self):
         self.update_tx(self._send_amount)
         # add lockup fees, but the swap amount is position
         pay_amount = self._send_amount + self._tx.get_fee() if self._tx else 0
-        self.tosend = QEAmount(amount_sat=pay_amount)
-
         self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
         self.check_valid(pay_amount, self._receive_amount)
 

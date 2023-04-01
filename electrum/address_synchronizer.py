@@ -817,6 +817,8 @@ class AddressSynchronizer(Logger, EventListener):
         received, sent = self.get_addr_io(address)
         return sum([value for height, pos, value, is_cb in received.values()])
 
+    @with_lock
+    @with_transaction_lock
     @with_local_height_cached
     def get_balance(self, domain, *, excluded_addresses: Set[str] = None,
                     excluded_coins: Set[str] = None) -> Tuple[int, int, int]:

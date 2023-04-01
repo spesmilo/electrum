@@ -24,11 +24,6 @@ Pane {
         app.stack.pop()
     }
 
-    function showExport() {
-        var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-        dialog.open()
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -144,6 +139,7 @@ Pane {
                                 ? 1
                                 : 2
                             Label {
+                                id: bumpfeeinfo
                                 Layout.fillWidth: true
                                 text: qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
                                     ? qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
@@ -375,9 +371,25 @@ Pane {
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/qrcode_white.png'
                 text: qsTr('Share')
+                enabled: !txdetails.isUnrelated
                 onClicked: {
-                    var dialog = exportTxDialog.createObject(root, { txdetails: txdetails })
-                    dialog.open()
+                    var msg = ''
+                    if (txdetails.isComplete) {
+                        if (!txdetails.isMined && !txdetails.mempoolDepth) // local
+                            // TODO: iff offline wallet?
+                            // TODO: or also if just temporarily offline?
+                            msg = qsTr('This transaction is complete. Please share it with an online device')
+                    } else if (txdetails.wallet.isWatchOnly) {
+                        msg = qsTr('This transaction should be signed. Present this QR code to the signing device')
+                    } else if (txdetails.wallet.isMultisig && txdetails.wallet.walletType != '2fa') {
+                        if (txdetails.canSign) {
+                            msg = qsTr('Note: this wallet can sign, but has not signed this transaction yet')
+                        } else {
+                            msg = qsTr('Transaction is partially signed by this wallet. Present this QR code to the next co-signer')
+                        }
+                    }
+
+                    app.stack.getRoot().showExport(txdetails.getSerializedTx(), msg)
                 }
             }
 
@@ -418,7 +430,13 @@ Pane {
             })
             dialog.open()
         }
-        onSaveTxSuccess: {
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onSaveTxSuccess(txid) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, {
                 text: qsTr('Transaction added to wallet history.') + '\n\n' +
                       qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
@@ -426,9 +444,15 @@ Pane {
             dialog.open()
             root.close()
         }
-        onSaveTxError: {
+        function onSaveTxError(txid, code, message) {
+            if (txid != txdetails.txid)
+                return
             var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
+        }
+        function onBroadcastSucceeded() {
+            bumpfeeinfo.text = qsTr('Transaction was broadcast successfully')
+            actionButtonsLayout.visible = false
         }
     }
 
@@ -441,12 +465,10 @@ Pane {
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
-
             onTxaccepted: {
                 root.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign(true)
-                    // close txdetails?
+                    txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('Transaction fee updated.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
@@ -472,8 +494,7 @@ Pane {
                 // replaces parent tx with cpfp tx
                 root.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign(true)
-                    // close txdetails?
+                    txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('CPFP fee bump transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
@@ -498,8 +519,7 @@ Pane {
             onTxaccepted: {
                 root.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign(true)
-                    // close txdetails?
+                    txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('Cancel transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
@@ -511,10 +531,4 @@ Pane {
         }
     }
 
-    Component {
-        id: exportTxDialog
-        ExportTxDialog {
-            onClosed: destroy()
-        }
-    }
 }

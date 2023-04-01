@@ -23,14 +23,23 @@ ElDialog {
     ColumnLayout {
         width: parent.width
         height: parent.height
-        spacing: 0
+        spacing: constants.paddingLarge
+
+        InfoTextArea {
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            visible: swaphelper.userinfo != ''
+            text: swaphelper.userinfo
+        }
 
         GridLayout {
             id: layout
             columns: 2
             Layout.preferredWidth: parent.width
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
 
             RowLayout {
                 Layout.preferredWidth: 1
@@ -47,7 +56,6 @@ ElDialog {
                     source: swaphelper.isReverse
                         ? '../../icons/lightning.png'
                         : '../../icons/bitcoin.png'
-                    visible: swaphelper.valid
                 }
             }
 
@@ -58,12 +66,10 @@ ElDialog {
                     id: tosend
                     text: Config.formatSats(swaphelper.tosend)
                     font.family: FixedFont
-                    visible: swaphelper.valid
                 }
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
-                    visible: swaphelper.valid
                 }
             }
 
@@ -82,7 +88,6 @@ ElDialog {
                     source: swaphelper.isReverse
                         ? '../../icons/bitcoin.png'
                         : '../../icons/lightning.png'
-                    visible: swaphelper.valid
                 }
             }
 
@@ -93,12 +98,10 @@ ElDialog {
                     id: toreceive
                     text: Config.formatSats(swaphelper.toreceive)
                     font.family: FixedFont
-                    visible: swaphelper.valid
                 }
                 Label {
                     text: Config.baseUnit
                     color: Material.accentColor
-                    visible: swaphelper.valid
                 }
             }
 
@@ -140,11 +143,12 @@ ElDialog {
                 Label {
                     text: Config.formatSats(swaphelper.miningfee)
                     font.family: FixedFont
+                    visible: swaphelper.valid
                 }
                 Label {
-                    Layout.fillWidth: true
                     text: Config.baseUnit
                     color: Material.accentColor
+                    visible: swaphelper.valid
                 }
             }
         }
@@ -212,13 +216,22 @@ ElDialog {
             }
         }
 
-        InfoTextArea {
+        RowLayout {
+            Layout.fillWidth: true
             Layout.leftMargin: constants.paddingXXLarge
             Layout.rightMargin: constants.paddingXXLarge
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignHCenter
-            visible: swaphelper.userinfo != ''
-            text: swaphelper.userinfo
+            Label {
+                text: '<-- ' + qsTr('Add receiving capacity')
+                font.pixelSize: constants.fontSizeXSmall
+                color: Material.accentColor
+            }
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                text: qsTr('Add sending capacity') + ' -->'
+                font.pixelSize: constants.fontSizeXSmall
+                color: Material.accentColor
+            }
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }

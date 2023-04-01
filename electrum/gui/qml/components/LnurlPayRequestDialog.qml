@@ -92,21 +92,13 @@ ElDialog {
         FlatButton {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Proceed')
+            text: qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
             enabled: valid
             onClicked: {
                 invoiceParser.lnurlGetInvoice(comment.text)
                 dialog.close()
             }
-        }
-    }
-
-    Connections {
-        target: invoiceParser
-        function onLnurlError(code, message) {
-            var dialog = app.messageDialog.createObject(app, { text: message })
-            dialog.open()
         }
     }
 

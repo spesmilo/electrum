@@ -6,7 +6,7 @@ import attr
 
 from .json_db import StoredObject
 from .i18n import _
-from .util import age, InvoiceError
+from .util import age, InvoiceError, format_satoshis
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode, LnAddr
 from . import constants
@@ -221,6 +221,23 @@ class BaseInvoice(StoredObject):
             return self.rhash
         else:  # on-chain
             return get_id_from_onchain_outputs(outputs=self.get_outputs(), timestamp=self.time)
+
+    def as_dict(self, status):
+        d = {
+            'is_lightning': self.is_lightning(),
+            'amount_BTC': format_satoshis(self.get_amount_sat()),
+            'message': self.message,
+            'timestamp': self.get_time(),
+            'expiry': self.exp,
+            'status': status,
+            'status_str': self.get_status_str(status),
+            'id': self.get_id(),
+            'amount_sat': int(self.get_amount_sat()),
+        }
+        if self.is_lightning():
+            d['amount_msat'] = self.get_amount_msat()
+        return d
+
 
 @attr.s
 class Invoice(BaseInvoice):

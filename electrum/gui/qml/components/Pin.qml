@@ -12,6 +12,7 @@ ElDialog {
 
     title: qsTr('PIN')
     iconSource: '../../../icons/lock.png'
+    z: 1000
 
     width: parent.width * 3/4
 

@@ -15,7 +15,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     # define listmodel rolemap
     _ROLE_NAMES=('key', 'is_lightning', 'timestamp', 'date', 'message', 'amount',
-                 'status', 'status_str', 'address', 'expiration', 'type', 'onchain_fallback',
+                 'status', 'status_str', 'address', 'expiry', 'type', 'onchain_fallback',
                  'lightning_invoice')
     _ROLE_KEYS = range(Qt.UserRole, Qt.UserRole + len(_ROLE_NAMES))
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
@@ -132,8 +132,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         nearest_interval = LN_EXPIRY_NEVER
         for invoice in self.invoices:
             if invoice['status'] != PR_EXPIRED:
-                if invoice['expiration'] > 0 and invoice['expiration'] != LN_EXPIRY_NEVER:
-                    interval = status_update_timer_interval(invoice['timestamp'] + invoice['expiration'])
+                if invoice['expiry'] > 0 and invoice['expiry'] != LN_EXPIRY_NEVER:
+                    interval = status_update_timer_interval(invoice['timestamp'] + invoice['expiry'])
                     if interval > 0:
                         nearest_interval = nearest_interval if nearest_interval < interval else interval
 
@@ -223,8 +223,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
         return item
 
     def get_invoice_list(self):
-        # disable for now, as QERequestListModel isn't used in UI
-        return [] #self.wallet.get_unpaid_requests()
+        return self.wallet.get_unpaid_requests()
 
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)

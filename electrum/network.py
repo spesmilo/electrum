@@ -294,18 +294,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self._allowed_protocols = {PREFERRED_NETWORK_PROTOCOL}
 
-        # Server for addresses and transactions
-        self.default_server = self.config.get('server', None)
-        # Sanitize default server
-        if self.default_server:
-            try:
-                self.default_server = ServerAddr.from_str(self.default_server)
-            except:
-                self.logger.warning('failed to parse server-string; falling back to localhost:1:s.')
-                self.default_server = ServerAddr.from_str("localhost:1:s")
-        else:
-            self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
-        assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
+        self._init_parameters_from_config()
 
         self.taskgroup = None
 
@@ -337,16 +326,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.interfaces = {}  # these are the ifaces in "initialised and usable" state
         self._closing_ifaces = set()
 
-        self.auto_connect = self.config.get('auto_connect', True)
-        self.proxy = None
-        self.tor_proxy = False
-        self._maybe_set_oneserver()
-
         # Dump network messages (all interfaces).  Set at runtime from the console.
         self.debug = False
 
         self._set_status('disconnected')
         self._has_ever_managed_to_connect_to_server = False
+        self._was_started = False
 
         # lightning network
         if self.config.get('run_watchtower', False):
@@ -509,6 +494,12 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                                  auto_connect=self.auto_connect,
                                  oneserver=self.oneserver)
 
+    def _init_parameters_from_config(self) -> None:
+        self.auto_connect = self.config.get('auto_connect', True)
+        self._set_default_server()
+        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
+        self._maybe_set_oneserver()
+
     def get_donation_address(self):
         if self.is_connected():
             return self.donation_address
@@ -603,6 +594,20 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             return server
         return None
 
+    def _set_default_server(self) -> None:
+        # Server for addresses and transactions
+        server = self.config.get('server', None)
+        # Sanitize default server
+        if server:
+            try:
+                self.default_server = ServerAddr.from_str(server)
+            except:
+                self.logger.warning(f'failed to parse server-string ({server!r}); falling back to localhost:1:s.')
+                self.default_server = ServerAddr.from_str("localhost:1:s")
+        else:
+            self.default_server = pick_random_server(allowed_protocols=self._allowed_protocols)
+        assert isinstance(self.default_server, ServerAddr), f"invalid type for default_server: {self.default_server!r}"
+
     def _set_proxy(self, proxy: Optional[dict]):
         self.proxy = proxy
         dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
@@ -639,14 +644,19 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 or self.config.get('oneserver') != net_params.oneserver:
             return
 
+        proxy_changed = self.proxy != proxy
+        oneserver_changed = self.oneserver != net_params.oneserver
+        default_server_changed = self.default_server != server
+        self._init_parameters_from_config()
+        if not self._was_started:
+            return
+
         async with self.restart_lock:
-            self.auto_connect = net_params.auto_connect
-            if self.proxy != proxy or self.oneserver != net_params.oneserver:
-                # Restart the network defaulting to the given server
+            if proxy_changed or oneserver_changed:
+                # Restart the network
                 await self.stop(full_shutdown=False)
-                self.default_server = server
                 await self._start()
-            elif self.default_server != server:
+            elif default_server_changed:
                 await self.switch_to_interface(server)
             else:
                 await self.switch_lagging_interface()
@@ -1236,8 +1246,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         assert not self._closing_ifaces
         self.logger.info('starting network')
         self._clear_addr_retry_times()
-        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
-        self._maybe_set_oneserver()
+        self._init_parameters_from_config()
         await self.taskgroup.spawn(self._run_new_interface(self.default_server))
 
         async def main():
@@ -1262,11 +1271,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         Note: the jobs will *restart* every time the network restarts, e.g. on proxy
         setting changes.
         """
+        self._was_started = True
         self._jobs = jobs or []
         asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
 
     @log_exceptions
     async def stop(self, *, full_shutdown: bool = True):
+        if not self._was_started:
+            self.logger.info("not stopping network as it was never started")
+            return
         self.logger.info("stopping network")
         # timeout: if full_shutdown, it is up to the caller to time us out,
         #          otherwise if e.g. restarting due to proxy changes, we time out fast

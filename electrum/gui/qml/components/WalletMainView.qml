@@ -50,6 +50,22 @@ Item {
         }
     }
 
+    function showExportByTxid(txid, helptext) {
+        showExport(Daemon.currentWallet.getSerializedTx(txid), helptext)
+    }
+
+    function showExport(data, helptext) {
+        var dialog = exportTxDialog.createObject(app, {
+            text: data[0],
+            text_qr: data[1],
+            text_help: helptext,
+            text_warn: data[2]
+                ? ''
+                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
         parent: Overlay.overlay
         dim: true
@@ -175,8 +191,11 @@ Item {
                     var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
+                onPressAndHold: {
+                    Daemon.currentWallet.delete_expired_requests()
+                    app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                }
             }
-
             FlatButton {
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
@@ -184,6 +203,9 @@ Item {
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
                 onClicked: openSendDialog()
+                onPressAndHold: {
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                }
             }
         }
     }
@@ -214,7 +236,12 @@ Item {
         onInvoiceCreateError: console.log(code + ' ' + message)
 
         onLnurlRetrieved: {
+            closeSendDialog()
             var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            dialog.open()
+        }
+        onLnurlError: {
+            var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
     }
@@ -247,21 +274,9 @@ Item {
         function onRequestCreateSuccess(key) {
             openRequest(key)
         }
-        function onRequestCreateError(code, error) {
-            if (code == 'ln') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-		    createRequest(true, false)
-                })
-            } else if (code == 'reuse_addr') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    createRequest(false, true)
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
+        function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {text: error})
             dialog.open()
         }
     }
@@ -287,6 +302,8 @@ Item {
     Component {
         id: invoiceDialog
         InvoiceDialog {
+            id: _invoiceDialog
+
             width: parent.width
             height: parent.height
 
@@ -300,7 +317,11 @@ Item {
                     var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
                     dialog.txaccepted.connect(function() {
                         if (!canComplete) {
-                            dialog.finalizer.signAndSave()
+                            if (Daemon.currentWallet.isWatchOnly) {
+                                dialog.finalizer.save()
+                            } else {
+                                dialog.finalizer.signAndSave()
+                            }
                         } else {
                             dialog.finalizer.signAndSend()
                         }
@@ -312,16 +333,18 @@ Item {
                         console.log('No invoice key, aborting')
                         return
                     }
-                    var dialog = lightningPaymentProgressDialog.createObject(mainView, {
-                        invoice_key: invoice.key
-                    })
-                    dialog.open()
                     Daemon.currentWallet.pay_lightning_invoice(invoice.key)
                 }
-                close()
             }
 
             onClosed: destroy()
+
+            Connections {
+                target: Daemon.currentWallet
+                function onSaveTxSuccess(txid) {
+                    _invoiceDialog.close()
+                }
+            }
         }
     }
 
@@ -376,7 +399,7 @@ Item {
                 console.log('rejected')
             }
             onClosed: destroy()
-	}
+        }
     }
 
     Component {
@@ -398,9 +421,13 @@ Item {
                 wallet: Daemon.currentWallet
                 canRbf: true
                 onFinishedSave: {
-                    // tx was (partially) signed and saved. Show QR for co-signers or online wallet
-                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
-                    page.showExport()
+                    if (wallet.isWatchOnly) {
+                        // tx was saved. Show QR for signer(s)
+                        showExportByTxid(txid, qsTr('Transaction created. Present this QR code to the signing device'))
+                    } else {
+                        // tx was (partially) signed and saved. Show QR for co-signers or online wallet
+                        showExportByTxid(txid, qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer'))
+                    }
                     _confirmPaymentDialog.destroy()
                 }
             }
@@ -437,5 +464,13 @@ Item {
             onClosed: destroy()
         }
     }
+
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
 }
 

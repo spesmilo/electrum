@@ -510,6 +510,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if not self.tx_is_related(tx):
             return
         self.clear_tx_parents_cache()
+        util.trigger_callback('removed_transaction', self, tx)
 
     @event_listener
     def on_event_adb_added_verified_tx(self, adb, tx_hash):
@@ -2458,34 +2459,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_request(self, x: Request) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        status_str = x.get_status_str(status)
-        is_lightning = x.is_lightning()
-        address = x.get_address()
-        d = {
-            'is_lightning': is_lightning,
-            'amount_BTC': format_satoshis(x.get_amount_sat()),
-            'message': x.message,
-            'timestamp': x.get_time(),
-            'expiration': x.get_expiration_date(),
-            'status': status,
-            'status_str': status_str,
-            'request_id': key,
-            "tx_hashes": []
-        }
-        if is_lightning:
+        d = x.as_dict(status)
+        d['request_id'] = d.pop('id')
+        if x.is_lightning():
             d['rhash'] = x.rhash
             d['lightning_invoice'] = self.get_bolt11_invoice(x)
-            d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_receive'] = self.lnworker.can_receive_invoice(x)
-        if address:
-            d['amount_sat'] = int(x.get_amount_sat())
+        if address := x.get_address():
             d['address'] = address
             d['URI'] = self.get_request_URI(x)
             # if request was paid onchain, add relevant fields
             # note: addr is reused when getting paid on LN! so we check for that.
             _, conf, tx_hashes = self._is_onchain_invoice_paid(x)
-            if not is_lightning or not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID:
+            if not x.is_lightning() or not self.lnworker or self.lnworker.get_invoice_status(x) != PR_PAID:
                 if conf is not None:
                     d['confirmations'] = conf
                 d['tx_hashes'] = tx_hashes
@@ -2495,27 +2482,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def export_invoice(self, x: Invoice) -> Dict[str, Any]:
         key = x.get_id()
         status = self.get_invoice_status(x)
-        status_str = x.get_status_str(status)
-        is_lightning = x.is_lightning()
-        d = {
-            'is_lightning': is_lightning,
-            'amount_BTC': format_satoshis(x.get_amount_sat()),
-            'message': x.message,
-            'timestamp': x.time,
-            'expiration': x.exp,
-            'status': status,
-            'status_str': status_str,
-            'invoice_id': key,
-        }
-        if is_lightning:
+        d = x.as_dict(status)
+        d['invoice_id'] = d.pop('id')
+        if x.is_lightning():
             d['lightning_invoice'] = x.lightning_invoice
-            d['amount_msat'] = x.get_amount_msat()
             if self.lnworker and status == PR_UNPAID:
                 d['can_pay'] = self.lnworker.can_pay_invoice(x)
         else:
             amount_sat = x.get_amount_sat()
             assert isinstance(amount_sat, (int, str, type(None)))
-            d['amount_sat'] = amount_sat
             d['outputs'] = [y.to_legacy_tuple() for y in x.get_outputs()]
             if x.bip70:
                 d['bip70'] = x.bip70

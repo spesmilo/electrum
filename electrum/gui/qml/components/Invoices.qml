@@ -9,12 +9,13 @@ import "controls"
 
 Pane {
     id: root
+    property string selected_key
 
     ColumnLayout {
         anchors.fill: parent
 
         Heading {
-            text: qsTr('Invoices')
+            text: qsTr('Saved Invoices')
         }
 
         Frame {
@@ -39,7 +40,11 @@ Pane {
                             dialog.invoiceAmountChanged.connect(function () {
                                 Daemon.currentWallet.invoiceModel.init_model()
                             })
+                            selected_key = ''
                         }
+                        onPressAndHold: {
+                            selected_key = model.key
+			}
                     }
                 }
 
@@ -63,6 +68,34 @@ Pane {
                 }
 
                 ScrollIndicator.vertical: ScrollIndicator { }
+            }
+        }
+        ButtonContainer {
+            Layout.fillWidth: true
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Delete')
+                icon.source: '../../icons/delete.png'
+                visible: selected_key != ''
+                onClicked: {
+                    Daemon.currentWallet.delete_invoice(selected_key)
+                    selected_key = ''
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('View')
+                icon.source: '../../icons/tab_receive.png'
+                visible: selected_key != ''
+                onClicked: {
+                    var dialog = app.stack.getRoot().openInvoice(selected_key)
+                    dialog.invoiceAmountChanged.connect(function () {
+                        Daemon.currentWallet.invoiceModel.init_model()
+                    })
+                    selected_key = ''
+                }
             }
         }
     }

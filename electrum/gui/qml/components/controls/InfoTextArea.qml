@@ -8,7 +8,10 @@ TextHighlightPane {
         None,
         Info,
         Warn,
-        Error
+        Error,
+        Progress,
+        Pending,
+        Done
     }
 
     property alias text: infotext.text
@@ -21,7 +24,11 @@ TextHighlightPane {
             ? constants.colorWarning
             : iconStyle == InfoTextArea.IconStyle.Error
                 ? constants.colorError
-                : constants.colorInfo
+                : iconStyle == InfoTextArea.IconStyle.Progress
+                    ? constants.colorProgress
+                    : iconStyle == InfoTextArea.IconStyle.Done
+                        ? constants.colorDone
+                        : constants.colorInfo
     padding: constants.paddingXLarge
 
     RowLayout {
@@ -35,7 +42,13 @@ TextHighlightPane {
                     ? "../../../icons/warning.png"
                     : iconStyle == InfoTextArea.IconStyle.Error
                         ? "../../../icons/expired.png"
-                        : ""
+                        : iconStyle == InfoTextArea.IconStyle.Progress
+                            ? "../../../icons/unconfirmed.png"
+                            : iconStyle == InfoTextArea.IconStyle.Pending
+                                ? "../../../icons/unpaid.png"
+                                : iconStyle == InfoTextArea.IconStyle.Done
+                                    ? "../../../icons/confirmed.png"
+                                    : ""
             Layout.preferredWidth: constants.iconSizeMedium
             Layout.preferredHeight: constants.iconSizeMedium
         }
