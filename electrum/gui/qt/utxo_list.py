@@ -286,7 +286,7 @@ class UTXOList(MyTreeView):
             tx = self.wallet.adb.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label_for_txid(txid)
-                menu.addAction(_("Details"), lambda: self.main_window.show_utxo(utxo))
+                menu.addAction(_("Privacy analysis"), lambda: self.main_window.show_utxo(utxo))
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Long Output point"), lambda: self.place_text_on_clipboard(utxo.prevout.to_str(), title="Long Output point"))
         # fully spend
