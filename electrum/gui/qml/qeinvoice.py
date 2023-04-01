@@ -389,8 +389,8 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
-                        PR_EXPIRED: _('Invoice is expired'),
-                        PR_PAID: _('Invoice is already paid'),
+                        PR_EXPIRED: _('This invoice has expired'),
+                        PR_PAID: _('This invoice was already paid'),
                         PR_INFLIGHT: _('Payment in progress...'),
                         PR_ROUTING: _('Payment in progress'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
@@ -401,9 +401,9 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
-                        PR_EXPIRED: _('Invoice is expired'),
-                        PR_PAID: _('Invoice is already paid'),
-                        PR_UNCONFIRMED: _('Invoice is already paid'),
+                        PR_EXPIRED: _('This invoice has expired'),
+                        PR_PAID: _('This invoice was already paid'),
+                        PR_UNCONFIRMED: _('Payment in progress...') + ' (' +  _('waiting for confirmation') + ')',
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
 
