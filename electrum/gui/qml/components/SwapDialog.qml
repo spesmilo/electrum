@@ -23,14 +23,23 @@ ElDialog {
     ColumnLayout {
         width: parent.width
         height: parent.height
-        spacing: 0
+        spacing: constants.paddingLarge
+
+        InfoTextArea {
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
+            visible: swaphelper.userinfo != ''
+            text: swaphelper.userinfo
+        }
 
         GridLayout {
             id: layout
             columns: 2
             Layout.preferredWidth: parent.width
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
 
             RowLayout {
                 Layout.preferredWidth: 1
@@ -207,13 +216,22 @@ ElDialog {
             }
         }
 
-        InfoTextArea {
+        RowLayout {
+            Layout.fillWidth: true
             Layout.leftMargin: constants.paddingXXLarge
             Layout.rightMargin: constants.paddingXXLarge
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignHCenter
-            visible: swaphelper.userinfo != ''
-            text: swaphelper.userinfo
+            Label {
+                text: '<-- ' + qsTr('Add receiving capacity')
+                font.pixelSize: constants.fontSizeXSmall
+                color: Material.accentColor
+            }
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                text: qsTr('Add sending capacity') + ' -->'
+                font.pixelSize: constants.fontSizeXSmall
+                color: Material.accentColor
+            }
         }
 
         Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
