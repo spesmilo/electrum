@@ -225,7 +225,7 @@ class BaseInvoice(StoredObject):
     def as_dict(self, status):
         d = {
             'is_lightning': self.is_lightning(),
-            'amount_BTC': format_satoshis(self.get_amount_sat()),
+            'amount_GRS': format_satoshis(self.get_amount_sat()),
             'message': self.message,
             'timestamp': self.get_time(),
             'expiry': self.exp,

@@ -13,7 +13,7 @@ from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
 
 if TYPE_CHECKING:
-    from electrum.simple_config import SimpleConfig
+    from electrum_grs.simple_config import SimpleConfig
 
 
 class QEConfig(AuthMixin, QObject):
