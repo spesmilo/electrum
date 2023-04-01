@@ -66,7 +66,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     saveTxSuccess = pyqtSignal([str], arguments=['txid'])
-    saveTxError = pyqtSignal([str,str], arguments=['txid', 'code', 'message'])
+    saveTxError = pyqtSignal([str,str,str], arguments=['txid', 'code', 'message'])
     importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
