@@ -16,7 +16,7 @@ ElDialog {
     signal doPay
     signal invoiceAmountChanged
 
-    title: qsTr('Invoice')
+    title: invoice.invoiceType == Invoice.OnchainInvoice ? qsTr('On-chain Invoice') : qsTr('Lightning Invoice')
     iconSource: Qt.resolvedUrl('../../icons/tab_send.png')
 
     padding: 0
@@ -67,33 +67,6 @@ ElDialog {
                 }
 
                 Label {
-                    text: qsTr('Type')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: invoice.invoiceType == Invoice.LightningInvoice
-                            ? "../../icons/lightning.png"
-                            : "../../icons/bitcoin.png"
-                    }
-
-                    Label {
-                        text: invoice.invoiceType == Invoice.OnchainInvoice
-                                ? qsTr('On chain')
-                                : invoice.invoiceType == Invoice.LightningInvoice
-                                    ? invoice.address
-                                        ? qsTr('Lightning with on-chain fallback address')
-                                        : qsTr('Lightning')
-                                    : ''
-                        Layout.fillWidth: true
-                    }
-                }
-
-                Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
@@ -104,7 +77,6 @@ ElDialog {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
                     leftPadding: constants.paddingMedium
 
@@ -386,6 +358,27 @@ ElDialog {
                                 wrapMode: Text.Wrap
                             }
                         }
+                    }
+                }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address
+                    text: qsTr('Fallback address')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address
+                    leftPadding: constants.paddingMedium
+                    Label {
+                        width: parent.width
+                        text: invoice.address
+                        font.family: FixedFont
+                        wrapMode: Text.Wrap
                     }
                 }
             }
