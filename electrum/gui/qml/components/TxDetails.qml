@@ -139,6 +139,7 @@ Pane {
                                 ? 1
                                 : 2
                             Label {
+                                id: bumpfeeinfo
                                 Layout.fillWidth: true
                                 text: qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
                                     ? qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
@@ -449,6 +450,10 @@ Pane {
             var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
+        function onBroadcastSucceeded() {
+            bumpfeeinfo.text = qsTr('Transaction was broadcast successfully')
+            actionButtonsLayout.visible = false
+        }
     }
 
     Component {
@@ -464,7 +469,6 @@ Pane {
                 root.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.sign_and_broadcast()
-                    // close txdetails?
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('Transaction fee updated.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
@@ -491,7 +495,6 @@ Pane {
                 root.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.sign_and_broadcast()
-                    // close txdetails?
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('CPFP fee bump transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
@@ -517,7 +520,6 @@ Pane {
                 root.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.sign_and_broadcast()
-                    // close txdetails?
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         text: qsTr('Cancel transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
