@@ -527,7 +527,12 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
             return
 
         new_fee_rate = fee_per_kb / 1000
-
+        if new_fee_rate <= float(self._oldfee_rate):
+            self._tx = None
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("The new fee rate needs to be higher than the old fee rate.")
+            return
         try:
             self._tx = self._wallet.wallet.bump_fee(
                 tx=self._orig_tx,
@@ -630,6 +635,12 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
             return
 
         new_fee_rate = fee_per_kb / 1000
+        if new_fee_rate <= float(self._oldfee_rate):
+            self._tx = None
+            self._valid = False
+            self.validChanged.emit()
+            self.warning = _("The new fee rate needs to be higher than the old fee rate.")
+            return
 
         try:
             self._tx = self._wallet.wallet.dscancel(

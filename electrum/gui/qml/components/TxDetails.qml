@@ -47,7 +47,18 @@ Pane {
 
                     Heading {
                         Layout.columnSpan: 2
-                        text: qsTr('Transaction Details')
+                        text: qsTr('On-chain Transaction')
+                    }
+
+                    InfoTextArea {
+                        id: bumpfeeinfo
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
+                        text: qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
+                           ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
+                           : qsTr('You can bump its fee to speed up its confirmation'))
                     }
 
                     RowLayout {
@@ -124,70 +135,6 @@ Pane {
                     Label {
                         text: txdetails.mempoolDepth
                         visible: txdetails.mempoolDepth
-                    }
-
-                    TextHighlightPane {
-                        Layout.fillWidth: true
-                        Layout.topMargin: constants.paddingSmall
-                        Layout.columnSpan: 2
-                        borderColor: constants.colorWarning
-                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel
-
-                        GridLayout {
-                            width: parent.width
-                            columns: actionButtonsLayout.implicitWidth > parent.width/2
-                                ? 1
-                                : 2
-                            Label {
-                                id: bumpfeeinfo
-                                Layout.fillWidth: true
-                                text: qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                                    ? qsTr('You can increase fees to speed up the transaction, or cancel this transaction')
-                                    : qsTr('You can increase fees to speed up the transaction'))
-                                wrapMode: Text.Wrap
-                            }
-                            ColumnLayout {
-                                id: actionButtonsLayout
-                                Layout.alignment: Qt.AlignHCenter
-                                Pane {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    background: Rectangle { color: Material.dialogColor }
-                                    padding: 0
-                                    visible: txdetails.canBump || txdetails.canCpfp
-                                    FlatButton {
-                                        id: feebumpButton
-                                        textUnderIcon: false
-                                        icon.source: '../../icons/add.png'
-                                        text: qsTr('Bump fee')
-                                        onClicked: {
-                                            if (txdetails.canBump) {
-                                                var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
-                                            } else {
-                                                var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
-                                            }
-                                            dialog.open()
-                                        }
-                                    }
-                                }
-                                Pane {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    background: Rectangle { color: Material.dialogColor }
-                                    padding: 0
-                                    visible: txdetails.canCancel
-                                    FlatButton {
-                                        id: cancelButton
-                                        textUnderIcon: false
-                                        icon.source: '../../icons/closebutton.png'
-                                        text: qsTr('Cancel Tx')
-                                        onClicked: {
-                                            var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
-                                            dialog.open()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                     }
 
                     Label {
@@ -351,6 +298,34 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
+                id: feebumpButton
+                icon.source: '../../icons/add.png'
+                text: qsTr('Bump fee')
+                visible: txdetails.canBump || txdetails.canCpfp
+                onClicked: {
+                    if (txdetails.canBump) {
+                        var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                    } else {
+                        var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                    }
+                    dialog.open()
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                id: cancelButton
+                icon.source: '../../icons/closebutton.png'
+                text: qsTr('Cancel Tx')
+                visible: txdetails.canCancel
+                onClicked: {
+                    var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                    dialog.open()
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
                 icon.source: '../../icons/key.png'
                 text: qsTr('Sign')
                 visible: txdetails.canSign
@@ -452,7 +427,6 @@ Pane {
         }
         function onBroadcastSucceeded() {
             bumpfeeinfo.text = qsTr('Transaction was broadcast successfully')
-            actionButtonsLayout.visible = false
         }
     }
 

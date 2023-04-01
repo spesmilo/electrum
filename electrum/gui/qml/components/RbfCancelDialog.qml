@@ -41,12 +41,11 @@ ElDialog {
                 width: parent.width
                 columns: 2
 
-                Label {
+                InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
-                    text: qsTr('Cancel an unconfirmed RBF transaction by double-spending its inputs back to your wallet with a higher fee.')
-                    wrapMode: Text.Wrap
+                    text: qsTr('Cancel an unconfirmed transaction by double-spending its inputs back to your wallet with a higher fee.')
                 }
 
                 Label {
@@ -156,12 +155,11 @@ ElDialog {
                     }
                 }
 
-                InfoTextArea {
+                Label {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: txcanceller.warning != ''
                     text: txcanceller.warning
-                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
                 Label {
