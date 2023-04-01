@@ -232,7 +232,7 @@ class BaseInvoice(StoredObject):
             'status': status,
             'status_str': self.get_status_str(status),
             'id': self.get_id(),
-            'amount_sat': int(self.get_amount_sat()),
+            'amount_sat': self.get_amount_sat(),
         }
         if self.is_lightning():
             d['amount_msat'] = self.get_amount_msat()
