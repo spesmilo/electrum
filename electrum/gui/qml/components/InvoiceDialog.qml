@@ -390,21 +390,9 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Delete')
-                icon.source: '../../icons/delete.png'
-                visible: invoice_key != ''
-                onClicked: {
-                    invoice.wallet.delete_invoice(invoice_key)
-                    dialog.close()
-                }
-            }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
                 text: qsTr('Save')
                 icon.source: '../../icons/save.png'
-                visible: invoice_key == ''
-                enabled: invoice.canSave
+                enabled: invoice_key == '' && invoice.canSave
                 onClicked: {
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     if (invoice.amount.isEmpty) {
