@@ -299,8 +299,14 @@ class QETxDetails(QObject, QtEventListener):
         self._short_id = tx_mined_info.short_id() or ""
 
     @pyqtSlot()
-    @pyqtSlot(bool)
-    def sign(self, broadcast = False):
+    def sign_and_broadcast(self):
+        self._sign(broadcast=True)
+
+    @pyqtSlot()
+    def sign(self):
+        self._sign(broadcast=False)
+
+    def _sign(self, broadcast):
         # TODO: connecting/disconnecting signal handlers here is hmm
         try:
             self._wallet.transactionSigned.disconnect(self.onSigned)
