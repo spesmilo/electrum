@@ -595,9 +595,15 @@ class TxDialog(QDialog, MessageBoxMixin):
     def show_qr(self, *, tx: Transaction = None):
         if tx is None:
             tx = self.tx
-        qr_data = tx.to_qr_data()
+        qr_data, is_complete = tx.to_qr_data()
+        help_text = None
+        if not is_complete:
+            help_text = _(
+                """Warning: Some data (prev txs / "full utxos") was left """
+                """out of the QR code as it would not fit. This might cause issues if signing offline. """
+                """As a workaround, try exporting the tx as file or text instead.""")
         try:
-            self.main_window.show_qrcode(qr_data, 'Transaction', parent=self)
+            self.main_window.show_qrcode(qr_data, 'Transaction', parent=self, help_text=help_text)
         except qrcode.exceptions.DataOverflowError:
             self.show_error(_('Failed to display QR code.') + '\n' +
                             _('Transaction is too large in size.'))

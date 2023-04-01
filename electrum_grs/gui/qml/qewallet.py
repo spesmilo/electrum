@@ -55,7 +55,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     requestStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     requestCreateSuccess = pyqtSignal([str], arguments=['key'])
-    requestCreateError = pyqtSignal([str,str], arguments=['code','error'])
+    requestCreateError = pyqtSignal([str], arguments=['error'])
     invoiceStatusChanged = pyqtSignal([str,int], arguments=['key','status'])
     invoiceCreateSuccess = pyqtSignal()
     invoiceCreateError = pyqtSignal([str,str], arguments=['code','error'])
@@ -66,7 +66,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     saveTxSuccess = pyqtSignal([str], arguments=['txid'])
-    saveTxError = pyqtSignal([str,str], arguments=['txid', 'code', 'message'])
+    saveTxError = pyqtSignal([str,str,str], arguments=['txid', 'code', 'message'])
     importChannelBackupFailed = pyqtSignal([str], arguments=['message'])
     labelsUpdated = pyqtSignal()
     otpRequested = pyqtSignal()
@@ -183,6 +183,15 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.add_tx_notification(tx)
             self.addressModel.setDirty()
             self.historyModel.setDirty() # assuming wallet.is_up_to_date triggers after
+            self.balanceChanged.emit()
+
+    @qt_event_listener
+    def on_event_removed_transaction(self, wallet, tx):
+        if wallet == self.wallet:
+            self._logger.info(f'removed transaction {tx.txid()}')
+            self.addressModel.setDirty()
+            self.historyModel.init_model(True) #setDirty()
+            self.balanceChanged.emit()
 
     @qt_event_listener
     def on_event_wallet_updated(self, wallet):
@@ -599,17 +608,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         threading.Thread(target=pay_thread, daemon=True).start()
 
-
+    @pyqtSlot()
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        for key in keys:
+            self.requestModel.delete_invoice(key)
 
     @pyqtSlot(QEAmount, str, int)
     @pyqtSlot(QEAmount, str, int, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        # delete expired_requests
-        keys = self.wallet.delete_expired_requests()
-        for key in keys:
-            self.requestModel.delete_invoice(key)
+        self.delete_expired_requests()
         try:
             amount = amount.satsInt
             addr = self.wallet.get_unused_address()
@@ -621,16 +631,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 else:
                     has_lightning = self.wallet.has_lightning()
                     msg = [
-                        _('No more unused addresses in your wallet.'),
-                        _('All your addresses are used by unpaid requests.'),
+                        _('No address available.'),
+                        _('All your addresses are used in pending requests.'),
+                        _('To see the list, press and hold the Receive button.'),
                     ]
-                    msg.append(_('Do you wish to create a lightning-only request?') if has_lightning else _('Do you want to reuse an address?'))
-                    self.requestCreateError.emit('ln' if has_lightning else 'reuse_addr', ' '.join(msg))
+                    self.requestCreateError.emit(' '.join(msg))
                     return
 
             key = self.wallet.create_request(amount, message, expiration, addr)
         except InvoiceError as e:
-            self.requestCreateError.emit('fatal',_('Error creating payment request') + ':\n' + str(e))
+            self.requestCreateError.emit(_('Error creating payment request') + ':\n' + str(e))
             return
 
         assert key is not None
@@ -728,11 +738,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.dataChanged.emit()
 
-    @pyqtSlot(str, result=str)
-    @pyqtSlot(str, bool, result=str)
-    def getSerializedTx(self, txid, for_qr=False):
+    @pyqtSlot(str, result='QVariantList')
+    def getSerializedTx(self, txid):
         tx = self.wallet.db.get_transaction(txid)
-        if for_qr:
-            return tx.to_qr_data()
-        else:
-            return str(tx)
+        txqr = tx.to_qr_data()
+        return [str(tx), txqr[0], txqr[1]]

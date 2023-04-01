@@ -16,7 +16,7 @@ ElDialog {
     signal doPay
     signal invoiceAmountChanged
 
-    title: qsTr('Invoice')
+    title: invoice.invoiceType == Invoice.OnchainInvoice ? qsTr('On-chain Invoice') : qsTr('Lightning Invoice')
     iconSource: Qt.resolvedUrl('../../icons/tab_send.png')
 
     padding: 0
@@ -67,33 +67,6 @@ ElDialog {
                 }
 
                 Label {
-                    text: qsTr('Type')
-                    color: Material.accentColor
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: invoice.invoiceType == Invoice.LightningInvoice
-                            ? "../../icons/lightning.png"
-                            : "../../icons/bitcoin.png"
-                    }
-
-                    Label {
-                        text: invoice.invoiceType == Invoice.OnchainInvoice
-                                ? qsTr('On chain')
-                                : invoice.invoiceType == Invoice.LightningInvoice
-                                    ? invoice.address
-                                        ? qsTr('Lightning with on-chain fallback address')
-                                        : qsTr('Lightning')
-                                    : ''
-                        Layout.fillWidth: true
-                    }
-                }
-
-                Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
@@ -104,7 +77,6 @@ ElDialog {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-
                     visible: invoice.invoiceType == Invoice.OnchainInvoice
                     leftPadding: constants.paddingMedium
 
@@ -388,6 +360,27 @@ ElDialog {
                         }
                     }
                 }
+
+                Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address
+                    text: qsTr('Fallback address')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: invoice.invoiceType == Invoice.LightningInvoice && invoice.address
+                    leftPadding: constants.paddingMedium
+                    Label {
+                        width: parent.width
+                        text: invoice.address
+                        font.family: FixedFont
+                        wrapMode: Text.Wrap
+                    }
+                }
             }
         }
 
@@ -397,21 +390,9 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                text: qsTr('Delete')
-                icon.source: '../../icons/delete.png'
-                visible: invoice_key != ''
-                onClicked: {
-                    invoice.wallet.delete_invoice(invoice_key)
-                    dialog.close()
-                }
-            }
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
                 text: qsTr('Save')
                 icon.source: '../../icons/save.png'
-                visible: invoice_key == ''
-                enabled: invoice.canSave
+                enabled: invoice_key == '' && invoice.canSave
                 onClicked: {
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     if (invoice.amount.isEmpty) {
@@ -455,6 +436,15 @@ ElDialog {
             amountContainer.editmode = true
         } else if (invoice.amount.isMax) {
             amountMax.checked = true
+        }
+        if (invoice.isLnurlPay) {
+            // we arrive from a lnurl-pay confirm dialog where the user already indicated the intent to pay.
+            if (invoice.canPay) {
+                if (invoice_key == '') {
+                    invoice.save_invoice()
+                }
+                doPay()
+            }
         }
     }
 }

@@ -203,10 +203,8 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
     @recipient.setter
     def recipient(self, recipient: str):
-        #if self._recipient != recipient:
         self.canPay = False
         self._recipient = recipient
-        self._lnurlData = None
         self.amountOverride = QEAmount()
         if recipient:
             self.validateRecipient(recipient)
@@ -215,6 +213,10 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
     def lnurlData(self):
         return self._lnurlData
+
+    @pyqtProperty(bool, notify=lnurlRetrieved)
+    def isLnurlPay(self):
+        return self._lnurlData is not None
 
     @pyqtProperty(str, notify=invoiceChanged)
     def message(self):
@@ -260,10 +262,6 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     @pyqtProperty('quint64', notify=invoiceChanged)
     def expiration(self):
         return self._effectiveInvoice.exp if self._effectiveInvoice else 0
-
-    @pyqtProperty('quint64', notify=invoiceChanged)
-    def time(self):
-        return self._effectiveInvoice.time if self._effectiveInvoice else 0
 
     statusChanged = pyqtSignal()
     @pyqtProperty(int, notify=statusChanged)
@@ -391,8 +389,8 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
-                        PR_EXPIRED: _('Invoice is expired'),
-                        PR_PAID: _('Invoice is already paid'),
+                        PR_EXPIRED: _('This invoice has expired'),
+                        PR_PAID: _('This invoice was already paid'),
                         PR_INFLIGHT: _('Payment in progress...'),
                         PR_ROUTING: _('Payment in progress'),
                         PR_UNKNOWN: _('Invoice has unknown status'),
@@ -403,9 +401,9 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     self.userinfo = _('Insufficient balance')
             else:
                 self.userinfo = {
-                        PR_EXPIRED: _('Invoice is expired'),
-                        PR_PAID: _('Invoice is already paid'),
-                        PR_UNCONFIRMED: _('Invoice is already paid'),
+                        PR_EXPIRED: _('This invoice has expired'),
+                        PR_PAID: _('This invoice was already paid'),
+                        PR_UNCONFIRMED: _('Payment in progress...') + ' (' +  _('waiting for confirmation') + ')',
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
 
@@ -510,7 +508,6 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                         maybe_lightning_invoice = self._bip21['lightning']
         except InvalidBitcoinURI as e:
             self._bip21 = None
-            self._logger.debug(repr(e))
 
         lninvoice = None
         maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
@@ -540,12 +537,11 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
         if lninvoice:
             if not self._wallet.wallet.has_lightning():
                 if not self._bip21:
-                    # TODO: lightning onchain fallback in ln invoice
-                    #self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet'))
-                    self.setValidLightningInvoice(lninvoice)
-                    self.validationSuccess.emit()
-                    # self.clear()
-                    return
+                    if lninvoice.get_address():
+                        self.setValidLightningInvoice(lninvoice)
+                        self.validationSuccess.emit()
+                    else:
+                        self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
                     self.setValidOnchainInvoice(self._bip21['address'])
@@ -603,6 +599,7 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
     @pyqtSlot('quint64', str)
     def lnurlGetInvoice(self, amount, comment=None):
         assert self._lnurlData
+        self._logger.debug(f'{repr(self._lnurlData)}')
 
         amount = self.amountOverride.satsInt
         if self.lnurlData['min_sendable_sat'] != 0:
@@ -624,18 +621,23 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                     params['comment'] = comment
                 coro = callback_lnurl(self._lnurlData['callback_url'], params)
                 fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
-                self.on_lnurl_invoice(fut.result())
+                self.on_lnurl_invoice(amount, fut.result())
             except Exception as e:
-                self.lnurlError.emit('lnurl', repr(e))
+                self._logger.error(repr(e))
+                self.lnurlError.emit('lnurl', str(e))
 
         threading.Thread(target=fetch_invoice_task).start()
 
-    def on_lnurl_invoice(self, invoice):
+    def on_lnurl_invoice(self, orig_amount, invoice):
         self._logger.debug('on_lnurl_invoice')
         self._logger.debug(f'{repr(invoice)}')
 
-        invoice = invoice['pr']
-        self.recipient = invoice
+        # assure no shenanigans with the bolt11 invoice we get back
+        lninvoice = Invoice.from_bech32(invoice['pr'])
+        if orig_amount * 1000 != lninvoice.amount_msat:
+            raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
+
+        self.recipient = invoice['pr']
 
     @pyqtSlot()
     def save_invoice(self):

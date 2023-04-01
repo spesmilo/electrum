@@ -126,7 +126,11 @@ class QENetwork(QObject, QtEventListener):
                 break
             slot = min(item[1], bytes_limit-bytes_current)
             bytes_current += slot
-            capped_histogram.append([max(FEERATE_DEFAULT_RELAY/1000, item[0]), slot]) # clamped to [FEERATE_DEFAULT_RELAY/1000,inf]
+            capped_histogram.append([
+                max(FEERATE_DEFAULT_RELAY/1000, item[0]),  # clamped to [FEERATE_DEFAULT_RELAY/1000,inf[
+                slot,  # width of bucket
+                bytes_current,  # cumulative depth at far end of bucket
+            ])
 
         # add clamping attributes for the GUI
         self._fee_histogram = {

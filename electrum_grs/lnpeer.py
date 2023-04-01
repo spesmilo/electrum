@@ -2001,16 +2001,21 @@ class Peer(Logger):
     def get_shutdown_fee_range(self, chan, closing_tx, is_local):
         """ return the closing fee and fee range we initially try to enforce """
         config = self.network.config
+        our_fee = None
         if config.get('test_shutdown_fee'):
             our_fee = config.get('test_shutdown_fee')
         else:
             fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-            if not fee_rate_per_kb:  # fallback
+            if fee_rate_per_kb is None:  # fallback
                 fee_rate_per_kb = self.network.config.fee_per_kb()
-            our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
+            if fee_rate_per_kb is not None:
+                our_fee = fee_rate_per_kb * closing_tx.estimated_size() // 1000
             # TODO: anchors: remove this, as commitment fee rate can be below chain head fee rate?
             # BOLT2: The sending node MUST set fee less than or equal to the base fee of the final ctx
             max_fee = chan.get_latest_fee(LOCAL if is_local else REMOTE)
+            if our_fee is None:  # fallback
+                self.logger.warning(f"got no fee estimates for co-op close! falling back to chan.get_latest_fee")
+                our_fee = max_fee
             our_fee = min(our_fee, max_fee)
         # config modern_fee_negotiation can be set in tests
         if config.get('test_shutdown_legacy'):

@@ -51,18 +51,6 @@ ElDialog {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                icon.source: '../../icons/tab_receive.png'
-                text: qsTr('Saved Invoices')
-                enabled: Daemon.currentWallet.invoiceModel.rowCount() // TODO: only count non-expired
-                onClicked: {
-                    dialog.close()
-                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
-                }
-            }
-
-            FlatButton {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
                 icon.source: '../../icons/copy_bw.png'
                 text: qsTr('Paste')
                 onClicked: dialog.dispatch(AppController.clipboardToText())

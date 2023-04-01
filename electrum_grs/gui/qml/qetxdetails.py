@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum_grs.i18n import _
 from electrum_grs.logging import get_logger
 from electrum_grs.util import format_time, AddTransactionException, TxMinedInfo
-from electrum_grs.transaction import tx_from_any
+from electrum_grs.transaction import tx_from_any, Transaction
 from electrum_grs.network import Network
 
 from .qewallet import QEWallet
@@ -31,7 +31,7 @@ class QETxDetails(QObject, QtEventListener):
         self._rawtx = ''
         self._label = ''
 
-        self._tx = None
+        self._tx = None  # type: Optional[Transaction]
 
         self._status = ''
         self._amount = QEAmount()
@@ -277,10 +277,10 @@ class QETxDetails(QObject, QtEventListener):
         self._is_final = self._tx.is_final()
         self._is_unrelated = txinfo.amount is None and self._lnamount.isEmpty
         self._is_lightning_funding_tx = txinfo.is_lightning_funding_tx
-        self._can_bump = txinfo.can_bump
-        self._can_dscancel = txinfo.can_dscancel
         self._can_broadcast = txinfo.can_broadcast
-        self._can_cpfp = txinfo.can_cpfp
+        self._can_bump = txinfo.can_bump and not txinfo.can_remove
+        self._can_dscancel = txinfo.can_dscancel and not txinfo.can_remove
+        self._can_cpfp = txinfo.can_cpfp and not txinfo.can_remove
         self._can_save_as_local = txinfo.can_save_as_local and not txinfo.can_remove
         self._can_remove = txinfo.can_remove
         self._can_sign = not self._is_complete and self._wallet.wallet.can_sign(self._tx)
@@ -299,8 +299,14 @@ class QETxDetails(QObject, QtEventListener):
         self._short_id = tx_mined_info.short_id() or ""
 
     @pyqtSlot()
-    @pyqtSlot(bool)
-    def sign(self, broadcast = False):
+    def sign_and_broadcast(self):
+        self._sign(broadcast=True)
+
+    @pyqtSlot()
+    def sign(self):
+        self._sign(broadcast=False)
+
+    def _sign(self, broadcast):
         # TODO: connecting/disconnecting signal handlers here is hmm
         try:
             self._wallet.transactionSigned.disconnect(self.onSigned)
@@ -365,6 +371,7 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtSlot()
     @pyqtSlot(bool)
     def removeLocalTx(self, confirm = False):
+        assert self._can_remove
         txid = self._txid
 
         if not confirm:
@@ -379,7 +386,11 @@ class QETxDetails(QObject, QtEventListener):
 
         self._wallet.wallet.adb.remove_transaction(txid)
         self._wallet.wallet.save_db()
-        self._wallet.historyModel.init_model(True)
+
+        # NOTE: from here, the tx/txid is unknown and all properties are invalid.
+        # UI should close TxDetails and avoid interacting with this qetxdetails instance.
+        self._txid = None
+        self._tx = None
 
     @pyqtSlot()
     def save(self):
@@ -391,11 +402,7 @@ class QETxDetails(QObject, QtEventListener):
             self._can_remove = True
             self.detailsChanged.emit()
 
-    @pyqtSlot(result=str)
-    @pyqtSlot(bool, result=str)
-    def getSerializedTx(self, for_qr=False):
-        tx = self._tx
-        if for_qr:
-            return tx.to_qr_data()
-        else:
-            return str(tx)
+    @pyqtSlot(result='QVariantList')
+    def getSerializedTx(self):
+        txqr = self._tx.to_qr_data()
+        return [str(self._tx), txqr[0], txqr[1]]

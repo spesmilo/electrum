@@ -44,12 +44,11 @@ ElDialog {
 
                 columns: 2
 
-                Label {
+                InfoTextArea {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
-                    text: qsTr('Increase your transaction\'s fee to improve its position in the mempool')
-                    wrapMode: Text.Wrap
+                    text: qsTr('Move the slider to increase your transaction\'s fee. This will improve its position in the mempool')
                 }
 
                 Label {
@@ -186,12 +185,11 @@ ElDialog {
                     }
                 }
 
-                InfoTextArea {
+                Label {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     visible: rbffeebumper.warning != ''
                     text: rbffeebumper.warning
-                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
 
                 Label {

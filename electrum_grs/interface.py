@@ -1121,11 +1121,21 @@ class Interface(Logger):
     async def get_estimatefee(self, num_blocks: int) -> int:
         """Returns a feerate estimate for getting confirmed within
         num_blocks blocks, in gro/kbyte.
+        Returns -1 if the server could not provide an estimate.
         """
         if not is_non_negative_integer(num_blocks):
             raise Exception(f"{repr(num_blocks)} is not a num_blocks")
         # do request
-        res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        try:
+            res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        except aiorpcx.jsonrpc.ProtocolError as e:
+            # The protocol spec says the server itself should already have returned -1
+            # if it cannot provide an estimate, however apparently electrs does not conform
+            # and sends an error instead. Convert it here:
+            if "cannot estimate fee" in e.message:
+                res = -1
+            else:
+                raise
         # check response
         if res != -1:
             assert_non_negative_int_or_float(res)

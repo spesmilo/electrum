@@ -55,7 +55,7 @@ KeyboardStyle {
     }
 
     keyboardDesignWidth: 2560
-    keyboardDesignHeight: 1200
+    keyboardDesignHeight: 1440
     keyboardRelativeLeftMargin: 114 / keyboardDesignWidth
     keyboardRelativeRightMargin: 114 / keyboardDesignWidth
     keyboardRelativeTopMargin: 13 / keyboardDesignHeight

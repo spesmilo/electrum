@@ -29,6 +29,11 @@ from . import daemon
 from .transaction import Transaction
 from .plugin import BasePlugin
 from .commands import Commands, known_commands
+from .logging import get_logger
 
 
 __version__ = ELECTRUM_VERSION
+
+_logger = get_logger(__name__)
+if not __debug__:
+    _logger.warning(f"__debug__ is False. running with asserts disabled!")

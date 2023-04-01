@@ -12,6 +12,7 @@ ElDialog {
     property string text_qr
     // if text_qr is undefined text will be used
     property string text_help
+    property string text_warn
 
     title: qsTr('Share Transaction')
 
@@ -54,6 +55,17 @@ ElDialog {
                     Layout.margins: constants.paddingLarge
                     visible: dialog.text_help
                     text: dialog.text_help
+                }
+
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.margins: constants.paddingLarge
+                    Layout.topMargin: dialog.text_help
+                        ? 0
+                        : constants.paddingLarge
+                    visible: dialog.text_warn
+                    text: dialog.text_warn
+                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
             }
         }

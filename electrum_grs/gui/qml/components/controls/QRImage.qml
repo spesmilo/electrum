@@ -1,4 +1,5 @@
 import QtQuick 2.6
+import QtQuick.Controls 2.15
 
 Item {
     id: root
@@ -20,7 +21,7 @@ Item {
         source: qrdata && render ? 'image://qrgen/' + qrdata : ''
 
         Rectangle {
-            visible: root.render
+            visible: root.render && qrprops.valid
             color: 'white'
             x: (parent.width - width) / 2
             y: (parent.height - height) / 2
@@ -28,6 +29,7 @@ Item {
             height: qrprops.icon_modules * qrprops.box_size
 
             Image {
+                visible: qrprops.valid
                 source: '../../../icons/electrum.png'
                 x: 1
                 y: 1
@@ -35,6 +37,11 @@ Item {
                 height: parent.height - 2
                 scale: 0.9
             }
+        }
+        Label {
+            visible: !qrprops.valid
+            text: qsTr('Data too big for QR')
+            anchors.centerIn: parent
         }
     }
 }

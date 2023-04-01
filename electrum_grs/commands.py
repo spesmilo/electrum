@@ -975,7 +975,7 @@ class Commands:
         return wallet.get_unused_address()
 
     @command('w')
-    async def add_request(self, amount, memo='', expiration=3600, force=False, wallet: Abstract_Wallet = None):
+    async def add_request(self, amount, memo='', expiry=3600, force=False, wallet: Abstract_Wallet = None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
@@ -986,8 +986,8 @@ class Commands:
             else:
                 return False
         amount = satoshis(amount)
-        expiration = int(expiration) if expiration else None
-        key = wallet.create_request(amount, memo, expiration, addr)
+        expiry = int(expiry) if expiry else None
+        key = wallet.create_request(amount, memo, expiry, addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
 
@@ -1429,7 +1429,7 @@ command_options = {
     'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
-    'expiration':  (None, "Time in seconds"),
+    'expiry':      (None, "Time in seconds"),
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
     'pending':     (None, "Show only pending requests."),

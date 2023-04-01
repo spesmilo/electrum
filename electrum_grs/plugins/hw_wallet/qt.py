@@ -284,13 +284,13 @@ class QtPluginBase(object):
                                                               keystore: 'Hardware_KeyStore',
                                                               main_window: ElectrumWindow):
         plugin = keystore.plugin
-        receive_address_e = main_window.receive_tab.receive_address_e
+        receive_tab = main_window.receive_tab
 
         def show_address():
-            addr = str(receive_address_e.text())
+            addr = str(receive_tab.addr)
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
         dev_name = f"{plugin.device} ({keystore.label})"
-        main_window.receive_tab.toolbar_menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(dev_name), show_address)
+        receive_tab.toolbar_menu.addAction(read_QIcon("eye1.png"), _("Show address on {}").format(dev_name), show_address)
 
     def create_handler(self, window: Union[ElectrumWindow, InstallWizard]) -> 'QtHandlerBase':
         raise NotImplementedError()

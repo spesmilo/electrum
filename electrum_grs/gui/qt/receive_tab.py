@@ -252,6 +252,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         req = self.wallet.get_request(key) if key else None
         if req is None:
             self.receive_e.setText('')
+            self.addr = self.URI = self.lnaddr = ''
+            self.address_help = self.URI_help = self.ln_help = ''
             return
         help_texts = self.wallet.get_help_texts_for_receive_request(req)
         self.addr = (req.get_address() or '') if not help_texts.address_is_error else ''
@@ -357,6 +359,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
     def do_clear(self):
         self.receive_e.setText('')
+        self.addr = self.URI = self.lnaddr = ''
+        self.address_help = self.URI_help = self.ln_help = ''
         self.receive_widget.setVisible(False)
         self.toggle_qr_button.setEnabled(False)
         self.toggle_view_button.setEnabled(False)

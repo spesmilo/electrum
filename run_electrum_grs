@@ -44,8 +44,9 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
 is_appimage = 'APPIMAGE' in os.environ
+is_binary_distributable = is_pyinstaller or is_android or is_appimage
 # is_local: unpacked tar.gz but not pip installed, or git clone
-is_local = (not is_pyinstaller and not is_android and not is_appimage
+is_local = (not is_binary_distributable
             and os.path.exists(os.path.join(script_dir, "electrum-grs.desktop")))
 is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
@@ -61,6 +62,19 @@ if is_pyinstaller:
     # prevents users from moving or renaming the exe file while running (doing which
     # causes ImportErrors and other runtime failures). (see #4072)
     _file = open(sys.executable, 'rb')
+
+if is_binary_distributable:
+    # Ensure that asserts are enabled.
+    # Code *should not rely* on asserts being enabled. In particular, safety and security checks should
+    # always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
+    # In case we are a binary build, we know for a fact that we want the asserts, so enforce them.
+    # When running from source, defer to the user. (a warning is logged in __init__.py)
+    try:
+        assert False
+    except AssertionError:
+        pass
+    else:
+        sys.exit("Error: Running with asserts disabled, in a binary distributable! Please check build settings.")
 
 
 def check_imports():

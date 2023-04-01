@@ -678,19 +678,28 @@ class SimpleConfig(Logger):
             except:
                 pass
 
-    def format_amount(self, x, is_diff=False, whitespaces=False):
+    def format_amount(
+        self,
+        amount_sat,
+        *,
+        is_diff=False,
+        whitespaces=False,
+        precision=None,
+    ) -> str:
+        if precision is None:
+            precision = self.amt_precision_post_satoshi
         return format_satoshis(
-            x,
+            amount_sat,
             num_zeros=self.num_zeros,
             decimal_point=self.decimal_point,
             is_diff=is_diff,
             whitespaces=whitespaces,
-            precision=self.amt_precision_post_satoshi,
+            precision=precision,
             add_thousands_sep=self.amt_add_thousands_sep,
         )
 
-    def format_amount_and_units(self, amount):
-        return self.format_amount(amount) + ' '+ self.get_base_unit()
+    def format_amount_and_units(self, *args, **kwargs) -> str:
+        return self.format_amount(*args, **kwargs) + ' ' + self.get_base_unit()
 
     def format_fee_rate(self, fee_rate):
         return format_fee_satoshis(fee_rate/1000, num_zeros=self.num_zeros) + ' gro/byte'

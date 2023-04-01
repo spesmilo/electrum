@@ -51,14 +51,17 @@ Item {
     }
 
     function showExportByTxid(txid, helptext) {
-        showExport(Daemon.currentWallet.getSerializedTx(txid, false), Daemon.currentWallet.getSerializedTx(txid, true), helptext)
+        showExport(Daemon.currentWallet.getSerializedTx(txid), helptext)
     }
 
-    function showExport(data, data_qr, helptext) {
+    function showExport(data, helptext) {
         var dialog = exportTxDialog.createObject(app, {
-            text: data,
-            text_qr: data_qr,
-            text_help: helptext
+            text: data[0],
+            text_qr: data[1],
+            text_help: helptext,
+            text_warn: data[2]
+                ? ''
+                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
         })
         dialog.open()
     }
@@ -188,8 +191,11 @@ Item {
                     var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
+                onPressAndHold: {
+                    Daemon.currentWallet.delete_expired_requests()
+                    app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                }
             }
-
             FlatButton {
                 visible: Daemon.currentWallet
                 Layout.fillWidth: true
@@ -197,6 +203,9 @@ Item {
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
                 onClicked: openSendDialog()
+                onPressAndHold: {
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                }
             }
         }
     }
@@ -227,7 +236,12 @@ Item {
         onInvoiceCreateError: console.log(code + ' ' + message)
 
         onLnurlRetrieved: {
+            closeSendDialog()
             var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            dialog.open()
+        }
+        onLnurlError: {
+            var dialog = app.messageDialog.createObject(app, { text: message })
             dialog.open()
         }
     }
@@ -260,21 +274,9 @@ Item {
         function onRequestCreateSuccess(key) {
             openRequest(key)
         }
-        function onRequestCreateError(code, error) {
-            if (code == 'ln') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    createRequest(true, false)
-                })
-            } else if (code == 'reuse_addr') {
-                var dialog = app.messageDialog.createObject(app, {text: error, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    createRequest(false, true)
-                })
-            } else {
-                console.log(error)
-                var dialog = app.messageDialog.createObject(app, {text: error})
-            }
+        function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {text: error})
             dialog.open()
         }
     }
