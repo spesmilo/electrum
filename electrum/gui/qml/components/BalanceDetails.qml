@@ -92,50 +92,46 @@ Pane {
                         Layout.alignment: Qt.AlignHCenter
                         visible: Daemon.currentWallet
                         columns: 3
-
                         Item {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             Layout.preferredWidth: 1; Layout.preferredHeight: 1
                         }
                         Label {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             text: qsTr('Total')
                         }
                         FormattedAmount {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             amount: Daemon.currentWallet.totalBalance
                         }
 
                         Rectangle {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning
                             Layout.preferredWidth: constants.iconSizeXSmall
                             Layout.preferredHeight: constants.iconSizeXSmall
                             color: constants.colorPiechartLightning
                         }
                         Label {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning
                             text: qsTr('Lightning')
 
                         }
                         FormattedAmount {
+                            visible: Daemon.currentWallet.isLightning
                             amount: Daemon.currentWallet.lightningBalance
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
                         }
 
                         Rectangle {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             Layout.preferredWidth: constants.iconSizeXSmall
                             Layout.preferredHeight: constants.iconSizeXSmall
                             color: constants.colorPiechartOnchain
                         }
                         Label {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             text: qsTr('On-chain')
 
                         }
                         FormattedAmount {
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             amount: Daemon.currentWallet.confirmedBalance
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
                         }
 
                         Rectangle {
@@ -163,7 +159,8 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr('Lightning swap');
-                visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                visible: Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: {
                     var swaphelper = app.swaphelper.createObject(app)
@@ -181,6 +178,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Open Channel')
                 visible: Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet.confirmedBalance.satInt > 0
                 onClicked: {
                     var dialog = openChannelDialog.createObject(rootItem)
                     dialog.open()
