@@ -192,6 +192,7 @@ Item {
                     dialog.open()
                 }
                 onPressAndHold: {
+                    Daemon.currentWallet.userKnowsPressAndHold = true
                     Daemon.currentWallet.delete_expired_requests()
                     app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
                 }
@@ -204,6 +205,7 @@ Item {
                 text: qsTr('Send')
                 onClicked: openSendDialog()
                 onPressAndHold: {
+                    Daemon.currentWallet.userKnowsPressAndHold = true
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                 }
             }
