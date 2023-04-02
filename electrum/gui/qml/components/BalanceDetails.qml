@@ -13,36 +13,6 @@ Pane {
 
     padding: 0
 
-    property bool _is2fa: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
-
-    function enableLightning() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
-            Daemon.currentWallet.enableLightning()
-        })
-        dialog.open()
-    }
-
-    function deleteWallet() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Really delete this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
-            Daemon.checkThenDeleteWallet(Daemon.currentWallet)
-        })
-        dialog.open()
-    }
-
-    function changePassword() {
-        // trigger dialog via wallet (auth then signal)
-        Daemon.startChangePassword()
-    }
-
-    function importAddressesKeys() {
-        var dialog = importAddressesKeysDialog.createObject(rootItem)
-        dialog.open()
-    }
-
     ColumnLayout {
         id: rootLayout
         anchors.fill: parent
@@ -149,6 +119,28 @@ Pane {
                             visible: !Daemon.currentWallet.frozenBalance.isEmpty
                         }
                     }
+
+                    Heading {
+                        text: qsTr('Lightning Liquidity')
+                        visible: Daemon.currentWallet.isLightning
+                    }
+                    GridLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                        columns: 2
+                        Label {
+                            text: qsTr('Can send')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.lightningCanSend
+                        }
+                        Label {
+                            text: qsTr('Can receive')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.lightningCanReceive
+                        }
+                    }
                 }
             }
         }
@@ -178,7 +170,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Open Channel')
                 visible: Daemon.currentWallet.isLightning
-                enabled: Daemon.currentWallet.confirmedBalance.satInt > 0
+                enabled: Daemon.currentWallet.confirmedBalance.satsInt > 0
                 onClicked: {
                     var dialog = openChannelDialog.createObject(rootItem)
                     dialog.open()
