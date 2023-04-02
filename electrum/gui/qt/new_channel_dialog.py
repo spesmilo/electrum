@@ -42,9 +42,7 @@ class NewChannelDialog(WindowModalDialog):
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
         msg = _('Choose a remote node and an amount to fund the channel.')
-        if min_amount_sat:
-            # only displayed if min_amount_sat is passed as parameter
-            msg += '\n' + _('You need to put at least') + ': ' + self.window.format_amount_and_units(self.min_amount_sat)
+        msg += '\n' + _('You need to put at least') + ': ' + self.window.format_amount_and_units(self.min_amount_sat)
         vbox.addWidget(WWLabel(msg))
         if self.network.channel_db:
             vbox.addWidget(QLabel(_('Enter Remote Node ID or connection string or invoice')))

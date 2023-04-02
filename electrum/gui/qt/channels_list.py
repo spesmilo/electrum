@@ -363,21 +363,10 @@ class ChannelsList(MyTreeView):
         menu.addAction(_('Submarine swap'), lambda: self.main_window.run_swap_dialog())
         menu.addSeparator()
         menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
-        self.new_channel_button = EnterButton(_('New Channel'), self.new_channel_with_warning)
+        self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
         self.new_channel_button.setEnabled(self.wallet.has_lightning())
         toolbar.insertWidget(2, self.new_channel_button)
         return toolbar
-
-    def new_channel_with_warning(self):
-        lnworker = self.wallet.lnworker
-        if not lnworker.channels and not lnworker.channel_backups:
-            warning = _(messages.MSG_LIGHTNING_WARNING)
-            answer = self.main_window.question(
-                _('Do you want to create your first channel?') + '\n\n' + warning)
-            if answer:
-                self.new_channel_dialog()
-        else:
-            self.new_channel_dialog()
 
     def statistics_dialog(self):
         channel_db = self.network.channel_db
@@ -395,11 +384,6 @@ class ChannelsList(MyTreeView):
         vbox.addLayout(h)
         vbox.addLayout(Buttons(OkButton(d)))
         d.exec_()
-
-    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
-        from .new_channel_dialog import NewChannelDialog
-        d = NewChannelDialog(self.main_window, amount_sat, min_amount_sat)
-        return d.run()
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):

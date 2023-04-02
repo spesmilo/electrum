@@ -713,7 +713,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     self.window.rebalance_dialog(chan1, chan2, amount_sat=delta)
                 elif r == 1:
                     amount_sat, min_amount_sat = can_pay_with_new_channel
-                    self.window.channels_list.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
+                    self.window.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
                 elif r == 2:
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
