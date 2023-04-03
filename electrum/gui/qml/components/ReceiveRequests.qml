@@ -20,7 +20,7 @@ Pane {
         InfoTextArea {
             Layout.fillWidth: true
             Layout.bottomMargin: constants.paddingLarge
-            visible: !Daemon.currentWallet.userKnowsPressAndHold
+            visible: !Config.userKnowsPressAndHold
             text: qsTr('To access this list from the main screen, press and hold the Receive button')
         }
 

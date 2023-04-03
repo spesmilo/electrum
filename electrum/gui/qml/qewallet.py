@@ -125,17 +125,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
-        self._user_knows_press_and_hold = False # maybe save in config?
         self.synchronizing = not wallet.is_up_to_date()
-
-    userKnowsPressAndHoldChanged = pyqtSignal()
-    @pyqtProperty(bool, notify=userKnowsPressAndHoldChanged)
-    def userKnowsPressAndHold(self):
-        return self._user_knows_press_and_hold
-
-    @userKnowsPressAndHold.setter
-    def userKnowsPressAndHold(self, userKnowsPressAndHold):
-        self._user_knows_press_and_hold = userKnowsPressAndHold
 
     synchronizingChanged = pyqtSignal()
     @pyqtProperty(bool, notify=synchronizingChanged)
