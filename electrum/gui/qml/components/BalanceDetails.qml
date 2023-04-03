@@ -35,6 +35,16 @@ Pane {
                     width: parent.width
                     spacing: constants.paddingLarge
 
+                    InfoTextArea {
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: Daemon.currentWallet.synchronizing || Network.server_status != 'connected'
+                        text: Daemon.currentWallet.synchronizing
+                                  ? qsTr('Your wallet is not synchronized. The displayed balance may be inaccurate.')
+                                  : qsTr('Your wallet is not connected to an Electrum server. The displayed balance may be outdated.')
+                        iconStyle: InfoTextArea.IconStyle.Warn
+                    }
+
                     Heading {
                         text: qsTr('Wallet balance')
                     }

@@ -147,7 +147,6 @@ Item {
     MouseArea {
         anchors.fill: parent
         onClicked: {
-            if(Daemon.currentWallet.synchronizing || Network.server_status != 'connected') return
             app.stack.push(Qt.resolvedUrl('../BalanceDetails.qml'))
         }
     }
