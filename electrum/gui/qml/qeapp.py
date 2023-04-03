@@ -47,6 +47,16 @@ if TYPE_CHECKING:
     from electrum.daemon import Daemon
     from electrum.plugin import Plugins
 
+if 'ANDROID_DATA' in os.environ:
+    from jnius import autoclass, cast
+    from android import activity
+
+    jpythonActivity = autoclass('org.kivy.android.PythonActivity').mActivity
+    jHfc = autoclass('android.view.HapticFeedbackConstants')
+    jString = autoclass('java.lang.String')
+    jIntent = autoclass('android.content.Intent')
+    jview = jpythonActivity.getWindow().getDecorView()
+
 notification = None
 
 class QEAppController(BaseCrashReporter, QObject):
@@ -81,9 +91,10 @@ class QEAppController(BaseCrashReporter, QObject):
 
         self._qedaemon.walletLoaded.connect(self.on_wallet_loaded)
 
-        self.userNotify.connect(self.notifyAndroid)
+        self.userNotify.connect(self.doNotify)
 
-        self.bindIntent()
+        if self.isAndroid():
+            self.bindIntent()
 
     def on_wallet_loaded(self):
         qewallet = self._qedaemon.currentWallet
@@ -125,7 +136,7 @@ class QEAppController(BaseCrashReporter, QObject):
         except queue.Empty:
             pass
 
-    def notifyAndroid(self, wallet_name, message):
+    def doNotify(self, wallet_name, message):
         try:
             # TODO: lazy load not in UI thread please
             global notification
@@ -143,11 +154,7 @@ class QEAppController(BaseCrashReporter, QObject):
         if not self.isAndroid():
             return
         try:
-            from android import activity
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            mactivity = PythonActivity.mActivity
-            self.on_new_intent(mactivity.getIntent())
+            self.on_new_intent(jpythonActivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
         except Exception as e:
             self.logger.error(f'unable to bind intent: {repr(e)}')
@@ -170,22 +177,15 @@ class QEAppController(BaseCrashReporter, QObject):
 
     @pyqtSlot(str, str)
     def doShare(self, data, title):
-        try:
-            from jnius import autoclass, cast
-        except ImportError:
-            self.logger.error('Share: needs jnius. Platform not Android?')
+        if not self.isAndroid():
             return
 
-        JS = autoclass('java.lang.String')
-        Intent = autoclass('android.content.Intent')
-        sendIntent = Intent()
-        sendIntent.setAction(Intent.ACTION_SEND)
+        sendIntent = jIntent()
+        sendIntent.setAction(jIntent.ACTION_SEND)
         sendIntent.setType("text/plain")
-        sendIntent.putExtra(Intent.EXTRA_TEXT, JS(data))
-        pythonActivity = autoclass('org.kivy.android.PythonActivity')
-        currentActivity = cast('android.app.Activity', pythonActivity.mActivity)
-        it = Intent.createChooser(sendIntent, cast('java.lang.CharSequence', JS(title)))
-        currentActivity.startActivity(it)
+        sendIntent.putExtra(jIntent.EXTRA_TEXT, jString(data))
+        it = jIntent.createChooser(sendIntent, cast('java.lang.CharSequence', jString(title)))
+        jpythonActivity.startActivity(it)
 
     @pyqtSlot('QString')
     def textToClipboard(self, text):
@@ -288,6 +288,13 @@ class QEAppController(BaseCrashReporter, QObject):
     def get_wallet_type(self):
         wallet_types = Exception_Hook._INSTANCE.wallet_types_seen
         return ",".join(wallet_types)
+
+    @pyqtSlot()
+    def haptic(self):
+        if not self.isAndroid():
+            return
+        jview.performHapticFeedback(jHfc.CONFIRM)
+
 
 class ElectrumQmlApplication(QGuiApplication):
 

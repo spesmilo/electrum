@@ -65,7 +65,7 @@ KeyboardStyle {
         color: constants.colorAlpha(Material.accentColor, 0.5) //mutedForeground //'red' //"black"
     }
 
-    keyPanel: KeyPanel {
+    keyPanel: ElectrumKeyPanel {
         id: keyPanel
         Rectangle {
             id: keyBackground
@@ -135,7 +135,7 @@ KeyboardStyle {
         ]
     }
 
-    backspaceKeyPanel: KeyPanel {
+    backspaceKeyPanel: ElectrumKeyPanel {
         id: backspaceKeyPanel
         Rectangle {
             id: backspaceKeyBackground
@@ -180,7 +180,7 @@ KeyboardStyle {
         ]
     }
 
-    languageKeyPanel: KeyPanel {
+    languageKeyPanel: ElectrumKeyPanel {
         id: languageKeyPanel
         Rectangle {
             id: languageKeyBackground
@@ -225,7 +225,7 @@ KeyboardStyle {
         ]
     }
 
-    enterKeyPanel: KeyPanel {
+    enterKeyPanel: ElectrumKeyPanel {
         id: enterKeyPanel
         Rectangle {
             id: enterKeyBackground
@@ -322,7 +322,7 @@ KeyboardStyle {
         ]
     }
 
-    hideKeyPanel: KeyPanel {
+    hideKeyPanel: ElectrumKeyPanel {
         id: hideKeyPanel
         Rectangle {
             id: hideKeyBackground
@@ -367,7 +367,7 @@ KeyboardStyle {
         ]
     }
 
-    shiftKeyPanel: KeyPanel {
+    shiftKeyPanel: ElectrumKeyPanel {
         id: shiftKeyPanel
         Rectangle {
             id: shiftKeyBackground
@@ -434,7 +434,7 @@ KeyboardStyle {
         ]
     }
 
-    spaceKeyPanel: KeyPanel {
+    spaceKeyPanel: ElectrumKeyPanel {
         id: spaceKeyPanel
         Rectangle {
             id: spaceKeyBackground
@@ -475,7 +475,7 @@ KeyboardStyle {
         ]
     }
 
-    symbolKeyPanel: KeyPanel {
+    symbolKeyPanel: ElectrumKeyPanel {
         id: symbolKeyPanel
         Rectangle {
             id: symbolKeyBackground
@@ -527,7 +527,7 @@ KeyboardStyle {
         ]
     }
 
-    modeKeyPanel: KeyPanel {
+    modeKeyPanel: ElectrumKeyPanel {
         id: modeKeyPanel
         Rectangle {
             id: modeKeyBackground
@@ -592,7 +592,7 @@ KeyboardStyle {
         ]
     }
 
-    handwritingKeyPanel: KeyPanel {
+    handwritingKeyPanel: ElectrumKeyPanel {
         id: handwritingKeyPanel
         Rectangle {
             id: hwrKeyBackground
