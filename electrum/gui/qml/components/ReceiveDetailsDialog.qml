@@ -12,6 +12,7 @@ ElDialog {
     id: dialog
 
     title: qsTr('Receive payment')
+    iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     property alias amount: amountBtc.text
     property alias description: message.text
