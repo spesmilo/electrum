@@ -72,6 +72,12 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.set_status_timer()
 
     def add_invoice(self, invoice: Invoice):
+        # skip if already in list
+        key = invoice.get_id()
+        for invoice in self.invoices:
+            if invoice['key'] == key:
+                return
+
         item = self.invoice_to_model(invoice)
         self._logger.debug(str(item))
 
