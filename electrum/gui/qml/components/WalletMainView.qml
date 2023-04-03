@@ -205,7 +205,7 @@ Item {
                 text: qsTr('Send')
                 onClicked: openSendDialog()
                 onPressAndHold: {
-                    Daemon.currentWallet.userKnowsPressAndHold = true
+                    Config.userKnowsPressAndHold = true
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                 }
             }
