@@ -9,7 +9,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QM
 
 from electrum_grs import bitcoin
 from electrum_grs.i18n import _
-from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID
+from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID, PR_BROADCASTING, PR_BROADCAST
 from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction
@@ -28,7 +28,7 @@ from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum_grs.wallet import Abstract_Wallet
-
+    from .qeinvoice import QEInvoice
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
     __instances = []
@@ -125,7 +125,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
-
         self.synchronizing = not wallet.is_up_to_date()
 
     synchronizingChanged = pyqtSignal()
@@ -550,19 +549,23 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         assert tx.is_complete()
 
         def broadcast_thread():
+            self.wallet.set_broadcasting(tx, PR_BROADCASTING)
             try:
                 self._logger.info('running broadcast in thread')
                 self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
-                self.broadcastFailed.emit(tx.txid(),'',str(e))
+                self.broadcastFailed.emit(tx.txid(), '', e.get_message_for_gui())
+                self.wallet.set_broadcasting(tx, None)
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
-                self.broadcastFailed.emit(tx.txid(),'',str(e))
+                self.broadcastFailed.emit(tx.txid(), '', repr(e))
+                self.wallet.set_broadcasting(tx, None)
             else:
                 self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit() # via qt thread
+                self.wallet.set_broadcasting(tx, PR_BROADCAST)
 
         threading.Thread(target=broadcast_thread, daemon=True).start()
 
@@ -588,14 +591,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
 
-    @pyqtSlot(str)
     @auth_protect(reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice_key):
-        self._logger.debug('about to pay LN')
-        invoice = self.wallet.get_invoice(invoice_key)
-        assert(invoice)
-        assert(invoice.lightning_invoice)
-
+    def pay_lightning_invoice(self, invoice: 'QEInvoice'):
         amount_msat = invoice.get_amount_msat()
 
         def pay_thread():
@@ -629,7 +626,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 elif lightning_only:
                     addr = None
                 else:
-                    has_lightning = self.wallet.has_lightning()
                     msg = [
                         _('No address available.'),
                         _('All your addresses are used in pending requests.'),

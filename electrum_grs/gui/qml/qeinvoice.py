@@ -10,7 +10,7 @@ from electrum_grs import lnutil
 from electrum_grs.i18n import _
 from electrum_grs.invoices import Invoice
 from electrum_grs.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
-                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
+                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
 from electrum_grs.lnaddr import LnInvoiceException
 from electrum_grs.logging import get_logger
 from electrum_grs.transaction import PartialTxOutput
@@ -26,7 +26,7 @@ from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
 
 
-class QEInvoice(QObject):
+class QEInvoice(QObject, QtEventListener):
     class Type:
         Invalid = -1
         OnchainInvoice = 0
@@ -48,13 +48,57 @@ class QEInvoice(QObject):
 
     _logger = get_logger(__name__)
 
+    invoiceChanged = pyqtSignal()
+    invoiceSaved = pyqtSignal([str], arguments=['key'])
+    amountOverrideChanged = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self._wallet = None  # type: Optional[QEWallet]
+        self._isSaved = False
         self._canSave = False
         self._canPay = False
         self._key = None
+        self._invoiceType = QEInvoice.Type.Invalid
+        self._effectiveInvoice = None
+        self._userinfo = ''
+        self._lnprops = {}
+        self._amount = QEAmount()
+        self._amountOverride = QEAmount()
+
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.updateStatusString)
+
+        self._amountOverride.valueChanged.connect(self._on_amountoverride_value_changed)
+
+        self.register_callbacks()
+        self.destroyed.connect(lambda: self.on_destroy())
+
+    def on_destroy(self):
+        self.unregister_callbacks()
+
+    @event_listener
+    def on_event_payment_succeeded(self, wallet, key):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.determine_can_pay()
+            self.userinfo = _('Paid!')
+
+    @event_listener
+    def on_event_payment_failed(self, wallet, key, reason):
+        if wallet == self._wallet.wallet and key == self.key:
+            self.statusChanged.emit()
+            self.determine_can_pay()
+            self.userinfo = _('Payment failed: ') + reason
+
+    @event_listener
+    def on_event_invoice_status(self, wallet, key, status):
+        if self._wallet and wallet == self._wallet.wallet and key == self.key:
+            self.update_userinfo()
+            self.determine_can_pay()
+            self.statusChanged.emit()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -66,6 +110,72 @@ class QEInvoice(QObject):
         if self._wallet != wallet:
             self._wallet = wallet
             self.walletChanged.emit()
+
+    @pyqtProperty(int, notify=invoiceChanged)
+    def invoiceType(self):
+        return self._invoiceType
+
+    # not a qt setter, don't let outside set state
+    def setInvoiceType(self, invoiceType: Type):
+        self._invoiceType = invoiceType
+
+    @pyqtProperty(str, notify=invoiceChanged)
+    def message(self):
+        return self._effectiveInvoice.message if self._effectiveInvoice else ''
+
+    @pyqtProperty('quint64', notify=invoiceChanged)
+    def time(self):
+        return self._effectiveInvoice.time if self._effectiveInvoice else 0
+
+    @pyqtProperty('quint64', notify=invoiceChanged)
+    def expiration(self):
+        return self._effectiveInvoice.exp if self._effectiveInvoice else 0
+
+    @pyqtProperty(str, notify=invoiceChanged)
+    def address(self):
+        return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
+
+    @pyqtProperty(QEAmount, notify=invoiceChanged)
+    def amount(self):
+        if not self._effectiveInvoice:
+            self._amount.clear()
+            return self._amount
+        self._amount.copyFrom(QEAmount(from_invoice=self._effectiveInvoice))
+        return self._amount
+
+    @pyqtProperty(QEAmount, notify=amountOverrideChanged)
+    def amountOverride(self):
+        return self._amountOverride
+
+    @amountOverride.setter
+    def amountOverride(self, new_amount):
+        self._logger.debug(f'set new override amount {repr(new_amount)}')
+        self._amountOverride.copyFrom(new_amount)
+        self.amountOverrideChanged.emit()
+
+    @pyqtSlot()
+    def _on_amountoverride_value_changed(self):
+        self.update_userinfo()
+        self.determine_can_pay()
+
+    statusChanged = pyqtSignal()
+    @pyqtProperty(int, notify=statusChanged)
+    def status(self):
+        if not self._effectiveInvoice:
+            return PR_UNKNOWN
+        return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
+
+    @pyqtProperty(str, notify=statusChanged)
+    def status_str(self):
+        if not self._effectiveInvoice:
+            return ''
+        status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
+        return self._effectiveInvoice.get_status_str(status)
+
+    isSavedChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=isSavedChanged)
+    def isSaved(self):
+        return self._isSaved
 
     canSaveChanged = pyqtSignal()
     @pyqtProperty(bool, notify=canSaveChanged)
@@ -98,6 +208,11 @@ class QEInvoice(QObject):
     def key(self, key):
         if self._key != key:
             self._key = key
+            if self._effectiveInvoice and self._effectiveInvoice.get_id() == key:
+                return
+            invoice = self._wallet.wallet.get_invoice(key)
+            self._logger.debug(f'invoice from key {key}: {repr(invoice)}')
+            self.set_effective_invoice(invoice)
             self.keyChanged.emit()
 
     userinfoChanged = pyqtSignal()
@@ -110,176 +225,6 @@ class QEInvoice(QObject):
         if self._userinfo != userinfo:
             self._userinfo = userinfo
             self.userinfoChanged.emit()
-
-    def get_max_spendable_onchain(self):
-        spendable = self._wallet.confirmedBalance.satsInt
-        if not self._wallet.wallet.config.get('confirmed_only', False):
-            spendable += self._wallet.unconfirmedBalance.satsInt
-        return spendable
-
-    def get_max_spendable_lightning(self):
-        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
-
-class QEInvoiceParser(QEInvoice, QtEventListener):
-    _logger = get_logger(__name__)
-
-    invoiceChanged = pyqtSignal()
-    invoiceSaved = pyqtSignal([str], arguments=['key'])
-
-    validationSuccess = pyqtSignal()
-    validationWarning = pyqtSignal([str,str], arguments=['code', 'message'])
-    validationError = pyqtSignal([str,str], arguments=['code', 'message'])
-
-    invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
-
-    lnurlRetrieved = pyqtSignal()
-    lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
-
-    amountOverrideChanged = pyqtSignal()
-
-    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['pr'])
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self._invoiceType = QEInvoice.Type.Invalid
-        self._recipient = ''
-        self._effectiveInvoice = None
-        self._amount = QEAmount()
-        self._userinfo = ''
-        self._lnprops = {}
-
-        self._timer = QTimer(self)
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self.updateStatusString)
-
-        self._amountOverride = QEAmount()
-        self._amountOverride.valueChanged.connect(self._on_amountoverride_value_changed)
-
-        self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
-
-        self.clear()
-
-        self.register_callbacks()
-        self.destroyed.connect(lambda: self.on_destroy())
-
-    def on_destroy(self):
-        self.unregister_callbacks()
-
-    @event_listener
-    def on_event_payment_succeeded(self, wallet, key):
-        if wallet == self._wallet.wallet and key == self.key:
-            self.statusChanged.emit()
-            self.determine_can_pay()
-            self.userinfo = _('Paid!')
-
-    @event_listener
-    def on_event_payment_failed(self, wallet, key, reason):
-        if wallet == self._wallet.wallet and key == self.key:
-            self.statusChanged.emit()
-            self.determine_can_pay()
-            self.userinfo = _('Payment failed: ') + reason
-
-    @event_listener
-    def on_event_invoice_status(self, wallet, key, status):
-        if wallet == self._wallet.wallet and key == self.key:
-            self.statusChanged.emit()
-            if status in [PR_INFLIGHT, PR_ROUTING]:
-                self.determine_can_pay()
-                self.userinfo = _('In progress...')
-
-    @pyqtProperty(int, notify=invoiceChanged)
-    def invoiceType(self):
-        return self._invoiceType
-
-    # not a qt setter, don't let outside set state
-    def setInvoiceType(self, invoiceType: QEInvoice.Type):
-        self._invoiceType = invoiceType
-
-    recipientChanged = pyqtSignal()
-    @pyqtProperty(str, notify=recipientChanged)
-    def recipient(self):
-        return self._recipient
-
-    @recipient.setter
-    def recipient(self, recipient: str):
-        self.canPay = False
-        self._recipient = recipient
-        self.amountOverride = QEAmount()
-        if recipient:
-            self.validateRecipient(recipient)
-        self.recipientChanged.emit()
-
-    @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
-    def lnurlData(self):
-        return self._lnurlData
-
-    @pyqtProperty(bool, notify=lnurlRetrieved)
-    def isLnurlPay(self):
-        return self._lnurlData is not None
-
-    @pyqtProperty(str, notify=invoiceChanged)
-    def message(self):
-        return self._effectiveInvoice.message if self._effectiveInvoice else ''
-
-    @pyqtProperty(QEAmount, notify=invoiceChanged)
-    def amount(self):
-        if not self._effectiveInvoice:
-            self._amount.clear()
-            return self._amount
-        self._amount.copyFrom(QEAmount(from_invoice=self._effectiveInvoice))
-        return self._amount
-
-    @amount.setter
-    def amount(self, new_amount):
-        self._logger.debug(f'set new amount {repr(new_amount)}')
-        if self._effectiveInvoice:
-            self._effectiveInvoice.amount_msat = '!' if new_amount.isMax else int(new_amount.satsInt * 1000)
-
-        self.update_userinfo()
-        self.determine_can_pay()
-        self.invoiceChanged.emit()
-
-    @pyqtProperty(QEAmount, notify=amountOverrideChanged)
-    def amountOverride(self):
-        return self._amountOverride
-
-    @amountOverride.setter
-    def amountOverride(self, new_amount):
-        self._logger.debug(f'set new override amount {repr(new_amount)}')
-        self._amountOverride.copyFrom(new_amount)
-        self.amountOverrideChanged.emit()
-
-    @pyqtSlot()
-    def _on_amountoverride_value_changed(self):
-        self.update_userinfo()
-        self.determine_can_pay()
-
-    @pyqtProperty('quint64', notify=invoiceChanged)
-    def time(self):
-        return self._effectiveInvoice.time if self._effectiveInvoice else 0
-
-    @pyqtProperty('quint64', notify=invoiceChanged)
-    def expiration(self):
-        return self._effectiveInvoice.exp if self._effectiveInvoice else 0
-
-    statusChanged = pyqtSignal()
-    @pyqtProperty(int, notify=statusChanged)
-    def status(self):
-        if not self._effectiveInvoice:
-            return PR_UNKNOWN
-        return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
-
-    @pyqtProperty(str, notify=statusChanged)
-    def status_str(self):
-        if not self._effectiveInvoice:
-            return ''
-        status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
-        return self._effectiveInvoice.get_status_str(status)
-
-    @pyqtProperty(str, notify=invoiceChanged)
-    def address(self):
-        return self._effectiveInvoice.get_address() if self._effectiveInvoice else ''
 
     @pyqtProperty('QVariantMap', notify=invoiceChanged)
     def lnprops(self):
@@ -304,38 +249,19 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
         }
 
     def name_for_node_id(self, node_id):
-        node_alias = self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
-        return node_alias
-
-    @pyqtSlot()
-    def clear(self):
-        self.recipient = ''
-        self.setInvoiceType(QEInvoice.Type.Invalid)
-        self._bip21 = None
-        self._lnurlData = None
-        self.canSave = False
-        self.canPay = False
-        self.userinfo = ''
-        self.invoiceChanged.emit()
-
-    # don't parse the recipient string, but init qeinvoice from an invoice key
-    # this should not emit validation signals
-    @pyqtSlot(str)
-    def initFromKey(self, key):
-        self.clear()
-        invoice = self._wallet.wallet.get_invoice(key)
-        self._logger.debug(repr(invoice))
-        if invoice:
-            self.set_effective_invoice(invoice)
-            self.key = key
+        return self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
 
     def set_effective_invoice(self, invoice: Invoice):
         self._effectiveInvoice = invoice
 
-        if invoice.is_lightning():
-            self.setInvoiceType(QEInvoice.Type.LightningInvoice)
+        if invoice is None:
+            self.setInvoiceType(QEInvoice.Type.Invalid)
         else:
-            self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
+            if invoice.is_lightning():
+                self.setInvoiceType(QEInvoice.Type.LightningInvoice)
+            else:
+                self.setInvoiceType(QEInvoice.Type.OnchainInvoice)
+            self._isSaved = self._wallet.wallet.get_invoice(invoice.get_id()) is not None
 
         self.set_lnprops()
 
@@ -344,6 +270,7 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
         self.invoiceChanged.emit()
         self.statusChanged.emit()
+        self.isSavedChanged.emit()
 
         self.set_status_timer()
 
@@ -403,6 +330,8 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                 self.userinfo = {
                         PR_EXPIRED: _('This invoice has expired'),
                         PR_PAID: _('This invoice was already paid'),
+                        PR_BROADCASTING: _('Payment in progress...') + ' (' +  _('broadcasting') + ')',
+                        PR_BROADCAST:  _('Payment in progress...') + ' (' +  _('broadcast successfully') + ')',
                         PR_UNCONFIRMED: _('Payment in progress...') + ' (' +  _('waiting for confirmation') + ')',
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
@@ -439,6 +368,86 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
                 elif self.get_max_spendable_onchain() >= amount.satsInt:
                     # TODO: subtract fee?
                     self.canPay = True
+
+    @pyqtSlot()
+    def pay_lightning_invoice(self):
+        if not self.canPay:
+            raise Exception('can not pay invoice, canPay is false')
+
+        if self.invoiceType != QEInvoice.Type.LightningInvoice:
+            raise Exception('pay_lightning_invoice can only pay lightning invoices')
+
+        if self.amount.isEmpty:
+            if self.amountOverride.isEmpty:
+                raise Exception('can not pay 0 amount')
+            # TODO: is update amount_msat for overrideAmount sufficient?
+            self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+
+        self._wallet.pay_lightning_invoice(self._effectiveInvoice)
+
+    def get_max_spendable_onchain(self):
+        spendable = self._wallet.confirmedBalance.satsInt
+        if not self._wallet.wallet.config.get('confirmed_only', False):
+            spendable += self._wallet.unconfirmedBalance.satsInt
+        return spendable
+
+    def get_max_spendable_lightning(self):
+        return self._wallet.wallet.lnworker.num_sats_can_send() if self._wallet.wallet.lnworker else 0
+
+class QEInvoiceParser(QEInvoice):
+    _logger = get_logger(__name__)
+
+    validationSuccess = pyqtSignal()
+    validationWarning = pyqtSignal([str,str], arguments=['code', 'message'])
+    validationError = pyqtSignal([str,str], arguments=['code', 'message'])
+
+    invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
+
+    lnurlRetrieved = pyqtSignal()
+    lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
+
+    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['pr'])
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self._recipient = ''
+        self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
+
+        self.clear()
+
+    recipientChanged = pyqtSignal()
+    @pyqtProperty(str, notify=recipientChanged)
+    def recipient(self):
+        return self._recipient
+
+    @recipient.setter
+    def recipient(self, recipient: str):
+        self.canPay = False
+        self._recipient = recipient
+        self.amountOverride = QEAmount()
+        if recipient:
+            self.validateRecipient(recipient)
+        self.recipientChanged.emit()
+
+    @pyqtProperty('QVariantMap', notify=lnurlRetrieved)
+    def lnurlData(self):
+        return self._lnurlData
+
+    @pyqtProperty(bool, notify=lnurlRetrieved)
+    def isLnurlPay(self):
+        return self._lnurlData is not None
+
+    @pyqtSlot()
+    def clear(self):
+        self.recipient = ''
+        self.setInvoiceType(QEInvoice.Type.Invalid)
+        self._bip21 = None
+        self._lnurlData = None
+        self.canSave = False
+        self.canPay = False
+        self.userinfo = ''
+        self.invoiceChanged.emit()
 
     def setValidOnchainInvoice(self, invoice: Invoice):
         self._logger.debug('setValidOnchainInvoice')
@@ -641,118 +650,20 @@ class QEInvoiceParser(QEInvoice, QtEventListener):
 
     @pyqtSlot()
     def save_invoice(self):
-        self.canSave = False
         if not self._effectiveInvoice:
             return
+        if self.isSaved:
+            return
 
+        if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
+            if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
+                self._effectiveInvoice.amount_msat = '!'
+            else:
+                self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+
+        self.canSave = False
+
+        self._wallet.wallet.save_invoice(self._effectiveInvoice)
         self.key = self._effectiveInvoice.get_id()
-        if self._wallet.wallet.get_invoice(self.key):
-            self._logger.info(f'invoice {self.key} already exists')
-        else:
-            self._wallet.wallet.save_invoice(self._effectiveInvoice)
-            self._wallet.invoiceModel.addInvoice(self.key)
-            self.invoiceSaved.emit(self.key)
-
-
-class QEUserEnteredPayment(QEInvoice):
-    _logger = get_logger(__name__)
-
-    validationError = pyqtSignal([str,str], arguments=['code','message'])
-    invoiceCreateError = pyqtSignal([str,str], arguments=['code', 'message'])
-    invoiceSaved = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self._amount = QEAmount()
-        self.clear()
-
-    recipientChanged = pyqtSignal()
-    @pyqtProperty(str, notify=recipientChanged)
-    def recipient(self):
-        return self._recipient
-
-    @recipient.setter
-    def recipient(self, recipient: str):
-        if self._recipient != recipient:
-            self._recipient = recipient
-            self.validate()
-            self.recipientChanged.emit()
-
-    messageChanged = pyqtSignal()
-    @pyqtProperty(str, notify=messageChanged)
-    def message(self):
-        return self._message
-
-    @message.setter
-    def message(self, message):
-        if self._message != message:
-            self._message = message
-            self.messageChanged.emit()
-
-    amountChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=amountChanged)
-    def amount(self):
-        return self._amount
-
-    @amount.setter
-    def amount(self, amount):
-        if self._amount != amount:
-            self._amount.copyFrom(amount)
-            self.validate()
-            self.amountChanged.emit()
-
-
-    def validate(self):
-        self.canPay = False
-        self.canSave = False
-        self._logger.debug('validate')
-
-        if not self._recipient:
-            self.validationError.emit('recipient', _('Recipient not specified.'))
-            return
-
-        if not bitcoin.is_address(self._recipient):
-            self.validationError.emit('recipient', _('Invalid Groestlcoin address'))
-            return
-
-        self.canSave = True
-
-        if self._amount.isEmpty:
-            self.validationError.emit('amount', _('Invalid amount'))
-            return
-
-        if self._amount.isMax:
-            self.canPay = True
-        else:
-            if self.get_max_spendable_onchain() >= self._amount.satsInt:
-                self.canPay = True
-
-    @pyqtSlot()
-    def save_invoice(self):
-        assert self.canSave
-        assert not self._amount.isMax
-
-        self._logger.debug('saving invoice to %s, amount=%s, message=%s' % (self._recipient, repr(self._amount), self._message))
-
-        inv_amt = self._amount.satsInt
-
-        try:
-            outputs = [PartialTxOutput.from_address_and_value(self._recipient, inv_amt)]
-            self._logger.debug(repr(outputs))
-            invoice = self._wallet.wallet.create_invoice(outputs=outputs, message=self._message, pr=None, URI=None)
-        except InvoiceError as e:
-            self.invoiceCreateError.emit('fatal', _('Error creating payment') + ':\n' + str(e))
-            return
-
-        self.key = invoice.get_id()
-        self._wallet.wallet.save_invoice(invoice)
-        self.invoiceSaved.emit()
-
-    @pyqtSlot()
-    def clear(self):
-        self._recipient = None
-        self._amount.clear()
-        self._message = None
-        self.canSave = False
-        self.canPay = False
+        self._wallet.invoiceModel.addInvoice(self.key)
+        self.invoiceSaved.emit(self.key)

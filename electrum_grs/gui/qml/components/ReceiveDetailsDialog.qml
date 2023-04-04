@@ -12,6 +12,7 @@ ElDialog {
     id: dialog
 
     title: qsTr('Receive payment')
+    iconSource: Qt.resolvedUrl('../../icons/tab_receive.png')
 
     property alias amount: amountBtc.text
     property alias description: message.text
@@ -33,34 +34,6 @@ ElDialog {
             columnSpacing: constants.paddingSmall
             columns: 4
 
-            TextHighlightPane {
-                Layout.columnSpan: 4
-                Layout.fillWidth: true
-
-                visible: !Daemon.currentWallet.lightningCanReceive.isEmpty
-
-                RowLayout {
-                    width: parent.width
-                    spacing: constants.paddingXSmall
-                    Label {
-                        text: qsTr('Max amount over Lightning')
-                        font.pixelSize: constants.fontSizeSmall
-                        color: Material.accentColor
-                        wrapMode: Text.Wrap
-                        // try to fill/wrap in remaining space
-                        Layout.preferredWidth: Math.min(implicitWidth, parent.width - 2*parent.spacing - constants.iconSizeSmall - lnMaxAmount.implicitWidth)
-                    }
-                    Image {
-                        Layout.preferredWidth: constants.iconSizeSmall
-                        Layout.preferredHeight: constants.iconSizeSmall
-                        source: '../../icons/lightning.png'
-                    }
-                    FormattedAmount {
-                        id: lnMaxAmount
-                        amount: Daemon.currentWallet.lightningCanReceive
-                    }
-                }
-            }
 
             Label {
                 text: qsTr('Message')

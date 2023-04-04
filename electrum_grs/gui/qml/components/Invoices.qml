@@ -14,6 +14,13 @@ Pane {
     ColumnLayout {
         anchors.fill: parent
 
+        InfoTextArea {
+            Layout.fillWidth: true
+            Layout.bottomMargin: constants.paddingLarge
+            visible: !Config.userKnowsPressAndHold
+            text: qsTr('To access this list from the main screen, press and hold the Send button')
+        }
+
         Heading {
             text: qsTr('Saved Invoices')
         }

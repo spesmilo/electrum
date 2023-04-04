@@ -14,7 +14,7 @@ RowLayout {
     TextField {
         id: password_tf
         echoMode: TextInput.Password
-        inputMethodHints: Qt.ImhSensitiveData
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoAutoUppercase | Qt.ImhPreferLowercase
         Layout.fillWidth: true
         Layout.minimumWidth: fontMetrics.advanceWidth('X') * 16
         onAccepted: root.accepted()

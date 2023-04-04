@@ -18,7 +18,7 @@ from electrum_grs.i18n import _
 from electrum_grs.util import (get_asyncio_loop, FailedToParsePaymentIdentifier,
                            InvalidBitcoinURI, maybe_extract_lightning_payment_identifier, NotEnoughFunds,
                            NoDynamicFeeEstimates, InvoiceError, parse_max_spend)
-from electrum_grs.invoices import PR_PAID, Invoice
+from electrum_grs.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum_grs.transaction import Transaction, PartialTxInput, PartialTransaction, PartialTxOutput
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.logging import Logger
@@ -585,6 +585,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         self.payto_e._on_input_btn(text)
         self.amount_e.setFocus()
+        # disable save button, because it would create a new invoice
+        self.save_button.setEnabled(False)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
         if not bool(invoice.get_amount_sat()):
@@ -713,7 +715,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                     self.window.rebalance_dialog(chan1, chan2, amount_sat=delta)
                 elif r == 1:
                     amount_sat, min_amount_sat = can_pay_with_new_channel
-                    self.window.channels_list.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
+                    self.window.new_channel_dialog(amount_sat=amount_sat, min_amount_sat=min_amount_sat)
                 elif r == 2:
                     chan, swap_recv_amount_sat = can_pay_with_swap
                     self.window.run_swap_dialog(is_reverse=False, recv_amount_sat=swap_recv_amount_sat, channels=[chan])
@@ -759,6 +761,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
+        self.wallet.set_broadcasting(tx, PR_BROADCASTING)
+
         def broadcast_done(result):
             # GUI thread
             if result:
@@ -766,9 +770,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
+                    self.wallet.set_broadcasting(tx, PR_BROADCAST)
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
+                    self.wallet.set_broadcasting(tx, None)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)

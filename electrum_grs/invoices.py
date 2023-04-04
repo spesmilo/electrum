@@ -29,7 +29,8 @@ PR_INFLIGHT = 4     # only for LN. payment attempt in progress
 PR_FAILED   = 5     # only for LN. we attempted to pay it, but all attempts failed
 PR_ROUTING  = 6     # only for LN. *unused* atm.
 PR_UNCONFIRMED = 7  # only onchain. invoice is satisfied but tx is not mined yet.
-
+PR_BROADCASTING = 8    # onchain, tx is being broadcast
+PR_BROADCAST    = 9    # onchain, tx was broadcast, is not yet in our history
 
 pr_color = {
     PR_UNPAID:   (.7, .7, .7, 1),
@@ -38,7 +39,9 @@ pr_color = {
     PR_EXPIRED:  (.9, .2, .2, 1),
     PR_INFLIGHT: (.9, .6, .3, 1),
     PR_FAILED:   (.9, .2, .2, 1),
-    PR_ROUTING: (.9, .6, .3, 1),
+    PR_ROUTING:  (.9, .6, .3, 1),
+    PR_BROADCASTING:  (.9, .6, .3, 1),
+    PR_BROADCAST:  (.9, .6, .3, 1),
     PR_UNCONFIRMED: (.9, .6, .3, 1),
 }
 
@@ -48,6 +51,8 @@ pr_tooltips = {
     PR_UNKNOWN:_('Unknown'),
     PR_EXPIRED:_('Expired'),
     PR_INFLIGHT:_('In progress'),
+    PR_BROADCASTING:_('Broadcasting'),
+    PR_BROADCAST:_('Broadcast successfully'),
     PR_FAILED:_('Failed'),
     PR_ROUTING: _('Computing route...'),
     PR_UNCONFIRMED: _('Unconfirmed'),
@@ -243,9 +248,13 @@ class BaseInvoice(StoredObject):
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     __lnaddr = None
+    _broadcasting_status = None # can be None or PR_BROADCASTING or PR_BROADCAST
 
     def is_lightning(self):
         return self.lightning_invoice is not None
+
+    def get_broadcasting_status(self):
+        return self._broadcasting_status
 
     def get_address(self) -> Optional[str]:
         address = None

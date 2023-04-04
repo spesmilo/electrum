@@ -79,7 +79,7 @@ class AddressSynchronizer(Logger, EventListener):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted height
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # Txs the server claims are in the mempool:
@@ -655,9 +655,17 @@ class AddressSynchronizer(Logger, EventListener):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def set_future_tx(self, txid:str, wanted_height: int):
+    def set_future_tx(self, txid: str, *, wanted_height: int):
+        """Mark a local tx as "future" (encumbered by a timelock).
+        wanted_height is the min (abs) block height at which the tx can get into the mempool (be broadcast).
+                      note: tx becomes consensus-valid to be mined in a block at height wanted_height+1
+        In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
+        """
         with self.lock:
+            old_height = self.future_tx.get(txid) or None
             self.future_tx[txid] = wanted_height
+        if old_height != wanted_height:
+            util.trigger_callback('adb_set_future_tx', self, txid)
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         if tx_hash is None:  # ugly backwards compat...

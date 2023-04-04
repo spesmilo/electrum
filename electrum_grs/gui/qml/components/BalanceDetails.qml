@@ -13,36 +13,6 @@ Pane {
 
     padding: 0
 
-    property bool _is2fa: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
-
-    function enableLightning() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
-            Daemon.currentWallet.enableLightning()
-        })
-        dialog.open()
-    }
-
-    function deleteWallet() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Really delete this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
-            Daemon.checkThenDeleteWallet(Daemon.currentWallet)
-        })
-        dialog.open()
-    }
-
-    function changePassword() {
-        // trigger dialog via wallet (auth then signal)
-        Daemon.startChangePassword()
-    }
-
-    function importAddressesKeys() {
-        var dialog = importAddressesKeysDialog.createObject(rootItem)
-        dialog.open()
-    }
-
     ColumnLayout {
         id: rootLayout
         anchors.fill: parent
@@ -64,6 +34,16 @@ Pane {
                 ColumnLayout {
                     width: parent.width
                     spacing: constants.paddingLarge
+
+                    InfoTextArea {
+                        Layout.fillWidth: true
+                        Layout.bottomMargin: constants.paddingLarge
+                        visible: Daemon.currentWallet.synchronizing || Network.server_status != 'connected'
+                        text: Daemon.currentWallet.synchronizing
+                                  ? qsTr('Your wallet is not synchronized. The displayed balance may be inaccurate.')
+                                  : qsTr('Your wallet is not connected to an Electrum server. The displayed balance may be outdated.')
+                        iconStyle: InfoTextArea.IconStyle.Warn
+                    }
 
                     Heading {
                         text: qsTr('Wallet balance')
@@ -92,50 +72,46 @@ Pane {
                         Layout.alignment: Qt.AlignHCenter
                         visible: Daemon.currentWallet
                         columns: 3
-
                         Item {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             Layout.preferredWidth: 1; Layout.preferredHeight: 1
                         }
                         Label {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             text: qsTr('Total')
                         }
                         FormattedAmount {
-                            visible: !Daemon.currentWallet.totalBalance.isEmpty
                             amount: Daemon.currentWallet.totalBalance
                         }
 
                         Rectangle {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning
                             Layout.preferredWidth: constants.iconSizeXSmall
                             Layout.preferredHeight: constants.iconSizeXSmall
                             color: constants.colorPiechartLightning
                         }
                         Label {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning
                             text: qsTr('Lightning')
 
                         }
                         FormattedAmount {
+                            visible: Daemon.currentWallet.isLightning
                             amount: Daemon.currentWallet.lightningBalance
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty
                         }
 
                         Rectangle {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             Layout.preferredWidth: constants.iconSizeXSmall
                             Layout.preferredHeight: constants.iconSizeXSmall
                             color: constants.colorPiechartOnchain
                         }
                         Label {
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             text: qsTr('On-chain')
 
                         }
                         FormattedAmount {
+                            visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             amount: Daemon.currentWallet.confirmedBalance
-                            visible: !Daemon.currentWallet.lightningBalance.isEmpty || !Daemon.currentWallet.frozenBalance.isEmpty
                         }
 
                         Rectangle {
@@ -153,6 +129,28 @@ Pane {
                             visible: !Daemon.currentWallet.frozenBalance.isEmpty
                         }
                     }
+
+                    Heading {
+                        text: qsTr('Lightning Liquidity')
+                        visible: Daemon.currentWallet.isLightning
+                    }
+                    GridLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                        columns: 2
+                        Label {
+                            text: qsTr('Can send')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.lightningCanSend
+                        }
+                        Label {
+                            text: qsTr('Can receive')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.lightningCanReceive
+                        }
+                    }
                 }
             }
         }
@@ -163,7 +161,8 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr('Lightning swap');
-                visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                visible: Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
                 onClicked: {
                     var swaphelper = app.swaphelper.createObject(app)
@@ -181,6 +180,7 @@ Pane {
                 Layout.preferredWidth: 1
                 text: qsTr('Open Channel')
                 visible: Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet.confirmedBalance.satsInt > 0
                 onClicked: {
                     var dialog = openChannelDialog.createObject(rootItem)
                     dialog.open()

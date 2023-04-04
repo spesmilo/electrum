@@ -126,9 +126,12 @@ class HistoryScreen(CScreen):
             fee_text = '' if fee is None else 'fee: %d gro'%fee
         else:
             tx_hash = tx_item['txid']
-            tx_mined_info = TxMinedInfo(height=tx_item['height'],
-                                        conf=tx_item['confirmations'],
-                                        timestamp=tx_item['timestamp'])
+            tx_mined_info = TxMinedInfo(
+                height=tx_item['height'],
+                conf=tx_item['confirmations'],
+                timestamp=tx_item['timestamp'],
+                wanted_height=tx_item.get('wanted_height', None),
+            )
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
             icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/' + TX_ICONS[status]
             message = tx_item['label'] or tx_hash

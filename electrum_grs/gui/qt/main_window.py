@@ -1681,6 +1681,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if hasattr(tab, 'searchable_list'):
             tab.searchable_list.filter(t)
 
+    def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
+        from electrum.lnutil import MIN_FUNDING_SAT
+        from .new_channel_dialog import NewChannelDialog
+        confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
+        min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
+        if confirmed < min_amount_sat:
+            msg = _('Not enough funds') + '\n\n' + _('You need at least {} to open a channel.').format(self.format_amount_and_units(min_amount_sat))
+            self.show_error(msg)
+            return
+        lnworker = self.wallet.lnworker
+        if not lnworker.channels and not lnworker.channel_backups:
+            msg = _('Do you want to create your first channel?') + '\n\n' + _(messages.MSG_LIGHTNING_WARNING)
+            if not self.question(msg):
+                return
+        d = NewChannelDialog(self, amount_sat, min_amount_sat)
+        return d.run()
+
     def new_contact_dialog(self):
         d = WindowModalDialog(self, _("New Contact"))
         vbox = QVBoxLayout(d)

@@ -11,7 +11,7 @@ ElDialog {
     id: dialog
 
     property Invoice invoice
-    property string invoice_key
+    property bool payImmediately: false
 
     signal doPay
     signal invoiceAmountChanged
@@ -392,13 +392,13 @@ ElDialog {
                 Layout.preferredWidth: 1
                 text: qsTr('Save')
                 icon.source: '../../icons/save.png'
-                enabled: invoice_key == '' && invoice.canSave
+                enabled: !invoice.isSaved && invoice.canSave
                 onClicked: {
-                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     if (invoice.amount.isEmpty) {
-                        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
+                        invoice.amountOverride = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
                     }
                     invoice.save_invoice()
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     dialog.close()
                 }
             }
@@ -410,15 +410,10 @@ ElDialog {
                 enabled: invoice.invoiceType != Invoice.Invalid && invoice.canPay
                 onClicked: {
                     if (invoice.amount.isEmpty) {
-                        invoice.amount = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
-                        if (invoice_key != '') {
-                            // delete the existing invoice because this affects get_id()
-                            invoice.wallet.delete_invoice(invoice_key)
-                            invoice_key = ''
-                        }
+                        invoice.amountOverride = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
                     }
-                    if (invoice_key == '') {
-                        // save invoice if new or modified
+                    if (!invoice.isSaved) {
+                        // save invoice if newly parsed
                         invoice.save_invoice()
                     }
                     doPay() // only signal here
@@ -429,18 +424,14 @@ ElDialog {
     }
 
     Component.onCompleted: {
-        if (invoice_key != '') {
-            invoice.initFromKey(invoice_key)
-        }
         if (invoice.amount.isEmpty && !invoice.status == Invoice.Expired) {
             amountContainer.editmode = true
         } else if (invoice.amount.isMax) {
             amountMax.checked = true
         }
-        if (invoice.isLnurlPay) {
-            // we arrive from a lnurl-pay confirm dialog where the user already indicated the intent to pay.
+        if (payImmediately) {
             if (invoice.canPay) {
-                if (invoice_key == '') {
+                if (!invoice.isSaved) {
                     invoice.save_invoice()
                 }
                 doPay()

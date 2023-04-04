@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum_grs.logging import get_logger
 from electrum_grs.util import Satoshis, format_time
-from electrum_grs.invoices import Invoice, PR_EXPIRED, LN_EXPIRY_NEVER
+from electrum_grs.invoices import BaseInvoice, PR_EXPIRED, LN_EXPIRY_NEVER
 
 from .util import QtEventListener, qt_event_listener, status_update_timer_interval
 from .qetypes import QEAmount
@@ -71,7 +71,13 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
         self.set_status_timer()
 
-    def add_invoice(self, invoice: Invoice):
+    def add_invoice(self, invoice: BaseInvoice):
+        # skip if already in list
+        key = invoice.get_id()
+        for x in self.invoices:
+            if x['key'] == key:
+                return
+
         item = self.invoice_to_model(invoice)
         self._logger.debug(str(item))
 
@@ -116,7 +122,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
                 return
             i = i + 1
 
-    def invoice_to_model(self, invoice: Invoice):
+    def invoice_to_model(self, invoice: BaseInvoice):
         item = self.get_invoice_as_dict(invoice)
         item['key'] = invoice.get_id()
         item['is_lightning'] = invoice.is_lightning()
@@ -163,7 +169,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         raise Exception('provide impl')
 
     @abstractmethod
-    def get_invoice_as_dict(self, invoice: Invoice):
+    def get_invoice_as_dict(self, invoice: BaseInvoice):
         raise Exception('provide impl')
 
 
@@ -184,7 +190,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
             self._logger.debug(f'invoice status update for key {key} to {status}')
             self.updateInvoice(key, status)
 
-    def invoice_to_model(self, invoice: Invoice):
+    def invoice_to_model(self, invoice: BaseInvoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'invoice'
 
@@ -196,7 +202,7 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_invoice(key)
 
-    def get_invoice_as_dict(self, invoice: Invoice):
+    def get_invoice_as_dict(self, invoice: BaseInvoice):
         return self.wallet.export_invoice(invoice)
 
 class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
@@ -216,7 +222,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
             self._logger.debug(f'request status update for key {key} to {status}')
             self.updateRequest(key, status)
 
-    def invoice_to_model(self, invoice: Invoice):
+    def invoice_to_model(self, invoice: BaseInvoice):
         item = super().invoice_to_model(invoice)
         item['type'] = 'request'
 
@@ -228,7 +234,7 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)
 
-    def get_invoice_as_dict(self, invoice: Invoice):
+    def get_invoice_as_dict(self, invoice: BaseInvoice):
         return self.wallet.export_request(invoice)
 
     @pyqtSlot(str, int)

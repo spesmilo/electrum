@@ -218,8 +218,9 @@ ElDialog {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingXXLarge
-            Layout.rightMargin: constants.paddingXXLarge
+            Layout.topMargin: -constants.paddingXXLarge
+            Layout.leftMargin: constants.paddingXXLarge + swapslider.leftPadding
+            Layout.rightMargin: constants.paddingXXLarge + swapslider.rightPadding
             Label {
                 text: '<-- ' + qsTr('Add receiving capacity')
                 font.pixelSize: constants.fontSizeXSmall

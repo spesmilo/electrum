@@ -349,7 +349,7 @@ class Jade_KeyStore(Hardware_KeyStore):
 class JadePlugin(HW_PluginBase):
     keystore_class = Jade_KeyStore
     minimum_library = (0, 0, 1)
-    DEVICE_IDS = [(0x10c4, 0xea60), (0x1a86, 0x55d4)]
+    DEVICE_IDS = [(0x10c4, 0xea60), (0x1a86, 0x55d4), (0x0403, 0x6001)]
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
     MIN_SUPPORTED_FW_VERSION = (0, 1, 32)
 

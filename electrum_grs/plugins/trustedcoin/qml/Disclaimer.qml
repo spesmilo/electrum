@@ -14,6 +14,12 @@ WizardComponent {
     ColumnLayout {
         width: parent.width
 
+        Image {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.bottomMargin: constants.paddingLarge
+            source: '../../../gui/icons/trustedcoin-wizard.png'
+        }
+
         Label {
             Layout.fillWidth: true
             text: plugin ? plugin.disclaimer : ''

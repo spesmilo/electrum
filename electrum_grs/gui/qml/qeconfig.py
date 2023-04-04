@@ -199,6 +199,18 @@ class QEConfig(AuthMixin, QObject):
             self.config.set_key('preferred_request_type', preferred_request_type)
             self.preferredRequestTypeChanged.emit()
 
+    userKnowsPressAndHoldChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=userKnowsPressAndHoldChanged)
+    def userKnowsPressAndHold(self):
+        return self.config.get('user_knows_press_and_hold', False)
+
+    @userKnowsPressAndHold.setter
+    def userKnowsPressAndHold(self, userKnowsPressAndHold):
+        if userKnowsPressAndHold != self.config.get('user_knows_press_and_hold', False):
+            self.config.set_key('user_knows_press_and_hold', userKnowsPressAndHold)
+            self.userKnowsPressAndHoldChanged.emit()
+
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)

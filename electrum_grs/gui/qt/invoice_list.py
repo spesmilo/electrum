@@ -119,11 +119,12 @@ class InvoiceList(MyTreeView):
                     icon_name = 'seal.png'
             status = self.wallet.get_invoice_status(item)
             amount = item.get_amount_sat()
+            amount_str = self.main_window.format_amount(amount, whitespaces=True) if amount else ""
             timestamp = item.time or 0
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = format_time(timestamp) if timestamp else _('Unknown')
             labels[self.Columns.DESCRIPTION] = item.message
-            labels[self.Columns.AMOUNT] = self.main_window.format_amount(amount, whitespaces=True)
+            labels[self.Columns.AMOUNT] = amount_str
             labels[self.Columns.STATUS] = item.get_status_str(status)
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
@@ -182,7 +183,7 @@ class InvoiceList(MyTreeView):
             if bool(invoice.get_amount_sat()):
                 menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_pay_invoice(invoice))
             else:
-                menu.addAction(_("Edit amount") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
+                menu.addAction(_("Pay") + "...", lambda: self.send_tab.do_edit_invoice(invoice))
         if status == PR_FAILED:
             menu.addAction(_("Retry"), lambda: self.send_tab.do_pay_invoice(invoice))
         if self.wallet.lnworker:

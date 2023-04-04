@@ -75,7 +75,7 @@ from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
 from .invoices import BaseInvoice, Invoice, Request
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
@@ -1157,6 +1157,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._invoices_from_txid_map[txid].add(invoice_key)
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+            # update invoice status
+            status = self.get_invoice_status(invoice)
+            util.trigger_callback('invoice_status', self, invoice_key, status)
 
     def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
@@ -2412,6 +2415,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 return self.check_expired_status(invoice, status)
         paid, conf = self.is_onchain_invoice_paid(invoice)
         if not paid:
+            if isinstance(invoice, Invoice):
+                if status:=invoice.get_broadcasting_status():
+                    return status
             status = PR_UNPAID
         elif conf == 0:
             status = PR_UNCONFIRMED
@@ -2496,6 +2502,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 d['bip70'] = x.bip70
         return d
 
+    def get_invoices_and_requests_touched_by_tx(self, tx):
+        request_keys = set()
+        invoice_keys = set()
+        with self.lock, self.transaction_lock:
+            for txo in tx.outputs():
+                addr = txo.address
+                if request:=self.get_request_by_addr(addr):
+                    request_keys.add(request.get_id())
+                for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
+                    invoice_keys.add(invoice_key)
+        return request_keys, invoice_keys
+
     def _update_invoices_and_reqs_touched_by_tx(self, tx_hash: str) -> None:
         # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
         #       For a given receive request, if tx1 touches it but tx2 does not, then
@@ -2503,16 +2521,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx = self.db.get_transaction(tx_hash)
         if tx is None:
             return
-        relevant_invoice_keys = set()
-        with self.lock, self.transaction_lock:
-            for txo in tx.outputs():
-                addr = txo.address
-                if request:=self.get_request_by_addr(addr):
-                    status = self.get_invoice_status(request)
-                    util.trigger_callback('request_status', self, request.get_id(), status)
-                for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
-                    relevant_invoice_keys.add(invoice_key)
-        self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
+        request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
+        for key in request_keys:
+            request = self.get_request(key)
+            if not request:
+                continue
+            status = self.get_invoice_status(request)
+            util.trigger_callback('request_status', self, request.get_id(), status)
+        self._update_onchain_invoice_paid_detection(invoice_keys)
+
+    def set_broadcasting(self, tx: Transaction, b: bool):
+        request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
+        for key in invoice_keys:
+            invoice = self._invoices.get(key)
+            if not invoice:
+                continue
+            invoice._broadcasting_status = b
+            status = self.get_invoice_status(invoice)
+            util.trigger_callback('invoice_status', self, key, status)
 
     def get_bolt11_invoice(self, req: Request) -> str:
         if not self.lnworker:
