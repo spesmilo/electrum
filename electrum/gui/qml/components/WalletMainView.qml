@@ -281,9 +281,6 @@ Item {
             var dialog = app.messageDialog.createObject(app, {text: error})
             dialog.open()
         }
-    }
-    Connections {
-        target: Daemon.currentWallet
         function onOtpRequested() {
             console.log('OTP requested')
             var dialog = otpDialog.createObject(mainView)
