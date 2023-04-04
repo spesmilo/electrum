@@ -260,8 +260,8 @@ class TxInput:
         self.witness = witness
         self._is_coinbase_output = is_coinbase_output
         # blockchain fields
-        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown
-        self.block_txpos = None
+        self.block_height = None  # type: Optional[int]  # height at which the TXO is mined; None means unknown. not SPV-ed.
+        self.block_txpos = None  # type: Optional[int]  # position of tx in block, if TXO is mined; otherwise None or -1
         self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
         self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._utxo = None  # type: Optional[Transaction]

@@ -244,12 +244,11 @@ class AddressSynchronizer(Logger, EventListener):
     def get_transaction(self, txid: str) -> Optional[Transaction]:
         tx = self.db.get_transaction(txid)
         if tx:
-            # add verified tx info
             tx.deserialize()
             for txin in tx._inputs:
-                tx_height, tx_pos = self.get_txpos(txin.prevout.txid.hex())
-                txin.block_height = tx_height
-                txin.block_txpos = tx_pos
+                tx_mined_info = self.get_tx_height(txin.prevout.txid.hex())
+                txin.block_height = tx_mined_info.height  # not SPV-ed
+                txin.block_txpos = tx_mined_info.txpos
         return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
@@ -477,8 +476,10 @@ class AddressSynchronizer(Logger, EventListener):
                 self._history_local.clear()
                 self._get_balance_cache.clear()  # invalidate cache
 
-    def get_txpos(self, tx_hash: str) -> Tuple[int, int]:
-        """Returns (height, txpos) tuple, even if the tx is unverified."""
+    def _get_txpos(self, tx_hash: str) -> Tuple[int, int]:
+        """Returns (height, txpos) tuple, even if the tx is unverified.
+        If txpos is -1, height should only be used for sorting purposes.
+        """
         with self.lock:
             verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
             if verified_tx_mined_info:
@@ -529,7 +530,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self.get_txpos(x[0]))
+        history.sort(key = lambda x: self._get_txpos(x[0]))
         # 3. add balance
         h2 = []
         balance = 0
@@ -783,13 +784,14 @@ class AddressSynchronizer(Logger, EventListener):
             received = {}
             sent = {}
             for tx_hash, height in h:
-                hh, pos = self.get_txpos(tx_hash)
+                tx_mined_info = self.get_tx_height(tx_hash)
+                txpos = tx_mined_info.txpos if tx_mined_info.txpos is not None else -1
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
-                    received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
+                    received[tx_hash + ':%d'%n] = (height, txpos, v, is_cb)
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = tx_hash, height, pos
+                    sent[txi] = tx_hash, height, txpos
         return received, sent
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
