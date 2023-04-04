@@ -74,8 +74,8 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     def add_invoice(self, invoice: BaseInvoice):
         # skip if already in list
         key = invoice.get_id()
-        for invoice in self.invoices:
-            if invoice['key'] == key:
+        for x in self.invoices:
+            if x['key'] == key:
                 return
 
         item = self.invoice_to_model(invoice)
