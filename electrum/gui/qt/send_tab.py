@@ -585,6 +585,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         self.payto_e._on_input_btn(text)
         self.amount_e.setFocus()
+        # disable save button, because it would create a new invoice
+        self.save_button.setEnabled(False)
 
     def do_pay_invoice(self, invoice: 'Invoice'):
         if not bool(invoice.get_amount_sat()):
