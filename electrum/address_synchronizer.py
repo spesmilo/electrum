@@ -50,6 +50,9 @@ TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
 
+TX_TIMESTAMP_INF = 999_999_999_999
+TX_HEIGHT_INF = 10 ** 9
+
 
 class HistoryItem(NamedTuple):
     txid: str
@@ -476,28 +479,29 @@ class AddressSynchronizer(Logger, EventListener):
                 self._history_local.clear()
                 self._get_balance_cache.clear()  # invalidate cache
 
-    def _get_txpos(self, tx_hash: str) -> Tuple[int, int]:
-        """Returns (height, txpos) tuple, even if the tx is unverified.
-        If txpos is -1, height should only be used for sorting purposes.
-        """
+    def _get_tx_sort_key(self, tx_hash: str) -> Tuple[int, int]:
+        """Returns a key to be used for sorting txs."""
         with self.lock:
-            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
-            if verified_tx_mined_info:
-                height = verified_tx_mined_info.height
-                txpos = verified_tx_mined_info.txpos
-                assert height > 0, height
-                assert txpos is not None
-                return height, txpos
-            elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                assert height > 0, height
-                return height, -1
-            elif tx_hash in self.unconfirmed_tx:
-                height = self.unconfirmed_tx[tx_hash]
-                assert height <= 0, height
-                return (10**9 - height), -1
-            else:
-                return (10**9 + 1), -1
+            tx_mined_info = self.get_tx_height(tx_hash)
+            height = self.tx_height_to_sort_height(tx_mined_info.height)
+            txpos = tx_mined_info.txpos or -1
+            return height, txpos
+
+    @classmethod
+    def tx_height_to_sort_height(cls, height: int = None):
+        """Return a height-like value to be used for sorting txs."""
+        if height is not None:
+            if height > 0:
+                return height
+            if height == TX_HEIGHT_UNCONFIRMED:
+                return TX_HEIGHT_INF
+            if height == TX_HEIGHT_UNCONF_PARENT:
+                return TX_HEIGHT_INF + 1
+            if height == TX_HEIGHT_FUTURE:
+                return TX_HEIGHT_INF + 2
+            if height == TX_HEIGHT_LOCAL:
+                return TX_HEIGHT_INF + 3
+        return TX_HEIGHT_INF + 100
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -530,7 +534,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self._get_txpos(x[0]))
+        history.sort(key = lambda x: self._get_tx_sort_key(x[0]))
         # 3. add balance
         h2 = []
         balance = 0

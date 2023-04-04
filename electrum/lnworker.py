@@ -73,7 +73,7 @@ from .lnmsg import decode_msg
 from .i18n import _
 from .lnrouter import (RouteEdge, LNPaymentRoute, LNPaymentPath, is_route_sane_to_use,
                        NoChannelPolicy, LNPathInconsistent)
-from .address_synchronizer import TX_HEIGHT_LOCAL
+from .address_synchronizer import TX_HEIGHT_LOCAL, TX_TIMESTAMP_INF
 from . import lnsweep
 from .lnwatcher import LNWalletWatcher
 from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
@@ -900,6 +900,7 @@ class LNWallet(LNWorker):
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': PaymentDirection.RECEIVED,
                 'timestamp': tx_height.timestamp,
+                'monotonic_timestamp': tx_height.timestamp or TX_TIMESTAMP_INF,
                 'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
                 'fee_msat': None,
@@ -922,6 +923,7 @@ class LNWallet(LNWorker):
                 'amount_msat': -chan.balance_minus_outgoing_htlcs(LOCAL),
                 'direction': PaymentDirection.SENT,
                 'timestamp': tx_height.timestamp,
+                'monotonic_timestamp': tx_height.timestamp or TX_TIMESTAMP_INF,
                 'date': timestamp_to_datetime(tx_height.timestamp),
                 'fee_sat': None,
                 'fee_msat': None,

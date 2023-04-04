@@ -73,7 +73,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
-                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
+                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
 from .invoices import BaseInvoice, Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
@@ -1011,7 +1011,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain = self.get_addresses()
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
-            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
+            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or TX_TIMESTAMP_INF))
             d = {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
@@ -1241,9 +1241,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             transactions_tmp[key] = tx_item
         # sort on-chain and LN stuff into new dict, by timestamp
         # (we rely on this being a *stable* sort)
+        def sort_key(x):
+            txid, tx_item = x
+            ts = tx_item.get('monotonic_timestamp') or tx_item.get('timestamp') or float('inf')
+            height = self.adb.tx_height_to_sort_height(tx_item.get('height'))
+            return ts, height
         transactions = OrderedDictWithIndex()
-        for k, v in sorted(list(transactions_tmp.items()),
-                           key=lambda x: x[1].get('monotonic_timestamp') or x[1].get('timestamp') or float('inf')):
+        for k, v in sorted(list(transactions_tmp.items()), key=sort_key):
             transactions[k] = v
         now = time.time()
         balance = 0

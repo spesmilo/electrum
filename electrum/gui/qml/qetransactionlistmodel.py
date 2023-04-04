@@ -219,6 +219,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         txinfo = self.wallet.get_tx_info(tx)
         status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
         tx_item['date'] = status_str
+        # note: if the height changes, that might affect the history order, but we won't re-sort now.
         tx_item['height'] = self.wallet.adb.get_tx_height(txid).height
         index = self.index(tx_item_idx, 0)
         roles = [self._ROLE_RMAP[x] for x in ['height', 'date']]
