@@ -656,8 +656,11 @@ class AddressSynchronizer(Logger, EventListener):
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
     def set_future_tx(self, txid: str, *, wanted_height: int):
-        # note: wanted_height is always an absolute height, even in case of CSV-locked txs.
-        #       In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
+        """Mark a local tx as "future" (encumbered by a timelock).
+        wanted_height is the min (abs) block height at which the tx can get into the mempool (be broadcast).
+                      note: tx becomes consensus-valid to be mined in a block at height wanted_height+1
+        In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
+        """
         with self.lock:
             self.future_tx[txid] = wanted_height
 
