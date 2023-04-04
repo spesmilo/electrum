@@ -1682,7 +1682,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             tab.searchable_list.filter(t)
 
     def new_channel_dialog(self, *, amount_sat=None, min_amount_sat=None):
-        from electrum.lnutil import MIN_FUNDING_SAT
+        from electrum_grs.lnutil import MIN_FUNDING_SAT
         from .new_channel_dialog import NewChannelDialog
         confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = self.wallet.get_balances_for_piechart()
         min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
