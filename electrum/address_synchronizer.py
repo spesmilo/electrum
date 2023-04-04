@@ -79,7 +79,7 @@ class AddressSynchronizer(Logger, EventListener):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted height
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # Txs the server claims are in the mempool:
@@ -655,7 +655,9 @@ class AddressSynchronizer(Logger, EventListener):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def set_future_tx(self, txid:str, wanted_height: int):
+    def set_future_tx(self, txid: str, *, wanted_height: int):
+        # note: wanted_height is always an absolute height, even in case of CSV-locked txs.
+        #       In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
         with self.lock:
             self.future_tx[txid] = wanted_height
 

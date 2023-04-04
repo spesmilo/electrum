@@ -514,13 +514,18 @@ class LNWalletWatcher(LNWatcher):
             wanted_height = sweep_info.cltv_expiry
             if wanted_height - local_height > 0:
                 can_broadcast = False
-                reason = 'waiting for {}: CLTV ({} > {})'.format(name, local_height, sweep_info.cltv_expiry)
+                # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")
         if sweep_info.csv_delay:
             prev_height = self.adb.get_tx_height(prev_txid)
-            wanted_height = sweep_info.csv_delay + prev_height.height - 1
-            if prev_height.height <= 0 or wanted_height - local_height > 0:
+            if prev_height.height > 0:
+                wanted_height = prev_height.height + sweep_info.csv_delay - 1
+            else:
+                wanted_height = local_height + sweep_info.csv_delay
+            if wanted_height - local_height > 0:
                 can_broadcast = False
-                reason = 'waiting for {}: CSV ({} >= {})'.format(name, prev_height.conf, sweep_info.csv_delay)
+                # self.logger.debug(
+                #     f"pending redeem for {prevout}. waiting for {name}: CSV "
+                #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
         if can_broadcast:
             self.logger.info(f'we can broadcast: {name}')
             tx_was_added = await self.network.try_broadcasting(new_tx, name)
@@ -536,8 +541,9 @@ class LNWalletWatcher(LNWatcher):
                     self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
             else:
                 tx_was_added = False
-            # set future tx regardless of tx_was_added, because  it is not persisted
-            self.adb.set_future_tx(new_tx.txid(), wanted_height)
+            # set future tx regardless of tx_was_added, because it is not persisted
+            # (and wanted_height can change if input of CSV was not mined before)
+            self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
         if tx_was_added:
             self.lnworker.wallet.set_label(new_tx.txid(), name)
             if old_tx and old_tx.txid() != new_tx.txid():
