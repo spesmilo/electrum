@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, TxMinedInfo
+from electrum.address_synchronizer import TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL
 
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener
@@ -48,6 +49,18 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         if wallet == self.wallet:
             self._logger.debug('verified event for txid %s' % txid)
             self.on_tx_verified(txid, info)
+
+    @qt_event_listener
+    def on_event_adb_set_future_tx(self, adb, txid):
+        if adb != self.wallet.adb:
+            return
+        self._logger.debug(f'adb_set_future_tx event for txid {txid}')
+        i = 0
+        for item in self.tx_history:
+            if 'txid' in item and item['txid'] == txid:
+                self._update_future_txitem(i)
+                return
+            i = i + 1
 
     def rowCount(self, index):
         return len(self.tx_history)
@@ -111,10 +124,13 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             item['complete'] = tx.is_complete()
 
         # newly arriving txs, or (partially/fully signed) local txs have no (block) timestamp
-        if not item['timestamp']:
+        # FIXME just use wallet.get_tx_status, and change that as needed
+        if not item['timestamp']:  # onchain: local or mempool or unverified txs
             txinfo = self.wallet.get_tx_info(tx)
             item['section'] = 'mempool' if item['complete'] and not txinfo.can_broadcast else 'local'
-        else:
+            status, status_str = self.wallet.get_tx_status(item['txid'], txinfo.tx_mined_status)
+            item['date'] = status_str
+        else:  # lightning or already mined (and SPV-ed) onchain txs
             item['section'] = self.get_section_by_timestamp(item['timestamp'])
             item['date'] = self.format_date_by_section(item['section'], datetime.fromtimestamp(item['timestamp']))
 
@@ -191,6 +207,23 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                 return
             i = i + 1
 
+    def _update_future_txitem(self, tx_item_idx: int):
+        tx_item = self.tx_history[tx_item_idx]
+        # note: local txs can transition to future, as "future" state is not persisted
+        if tx_item.get('height') not in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
+            return
+        txid = tx_item['txid']
+        tx = self.wallet.db.get_transaction(txid)
+        if tx is None:
+            return
+        txinfo = self.wallet.get_tx_info(tx)
+        status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
+        tx_item['date'] = status_str
+        tx_item['height'] = self.wallet.adb.get_tx_height(txid).height
+        index = self.index(tx_item_idx, 0)
+        roles = [self._ROLE_RMAP[x] for x in ['height', 'date']]
+        self.dataChanged.emit(index, index, roles)
+
     @pyqtSlot(str, str)
     def update_tx_label(self, key, label):
         i = 0
@@ -206,10 +239,13 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     def updateBlockchainHeight(self, height):
         self._logger.debug('updating height to %d' % height)
         i = 0
-        for tx in self.tx_history:
-            if 'height' in tx and tx['height'] > 0:
-                tx['confirmations'] = height - tx['height'] + 1
-                index = self.index(i,0)
-                roles = [self._ROLE_RMAP['confirmations']]
-                self.dataChanged.emit(index, index, roles)
+        for tx_item in self.tx_history:
+            if 'height' in tx_item:
+                if tx_item['height'] > 0:
+                    tx_item['confirmations'] = height - tx_item['height'] + 1
+                    index = self.index(i,0)
+                    roles = [self._ROLE_RMAP['confirmations']]
+                    self.dataChanged.emit(index, index, roles)
+                elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
+                    self._update_future_txitem(i)
             i = i + 1

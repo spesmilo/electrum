@@ -662,7 +662,10 @@ class AddressSynchronizer(Logger, EventListener):
         In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
         """
         with self.lock:
+            old_height = self.future_tx.get(txid) or None
             self.future_tx[txid] = wanted_height
+        if old_height != wanted_height:
+            util.trigger_callback('adb_set_future_tx', self, txid)
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         if tx_hash is None:  # ugly backwards compat...
