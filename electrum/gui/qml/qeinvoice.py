@@ -655,7 +655,10 @@ class QEInvoiceParser(QEInvoice):
             return
 
         if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
-            self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+            if self.invoiceType == QEInvoice.Type.OnchainInvoice and self.amountOverride.isMax:
+                self._effectiveInvoice.amount_msat = '!'
+            else:
+                self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
 
         self.canSave = False
 
