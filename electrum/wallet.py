@@ -75,7 +75,7 @@ from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
 from .invoices import BaseInvoice, Invoice, Request
-from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED
+from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
 from .interface import NetworkException
 from .mnemonic import Mnemonic
@@ -2405,6 +2405,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_invoice_status(self, invoice: BaseInvoice):
         """Returns status of (incoming) request or (outgoing) invoice."""
+        if isinstance(invoice, Invoice) and invoice._is_broadcasting:
+            return PR_INFLIGHT
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
@@ -2496,6 +2498,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 d['bip70'] = x.bip70
         return d
 
+    def get_invoices_and_requests_touched_by_tx(self, tx):
+        request_keys = set()
+        invoice_keys = set()
+        with self.lock, self.transaction_lock:
+            for txo in tx.outputs():
+                addr = txo.address
+                if request:=self.get_request_by_addr(addr):
+                    request_keys.add(request.get_id())
+                for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
+                    invoice_keys.add(invoice_key)
+        return request_keys, invoice_keys
+
     def _update_invoices_and_reqs_touched_by_tx(self, tx_hash: str) -> None:
         # FIXME in some cases if tx2 replaces unconfirmed tx1 in the mempool, we are not called.
         #       For a given receive request, if tx1 touches it but tx2 does not, then
@@ -2503,16 +2517,24 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         tx = self.db.get_transaction(tx_hash)
         if tx is None:
             return
-        relevant_invoice_keys = set()
-        with self.lock, self.transaction_lock:
-            for txo in tx.outputs():
-                addr = txo.address
-                if request:=self.get_request_by_addr(addr):
-                    status = self.get_invoice_status(request)
-                    util.trigger_callback('request_status', self, request.get_id(), status)
-                for invoice_key in self._invoices_from_scriptpubkey_map.get(txo.scriptpubkey, set()):
-                    relevant_invoice_keys.add(invoice_key)
-        self._update_onchain_invoice_paid_detection(relevant_invoice_keys)
+        request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
+        for key in request_keys:
+            request = self.get_request(key)
+            if not request:
+                continue
+            status = self.get_invoice_status(request)
+            util.trigger_callback('request_status', self, request.get_id(), status)
+        self._update_onchain_invoice_paid_detection(invoice_keys)
+
+    def set_broadcasting(self, tx: Transaction, b: bool):
+        request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
+        for key in invoice_keys:
+            invoice = self._invoices.get(key)
+            if not invoice:
+                continue
+            invoice._is_broadcasting = b
+            status = self.get_invoice_status(invoice)
+            util.trigger_callback('invoice_status', self, key, status)
 
     def get_bolt11_invoice(self, req: Request) -> str:
         if not self.lnworker:

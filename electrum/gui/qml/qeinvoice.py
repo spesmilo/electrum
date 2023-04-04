@@ -96,10 +96,9 @@ class QEInvoice(QObject, QtEventListener):
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
         if wallet == self._wallet.wallet and key == self.key:
+            self.update_userinfo()
+            self.determine_can_pay()
             self.statusChanged.emit()
-            if status in [PR_INFLIGHT, PR_ROUTING]:
-                self.determine_can_pay()
-                self.userinfo = _('In progress...')
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -331,6 +330,7 @@ class QEInvoice(QObject, QtEventListener):
                 self.userinfo = {
                         PR_EXPIRED: _('This invoice has expired'),
                         PR_PAID: _('This invoice was already paid'),
+                        PR_INFLIGHT: _('Payment in progress...') + ' (' +  _('broadcasting') + ')',
                         PR_UNCONFIRMED: _('Payment in progress...') + ' (' +  _('waiting for confirmation') + ')',
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]

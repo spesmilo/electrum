@@ -761,7 +761,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
+        self.wallet.set_broadcasting(tx, True)
+
         def broadcast_done(result):
+            self.wallet.set_broadcasting(tx, False)
             # GUI thread
             if result:
                 success, msg = result

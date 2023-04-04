@@ -549,6 +549,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         assert tx.is_complete()
 
         def broadcast_thread():
+            self.wallet.set_broadcasting(tx, True)
             try:
                 self._logger.info('running broadcast in thread')
                 self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
@@ -562,6 +563,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit() # via qt thread
+            self.wallet.set_broadcasting(tx, False)
 
         threading.Thread(target=broadcast_thread, daemon=True).start()
 

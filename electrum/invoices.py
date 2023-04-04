@@ -243,6 +243,7 @@ class BaseInvoice(StoredObject):
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
     __lnaddr = None
+    _is_broadcasting = False
 
     def is_lightning(self):
         return self.lightning_invoice is not None
