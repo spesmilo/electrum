@@ -654,9 +654,12 @@ class QEInvoiceParser(QEInvoice):
         if self.isSaved:
             return
 
+        if not self._effectiveInvoice.amount_msat and not self.amountOverride.isEmpty:
+            self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
+
         self.canSave = False
 
-        self.key = self._effectiveInvoice.get_id()
         self._wallet.wallet.save_invoice(self._effectiveInvoice)
+        self.key = self._effectiveInvoice.get_id()
         self._wallet.invoiceModel.addInvoice(self.key)
         self.invoiceSaved.emit(self.key)
