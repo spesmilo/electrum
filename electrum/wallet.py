@@ -1157,6 +1157,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._invoices_from_txid_map[txid].add(invoice_key)
             for txout in invoice.get_outputs():
                 self._invoices_from_scriptpubkey_map[txout.scriptpubkey].add(invoice_key)
+            # update invoice status
+            status = self.get_invoice_status(invoice)
+            util.trigger_callback('invoice_status', self, invoice_key, status)
 
     def _is_onchain_invoice_paid(self, invoice: BaseInvoice) -> Tuple[bool, Optional[int], Sequence[str]]:
         """Returns whether on-chain invoice/request is satisfied, num confs required txs have,
@@ -2405,8 +2408,6 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_invoice_status(self, invoice: BaseInvoice):
         """Returns status of (incoming) request or (outgoing) invoice."""
-        if isinstance(invoice, Invoice) and invoice._is_broadcasting:
-            return PR_INFLIGHT
         # lightning invoices can be paid onchain
         if invoice.is_lightning() and self.lnworker:
             status = self.lnworker.get_invoice_status(invoice)
@@ -2414,6 +2415,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 return self.check_expired_status(invoice, status)
         paid, conf = self.is_onchain_invoice_paid(invoice)
         if not paid:
+            if isinstance(invoice, Invoice):
+                if status:=invoice.get_broadcasting_status():
+                    return status
             status = PR_UNPAID
         elif conf == 0:
             status = PR_UNCONFIRMED
@@ -2532,7 +2536,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             invoice = self._invoices.get(key)
             if not invoice:
                 continue
-            invoice._is_broadcasting = b
+            invoice._broadcasting_status = b
             status = self.get_invoice_status(invoice)
             util.trigger_callback('invoice_status', self, key, status)
 

@@ -18,7 +18,7 @@ from electrum.i18n import _
 from electrum.util import (get_asyncio_loop, FailedToParsePaymentIdentifier,
                            InvalidBitcoinURI, maybe_extract_lightning_payment_identifier, NotEnoughFunds,
                            NoDynamicFeeEstimates, InvoiceError, parse_max_spend)
-from electrum.invoices import PR_PAID, Invoice
+from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTransaction, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.logging import Logger
@@ -761,19 +761,20 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
-        self.wallet.set_broadcasting(tx, True)
+        self.wallet.set_broadcasting(tx, PR_BROADCASTING)
 
         def broadcast_done(result):
-            self.wallet.set_broadcasting(tx, False)
             # GUI thread
             if result:
                 success, msg = result
                 if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
+                    self.wallet.set_broadcasting(tx, PR_BROADCAST)
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
+                    self.wallet.set_broadcasting(tx, None)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)

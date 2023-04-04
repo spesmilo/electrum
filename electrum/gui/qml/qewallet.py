@@ -9,7 +9,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QM
 
 from electrum import bitcoin
 from electrum.i18n import _
-from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID
+from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTxOutput, PartialTransaction
@@ -549,21 +549,23 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         assert tx.is_complete()
 
         def broadcast_thread():
-            self.wallet.set_broadcasting(tx, True)
+            self.wallet.set_broadcasting(tx, PR_BROADCASTING)
             try:
                 self._logger.info('running broadcast in thread')
                 self.wallet.network.run_from_another_thread(self.wallet.network.broadcast_transaction(tx))
             except TxBroadcastError as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', e.get_message_for_gui())
+                self.wallet.set_broadcasting(tx, None)
             except BestEffortRequestFailed as e:
                 self._logger.error(repr(e))
                 self.broadcastFailed.emit(tx.txid(), '', repr(e))
+                self.wallet.set_broadcasting(tx, None)
             else:
                 self._logger.info('broadcast success')
                 self.broadcastSucceeded.emit(tx.txid())
                 self.historyModel.requestRefresh.emit() # via qt thread
-            self.wallet.set_broadcasting(tx, False)
+                self.wallet.set_broadcasting(tx, PR_BROADCAST)
 
         threading.Thread(target=broadcast_thread, daemon=True).start()
 

@@ -10,7 +10,7 @@ from electrum import lnutil
 from electrum.i18n import _
 from electrum.invoices import Invoice
 from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
-                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, LN_EXPIRY_NEVER)
+                               PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
 from electrum.lnaddr import LnInvoiceException
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
@@ -95,7 +95,7 @@ class QEInvoice(QObject, QtEventListener):
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
-        if wallet == self._wallet.wallet and key == self.key:
+        if self._wallet and wallet == self._wallet.wallet and key == self.key:
             self.update_userinfo()
             self.determine_can_pay()
             self.statusChanged.emit()
@@ -330,7 +330,8 @@ class QEInvoice(QObject, QtEventListener):
                 self.userinfo = {
                         PR_EXPIRED: _('This invoice has expired'),
                         PR_PAID: _('This invoice was already paid'),
-                        PR_INFLIGHT: _('Payment in progress...') + ' (' +  _('broadcasting') + ')',
+                        PR_BROADCASTING: _('Payment in progress...') + ' (' +  _('broadcasting') + ')',
+                        PR_BROADCAST:  _('Payment in progress...') + ' (' +  _('broadcast successfully') + ')',
                         PR_UNCONFIRMED: _('Payment in progress...') + ' (' +  _('waiting for confirmation') + ')',
                         PR_UNKNOWN: _('Invoice has unknown status'),
                     }[self.status]
