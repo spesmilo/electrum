@@ -21,7 +21,8 @@ Item {
     property string _request_expiry
 
     function openInvoice(key) {
-        var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
+        invoice.key = key
+        var dialog = invoiceDialog.createObject(app, { invoice: invoice })
         dialog.open()
         return dialog
     }
@@ -195,6 +196,7 @@ Item {
                     Config.userKnowsPressAndHold = true
                     Daemon.currentWallet.delete_expired_requests()
                     app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                    AppController.haptic()
                 }
             }
             FlatButton {
@@ -207,9 +209,15 @@ Item {
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                    AppController.haptic()
                 }
             }
         }
+    }
+
+    Invoice {
+        id: invoice
+        wallet: Daemon.currentWallet
     }
 
     InvoiceParser {
@@ -232,7 +240,7 @@ Item {
         }
         onValidationSuccess: {
             closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser })
+            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, payImmediately: invoiceParser.isLnurlPay })
             dialog.open()
         }
         onInvoiceCreateError: console.log(code + ' ' + message)
@@ -307,10 +315,16 @@ Item {
             height: parent.height
 
             onDoPay: {
-                if (invoice.invoiceType == Invoice.OnchainInvoice || (invoice.invoiceType == Invoice.LightningInvoice && invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend ) ) {
+                if (invoice.invoiceType == Invoice.OnchainInvoice
+                    || (invoice.invoiceType == Invoice.LightningInvoice
+                        && invoice.amountOverride.isEmpty
+                            ? invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend
+                            : invoice.amountOverride.satsInt > Daemon.currentWallet.lightningCanSend
+                        ))
+                    {
                     var dialog = confirmPaymentDialog.createObject(mainView, {
                             address: invoice.address,
-                            satoshis: invoice.amount,
+                            satoshis: invoice.amountOverride.isEmpty ? invoice.amount : invoice.amountOverride,
                             message: invoice.message
                     })
                     var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
@@ -328,11 +342,7 @@ Item {
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     console.log('About to pay lightning invoice')
-                    if (invoice.key == '') {
-                        console.log('No invoice key, aborting')
-                        return
-                    }
-                    Daemon.currentWallet.pay_lightning_invoice(invoice.key)
+                    invoice.pay_lightning_invoice()
                 }
             }
 

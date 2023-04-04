@@ -28,7 +28,7 @@ from .util import QtEventListener, qt_event_listener
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
-
+    from .qeinvoice import QEInvoice
 
 class QEWallet(AuthMixin, QObject, QtEventListener):
     __instances = []
@@ -587,14 +587,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
 
-    @pyqtSlot(str)
     @auth_protect(reject='ln_auth_rejected')
-    def pay_lightning_invoice(self, invoice_key):
-        self._logger.debug('about to pay LN')
-        invoice = self.wallet.get_invoice(invoice_key)
-        assert(invoice)
-        assert(invoice.lightning_invoice)
-
+    def pay_lightning_invoice(self, invoice: 'QEInvoice'):
         amount_msat = invoice.get_amount_msat()
 
         def pay_thread():
