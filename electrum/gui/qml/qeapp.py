@@ -293,8 +293,7 @@ class QEAppController(BaseCrashReporter, QObject):
     def haptic(self):
         if not self.isAndroid():
             return
-        # TODO: deprecated from API 33
-        jview.performHapticFeedback(jHfc.VIRTUAL_KEY, jHfc.FLAG_IGNORE_GLOBAL_SETTING)
+        jview.performHapticFeedback(jHfc.CONFIRM)
 
 
 class ElectrumQmlApplication(QGuiApplication):
