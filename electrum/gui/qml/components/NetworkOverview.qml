@@ -66,6 +66,15 @@ Pane {
                 Label {
                     text: Network.height
                 }
+                Label {
+                    text: qsTr('Server Height:');
+                    color: Material.accentColor
+                    visible: Network.server_height != Network.height
+                }
+                Label {
+                    text: Network.server_height + " (lagging)"
+                    visible: Network.server_height != Network.height
+                }
                 Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Mempool fees')
