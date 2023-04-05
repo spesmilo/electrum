@@ -439,6 +439,10 @@ class AddressSynchronizer(Logger, EventListener):
             if tx is None:
                 continue
             self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            # if we already had this tx, see if its height changed (e.g. local->unconfirmed)
+            old_height = old_hist.get(tx_hash, None)
+            if old_height is not None and old_height != tx_height:
+                util.trigger_callback('adb_tx_height_changed', self, tx_hash, old_height, tx_height)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
