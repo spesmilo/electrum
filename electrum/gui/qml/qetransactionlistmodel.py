@@ -242,3 +242,21 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                     self.dataChanged.emit(index, index, roles)
                 elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
                     self._update_future_txitem(i)
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, histogram):
+        self._logger.debug(f'fee histogram updated')
+        for i, tx_item in enumerate(self.tx_history):
+            if 'height' not in tx_item:  # filter to on-chain
+                continue
+            if tx_item['confirmations'] > 0:  # filter out already mined
+                continue
+            txid = tx_item['txid']
+            tx = self.wallet.db.get_transaction(txid)
+            assert tx is not None
+            txinfo = self.wallet.get_tx_info(tx)
+            status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
+            tx_item['date'] = status_str
+            index = self.index(i, 0)
+            roles = [self._ROLE_RMAP['date']]
+            self.dataChanged.emit(index, index, roles)

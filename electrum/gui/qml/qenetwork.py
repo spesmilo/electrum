@@ -118,7 +118,7 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_fee_histogram(self, histogram):
-        self._logger.debug(f'fee histogram updated: {repr(histogram)}')
+        self._logger.debug(f'fee histogram updated')
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
