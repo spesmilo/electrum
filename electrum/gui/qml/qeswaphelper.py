@@ -375,7 +375,7 @@ class QESwapHelper(AuthMixin, QObject):
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
 
-        threading.Thread(target=swap_task, daemon=True).start(d)
+        threading.Thread(target=swap_task, daemon=True).start()
 
     @pyqtSlot()
     @pyqtSlot(bool)
