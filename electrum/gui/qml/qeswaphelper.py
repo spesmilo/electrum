@@ -350,7 +350,7 @@ class QESwapHelper(AuthMixin, QObject):
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
 
-        threading.Thread(target=swap_task).start()
+        threading.Thread(target=swap_task, daemon=True).start()
 
     def do_reverse_swap(self, lightning_amount, onchain_amount):
         if lightning_amount is None or onchain_amount is None:
@@ -375,7 +375,7 @@ class QESwapHelper(AuthMixin, QObject):
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
 
-        threading.Thread(target=swap_task).start()
+        threading.Thread(target=swap_task, daemon=True).start(d)
 
     @pyqtSlot()
     @pyqtSlot(bool)

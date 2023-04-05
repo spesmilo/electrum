@@ -265,7 +265,7 @@ class QEAppController(BaseCrashReporter, QObject):
                 self.sendingBugreportSuccess.emit(text)
 
         self.sendingBugreport.emit()
-        threading.Thread(target=report_task).start()
+        threading.Thread(target=report_task, daemon=True).start()
 
     @pyqtSlot()
     def showNever(self):

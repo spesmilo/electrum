@@ -216,7 +216,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)
-        threading.Thread(target=open_thread).start()
+        threading.Thread(target=open_thread, daemon=True).start()
 
         # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():
