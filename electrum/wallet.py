@@ -2318,6 +2318,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
 
     def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
+        """ returns tx if successful else None """
         if self.is_watching_only():
             return
         if not isinstance(tx, PartialTransaction):
@@ -2326,7 +2327,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         swap = self.get_swap_by_claim_tx(tx)
         if swap:
             self.lnworker.swap_manager.sign_tx(tx, swap)
-            return
+            return tx
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
         tmp_tx = copy.deepcopy(tx)
