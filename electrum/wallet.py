@@ -3079,7 +3079,7 @@ class Imported_Wallet(Simple_Wallet):
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
             for addr in self.db.get_history():
-                details = self.adb.get_address_history(addr)
+                details = self.adb.get_address_history(addr).items()
                 if addr == address:
                     for tx_hash, height in details:
                         transactions_to_remove.add(tx_hash)

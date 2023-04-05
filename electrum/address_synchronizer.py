@@ -119,21 +119,21 @@ class AddressSynchronizer(Logger, EventListener):
     def get_addresses(self):
         return sorted(self.db.get_history())
 
-    def get_address_history(self, addr: str) -> Sequence[Tuple[str, int]]:
-        """Returns the history for the address, in the format that would be returned by a server.
+    def get_address_history(self, addr: str) -> Dict[str, int]:
+        """Returns the history for the address, as a txid->height dict.
+        In addition to what we have from the server, this includes local and future txns.
 
-        Note: The difference between db.get_addr_history and this method is that
-        db.get_addr_history stores the response from a server, so it only includes txns
-        a server sees, i.e. that does not contain local and future txns.
+        Also see related method db.get_addr_history, which stores the response from the server,
+        so that only includes txns the server sees.
         """
-        h = []
+        h = {}
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
             related_txns = self._history_local.get(addr, set())
             for tx_hash in related_txns:
                 tx_height = self.get_tx_height(tx_hash).height
-                h.append((tx_hash, tx_height))
+                h[tx_hash] = tx_height
         return h
 
     def get_address_history_len(self, addr: str) -> int:
@@ -421,7 +421,7 @@ class AddressSynchronizer(Logger, EventListener):
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
-            for tx_hash, height in old_hist:
+            for tx_hash, height in old_hist.items():
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
@@ -524,7 +524,7 @@ class AddressSynchronizer(Logger, EventListener):
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)  # type: Dict[str, int]
         for addr in domain:
-            h = self.get_address_history(addr)
+            h = self.get_address_history(addr).items()
             for tx_hash, height in h:
                 tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, addr)
         # 2. create sorted history
@@ -784,7 +784,7 @@ class AddressSynchronizer(Logger, EventListener):
 
     def get_addr_io(self, address):
         with self.lock, self.transaction_lock:
-            h = self.get_address_history(address)
+            h = self.get_address_history(address).items()
             received = {}
             sent = {}
             for tx_hash, height in h:
