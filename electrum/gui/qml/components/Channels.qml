@@ -139,7 +139,7 @@ Pane {
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
-                enabled: Daemon.currentWallet.confirmedBalance.satInt > 0
+                enabled: Daemon.currentWallet.confirmedBalance.satsInt > 0
                 text: qsTr('Open Channel')
                 onClicked: {
                     var dialog = openChannelDialog.createObject(root)
