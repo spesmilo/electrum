@@ -12,8 +12,8 @@ ElDialog {
 
     required property QtObject swaphelper
 
-    width: parent.width
-    height: parent.height
+    implicitHeight: parent.height
+    implicitWidth: parent.width
 
     title: qsTr('Lightning Swap')
     iconSource: Qt.resolvedUrl('../../icons/update.png')
@@ -170,7 +170,7 @@ ElDialog {
                 width: swapslider.availableWidth
                 height: implicitHeight
                 radius: 2
-                color: Color.transparent(Material.accentColor, 0.33)
+                color: Material.accentColor
 
                 // full width somehow misaligns with handle, define rangeWidth
                 property int rangeWidth: width - swapslider.leftPadding
