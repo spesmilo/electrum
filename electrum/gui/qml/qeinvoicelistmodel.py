@@ -92,14 +92,12 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.add_invoice(self.get_invoice_for_key(key))
 
     def delete_invoice(self, key: str):
-        i = 0
-        for invoice in self.invoices:
+        for i, invoice in enumerate(self.invoices):
             if invoice['key'] == key:
                 self.beginRemoveRows(QModelIndex(), i, i)
                 self.invoices.pop(i)
                 self.endRemoveRows()
                 break
-            i = i + 1
         self.set_status_timer()
 
     def get_model_invoice(self, key: str):
@@ -111,8 +109,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     @pyqtSlot(str, int)
     def updateInvoice(self, key, status):
         self._logger.debug('updating invoice for %s to %d' % (key,status))
-        i = 0
-        for item in self.invoices:
+        for i, item in enumerate(self.invoices):
             if item['key'] == key:
                 invoice = self.get_invoice_for_key(key)
                 item['status'] = status
@@ -120,7 +117,6 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
                 index = self.index(i,0)
                 self.dataChanged.emit(index, index, [self._ROLE_RMAP['status'], self._ROLE_RMAP['status_str']])
                 return
-            i = i + 1
 
     def invoice_to_model(self, invoice: BaseInvoice):
         item = self.get_invoice_as_dict(invoice)
@@ -149,14 +145,12 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
 
     @pyqtSlot()
     def updateStatusStrings(self):
-        i = 0
-        for item in self.invoices:
+        for i, item in enumerate(self.invoices):
             invoice = self.get_invoice_for_key(item['key'])
             item['status'] = self.wallet.get_invoice_status(invoice)
             item['status_str'] = invoice.get_status_str(item['status'])
             index = self.index(i,0)
             self.dataChanged.emit(index, index, [self._ROLE_RMAP['status'], self._ROLE_RMAP['status_str']])
-            i = i + 1
 
         self.set_status_timer()
 

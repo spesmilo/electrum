@@ -302,6 +302,7 @@ class QEDaemon(AuthMixin, QObject):
 
     @pyqtSlot(result=str)
     def suggestWalletName(self):
+        # FIXME why not use util.get_new_wallet_name ?
         i = 1
         while self.availableWallets.wallet_name_exists(f'wallet_{i}'):
             i = i + 1

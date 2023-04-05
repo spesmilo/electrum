@@ -134,12 +134,10 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         self.countChanged.emit()
 
     def on_channel_updated(self, channel):
-        i = 0
-        for c in self.channels:
+        for i, c in enumerate(self.channels):
             if c['cid'] == channel.channel_id.hex():
                 self.do_update(i,channel)
                 break
-            i = i + 1
 
     def do_update(self, modelindex, channel):
         self._logger.debug(f'updating our channel {channel.short_id_for_GUI()}')
@@ -167,8 +165,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     @pyqtSlot(str)
     def remove_channel(self, cid):
         self._logger.debug('remove channel with cid %s' % cid)
-        i = 0
-        for channel in self.channels:
+        for i, channel in enumerate(self.channels):
             if cid == channel['cid']:
                 self._logger.debug(cid)
                 self.beginRemoveRows(QModelIndex(), i, i)
@@ -176,7 +173,6 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 self.endRemoveRows()
                 self.countChanged.emit()
                 return
-            i = i + 1
 
     def filterModel(self, role, match):
         _filterModel = QEFilterProxyModel(self, self)
