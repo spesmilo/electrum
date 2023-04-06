@@ -144,14 +144,14 @@ Pane {
                         RowLayout {
                             Layout.fillWidth: true
                             Label {
-                                text: '< ' + qsTr('%1 sat/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
+                                text: '<-- ' + qsTr('%1 sat/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
                                 font.pixelSize: constants.fontSizeXSmall
                                 color: Material.accentColor
                             }
                             Label {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignRight
-                                text: qsTr('%1 sat/vB').arg(Math.floor(Network.feeHistogram.min_fee)) + ' >'
+                                text: qsTr('%1 sat/vB').arg(Math.floor(Network.feeHistogram.min_fee)) + ' -->'
                                 font.pixelSize: constants.fontSizeXSmall
                                 color: Material.accentColor
                             }
