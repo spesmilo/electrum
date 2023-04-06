@@ -62,15 +62,15 @@ Pane {
                                 { v: p['lightning']/total,
                                     color: constants.colorPiechartLightning, text: qsTr('Lightning') },
                                 { v: p['confirmed']/total,
-                                    color: constants.colorPiechartOnchain, text: 'On-chain' },
+                                    color: constants.colorPiechartOnchain, text: qsTr('On-chain') },
                                 { v: p['frozen']/total,
-                                    color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
+                                    color: constants.colorPiechartFrozen, text: qsTr('On-chain (frozen)') },
                                 { v: p['unconfirmed']/total,
-                                    color: constants.colorPiechartFrozen, text: 'Unconfirmed' },
+                                    color: constants.colorPiechartUnconfirmed, text: qsTr('Unconfirmed') },
                                 { v: p['unmatured']/total,
-                                    color: constants.colorPiechartFrozen, text: 'Unmatured' },
+                                    color: constants.colorPiechartUnmatured, text: qsTr('Unmatured') },
                                 { v: p['f_lightning']/total,
-                                    color: constants.colorPiechartLightningFrozen, text: 'Frozen Lightning' },
+                                    color: constants.colorPiechartLightningFrozen, text: qsTr('Frozen Lightning') },
                             ]
                         }
                     }
