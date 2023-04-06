@@ -243,7 +243,10 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
             enabled: swaphelper.valid
-            onClicked: swaphelper.executeSwap()
+            onClicked: {
+                console.log('Swap triggered from dialog ' + this + ' using swaphelper ' + swaphelper)
+                swaphelper.executeSwap()
+            }
         }
     }
 
@@ -258,6 +261,7 @@ ElDialog {
     }
 
     Component.onCompleted: {
+        console.log('Created SwapDialog ' + this)
         swapslider.value = swaphelper.sliderPos
     }
 

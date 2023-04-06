@@ -155,7 +155,10 @@ Pane {
     Component {
         id: swapDialog
         SwapDialog {
-            onClosed: destroy()
+            onClosed: {
+                console.log('Destroying SwapDialog ' + this)
+                destroy()
+            }
         }
     }
 
