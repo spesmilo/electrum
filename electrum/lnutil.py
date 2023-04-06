@@ -1450,7 +1450,16 @@ def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as strin
         raise ConnStringFormatError(_('Port number must be decimal'))
     return host, port
 
-def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
+
+def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
+    """Takes a connection-string-like str, and returns a tuple (node_id, rest),
+    where rest is typically a host (with maybe port). Examples:
+    - extract_nodeid(pubkey@host:port) == (pubkey, host:port)
+    - extract_nodeid(pubkey@host) == (pubkey, host)
+    - extract_nodeid(pubkey) == (pubkey, None)
+    - extract_nodeid(bolt11_invoice) == (pubkey, None)
+    Can raise ConnStringFormatError.
+    """
     rest = None
     try:
         # connection string?

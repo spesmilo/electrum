@@ -2,6 +2,7 @@ import unittest
 import json
 
 from electrum import bitcoin
+from electrum import ecc
 from electrum.json_db import StoredDict
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
@@ -756,11 +757,23 @@ class TestLNUtil(ElectrumTestCase):
             split_host_port("electrum.org:")
 
     def test_extract_nodeid(self):
+        pubkey1 = ecc.GENERATOR.get_public_key_bytes(compressed=True)
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 32 + "@localhost")
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 33 + "@")
+        # pubkey + host
         self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44"), (pubkey1, "11.22.33.44"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]"), (pubkey1, "[2001:41d0:e:734::1]"))
+        # pubkey + host + port
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44:5555"), (pubkey1, "11.22.33.44:5555"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]:8888"), (pubkey1, "[2001:41d0:e:734::1]:8888"))
+        # just pubkey
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}"), (pubkey1, None))
+        # bolt11 invoice
+        self.assertEqual(extract_nodeid("lnbc241ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qypqszrwfgrl5k3rt4q4mclc8t00p2tcjsf9pmpcq6lu5zhmampyvk43fk30eqpdm8t5qmdpzan25aqxqaqdzmy0smrtduazjcxx975vz78ccpx0qhev"),
+                         (bfh("03e7156ae33b0a208d0744199163177e909e80176e55d97a2f221ede0f934dd9ad"), None))
 
     def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ

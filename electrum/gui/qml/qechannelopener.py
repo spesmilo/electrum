@@ -129,13 +129,13 @@ class QEChannelOpener(QObject, AuthMixin):
         try:
             self.nodeid_to_lnpeer(nodeid)
         except Exception as e:
-            self._logger.debug(repr(e))
+            self._logger.debug(f"invalid nodeid. {e!r}")
             return False
         return True
 
     def nodeid_to_lnpeer(self, nodeid):
         node_pubkey, host_port = extract_nodeid(nodeid)
-        if host_port.__contains__(':'):
+        if host_port.__contains__(':'):  # FIXME host_port can be None; can't construct LNPeerAddr then.
             host, port = host_port.split(':',1)
         else:
             host = host_port
