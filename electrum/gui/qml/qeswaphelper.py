@@ -33,6 +33,7 @@ class QESwapHelper(AuthMixin, QObject):
         self._rangeMax = 0
         self._tx = None
         self._valid = False
+        self._busy = False
         self._userinfo = ' '.join([
             _('Move the slider to set the amount and direction of the swap.'),
             _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
@@ -201,6 +202,17 @@ class QESwapHelper(AuthMixin, QObject):
             self._isReverse = isReverse
             self.isReverseChanged.emit()
 
+    busyChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=busyChanged)
+    def busy(self):
+        return self._busy
+
+    @busy.setter
+    def busy(self, busy):
+        if self._busy != busy:
+            self._busy = busy
+            self.busyChanged.emit()
+
 
     def init_swap_slider_range(self):
         lnworker = self._wallet.wallet.lnworker
@@ -349,6 +361,8 @@ class QESwapHelper(AuthMixin, QObject):
             except Exception as e:
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
+            finally:
+                self.busy = False
 
         threading.Thread(target=swap_task, daemon=True).start()
 
@@ -374,6 +388,8 @@ class QESwapHelper(AuthMixin, QObject):
             except Exception as e:
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
+            finally:
+                self.busy = False
 
         threading.Thread(target=swap_task, daemon=True).start()
 
@@ -383,6 +399,11 @@ class QESwapHelper(AuthMixin, QObject):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
+
+        if self._busy:
+            self._logger.error('swap already in progress for this swaphelper')
+            return
+
         if confirm:
             self._do_execute_swap()
             return
@@ -396,6 +417,7 @@ class QESwapHelper(AuthMixin, QObject):
 
     @auth_protect
     def _do_execute_swap(self):
+        self.busy = True
         if self.isReverse:
             lightning_amount = self._send_amount
             onchain_amount = self._receive_amount
