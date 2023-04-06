@@ -179,8 +179,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421d (note: careful with force-pushing! see #8162)
-    && git checkout "ec82acf894822373ae88247658a233c77e76f879^{commit}" \
+    # commit: from branch accumulator/electrum_20210421d (note: careful with force-pushing! see #8162)
+    && git checkout "8d73dc4f2b74b187c4f1ff59b55873ba1e357b05^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars
