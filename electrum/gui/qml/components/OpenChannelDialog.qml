@@ -55,7 +55,7 @@ ElDialog {
                     placeholderText: qsTr('Paste or scan node uri/pubkey')
                     onActiveFocusChanged: {
                         if (!activeFocus)
-                            channelopener.nodeid = text
+                            channelopener.connectStr = text
                     }
                 }
 
@@ -67,9 +67,9 @@ ElDialog {
                         icon.height: constants.iconSizeMedium
                         icon.width: constants.iconSizeMedium
                         onClicked: {
-                            if (channelopener.validate_nodeid(AppController.clipboardToText())) {
-                                channelopener.nodeid = AppController.clipboardToText()
-                                node.text = channelopener.nodeid
+                            if (channelopener.validate_connect_str(AppController.clipboardToText())) {
+                                channelopener.connectStr = AppController.clipboardToText()
+                                node.text = channelopener.connectStr
                             }
                         }
                     }
@@ -81,9 +81,9 @@ ElDialog {
                         onClicked: {
                             var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
                             page.onFound.connect(function() {
-                                if (channelopener.validate_nodeid(page.scanData)) {
-                                    channelopener.nodeid = page.scanData
-                                    node.text = channelopener.nodeid
+                                if (channelopener.validate_connect_str(page.scanData)) {
+                                    channelopener.connectStr = page.scanData
+                                    node.text = channelopener.connectStr
                                 }
                                 app.stack.pop()
                             })
@@ -99,13 +99,13 @@ ElDialog {
                     model: channelopener.trampolineNodeNames
                     onCurrentValueChanged: {
                         if (activeFocus)
-                            channelopener.nodeid = currentValue
+                            channelopener.connectStr = currentValue
                     }
                     // preselect a random node
                     Component.onCompleted: {
                         if (!Config.useGossip) {
                             currentIndex = Math.floor(Math.random() * channelopener.trampolineNodeNames.length)
-                            channelopener.nodeid = currentValue
+                            channelopener.connectStr = currentValue
                         }
                     }
                 }
