@@ -71,6 +71,7 @@ Item {
             }
 
             RowLayout {
+                Layout.alignment: Qt.AlignRight
                 visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
@@ -97,6 +98,7 @@ Item {
             }
 
             RowLayout {
+                Layout.alignment: Qt.AlignRight
                 visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
