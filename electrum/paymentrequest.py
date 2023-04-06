@@ -39,7 +39,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
-from .util import bfh, make_aiohttp_session
+from .util import bfh, make_aiohttp_session, error_text_bytes_to_safe_str
 from .invoices import Invoice, get_id_from_onchain_outputs
 from .crypto import sha256
 from .bitcoin import address_to_script
@@ -94,12 +94,8 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
                 if resp_content:
-                    try:
-                        error_text_received = resp_content.decode("utf8")
-                    except UnicodeDecodeError:
-                        error_text_received = "(failed to decode error)"
-                    else:
-                        error_text_received = error_text_received[:400]
+                    error_text_received = error_text_bytes_to_safe_str(resp_content)
+                    error_text_received = error_text_received[:400]
                     error_oneline = ' -- '.join(error.split('\n'))
                     _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
                                  f"{repr(e)} text: {error_text_received}")
@@ -306,12 +302,8 @@ class PaymentRequest:
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
                 if resp_content:
-                    try:
-                        error_text_received = resp_content.decode("utf8")
-                    except UnicodeDecodeError:
-                        error_text_received = "(failed to decode error)"
-                    else:
-                        error_text_received = error_text_received[:400]
+                    error_text_received = error_text_bytes_to_safe_str(resp_content)
+                    error_text_received = error_text_received[:400]
                     error_oneline = ' -- '.join(error.split('\n'))
                     _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
                                  f"{repr(e)} text: {error_text_received}")

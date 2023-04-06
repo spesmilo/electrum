@@ -30,7 +30,7 @@ from typing import NamedTuple, Optional
 from .version import ELECTRUM_VERSION
 from . import constants
 from .i18n import _
-from .util import make_aiohttp_session
+from .util import make_aiohttp_session, error_text_str_to_safe_str
 from .logging import describe_os_version, Logger, get_git_version
 
 
@@ -80,7 +80,8 @@ class BaseCrashReporter(Logger):
         report = json.dumps(report)
         coro = self.do_post(proxy, BaseCrashReporter.report_server + "/crash.json", data=report)
         response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(timeout)
-        self.logger.info(f"Crash report sent. Got response [DO NOT TRUST THIS MESSAGE]: {response!r}")
+        self.logger.info(
+            f"Crash report sent. Got response [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(response)}")
         response = json.loads(response)
         assert isinstance(response, dict), type(response)
         # sanitize URL
@@ -98,7 +99,7 @@ class BaseCrashReporter(Logger):
         )
         return ret
 
-    async def do_post(self, proxy, url, data):
+    async def do_post(self, proxy, url, data) -> str:
         async with make_aiohttp_session(proxy) as session:
             async with session.post(url, data=data, raise_for_status=True) as resp:
                 return await resp.text()
