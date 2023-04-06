@@ -48,7 +48,11 @@ Item {
 
     property color colorPiechartOnchain: Qt.darker(Material.accentColor, 1.50)
     property color colorPiechartFrozen: 'gray'
-    property color colorPiechartLightning: 'orange' //Qt.darker(Material.accentColor, 1.20)
+    property color colorPiechartLightning: 'orange'
+    property color colorPiechartLightningFrozen: Qt.darker('orange', 1.20)
+    property color colorPiechartUnconfirmed: Qt.darker(Material.accentColor, 2.00)
+    property color colorPiechartUnmatured: 'magenta'
+
     property color colorPiechartParticipant: 'gray'
     property color colorPiechartSignature: 'yellow'
 

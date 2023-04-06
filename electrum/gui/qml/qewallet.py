@@ -745,3 +745,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         tx = self.wallet.db.get_transaction(txid)
         txqr = tx.to_qr_data()
         return [str(tx), txqr[0], txqr[1]]
+
+    @pyqtSlot(result='QVariantMap')
+    def getBalancesForPiechart(self):
+        confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = balances = self.wallet.get_balances_for_piechart()
+        return {
+            'confirmed': confirmed,
+            'unconfirmed': unconfirmed,
+            'unmatured': unmatured,
+            'frozen': frozen,
+            'lightning': int(lightning),
+            'f_lightning': int(f_lightning),
+            'total': sum([int(x) for x in list(balances)])
+        }
