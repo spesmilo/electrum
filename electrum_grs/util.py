@@ -2023,3 +2023,26 @@ def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
         return asyncio.get_running_loop()
     except RuntimeError:
         return None
+
+
+def error_text_str_to_safe_str(err: str) -> str:
+    """Converts an untrusted error string to a sane printable ascii str.
+    Never raises.
+    """
+    return error_text_bytes_to_safe_str(err.encode("ascii", errors='backslashreplace'))
+
+
+def error_text_bytes_to_safe_str(err: bytes) -> str:
+    """Converts an untrusted error bytes text to a sane printable ascii str.
+    Never raises.
+
+    Note that naive ascii conversion would be insufficient. Fun stuff:
+    >>> b = b"my_long_prefix_blabla" + 21 * b"\x08" + b"malicious_stuff"
+    >>> s = b.decode("ascii")
+    >>> print(s)
+    malicious_stuffblabla
+    """
+    # convert to ascii, to get rid of unicode stuff
+    ascii_text = err.decode("ascii", errors='backslashreplace')
+    # do repr to handle ascii special chars (especially when printing/logging the str)
+    return repr(ascii_text)

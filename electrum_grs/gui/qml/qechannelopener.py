@@ -7,7 +7,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum_grs.i18n import _
 from electrum_grs.gui import messages
 from electrum_grs.util import bfh
-from electrum_grs.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address
+from electrum_grs.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address, ConnStringFormatError
 from electrum_grs.lnworker import hardcoded_trampoline_nodes
 from electrum_grs.logging import get_logger
 
@@ -33,7 +33,7 @@ class QEChannelOpener(QObject, AuthMixin):
         super().__init__(parent)
 
         self._wallet = None
-        self._nodeid = None
+        self._connect_str = None
         self._amount = QEAmount()
         self._valid = False
         self._opentx = None
@@ -50,17 +50,17 @@ class QEChannelOpener(QObject, AuthMixin):
             self._wallet = wallet
             self.walletChanged.emit()
 
-    nodeidChanged = pyqtSignal()
-    @pyqtProperty(str, notify=nodeidChanged)
-    def nodeid(self):
-        return self._nodeid
+    connectStrChanged = pyqtSignal()
+    @pyqtProperty(str, notify=connectStrChanged)
+    def connectStr(self):
+        return self._connect_str
 
-    @nodeid.setter
-    def nodeid(self, nodeid: str):
-        if self._nodeid != nodeid:
-            self._logger.debug('nodeid set -> %s' % nodeid)
-            self._nodeid = nodeid
-            self.nodeidChanged.emit()
+    @connectStr.setter
+    def connectStr(self, connect_str: str):
+        if self._connect_str != connect_str:
+            self._logger.debug('connectStr set -> %s' % connect_str)
+            self._connect_str = connect_str
+            self.connectStrChanged.emit()
             self.validate()
 
     amountChanged = pyqtSignal()
@@ -97,20 +97,27 @@ class QEChannelOpener(QObject, AuthMixin):
     # FIXME min channel funding amount
     # FIXME have requested funding amount
     def validate(self):
-        nodeid_valid = False
-        if self._nodeid:
-            self._logger.debug(f'checking if {self._nodeid} is valid')
+        """side-effects: sets self._valid, self._node_pubkey, self._connect_str_resolved"""
+        connect_str_valid = False
+        if self._connect_str:
+            self._logger.debug(f'checking if {self._connect_str=!r} is valid')
             if not self._wallet.wallet.config.get('use_gossip', False):
-                self._peer = hardcoded_trampoline_nodes()[self._nodeid]
-                nodeid_valid = True
+                # using trampoline: connect_str is the name of a trampoline node
+                peer_addr = hardcoded_trampoline_nodes()[self._connect_str]
+                self._node_pubkey = peer_addr.pubkey
+                self._connect_str_resolved = str(peer_addr)
+                connect_str_valid = True
             else:
+                # using gossip: connect_str is anything extract_nodeid() can parse
                 try:
-                    self._peer = self.nodeid_to_lnpeer(self._nodeid)
-                    nodeid_valid = True
-                except:
+                    self._node_pubkey, _rest = extract_nodeid(self._connect_str)
+                except ConnStringFormatError:
                     pass
+                else:
+                    self._connect_str_resolved = self._connect_str
+                    connect_str_valid = True
 
-        if not nodeid_valid:
+        if not connect_str_valid:
             self._valid = False
             self.validChanged.emit()
             return
@@ -125,22 +132,13 @@ class QEChannelOpener(QObject, AuthMixin):
         self.validChanged.emit()
 
     @pyqtSlot(str, result=bool)
-    def validate_nodeid(self, nodeid):
+    def validate_connect_str(self, connect_str):
         try:
-            self.nodeid_to_lnpeer(nodeid)
-        except Exception as e:
-            self._logger.debug(repr(e))
+            node_id, rest = extract_nodeid(connect_str)
+        except ConnStringFormatError as e:
+            self._logger.debug(f"invalid connect_str. {e!r}")
             return False
         return True
-
-    def nodeid_to_lnpeer(self, nodeid):
-        node_pubkey, host_port = extract_nodeid(nodeid)
-        if host_port.__contains__(':'):
-            host, port = host_port.split(':',1)
-        else:
-            host = host_port
-            port = 9735
-        return LNPeerAddr(host, int(port), node_pubkey)
 
     # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     @pyqtSlot()
@@ -149,10 +147,10 @@ class QEChannelOpener(QObject, AuthMixin):
         if not self.valid:
             return
 
-        self._logger.debug('Connect String: %s' % str(self._peer))
+        self._logger.debug(f'Connect String: {self._connect_str!r}')
 
         lnworker = self._wallet.wallet.lnworker
-        if lnworker.has_conflicting_backup_with(self._peer.pubkey) and not confirm_backup_conflict:
+        if lnworker.has_conflicting_backup_with(self._node_pubkey) and not confirm_backup_conflict:
             self.conflictingBackup.emit(messages.MGS_CONFLICTING_BACKUP_INSTANCE)
             return
 
@@ -164,10 +162,10 @@ class QEChannelOpener(QObject, AuthMixin):
         mktx = lambda amt: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amt,
-            node_id=self._peer.pubkey,
+            node_id=self._node_pubkey,
             fee_est=None)
 
-        acpt = lambda tx: self.do_open_channel(tx, str(self._peer), self._wallet.password)
+        acpt = lambda tx: self.do_open_channel(tx, self._connect_str_resolved, self._wallet.password)
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
         self._finalizer.canRbf = False
@@ -177,6 +175,9 @@ class QEChannelOpener(QObject, AuthMixin):
 
     @auth_protect
     def do_open_channel(self, funding_tx, conn_str, password):
+        """
+        conn_str: a connection string that extract_nodeid can parse, i.e. cannot be a trampoline name
+        """
         self._logger.debug('opening channel')
         # read funding_sat from tx; converts '!' to int value
         funding_sat = funding_tx.output_value_for_address(ln_dummy_address())
@@ -216,7 +217,7 @@ class QEChannelOpener(QObject, AuthMixin):
 
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)
-        threading.Thread(target=open_thread).start()
+        threading.Thread(target=open_thread, daemon=True).start()
 
         # TODO: it would be nice to show this before broadcasting
         #if chan.has_onchain_backup():

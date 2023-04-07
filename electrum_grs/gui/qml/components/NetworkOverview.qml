@@ -66,6 +66,15 @@ Pane {
                 Label {
                     text: Network.height
                 }
+                Label {
+                    text: qsTr('Server Height:');
+                    color: Material.accentColor
+                    visible: Network.server_height != Network.height
+                }
+                Label {
+                    text: Network.server_height + " (lagging)"
+                    visible: Network.server_height != Network.height
+                }
                 Heading {
                     Layout.columnSpan: 2
                     text: qsTr('Mempool fees')
@@ -135,14 +144,14 @@ Pane {
                         RowLayout {
                             Layout.fillWidth: true
                             Label {
-                                text: '< ' + qsTr('%1 gro/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
+                                text: '<-- ' + qsTr('%1 gro/vB').arg(Math.ceil(Network.feeHistogram.max_fee))
                                 font.pixelSize: constants.fontSizeXSmall
                                 color: Material.accentColor
                             }
                             Label {
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignRight
-                                text: qsTr('%1 gro/vB').arg(Math.floor(Network.feeHistogram.min_fee)) + ' >'
+                                text: qsTr('%1 gro/vB').arg(Math.floor(Network.feeHistogram.min_fee)) + ' -->'
                                 font.pixelSize: constants.fontSizeXSmall
                                 color: Material.accentColor
                             }

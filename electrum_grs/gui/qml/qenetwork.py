@@ -20,7 +20,8 @@ class QENetwork(QObject, QtEventListener):
 
     networkUpdated = pyqtSignal()
     blockchainUpdated = pyqtSignal()
-    heightChanged = pyqtSignal([int], arguments=['height'])
+    heightChanged = pyqtSignal([int], arguments=['height'])  # local blockchain height
+    serverHeightChanged = pyqtSignal([int], arguments=['height'])
     proxySet = pyqtSignal()
     proxyChanged = pyqtSignal()
     statusChanged = pyqtSignal()
@@ -51,7 +52,8 @@ class QENetwork(QObject, QtEventListener):
         self.network = network
         self._qeconfig = qeconfig
         self._serverListModel = None
-        self._height = network.get_local_height() # init here, update event can take a while
+        self._height = network.get_local_height()  # init here, update event can take a while
+        self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
 
         self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
@@ -94,6 +96,11 @@ class QENetwork(QObject, QtEventListener):
             self._logger.debug('server_status updated: %s' % server_status)
             self._server_status = server_status
             self.statusChanged.emit()
+        server_height = self.network.get_server_height()
+        if self._server_height != server_height:
+            self._logger.debug(f'server_height updated: {server_height}')
+            self._server_height = server_height
+            self.serverHeightChanged.emit(server_height)
         chains = len(self.network.get_blockchains())
         if chains != self._chaintips:
             self._logger.debug('chain tips # changed: %d', chains)
@@ -111,7 +118,7 @@ class QENetwork(QObject, QtEventListener):
 
     @event_listener
     def on_event_fee_histogram(self, histogram):
-        self._logger.debug(f'fee histogram updated: {repr(histogram)}')
+        self._logger.debug(f'fee histogram updated')
         self.update_histogram(histogram)
 
     def update_histogram(self, histogram):
@@ -173,8 +180,12 @@ class QENetwork(QObject, QtEventListener):
             self.network.run_from_another_thread(self.network.stop_gossip())
 
     @pyqtProperty(int, notify=heightChanged)
-    def height(self):
+    def height(self):  # local blockchain height
         return self._height
+
+    @pyqtProperty(int, notify=serverHeightChanged)
+    def server_height(self):
+        return self._server_height
 
     @pyqtProperty(str, notify=statusChanged)
     def server(self):

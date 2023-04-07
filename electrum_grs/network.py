@@ -46,7 +46,7 @@ from . import util
 from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
                    bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
-                   nullcontext)
+                   nullcontext, error_text_str_to_safe_str)
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -235,8 +235,9 @@ class UntrustedServerReturnedError(NetworkException):
         return _("The server returned an error.")
 
     def __repr__(self):
+        e = self.original_exception
         return (f"<UntrustedServerReturnedError "
-                f"[DO NOT TRUST THIS MESSAGE] original_exception: {repr(self.original_exception)}>")
+                f"[DO NOT TRUST THIS MESSAGE] original_exception: {error_text_str_to_safe_str(repr(e))}>")
 
 
 _INSTANCE = None
@@ -924,14 +925,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
             raise  # pass-through
         except aiorpcx.jsonrpc.CodeMessageError as e:
-            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}")
             raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
         except BaseException as e:  # intentional BaseException for sanity!
-            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {repr(e)}")
+            self.logger.info(f"broadcast_transaction error2 [DO NOT TRUST THIS MESSAGE]: {error_text_str_to_safe_str(repr(e))}")
             send_exception_to_crash_reporter(e)
             raise TxBroadcastUnknownError() from e
         if out != tx.txid():
-            self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
+            self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: "
+                             f"{error_text_str_to_safe_str(out)} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
     async def try_broadcasting(self, tx, name) -> bool:

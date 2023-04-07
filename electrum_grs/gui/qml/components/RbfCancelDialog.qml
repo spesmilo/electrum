@@ -76,7 +76,7 @@ ElDialog {
                 }
 
                 Label {
-                    text: qsTr('Mining fee')
+                    text: qsTr('New fee')
                     color: Material.accentColor
                 }
 
@@ -86,7 +86,7 @@ ElDialog {
                 }
 
                 Label {
-                    text: qsTr('Fee rate')
+                    text: qsTr('New fee rate')
                     color: Material.accentColor
                 }
 

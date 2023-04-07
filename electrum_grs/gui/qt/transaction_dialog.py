@@ -246,7 +246,9 @@ class TxInOutWidget(QWidget):
         tx_height, tx_pos = None, None
         tx_hash = self.tx.txid()
         if tx_hash:
-            tx_height, tx_pos = self.wallet.adb.get_txpos(tx_hash)
+            tx_mined_info = self.wallet.adb.get_tx_height(tx_hash)
+            tx_height = tx_mined_info.height
+            tx_pos = tx_mined_info.txpos
         cursor = o_text.textCursor()
         for txout_idx, o in enumerate(self.tx.outputs()):
             if tx_height is not None and tx_pos is not None and tx_pos >= 0:

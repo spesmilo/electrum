@@ -587,7 +587,7 @@ class QEInvoiceParser(QEInvoice):
             except Exception as e:
                 self.validationError.emit('lnurl', repr(e))
 
-        threading.Thread(target=resolve_task).start()
+        threading.Thread(target=resolve_task, daemon=True).start()
 
     def on_lnurl(self, lnurldata):
         self._logger.debug('on_lnurl')
@@ -635,7 +635,7 @@ class QEInvoiceParser(QEInvoice):
                 self._logger.error(repr(e))
                 self.lnurlError.emit('lnurl', str(e))
 
-        threading.Thread(target=fetch_invoice_task).start()
+        threading.Thread(target=fetch_invoice_task, daemon=True).start()
 
     def on_lnurl_invoice(self, orig_amount, invoice):
         self._logger.debug('on_lnurl_invoice')

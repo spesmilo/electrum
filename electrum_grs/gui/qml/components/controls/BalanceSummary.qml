@@ -53,8 +53,6 @@ Item {
 
             Item {
                 visible: Daemon.fx.enabled
-                // attempt at making fiat state as tall as btc state:
-                Layout.preferredHeight: fontMetrics.lineSpacing * 2 + balanceLayout.rowSpacing + 2
                 Layout.preferredWidth: 1
             }
             Label {
@@ -73,6 +71,7 @@ Item {
             }
 
             RowLayout {
+                Layout.alignment: Qt.AlignRight
                 visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
@@ -99,6 +98,7 @@ Item {
             }
 
             RowLayout {
+                Layout.alignment: Qt.AlignRight
                 visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall

@@ -10,9 +10,10 @@ def auth_protect(func=None, reject=None, method='pin'):
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        self._logger.debug(str(self))
+        _logger = get_logger(__name__)
+        _logger.debug(f'{str(self)}.{func.__name__}')
         if hasattr(self, '__auth_fcall'):
-            self._logger.debug('object already has a pending authed function call')
+            _logger.debug('object already has a pending authed function call')
             raise Exception('object already has a pending authed function call')
         setattr(self, '__auth_fcall', (func,args,kwargs,reject))
         getattr(self, 'authRequired').emit(method)

@@ -55,12 +55,10 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         if adb != self.wallet.adb:
             return
         self._logger.debug(f'adb_set_future_tx event for txid {txid}')
-        i = 0
-        for item in self.tx_history:
+        for i, item in enumerate(self.tx_history):
             if 'txid' in item and item['txid'] == txid:
                 self._update_future_txitem(i)
                 return
-            i = i + 1
 
     def rowCount(self, index):
         return len(self.tx_history)
@@ -193,8 +191,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self._dirty = False
 
     def on_tx_verified(self, txid, info):
-        i = 0
-        for tx in self.tx_history:
+        for i, tx in enumerate(self.tx_history):
             if 'txid' in tx and tx['txid'] == txid:
                 tx['height'] = info.height
                 tx['confirmations'] = info.conf
@@ -205,7 +202,6 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                 roles = [self._ROLE_RMAP[x] for x in ['section','height','confirmations','timestamp','date']]
                 self.dataChanged.emit(index, index, roles)
                 return
-            i = i + 1
 
     def _update_future_txitem(self, tx_item_idx: int):
         tx_item = self.tx_history[tx_item_idx]
@@ -219,6 +215,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         txinfo = self.wallet.get_tx_info(tx)
         status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
         tx_item['date'] = status_str
+        # note: if the height changes, that might affect the history order, but we won't re-sort now.
         tx_item['height'] = self.wallet.adb.get_tx_height(txid).height
         index = self.index(tx_item_idx, 0)
         roles = [self._ROLE_RMAP[x] for x in ['height', 'date']]
@@ -226,20 +223,17 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
     @pyqtSlot(str, str)
     def update_tx_label(self, key, label):
-        i = 0
-        for tx in self.tx_history:
+        for i, tx in enumerate(self.tx_history):
             if tx['key'] == key:
                 tx['label'] = label
                 index = self.index(i,0)
                 self.dataChanged.emit(index, index, [self._ROLE_RMAP['label']])
                 return
-            i = i + 1
 
     @pyqtSlot(int)
     def updateBlockchainHeight(self, height):
         self._logger.debug('updating height to %d' % height)
-        i = 0
-        for tx_item in self.tx_history:
+        for i, tx_item in enumerate(self.tx_history):
             if 'height' in tx_item:
                 if tx_item['height'] > 0:
                     tx_item['confirmations'] = height - tx_item['height'] + 1
@@ -248,4 +242,21 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                     self.dataChanged.emit(index, index, roles)
                 elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
                     self._update_future_txitem(i)
-            i = i + 1
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, histogram):
+        self._logger.debug(f'fee histogram updated')
+        for i, tx_item in enumerate(self.tx_history):
+            if 'height' not in tx_item:  # filter to on-chain
+                continue
+            if tx_item['confirmations'] > 0:  # filter out already mined
+                continue
+            txid = tx_item['txid']
+            tx = self.wallet.db.get_transaction(txid)
+            assert tx is not None
+            txinfo = self.wallet.get_tx_info(tx)
+            status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
+            tx_item['date'] = status_str
+            index = self.index(i, 0)
+            roles = [self._ROLE_RMAP['date']]
+            self.dataChanged.emit(index, index, roles)

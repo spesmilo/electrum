@@ -105,8 +105,10 @@ class UTXODialog(WindowModalDialog):
         def print_ascii_tree(_txid, prefix, is_last, is_uncle):
             if _txid not in parents:
                 return
-            tx_height, tx_pos = self.wallet.adb.get_txpos(_txid)
-            key = "%dx%d"%(tx_height, tx_pos) if tx_pos >= 0 else _txid[0:8]
+            tx_mined_info = self.wallet.adb.get_tx_height(_txid)
+            tx_height = tx_mined_info.height
+            tx_pos = tx_mined_info.txpos
+            key = "%dx%d"%(tx_height, tx_pos) if tx_pos is not None else _txid[0:8]
             label = self.wallet.get_label_for_txid(_txid) or ""
             if _txid not in parents_copy:
                 label = '[duplicate]'

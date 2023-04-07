@@ -73,7 +73,7 @@ from .transaction import (Transaction, TxInput, UnknownTxinType, TxOutput,
                           PartialTransaction, PartialTxInput, PartialTxOutput, TxOutpoint)
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
-                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE)
+                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE, TX_TIMESTAMP_INF)
 from .invoices import BaseInvoice, Invoice, Request
 from .invoices import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, PR_UNCONFIRMED, PR_INFLIGHT
 from .contacts import Contacts
@@ -1011,7 +1011,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             domain = self.get_addresses()
         monotonic_timestamp = 0
         for hist_item in self.adb.get_history(domain=domain):
-            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or 999_999_999_999))
+            monotonic_timestamp = max(monotonic_timestamp, (hist_item.tx_mined_status.timestamp or TX_TIMESTAMP_INF))
             d = {
                 'txid': hist_item.txid,
                 'fee_sat': hist_item.fee,
@@ -1241,9 +1241,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             transactions_tmp[key] = tx_item
         # sort on-chain and LN stuff into new dict, by timestamp
         # (we rely on this being a *stable* sort)
+        def sort_key(x):
+            txid, tx_item = x
+            ts = tx_item.get('monotonic_timestamp') or tx_item.get('timestamp') or float('inf')
+            height = self.adb.tx_height_to_sort_height(tx_item.get('height'))
+            return ts, height
         transactions = OrderedDictWithIndex()
-        for k, v in sorted(list(transactions_tmp.items()),
-                           key=lambda x: x[1].get('monotonic_timestamp') or x[1].get('timestamp') or float('inf')):
+        for k, v in sorted(list(transactions_tmp.items()), key=sort_key):
             transactions[k] = v
         now = time.time()
         balance = 0
@@ -2314,6 +2318,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._add_txinout_derivation_info(txout, address, only_der_suffix=only_der_suffix)
 
     def sign_transaction(self, tx: Transaction, password) -> Optional[PartialTransaction]:
+        """ returns tx if successful else None """
         if self.is_watching_only():
             return
         if not isinstance(tx, PartialTransaction):
@@ -2322,7 +2327,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         swap = self.get_swap_by_claim_tx(tx)
         if swap:
             self.lnworker.swap_manager.sign_tx(tx, swap)
-            return
+            return tx
         # add info to a temporary tx copy; including xpubs
         # and full derivation paths as hw keystores might want them
         tmp_tx = copy.deepcopy(tx)
@@ -3074,7 +3079,7 @@ class Imported_Wallet(Simple_Wallet):
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
             for addr in self.db.get_history():
-                details = self.adb.get_address_history(addr)
+                details = self.adb.get_address_history(addr).items()
                 if addr == address:
                     for tx_hash, height in details:
                         transactions_to_remove.add(tx_hash)

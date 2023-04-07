@@ -50,6 +50,9 @@ TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
 
+TX_TIMESTAMP_INF = 999_999_999_999
+TX_HEIGHT_INF = 10 ** 9
+
 
 class HistoryItem(NamedTuple):
     txid: str
@@ -116,21 +119,21 @@ class AddressSynchronizer(Logger, EventListener):
     def get_addresses(self):
         return sorted(self.db.get_history())
 
-    def get_address_history(self, addr: str) -> Sequence[Tuple[str, int]]:
-        """Returns the history for the address, in the format that would be returned by a server.
+    def get_address_history(self, addr: str) -> Dict[str, int]:
+        """Returns the history for the address, as a txid->height dict.
+        In addition to what we have from the server, this includes local and future txns.
 
-        Note: The difference between db.get_addr_history and this method is that
-        db.get_addr_history stores the response from a server, so it only includes txns
-        a server sees, i.e. that does not contain local and future txns.
+        Also see related method db.get_addr_history, which stores the response from the server,
+        so that only includes txns the server sees.
         """
-        h = []
+        h = {}
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
             related_txns = self._history_local.get(addr, set())
             for tx_hash in related_txns:
                 tx_height = self.get_tx_height(tx_hash).height
-                h.append((tx_hash, tx_height))
+                h[tx_hash] = tx_height
         return h
 
     def get_address_history_len(self, addr: str) -> int:
@@ -244,12 +247,11 @@ class AddressSynchronizer(Logger, EventListener):
     def get_transaction(self, txid: str) -> Optional[Transaction]:
         tx = self.db.get_transaction(txid)
         if tx:
-            # add verified tx info
             tx.deserialize()
             for txin in tx._inputs:
-                tx_height, tx_pos = self.get_txpos(txin.prevout.txid.hex())
-                txin.block_height = tx_height
-                txin.block_txpos = tx_pos
+                tx_mined_info = self.get_tx_height(txin.prevout.txid.hex())
+                txin.block_height = tx_mined_info.height  # not SPV-ed
+                txin.block_txpos = tx_mined_info.txpos
         return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
@@ -419,7 +421,7 @@ class AddressSynchronizer(Logger, EventListener):
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
-            for tx_hash, height in old_hist:
+            for tx_hash, height in old_hist.items():
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
@@ -437,6 +439,10 @@ class AddressSynchronizer(Logger, EventListener):
             if tx is None:
                 continue
             self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            # if we already had this tx, see if its height changed (e.g. local->unconfirmed)
+            old_height = old_hist.get(tx_hash, None)
+            if old_height is not None and old_height != tx_height:
+                util.trigger_callback('adb_tx_height_changed', self, tx_hash, old_height, tx_height)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
@@ -477,26 +483,29 @@ class AddressSynchronizer(Logger, EventListener):
                 self._history_local.clear()
                 self._get_balance_cache.clear()  # invalidate cache
 
-    def get_txpos(self, tx_hash: str) -> Tuple[int, int]:
-        """Returns (height, txpos) tuple, even if the tx is unverified."""
+    def _get_tx_sort_key(self, tx_hash: str) -> Tuple[int, int]:
+        """Returns a key to be used for sorting txs."""
         with self.lock:
-            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
-            if verified_tx_mined_info:
-                height = verified_tx_mined_info.height
-                txpos = verified_tx_mined_info.txpos
-                assert height > 0, height
-                assert txpos is not None
-                return height, txpos
-            elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                assert height > 0, height
-                return height, -1
-            elif tx_hash in self.unconfirmed_tx:
-                height = self.unconfirmed_tx[tx_hash]
-                assert height <= 0, height
-                return (10**9 - height), -1
-            else:
-                return (10**9 + 1), -1
+            tx_mined_info = self.get_tx_height(tx_hash)
+            height = self.tx_height_to_sort_height(tx_mined_info.height)
+            txpos = tx_mined_info.txpos or -1
+            return height, txpos
+
+    @classmethod
+    def tx_height_to_sort_height(cls, height: int = None):
+        """Return a height-like value to be used for sorting txs."""
+        if height is not None:
+            if height > 0:
+                return height
+            if height == TX_HEIGHT_UNCONFIRMED:
+                return TX_HEIGHT_INF
+            if height == TX_HEIGHT_UNCONF_PARENT:
+                return TX_HEIGHT_INF + 1
+            if height == TX_HEIGHT_FUTURE:
+                return TX_HEIGHT_INF + 2
+            if height == TX_HEIGHT_LOCAL:
+                return TX_HEIGHT_INF + 3
+        return TX_HEIGHT_INF + 100
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -519,7 +528,7 @@ class AddressSynchronizer(Logger, EventListener):
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)  # type: Dict[str, int]
         for addr in domain:
-            h = self.get_address_history(addr)
+            h = self.get_address_history(addr).items()
             for tx_hash, height in h:
                 tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, addr)
         # 2. create sorted history
@@ -529,7 +538,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self.get_txpos(x[0]))
+        history.sort(key = lambda x: self._get_tx_sort_key(x[0]))
         # 3. add balance
         h2 = []
         balance = 0
@@ -779,17 +788,18 @@ class AddressSynchronizer(Logger, EventListener):
 
     def get_addr_io(self, address):
         with self.lock, self.transaction_lock:
-            h = self.get_address_history(address)
+            h = self.get_address_history(address).items()
             received = {}
             sent = {}
             for tx_hash, height in h:
-                hh, pos = self.get_txpos(tx_hash)
+                tx_mined_info = self.get_tx_height(tx_hash)
+                txpos = tx_mined_info.txpos if tx_mined_info.txpos is not None else -1
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
-                    received[tx_hash + ':%d'%n] = (height, pos, v, is_cb)
+                    received[tx_hash + ':%d'%n] = (height, txpos, v, is_cb)
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = tx_hash, height, pos
+                    sent[txi] = tx_hash, height, txpos
         return received, sent
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:

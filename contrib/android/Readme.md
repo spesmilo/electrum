@@ -126,11 +126,20 @@ and [android dev docs](https://developer.android.com/studio/build/building-cmdli
 Note that this only works for debug builds! Otherwise the security model
 of Android does not let you access the internal storage of an app without root.
 (See [this](https://stackoverflow.com/q/9017073))
+To pull a file:
 ```
 $ adb shell
-$ run-as org.groestlcoin.electrumgrs ls /data/data/org.groestlcoin.electrumgrs/files/data
-$ exit  # to exit adb
+adb$ run-as org.groestlcoin.electrumgrs ls /data/data/org.groestlcoin.electrumgrs/files/data
+adb$ exit
 $ adb exec-out run-as org.groestlcoin.electrumgrs cat /data/data/org.groestlcoin.electrumgrs/files/data/wallets/my_wallet > my_wallet
+```
+To push a file:
+```
+$ adb push ~/wspace/tmp/my_wallet /data/local/tmp
+$ adb shell
+adb$ ls -la /data/local/tmp
+adb$ run-as org.groestlcoin.testnet.electrumgrs cp /data/local/tmp/my_wallet /data/data/org.groestlcoin.testnet.electrumgrs/files/data/testnet/wallets/
+adb$ rm /data/local/tmp/my_wallet
 ```
 
 Or use Android Studio: "Device File Explorer", which can download/upload data directly from device (via adb).

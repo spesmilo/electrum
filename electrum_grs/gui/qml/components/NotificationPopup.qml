@@ -54,7 +54,7 @@ Item {
 
             RowLayout {
                 Layout.margins: constants.paddingLarge
-                spacing: constants.paddingSizeSmall
+                spacing: constants.paddingSmall
 
                 Image {
                     source: '../../icons/info.png'

@@ -521,8 +521,4 @@ Pane {
         }
     }
 
-    Component.onCompleted: {
-        piechart.updateSlices()
-    }
-
 }

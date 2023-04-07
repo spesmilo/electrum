@@ -265,7 +265,7 @@ class QEAppController(BaseCrashReporter, QObject):
                 self.sendingBugreportSuccess.emit(text)
 
         self.sendingBugreport.emit()
-        threading.Thread(target=report_task).start()
+        threading.Thread(target=report_task, daemon=True).start()
 
     @pyqtSlot()
     def showNever(self):
@@ -293,7 +293,7 @@ class QEAppController(BaseCrashReporter, QObject):
     def haptic(self):
         if not self.isAndroid():
             return
-        jview.performHapticFeedback(jHfc.CONFIRM)
+        jview.performHapticFeedback(jHfc.VIRTUAL_KEY)
 
 
 class ElectrumQmlApplication(QGuiApplication):

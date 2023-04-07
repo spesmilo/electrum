@@ -29,11 +29,12 @@ ItemDelegate {
         }
 
         Item {
-            Layout.preferredWidth: constants.iconSizeSmall
-            Layout.preferredHeight: constants.iconSizeSmall
-            Label {
-                text: '❤'
-                anchors.centerIn: parent
+            Layout.preferredWidth: constants.iconSizeMedium
+            Layout.preferredHeight: constants.iconSizeMedium
+            Image {
+                source: '../../../icons/chevron-right.png'
+                width: constants.iconSizeMedium
+                height: constants.iconSizeMedium
                 visible: model.is_primary
             }
         }

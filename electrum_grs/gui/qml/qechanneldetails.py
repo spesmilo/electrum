@@ -194,7 +194,7 @@ class QEChannelDetails(QObject, QtEventListener):
                 self._logger.exception("Could not close channel: " + repr(e))
                 self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
 
-        threading.Thread(target=do_close).start()
+        threading.Thread(target=do_close, daemon=True).start()
 
     @pyqtSlot()
     def deleteChannel(self):

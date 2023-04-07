@@ -181,8 +181,14 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self._logger.info(f'new transaction {tx.txid()}')
             self.add_tx_notification(tx)
             self.addressModel.setDirty()
-            self.historyModel.setDirty() # assuming wallet.is_up_to_date triggers after
+            self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
             self.balanceChanged.emit()
+
+    @qt_event_listener
+    def on_event_adb_tx_height_changed(self, adb, txid, old_height, new_height):
+        if adb == self.wallet.adb:
+            self._logger.info(f'tx_height_changed {txid}. {old_height} -> {new_height}')
+            self.historyModel.setDirty()  # assuming wallet.is_up_to_date triggers after
 
     @qt_event_listener
     def on_event_removed_transaction(self, wallet, tx):
@@ -739,3 +745,16 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         tx = self.wallet.db.get_transaction(txid)
         txqr = tx.to_qr_data()
         return [str(tx), txqr[0], txqr[1]]
+
+    @pyqtSlot(result='QVariantMap')
+    def getBalancesForPiechart(self):
+        confirmed, unconfirmed, unmatured, frozen, lightning, f_lightning = balances = self.wallet.get_balances_for_piechart()
+        return {
+            'confirmed': confirmed,
+            'unconfirmed': unconfirmed,
+            'unmatured': unmatured,
+            'frozen': frozen,
+            'lightning': int(lightning),
+            'f_lightning': int(f_lightning),
+            'total': sum([int(x) for x in list(balances)])
+        }

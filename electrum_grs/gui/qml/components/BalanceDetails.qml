@@ -56,14 +56,21 @@ Pane {
                         implicitHeight: 220 // TODO: sane value dependent on screen
                         innerOffset: 6
                         function updateSlices() {
-                            var totalB = Daemon.currentWallet.totalBalance.satsInt
-                            var onchainB = Daemon.currentWallet.confirmedBalance.satsInt
-                            var frozenB = Daemon.currentWallet.frozenBalance.satsInt
-                            var lnB = Daemon.currentWallet.lightningBalance.satsInt
+                            var p = Daemon.currentWallet.getBalancesForPiechart()
+                            var total = p['total']
                             piechart.slices = [
-                                { v: lnB/totalB, color: constants.colorPiechartLightning, text: 'Lightning' },
-                                { v: (onchainB-frozenB)/totalB, color: constants.colorPiechartOnchain, text: 'On-chain' },
-                                { v: frozenB/totalB, color: constants.colorPiechartFrozen, text: 'On-chain (frozen)' },
+                                { v: p['lightning']/total,
+                                    color: constants.colorPiechartLightning, text: qsTr('Lightning') },
+                                { v: p['confirmed']/total,
+                                    color: constants.colorPiechartOnchain, text: qsTr('On-chain') },
+                                { v: p['frozen']/total,
+                                    color: constants.colorPiechartFrozen, text: qsTr('On-chain (frozen)') },
+                                { v: p['unconfirmed']/total,
+                                    color: constants.colorPiechartUnconfirmed, text: qsTr('Unconfirmed') },
+                                { v: p['unmatured']/total,
+                                    color: constants.colorPiechartUnmatured, text: qsTr('Unmatured') },
+                                { v: p['f_lightning']/total,
+                                    color: constants.colorPiechartLightningFrozen, text: qsTr('Frozen Lightning') },
                             ]
                         }
                     }
@@ -154,7 +161,7 @@ Pane {
                 }
             }
         }
-	
+
         ButtonContainer {
             Layout.fillWidth: true
             FlatButton {
