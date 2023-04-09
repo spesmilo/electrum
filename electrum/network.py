@@ -425,7 +425,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def _set_status(self, status):
         self.connection_status = status
-        self.notify('status')
+        util.trigger_callback('status')
 
     def is_connected(self):
         interface = self.interface
@@ -440,7 +440,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         async def get_banner():
             self.banner = await interface.get_server_banner()
-            self.notify('banner')
+            util.trigger_callback('banner', self.banner)
         async def get_donation_address():
             self.donation_address = await interface.get_donation_address()
         async def get_server_peers():
@@ -450,7 +450,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             server_peers = server_peers[:max_accepted_peers]
             # note that 'parse_servers' also validates the data (which is untrusted input!)
             self.server_peers = parse_servers(server_peers)
-            self.notify('servers')
+            util.trigger_callback('servers', self.get_servers())
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 
@@ -466,28 +466,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         histogram = await interface.get_fee_histogram()
         self.config.mempool_fees = histogram
         self.logger.info(f'fee_histogram {histogram}')
-        self.notify('fee_histogram')
-
-    def get_status_value(self, key):
-        if key == 'status':
-            value = self.connection_status
-        elif key == 'banner':
-            value = self.banner
-        elif key == 'fee':
-            value = self.config.fee_estimates
-        elif key == 'fee_histogram':
-            value = self.config.mempool_fees
-        elif key == 'servers':
-            value = self.get_servers()
-        else:
-            raise Exception('unexpected trigger key {}'.format(key))
-        return value
-
-    def notify(self, key):
-        if key in ['status', 'updated']:
-            util.trigger_callback(key)
-        else:
-            util.trigger_callback(key, self.get_status_value(key))
+        util.trigger_callback('fee_histogram', self.config.mempool_fees)
 
     def get_parameters(self) -> NetworkParameters:
         return NetworkParameters(server=self.default_server,
@@ -539,7 +518,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if not hasattr(self, "_prev_fee_est") or self._prev_fee_est != fee_est:
             self._prev_fee_est = copy.copy(fee_est)
             self.logger.info(f'fee_estimates {fee_est}')
-        self.notify('fee')
+        util.trigger_callback('fee', self.config.fee_estimates)
 
     @with_recent_servers_lock
     def get_servers(self):
