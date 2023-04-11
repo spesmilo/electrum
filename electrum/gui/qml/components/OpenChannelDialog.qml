@@ -202,7 +202,7 @@ ElDialog {
             var dialog = confirmOpenChannelDialog.createObject(app, {
                 'satoshis': channelopener.amount
             })
-            dialog.txaccepted.connect(function() {
+            dialog.accepted.connect(function() {
                 dialog.finalizer.signAndSend()
             })
             dialog.open()

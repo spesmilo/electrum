@@ -17,9 +17,6 @@ ElDialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
-    signal txcancelled
-    signal txaccepted
-
     title: qsTr('Confirm Transaction')
 
     // copy these to finalizer
@@ -223,12 +220,9 @@ ElDialog {
                     : qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
-    onClosed: txcancelled()
+    onClosed: doReject()
 }

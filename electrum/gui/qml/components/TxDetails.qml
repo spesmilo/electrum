@@ -440,7 +440,7 @@ Pane {
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
-            onTxaccepted: {
+            onAccepted: {
                 root.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.sign_and_broadcast()
@@ -465,7 +465,7 @@ Pane {
                 txid: dialog.txid
             }
 
-            onTxaccepted: {
+            onAccepted: {
                 // replaces parent tx with cpfp tx
                 root.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
@@ -491,7 +491,7 @@ Pane {
                 txid: dialog.txid
             }
 
-            onTxaccepted: {
+            onAccepted: {
                 root.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.sign_and_broadcast()
