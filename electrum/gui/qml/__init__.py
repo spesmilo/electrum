@@ -19,7 +19,7 @@ from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTranslator, Q
                           QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt5.QtGui import QGuiApplication
 
-from electrum.i18n import set_language, languages, language
+from electrum.i18n import _, set_language, languages
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
@@ -33,15 +33,16 @@ if TYPE_CHECKING:
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
 
+if 'ANDROID_DATA' in os.environ:
+    from jnius import autoclass, cast
+    jLocale = autoclass("java.util.Locale")
+
 class ElectrumTranslator(QTranslator):
     def __init__(self, parent=None):
         super().__init__(parent)
 
     def translate(self, context, source_text, disambiguation, n):
-        if source_text == "":
-            return ""
-        return language.gettext(source_text)
-
+        return _(source_text)
 
 class ElectrumGui(BaseElectrumGui, Logger):
 
@@ -49,7 +50,12 @@ class ElectrumGui(BaseElectrumGui, Logger):
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
-        set_language(config.get('language', self.get_default_language()))
+
+        lang = config.get('language','')
+        if not lang:
+            lang = self.get_default_language()
+        self.logger.info(f'setting language {lang}')
+        set_language(lang)
 
         # uncomment to debug plugin and import tracing
         # os.environ['QML_IMPORT_TRACE'] = '1'
@@ -117,8 +123,10 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.app.quit()
 
     def get_default_language(self):
-        # On Android this does not return the system locale
-        # TODO: retrieve through Android API
-        name = QLocale.system().name()
-        self.logger.debug(f'System default locale: {name}')
+        # On Android QLocale does not return the system locale
+        try:
+            name = str(jLocale.getDefault().toString())
+        except Exception:
+            name = QLocale.system().name()
+        self.logger.info(f'System default locale: {name}')
         return name if name in languages else 'en_GB'
