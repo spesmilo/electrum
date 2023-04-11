@@ -16,8 +16,6 @@ ElDialog {
     property alias text: message.text
     property bool richText: false
 
-    signal yesClicked
-
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
     anchors.centerIn: parent
@@ -49,7 +47,7 @@ ElDialog {
                 text: qsTr('Ok')
                 icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: !yesno
-                onClicked: dialog.close()
+                onClicked: accept()
             }
 
             FlatButton {
@@ -59,10 +57,7 @@ ElDialog {
                 text: qsTr('Yes')
                 icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: yesno
-                onClicked: {
-                    yesClicked()
-                    dialog.close()
-                }
+                onClicked: accept()
             }
             FlatButton {
                 Layout.fillWidth: true
@@ -71,10 +66,7 @@ ElDialog {
                 text: qsTr('No')
                 icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
                 visible: yesno
-                onClicked: {
-                    reject()
-                    dialog.close()
-                }
+                onClicked: reject()
             }
         }
     }

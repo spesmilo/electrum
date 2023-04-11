@@ -258,7 +258,7 @@ Pane {
                                             text: qsTr('Using plain gossip mode is not recommended on mobile. Are you sure?'),
                                             yesno: true
                                         })
-                                        dialog.yesClicked.connect(function() {
+                                        dialog.accepted.connect(function() {
                                             Config.useGossip = true
                                         })
                                         dialog.rejected.connect(function() {
