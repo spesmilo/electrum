@@ -57,10 +57,10 @@ Pane {
                         Layout.bottomMargin: constants.paddingLarge
                         visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel || txdetails.canRemove
                         text: txdetails.canRemove
-			   ? qsTr('This transaction is local to your wallet. It has not been published yet.')
-			   : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                               ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
-                               : qsTr('You can bump its fee to speed up its confirmation'))
+                            ? qsTr('This transaction is local to your wallet. It has not been published yet.')
+                            : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
+                                ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
+                                : qsTr('You can bump its fee to speed up its confirmation'))
                     }
 
                     RowLayout {

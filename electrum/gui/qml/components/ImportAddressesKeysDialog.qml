@@ -104,7 +104,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Import')
             enabled: valid
-            onClicked: accept()
+            onClicked: doAccept()
         }
     }
 

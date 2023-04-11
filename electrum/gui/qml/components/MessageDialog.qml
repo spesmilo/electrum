@@ -47,7 +47,7 @@ ElDialog {
                 text: qsTr('Ok')
                 icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: !yesno
-                onClicked: accept()
+                onClicked: doAccept()
             }
 
             FlatButton {
@@ -57,7 +57,7 @@ ElDialog {
                 text: qsTr('Yes')
                 icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: yesno
-                onClicked: accept()
+                onClicked: doAccept()
             }
             FlatButton {
                 Layout.fillWidth: true
@@ -66,7 +66,7 @@ ElDialog {
                 text: qsTr('No')
                 icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
                 visible: yesno
-                onClicked: reject()
+                onClicked: doReject()
             }
         }
     }

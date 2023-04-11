@@ -73,7 +73,7 @@ ElDialog {
             enabled: confirmPassword ? pw_1.text.length >= 6 && pw_1.text == pw_2.text : true
             onClicked: {
                 password = pw_1.text
-                passworddialog.accept()
+                passworddialog.doAccept()
             }
         }
     }

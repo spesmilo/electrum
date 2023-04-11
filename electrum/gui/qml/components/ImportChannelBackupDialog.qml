@@ -23,6 +23,10 @@ ElDialog {
         return valid = Daemon.currentWallet.isValidChannelBackup(text)
     }
 
+    onAccepted: {
+        Daemon.currentWallet.importChannelBackup(channelbackup_ta.text)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -84,10 +88,7 @@ ElDialog {
             Layout.fillWidth: true
             enabled: valid
             text: qsTr('Import')
-            onClicked: {
-                Daemon.currentWallet.importChannelBackup(channelbackup_ta.text)
-                root.accept()
-            }
+            onClicked: doAccept()
         }
     }
 
