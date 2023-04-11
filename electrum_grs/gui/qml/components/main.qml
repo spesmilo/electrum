@@ -382,8 +382,7 @@ ApplicationWindow
             wallet: Daemon.currentWallet
             onConfirm: {
                 var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-                dialog.yesClicked.connect(function() {
-                    dialog.close()
+                dialog.accepted.connect(function() {
                     __swaphelper.executeSwap(true)
                 })
                 dialog.open()
@@ -459,8 +458,7 @@ ApplicationWindow
                     text: qsTr('Close Electrum?'),
                     yesno: true
                 })
-                dialog.yesClicked.connect(function() {
-                    dialog.close()
+                dialog.accepted.connect(function() {
                     app._wantClose = true
                     app.close()
                 })

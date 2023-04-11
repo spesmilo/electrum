@@ -194,7 +194,7 @@ ElDialog {
         onConflictingBackup: {
             var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
             dialog.open()
-            dialog.yesClicked.connect(function() {
+            dialog.accepted.connect(function() {
                 channelopener.open_channel(true)
             })
         }

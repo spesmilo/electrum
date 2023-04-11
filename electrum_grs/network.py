@@ -425,7 +425,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def _set_status(self, status):
         self.connection_status = status
-        util.trigger_callback('status', self.connection_status)
+        util.trigger_callback('status')
 
     def is_connected(self):
         interface = self.interface

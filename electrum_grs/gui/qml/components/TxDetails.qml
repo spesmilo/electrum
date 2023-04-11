@@ -400,8 +400,7 @@ Pane {
         onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
-            dialog.yesClicked.connect(function() {
-                dialog.close()
+            dialog.accepted.connect(function() {
                 txdetails.removeLocalTx(true)
                 root.close()
             })

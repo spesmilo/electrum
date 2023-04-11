@@ -372,7 +372,7 @@ Item {
                     text: qsTr('Import Channel backup?'),
                     yesno: true
                 })
-                dialog.yesClicked.connect(function() {
+                dialog.accepted.connect(function() {
                     Daemon.currentWallet.importChannelBackup(data)
                     close()
                 })

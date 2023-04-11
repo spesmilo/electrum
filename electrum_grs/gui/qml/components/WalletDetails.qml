@@ -18,7 +18,7 @@ Pane {
     function enableLightning() {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
+        dialog.accepted.connect(function() {
             Daemon.currentWallet.enableLightning()
         })
         dialog.open()
@@ -27,7 +27,7 @@ Pane {
     function deleteWallet() {
         var dialog = app.messageDialog.createObject(rootItem,
                 {'text': qsTr('Really delete this wallet?'), 'yesno': true})
-        dialog.yesClicked.connect(function() {
+        dialog.accepted.connect(function() {
             Daemon.checkThenDeleteWallet(Daemon.currentWallet)
         })
         dialog.open()
@@ -476,13 +476,13 @@ Pane {
         function onWalletDeleteError(code, message) {
             if (code == 'unpaid_requests') {
                 var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
-                dialog.yesClicked.connect(function() {
+                dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true)
                 })
                 dialog.open()
             } else if (code == 'balance') {
                 var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
-                dialog.yesClicked.connect(function() {
+                dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true, true)
                 })
                 dialog.open()

@@ -249,7 +249,7 @@ Pane {
                                 : qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
                         yesno: true
                     })
-                    dialog.yesClicked.connect(function() {
+                    dialog.accepted.connect(function() {
                         channeldetails.deleteChannel()
                         app.stack.pop()
                         Daemon.currentWallet.historyModel.init_model(true) // needed here?
