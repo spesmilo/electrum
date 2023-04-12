@@ -70,7 +70,6 @@ class PayServerPlugin(BasePlugin):
         if view_url := self.view_url(key):
             d['view_url'] = view_url
 
-
 class PayServer(Logger, EventListener):
 
     WWW_DIR = os.path.join(os.path.dirname(__file__), 'www')
