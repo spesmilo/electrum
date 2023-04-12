@@ -14,8 +14,9 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
 from .qewallet import QEWallet
+from .util import QtEventListener, qt_event_listener
 
-class QESwapHelper(AuthMixin, QObject):
+class QESwapHelper(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     confirm = pyqtSignal([str], arguments=['message'])
@@ -52,11 +53,13 @@ class QESwapHelper(AuthMixin, QObject):
         self._leftVoid = 0
         self._rightVoid = 0
 
+        self.register_callbacks()
+        self.destroyed.connect(self.unregister_callbacks)
+
         self._fwd_swap_updatetx_timer = QTimer(self)
         self._fwd_swap_updatetx_timer.setSingleShot(True)
         # self._fwd_swap_updatetx_timer.setInterval(500)
         self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
-
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -280,6 +283,14 @@ class QESwapHelper(AuthMixin, QObject):
         except (NotEnoughFunds, NoDynamicFeeEstimates):
             self._tx = None
             self.valid = False
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, *args):
+        self.swap_slider_moved()
+
+    @qt_event_listener
+    def on_event_fee(self, *args):
+        self.swap_slider_moved()
 
     def swap_slider_moved(self):
         if not self._service_available:

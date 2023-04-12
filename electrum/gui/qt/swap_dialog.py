@@ -12,6 +12,7 @@ from electrum.gui import messages
 from . import util
 from .util import (WindowModalDialog, Buttons, OkButton, CancelButton,
                    EnterButton, ColorScheme, WWLabel, read_QIcon, IconLabel, char_width_in_lineedit)
+from .util import qt_event_listener, QtEventListener
 from .amountedit import BTCAmountEdit
 from .fee_slider import FeeSlider, FeeComboBox
 from .my_treeview import create_toolbar_with_menu
@@ -27,7 +28,7 @@ Do you want to continue?
 """
 
 
-class SwapDialog(WindowModalDialog):
+class SwapDialog(WindowModalDialog, QtEventListener):
 
     tx: Optional[PartialTransaction]
 
@@ -103,6 +104,21 @@ class SwapDialog(WindowModalDialog):
         self.update()
         self.needs_tx_update = True
         self.window.gui_object.timer.timeout.connect(self.timer_actions)
+        self.register_callbacks()
+
+    def closeEvent(self, event):
+        self.unregister_callbacks()
+        event.accept()
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, *args):
+        self.on_send_edited()
+        self.on_recv_edited()
+
+    @qt_event_listener
+    def on_event_fee(self, *args):
+        self.on_send_edited()
+        self.on_recv_edited()
 
     def timer_actions(self):
         if self.needs_tx_update:

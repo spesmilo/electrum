@@ -55,6 +55,7 @@ class QENetwork(QObject, QtEventListener):
         self._height = network.get_local_height()  # init here, update event can take a while
         self._server_height = network.get_server_height()  # init here, update event can take a while
         self.register_callbacks()
+        self.destroyed.connect(self.unregister_callbacks)
 
         self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
 
