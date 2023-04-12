@@ -359,12 +359,16 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.swapStarted.emit()
                 txid = fut.result()
-                self.swapSuccess.emit()
+                try: # swaphelper might be destroyed at this point
+                    self.swapSuccess.emit()
+                except RuntimeError:
+                    pass
             except Exception as e:
-                self._logger.error(str(e))
-                self.swapFailed.emit(str(e))
-            finally:
-                self.deleteLater()
+                try: # swaphelper might be destroyed at this point
+                    self._logger.error(str(e))
+                    self.swapFailed.emit(str(e))
+                except RuntimeError:
+                    pass
 
         threading.Thread(target=swap_task, daemon=True).start()
 
@@ -383,15 +387,19 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.swapStarted.emit()
                 success = fut.result()
-                if success:
-                    self.swapSuccess.emit()
-                else:
-                    self.swapFailed.emit('')
+                try: # swaphelper might be destroyed at this point
+                    if success:
+                        self.swapSuccess.emit()
+                    else:
+                        self.swapFailed.emit('')
+                except RuntimeError:
+                    pass
             except Exception as e:
-                self._logger.error(str(e))
-                self.swapFailed.emit(str(e))
-            finally:
-                self.deleteLater()
+                try: # swaphelper might be destroyed at this point
+                    self._logger.error(str(e))
+                    self.swapFailed.emit(str(e))
+                except RuntimeError:
+                    pass
 
         threading.Thread(target=swap_task, daemon=True).start()
 

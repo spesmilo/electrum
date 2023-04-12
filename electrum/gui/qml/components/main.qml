@@ -365,7 +365,10 @@ ApplicationWindow
     Component {
         id: swapDialog
         SwapDialog {
-            onClosed: destroy()
+            onClosed: {
+                swaphelper.destroy()
+                destroy()
+            }
         }
     }
 
