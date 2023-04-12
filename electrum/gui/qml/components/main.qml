@@ -362,6 +362,21 @@ ApplicationWindow
         id: _channelOpenProgressDialog
     }
 
+    Component {
+        id: swapDialog
+        SwapDialog {
+            onClosed: destroy()
+        }
+    }
+
+    Component {
+        id: swapProgressDialog
+        SwapProgressDialog {
+            onClosed: destroy()
+        }
+    }
+
+
     NotificationPopup {
         id: notificationPopup
         width: parent.width
@@ -570,6 +585,17 @@ ApplicationWindow
             console.log('unknown auth method ' + method)
             qtobject.authCancel()
         }
+    }
+
+    function startSwap() {
+        var swaphelper = app.swaphelper.createObject(app)
+        var swapdialog = swapDialog.createObject(app, { swaphelper: swaphelper })
+        swaphelper.swapStarted.connect(function() {
+            swapdialog.close()
+            var progressdialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+            progressdialog.open()
+        })
+        swapdialog.open()
     }
 
     property var _lastActive: 0 // record time of last activity
