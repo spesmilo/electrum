@@ -36,13 +36,10 @@ Pane {
                 width: parent.width
 
                 Heading {
-                    // Layout.columnSpan: 2
                     text: !channeldetails.isBackup ? qsTr('Lightning Channel') : qsTr('Channel Backup')
                 }
 
                 GridLayout {
-                    // id: rootLayout
-                    // width: parent.width
                     Layout.fillWidth: true
                     columns: 2
 
