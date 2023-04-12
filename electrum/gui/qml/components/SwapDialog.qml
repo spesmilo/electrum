@@ -242,7 +242,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Ok')
             icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
-            enabled: swaphelper.valid && !swaphelper.busy
+            enabled: swaphelper.valid
             onClicked: {
                 console.log('Swap triggered from dialog ' + this + ' using swaphelper ' + swaphelper)
                 swaphelper.executeSwap()
