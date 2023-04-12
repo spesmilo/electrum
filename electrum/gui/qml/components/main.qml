@@ -365,9 +365,29 @@ ApplicationWindow
     Component {
         id: swapDialog
         SwapDialog {
-            onClosed: {
-                swaphelper.destroy()
-                destroy()
+            onClosed: destroy()
+            swaphelper: SwapHelper {
+                id: _swaphelper
+                wallet: Daemon.currentWallet
+                onConfirm: {
+                    var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
+                    dialog.accepted.connect(function() {
+                        _swaphelper.executeSwap(true)
+                    })
+                    dialog.open()
+                }
+                onAuthRequired: {
+                    app.handleAuthRequired(_swaphelper, method)
+                }
+                onError: {
+                    var dialog = app.messageDialog.createObject(app, { text: message })
+                    dialog.open()
+                }
+                onSwapStarted: {
+                    // swapdialog.close()
+                    var progressdialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+                    progressdialog.open()
+                }
             }
         }
     }
@@ -389,29 +409,6 @@ ApplicationWindow
         id: crashDialog
         ExceptionDialog {
             z: 1000
-        }
-    }
-
-    property alias swaphelper: _swaphelper
-    Component {
-        id: _swaphelper
-        SwapHelper {
-            id: __swaphelper
-            wallet: Daemon.currentWallet
-            onConfirm: {
-                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-                dialog.accepted.connect(function() {
-                    __swaphelper.executeSwap(true)
-                })
-                dialog.open()
-            }
-            onAuthRequired: {
-                app.handleAuthRequired(__swaphelper, method)
-            }
-            onError: {
-                var dialog = app.messageDialog.createObject(app, { text: message })
-                dialog.open()
-            }
         }
     }
 
@@ -591,13 +588,7 @@ ApplicationWindow
     }
 
     function startSwap() {
-        var swaphelper = app.swaphelper.createObject(app)
-        var swapdialog = swapDialog.createObject(app, { swaphelper: swaphelper })
-        swaphelper.swapStarted.connect(function() {
-            swapdialog.close()
-            var progressdialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
-            progressdialog.open()
-        })
+        var swapdialog = swapDialog.createObject(app)
         swapdialog.open()
     }
 
