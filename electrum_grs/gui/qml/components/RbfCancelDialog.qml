@@ -13,8 +13,6 @@ ElDialog {
     required property string txid
     required property QtObject txcanceller
 
-    signal txaccepted
-
     title: qsTr('Cancel Transaction')
 
     width: parent.width
@@ -207,17 +205,14 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             enabled: txcanceller.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
     Connections {
         target: txcanceller
         function onTxMined() {
-            dialog.close()
+            dialog.doReject()
         }
     }
 }

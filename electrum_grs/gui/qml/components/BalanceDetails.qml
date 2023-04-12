@@ -171,15 +171,7 @@ Pane {
                 visible: Daemon.currentWallet.isLightning
                 enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
                 icon.source: Qt.resolvedUrl('../../icons/update.png')
-                onClicked: {
-                    var swaphelper = app.swaphelper.createObject(app)
-                    swaphelper.swapStarted.connect(function() {
-                        var dialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
-                        dialog.open()
-                    })
-                    var dialog = swapDialog.createObject(rootItem, { swaphelper: swaphelper })
-                    dialog.open()
-                }
+                onClicked: app.startSwap()
             }
 
             FlatButton {
@@ -197,20 +189,6 @@ Pane {
 
         }
 
-    }
-
-    Component {
-        id: swapDialog
-        SwapDialog {
-            onClosed: destroy()
-        }
-    }
-
-    Component {
-        id: swapProgressDialog
-        SwapProgressDialog {
-            onClosed: destroy()
-        }
     }
 
     Component {

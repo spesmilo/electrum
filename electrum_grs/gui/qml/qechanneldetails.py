@@ -33,6 +33,12 @@ class QEChannelDetails(QObject, QtEventListener):
         self._channelid = None
         self._channel = None
 
+        self._capacity = QEAmount()
+        self._local_capacity = QEAmount()
+        self._remote_capacity = QEAmount()
+        self._can_receive = QEAmount()
+        self._can_send = QEAmount()
+
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
 
@@ -101,23 +107,31 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def capacity(self):
-        self._capacity = QEAmount(amount_sat=self._channel.get_capacity())
+        self._capacity.copyFrom(QEAmount(amount_sat=self._channel.get_capacity()))
         return self._capacity
 
     @pyqtProperty(QEAmount, notify=channelChanged)
+    def localCapacity(self):
+        if not self._channel.is_backup():
+            self._local_capacity = QEAmount(amount_msat=self._channel.balance(LOCAL))
+        return self._local_capacity
+
+    @pyqtProperty(QEAmount, notify=channelChanged)
+    def remoteCapacity(self):
+        if not self._channel.is_backup():
+            self._remote_capacity.copyFrom(QEAmount(amount_msat=self._channel.balance(REMOTE)))
+        return self._remote_capacity
+
+    @pyqtProperty(QEAmount, notify=channelChanged)
     def canSend(self):
-        if self._channel.is_backup():
-            self._can_send = QEAmount()
-        else:
-            self._can_send = QEAmount(amount_sat=self._channel.available_to_spend(LOCAL)/1000)
+        if not self._channel.is_backup():
+            self._can_send.copyFrom(QEAmount(amount_msat=self._channel.available_to_spend(LOCAL)))
         return self._can_send
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def canReceive(self):
-        if self._channel.is_backup():
-            self._can_receive = QEAmount()
-        else:
-            self._can_receive = QEAmount(amount_sat=self._channel.available_to_spend(REMOTE)/1000)
+        if not self._channel.is_backup():
+            self._can_receive.copyFrom(QEAmount(amount_msat=self._channel.available_to_spend(REMOTE)))
         return self._can_receive
 
     @pyqtProperty(bool, notify=channelChanged)

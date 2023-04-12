@@ -362,6 +362,43 @@ ApplicationWindow
         id: _channelOpenProgressDialog
     }
 
+    Component {
+        id: swapDialog
+        SwapDialog {
+            onClosed: destroy()
+            swaphelper: SwapHelper {
+                id: _swaphelper
+                wallet: Daemon.currentWallet
+                onConfirm: {
+                    var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
+                    dialog.accepted.connect(function() {
+                        _swaphelper.executeSwap(true)
+                    })
+                    dialog.open()
+                }
+                onAuthRequired: {
+                    app.handleAuthRequired(_swaphelper, method)
+                }
+                onError: {
+                    var dialog = app.messageDialog.createObject(app, { text: message })
+                    dialog.open()
+                }
+                onSwapStarted: {
+                    var progressdialog = swapProgressDialog.createObject(app, { swaphelper: _swaphelper })
+                    progressdialog.open()
+                }
+            }
+        }
+    }
+
+    Component {
+        id: swapProgressDialog
+        SwapProgressDialog {
+            onClosed: destroy()
+        }
+    }
+
+
     NotificationPopup {
         id: notificationPopup
         width: parent.width
@@ -371,29 +408,6 @@ ApplicationWindow
         id: crashDialog
         ExceptionDialog {
             z: 1000
-        }
-    }
-
-    property alias swaphelper: _swaphelper
-    Component {
-        id: _swaphelper
-        SwapHelper {
-            id: __swaphelper
-            wallet: Daemon.currentWallet
-            onConfirm: {
-                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-                dialog.accepted.connect(function() {
-                    __swaphelper.executeSwap(true)
-                })
-                dialog.open()
-            }
-            onAuthRequired: {
-                app.handleAuthRequired(__swaphelper, method)
-            }
-            onError: {
-                var dialog = app.messageDialog.createObject(app, { text: message })
-                dialog.open()
-            }
         }
     }
 
@@ -570,6 +584,11 @@ ApplicationWindow
             console.log('unknown auth method ' + method)
             qtobject.authCancel()
         }
+    }
+
+    function startSwap() {
+        var swapdialog = swapDialog.createObject(app)
+        swapdialog.open()
     }
 
     property var _lastActive: 0 // record time of last activity

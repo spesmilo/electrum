@@ -13,8 +13,6 @@ ElDialog {
     required property string txid
     required property QtObject cpfpfeebumper
 
-    signal txaccepted
-
     title: qsTr('Bump Fee')
     iconSource: Qt.resolvedUrl('../../icons/rocket.png')
 
@@ -224,17 +222,14 @@ ElDialog {
             text: qsTr('Ok')
             icon.source: '../../icons/confirmed.png'
             enabled: cpfpfeebumper.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
     Connections {
         target: cpfpfeebumper
         function onTxMined() {
-            dialog.close()
+            dialog.doReject()
         }
     }
 }

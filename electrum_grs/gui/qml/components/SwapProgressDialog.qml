@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick 2.15
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.14
 import QtQuick.Controls.Material 2.0
@@ -14,6 +14,7 @@ ElDialog {
 
     width: parent.width
     height: parent.height
+    resizeWithKeyboard: false
 
     iconSource: Qt.resolvedUrl('../../icons/update.png')
     title: swaphelper.isReverse
@@ -29,13 +30,13 @@ ElDialog {
             },
             State {
                 name: 'success'
-                PropertyChanges { target: spinner; running: false }
+                PropertyChanges { target: spinner; visible: false }
                 PropertyChanges { target: helpText; text: qsTr('Success') }
                 PropertyChanges { target: icon; source: '../../icons/confirmed.png' }
             },
             State {
                 name: 'failed'
-                PropertyChanges { target: spinner; running: false }
+                PropertyChanges { target: spinner; visible: false }
                 PropertyChanges { target: helpText; text: qsTr('Failed') }
                 PropertyChanges { target: errorText; visible: true }
                 PropertyChanges { target: icon; source: '../../icons/warning.png' }
@@ -71,11 +72,31 @@ ElDialog {
             Layout.preferredWidth: constants.iconSizeXXLarge
             Layout.preferredHeight: constants.iconSizeXXLarge
 
-            BusyIndicator {
+            Item {
                 id: spinner
-                visible: s.state == ''
-                width: constants.iconSizeXXLarge
-                height: constants.iconSizeXXLarge
+                property real rot: 0
+                RotationAnimation on rot {
+                    duration: 2000
+                    loops: Animation.Infinite
+                    from: 0
+                    to: 360
+                    running: spinner.visible
+                    easing.type: Easing.InOutQuint
+                }
+                Image {
+                    x: constants.iconSizeXLarge/2 * Math.cos(spinner.rot*2*Math.PI/360)
+                    y: constants.iconSizeXLarge/2 * Math.sin(spinner.rot*2*Math.PI/360)
+                    width: constants.iconSizeXLarge
+                    height: constants.iconSizeXLarge
+                    source: swaphelper.isReverse ? '../../icons/bitcoin.png' : '../../icons/lightning.png'
+                }
+                Image {
+                    x: constants.iconSizeXLarge/2 * Math.cos(Math.PI + spinner.rot*2*Math.PI/360)
+                    y: constants.iconSizeXLarge/2 * Math.sin(Math.PI + spinner.rot*2*Math.PI/360)
+                    width: constants.iconSizeXLarge
+                    height: constants.iconSizeXLarge
+                    source: swaphelper.isReverse ? '../../icons/lightning.png' : '../../icons/bitcoin.png'
+                }
             }
 
             Image {

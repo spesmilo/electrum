@@ -9,8 +9,27 @@ Dialog {
     property string iconSource
     property bool resizeWithKeyboard: true
 
+    property bool _result: false
+
+    // called to finally close dialog after checks by onClosing handler in main.qml
     function doClose() {
-        close()
+        doReject()
+    }
+
+    // avoid potential multiple signals, only emit once
+    function doAccept() {
+        if (_result)
+            return
+        _result = true
+        accept()
+    }
+
+    // avoid potential multiple signals, only emit once
+    function doReject() {
+        if (_result)
+            return
+        _result = true
+        reject()
     }
 
     parent: resizeWithKeyboard ? Overlay.overlay.children[0] : Overlay.overlay

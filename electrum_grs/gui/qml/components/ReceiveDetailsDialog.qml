@@ -97,7 +97,7 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Create request')
             icon.source: '../../icons/confirmed.png'
-            onClicked: accept()
+            onClicked: doAccept()
         }
     }
 

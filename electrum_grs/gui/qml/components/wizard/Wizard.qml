@@ -131,7 +131,7 @@ ElDialog {
             function finish() {
                 currentItem.accept()
                 _setWizardData(pages.contentChildren[currentIndex].wizard_data)
-                wizard.accept()
+                wizard.doAccept()
             }
 
             property bool pagevalid: false
@@ -163,7 +163,7 @@ ElDialog {
                     Layout.preferredWidth: 1
                     visible: pages.currentIndex == 0
                     text: qsTr("Cancel")
-                    onClicked: wizard.reject()
+                    onClicked: wizard.doReject()
                 }
                 FlatButton {
                     Layout.fillWidth: true
