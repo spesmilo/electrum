@@ -384,8 +384,7 @@ ApplicationWindow
                     dialog.open()
                 }
                 onSwapStarted: {
-                    // swapdialog.close()
-                    var progressdialog = swapProgressDialog.createObject(app, { swaphelper: swaphelper })
+                    var progressdialog = swapProgressDialog.createObject(app, { swaphelper: _swaphelper })
                     progressdialog.open()
                 }
             }
