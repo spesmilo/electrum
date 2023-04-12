@@ -30,6 +30,9 @@ from electrum.plugin import hook
 from electrum.gui.qt.util import WindowModalDialog, OkButton, Buttons, EnterButton, webopen
 from .payserver import PayServerPlugin
 
+if TYPE_CHECKING:
+    from electrum.gui.qt import ElectrumGui
+
 
 class Plugin(PayServerPlugin):
 
