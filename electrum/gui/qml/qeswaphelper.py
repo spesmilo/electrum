@@ -54,12 +54,15 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._rightVoid = 0
 
         self.register_callbacks()
-        self.destroyed.connect(self.unregister_callbacks)
+        self.destroyed.connect(lambda: self.on_destroy())
 
         self._fwd_swap_updatetx_timer = QTimer(self)
         self._fwd_swap_updatetx_timer.setSingleShot(True)
         # self._fwd_swap_updatetx_timer.setInterval(500)
         self._fwd_swap_updatetx_timer.timeout.connect(self.fwd_swap_updatetx)
+
+    def on_destroy(self):
+        self.unregister_callbacks()
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
