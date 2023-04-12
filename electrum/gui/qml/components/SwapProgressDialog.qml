@@ -14,6 +14,7 @@ ElDialog {
 
     width: parent.width
     height: parent.height
+    resizeWithKeyboard: false
 
     iconSource: Qt.resolvedUrl('../../icons/update.png')
     title: swaphelper.isReverse

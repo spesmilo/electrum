@@ -363,6 +363,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
+            finally:
+                self.deleteLater()
 
         threading.Thread(target=swap_task, daemon=True).start()
 
@@ -388,6 +390,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 self._logger.error(str(e))
                 self.swapFailed.emit(str(e))
+            finally:
+                self.deleteLater()
 
         threading.Thread(target=swap_task, daemon=True).start()
 

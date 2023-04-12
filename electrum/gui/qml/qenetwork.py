@@ -60,7 +60,7 @@ class QENetwork(QObject, QtEventListener):
         self._qeconfig.useGossipChanged.connect(self.on_gossip_setting_changed)
 
     def on_destroy(self):
-        self.self.unregister_callbacks()
+        self.unregister_callbacks()
 
     @event_listener
     def on_event_network_updated(self, *args):
