@@ -12,6 +12,7 @@ locale/
 .devlocaltmp/
 *_trial_temp
 packages
+venv
 env/
 .tox/
 .buildozer/
