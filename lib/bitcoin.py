@@ -654,8 +654,9 @@ def is_minikey(text):
 def minikey_to_private_key(text):
     return sha256(text)
 
-from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
-from ecdsa.curves import SECP256k1
+from ecdsa.ecdsa import curve_256, generator_256
+#print(generator_secp256k1)
+from ecdsa.curves import NIST256p
 from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
@@ -663,7 +664,6 @@ from ecdsa.util import string_to_number, number_to_string
 def msg_magic(message):
     length = bfh(var_int(len(message)))
     return b"\x18Bitcoin Signed Message:\n" + length + message
-
 
 def verify_message(address, sig, message):
     assert_bytes(sig, message)
@@ -694,14 +694,15 @@ def chunks(l, n):
     return [l[i:i+n] for i in range(0, len(l), n)]
 
 
-def ECC_YfromX(x,curved=curve_secp256k1, odd=True):
+def ECC_YfromX(x,curved=curve_256, odd=True):
     _p = curved.p()
     _a = curved.a()
     _b = curved.b()
     for offset in range(128):
         Mx = x + offset
-        My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
-        My = pow(My2, (_p+1)//4, _p )
+        My = pow(int(x * x * x + _a * x + _b), int((_p + 1) // 4), int(_p))
+        #My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
+        #My = pow(My2, (_p+1)//4, _p )
 
         if curved.contains_point(Mx,My):
             if odd == bool(My&1):
@@ -721,8 +722,8 @@ def point_to_ser(P, comp=True ):
 
 
 def ser_to_point(Aser):
-    curve = curve_secp256k1
-    generator = generator_secp256k1
+    curve = curve_256
+    generator = generator_256
     _r  = generator.order()
     assert Aser[0] in [0x02, 0x03, 0x04]
     if Aser[0] == 0x04:
@@ -771,14 +772,14 @@ def pubkey_from_signature(sig, h):
     else:
         compressed = False
     recid = nV - 27
-    return MyVerifyingKey.from_signature(sig[1:], recid, h, curve = SECP256k1), compressed
+    return MyVerifyingKey.from_signature(sig[1:], recid, h, curve = NIST256p), compressed
 
 
 class MySigningKey(ecdsa.SigningKey):
     """Enforce low S values in signatures"""
 
     def sign_number(self, number, entropy=None, k=None):
-        curve = SECP256k1
+        curve = NIST256p
         G = curve.generator
         order = G.order()
         r, s = ecdsa.SigningKey.sign_number(self, number, entropy, k)
@@ -791,7 +792,7 @@ class EC_KEY(object):
 
     def __init__( self, k ):
         secret = string_to_number(k)
-        self.pubkey = ecdsa.ecdsa.Public_key( generator_secp256k1, generator_secp256k1 * secret )
+        self.pubkey = ecdsa.ecdsa.Public_key( generator_256, generator_256 * secret )
         self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
         self.secret = secret
 
@@ -799,7 +800,7 @@ class EC_KEY(object):
         return bh2u(point_to_ser(self.pubkey.point, compressed))
 
     def sign(self, msg_hash):
-        private_key = MySigningKey.from_secret_exponent(self.secret, curve = SECP256k1)
+        private_key = MySigningKey.from_secret_exponent(self.secret, curve = NIST256p)
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
@@ -836,10 +837,10 @@ class EC_KEY(object):
         assert_bytes(message)
 
         pk = ser_to_point(pubkey)
-        if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, pk.x(), pk.y()):
+        if not ecdsa.ecdsa.point_is_valid(generator_256, pk.x(), pk.y()):
             raise Exception('invalid pubkey')
 
-        ephemeral_exponent = number_to_string(ecdsa.util.randrange(pow(2,256)), generator_secp256k1.order())
+        ephemeral_exponent = number_to_string(ecdsa.util.randrange(pow(2,256)), generator_256.order())
         ephemeral = EC_KEY(ephemeral_exponent)
         ecdh_key = point_to_ser(pk * ephemeral.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
@@ -865,7 +866,7 @@ class EC_KEY(object):
             ephemeral_pubkey = ser_to_point(ephemeral_pubkey)
         except AssertionError as e:
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-        if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
+        if not ecdsa.ecdsa.point_is_valid(generator_256, ephemeral_pubkey.x(), ephemeral_pubkey.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
         ecdh_key = point_to_ser(ephemeral_pubkey * self.privkey.secret_multiplier)
         key = hashlib.sha512(ecdh_key).digest()
@@ -883,7 +884,7 @@ BIP32_PRIME = 0x80000000
 
 def get_pubkeys_from_secret(secret):
     # public key
-    private_key = ecdsa.SigningKey.from_string( secret, curve = SECP256k1 )
+    private_key = ecdsa.SigningKey.from_string( secret, curve = NIST256p )
     public_key = private_key.get_verifying_key()
     K = public_key.to_string()
     K_compressed = GetPubKey(public_key.pubkey,True)
@@ -904,7 +905,7 @@ def CKD_priv(k, c, n):
 
 
 def _CKD_priv(k, c, s, is_prime):
-    order = generator_secp256k1.order()
+    order = generator_256.order()
     keypair = EC_KEY(k)
     cK = GetPubKey(keypair.pubkey,True)
     data = bytes([0]) + k + s if is_prime else cK + s
@@ -925,11 +926,11 @@ def CKD_pub(cK, c, n):
 
 # helper function, callable with arbitrary string
 def _CKD_pub(cK, c, s):
-    order = generator_secp256k1.order()
+    order = generator_256.order()
     I = hmac.new(c, cK + s, hashlib.sha512).digest()
-    curve = SECP256k1
+    curve = NIST256p
     pubkey_point = string_to_number(I[0:32])*curve.generator + ser_to_point(cK)
-    public_key = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = SECP256k1 )
+    public_key = ecdsa.VerifyingKey.from_public_point( pubkey_point, curve = NIST256p )
     c_n = I[32:]
     cK_n = GetPubKey(public_key.pubkey,True)
     return cK_n, c_n
@@ -949,7 +950,7 @@ def xpub_header(xtype, *, net=None):
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4,
                    child_number=b'\x00'*4, *, net=None):
-    if not (0 < string_to_number(k) < SECP256k1.order):
+    if not (0 < string_to_number(k) < NIST256p.order):
         raise BitcoinException('Impossible xprv (not within curve order)')
     xprv = xprv_header(xtype, net=net) \
            + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
@@ -982,7 +983,7 @@ def deserialize_xkey(xkey, prv, *, net=None):
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
-    if prv and not (0 < string_to_number(K_or_k) < SECP256k1.order):
+    if prv and not (0 < string_to_number(K_or_k) < NIST256p.order):
         raise BitcoinException('Impossible xprv (not within curve order)')
     return xtype, depth, fingerprint, child_number, c, K_or_k
 
