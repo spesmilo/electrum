@@ -13,7 +13,7 @@ from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING,
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.transaction import PartialTxOutput, PartialTransaction
-from electrum.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException
+from electrum.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
 from electrum.crypto import pw_decode_with_version_and_mac
@@ -604,7 +604,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         def pay_thread():
             try:
                 coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
-                fut = asyncio.run_coroutine_threadsafe(coro, self.wallet.network.asyncio_loop)
+                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 fut.result()
             except Exception as e:
                 self.paymentFailed.emit(invoice.get_id(), repr(e))

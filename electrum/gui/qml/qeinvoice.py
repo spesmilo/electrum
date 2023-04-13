@@ -15,7 +15,7 @@ from electrum.lnaddr import LnInvoiceException
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
-                           maybe_extract_lightning_payment_identifier)
+                           maybe_extract_lightning_payment_identifier, get_asyncio_loop)
 from electrum.lnutil import format_short_channel_id
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
@@ -582,7 +582,7 @@ class QEInvoiceParser(QEInvoice):
         def resolve_task():
             try:
                 coro = request_lnurl(url)
-                fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
+                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 self.on_lnurl(fut.result())
             except Exception as e:
                 self.validationError.emit('lnurl', repr(e))
@@ -629,7 +629,7 @@ class QEInvoiceParser(QEInvoice):
                 if comment:
                     params['comment'] = comment
                 coro = callback_lnurl(self._lnurlData['callback_url'], params)
-                fut = asyncio.run_coroutine_threadsafe(coro, self._wallet.wallet.network.asyncio_loop)
+                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 self.on_lnurl_invoice(amount, fut.result())
             except Exception as e:
                 self._logger.error(repr(e))

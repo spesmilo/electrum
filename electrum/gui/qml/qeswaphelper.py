@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.lnutil import ln_dummy_address
 from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop
 
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
@@ -346,7 +346,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         assert self._tx
         if lightning_amount is None or onchain_amount is None:
             return
-        loop = self._wallet.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = self._wallet.wallet.lnworker.swap_manager.normal_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
@@ -376,7 +376,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if lightning_amount is None or onchain_amount is None:
             return
         swap_manager = self._wallet.wallet.lnworker.swap_manager
-        loop = self._wallet.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = swap_manager.reverse_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
