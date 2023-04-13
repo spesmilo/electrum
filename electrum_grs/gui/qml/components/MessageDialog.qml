@@ -54,19 +54,19 @@ ElDialog {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 textUnderIcon: false
-                text: qsTr('Yes')
-                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
+                text: qsTr('No')
+                icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
                 visible: yesno
-                onClicked: doAccept()
+                onClicked: doReject()
             }
             FlatButton {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 textUnderIcon: false
-                text: qsTr('No')
-                icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
+                text: qsTr('Yes')
+                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: yesno
-                onClicked: doReject()
+                onClicked: doAccept()
             }
         }
     }
