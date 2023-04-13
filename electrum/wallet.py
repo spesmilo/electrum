@@ -373,6 +373,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
+            util.trigger_callback('wallet_updated', self)
             self.logger.info("taskgroup stopped.")
 
     async def do_synchronize_loop(self):
@@ -460,6 +461,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
 
     def is_up_to_date(self) -> bool:
+        if self.taskgroup.joined:  # either stop() was called, or the taskgroup died
+            return False
         return self._up_to_date
 
     def tx_is_related(self, tx):
