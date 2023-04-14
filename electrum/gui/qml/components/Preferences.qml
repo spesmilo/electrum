@@ -287,8 +287,23 @@ Pane {
                         Switch {
                             id: useRecoverableChannels
                             onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.useRecoverableChannels = checked
+                                if (activeFocus) {
+                                    if (!checked) {
+                                        var dialog = app.messageDialog.createObject(app, {
+                                            text: qsTr('Are you sure? This option allows you to recover your lightning funds if you lose your device, or if you uninstall this app while lightning channels are active. Do not disable it unless you know how to recover channels from backups.'),
+                                            yesno: true
+                                        })
+                                        dialog.accepted.connect(function() {
+                                            Config.useRecoverableChannels = False
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = true // revert
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        Config.useRecoverableChannels = checked
+                                    }
+                                }
                             }
                         }
                         Label {
