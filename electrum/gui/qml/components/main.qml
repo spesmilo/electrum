@@ -382,21 +382,9 @@ ApplicationWindow
                     var dialog = app.messageDialog.createObject(app, { text: message })
                     dialog.open()
                 }
-                onSwapStarted: {
-                    var progressdialog = swapProgressDialog.createObject(app, { swaphelper: _swaphelper })
-                    progressdialog.open()
-                }
             }
         }
     }
-
-    Component {
-        id: swapProgressDialog
-        SwapProgressDialog {
-            onClosed: destroy()
-        }
-    }
-
 
     NotificationPopup {
         id: notificationPopup

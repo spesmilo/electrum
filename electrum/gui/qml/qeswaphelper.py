@@ -3,7 +3,7 @@ import threading
 import math
 from typing import Union
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
 from electrum.i18n import _
 from electrum.lnutil import ln_dummy_address
@@ -18,6 +18,15 @@ from .util import QtEventListener, qt_event_listener
 
 class QESwapHelper(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
+
+    class State:
+        Initialized = 0
+        ServiceReady = 1
+        Started = 2
+        Failed = 3
+        Success = 4
+
+    Q_ENUMS(State)
 
     confirm = pyqtSignal([str], arguments=['message'])
     error = pyqtSignal([str], arguments=['message'])
@@ -34,6 +43,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._rangeMax = 0
         self._tx = None
         self._valid = False
+        self._state = QESwapHelper.State.Initialized
         self._userinfo = ' '.join([
             _('Move the slider to set the amount and direction of the swap.'),
             _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
@@ -130,6 +140,17 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._valid = valid
             self.validChanged.emit()
 
+    stateChanged = pyqtSignal()
+    @pyqtProperty(int, notify=stateChanged)
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, state):
+        if self._state != state:
+            self._state = state
+            self.stateChanged.emit()
+
     userinfoChanged = pyqtSignal()
     @pyqtProperty(str, notify=userinfoChanged)
     def userinfo(self):
@@ -215,7 +236,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         swap_manager = lnworker.swap_manager
         try:
             asyncio.run(swap_manager.get_pairs())
-            self._service_available = True
+            self.state = QESwapHelper.State.ServiceReady
         except Exception as e:
             self.error.emit(_('Swap service unavailable'))
             self._logger.error(f'could not get pairs for swap: {repr(e)}')
@@ -284,7 +305,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.swap_slider_moved()
 
     def swap_slider_moved(self):
-        if not self._service_available:
+        if self._state == QESwapHelper.State.Initialized:
             return
 
         position = int(self._sliderPos)
@@ -339,15 +360,18 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.userinfo = _('Performing swap...')
+                self.state = QESwapHelper.State.Started
                 self.swapStarted.emit()
                 txid = fut.result()
                 try: # swaphelper might be destroyed at this point
                     self.userinfo = _('Swap successful!')
+                    self.state = QESwapHelper.State.Success
                     self.swapSuccess.emit()
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
+                    self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
                     self.swapFailed.emit(str(e))
                 except RuntimeError:
@@ -369,20 +393,24 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.userinfo = _('Performing swap...')
+                self.state = QESwapHelper.State.Started
                 self.swapStarted.emit()
                 success = fut.result()
                 try: # swaphelper might be destroyed at this point
                     if success:
                         self.userinfo = _('Swap successful!')
+                        self.state = QESwapHelper.State.Success
                         self.swapSuccess.emit()
                     else:
                         self.userinfo = _('Swap failed!')
+                        self.state = QESwapHelper.State.Failed
                         self.swapFailed.emit('')
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
                     self.userinfo = _('Swap failed!')
+                    self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
                     self.swapFailed.emit(str(e))
                 except RuntimeError:

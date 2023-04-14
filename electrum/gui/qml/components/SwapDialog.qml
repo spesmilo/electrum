@@ -26,12 +26,20 @@ ElDialog {
         spacing: constants.paddingLarge
 
         InfoTextArea {
+            id: userinfoText
             Layout.leftMargin: constants.paddingXXLarge
             Layout.rightMargin: constants.paddingXXLarge
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
             visible: swaphelper.userinfo != ''
             text: swaphelper.userinfo
+            iconStyle: swaphelper.state == SwapHelper.Started
+                ? InfoTextArea.IconStyle.Spinner
+                : swaphelper.state == SwapHelper.Failed
+                    ? InfoTextArea.IconStyle.Error
+                    : swaphelper.state == SwapHelper.Success
+                        ? InfoTextArea.IconStyle.Done
+                        : InfoTextArea.IconStyle.Info
         }
 
         GridLayout {
@@ -155,12 +163,16 @@ ElDialog {
 
         Slider {
             id: swapslider
+            Layout.fillWidth: true
+
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
             Layout.leftMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.leftVoid
             Layout.rightMargin: constants.paddingXXLarge + (parent.width - 2 * constants.paddingXXLarge) * swaphelper.rightVoid
 
-            Layout.fillWidth: true
+            property real scenter: -swapslider.from/(swapslider.to-swapslider.from)
+
+            enabled: swaphelper.state == SwapHelper.ServiceReady || swaphelper.state == SwapHelper.Failed
 
             background: Rectangle {
                 x: swapslider.leftPadding
@@ -170,7 +182,9 @@ ElDialog {
                 width: swapslider.availableWidth
                 height: implicitHeight
                 radius: 2
-                color: Material.accentColor
+                color: enabled
+                    ? Material.accentColor
+                    : Material.sliderDisabledColor
 
                 // full width somehow misaligns with handle, define rangeWidth
                 property int rangeWidth: width - swapslider.leftPadding
@@ -183,7 +197,9 @@ ElDialog {
                         ? (swapslider.visualPosition-swapslider.scenter) * parent.rangeWidth
                         : (swapslider.scenter-swapslider.visualPosition) * parent.rangeWidth
                     height: parent.height
-                    color: Material.accentColor
+                    color: enabled
+                        ? Material.accentColor
+                        : Material.sliderDisabledColor
                     radius: 2
                 }
 
@@ -204,8 +220,6 @@ ElDialog {
                     color: parent.color
                 }
             }
-
-            property real scenter: -swapslider.from/(swapslider.to-swapslider.from)
 
             from: swaphelper.rangeMin
             to: swaphelper.rangeMax
@@ -242,9 +256,9 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Ok')
             icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
-            enabled: swaphelper.valid
+            enabled: swaphelper.valid && (swaphelper.state == SwapHelper.ServiceReady || swaphelper.state == SwapHelper.Failed)
+
             onClicked: {
-                console.log('Swap triggered from dialog ' + this + ' using swaphelper ' + swaphelper)
                 swaphelper.executeSwap()
             }
         }
@@ -255,13 +269,9 @@ ElDialog {
         function onSliderPosChanged() {
             swapslider.value = swaphelper.sliderPos
         }
-        function onSwapSuccess() {
-            root.close()
-        }
     }
 
     Component.onCompleted: {
-        console.log('Created SwapDialog ' + this)
         swapslider.value = swaphelper.sliderPos
     }
 
