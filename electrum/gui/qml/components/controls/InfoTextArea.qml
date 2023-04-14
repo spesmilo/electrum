@@ -11,7 +11,8 @@ TextHighlightPane {
         Error,
         Progress,
         Pending,
-        Done
+        Done,
+        Spinner
     }
 
     property alias text: infotext.text
@@ -24,7 +25,7 @@ TextHighlightPane {
             ? constants.colorWarning
             : iconStyle == InfoTextArea.IconStyle.Error
                 ? constants.colorError
-                : iconStyle == InfoTextArea.IconStyle.Progress
+                : iconStyle == InfoTextArea.IconStyle.Progress || iconStyle == InfoTextArea.IconStyle.Spinner
                     ? constants.colorProgress
                     : iconStyle == InfoTextArea.IconStyle.Done
                         ? constants.colorDone
@@ -36,6 +37,9 @@ TextHighlightPane {
         spacing: constants.paddingLarge
 
         Image {
+            Layout.preferredWidth: constants.iconSizeMedium
+            Layout.preferredHeight: constants.iconSizeMedium
+            visible: iconStyle != InfoTextArea.IconStyle.Spinner
             source: iconStyle == InfoTextArea.IconStyle.Info
                 ? "../../../icons/info.png"
                 : iconStyle == InfoTextArea.IconStyle.Warn
@@ -49,8 +53,19 @@ TextHighlightPane {
                                 : iconStyle == InfoTextArea.IconStyle.Done
                                     ? "../../../icons/confirmed.png"
                                     : ""
+        }
+
+        Item {
             Layout.preferredWidth: constants.iconSizeMedium
             Layout.preferredHeight: constants.iconSizeMedium
+            visible: iconStyle == InfoTextArea.IconStyle.Spinner
+
+            BusyIndicator {
+                anchors.centerIn: parent
+                scale: 0.66
+                smooth: true
+                running: visible
+            }
         }
 
         Label {
