@@ -44,6 +44,7 @@ Pane {
                     anchors.fill: parent
                     clip: true
                     currentIndex: -1
+
                     model: DelegateModel {
                         id: delegateModel
                         model: Daemon.currentWallet.invoiceModel
