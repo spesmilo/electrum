@@ -293,39 +293,20 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
 
         # pay_amount and receive_amounts are always with fees already included
         # so they reflect the net balance change after the swap
-        if position < 0:  # reverse swap
-            self.isReverse = True
-
-            self._send_amount = abs(position)
-            self.tosend = QEAmount(amount_sat=self._send_amount)
-
-            self._receive_amount = swap_manager.get_recv_amount(
-                send_amount=self._send_amount, is_reverse=True)
-            self.toreceive = QEAmount(amount_sat=self._receive_amount)
-
-            # fee breakdown
-            self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            server_miningfee = swap_manager.lockup_fee
-            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
-            self.miningfee = QEAmount(amount_sat=swap_manager.get_claim_fee())
-
+        self.isReverse = (position < 0)
+        self._send_amount = abs(position)
+        self.tosend = QEAmount(amount_sat=self._send_amount)
+        self._receive_amount = swap_manager.get_recv_amount(send_amount=self._send_amount, is_reverse=self.isReverse)
+        self.toreceive = QEAmount(amount_sat=self._receive_amount)
+        # fee breakdown
+        self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
+        server_miningfee = swap_manager.lockup_fee if self.isReverse else swap_manager.normal_fee
+        self.server_miningfee = QEAmount(amount_sat=server_miningfee)
+        if self.isReverse:
             self.check_valid(self._send_amount, self._receive_amount)
-        else:  # forward (normal) swap
-            self.isReverse = False
-            self._send_amount = position
-            self.tosend = QEAmount(amount_sat=self._send_amount)
-
-            self._receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
-            self.toreceive = QEAmount(amount_sat=self._receive_amount)
-
-            # fee breakdown
-            self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            server_miningfee = swap_manager.normal_fee
-            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
-
-            # the slow stuff we delegate to a delay timer which triggers after slider
-            # doesn't update for a while
-            self.valid = False # wait for timer
+        else:
+            # update tx only if slider isn't moved for a while
+            self.valid = False
             self._fwd_swap_updatetx_timer.start(250)
 
     def check_valid(self, send_amount, receive_amount):
