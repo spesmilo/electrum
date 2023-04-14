@@ -390,7 +390,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-        if confirm:
+        if confirm or self._wallet.wallet.config.get('pin_code', ''):
             self._do_execute_swap()
             return
 
