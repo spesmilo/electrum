@@ -473,8 +473,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot()
     def enableLightning(self):
-        self.wallet.init_lightning(password=None) # TODO pass password if needed
+        self.wallet.init_lightning(password=self.password)
         self.isLightningChanged.emit()
+        self.dataChanged.emit()
 
     @pyqtSlot(str, int, int, bool)
     def send_onchain(self, address, amount, fee=None, rbf=False):

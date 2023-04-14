@@ -83,7 +83,6 @@ class QEWalletListModel(QAbstractListModel):
             if wallet_path == path:
                 remove = i
             else:
-                self._logger.debug('HM, %s is not %s', wallet_path, path)
                 wallets.append((wallet_name, wallet_path))
             i += 1
 

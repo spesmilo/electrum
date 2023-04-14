@@ -218,7 +218,6 @@ ApplicationWindow
 
     StackView {
         id: mainStackView
-        // anchors.fill: parent
         width: parent.width
         height: inputPanel.y - header.height
         initialItem: Qt.resolvedUrl('WalletMainView.qml')
