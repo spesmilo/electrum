@@ -338,9 +338,11 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                self.userinfo = _('Performing swap...')
                 self.swapStarted.emit()
                 txid = fut.result()
                 try: # swaphelper might be destroyed at this point
+                    self.userinfo = _('Swap successful!')
                     self.swapSuccess.emit()
                 except RuntimeError:
                     pass
@@ -366,17 +368,21 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
+                self.userinfo = _('Performing swap...')
                 self.swapStarted.emit()
                 success = fut.result()
                 try: # swaphelper might be destroyed at this point
                     if success:
+                        self.userinfo = _('Swap successful!')
                         self.swapSuccess.emit()
                     else:
+                        self.userinfo = _('Swap failed!')
                         self.swapFailed.emit('')
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
+                    self.userinfo = _('Swap failed!')
                     self._logger.error(str(e))
                     self.swapFailed.emit(str(e))
                 except RuntimeError:
