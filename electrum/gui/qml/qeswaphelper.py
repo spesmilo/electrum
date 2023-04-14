@@ -364,7 +364,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 self.swapStarted.emit()
                 txid = fut.result()
                 try: # swaphelper might be destroyed at this point
-                    self.userinfo = _('Swap successful!')
+                    self.userinfo = ' '.join([
+                        _('Success!'),
+                        _('Your funding transaction has been broadcast.'),
+                        _('The swap will be finalized once your transaction is confirmed.'),
+                        _('You will need to be online to finalize the swap, or the transaction will be refunded to you after some delay.'),
+                    ])
                     self.state = QESwapHelper.State.Success
                     self.swapSuccess.emit()
                 except RuntimeError:
@@ -398,7 +403,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 success = fut.result()
                 try: # swaphelper might be destroyed at this point
                     if success:
-                        self.userinfo = _('Swap successful!')
+                        self.userinfo = ' '.join([
+                            _('Success!'),
+                            _('The funding transaction has been detected.'),
+                            _('Your claiming transaction will be broadcast when the funding transaction is confirmed.'),
+                            _('You may broadcast it before that manually, but this is not trustless.'),
+                        ])
                         self.state = QESwapHelper.State.Success
                         self.swapSuccess.emit()
                     else:
