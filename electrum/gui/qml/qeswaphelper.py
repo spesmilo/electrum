@@ -30,9 +30,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
 
     confirm = pyqtSignal([str], arguments=['message'])
     error = pyqtSignal([str], arguments=['message'])
-    swapStarted = pyqtSignal()
-    swapSuccess = pyqtSignal()
-    swapFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -361,7 +358,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.userinfo = _('Performing swap...')
                 self.state = QESwapHelper.State.Started
-                self.swapStarted.emit()
                 txid = fut.result()
                 try: # swaphelper might be destroyed at this point
                     self.userinfo = ' '.join([
@@ -371,14 +367,12 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                         _('You will need to be online to finalize the swap, or the transaction will be refunded to you after some delay.'),
                     ])
                     self.state = QESwapHelper.State.Success
-                    self.swapSuccess.emit()
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
                     self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
-                    self.swapFailed.emit(str(e))
                 except RuntimeError:
                     pass
 
@@ -399,7 +393,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 self.userinfo = _('Performing swap...')
                 self.state = QESwapHelper.State.Started
-                self.swapStarted.emit()
                 success = fut.result()
                 try: # swaphelper might be destroyed at this point
                     if success:
@@ -410,11 +403,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             _('You may broadcast it before that manually, but this is not trustless.'),
                         ])
                         self.state = QESwapHelper.State.Success
-                        self.swapSuccess.emit()
                     else:
                         self.userinfo = _('Swap failed!')
                         self.state = QESwapHelper.State.Failed
-                        self.swapFailed.emit('')
                 except RuntimeError:
                     pass
             except Exception as e:
@@ -422,7 +413,6 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     self.userinfo = _('Swap failed!')
                     self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
-                    self.swapFailed.emit(str(e))
                 except RuntimeError:
                     pass
 
