@@ -477,28 +477,6 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.isLightningChanged.emit()
         self.dataChanged.emit()
 
-    @pyqtSlot(str, int, int, bool)
-    def send_onchain(self, address, amount, fee=None, rbf=False):
-        self._logger.info('send_onchain: %s %d' % (address,amount))
-        coins = self.wallet.get_spendable_coins(None)
-        if not bitcoin.is_address(address):
-            self._logger.warning('Invalid Bitcoin Address: ' + address)
-            return False
-
-        outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-        self._logger.info(str(outputs))
-        output_values = [x.value for x in outputs]
-        if any(parse_max_spend(outval) for outval in output_values):
-            output_value = '!'
-        else:
-            output_value = sum(output_values)
-        self._logger.info(str(output_value))
-        # see qt/confirm_tx_dialog qt/main_window
-        tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
-        self._logger.info(str(tx.to_json()))
-        tx.set_rbf(True)
-        self.sign(tx, broadcast=True)
-
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast),
