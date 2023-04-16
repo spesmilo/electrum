@@ -2756,6 +2756,101 @@ class TestWalletSending(ElectrumTestCase):
         self.assertEqual("70736274ff0100710200000001916fa04d7080ae0cb19bd08671d37dbe3dc925be383737bb34b3097d82830dc70000000000fdffffff0240e20100000000001600147e45d43294b0ff2b08a5f45232649815e516cff0ceaa05000000000016001456ec9cad206160ab578fa1dfbe13311b3be4a3107f4a24000001011f96a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd70100fd2e010200000000010122c3730eb6314cf59e11988c41bfdd73f70cb55b294ec6f2eda828b5c939c0980100000000fdffffff0196a007000000000016001413ce91db66299806c4f35b2b4f8426b0bd4f2cd704004730440220112840ce5486c6b2d15bc3b12e45c2a4518828e1b34f9bb0b3a78220c0cec52f02205b146a1f683289909ecbd3f53932d5acc321444101d8002e435b38a54adbf47201473044022058dfb4c75de119595119f35dcd7b1b2c28c40d7e2e746baeae83f09396c6bb9e02201c3c40fb684253638f12392af3934a90a6c6a512441aac861022f927473c952001475221022c4338968f87a09b0fefd0aaac36f1b983bab237565d521944c60fdc482750492103cf9a6ac058d36a6dc325b19715a2223c6416e1cef13bc047a99bded8c99463ca52ae4a4a24002206029e65093d22877cbfcc27cb754c58d144ec96635af1fcc63e5a7b90b23bb6acb81830cf1be5540000800100008000000080000000000000000000002202031503b2e74b21d4583b7f0d9e65b2c0ef19fd6e8aae7d0524fc770a1d2b2127501830cf1be5540000800100008000000080010000000000000000",
                          tx.serialize_as_bytes().hex())
 
+    @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
+    async def test_export_psbt__rm_witness_utxo_from_non_segwit_input(self, mock_save_db):
+        """We sometimes convert full utxo to witness_utxo in psbt inputs when using QR codes, to save space,
+        even for non-segwit inputs (which goes against the spec).
+        This tests that upon scanning the QR code, if we can add the full utxo to the input (e.g. via network),
+        we remove the witness_utxo before e.g. re-exporting it. (see #8305)
+        """
+        wallet1a = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_bip43_rootseed(keystore.bip39_to_seed("income sample useless art skate lucky fold field bargain course hope chest", ''), "m/45h/0", xtype="standard"),
+                keystore.from_xpub('tpubDC1y33c2iTcxCBFva3zxbQxUnbzBT1TPVrwLgwVHtqSnVRx2pbJsrHzNYmXnKEnrNqyKk9BERrpSatqVu4JHV4K4hepFQdqnMojA5NVKxcF'),
+            ],
+            '2of2', gap_limit=2,
+            config=self.config,
+        )
+        wallet1a.get_keystores()[1].add_key_origin(derivation_prefix="m/45h/0", root_fingerprint="25750cf7")
+        wallet1b = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_xpub('tpubDAKtPDG6fezcwhB7rNJ9NVEWwGokNzowW3AaMVYFTS4WKoBTNESS1NpntWYDq2uABVYM1xa5cVmu8LD2xKYipMRVLy1VjBQeVe6pixJeBgr'),
+                keystore.from_xpub('tpubDC1y33c2iTcxCBFva3zxbQxUnbzBT1TPVrwLgwVHtqSnVRx2pbJsrHzNYmXnKEnrNqyKk9BERrpSatqVu4JHV4K4hepFQdqnMojA5NVKxcF'),
+            ],
+            '2of2', gap_limit=2,
+            config=self.config,
+        )
+        wallet1b.get_keystores()[0].add_key_origin(derivation_prefix="m/45h/0", root_fingerprint="18c2928f")
+        wallet1b.get_keystores()[1].add_key_origin(derivation_prefix="m/45h/0", root_fingerprint="25750cf7")
+        wallet1b_offline = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_bip43_rootseed(keystore.bip39_to_seed("wear wasp subject october amount essay maximum monkey excuse plastic ginger donor", ''), "m/45h/0", xtype="standard"),
+                keystore.from_xpub('tpubDAKtPDG6fezcwhB7rNJ9NVEWwGokNzowW3AaMVYFTS4WKoBTNESS1NpntWYDq2uABVYM1xa5cVmu8LD2xKYipMRVLy1VjBQeVe6pixJeBgr'),
+            ],
+            '2of2', gap_limit=2,
+            config=self.config,
+        )
+        wallet1b_offline.get_keystores()[1].add_key_origin(derivation_prefix="m/45h/0", root_fingerprint="18c2928f")
+
+        # bootstrap wallet
+        funding_tx = Transaction('0200000000010199b6eb9629c9763e9e95c49f2e81d7a9bda0c8e96165897ce42df0c7a4757aa60100000000fdffffff0220a107000000000017a91482e2921d413a7cad08f76d1d35565dbcc85088db8750560e000000000016001481e6fc4a427d0176373bdd7482b8c1d08f3563300247304402202cf7be624cc30640e2b928adeb25b21ed581f32149f78bc1b0fa9c01da785486022066fadccb1aef8d46841388e83386f85ca5776f50890b9921f165f093fabfd2800121022e43546769a51181fad61474a773b0813106895971b6e3f1d43278beb7154d0a1a112500')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('e1a5465e813b51047e1ee95a2c635416f0105b52361084c7e005325f685f374e', funding_txid)
+        wallet1a.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+        wallet1b.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # cosignerA creates and signs the tx
+        outputs = [PartialTxOutput.from_address_and_value("tb1qgacvp0zvgtk3etggjayuezrc2mkql8veshv4xw", 200_000)]
+        coins = wallet1a.get_spendable_coins(domain=None)
+        tx = wallet1a.make_unsigned_transaction(coins=coins, outputs=outputs, fee=5000)
+        tx.set_rbf(True)
+        tx.locktime = 2429212
+        tx.version = 2
+        wallet1a.sign_transaction(tx, password=None)
+
+        # cosignerA shares psbt with cosignerB
+        orig_tx1 = tx
+        for uses_qr_code1 in (False, True, ):
+            with self.subTest(uses_qr_code1=uses_qr_code1):
+                tx = copy.deepcopy(orig_tx1)
+                if uses_qr_code1:
+                    partial_tx, is_complete = tx.to_qr_data()
+                    self.assertEqual("3PMZFRKS5WP6JMMK.-I6Z5JFJ+3ABTDQ.SEM2ATLOB0EF-5I3VH0+Z:P$3SWOO75P/P41QSRJ+4-P*V6MJLC0H.XH1CJ+066VC6IV/5+H1S0R*1NNW.EBSHKZ7IA3T$-$OTUQMP22B+ZVM4QSL/K/BIT8WOM1712MQWDH1DQA/0DEUH$YKYDYDC+/MO-$ZXBM:L+/8F83FD5*:N8HU45:9YULHULQ/P.HLIHVHFQR+WRVT7P.DTUE0BE91DK56:S$Y8+ZBJ0ZSSRRUPNE$I18Y.TXFRM.CTZSGVTSQWNX8Z+YLWR5F8.RVZ1039*U.H7BN6ZMHSBWS*PLY3SK+9LV/FBGJK4+YU3IGI3S4Z9RXS8$JVP+VZUZ:PDJI$KI-6DG2A//O5PRDLP3RUSX.KBFP.IY2JZV+B:DF3.C+R9LU0JUXF26W3SME9A*/WWNNH0-59RCI-YKG:SOO:U0F*SV5R5VERVP2J57EJMO*9.GH++/7P55YE/QTLU$MB8.KT*HD4S2ISP35+*R14HXP:SDUGWGGH$Y8O/NZSH0*CXQZ+H3G7E5:5HFFB8C-BA/O*04I/GF6.X0DKYETTJ:NO27RKHTL:/44U.PK/F/9+9V4D:N3*YS5OTA7+/:P70+L/JMB0OD7ZMO/HFJXRFCK7GS1-K464$96KODYGML8IJLR31-2W1EI0HXOWG:3N9M7QRTU83-NK*G:6SI.JU*71UW85MZ./Y:03L6KZTG7SJ.VKO3WFZU.XV+745QZ.OWET:VNV/.QNR-ETA2S/LTV-U-M2OC2LV7.*1AIN4XW3LR$*75/BVIV.KG1ZGMBJ7L0IE9F-7O4+1QSZ8JR$GECW6RZFKPZ516O+2GV9FTA:3L1C1QL/6YVSF*L8-38/7L1$**Y7K5FLOP-4T20.*1*8JK-M$C+:5U+S*KLZW3E3U0N$ODSMT",
+                                     partial_tx)
+                    self.assertFalse(is_complete)
+                else:
+                    partial_tx = tx.serialize_as_bytes().hex()
+                    self.assertEqual("70736274ff01007202000000014e375f685f3205e0c7841036525b10f01654632c5ae91e7e04513b815e46a5e10000000000fdffffff02400d0300000000001600144770c0bc4c42ed1cad089749cc887856ec0f9d99588004000000000017a914493900cdec652a41c633436b53d574647e329b18871c112500000100df0200000000010199b6eb9629c9763e9e95c49f2e81d7a9bda0c8e96165897ce42df0c7a4757aa60100000000fdffffff0220a107000000000017a91482e2921d413a7cad08f76d1d35565dbcc85088db8750560e000000000016001481e6fc4a427d0176373bdd7482b8c1d08f3563300247304402202cf7be624cc30640e2b928adeb25b21ed581f32149f78bc1b0fa9c01da785486022066fadccb1aef8d46841388e83386f85ca5776f50890b9921f165f093fabfd2800121022e43546769a51181fad61474a773b0813106895971b6e3f1d43278beb7154d0a1a1125002202026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd4730440220414287f36a02b004d2e9a3892e1862edaf49c35d50b65ae10b601879b8c793ef0220073234c56d5a8ae9f4fcfeaecaa757e2724bf830d45aabfab8ffe37329ebf459010104475221026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd2103a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb98152ae2206026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd1418c2928f2d000080000000000000000000000000220603a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb9811425750cf72d000080000000000000000000000000000001004752210212de0581d6570d3cc432cdad2b07514807007dc80b792fafeb47bed69fe6276821028748a66f10b13944ccb14640ba36f65dc7a1f3462e9aca65ba8b05013842270b52ae22020212de0581d6570d3cc432cdad2b07514807007dc80b792fafeb47bed69fe627681425750cf72d0000800000000001000000000000002202028748a66f10b13944ccb14640ba36f65dc7a1f3462e9aca65ba8b05013842270b1418c2928f2d00008000000000010000000000000000",
+                                     partial_tx)
+                # load tx into cosignerB's online wallet
+                tx = tx_from_any(partial_tx)
+                self.assertFalse(tx.is_segwit())
+                self.assertFalse(tx.is_complete())
+                tx.add_info_from_wallet(wallet1b)
+
+                # cosignerB moves psbt from his online wallet to offline wallet
+                orig_tx2 = tx
+                for uses_qr_code2 in (False, True, ):
+                    with self.subTest(uses_qr_code2=uses_qr_code2):
+                        tx = copy.deepcopy(orig_tx2)
+                        if uses_qr_code2:
+                            partial_tx, is_complete = tx.to_qr_data()
+                            self.assertEqual("3PMZFRKS5WP6JMMK.-I6Z5JFJ+3ABTDQ.SEM2ATLOB0EF-5I3VH0+Z:P$3SWOO75P/P41QSRJ+4-P*V6MJLC0H.XH1CJ+066VC6IV/5+H1S0R*1NNW.EBSHKZ7IA3T$-$OTUQMP22B+ZVM4QSL/K/BIT8WOM1712MQWDH1DQA/0DEUH$YKYDYDC+/MO-$ZXBM:L+/8F83FD5*:N8HU45:9YULHULQ/P.HLIHVHFQR+WRVT7P.DTUE0BE91DK56:S$Y8+ZBJ0ZSSRRUPNE$I18Y.TXFRM.CTZSGVTSQWNX8Z+YLWR5F8.RVZ1039*U.H7BN6ZMHSBWS*PLY3SK+9LV/FBGJK4+YU3IGI3S4Z9RXS8$JVP+VZUZ:PDJI$KI-6DG2A//O5PRDLP3RUSX.KBFP.IY2JZV+B:DF3.C+R9LU0JUXF26W3SME9A*/WWNNH0-59RCI-YKG:SOO:U0F*SV5R5VERVP2J57EJMO*9.GH++/7P55YE/QTLU$MB8.KT*HD4S2ISP35+*R14HXP:SDUGWGGH$Y8O/NZSH0*CXQZ+H3G7E5:5HFFB8C-BA/O*04I/GF6.X0DKYETTJ:NO27RKHTL:/44U.PK/F/9+9V4D:N3*YS5OTA7+/:P70+L/JMB0OD7ZMO/HFJXRFCK7GS1-K464$96KODYGML8IJLR31-2W1EI0HXOWG:3N9M7QRTU83-NK*G:6SI.JU*71UW85MZ./Y:03L6KZTG7SJ.VKO3WFZU.XV+745QZ.OWET:VNV/.QNR-ETA2S/LTV-U-M2OC2LV7.*1AIN4XW3LR$*75/BVIV.KG1ZGMBJ7L0IE9F-7O4+1QSZ8JR$GECW6RZFKPZ516O+2GV9FTA:3L1C1QL/6YVSF*L8-38/7L1$**Y7K5FLOP-4T20.*1*8JK-M$C+:5U+S*KLZW3E3U0N$ODSMT",
+                                             partial_tx)
+                            self.assertFalse(is_complete)
+                        else:
+                            partial_tx = tx.serialize_as_bytes().hex()
+                            self.assertEqual("70736274ff01007202000000014e375f685f3205e0c7841036525b10f01654632c5ae91e7e04513b815e46a5e10000000000fdffffff02400d0300000000001600144770c0bc4c42ed1cad089749cc887856ec0f9d99588004000000000017a914493900cdec652a41c633436b53d574647e329b18871c112500000100df0200000000010199b6eb9629c9763e9e95c49f2e81d7a9bda0c8e96165897ce42df0c7a4757aa60100000000fdffffff0220a107000000000017a91482e2921d413a7cad08f76d1d35565dbcc85088db8750560e000000000016001481e6fc4a427d0176373bdd7482b8c1d08f3563300247304402202cf7be624cc30640e2b928adeb25b21ed581f32149f78bc1b0fa9c01da785486022066fadccb1aef8d46841388e83386f85ca5776f50890b9921f165f093fabfd2800121022e43546769a51181fad61474a773b0813106895971b6e3f1d43278beb7154d0a1a1125002202026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd4730440220414287f36a02b004d2e9a3892e1862edaf49c35d50b65ae10b601879b8c793ef0220073234c56d5a8ae9f4fcfeaecaa757e2724bf830d45aabfab8ffe37329ebf459010104475221026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd2103a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb98152ae2206026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd1418c2928f2d000080000000000000000000000000220603a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb9811425750cf72d000080000000000000000000000000000001004752210212de0581d6570d3cc432cdad2b07514807007dc80b792fafeb47bed69fe6276821028748a66f10b13944ccb14640ba36f65dc7a1f3462e9aca65ba8b05013842270b52ae22020212de0581d6570d3cc432cdad2b07514807007dc80b792fafeb47bed69fe627681425750cf72d0000800000000001000000000000002202028748a66f10b13944ccb14640ba36f65dc7a1f3462e9aca65ba8b05013842270b1418c2928f2d00008000000000010000000000000000",
+                                             partial_tx)
+                        # load tx into cosignerB's online wallet
+                        tx = tx_from_any(partial_tx)
+                        wallet1b_offline.sign_transaction(tx, password=None)
+
+                self.assertEqual('02000000014e375f685f3205e0c7841036525b10f01654632c5ae91e7e04513b815e46a5e100000000d9004730440220414287f36a02b004d2e9a3892e1862edaf49c35d50b65ae10b601879b8c793ef0220073234c56d5a8ae9f4fcfeaecaa757e2724bf830d45aabfab8ffe37329ebf4590147304402203ba7cc21e407ce31c1eecd11c367df716a5d47f06e0bf7109f08063ede25a364022039f6bef0dd401aa2c3103b8cbab57cc4fed3905ccb0a726dc6594bf5930ae0b401475221026addf5fd752c92e8a53955e430ca5964feb1b900ce569f968290f65ae7fecbfd2103a8b896e5216fe7239516a494407c0cc90c6dc33918c7df04d1cda8d57a3bb98152aefdffffff02400d0300000000001600144770c0bc4c42ed1cad089749cc887856ec0f9d99588004000000000017a914493900cdec652a41c633436b53d574647e329b18871c112500',
+                                 str(tx))
+                self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.txid())
+                self.assertEqual('d6823918ff82ed240995e9e6f02e0d2f3f15e0b942616ab34481ce8a3399dc72', tx.wtxid())
+
 
 class TestWalletOfflineSigning(ElectrumTestCase):
     TESTNET = True

@@ -2210,14 +2210,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # - For witness v1, witness_utxo will be enough though (bip-0341 sighash fixes known prior issues).
         # - We cannot include UTXO if the prev tx is not signed yet (chain of unsigned txs).
         address = address or txin.address
+        # add witness_utxo
         if txin.witness_utxo is None and txin.is_segwit() and address:
             received, spent = self.adb.get_addr_io(address)
             item = received.get(txin.prevout.to_str())
             if item:
                 txin_value = item[2]
                 txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
+        # add utxo
         if txin.utxo is None:
             txin.utxo = self.db.get_transaction(txin.prevout.txid.hex())
+        # Maybe remove witness_utxo. witness_utxo should not be present for non-segwit inputs.
+        # If it is present, it might be because another electrum instance added it when sharing the psbt via QR code.
+        # If we have the full utxo available, we can remove it without loss of information.
+        if txin.witness_utxo and not txin.is_segwit() and txin.utxo:
+            txin.witness_utxo = None
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                                         address: str) -> bool:
