@@ -794,8 +794,14 @@ def format_time(timestamp: Union[int, float, None]) -> str:
     return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
 
 
-# Takes a timestamp and returns a string with the approximation of the age
-def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+def age(
+    from_date: Union[int, float, None],  # POSIX timestamp
+    *,
+    since_date: datetime = None,
+    target_tz=None,
+    include_seconds: bool = False,
+) -> str:
+    """Takes a timestamp and returns a string with the approximation of the age"""
     if from_date is None:
         return _("Unknown")
 
@@ -803,38 +809,67 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if since_date is None:
         since_date = datetime.now(target_tz)
 
-    td = time_difference(from_date - since_date, include_seconds)
-    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
-
-
-def time_difference(distance_in_time, include_seconds):
-    #distance_in_time = since_date - from_date
+    distance_in_time = from_date - since_date
+    is_in_past = from_date < since_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
-    distance_in_minutes = int(round(distance_in_seconds/60))
+    distance_in_minutes = int(round(distance_in_seconds / 60))
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return _("{} seconds").format(distance_in_seconds)
+            if is_in_past:
+                return _("{} seconds ago").format(distance_in_seconds)
+            else:
+                return _("in {} seconds").format(distance_in_seconds)
         else:
-            return _("less than a minute")
+            if is_in_past:
+                return _("less than a minute ago")
+            else:
+                return _("in less than a minute")
     elif distance_in_minutes < 45:
-        return _("about {} minutes").format(distance_in_minutes)
+        if is_in_past:
+            return _("about {} minutes ago").format(distance_in_minutes)
+        else:
+            return _("in about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        return _("about 1 hour")
+        if is_in_past:
+            return _("about 1 hour ago")
+        else:
+            return _("in about 1 hour")
     elif distance_in_minutes < 1440:
-        return _("about {} hours").format(round(distance_in_minutes / 60.0))
+        if is_in_past:
+            return _("about {} hours ago").format(round(distance_in_minutes / 60.0))
+        else:
+            return _("in about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return _("about 1 day")
+        if is_in_past:
+            return _("about 1 day ago")
+        else:
+            return _("in about 1 day")
     elif distance_in_minutes < 43220:
-        return _("about {} days").format(round(distance_in_minutes / 1440))
+        if is_in_past:
+            return _("about {} days ago").format(round(distance_in_minutes / 1440))
+        else:
+            return _("in about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return _("about 1 month")
+        if is_in_past:
+            return _("about 1 month ago")
+        else:
+            return _("in about 1 month")
     elif distance_in_minutes < 525600:
-        return _("about {} months").format(round(distance_in_minutes / 43200))
+        if is_in_past:
+            return _("about {} months ago").format(round(distance_in_minutes / 43200))
+        else:
+            return _("in about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return _("about 1 year")
+        if is_in_past:
+            return _("about 1 year ago")
+        else:
+            return _("in about 1 year")
     else:
-        return _("over {} years").format(round(distance_in_minutes / 525600))
+        if is_in_past:
+            return _("over {} years ago").format(round(distance_in_minutes / 525600))
+        else:
+            return _("in over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',

@@ -32,7 +32,7 @@ def qt_event_listener(func):
 # return delay in msec when expiry time string should be updated
 # returns 0 when expired or expires > 1 day away (no updates needed)
 def status_update_timer_interval(exp):
-    # very roughly according to util.time_difference
+    # very roughly according to util.age
     exp_in = int(exp - time())
     exp_in_min = int(exp_in/60)
 
