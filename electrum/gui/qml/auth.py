@@ -34,7 +34,7 @@ class AuthMixin:
             r = func(self, *args, **kwargs)
             return r
         except Exception as e:
-            self._auth_logger.error('Error executing wrapped fn(): %s' % repr(e))
+            self._auth_logger.error(f'Error executing wrapped fn(): {repr(e)}')
             raise e
         finally:
             delattr(self,'__auth_fcall')
@@ -51,9 +51,9 @@ class AuthMixin:
                 if hasattr(self, reject):
                     getattr(self, reject)()
                 else:
-                    self._auth_logger.error('Reject method \'%s\' not defined' % reject)
+                    self._auth_logger.error(f'Reject method "{reject}" not defined')
         except Exception as e:
-            self._auth_logger.error('Error executing reject function \'%s\': %s' % (reject, repr(e)))
+            self._auth_logger.error(f'Error executing reject function "{reject}": {repr(e)}')
             raise e
         finally:
             delattr(self, '__auth_fcall')
