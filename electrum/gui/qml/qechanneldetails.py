@@ -118,7 +118,7 @@ class QEChannelDetails(QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=channelChanged)
     def localCapacity(self):
         if not self._channel.is_backup():
-            self._local_capacity = QEAmount(amount_msat=self._channel.balance(LOCAL))
+            self._local_capacity.copyFrom(QEAmount(amount_msat=self._channel.balance(LOCAL)))
         return self._local_capacity
 
     @pyqtProperty(QEAmount, notify=channelChanged)
