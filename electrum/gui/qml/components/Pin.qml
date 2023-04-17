@@ -18,7 +18,7 @@ ElDialog {
     property int _phase: mode == 'enter' ? 1 : 0 // 0 = existing pin, 1 = new pin, 2 = re-enter new pin
     property string _pin
 
-    title: qsTr('PIN')
+    title: authMessage ? authMessage : qsTr('PIN')
     iconSource: '../../../icons/lock.png'
     width: parent.width * 3/4
     z: 1000
@@ -69,13 +69,6 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
-
-        Label {
-            Layout.fillWidth: true
-            visible: authMessage
-            text: authMessage
-            wrapMode: Text.Wrap
-        }
 
         Label {
             text: [qsTr('Enter PIN'), qsTr('Enter New PIN'), qsTr('Re-enter New PIN')][_phase]

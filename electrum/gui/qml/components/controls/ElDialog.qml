@@ -73,6 +73,7 @@ Dialog {
 
             Label {
                 text: title
+                wrapMode: Text.Wrap
                 elide: Label.ElideRight
                 Layout.fillWidth: true
                 leftPadding: constants.paddingXLarge
