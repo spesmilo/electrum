@@ -383,6 +383,7 @@ class QEInvoice(QObject, QtEventListener):
             # TODO: is update amount_msat for overrideAmount sufficient?
             self._effectiveInvoice.amount_msat = self.amountOverride.satsInt * 1000
 
+        self._wallet.auth_message = _('Pay Lightning Invoice?')
         self._wallet.pay_lightning_invoice(self._effectiveInvoice)
 
     def get_max_spendable_onchain(self):
