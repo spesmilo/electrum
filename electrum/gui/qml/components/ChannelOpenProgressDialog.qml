@@ -117,7 +117,7 @@ ElDialog {
 
         var sharedialog = app.genericShareDialog.createObject(app, {
             title: qsTr('Save Channel Backup'),
-            text: dialog.channelBackup,
+            text_qr: dialog.channelBackup,
             text_help: qsTr('The channel you created is not recoverable from seed.')
             + ' ' + qsTr('To prevent fund losses, please save this backup on another device.')
             + ' ' + qsTr('It may be imported in another Electrum wallet with the same seed.')
