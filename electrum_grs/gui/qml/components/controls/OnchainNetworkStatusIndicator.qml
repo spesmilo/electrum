@@ -6,7 +6,7 @@ Image {
     sourceSize.width: constants.iconSizeMedium
     sourceSize.height: constants.iconSizeMedium
 
-    property bool connected: Network.server_status == 'connected'
+    property bool connected: Network.is_connected
     property bool lagging: connected && Network.isLagging
     property bool fork: connected && Network.chaintips > 1
     property bool syncing: connected && Daemon.currentWallet && Daemon.currentWallet.synchronizing

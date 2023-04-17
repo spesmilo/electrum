@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from electrum_grs import util
@@ -367,3 +368,72 @@ class TestUtil(ElectrumTestCase):
         # unicode
         self.assertEqual("'here is some unicode: \\\\u20bf \\\\U0001f600 \\\\U0001f608'",
                          util.error_text_str_to_safe_str("here is some unicode: ₿ 😀 😈"))
+
+    def test_age(self):
+        now = datetime(2023, 4, 16, 22, 30, 00)
+        self.assertEqual("Unknown",
+                         util.age(from_date=None, since_date=now))
+        # past
+        self.assertEqual("less than a minute ago",
+                         util.age(from_date=now.timestamp()-1, since_date=now))
+        self.assertEqual("1 seconds ago",
+                         util.age(from_date=now.timestamp()-1, since_date=now, include_seconds=True))
+        self.assertEqual("25 seconds ago",
+                         util.age(from_date=now.timestamp()-25, since_date=now, include_seconds=True))
+        self.assertEqual("about 30 minutes ago",
+                         util.age(from_date=now.timestamp()-1800, since_date=now))
+        self.assertEqual("about 30 minutes ago",
+                         util.age(from_date=now.timestamp()-1800, since_date=now, include_seconds=True))
+        self.assertEqual("about 1 hour ago",
+                         util.age(from_date=now.timestamp()-3300, since_date=now))
+        self.assertEqual("about 2 hours ago",
+                         util.age(from_date=now.timestamp()-8700, since_date=now))
+        self.assertEqual("about 7 hours ago",
+                         util.age(from_date=now.timestamp()-26700, since_date=now))
+        self.assertEqual("about 1 day ago",
+                         util.age(from_date=now.timestamp()-109800, since_date=now))
+        self.assertEqual("about 3 days ago",
+                         util.age(from_date=now.timestamp()-282600, since_date=now))
+        self.assertEqual("about 15 days ago",
+                         util.age(from_date=now.timestamp()-1319400, since_date=now))
+        self.assertEqual("about 1 month ago",
+                         util.age(from_date=now.timestamp()-3220200, since_date=now))
+        self.assertEqual("about 3 months ago",
+                         util.age(from_date=now.timestamp()-8317800, since_date=now))
+        self.assertEqual("about 1 year ago",
+                         util.age(from_date=now.timestamp()-39853800, since_date=now))
+        self.assertEqual("over 3 years ago",
+                         util.age(from_date=now.timestamp()-103012200, since_date=now))
+        # future
+        self.assertEqual("in less than a minute",
+                         util.age(from_date=now.timestamp()+1, since_date=now))
+        self.assertEqual("in 1 seconds",
+                         util.age(from_date=now.timestamp()+1, since_date=now, include_seconds=True))
+        self.assertEqual("in 25 seconds",
+                         util.age(from_date=now.timestamp()+25, since_date=now, include_seconds=True))
+        self.assertEqual("in about 30 minutes",
+                         util.age(from_date=now.timestamp()+1800, since_date=now))
+        self.assertEqual("in about 30 minutes",
+                         util.age(from_date=now.timestamp()+1800, since_date=now, include_seconds=True))
+        self.assertEqual("in about 1 hour",
+                         util.age(from_date=now.timestamp()+3300, since_date=now))
+        self.assertEqual("in about 2 hours",
+                         util.age(from_date=now.timestamp()+8700, since_date=now))
+        self.assertEqual("in about 7 hours",
+                         util.age(from_date=now.timestamp()+26700, since_date=now))
+        self.assertEqual("in about 1 day",
+                         util.age(from_date=now.timestamp()+109800, since_date=now))
+        self.assertEqual("in about 3 days",
+                         util.age(from_date=now.timestamp()+282600, since_date=now))
+        self.assertEqual("in about 15 days",
+                         util.age(from_date=now.timestamp()+1319400, since_date=now))
+        self.assertEqual("in about 1 month",
+                         util.age(from_date=now.timestamp()+3220200, since_date=now))
+        self.assertEqual("in about 3 months",
+                         util.age(from_date=now.timestamp()+8317800, since_date=now))
+        self.assertEqual("in about 1 year",
+                         util.age(from_date=now.timestamp()+39853800, since_date=now))
+        self.assertEqual("in over 3 years",
+                         util.age(from_date=now.timestamp()+103012200, since_date=now))
+
+

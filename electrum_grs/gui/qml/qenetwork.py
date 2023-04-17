@@ -35,6 +35,7 @@ class QENetwork(QObject, QtEventListener):
 
     _height = 0
     _server = ""
+    _is_connected = False
     _server_status = ""
     _network_status = ""
     _chaintips = 1
@@ -95,7 +96,11 @@ class QENetwork(QObject, QtEventListener):
             self._logger.debug('network_status updated: %s' % network_status)
             self._network_status = network_status
             self.statusChanged.emit()
-        server_status = self.network.connection_status
+        is_connected = self.network.is_connected()
+        if self._is_connected != is_connected:
+            self._is_connected = is_connected
+            self.statusChanged.emit()
+        server_status = self.network.get_connection_status_for_GUI()
         if self._server_status != server_status:
             self._logger.debug('server_status updated: %s' % server_status)
             self._server_status = server_status
@@ -209,7 +214,7 @@ class QENetwork(QObject, QtEventListener):
     @pyqtProperty(str, notify=statusChanged)
     def serverWithStatus(self):
         server = self._server
-        if self._server_status != "connected":  # connecting or disconnected
+        if not self.network.is_connected():  # connecting or disconnected
             return f"{server} (connecting...)"
         return server
 
@@ -219,7 +224,11 @@ class QENetwork(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=statusChanged)
     def server_status(self):
-        return self._server_status
+        return self.network.get_connection_status_for_GUI()
+
+    @pyqtProperty(bool, notify=statusChanged)
+    def is_connected(self):
+        return self._is_connected
 
     @pyqtProperty(int, notify=chaintipsChanged)
     def chaintips(self):

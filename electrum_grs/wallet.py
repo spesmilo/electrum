@@ -373,6 +373,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         except Exception as e:
             self.logger.exception("taskgroup died.")
         finally:
+            util.trigger_callback('wallet_updated', self)
             self.logger.info("taskgroup stopped.")
 
     async def do_synchronize_loop(self):
@@ -437,11 +438,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
-        if self.network:
-            self.network.run_from_another_thread(self.stop())
         self.lnworker = LNWallet(self, ln_xprv)
         if self.network:
-            self.start_network(self.network)
+            self.start_network_lightning()
 
     async def stop(self):
         """Stop all networking and save DB to disk."""
@@ -460,6 +459,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.save_db()
 
     def is_up_to_date(self) -> bool:
+        if self.taskgroup.joined:  # either stop() was called, or the taskgroup died
+            return False
         return self._up_to_date
 
     def tx_is_related(self, tx):
@@ -536,10 +537,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
             if self.lnworker:
-                self.lnworker.start_network(network)
-                # only start gossiping when we already have channels
-                if self.db.get('channels'):
-                    self.network.start_gossip()
+                self.start_network_lightning()
+
+    def start_network_lightning(self):
+        assert self.lnworker
+        assert self.lnworker.network is None, 'lnworker network already initialized'
+        self.lnworker.start_network(self.network)
+        # only start gossiping when we already have channels
+        if self.db.get('channels'):
+            self.network.start_gossip()
 
     @abstractmethod
     def load_keystore(self) -> None:
@@ -2207,14 +2213,21 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # - For witness v1, witness_utxo will be enough though (bip-0341 sighash fixes known prior issues).
         # - We cannot include UTXO if the prev tx is not signed yet (chain of unsigned txs).
         address = address or txin.address
+        # add witness_utxo
         if txin.witness_utxo is None and txin.is_segwit() and address:
             received, spent = self.adb.get_addr_io(address)
             item = received.get(txin.prevout.to_str())
             if item:
                 txin_value = item[2]
                 txin.witness_utxo = TxOutput.from_address_and_value(address, txin_value)
+        # add utxo
         if txin.utxo is None:
             txin.utxo = self.db.get_transaction(txin.prevout.txid.hex())
+        # Maybe remove witness_utxo. witness_utxo should not be present for non-segwit inputs.
+        # If it is present, it might be because another electrum instance added it when sharing the psbt via QR code.
+        # If we have the full utxo available, we can remove it without loss of information.
+        if txin.witness_utxo and not txin.is_segwit() and txin.utxo:
+            txin.witness_utxo = None
 
     def _learn_derivation_path_for_address_from_txinout(self, txinout: Union[PartialTxInput, PartialTxOutput],
                                                         address: str) -> bool:

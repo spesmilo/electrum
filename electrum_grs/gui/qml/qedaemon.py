@@ -83,7 +83,6 @@ class QEWalletListModel(QAbstractListModel):
             if wallet_path == path:
                 remove = i
             else:
-                self._logger.debug('HM, %s is not %s', wallet_path, path)
                 wallets.append((wallet_name, wallet_path))
             i += 1
 
@@ -196,16 +195,22 @@ class QEDaemon(AuthMixin, QObject):
             self.loadingChanged.emit()
 
             try:
-                wallet = self.daemon.load_wallet(self._path, password)
+                local_password = password # need this in local scope
+                wallet = self.daemon.load_wallet(self._path, local_password)
 
                 if wallet is None:
                     self._logger.info('could not open wallet')
                     self.walletOpenError.emit('could not open wallet')
                     return
 
+                if wallet_already_open:
+                    # wallet already open. daemon.load_wallet doesn't mind, but
+                    # we need the correct current wallet password below
+                    local_password = QEWallet.getInstanceFor(wallet).password
+
                 if self.daemon.config.get('single_password'):
-                    self._use_single_password = self.daemon.update_password_for_directory(old_password=password, new_password=password)
-                    self._password = password
+                    self._use_single_password = self.daemon.update_password_for_directory(old_password=local_password, new_password=local_password)
+                    self._password = local_password
                     self.singlePasswordChanged.emit()
                     self._logger.info(f'use single password: {self._use_single_password}')
                 else:
@@ -215,7 +220,7 @@ class QEDaemon(AuthMixin, QObject):
 
                 run_hook('load_wallet', wallet)
 
-                self._backendWalletLoaded.emit(password)
+                self._backendWalletLoaded.emit(local_password)
             except WalletFileException as e:
                 self._logger.error(str(e))
                 self.walletOpenError.emit(str(e))

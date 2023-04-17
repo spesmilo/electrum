@@ -58,6 +58,7 @@ ElDialog {
                 Label {
                     id: btcValue
                     font.bold: true
+                    font.family: FixedFont
                 }
 
                 Label {

@@ -61,6 +61,7 @@ Pane {
                     }
 
                     Label {
+                        Layout.fillWidth: true
                         text: channeldetails.short_cid
                     }
 
@@ -71,17 +72,19 @@ Pane {
 
                     Label {
                         text: channeldetails.state
-                        color: channeldetails.state == 'OPEN'
+                        color: channeldetails.stateCode == ChannelDetails.Open
                                 ? constants.colorChannelOpen
                                 : Material.foreground
                     }
 
                     Label {
+                        visible: !channeldetails.isBackup
                         text: qsTr('Initiator')
                         color: Material.accentColor
                     }
 
                     Label {
+                        visible: !channeldetails.isBackup
                         text: channeldetails.initiator
                     }
 
@@ -146,6 +149,9 @@ Pane {
                             Layout.fillWidth: true
                             Layout.topMargin: constants.paddingLarge
                             Layout.bottomMargin: constants.paddingXLarge
+                            visible: channeldetails.stateCode != ChannelDetails.Redeemed
+                                && channeldetails.stateCode != ChannelDetails.Closed
+                                && !channeldetails.isBackup
                             capacity: channeldetails.capacity
                             localCapacity: channeldetails.localCapacity
                             remoteCapacity: channeldetails.remoteCapacity

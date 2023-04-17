@@ -17,6 +17,7 @@ class QEChannelDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     class State: # subset, only ones we currently need in UI
+        Open = ChannelState.OPEN
         Closed = ChannelState.CLOSED
         Redeemed = ChannelState.REDEEMED
 
@@ -99,6 +100,10 @@ class QEChannelDetails(QObject, QtEventListener):
     def state(self):
         return self._channel.get_state_for_GUI()
 
+    @pyqtProperty(int, notify=channelChanged)
+    def stateCode(self):
+        return self._channel.get_state()
+
     @pyqtProperty(str, notify=channelChanged)
     def initiator(self):
         if self._channel.is_backup():
@@ -113,7 +118,7 @@ class QEChannelDetails(QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=channelChanged)
     def localCapacity(self):
         if not self._channel.is_backup():
-            self._local_capacity = QEAmount(amount_msat=self._channel.balance(LOCAL))
+            self._local_capacity.copyFrom(QEAmount(amount_msat=self._channel.balance(LOCAL)))
         return self._local_capacity
 
     @pyqtProperty(QEAmount, notify=channelChanged)

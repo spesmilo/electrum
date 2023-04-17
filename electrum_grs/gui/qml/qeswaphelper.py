@@ -3,13 +3,13 @@ import threading
 import math
 from typing import Union
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
 from electrum_grs.i18n import _
 from electrum_grs.lnutil import ln_dummy_address
 from electrum_grs.logging import get_logger
 from electrum_grs.transaction import PartialTxOutput
-from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler
+from electrum_grs.util import NotEnoughFunds, NoDynamicFeeEstimates, profiler, get_asyncio_loop
 
 from .auth import AuthMixin, auth_protect
 from .qetypes import QEAmount
@@ -19,11 +19,17 @@ from .util import QtEventListener, qt_event_listener
 class QESwapHelper(AuthMixin, QObject, QtEventListener):
     _logger = get_logger(__name__)
 
+    class State:
+        Initialized = 0
+        ServiceReady = 1
+        Started = 2
+        Failed = 3
+        Success = 4
+
+    Q_ENUMS(State)
+
     confirm = pyqtSignal([str], arguments=['message'])
     error = pyqtSignal([str], arguments=['message'])
-    swapStarted = pyqtSignal()
-    swapSuccess = pyqtSignal()
-    swapFailed = pyqtSignal([str], arguments=['message'])
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -34,6 +40,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self._rangeMax = 0
         self._tx = None
         self._valid = False
+        self._state = QESwapHelper.State.Initialized
         self._userinfo = ' '.join([
             _('Move the slider to set the amount and direction of the swap.'),
             _('Swapping lightning funds for onchain funds will increase your capacity to receive lightning payments.'),
@@ -130,6 +137,17 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._valid = valid
             self.validChanged.emit()
 
+    stateChanged = pyqtSignal()
+    @pyqtProperty(int, notify=stateChanged)
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, state):
+        if self._state != state:
+            self._state = state
+            self.stateChanged.emit()
+
     userinfoChanged = pyqtSignal()
     @pyqtProperty(str, notify=userinfoChanged)
     def userinfo(self):
@@ -215,7 +233,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         swap_manager = lnworker.swap_manager
         try:
             asyncio.run(swap_manager.get_pairs())
-            self._service_available = True
+            self.state = QESwapHelper.State.ServiceReady
         except Exception as e:
             self.error.emit(_('Swap service unavailable'))
             self._logger.error(f'could not get pairs for swap: {repr(e)}')
@@ -284,7 +302,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.swap_slider_moved()
 
     def swap_slider_moved(self):
-        if not self._service_available:
+        if self._state == QESwapHelper.State.Initialized:
             return
 
         position = int(self._sliderPos)
@@ -293,39 +311,20 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
 
         # pay_amount and receive_amounts are always with fees already included
         # so they reflect the net balance change after the swap
-        if position < 0:  # reverse swap
-            self.isReverse = True
-
-            self._send_amount = abs(position)
-            self.tosend = QEAmount(amount_sat=self._send_amount)
-
-            self._receive_amount = swap_manager.get_recv_amount(
-                send_amount=self._send_amount, is_reverse=True)
-            self.toreceive = QEAmount(amount_sat=self._receive_amount)
-
-            # fee breakdown
-            self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            server_miningfee = swap_manager.lockup_fee
-            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
-            self.miningfee = QEAmount(amount_sat=swap_manager.get_claim_fee())
-
+        self.isReverse = (position < 0)
+        self._send_amount = abs(position)
+        self.tosend = QEAmount(amount_sat=self._send_amount)
+        self._receive_amount = swap_manager.get_recv_amount(send_amount=self._send_amount, is_reverse=self.isReverse)
+        self.toreceive = QEAmount(amount_sat=self._receive_amount)
+        # fee breakdown
+        self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
+        server_miningfee = swap_manager.lockup_fee if self.isReverse else swap_manager.normal_fee
+        self.server_miningfee = QEAmount(amount_sat=server_miningfee)
+        if self.isReverse:
             self.check_valid(self._send_amount, self._receive_amount)
-        else:  # forward (normal) swap
-            self.isReverse = False
-            self._send_amount = position
-            self.tosend = QEAmount(amount_sat=self._send_amount)
-
-            self._receive_amount = swap_manager.get_recv_amount(send_amount=position, is_reverse=False)
-            self.toreceive = QEAmount(amount_sat=self._receive_amount)
-
-            # fee breakdown
-            self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
-            server_miningfee = swap_manager.normal_fee
-            self.server_miningfee = QEAmount(amount_sat=server_miningfee)
-
-            # the slow stuff we delegate to a delay timer which triggers after slider
-            # doesn't update for a while
-            self.valid = False # wait for timer
+        else:
+            # update tx only if slider isn't moved for a while
+            self.valid = False
             self._fwd_swap_updatetx_timer.start(250)
 
     def check_valid(self, send_amount, receive_amount):
@@ -346,7 +345,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         assert self._tx
         if lightning_amount is None or onchain_amount is None:
             return
-        loop = self._wallet.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = self._wallet.wallet.lnworker.swap_manager.normal_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
@@ -357,16 +356,23 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                self.swapStarted.emit()
+                self.userinfo = _('Performing swap...')
+                self.state = QESwapHelper.State.Started
                 txid = fut.result()
                 try: # swaphelper might be destroyed at this point
-                    self.swapSuccess.emit()
+                    self.userinfo = ' '.join([
+                        _('Success!'),
+                        _('Your funding transaction has been broadcast.'),
+                        _('The swap will be finalized once your transaction is confirmed.'),
+                        _('You will need to be online to finalize the swap, or the transaction will be refunded to you after some delay.'),
+                    ])
+                    self.state = QESwapHelper.State.Success
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
+                    self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
-                    self.swapFailed.emit(str(e))
                 except RuntimeError:
                     pass
 
@@ -376,7 +382,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if lightning_amount is None or onchain_amount is None:
             return
         swap_manager = self._wallet.wallet.lnworker.swap_manager
-        loop = self._wallet.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = swap_manager.reverse_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount + swap_manager.get_claim_fee(),
@@ -385,19 +391,28 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         def swap_task():
             try:
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
-                self.swapStarted.emit()
+                self.userinfo = _('Performing swap...')
+                self.state = QESwapHelper.State.Started
                 success = fut.result()
                 try: # swaphelper might be destroyed at this point
                     if success:
-                        self.swapSuccess.emit()
+                        self.userinfo = ' '.join([
+                            _('Success!'),
+                            _('The funding transaction has been detected.'),
+                            _('Your claiming transaction will be broadcast when the funding transaction is confirmed.'),
+                            _('You may broadcast it before that manually, but this is not trustless.'),
+                        ])
+                        self.state = QESwapHelper.State.Success
                     else:
-                        self.swapFailed.emit('')
+                        self.userinfo = _('Swap failed!')
+                        self.state = QESwapHelper.State.Failed
                 except RuntimeError:
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
+                    self.userinfo = _('Swap failed!')
+                    self.state = QESwapHelper.State.Failed
                     self._logger.error(str(e))
-                    self.swapFailed.emit(str(e))
                 except RuntimeError:
                     pass
 
@@ -409,7 +424,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-        if confirm:
+        if confirm or self._wallet.wallet.config.get('pin_code', ''):
             self._do_execute_swap()
             return
 

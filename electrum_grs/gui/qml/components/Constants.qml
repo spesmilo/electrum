@@ -46,6 +46,7 @@ Item {
     property color colorLightningRemote: "yellow"
     property color colorChannelOpen: "#ff80ff80"
 
+    property color colorPiechartTotal: Material.accentColor
     property color colorPiechartOnchain: Qt.darker(Material.accentColor, 1.50)
     property color colorPiechartFrozen: 'gray'
     property color colorPiechartLightning: 'orange'

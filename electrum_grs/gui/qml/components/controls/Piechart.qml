@@ -17,6 +17,7 @@ Canvas {
         var ctx = getContext('2d')
         ctx.reset()
 
+        ctx.font = "" + constants.fontSizeSmall + "px '" + app.font.family + "', sans-serif"
         ctx.strokeStyle = Qt.rgba(1, 1, 1, 1)
         ctx.lineWidth = 2
         var pcx = width/2
@@ -67,7 +68,7 @@ Canvas {
             ctx.lineTo(pcx+dx2+ddx, pcy+dy2)
             ctx.moveTo(pcx+dx2, pcy+dy2)
 
-            ctx.text(slice.text, xtext, pcy+dy2 - constants.paddingXSmall)
+            ctx.fillText(slice.text, xtext, pcy+dy2 - constants.paddingXSmall)
             ctx.stroke()
         }
 

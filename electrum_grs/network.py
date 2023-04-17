@@ -37,6 +37,7 @@ import concurrent
 from concurrent import futures
 import copy
 import functools
+from enum import IntEnum
 
 import aiorpcx
 from aiorpcx import ignore_after
@@ -80,6 +81,12 @@ NUM_STICKY_SERVERS = 4
 NUM_RECENT_SERVERS = 20
 
 T = TypeVar('T')
+
+
+class ConnectionState(IntEnum):
+    DISCONNECTED  = 0
+    CONNECTING    = 1
+    CONNECTED     = 2
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -330,7 +337,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # Dump network messages (all interfaces).  Set at runtime from the console.
         self.debug = False
 
-        self._set_status('disconnected')
+        self._set_status(ConnectionState.DISCONNECTED)
         self._has_ever_managed_to_connect_to_server = False
         self._was_started = False
 
@@ -432,7 +439,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         return interface is not None and interface.is_connected_and_ready()
 
     def is_connecting(self):
-        return self.connection_status == 'connecting'
+        return self.connection_status == ConnectionState.CONNECTING
+
+    def get_connection_status_for_GUI(self):
+        ConnectionStates = {
+            ConnectionState.DISCONNECTED: _('Disconnected'),
+            ConnectionState.CONNECTING: _('Connecting'),
+            ConnectionState.CONNECTED: _('Connected'),
+        }
+        return ConnectionStates[self.connection_status]
 
     async def _request_server_info(self, interface: 'Interface'):
         await interface.ready
@@ -731,7 +746,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             util.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
-            self._set_status('connected')
+            self._set_status(ConnectionState.CONNECTED)
             util.trigger_callback('network_updated')
             if blockchain_updated:
                 util.trigger_callback('blockchain_updated')
@@ -769,7 +784,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         We distinguish by whether it is in self.interfaces.'''
         if not interface: return
         if interface.server == self.default_server:
-            self._set_status('disconnected')
+            self._set_status(ConnectionState.DISCONNECTED)
         await self._close_interface(interface)
         util.trigger_callback('network_updated')
 
@@ -792,7 +807,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._connecting_ifaces.add(server)
         if server == self.default_server:
             self.logger.info(f"connecting to {server} as new interface")
-            self._set_status('connecting')
+            self._set_status(ConnectionState.CONNECTING)
         self._trying_addr_now(server)
 
         interface = Interface(network=self, server=server, proxy=self.proxy)

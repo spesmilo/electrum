@@ -79,7 +79,7 @@ ItemDelegate {
                 font.pixelSize: constants.fontSizeMedium
                 color: _closed
                         ? constants.mutedForeground
-                        : model.state == 'OPEN'
+                        : model.state_code == ChannelDetails.Open
                             ? constants.colorChannelOpen
                             : Material.foreground
             }
@@ -107,7 +107,7 @@ ItemDelegate {
 
         ChannelBar {
             Layout.fillWidth: true
-            visible: !_closed
+            visible: !_closed && !model.is_backup
             capacity: model.capacity
             localCapacity: model.local_capacity
             remoteCapacity: model.remote_capacity

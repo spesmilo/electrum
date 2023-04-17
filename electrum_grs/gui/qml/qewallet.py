@@ -13,7 +13,7 @@ from electrum_grs.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREAT
 from electrum_grs.logging import get_logger
 from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction
-from electrum_grs.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException
+from electrum_grs.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop
 from electrum_grs.plugin import run_hook
 from electrum_grs.wallet import Multisig_Wallet
 from electrum_grs.crypto import pw_decode_with_version_and_mac
@@ -360,6 +360,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return self.wallet.txin_type
         return self.wallet.get_txin_type(self.wallet.dummy_address())
 
+    @pyqtProperty(str, notify=dataChanged)
+    def seedType(self):
+        return self.wallet.db.get('seed_type')
+
     @pyqtProperty(bool, notify=dataChanged)
     def isWatchOnly(self):
         return self.wallet.is_watching_only()
@@ -393,6 +397,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=dataChanged)
     def lightningNodePubkey(self):
         return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.lnworker else ''
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def lightningHasDeterministicNodeId(self):
+        return self.wallet.lnworker.has_deterministic_node_id() if self.wallet.lnworker else False
 
     @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
@@ -473,30 +481,9 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot()
     def enableLightning(self):
-        self.wallet.init_lightning(password=None) # TODO pass password if needed
+        self.wallet.init_lightning(password=self.password)
         self.isLightningChanged.emit()
-
-    @pyqtSlot(str, int, int, bool)
-    def send_onchain(self, address, amount, fee=None, rbf=False):
-        self._logger.info('send_onchain: %s %d' % (address,amount))
-        coins = self.wallet.get_spendable_coins(None)
-        if not bitcoin.is_address(address):
-            self._logger.warning('Invalid Groestlcoin Address: ' + address)
-            return False
-
-        outputs = [PartialTxOutput.from_address_and_value(address, amount)]
-        self._logger.info(str(outputs))
-        output_values = [x.value for x in outputs]
-        if any(parse_max_spend(outval) for outval in output_values):
-            output_value = '!'
-        else:
-            output_value = sum(output_values)
-        self._logger.info(str(output_value))
-        # see qt/confirm_tx_dialog qt/main_window
-        tx = self.wallet.make_unsigned_transaction(coins=coins,outputs=outputs, fee=None)
-        self._logger.info(str(tx.to_json()))
-        tx.set_rbf(True)
-        self.sign(tx, broadcast=True)
+        self.dataChanged.emit()
 
     @auth_protect
     def sign(self, tx, *, broadcast: bool = False):
@@ -604,7 +591,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         def pay_thread():
             try:
                 coro = self.wallet.lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
-                fut = asyncio.run_coroutine_threadsafe(coro, self.wallet.network.asyncio_loop)
+                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 fut.result()
             except Exception as e:
                 self.paymentFailed.emit(invoice.get_id(), repr(e))
