@@ -165,6 +165,7 @@ class QEChannelOpener(QObject, AuthMixin):
             node_id=self._node_pubkey,
             fee_est=None)
 
+        self.auth_message = _('Open Lightning channel?')
         acpt = lambda tx: self.do_open_channel(tx, self._connect_str_resolved, self._wallet.password)
 
         self._finalizer = QETxFinalizer(self, make_tx=mktx, accept=acpt)
