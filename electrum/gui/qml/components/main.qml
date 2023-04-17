@@ -372,7 +372,7 @@ ApplicationWindow
                 id: _swaphelper
                 wallet: Daemon.currentWallet
                 onAuthRequired: {
-                    app.handleAuthRequired(_swaphelper, method)
+                    app.handleAuthRequired(_swaphelper, method, authMessage)
                 }
                 onError: {
                     var dialog = app.messageDialog.createObject(app, { text: message })
@@ -477,8 +477,8 @@ ApplicationWindow
             var dialog = app.messageDialog.createObject(app, {'text': error})
             dialog.open()
         }
-        function onAuthRequired(method) {
-            handleAuthRequired(Daemon, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Daemon, method, authMessage)
         }
         function onLoadingChanged() {
             if (!Daemon.loading)
@@ -509,8 +509,8 @@ ApplicationWindow
 
     Connections {
         target: Daemon.currentWallet
-        function onAuthRequired(method) {
-            handleAuthRequired(Daemon.currentWallet, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Daemon.currentWallet, method, authMessage)
         }
         // TODO: add to notification queue instead of barging through
         function onPaymentSucceeded(key) {
@@ -523,12 +523,12 @@ ApplicationWindow
 
     Connections {
         target: Config
-        function onAuthRequired(method) {
-            handleAuthRequired(Config, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Config, method, authMessage)
         }
     }
 
-    function handleAuthRequired(qtobject, method) {
+    function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
         if (method == 'wallet') {
             if (Daemon.currentWallet.verify_password('')) {
@@ -551,12 +551,12 @@ ApplicationWindow
         } else if (method == 'pin') {
             if (Config.pinCode == '') {
                 // no PIN configured
-                handleAuthConfirmationOnly(qtobject)
+                handleAuthConfirmationOnly(qtobject, authMessage)
             } else {
                 var dialog = app.pinDialog.createObject(app, {
                     mode: 'check',
                     pincode: Config.pinCode,
-                    authMessage: qtobject.authMessage
+                    authMessage: authMessage
                 })
                 dialog.accepted.connect(function() {
                     qtobject.authProceed()
@@ -573,12 +573,12 @@ ApplicationWindow
         }
     }
 
-    function handleAuthConfirmationOnly(qtobject) {
-        if (!qtobject.authMessage) {
+    function handleAuthConfirmationOnly(qtobject, authMessage) {
+        if (!authMessage) {
             qtobject.authProceed()
             return
         }
-        var dialog = app.messageDialog.createObject(app, {text: qtobject.authMessage, yesno: true})
+        var dialog = app.messageDialog.createObject(app, {text: authMessage, yesno: true})
         dialog.accepted.connect(function() {
             qtobject.authProceed()
         })

@@ -423,17 +423,9 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-
-        if self.isReverse:
-            self.auth_message = _('Do you want to do a reverse submarine swap?')
-        else:
-            self.auth_message = _('Do you want to do a submarine swap? '
-                'You will need to wait for the swap transaction to confirm.'
-            )
-
         self._do_execute_swap()
 
-    @auth_protect
+    @auth_protect(message=_('Confirm Lightning swap?'))
     def _do_execute_swap(self):
         if self.isReverse:
             lightning_amount = self._send_amount

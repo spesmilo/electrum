@@ -4,32 +4,28 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty
 
 from electrum.logging import get_logger
 
-def auth_protect(func=None, reject=None, method='pin'):
-    if func is None:
-        return partial(auth_protect, reject=reject, method=method)
+def auth_protect(message='', method='pin', reject=None):
 
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        _logger = get_logger(__name__)
-        _logger.debug(f'{str(self)}.{func.__name__}')
-        if hasattr(self, '__auth_fcall'):
-            _logger.debug('object already has a pending authed function call')
-            raise Exception('object already has a pending authed function call')
-        setattr(self, '__auth_fcall', (func,args,kwargs,reject))
-        getattr(self, 'authRequired').emit(method)
+    def decorator(func=None):
+        if func is None:
+            return partial(auth_protect, reject=reject, method=method)
 
-    return wrapper
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            _logger = get_logger(__name__)
+            _logger.debug(f'{str(self)}.{func.__name__}')
+            if hasattr(self, '__auth_fcall'):
+                _logger.debug('object already has a pending authed function call')
+                raise Exception('object already has a pending authed function call')
+            setattr(self, '__auth_fcall', (func,args,kwargs,reject))
+            getattr(self, 'authRequired').emit(method, message)
+
+        return wrapper
+    return decorator
 
 class AuthMixin:
     _auth_logger = get_logger(__name__)
-
-    authRequired = pyqtSignal([str],arguments=['method'])
-
-    auth_message = ''
-    _authMixinMessageChanged = pyqtSignal()
-    @pyqtProperty(str, notify=_authMixinMessageChanged)
-    def authMessage(self):
-        return self.auth_message
+    authRequired = pyqtSignal([str, str], arguments=['method', 'authMessage'])
 
     @pyqtSlot()
     def authProceed(self):
@@ -44,7 +40,6 @@ class AuthMixin:
             raise e
         finally:
             delattr(self,'__auth_fcall')
-            self.auth_message = ''
 
     @pyqtSlot()
     def authCancel(self):
@@ -64,4 +59,3 @@ class AuthMixin:
             raise e
         finally:
             delattr(self, '__auth_fcall')
-            self.auth_message = ''

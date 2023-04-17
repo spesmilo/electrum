@@ -584,7 +584,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
 
-    @auth_protect(reject='ln_auth_rejected')
+    @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
     def pay_lightning_invoice(self, invoice: 'QEInvoice'):
         amount_msat = invoice.get_amount_msat()
 
