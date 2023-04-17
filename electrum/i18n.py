@@ -23,9 +23,14 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+from typing import Optional
 
 import gettext
 
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
 
@@ -45,7 +50,8 @@ def _(x: str) -> str:
     return language.gettext(x)
 
 
-def set_language(x):
+def set_language(x: Optional[str]) -> None:
+    _logger.info(f"setting language to {x!r}")
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
