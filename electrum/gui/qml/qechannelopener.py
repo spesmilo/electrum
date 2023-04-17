@@ -173,7 +173,7 @@ class QEChannelOpener(QObject, AuthMixin):
         self._finalizer.wallet = self._wallet
         self.finalizerChanged.emit()
 
-    @auth_protect(message=_('Open Lichtning channel?'))
+    @auth_protect(message=_('Open Lightning channel?'))
     def do_open_channel(self, funding_tx, conn_str, password):
         """
         conn_str: a connection string that extract_nodeid can parse, i.e. cannot be a trampoline name
