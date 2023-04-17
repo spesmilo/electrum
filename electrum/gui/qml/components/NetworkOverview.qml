@@ -37,21 +37,21 @@ Pane {
                     text: qsTr('On-chain')
                 }
                 Label {
-                    text: qsTr('Network:');
+                    text: qsTr('Network') + ':'
                     color: Material.accentColor
                 }
                 Label {
                     text: Network.networkName
                 }
                 Label {
-                    text: qsTr('Status:');
+                    text: qsTr('Status') + ':'
                     color: Material.accentColor
                 }
                 Label {
                     text: Network.status
                 }
                 Label {
-                    text: qsTr('Server:');
+                    text: qsTr('Server') + ':'
                     color: Material.accentColor
                 }
                 Label {
@@ -165,7 +165,7 @@ Pane {
                 }
 
                 Label {
-                    text: Config.useGossip ? qsTr('Gossip:') : qsTr('Trampoline:')
+                    text: (Config.useGossip ? qsTr('Gossip') : qsTr('Trampoline')) + ':'
                     color: Material.accentColor
                 }
                 ColumnLayout {
@@ -201,7 +201,7 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Proxy:');
+                    text: qsTr('Proxy') + ':'
                     color: Material.accentColor
                 }
                 Label {

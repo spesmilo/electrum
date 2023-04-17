@@ -40,7 +40,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can send:')
+                text: qsTr('You can send') + ':'
                 color: Material.accentColor
             }
 
@@ -49,7 +49,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can receive:')
+                text: qsTr('You can receive') + ':'
                 color: Material.accentColor
             }
 

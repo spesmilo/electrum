@@ -35,7 +35,7 @@ Item {
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
-                text: qsTr('Balance:')
+                text: qsTr('Balance') + ':'
                 color: Material.accentColor
             }
 
@@ -79,7 +79,7 @@ Item {
                     source: '../../../icons/lightning.png'
                 }
                 Label {
-                    text: qsTr('Lightning:')
+                    text: qsTr('Lightning') + ':'
                     font.pixelSize: constants.fontSizeSmall
                     color: Material.accentColor
                 }
@@ -106,7 +106,7 @@ Item {
                     source: '../../../icons/bitcoin.png'
                 }
                 Label {
-                    text: qsTr('On-chain:')
+                    text: qsTr('On-chain') + ':'
                     font.pixelSize: constants.fontSizeSmall
                     color: Material.accentColor
                 }
