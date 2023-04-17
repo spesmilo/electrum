@@ -65,6 +65,7 @@ RUN apt-get update -q && \
         libc6-dev \
         libc6 \
         libc-dev-bin \
+        libglib2.0-dev \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

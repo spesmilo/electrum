@@ -22,6 +22,7 @@ export GCC_STRIP_BINARIES="1"
 PYTHON_VERSION=3.9.15
 PY_VER_MAJOR="3.9"  # as it appears in fs paths
 PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
+DESKTOP_FILE_UTILS_VERSION="0.26"
 
 VERSION=$(git describe --tags --dirty --always)
 APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
@@ -40,10 +41,26 @@ verify_hash "$CACHEDIR/functions.sh" "8f67711a28635b07ce539a9b083b8c12d5488c0000
 download_if_not_exist "$CACHEDIR/appimagetool" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
 verify_hash "$CACHEDIR/appimagetool" "df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
 
+download_if_not_exist "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION.tar.xz" \
+    "https://www.freedesktop.org/software/desktop-file-utils/releases/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION.tar.xz"
+verify_hash "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION.tar.xz" "b26dbde79ea72c8c84fb7f9d870ffd857381d049a86d25e0038c4cef4c747309"
+
 download_if_not_exist "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tar.xz"
 verify_hash "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" "12daff6809528d9f6154216950423c9e30f0e47336cb57c6aa0b4387dd5eb4b2"
 
 
+info "building desktop-file-utils"
+tar xf "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION.tar.xz" -C "$CACHEDIR"
+(
+    if [ -f "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION/src/desktop-file-validate" ]; then
+        info "desktop-file-utils already built, skipping"
+        exit 0
+    fi
+    cd "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION"
+
+    ./autogen.sh --silent
+    make "-j$CPU_CPOUNT" -s
+) || fail "could not build desktop-file-utils"
 
 info "building python."
 tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$CACHEDIR"
@@ -277,6 +294,8 @@ info "creating the AppImage."
     sed -i 's|AI\x02|\x00\x00\x00|' "$CACHEDIR/appimagetool_copy"
     chmod +x "$CACHEDIR/appimagetool_copy"
     "$CACHEDIR/appimagetool_copy" --appimage-extract
+    # Substitute desktop-file-validate bundled in appimagekit with a recent version
+    cp "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION/src/desktop-file-validate" "$BUILDDIR/squashfs-root/usr/bin/desktop-file-validate"
     # We build a small wrapper for mksquashfs that removes the -mkfs-time option
     # as it conflicts with SOURCE_DATE_EPOCH.
     mv "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs" "$BUILDDIR/squashfs-root/usr/lib/appimagekit/mksquashfs_orig"
