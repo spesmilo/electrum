@@ -170,6 +170,7 @@ class SwapManager(Logger):
     def start_network(self, *, network: 'Network', lnwatcher: 'LNWalletWatcher'):
         assert network
         assert lnwatcher
+        assert self.network is None, "already started"
         self.network = network
         self.lnwatcher = lnwatcher
         for k, swap in self.swaps.items():

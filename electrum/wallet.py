@@ -440,7 +440,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             self.db.put('lightning_privkey2', ln_xprv)
         self.lnworker = LNWallet(self, ln_xprv)
         if self.network:
-            self.start_network_lightning()
+            self._start_network_lightning()
 
     async def stop(self):
         """Stop all networking and save DB to disk."""
@@ -531,15 +531,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self.adb.clear_history()
         self.save_db()
 
-    def start_network(self, network):
+    def start_network(self, network: 'Network'):
+        assert self.network is None, "already started"
         self.network = network
         if network:
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
             if self.lnworker:
-                self.start_network_lightning()
+                self._start_network_lightning()
 
-    def start_network_lightning(self):
+    def _start_network_lightning(self):
         assert self.lnworker
         assert self.lnworker.network is None, 'lnworker network already initialized'
         self.lnworker.start_network(self.network)
