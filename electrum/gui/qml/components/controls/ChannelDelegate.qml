@@ -107,7 +107,7 @@ ItemDelegate {
 
         ChannelBar {
             Layout.fillWidth: true
-            visible: !_closed
+            visible: !_closed && !model.is_backup
             capacity: model.capacity
             localCapacity: model.local_capacity
             remoteCapacity: model.remote_capacity

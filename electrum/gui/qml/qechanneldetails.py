@@ -99,6 +99,10 @@ class QEChannelDetails(QObject, QtEventListener):
     def state(self):
         return self._channel.get_state_for_GUI()
 
+    @pyqtProperty(int, notify=channelChanged)
+    def stateCode(self):
+        return self._channel.get_state()
+
     @pyqtProperty(str, notify=channelChanged)
     def initiator(self):
         if self._channel.is_backup():
