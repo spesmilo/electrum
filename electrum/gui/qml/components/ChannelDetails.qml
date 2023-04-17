@@ -72,7 +72,7 @@ Pane {
 
                     Label {
                         text: channeldetails.state
-                        color: channeldetails.state == 'OPEN'
+                        color: channeldetails.stateCode == ChannelDetails.Open
                                 ? constants.colorChannelOpen
                                 : Material.foreground
                     }

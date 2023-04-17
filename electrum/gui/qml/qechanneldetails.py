@@ -17,6 +17,7 @@ class QEChannelDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
     class State: # subset, only ones we currently need in UI
+        Open = ChannelState.OPEN
         Closed = ChannelState.CLOSED
         Redeemed = ChannelState.REDEEMED
 
