@@ -51,13 +51,16 @@ Pane {
 
                     Piechart {
                         id: piechart
-                        visible: Daemon.currentWallet.totalBalance.satsInt > 0
+
+                        property real total: 0
+
+                        visible: total > 0
                         Layout.preferredWidth: parent.width
                         implicitHeight: 220 // TODO: sane value dependent on screen
                         innerOffset: 6
                         function updateSlices() {
                             var p = Daemon.currentWallet.getBalancesForPiechart()
-                            var total = p['total']
+                            total = p['total']
                             piechart.slices = [
                                 { v: p['lightning']/total,
                                     color: constants.colorPiechartLightning, text: qsTr('Lightning') },
@@ -79,8 +82,13 @@ Pane {
                         Layout.alignment: Qt.AlignHCenter
                         visible: Daemon.currentWallet
                         columns: 3
-                        Item {
-                            Layout.preferredWidth: 1; Layout.preferredHeight: 1
+
+                        Rectangle {
+                            Layout.preferredWidth: constants.iconSizeXSmall
+                            Layout.preferredHeight: constants.iconSizeXSmall
+                            border.color: constants.colorPiechartTotal
+                            color: 'transparent'
+                            radius: constants.iconSizeXSmall/2
                         }
                         Label {
                             text: qsTr('Total')
@@ -114,7 +122,6 @@ Pane {
                         Label {
                             visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
                             text: qsTr('On-chain')
-
                         }
                         FormattedAmount {
                             visible: Daemon.currentWallet.isLightning || !Daemon.currentWallet.frozenBalance.isEmpty
@@ -134,6 +141,21 @@ Pane {
                         FormattedAmount {
                             amount: Daemon.currentWallet.frozenBalance
                             visible: !Daemon.currentWallet.frozenBalance.isEmpty
+                        }
+
+                        Rectangle {
+                            visible: !Daemon.currentWallet.unconfirmedBalance.isEmpty
+                            Layout.preferredWidth: constants.iconSizeXSmall
+                            Layout.preferredHeight: constants.iconSizeXSmall
+                            color: constants.colorPiechartUnconfirmed
+                        }
+                        Label {
+                            visible: !Daemon.currentWallet.unconfirmedBalance.isEmpty
+                            text: qsTr('Unconfirmed')
+                        }
+                        FormattedAmount {
+                            amount: Daemon.currentWallet.unconfirmedBalance
+                            visible: !Daemon.currentWallet.unconfirmedBalance.isEmpty
                         }
                     }
 
