@@ -294,7 +294,7 @@ Pane {
                                             yesno: true
                                         })
                                         dialog.accepted.connect(function() {
-                                            Config.useRecoverableChannels = False
+                                            Config.useRecoverableChannels = false
                                         })
                                         dialog.rejected.connect(function() {
                                             checked = true // revert
