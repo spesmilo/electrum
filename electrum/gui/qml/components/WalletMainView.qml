@@ -78,41 +78,42 @@ Item {
         id: menu
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/wallet.png'
             action: Action {
                 text: qsTr('Wallet details')
-                enabled: Daemon.currentWallet
+                enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'WalletDetails'
                 onTriggered: menu.openPage(Qt.resolvedUrl('WalletDetails.qml'))
-                icon.source: '../../icons/wallet.png'
             }
         }
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/tab_addresses.png'
             action: Action {
                 text: qsTr('Addresses');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
-                enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_addresses.png'
+                enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'Addresses'
             }
         }
         MenuItem {
-           icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/lightning.png'
             action: Action {
                 text: qsTr('Channels');
-                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning && app.stack.currentItem.objectName != 'Channels'
                 onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
-                icon.source: '../../icons/lightning.png'
             }
         }
 
         MenuSeparator { }
 
         MenuItem {
-           icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/file.png'
             action: Action {
-                text: qsTr('Other wallets');
+                text: qsTr('Other wallets')
+                enabled: app.stack.currentItem.objectName != 'Wallets'
                 onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
-                icon.source: '../../icons/file.png'
             }
         }
 

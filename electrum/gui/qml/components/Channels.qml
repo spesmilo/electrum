@@ -9,6 +9,8 @@ import "controls"
 
 Pane {
     id: root
+    objectName: 'Channels'
+
     padding: 0
 
     ColumnLayout {

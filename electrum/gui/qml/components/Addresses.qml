@@ -9,6 +9,8 @@ import "controls"
 
 Pane {
     id: rootItem
+    objectName: 'Addresses'
+
     padding: 0
 
     ColumnLayout {

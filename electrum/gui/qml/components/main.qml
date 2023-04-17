@@ -49,29 +49,32 @@ ApplicationWindow
         id: menu
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/network.png'
             action: Action {
                 text: qsTr('Network')
                 onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
-                icon.source: '../../icons/network.png'
+                enabled: stack.currentItem.objectName != 'NetworkOverview'
             }
         }
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/preferences.png'
             action: Action {
-                text: qsTr('Preferences');
+                text: qsTr('Preferences')
                 onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
-                icon.source: '../../icons/preferences.png'
+                enabled: stack.currentItem.objectName != 'Properties'
             }
         }
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/electrum.png'
             action: Action {
                 text: qsTr('About');
                 onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
-                icon.source: '../../icons/electrum.png'
+                enabled: stack.currentItem.objectName != 'About'
             }
         }
 

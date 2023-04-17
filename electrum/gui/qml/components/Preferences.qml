@@ -9,6 +9,7 @@ import "controls"
 
 Pane {
     id: preferences
+    objectName: 'Properties'
 
     property string title: qsTr("Preferences")
 
