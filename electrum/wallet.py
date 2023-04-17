@@ -438,11 +438,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             node = BIP32Node.from_rootseed(seed, xtype='standard')
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
-        if self.network:
-            self.network.run_from_another_thread(self.stop())
         self.lnworker = LNWallet(self, ln_xprv)
         if self.network:
-            self.start_network(self.network)
+            self.start_network_lightning()
 
     async def stop(self):
         """Stop all networking and save DB to disk."""
@@ -539,10 +537,15 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             asyncio.run_coroutine_threadsafe(self.main_loop(), self.network.asyncio_loop)
             self.adb.start_network(network)
             if self.lnworker:
-                self.lnworker.start_network(network)
-                # only start gossiping when we already have channels
-                if self.db.get('channels'):
-                    self.network.start_gossip()
+                self.start_network_lightning()
+
+    def start_network_lightning(self):
+        assert self.lnworker
+        assert self.lnworker.network is None, 'lnworker network already initialized'
+        self.lnworker.start_network(self.network)
+        # only start gossiping when we already have channels
+        if self.db.get('channels'):
+            self.network.start_gossip()
 
     @abstractmethod
     def load_keystore(self) -> None:
