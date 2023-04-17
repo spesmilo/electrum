@@ -10,33 +10,27 @@ import "controls"
 ElDialog {
     id: root
 
+    property bool canCancel: true
+    property string mode // [check, enter, change]
+    property string pincode // old one passed in when change, new one passed out
+    property bool checkError: false
+    property string authMessage
+    property int _phase: mode == 'enter' ? 1 : 0 // 0 = existing pin, 1 = new pin, 2 = re-enter new pin
+    property string _pin
+
     title: qsTr('PIN')
     iconSource: '../../../icons/lock.png'
-    z: 1000
-
     width: parent.width * 3/4
+    z: 1000
+    focus: true
+    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
+    allowClose: canCancel
 
     anchors.centerIn: parent
 
     Overlay.modal: Rectangle {
         color: canCancel ? "#aa000000" : "#ff000000"
     }
-
-    focus: true
-
-    closePolicy: canCancel ? Popup.CloseOnEscape | Popup.CloseOnPressOutside : Popup.NoAutoClose
-
-    property bool canCancel: true
-
-    allowClose: canCancel
-
-    property string mode // [check, enter, change]
-    property string pincode // old one passed in when change, new one passed out
-
-    property int _phase: mode == 'enter' ? 1 : 0 // 0 = existing pin, 1 = new pin, 2 = re-enter new pin
-    property string _pin
-
-    property bool checkError: false
 
     function submit() {
         if (_phase == 0) {
@@ -75,6 +69,13 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
+
+        Label {
+            Layout.fillWidth: true
+            visible: authMessage
+            text: authMessage
+            wrapMode: Text.Wrap
+        }
 
         Label {
             text: [qsTr('Enter PIN'), qsTr('Enter New PIN'), qsTr('Re-enter New PIN')][_phase]

@@ -371,13 +371,6 @@ ApplicationWindow
             swaphelper: SwapHelper {
                 id: _swaphelper
                 wallet: Daemon.currentWallet
-                onConfirm: {
-                    var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-                    dialog.accepted.connect(function() {
-                        _swaphelper.executeSwap(true)
-                    })
-                    dialog.open()
-                }
                 onAuthRequired: {
                     app.handleAuthRequired(_swaphelper, method)
                 }
@@ -558,9 +551,13 @@ ApplicationWindow
         } else if (method == 'pin') {
             if (Config.pinCode == '') {
                 // no PIN configured
-                qtobject.authProceed()
+                handleAuthConfirmationOnly(qtobject)
             } else {
-                var dialog = app.pinDialog.createObject(app, {mode: 'check', pincode: Config.pinCode})
+                var dialog = app.pinDialog.createObject(app, {
+                    mode: 'check',
+                    pincode: Config.pinCode,
+                    authMessage: qtobject.authMessage
+                })
                 dialog.accepted.connect(function() {
                     qtobject.authProceed()
                     dialog.close()
@@ -574,6 +571,21 @@ ApplicationWindow
             console.log('unknown auth method ' + method)
             qtobject.authCancel()
         }
+    }
+
+    function handleAuthConfirmationOnly(qtobject) {
+        if (!qtobject.authMessage) {
+            qtobject.authProceed()
+            return
+        }
+        var dialog = app.messageDialog.createObject(app, {text: qtobject.authMessage, yesno: true})
+        dialog.accepted.connect(function() {
+            qtobject.authProceed()
+        })
+        dialog.rejected.connect(function() {
+            qtobject.authCancel()
+        })
+        dialog.open()
     }
 
     function startSwap() {

@@ -1,6 +1,6 @@
 from functools import wraps, partial
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty
 
 from electrum.logging import get_logger
 
@@ -25,6 +25,12 @@ class AuthMixin:
 
     authRequired = pyqtSignal([str],arguments=['method'])
 
+    auth_message = ''
+    _authMixinMessageChanged = pyqtSignal()
+    @pyqtProperty(str, notify=_authMixinMessageChanged)
+    def authMessage(self):
+        return self.auth_message
+
     @pyqtSlot()
     def authProceed(self):
         self._auth_logger.debug('Proceeding with authed fn()')
@@ -38,6 +44,7 @@ class AuthMixin:
             raise e
         finally:
             delattr(self,'__auth_fcall')
+            self.auth_message = ''
 
     @pyqtSlot()
     def authCancel(self):
@@ -57,3 +64,4 @@ class AuthMixin:
             raise e
         finally:
             delattr(self, '__auth_fcall')
+            self.auth_message = ''

@@ -419,21 +419,19 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         threading.Thread(target=swap_task, daemon=True).start()
 
     @pyqtSlot()
-    @pyqtSlot(bool)
-    def executeSwap(self, confirm=False):
+    def executeSwap(self):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-        if confirm or self._wallet.wallet.config.get('pin_code', ''):
-            self._do_execute_swap()
-            return
 
         if self.isReverse:
-            self.confirm.emit(_('Do you want to do a reverse submarine swap?'))
+            self.auth_message = _('Do you want to do a reverse submarine swap?')
         else:
-            self.confirm.emit(_('Do you want to do a submarine swap? '
+            self.auth_message = _('Do you want to do a submarine swap? '
                 'You will need to wait for the swap transaction to confirm.'
-            ))
+            )
+
+        self._do_execute_swap()
 
     @auth_protect
     def _do_execute_swap(self):
