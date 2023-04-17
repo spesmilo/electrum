@@ -360,6 +360,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return self.wallet.txin_type
         return self.wallet.get_txin_type(self.wallet.dummy_address())
 
+    @pyqtProperty(str, notify=dataChanged)
+    def seedType(self):
+        return self.wallet.db.get('seed_type')
+
     @pyqtProperty(bool, notify=dataChanged)
     def isWatchOnly(self):
         return self.wallet.is_watching_only()
@@ -393,6 +397,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtProperty(str, notify=dataChanged)
     def lightningNodePubkey(self):
         return self.wallet.lnworker.node_keypair.pubkey.hex() if self.wallet.lnworker else ''
+
+    @pyqtProperty(bool, notify=dataChanged)
+    def lightningHasDeterministicNodeId(self):
+        return self.wallet.lnworker.has_deterministic_node_id() if self.wallet.lnworker else False
 
     @pyqtProperty(str, notify=dataChanged)
     def derivationPrefix(self):
