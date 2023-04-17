@@ -24,15 +24,6 @@ Pane {
         dialog.open()
     }
 
-    function deleteWallet() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Really delete this wallet?'), 'yesno': true})
-        dialog.accepted.connect(function() {
-            Daemon.checkThenDeleteWallet(Daemon.currentWallet)
-        })
-        dialog.open()
-    }
-
     function changePassword() {
         // trigger dialog via wallet (auth then signal)
         Daemon.startChangePassword()
@@ -418,7 +409,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr('Delete Wallet')
-                onClicked: rootItem.deleteWallet()
+                onClicked: Daemon.checkThenDeleteWallet(Daemon.currentWallet)
                 icon.source: '../../icons/delete.png'
             }
             FlatButton {
