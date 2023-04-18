@@ -1,4 +1,5 @@
-# Release 4.4 (not released yet)
+# Release 4.4.0 (April 18, 2023)
+
  * New Android app, using QML instead of Kivy
    - Using Qt 5.15.7, PyQt 5.15.9
    - This release still on python3.8
@@ -8,15 +9,17 @@
      network orb for application menu
    - Note: long-press Receive/Send for list of payment requests/invoices
  * Qt GUI improvements
-   - New onchain tx creation flow
-   - Advanced options have been moved to toolbars, where their effect
+   - New onchain transaction creation flow, with configurable preview
+   - Various options have been moved to toolbars, where their effect
      can be more directly observed.
  * Privacy features:
     - lightning: support for option scid_alias.
-    - UTXO privacy analysis that displays the parents of a coin (Qt
-      GUI).
-    - Option to fully spend a selection of UTXOs into a new channel or
-      submarine swap (Qt GUI).
+    - Qt GUI: UTXO privacy analysis: this dialog displays all the
+      wallet transactions that are either parent of a UTXO, or can be
+      related to it through address reuse (Note that in the case of
+      address reuse, it does not display children transactions.)
+    - Coins tab: New menu that lets users easily spend a selection
+      of UTXOs into a new channel, or into a submarine swap (Qt GUI).
  * Internal:
     - Lightning invoices are regenerated everytime routing hints are
       deprecated due to liquidity changes.
