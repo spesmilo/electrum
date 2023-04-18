@@ -4,24 +4,21 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty
 
 from electrum.logging import get_logger
 
-def auth_protect(message='', method='pin', reject=None):
+def auth_protect(func=None, reject=None, method='pin', message=''):
+    if func is None:
+        return partial(auth_protect, reject=reject, method=method, message=message)
 
-    def decorator(func=None):
-        if func is None:
-            return partial(auth_protect, reject=reject, method=method)
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        _logger = get_logger(__name__)
+        _logger.debug(f'{str(self)}.{func.__name__}')
+        if hasattr(self, '__auth_fcall'):
+            _logger.debug('object already has a pending authed function call')
+            raise Exception('object already has a pending authed function call')
+        setattr(self, '__auth_fcall', (func, args, kwargs, reject))
+        getattr(self, 'authRequired').emit(method, message)
 
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            _logger = get_logger(__name__)
-            _logger.debug(f'{str(self)}.{func.__name__}')
-            if hasattr(self, '__auth_fcall'):
-                _logger.debug('object already has a pending authed function call')
-                raise Exception('object already has a pending authed function call')
-            setattr(self, '__auth_fcall', (func,args,kwargs,reject))
-            getattr(self, 'authRequired').emit(method, message)
-
-        return wrapper
-    return decorator
+    return wrapper
 
 class AuthMixin:
     _auth_logger = get_logger(__name__)
