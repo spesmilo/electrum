@@ -1,5 +1,11 @@
 # Release 4.4 (not released yet)
  * New Android app, using QML instead of Kivy
+   - Using Qt 5.15.7, PyQt 5.15.9
+   - This release still on python3.8
+   - Feature parity with Kivy
+   - Note: two topbar menus; tap wallet name for wallet menu, tap
+     network orb for application menu
+   - Note: long-press Receive/Send for list of payment requests/invoices
  * Qt GUI improvements
    - New onchain tx creation flow
    - Advanced options have been moved to toolbars, where their effect
