@@ -485,7 +485,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.isLightningChanged.emit()
         self.dataChanged.emit()
 
-    @auth_protect
+    @auth_protect()
     def sign(self, tx, *, broadcast: bool = False):
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast),
                              self.on_sign_failed)
@@ -584,7 +584,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
 
-    @auth_protect(reject='ln_auth_rejected')
+    @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
     def pay_lightning_invoice(self, invoice: 'QEInvoice'):
         amount_msat = invoice.get_amount_msat()
 

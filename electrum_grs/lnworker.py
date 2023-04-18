@@ -307,6 +307,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     def start_network(self, network: 'Network'):
         assert network
+        assert self.network is None, "already started"
         self.network = network
         self.config = network.config
         self._add_peers_from_config()

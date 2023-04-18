@@ -17,7 +17,7 @@ ElDialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
-    title: qsTr('Confirm Transaction')
+    title: qsTr('Transaction Fee')
 
     // copy these to finalizer
     onAddressChanged: finalizer.address = address

@@ -72,7 +72,7 @@ Pane {
 
                     Label {
                         text: channeldetails.state
-                        color: channeldetails.stateCode == ChannelDetails.Open
+                        color: channeldetails.state == 'OPEN'
                                 ? constants.colorChannelOpen
                                 : Material.foreground
                     }
@@ -283,9 +283,8 @@ Pane {
                 visible: channeldetails.canDelete
                 onClicked: {
                     var dialog = app.messageDialog.createObject(root, {
-                        text: channeldetails.isBackup
-                                ? qsTr('Are you sure you want to delete this channel backup?')
-                                : qsTr('Are you sure you want to delete this channel? This will purge associated transactions from your wallet history.'),
+                        title: qsTr('Are you sure?'),
+                        text: channeldetails.isBackup ? '' : qsTr('This will purge associated transactions from your wallet history.'),
                         yesno: true
                     })
                     dialog.accepted.connect(function() {

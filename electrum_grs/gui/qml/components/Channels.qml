@@ -9,6 +9,8 @@ import "controls"
 
 Pane {
     id: root
+    objectName: 'Channels'
+
     padding: 0
 
     ColumnLayout {
@@ -38,7 +40,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can send:')
+                text: qsTr('You can send') + ':'
                 color: Material.accentColor
             }
 
@@ -47,7 +49,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can receive:')
+                text: qsTr('You can receive') + ':'
                 color: Material.accentColor
             }
 
@@ -161,7 +163,7 @@ Pane {
     Connections {
         target: Daemon.currentWallet
         function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(root, { text: message })
+            var dialog = app.messageDialog.createObject(root, { title: qsTr('Error'), text: message })
             dialog.open()
         }
     }

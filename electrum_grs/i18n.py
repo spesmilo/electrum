@@ -23,11 +23,26 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+from typing import Optional
 
 import gettext
 
+from .logging import get_logger
+
+
+_logger = get_logger(__name__)
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
+
+# set initial default language, based on OS-locale
+# FIXME some module-level strings might get translated using this language, before
+#       any user-provided custom language (in config) can get set.
 language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
+try:
+    _lang = language.info().get('language', None)
+except Exception as e:
+    _logger.info(f"gettext setting initial language to ?? (error: {e!r})")
+else:
+    _logger.info(f"gettext setting initial language to {_lang!r}")
 
 
 # note: do not use old-style (%) formatting inside translations,
@@ -52,7 +67,8 @@ def _(x: str) -> str:
     return t
 
 
-def set_language(x):
+def set_language(x: Optional[str]) -> None:
+    _logger.info(f"setting language to {x!r}")
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])

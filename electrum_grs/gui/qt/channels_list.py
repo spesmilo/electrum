@@ -360,7 +360,7 @@ class ChannelsList(MyTreeView):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.can_send_label = toolbar.itemAt(0).widget()
         menu.addAction(_('Rebalance channels'), lambda: self.on_rebalance())
-        menu.addAction(_('Submarine swap'), lambda: self.main_window.run_swap_dialog())
+        menu.addAction(read_QIcon('update.png'), _('Submarine swap'), lambda: self.main_window.run_swap_dialog())
         menu.addSeparator()
         menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
         self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)

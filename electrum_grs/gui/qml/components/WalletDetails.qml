@@ -17,18 +17,9 @@ Pane {
 
     function enableLightning() {
         var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
+                {'title': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
         dialog.accepted.connect(function() {
             Daemon.currentWallet.enableLightning()
-        })
-        dialog.open()
-    }
-
-    function deleteWallet() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'text': qsTr('Really delete this wallet?'), 'yesno': true})
-        dialog.accepted.connect(function() {
-            Daemon.checkThenDeleteWallet(Daemon.currentWallet)
         })
         dialog.open()
     }
@@ -418,7 +409,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr('Delete Wallet')
-                onClicked: rootItem.deleteWallet()
+                onClicked: Daemon.checkThenDeleteWallet(Daemon.currentWallet)
                 icon.source: '../../icons/delete.png'
             }
             FlatButton {
@@ -475,19 +466,19 @@ Pane {
         }
         function onWalletDeleteError(code, message) {
             if (code == 'unpaid_requests') {
-                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
+                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message, yesno: true })
                 dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true)
                 })
                 dialog.open()
             } else if (code == 'balance') {
-                var dialog = app.messageDialog.createObject(app, {text: message, yesno: true })
+                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message, yesno: true })
                 dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true, true)
                 })
                 dialog.open()
             } else {
-                var dialog = app.messageDialog.createObject(app, {text: message })
+                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message })
                 dialog.open()
             }
         }

@@ -7,7 +7,7 @@ import "controls"
 
 ElDialog {
     id: dialog
-    title: qsTr("Message")
+    title: yesno ? qsTr("Question") : qsTr("Message")
     iconSource: yesno
         ? Qt.resolvedUrl('../../icons/question.png')
         : Qt.resolvedUrl('../../icons/info.png')
@@ -24,6 +24,7 @@ ElDialog {
 
     ColumnLayout {
         ColumnLayout {
+            visible: text
             Layout.margins: constants.paddingMedium
             Layout.alignment: Qt.AlignHCenter
             TextArea {
@@ -39,7 +40,7 @@ ElDialog {
         }
 
         ButtonContainer {
-            Layout.fillWidth: true
+            Layout.preferredWidth: dialog.parent.width * 2/3
 
             FlatButton {
                 Layout.fillWidth: true

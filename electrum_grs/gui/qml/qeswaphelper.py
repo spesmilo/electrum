@@ -372,6 +372,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
                     self.state = QESwapHelper.State.Failed
+                    self.userinfo = _('Error') + ': ' + str(e)
                     self._logger.error(str(e))
                 except RuntimeError:
                     pass
@@ -400,7 +401,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             _('Success!'),
                             _('The funding transaction has been detected.'),
                             _('Your claiming transaction will be broadcast when the funding transaction is confirmed.'),
-                            _('You may broadcast it before that manually, but this is not trustless.'),
+                            _('You may choose to broadcast it earlier, although that would not be trustless.'),
                         ])
                         self.state = QESwapHelper.State.Success
                     else:
@@ -410,8 +411,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
-                    self.userinfo = _('Swap failed!')
                     self.state = QESwapHelper.State.Failed
+                    self.userinfo = _('Error') + ': ' + str(e)
                     self._logger.error(str(e))
                 except RuntimeError:
                     pass
@@ -419,23 +420,13 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         threading.Thread(target=swap_task, daemon=True).start()
 
     @pyqtSlot()
-    @pyqtSlot(bool)
-    def executeSwap(self, confirm=False):
+    def executeSwap(self):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-        if confirm or self._wallet.wallet.config.get('pin_code', ''):
-            self._do_execute_swap()
-            return
+        self._do_execute_swap()
 
-        if self.isReverse:
-            self.confirm.emit(_('Do you want to do a reverse submarine swap?'))
-        else:
-            self.confirm.emit(_('Do you want to do a submarine swap? '
-                'You will need to wait for the swap transaction to confirm.'
-            ))
-
-    @auth_protect
+    @auth_protect(message=_('Confirm Lightning swap?'))
     def _do_execute_swap(self):
         if self.isReverse:
             lightning_amount = self._send_amount

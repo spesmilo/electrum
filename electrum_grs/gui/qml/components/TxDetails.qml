@@ -118,6 +118,18 @@ Pane {
                     }
 
                     Label {
+                        visible: txdetails.feeRateStr != ""
+                        text: qsTr('Transaction fee rate')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: txdetails.feeRateStr != ""
+                        text: txdetails.feeRateStr
+                    }
+
+                    Label {
                         Layout.fillWidth: true
                         text: qsTr('Status')
                         color: Material.accentColor
@@ -414,8 +426,8 @@ Pane {
             if (txid != txdetails.txid)
                 return
             var dialog = app.messageDialog.createObject(app, {
-                text: qsTr('Transaction added to wallet history.') + '\n\n' +
-                      qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
+                title: qsTr('Transaction added to wallet history.'),
+                text: qsTr('Note: this is an offline transaction, if you want the network to see it, you need to broadcast it.')
             })
             dialog.open()
             root.close()
@@ -446,7 +458,8 @@ Pane {
                     txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
-                        text: qsTr('Transaction fee updated.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                        title: qsTr('Transaction fee updated.'),
+                        text: qsTr('You still need to sign and broadcast this transaction.')
                     })
                     dialog.open()
                 }
@@ -472,7 +485,8 @@ Pane {
                     txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
-                        text: qsTr('CPFP fee bump transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                        title: qsTr('CPFP fee bump transaction created.'),
+                        text: qsTr('You still need to sign and broadcast this transaction.')
                     })
                     dialog.open()
                 }
@@ -497,7 +511,8 @@ Pane {
                     txdetails.sign_and_broadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
-                        text: qsTr('Cancel transaction created.') + '\n\n' + qsTr('You still need to sign and broadcast this transaction.')
+                        title: qsTr('Cancel transaction created.'),
+                        text: qsTr('You still need to sign and broadcast this transaction.')
                     })
                     dialog.open()
                 }

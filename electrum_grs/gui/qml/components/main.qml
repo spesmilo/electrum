@@ -49,29 +49,32 @@ ApplicationWindow
         id: menu
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/network.png'
             action: Action {
                 text: qsTr('Network')
                 onTriggered: menu.openPage(Qt.resolvedUrl('NetworkOverview.qml'))
-                icon.source: '../../icons/network.png'
+                enabled: stack.currentItem.objectName != 'NetworkOverview'
             }
         }
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/preferences.png'
             action: Action {
-                text: qsTr('Preferences');
+                text: qsTr('Preferences')
                 onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
-                icon.source: '../../icons/preferences.png'
+                enabled: stack.currentItem.objectName != 'Properties'
             }
         }
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/electrum.png'
             action: Action {
                 text: qsTr('About');
                 onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
-                icon.source: '../../icons/electrum.png'
+                enabled: stack.currentItem.objectName != 'About'
             }
         }
 
@@ -368,18 +371,11 @@ ApplicationWindow
             swaphelper: SwapHelper {
                 id: _swaphelper
                 wallet: Daemon.currentWallet
-                onConfirm: {
-                    var dialog = app.messageDialog.createObject(app, {text: message, yesno: true})
-                    dialog.accepted.connect(function() {
-                        _swaphelper.executeSwap(true)
-                    })
-                    dialog.open()
-                }
                 onAuthRequired: {
-                    app.handleAuthRequired(_swaphelper, method)
+                    app.handleAuthRequired(_swaphelper, method, authMessage)
                 }
                 onError: {
-                    var dialog = app.messageDialog.createObject(app, { text: message })
+                    var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
                     dialog.open()
                 }
             }
@@ -456,7 +452,7 @@ ApplicationWindow
                 mainStackView.clear()
             } else {
                 var dialog = app.messageDialog.createObject(app, {
-                    text: qsTr('Close Electrum?'),
+                    title: qsTr('Close Electrum?'),
                     yesno: true
                 })
                 dialog.accepted.connect(function() {
@@ -481,8 +477,8 @@ ApplicationWindow
             var dialog = app.messageDialog.createObject(app, {'text': error})
             dialog.open()
         }
-        function onAuthRequired(method) {
-            handleAuthRequired(Daemon, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Daemon, method, authMessage)
         }
         function onLoadingChanged() {
             if (!Daemon.loading)
@@ -513,8 +509,8 @@ ApplicationWindow
 
     Connections {
         target: Daemon.currentWallet
-        function onAuthRequired(method) {
-            handleAuthRequired(Daemon.currentWallet, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Daemon.currentWallet, method, authMessage)
         }
         // TODO: add to notification queue instead of barging through
         function onPaymentSucceeded(key) {
@@ -527,12 +523,12 @@ ApplicationWindow
 
     Connections {
         target: Config
-        function onAuthRequired(method) {
-            handleAuthRequired(Config, method)
+        function onAuthRequired(method, authMessage) {
+            handleAuthRequired(Config, method, authMessage)
         }
     }
 
-    function handleAuthRequired(qtobject, method) {
+    function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
         if (method == 'wallet') {
             if (Daemon.currentWallet.verify_password('')) {
@@ -555,9 +551,13 @@ ApplicationWindow
         } else if (method == 'pin') {
             if (Config.pinCode == '') {
                 // no PIN configured
-                qtobject.authProceed()
+                handleAuthConfirmationOnly(qtobject, authMessage)
             } else {
-                var dialog = app.pinDialog.createObject(app, {mode: 'check', pincode: Config.pinCode})
+                var dialog = app.pinDialog.createObject(app, {
+                    mode: 'check',
+                    pincode: Config.pinCode,
+                    authMessage: authMessage
+                })
                 dialog.accepted.connect(function() {
                     qtobject.authProceed()
                     dialog.close()
@@ -571,6 +571,21 @@ ApplicationWindow
             console.log('unknown auth method ' + method)
             qtobject.authCancel()
         }
+    }
+
+    function handleAuthConfirmationOnly(qtobject, authMessage) {
+        if (!authMessage) {
+            qtobject.authProceed()
+            return
+        }
+        var dialog = app.messageDialog.createObject(app, {title: authMessage, yesno: true})
+        dialog.accepted.connect(function() {
+            qtobject.authProceed()
+        })
+        dialog.rejected.connect(function() {
+            qtobject.authCancel()
+        })
+        dialog.open()
     }
 
     function startSwap() {

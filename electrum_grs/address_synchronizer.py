@@ -182,6 +182,7 @@ class AddressSynchronizer(Logger, EventListener):
                 self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
 
     def start_network(self, network: Optional['Network']) -> None:
+        assert self.network is None, "already started"
         self.network = network
         if self.network is not None:
             self.synchronizer = Synchronizer(self)

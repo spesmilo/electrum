@@ -79,7 +79,7 @@ ItemDelegate {
                 font.pixelSize: constants.fontSizeMedium
                 color: _closed
                         ? constants.mutedForeground
-                        : model.state_code == ChannelDetails.Open
+                        : model.state == 'OPEN'
                             ? constants.colorChannelOpen
                             : Material.foreground
             }

@@ -263,7 +263,7 @@ class QEDaemon(AuthMixin, QObject):
 
         self.delete_wallet(wallet)
 
-    @auth_protect
+    @auth_protect(message=_('Really delete this wallet?'))
     def delete_wallet(self, wallet):
         path = standardize_path(wallet.wallet.storage.path)
         self._logger.debug('deleting wallet with path %s' % path)

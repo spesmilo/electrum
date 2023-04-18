@@ -200,7 +200,6 @@ ElDialog {
     Component {
         id: confirmOpenChannelDialog
         ConfirmTxDialog {
-            title: qsTr('Confirm Open Channel')
             amountLabelText: qsTr('Channel capacity')
             sendButtonText: qsTr('Open Channel')
             finalizer: channelopener.finalizer
@@ -211,11 +210,11 @@ ElDialog {
         id: channelopener
         wallet: Daemon.currentWallet
         onAuthRequired: {
-            app.handleAuthRequired(channelopener, method)
+            app.handleAuthRequired(channelopener, method, authMessage)
         }
         onValidationError: {
             if (code == 'invalid_nodeid') {
-                var dialog = app.messageDialog.createObject(app, { 'text': message })
+                var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': message })
                 dialog.open()
             }
         }

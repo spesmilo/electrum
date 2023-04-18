@@ -37,6 +37,7 @@ class QETxDetails(QObject, QtEventListener):
         self._amount = QEAmount()
         self._lnamount = QEAmount()
         self._fee = QEAmount()
+        self._feerate_str = ''
         self._inputs = []
         self._outputs = []
 
@@ -144,6 +145,10 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtProperty(QEAmount, notify=detailsChanged)
     def fee(self):
         return self._fee
+
+    @pyqtProperty(str, notify=detailsChanged)
+    def feeRateStr(self):
+        return self._feerate_str
 
     @pyqtProperty('QVariantList', notify=detailsChanged)
     def inputs(self):
@@ -258,6 +263,12 @@ class QETxDetails(QObject, QtEventListener):
 
         self._status = txinfo.status
         self._fee.satsInt = txinfo.fee
+
+        self._feerate_str = ""
+        if txinfo.fee is not None:
+            size = self._tx.estimated_size()
+            fee_per_kb = txinfo.fee / size * 1000
+            self._feerate_str = self._wallet.wallet.config.format_fee_rate(fee_per_kb)
 
         self._is_mined = False if not txinfo.tx_mined_status else txinfo.tx_mined_status.height > 0
         if self._is_mined:
