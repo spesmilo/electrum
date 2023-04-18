@@ -3,6 +3,7 @@
    - Using Qt 5.15.7, PyQt 5.15.9
    - This release still on python3.8
    - Feature parity with Kivy
+   - Android Back button used throughout, for cancel/close/back
    - Note: two topbar menus; tap wallet name for wallet menu, tap
      network orb for application menu
    - Note: long-press Receive/Send for list of payment requests/invoices
