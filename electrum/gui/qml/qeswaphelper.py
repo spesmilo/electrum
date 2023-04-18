@@ -372,6 +372,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
                     self.state = QESwapHelper.State.Failed
+                    self.userinfo = _('Error') + ': ' + str(e)
                     self._logger.error(str(e))
                 except RuntimeError:
                     pass
@@ -410,8 +411,8 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                     pass
             except Exception as e:
                 try: # swaphelper might be destroyed at this point
-                    self.userinfo = _('Swap failed!')
                     self.state = QESwapHelper.State.Failed
+                    self.userinfo = _('Error') + ': ' + str(e)
                     self._logger.error(str(e))
                 except RuntimeError:
                     pass
