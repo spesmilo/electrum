@@ -256,7 +256,8 @@ Pane {
                                 if (activeFocus) {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
-                                            text: qsTr('Using plain gossip mode is not recommended on mobile. Are you sure?'),
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('Electrum will have to download the Lightning Network graph, which is not recommended on mobile.'),
                                             yesno: true
                                         })
                                         dialog.accepted.connect(function() {
@@ -291,7 +292,8 @@ Pane {
                                 if (activeFocus) {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
-                                            text: qsTr('Are you sure? This option allows you to recover your lightning funds if you lose your device, or if you uninstall this app while lightning channels are active. Do not disable it unless you know how to recover channels from backups.'),
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('This option allows you to recover your lightning funds if you lose your device, or if you uninstall this app while lightning channels are active. Do not disable it unless you know how to recover channels from backups.'),
                                             yesno: true
                                         })
                                         dialog.accepted.connect(function() {

@@ -375,7 +375,7 @@ ApplicationWindow
                     app.handleAuthRequired(_swaphelper, method, authMessage)
                 }
                 onError: {
-                    var dialog = app.messageDialog.createObject(app, { text: message })
+                    var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
                     dialog.open()
                 }
             }
@@ -452,7 +452,7 @@ ApplicationWindow
                 mainStackView.clear()
             } else {
                 var dialog = app.messageDialog.createObject(app, {
-                    text: qsTr('Close Electrum?'),
+                    title: qsTr('Close Electrum?'),
                     yesno: true
                 })
                 dialog.accepted.connect(function() {
@@ -578,7 +578,7 @@ ApplicationWindow
             qtobject.authProceed()
             return
         }
-        var dialog = app.messageDialog.createObject(app, {text: authMessage, yesno: true})
+        var dialog = app.messageDialog.createObject(app, {title: authMessage, yesno: true})
         dialog.accepted.connect(function() {
             qtobject.authProceed()
         })

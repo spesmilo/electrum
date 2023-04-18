@@ -93,7 +93,7 @@ Pane {
     Connections {
         target: Daemon.currentWallet
         function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(root, { text: message })
+            var dialog = app.messageDialog.createObject(root, { title: qstr('Error'), text: message })
             dialog.open()
         }
     }

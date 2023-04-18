@@ -252,7 +252,7 @@ Item {
             dialog.open()
         }
         onLnurlError: {
-            var dialog = app.messageDialog.createObject(app, { text: message })
+            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
             dialog.open()
         }
     }
@@ -370,7 +370,7 @@ Item {
             }
             onChannelBackupFound: {
                 var dialog = app.messageDialog.createObject(app, {
-                    text: qsTr('Import Channel backup?'),
+                    title: qsTr('Import Channel backup?'),
                     yesno: true
                 })
                 dialog.accepted.connect(function() {

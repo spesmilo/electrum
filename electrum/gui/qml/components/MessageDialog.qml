@@ -24,6 +24,7 @@ ElDialog {
 
     ColumnLayout {
         ColumnLayout {
+            visible: text
             Layout.margins: constants.paddingMedium
             Layout.alignment: Qt.AlignHCenter
             TextArea {
@@ -39,7 +40,7 @@ ElDialog {
         }
 
         ButtonContainer {
-            Layout.fillWidth: true
+            Layout.preferredWidth: dialog.parent.width * 2/3
 
             FlatButton {
                 Layout.fillWidth: true

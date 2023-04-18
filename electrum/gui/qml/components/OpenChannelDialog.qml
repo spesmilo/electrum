@@ -214,7 +214,7 @@ ElDialog {
         }
         onValidationError: {
             if (code == 'invalid_nodeid') {
-                var dialog = app.messageDialog.createObject(app, { 'text': message })
+                var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': message })
                 dialog.open()
             }
         }
