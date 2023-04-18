@@ -200,7 +200,6 @@ ElDialog {
     Component {
         id: confirmOpenChannelDialog
         ConfirmTxDialog {
-            title: qsTr('Confirm Open Channel')
             amountLabelText: qsTr('Channel capacity')
             sendButtonText: qsTr('Open Channel')
             finalizer: channelopener.finalizer
