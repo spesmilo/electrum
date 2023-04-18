@@ -118,6 +118,18 @@ Pane {
                     }
 
                     Label {
+                        visible: txdetails.feeRateStr != ""
+                        text: qsTr('Transaction fee rate')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        visible: txdetails.feeRateStr != ""
+                        text: txdetails.feeRateStr
+                    }
+
+                    Label {
                         Layout.fillWidth: true
                         text: qsTr('Status')
                         color: Material.accentColor
