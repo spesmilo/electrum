@@ -7,7 +7,7 @@ import "controls"
 
 ElDialog {
     id: dialog
-    title: qsTr("Message")
+    title: yesno ? qsTr("Question") : qsTr("Message")
     iconSource: yesno
         ? Qt.resolvedUrl('../../icons/question.png')
         : Qt.resolvedUrl('../../icons/info.png')
