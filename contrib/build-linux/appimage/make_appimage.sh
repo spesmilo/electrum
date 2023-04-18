@@ -59,7 +59,7 @@ tar xf "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION.tar.xz" -C "$CA
     cd "$CACHEDIR/desktop-file-utils-$DESKTOP_FILE_UTILS_VERSION"
 
     ./autogen.sh --silent
-    make "-j$CPU_CPOUNT" -s
+    make "-j$CPU_COUNT" -s
 ) || fail "could not build desktop-file-utils"
 
 info "building python."
