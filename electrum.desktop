@@ -1,5 +1,6 @@
 # If you want Electrum to appear in a Linux app launcher ("start menu"), install this by doing:
 # sudo desktop-file-install electrum.desktop
+# Note: This assumes $HOME/.local/bin is in your $PATH
 
 [Desktop Entry]
 Comment=Lightweight Bitcoin Client
