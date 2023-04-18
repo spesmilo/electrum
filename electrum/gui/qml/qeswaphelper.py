@@ -400,7 +400,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
                             _('Success!'),
                             _('The funding transaction has been detected.'),
                             _('Your claiming transaction will be broadcast when the funding transaction is confirmed.'),
-                            _('You may broadcast it before that manually, but this is not trustless.'),
+                            _('You may choose to broadcast it earlier, although that would not be trustless.'),
                         ])
                         self.state = QESwapHelper.State.Success
                     else:
