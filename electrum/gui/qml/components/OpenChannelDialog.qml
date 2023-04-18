@@ -211,7 +211,7 @@ ElDialog {
         id: channelopener
         wallet: Daemon.currentWallet
         onAuthRequired: {
-            app.handleAuthRequired(channelopener, method)
+            app.handleAuthRequired(channelopener, method, authMessage)
         }
         onValidationError: {
             if (code == 'invalid_nodeid') {
