@@ -793,12 +793,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
         self.window.show_send_tab()
+        self.payto_e.do_clear()
         if len(paytos) == 1:
             self.payto_e.setText(paytos[0])
             self.amount_e.setFocus()
         else:
+            self.payto_e.setFocus()
             text = "\n".join([payto + ", 0" for payto in paytos])
             self.payto_e.setText(text)
-            self.payto_e.setFocus()
-
-

@@ -121,6 +121,7 @@ class PayToEdit(Logger, GenericInputHandler):
         self.setText = self.editor.setText
         self.setEnabled = self.editor.setEnabled
         self.setReadOnly = self.editor.setReadOnly
+        self.setFocus = self.editor.setFocus
         # button handlers
         self.on_qr_from_camera_input_btn = partial(
             self.input_qr_from_camera,
@@ -150,10 +151,13 @@ class PayToEdit(Logger, GenericInputHandler):
         return self.text_edit if self.is_paytomany() else self.line_edit
 
     def set_paytomany(self, b):
+        has_focus = self.editor.hasFocus()
         self._is_paytomany = b
         self.line_edit.setVisible(not b)
         self.text_edit.setVisible(b)
         self.send_tab.paytomany_menu.setChecked(b)
+        if has_focus:
+            self.editor.setFocus()
 
     def toggle_paytomany(self):
         self.set_paytomany(not self._is_paytomany)
