@@ -272,8 +272,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         def sign_done(success):
             if success:
                 self.window.broadcast_or_show(tx)
-            else:
-                raise
         self.window.sign_tx(
             tx,
             callback=sign_done,
