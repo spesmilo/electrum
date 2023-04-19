@@ -2091,6 +2091,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 break
             out_size_total = sum(Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
                                  for (idx, out) in s if idx not in del_out_idxs)
+            if out_size_total == 0:  # no outputs left to decrease
+                raise CannotBumpFee(_('Could not find suitable outputs'))
             for idx, out in s:
                 out_size = Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
                 delta = int(math.ceil(delta_total * out_size / out_size_total))
