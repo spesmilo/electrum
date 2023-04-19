@@ -760,7 +760,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
-        self.wallet.set_broadcasting(tx, PR_BROADCASTING)
+        self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
 
         def broadcast_done(result):
             # GUI thread
@@ -769,11 +769,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
-                    self.wallet.set_broadcasting(tx, PR_BROADCAST)
+                    self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCAST)
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
-                    self.wallet.set_broadcasting(tx, None)
+                    self.wallet.set_broadcasting(tx, broadcasting_status=None)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
