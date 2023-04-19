@@ -127,14 +127,13 @@ jobs:
           # this might remove tools that are actually needed,
           # if set to "true" but frees about 6 GB
           tool-cache: false
-          large-packages: false
 
           # all of these default to true, but feel free to set to
           # "false" if necessary for your workflow
           android: true
           dotnet: false
           haskell: true
-          large-packages: true
+          large-packages: false
           swap-storage: true
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
