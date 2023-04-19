@@ -278,7 +278,7 @@ def get_wordlist() -> Wordlist:
     return wordlist
 
 
-def process_mnemonics(mnemonics: List[str]) -> Tuple[bool, str]:
+def process_mnemonics(mnemonics: List[str]) -> Tuple[Optional[EncryptedSeed], str]:
     # Collect valid shares.
     shares = []
     for i, mnemonic in enumerate(mnemonics):
