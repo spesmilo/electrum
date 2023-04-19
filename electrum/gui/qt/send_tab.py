@@ -254,7 +254,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         output_value = '!' if is_max else sum(output_values)
         conf_dlg = ConfirmTxDialog(window=self.window, make_tx=make_tx, output_value=output_value)
         if conf_dlg.not_enough_funds:
-            confirmed_only = self.config.get('confirmed_only', False)
+            # note: use confirmed_only=False here, regardless of config setting,
+            #       as the user needs to get to ConfirmTxDialog to change the config setting
             if not conf_dlg.can_pay_assuming_zero_fees(confirmed_only=False):
                 text = self.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
