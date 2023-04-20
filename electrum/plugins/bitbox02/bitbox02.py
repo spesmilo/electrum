@@ -444,7 +444,8 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
-            assert (desc := txin.script_descriptor)
+            desc = txin.script_descriptor
+            assert desc
             if tx_script_type is None:
                 tx_script_type = desc.to_legacy_electrum_script_type()
             elif tx_script_type != desc.to_legacy_electrum_script_type():

@@ -528,7 +528,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin.is_coinbase_input():
                     self.give_error("Coinbase not supported") # should never happen
 
-                assert (desc := txin.script_descriptor)
+                desc = txin.script_descriptor
+                assert desc
                 if desc.to_legacy_electrum_script_type() != 'p2pkh':
                     p2pkhTransaction = False
 

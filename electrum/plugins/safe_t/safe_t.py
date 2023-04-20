@@ -341,7 +341,8 @@ class SafeTPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    assert (desc := txin.script_descriptor)
+                    desc = txin.script_descriptor
+                    assert desc
                     if multi := desc.get_simple_multisig():
                         multisig = self._make_multisig(multi)
                     else:
@@ -387,7 +388,8 @@ class SafeTPlugin(HW_PluginBase):
     def tx_outputs(self, tx: PartialTransaction, *, keystore: 'SafeTKeyStore'):
 
         def create_output_by_derivation():
-            assert (desc := txout.script_descriptor)
+            desc = txout.script_descriptor
+            assert desc
             script_type = self.get_safet_output_script_type(desc.to_legacy_electrum_script_type())
             if multi := desc.get_simple_multisig():
                 multisig = self._make_multisig(multi)
