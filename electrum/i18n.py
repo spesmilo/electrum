@@ -53,11 +53,22 @@ else:
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
 #       So this does not work:   _(f"My name: {name}")
 #       instead use .format:     _("My name: {}").format(name)
-def _(x: str) -> str:
-    if x == "":
+def _(msg: str, *, context=None) -> str:
+    if msg == "":
         return ""  # empty string must not be translated. see #7158
     global language
-    return language.gettext(x)
+    if context:
+        contexts = [context]
+        if context[-1] != "|":  # try with both "|" suffix and without
+            contexts.append(context + "|")
+        else:
+            contexts.append(context[:-1])
+        for ctx in contexts:
+            out = language.pgettext(ctx, msg)
+            if out != msg:  # found non-trivial translation
+                return out
+        # else try without context
+    return language.gettext(msg)
 
 
 def set_language(x: Optional[str]) -> None:
