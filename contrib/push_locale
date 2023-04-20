@@ -46,7 +46,15 @@ cmd = "lconvert -of po -o electrum/locale/messages_qml.pot electrum/locale/qml.t
 print('Convert to gettext')
 subprocess.check_output(cmd, shell=True)
 
-cmd = "msgcat -u -o electrum/locale/messages.pot electrum/locale/messages_gettext.pot electrum/locale/messages_qml.pot"
+cmd = "grep -v ^msgctxt electrum/locale/messages_qml.pot >electrum/locale/messages_qml_stripped.pot"
+print('Strip msgctxt')
+subprocess.check_output(cmd, shell=True)
+
+cmd = "msguniq electrum/locale/messages_qml_stripped.pot >electrum/locale/messages_qml_stripped_uniq.pot"
+print('Remove duplicates')
+subprocess.check_output(cmd, shell=True)
+
+cmd = "msgcat -o electrum/locale/messages.pot electrum/locale/messages_gettext.pot electrum/locale/messages_qml_stripped_uniq.pot"
 print('Generate template')
 subprocess.check_output(cmd, shell=True)
 
