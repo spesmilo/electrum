@@ -129,6 +129,7 @@ ApplicationWindow
                     }
 
                     RowLayout {
+                        width: parent.width
 
                         Item {
                             Layout.preferredWidth: constants.paddingXLarge

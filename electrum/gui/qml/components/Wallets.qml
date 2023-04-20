@@ -81,10 +81,11 @@ Pane {
                             }
 
                             Label {
+                                Layout.fillWidth: true
                                 font.pixelSize: constants.fontSizeLarge
                                 text: model.name
+                                elide: Label.ElideRight
                                 color: model.active ? Material.foreground : Qt.darker(Material.foreground, 1.20)
-                                Layout.fillWidth: true
                             }
 
                             Tag {

@@ -13,10 +13,14 @@ WizardComponent {
     }
 
     ColumnLayout {
+        width: parent.width
+
         Label {
+            Layout.fillWidth: true
             text: Daemon.singlePasswordEnabled
                 ? qsTr('Enter password')
                 : qsTr('Enter password for %1').arg(wizard_data['wallet_name'])
+            wrapMode: Text.Wrap
         }
         PasswordField {
             id: password1
