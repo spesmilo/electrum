@@ -2,7 +2,7 @@ import asyncio
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple, Callable
 from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, QMetaObject, Qt
@@ -12,7 +12,7 @@ from electrum.i18n import _
 from electrum.invoices import InvoiceError, PR_DEFAULT_EXPIRATION_WHEN_CREATING, PR_PAID, PR_BROADCASTING, PR_BROADCAST
 from electrum.logging import get_logger
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction
 from electrum.util import parse_max_spend, InvalidPassword, event_listener, AddTransactionException, get_asyncio_loop
 from electrum.plugin import run_hook
 from electrum.wallet import Multisig_Wallet
@@ -62,7 +62,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     paymentSucceeded = pyqtSignal([str], arguments=['key'])
     paymentFailed = pyqtSignal([str,str], arguments=['key','reason'])
     requestNewPassword = pyqtSignal()
-    transactionSigned = pyqtSignal([str], arguments=['txid'])
+    signSucceeded = pyqtSignal([str], arguments=['txid'])
+    signFailed = pyqtSignal([str], arguments=['message'])
     broadcastSucceeded = pyqtSignal([str], arguments=['txid'])
     broadcastFailed = pyqtSignal([str,str,str], arguments=['txid','code','reason'])
     saveTxSuccess = pyqtSignal([str], arguments=['txid'])
@@ -486,28 +487,37 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.dataChanged.emit()
 
     @auth_protect()
-    def sign(self, tx, *, broadcast: bool = False):
-        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast),
-                             self.on_sign_failed)
+    def sign(self, tx, *, broadcast: bool = False, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[], None] = None):
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, on_success, broadcast), partial(self.on_sign_failed, on_failure))
         if sign_hook:
-            self.do_sign(tx, False)
-            self._logger.debug('plugin needs to sign tx too')
-            sign_hook(tx)
-            return
+            signSuccess = self.do_sign(tx, False)
+            if signSuccess:
+                self._logger.debug('plugin needs to sign tx too')
+                sign_hook(tx)
+                return
+        else:
+            signSuccess = self.do_sign(tx, broadcast)
 
-        self.do_sign(tx, broadcast)
+        if signSuccess:
+            if on_success: on_success(tx)
+        else:
+            if on_failure: on_failure()
 
     def do_sign(self, tx, broadcast):
-        tx = self.wallet.sign_transaction(tx, self.password)
+        try:
+            tx = self.wallet.sign_transaction(tx, self.password)
+        except BaseException as e:
+            self._logger.error(f'{e!r}')
+            self.signFailed.emit(str(e))
 
         if tx is None:
             self._logger.info('did not sign')
-            return
+            return False
 
         txid = tx.txid()
         self._logger.debug(f'do_sign(), txid={txid}')
 
-        self.transactionSigned.emit(txid)
+        self.signSucceeded.emit(txid)
 
         if not tx.is_complete():
             self._logger.debug('tx not complete')
@@ -519,14 +529,19 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             # not broadcasted, so refresh history here
             self.historyModel.init_model(True)
 
+        return True
+
     # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
-    def on_sign_complete(self, broadcast, tx):
+    def on_sign_complete(self, broadcast, cb: Callable[[Transaction], None] = None, tx: Transaction = None):
         self.otpSuccess.emit()
+        if cb: cb(tx)
         if broadcast:
             self.broadcast(tx)
 
-    def on_sign_failed(self, error):
+    # this assumes a 2fa wallet, but there are no other tc_sign_wrapper hooks, so that's ok
+    def on_sign_failed(self, cb: Callable[[], None] = None, error: str = None):
         self.otpFailed.emit('error', error)
+        if cb: cb()
 
     def request_otp(self, on_submit):
         self._otp_on_submit = on_submit

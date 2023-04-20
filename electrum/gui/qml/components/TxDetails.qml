@@ -448,7 +448,7 @@ Pane {
             onAccepted: {
                 root.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Transaction fee updated.'),
@@ -475,7 +475,7 @@ Pane {
                 // replaces parent tx with cpfp tx
                 root.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('CPFP fee bump transaction created.'),
@@ -501,7 +501,7 @@ Pane {
             onAccepted: {
                 root.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Cancel transaction created.'),

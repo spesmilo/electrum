@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.i18n import _
-from electrum.transaction import PartialTxOutput, PartialTransaction
+from electrum.transaction import PartialTxOutput, PartialTransaction, Transaction
 from electrum.util import NotEnoughFunds, profiler
 from electrum.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP
 from electrum.network import NetworkException
@@ -368,30 +368,17 @@ class QETxFinalizer(TxFeeSlider):
             self._logger.error('no valid tx')
             return
 
-        # TODO: f_accept handler not used
-        # if self.f_accept:
-        #     self.f_accept(self._tx)
-        #     return
+        self._wallet.sign(self._tx, broadcast=False, on_success=self.on_signed_tx)
 
-        try:
-            self._wallet.transactionSigned.disconnect(self.onSigned)
-        except:
-            pass
-        self._wallet.transactionSigned.connect(self.onSigned)
-        self._wallet.sign(self._tx)
-
-    @pyqtSlot(str)
-    def onSigned(self, txid):
-        if txid != self._tx.txid():
-            return
-
-        self._logger.debug('onSigned')
-        self._wallet.transactionSigned.disconnect(self.onSigned)
-
+    def on_signed_tx(self, tx: Transaction):
+        self._logger.debug('on_signed_tx')
         if not self._wallet.save_tx(self._tx):
             self._logger.error('Could not save tx')
         else:
+            # FIXME: don't rely on txid. (non-segwit tx don't have a txid
+            # until tx is complete, and can't save to backend without it).
             self.finishedSave.emit(self._tx.txid())
+
 
 # mixin for watching an existing TX based on its txid for verified event
 # requires self._wallet to contain a QEWallet instance
