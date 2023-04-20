@@ -122,6 +122,7 @@ ApplicationWindow
 
                     MouseArea {
                         anchors.fill: parent
+                        enabled: Daemon.currentWallet && (!stack.currentItem.title || stack.currentItem.title == Daemon.currentWallet.name)
                         onClicked: {
                             stack.getRoot().menu.open()  // open wallet-menu
                             stack.getRoot().menu.y = toolbar.height
