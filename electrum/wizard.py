@@ -365,7 +365,10 @@ class NewWalletWizard(AbstractWizard):
                 self._logger.debug('creating keystore from bip39 seed')
                 root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
                 derivation = normalize_bip32_derivation(data['derivation_path'])
-                script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                if data['wallet_type'] == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
             elif is_any_2fa_seed_type(data['seed_type']):
                 self._logger.debug('creating keystore from 2fa seed')
