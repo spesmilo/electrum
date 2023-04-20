@@ -13,9 +13,13 @@ from aiohttp import ClientResponse
 from electrum.segwit_addr import bech32_decode, Encoding, convertbits
 from electrum.lnaddr import LnDecodeException
 from electrum.network import Network
+from electrum.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
+
+
+_logger = get_logger(__name__)
 
 
 class LNURLError(Exception):
@@ -52,21 +56,19 @@ class LNURL6Data(NamedTuple):
 async def _request_lnurl(url: str) -> dict:
     """Requests payment data from a lnurl."""
     try:
-        response = await Network.async_send_http_on_proxy("get", url, timeout=10)
-        response = json.loads(response)
+        response_raw = await Network.async_send_http_on_proxy("get", url, timeout=10)
     except asyncio.TimeoutError as e:
         raise LNURLError("Server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
+    try:
+        response = json.loads(response_raw)
     except json.JSONDecodeError:
         raise LNURLError(f"Invalid response from server")
-    # TODO: handling of specific client errors
 
-    if "metadata" in response:
-        response["metadata"] = json.loads(response["metadata"])
     status = response.get("status")
     if status and status == "ERROR":
-        raise LNURLError(f"LNURL request encountered an error: {response['reason']}")
+        raise LNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
     return response
 
 
@@ -75,17 +77,38 @@ async def request_lnurl(url: str) -> LNURL6Data:
     tag = lnurl_dict.get('tag')
     if tag != 'payRequest':  # only LNURL6 is handled atm
         raise LNURLError(f"Unknown subtype of lnurl. tag={tag}")
-    metadata = lnurl_dict.get('metadata')
+    # parse lnurl6 "metadata"
     metadata_plaintext = ""
-    for m in metadata:
-        if m[0] == 'text/plain':
-            metadata_plaintext = str(m[1])
+    try:
+        metadata_raw = lnurl_dict["metadata"]
+        metadata = json.loads(metadata_raw)
+        for m in metadata:
+            if m[0] == 'text/plain':
+                metadata_plaintext = str(m[1])
+    except Exception as e:
+        raise LNURLError(f"Missing or malformed 'metadata' field in lnurl6 response. exc: {e!r}") from e
+    # parse lnurl6 "callback"
+    try:
+        callback_url = lnurl_dict['callback']
+    except KeyError as e:
+        raise LNURLError(f"Missing 'callback' field in lnurl6 response.") from e
+    # parse lnurl6 "minSendable"/"maxSendable"
+    try:
+        max_sendable_sat = int(lnurl_dict['maxSendable']) // 1000
+        min_sendable_sat = int(lnurl_dict['minSendable']) // 1000
+    except Exception as e:
+        raise LNURLError(f"Missing or malformed 'minSendable'/'maxSendable' field in lnurl6 response. {e=!r}") from e
+    # parse lnurl6 "commentAllowed" (optional, described in lnurl-12)
+    try:
+        comment_allowed = int(lnurl_dict['commentAllowed']) if 'commentAllowed' in lnurl_dict else 0
+    except Exception as e:
+        raise LNURLError(f"Malformed 'commentAllowed' field in lnurl6 response. {e=!r}") from e
     data = LNURL6Data(
-        callback_url=lnurl_dict['callback'],
-        max_sendable_sat=int(lnurl_dict['maxSendable']) // 1000,
-        min_sendable_sat=int(lnurl_dict['minSendable']) // 1000,
+        callback_url=callback_url,
+        max_sendable_sat=max_sendable_sat,
+        min_sendable_sat=min_sendable_sat,
         metadata_plaintext=metadata_plaintext,
-        comment_allowed=int(lnurl_dict['commentAllowed']) if 'commentAllowed' in lnurl_dict else 0
+        comment_allowed=comment_allowed,
     )
     return data
 
@@ -93,14 +116,20 @@ async def request_lnurl(url: str) -> LNURL6Data:
 async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""
     try:
-        response = await Network.async_send_http_on_proxy("get", url, params=params)
+        response_raw = await Network.async_send_http_on_proxy("get", url, params=params)
+    except asyncio.TimeoutError as e:
+        raise LNURLError("Server did not reply in time.") from e
     except aiohttp.client_exceptions.ClientError as e:
         raise LNURLError(f"Client error: {e}") from e
-    # TODO: handling of specific errors
-    response = json.loads(response)
+    try:
+        response = json.loads(response_raw)
+    except json.JSONDecodeError:
+        raise LNURLError(f"Invalid response from server")
+
     status = response.get("status")
     if status and status == "ERROR":
-        raise LNURLError(f"LNURL request encountered an error: {response['reason']}")
+        raise LNURLError(f"LNURL request encountered an error: {response.get('reason', '<missing reason>')}")
+    # TODO: handling of specific errors (validate fields, e.g. for lnurl6)
     return response
 
 
