@@ -6,6 +6,7 @@ import asyncio
 import json
 from typing import Callable, Optional, NamedTuple, Any, TYPE_CHECKING
 import re
+import urllib.parse
 
 import aiohttp.client_exceptions
 from aiohttp import ClientResponse
@@ -44,6 +45,15 @@ def decode_lnurl(lnurl: str) -> str:
     return url
 
 
+def _is_url_safe_enough_for_lnurl(url: str) -> bool:
+    u = urllib.parse.urlparse(url)
+    if u.scheme.lower() == "https":
+        return True
+    if u.netloc.endswith(".onion"):
+        return True
+    return False
+
+
 class LNURL6Data(NamedTuple):
     callback_url: str
     max_sendable_sat: int
@@ -55,6 +65,8 @@ class LNURL6Data(NamedTuple):
 
 async def _request_lnurl(url: str) -> dict:
     """Requests payment data from a lnurl."""
+    if not _is_url_safe_enough_for_lnurl(url):
+        raise LNURLError(f"This lnurl looks unsafe. It must use 'https://' or '.onion' (found: {url[:10]}...)")
     try:
         response_raw = await Network.async_send_http_on_proxy("get", url, timeout=10)
     except asyncio.TimeoutError as e:
@@ -92,6 +104,8 @@ async def request_lnurl(url: str) -> LNURL6Data:
         callback_url = lnurl_dict['callback']
     except KeyError as e:
         raise LNURLError(f"Missing 'callback' field in lnurl6 response.") from e
+    if not _is_url_safe_enough_for_lnurl(callback_url):
+        raise LNURLError(f"This lnurl callback_url looks unsafe. It must use 'https://' or '.onion' (found: {callback_url[:10]}...)")
     # parse lnurl6 "minSendable"/"maxSendable"
     try:
         max_sendable_sat = int(lnurl_dict['maxSendable']) // 1000
@@ -115,6 +129,8 @@ async def request_lnurl(url: str) -> LNURL6Data:
 
 async def callback_lnurl(url: str, params: dict) -> dict:
     """Requests an invoice from a lnurl supporting server."""
+    if not _is_url_safe_enough_for_lnurl(url):
+        raise LNURLError(f"This lnurl looks unsafe. It must use 'https://' or '.onion' (found: {url[:10]}...)")
     try:
         response_raw = await Network.async_send_http_on_proxy("get", url, params=params)
     except asyncio.TimeoutError as e:
