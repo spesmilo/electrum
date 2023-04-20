@@ -166,6 +166,7 @@ Pane {
                     Label {
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingSmall
+                        visible: !txdetails.isUnrelated
                         text: qsTr('Label')
                         color: Material.accentColor
                     }
@@ -177,6 +178,8 @@ Pane {
 
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+
+                        visible: !txdetails.isUnrelated
 
                         RowLayout {
                             width: parent.width
