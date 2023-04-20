@@ -936,15 +936,6 @@ class TxDialog(QDialog, MessageBoxMixin):
         txid = self.tx.txid() or "<no txid yet>"
         self.setWindowTitle(_("Transaction") + ' ' + txid)
 
-    def can_finalize(self) -> bool:
-        return False
-
-    def on_finalize(self):
-        pass  # overridden in subclass
-
-    def update_fee_fields(self):
-        pass  # overridden in subclass
-
     def maybe_fetch_txin_data(self):
         """Download missing input data from the network, asynchronously.
         Note: we fetch the prev txs, which allows calculating the fee and showing "input addresses".
