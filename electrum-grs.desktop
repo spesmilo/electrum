@@ -1,9 +1,10 @@
 # If you want Electrum-GRS to appear in a Linux app launcher ("start menu"), install this by doing:
 # sudo desktop-file-install electrum-grs.desktop
+# Note: This assumes $HOME/.local/bin is in your $PATH
 
 [Desktop Entry]
 Comment=Lightweight Groestlcoin Client
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum-grs %u"
+Exec=electrum-grs %u
 GenericName[en_US]=Electrum-GRS
 GenericName=Electrum-GRS
 Icon=electrum-grs
@@ -18,5 +19,5 @@ MimeType=x-scheme-handler/groestlcoin;x-scheme-handler/lightning;
 Actions=Testnet;
 
 [Desktop Action Testnet]
-Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\"; electrum-grs --testnet %u"
+Exec=electrum-grs --testnet %u
 Name=Testnet mode
