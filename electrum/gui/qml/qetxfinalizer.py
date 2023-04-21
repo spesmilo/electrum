@@ -353,7 +353,7 @@ class QETxFinalizer(TxFeeSlider):
             saved = True
             # self.finishedSave.emit(self._tx.txid())
 
-        self.finished.emit(False, saved)
+        self.finished.emit(False, saved, self._tx.is_complete())
 
     @pyqtSlot()
     def signAndSend(self):
