@@ -15,7 +15,6 @@ Pane {
 
     property string txid
     property string rawtx
-
     property alias label: txdetails.label
 
     signal detailsChanged
@@ -311,9 +310,9 @@ Pane {
                 visible: txdetails.canBump || txdetails.canCpfp
                 onClicked: {
                     if (txdetails.canBump) {
-                        var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                        var dialog = rbfBumpFeeDialog.createObject(root, { txid: txdetails.txid })
                     } else {
-                        var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                        var dialog = cpfpBumpFeeDialog.createObject(root, { txid: txdetails.txid })
                     }
                     dialog.open()
                 }
@@ -326,7 +325,7 @@ Pane {
                 text: qsTr('Cancel Tx')
                 visible: txdetails.canCancel
                 onClicked: {
-                    var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                    var dialog = rbfCancelDialog.createObject(root, { txid: txdetails.txid })
                     dialog.open()
                 }
             }
@@ -400,8 +399,6 @@ Pane {
     TxDetails {
         id: txdetails
         wallet: Daemon.currentWallet
-        txid: root.txid
-        rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
@@ -410,6 +407,13 @@ Pane {
                 root.close()
             })
             dialog.open()
+        }
+        Component.onCompleted: {
+            if (root.txid) {
+                txdetails.txid = root.txid
+            } else if (root.rawtx) {
+                txdetails.rawtx = root.rawtx
+            }
         }
     }
 
@@ -440,13 +444,14 @@ Pane {
         id: rbfBumpFeeDialog
         RbfBumpFeeDialog {
             id: dialog
+            required property string txid
             rbffeebumper: TxRbfFeeBumper {
                 id: rbffeebumper
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
             onAccepted: {
-                root.rawtx = rbffeebumper.getNewTx()
+                txdetails.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.signAndBroadcast()
                 } else {
@@ -465,6 +470,7 @@ Pane {
         id: cpfpBumpFeeDialog
         CpfpBumpFeeDialog {
             id: dialog
+            required property string txid
             cpfpfeebumper: TxCpfpFeeBumper {
                 id: cpfpfeebumper
                 wallet: Daemon.currentWallet
@@ -473,7 +479,7 @@ Pane {
 
             onAccepted: {
                 // replaces parent tx with cpfp tx
-                root.rawtx = cpfpfeebumper.getNewTx()
+                txdetails.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.signAndBroadcast()
                 } else {
@@ -492,6 +498,7 @@ Pane {
         id: rbfCancelDialog
         RbfCancelDialog {
             id: dialog
+            required property string txid
             txcanceller: TxCanceller {
                 id: txcanceller
                 wallet: Daemon.currentWallet
@@ -499,7 +506,7 @@ Pane {
             }
 
             onAccepted: {
-                root.rawtx = txcanceller.getNewTx()
+                txdetails.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
                     txdetails.signAndBroadcast()
                 } else {

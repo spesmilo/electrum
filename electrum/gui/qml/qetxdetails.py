@@ -95,10 +95,10 @@ class QETxDetails(QObject, QtEventListener):
     @txid.setter
     def txid(self, txid: str):
         if self._txid != txid:
-            self._logger.debug('txid set -> %s' % txid)
+            self._logger.debug(f'txid set -> {txid}')
             self._txid = txid
             self.txidChanged.emit()
-            self.update()
+            self.update(from_txid=True)
 
     @pyqtProperty(str, notify=detailsChanged)
     def rawtx(self):
@@ -107,13 +107,14 @@ class QETxDetails(QObject, QtEventListener):
     @rawtx.setter
     def rawtx(self, rawtx: str):
         if self._rawtx != rawtx:
-            self._logger.debug('rawtx set -> %s' % rawtx)
+            self._logger.debug(f'rawtx set -> {rawtx}')
             self._rawtx = rawtx
             if not rawtx:
                 return
             try:
                 self._tx = tx_from_any(rawtx, deserialize=True)
-                self.txid = self._tx.txid() # triggers update()
+                self._txid = self._tx.txid()
+                self.update()
             except Exception as e:
                 self._tx = None
                 self._logger.error(repr(e))
@@ -226,12 +227,10 @@ class QETxDetails(QObject, QtEventListener):
     def isFinal(self):
         return self._is_final
 
-    def update(self):
-        if self._wallet is None:
-            self._logger.error('wallet undefined')
-            return
+    def update(self, from_txid: bool = False):
+        assert self._wallet
 
-        if not self._rawtx:
+        if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
             assert self._tx is not None
 
