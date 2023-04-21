@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Optional
+from functools import partial
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
@@ -220,7 +221,7 @@ class TxFeeSlider(FeeSlider):
 class QETxFinalizer(TxFeeSlider):
     _logger = get_logger(__name__)
 
-    finishedSave = pyqtSignal([str], arguments=['txid'])
+    finished = pyqtSignal([bool, bool, bool], arguments=['signed', 'saved', 'complete'])
 
     def __init__(self, parent=None, *, make_tx=None, accept=None):
         super().__init__(parent)
@@ -343,12 +344,16 @@ class QETxFinalizer(TxFeeSlider):
 
     @pyqtSlot()
     def save(self):
-        if not self._valid or not self._tx:
-            self._logger.debug('no valid tx')
+        if not self._valid or not self._tx or not self._tx.txid():
+            self._logger.debug('no valid tx or no txid')
             return
 
+        saved = False
         if self._wallet.save_tx(self._tx):
-            self.finishedSave.emit(self._tx.txid())
+            saved = True
+            # self.finishedSave.emit(self._tx.txid())
+
+        self.finished.emit(False, saved)
 
     @pyqtSlot()
     def signAndSend(self):
@@ -360,25 +365,36 @@ class QETxFinalizer(TxFeeSlider):
             self.f_accept(self._tx)
             return
 
-        self._wallet.sign(self._tx, broadcast=True)
+        self._wallet.sign(self._tx,
+            broadcast=True,
+            on_success=partial(self.on_signed_tx, False)
+        )
 
     @pyqtSlot()
-    def signAndSave(self):
+    def sign(self):
         if not self._valid or not self._tx:
             self._logger.error('no valid tx')
             return
 
-        self._wallet.sign(self._tx, broadcast=False, on_success=self.on_signed_tx)
+        self._wallet.sign(self._tx,
+            broadcast=False,
+            on_success=partial(self.on_signed_tx, True)
+        )
 
-    def on_signed_tx(self, tx: Transaction):
+    def on_signed_tx(self, save: bool, tx: Transaction):
         self._logger.debug('on_signed_tx')
-        if not self._wallet.save_tx(self._tx):
-            self._logger.error('Could not save tx')
-        else:
-            # FIXME: don't rely on txid. (non-segwit tx don't have a txid
-            # until tx is complete, and can't save to backend without it).
-            self.finishedSave.emit(self._tx.txid())
+        saved = False
+        if save and self._tx.txid():
+            if self._wallet.save_tx(self._tx):
+                saved = True
+            else:
+                self._logger.error('Could not save tx')
+        self.finished.emit(True, saved, tx.is_complete())
 
+    @pyqtSlot(result='QVariantList')
+    def getSerializedTx(self):
+        txqr = self._tx.to_qr_data()
+        return [str(self._tx), txqr[0], txqr[1]]
 
 # mixin for watching an existing TX based on its txid for verified event
 # requires self._wallet to contain a QEWallet instance
