@@ -54,13 +54,20 @@ Pane {
             height: childrenRect.height
 
             required property string section
+            property string section_label: section == 'receive'
+                ? qsTr('receive addresses')
+                : section == 'change'
+                    ? qsTr('change addresses')
+                    : section == 'imported'
+                        ? qsTr('imported addresses')
+                        : section + ' ' + qsTr('addresses')
 
             ColumnLayout {
                 width: parent.width
                 Heading {
                     Layout.leftMargin: constants.paddingLarge
                     Layout.rightMargin: constants.paddingLarge
-                    text: root.section + ' ' + qsTr('addresses')
+                    text: root.section_label
                 }
             }
         }
