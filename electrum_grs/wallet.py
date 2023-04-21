@@ -2091,6 +2091,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 break
             out_size_total = sum(Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
                                  for (idx, out) in s if idx not in del_out_idxs)
+            if out_size_total == 0:  # no outputs left to decrease
+                raise CannotBumpFee(_('Could not find suitable outputs'))
             for idx, out in s:
                 out_size = Transaction.estimated_output_size_for_script(out.scriptpubkey.hex())
                 delta = int(math.ceil(delta_total * out_size / out_size_total))
@@ -2549,13 +2551,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             util.trigger_callback('request_status', self, request.get_id(), status)
         self._update_onchain_invoice_paid_detection(invoice_keys)
 
-    def set_broadcasting(self, tx: Transaction, b: bool):
+    def set_broadcasting(self, tx: Transaction, *, broadcasting_status: Optional[int]):
         request_keys, invoice_keys = self.get_invoices_and_requests_touched_by_tx(tx)
         for key in invoice_keys:
             invoice = self._invoices.get(key)
             if not invoice:
                 continue
-            invoice._broadcasting_status = b
+            invoice._broadcasting_status = broadcasting_status
             status = self.get_invoice_status(invoice)
             util.trigger_callback('invoice_status', self, key, status)
 

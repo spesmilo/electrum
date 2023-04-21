@@ -95,10 +95,10 @@ class QETxDetails(QObject, QtEventListener):
     @txid.setter
     def txid(self, txid: str):
         if self._txid != txid:
-            self._logger.debug('txid set -> %s' % txid)
+            self._logger.debug(f'txid set -> {txid}')
             self._txid = txid
             self.txidChanged.emit()
-            self.update()
+            self.update(from_txid=True)
 
     @pyqtProperty(str, notify=detailsChanged)
     def rawtx(self):
@@ -107,13 +107,14 @@ class QETxDetails(QObject, QtEventListener):
     @rawtx.setter
     def rawtx(self, rawtx: str):
         if self._rawtx != rawtx:
-            self._logger.debug('rawtx set -> %s' % rawtx)
+            self._logger.debug(f'rawtx set -> {rawtx}')
             self._rawtx = rawtx
             if not rawtx:
                 return
             try:
                 self._tx = tx_from_any(rawtx, deserialize=True)
-                self.txid = self._tx.txid() # triggers update()
+                self._txid = self._tx.txid()
+                self.update()
             except Exception as e:
                 self._tx = None
                 self._logger.error(repr(e))
@@ -226,12 +227,10 @@ class QETxDetails(QObject, QtEventListener):
     def isFinal(self):
         return self._is_final
 
-    def update(self):
-        if self._wallet is None:
-            self._logger.error('wallet undefined')
-            return
+    def update(self, from_txid: bool = False):
+        assert self._wallet
 
-        if not self._rawtx:
+        if from_txid:
             self._tx = self._wallet.wallet.db.get_transaction(self._txid)
             assert self._tx is not None
 
@@ -310,7 +309,7 @@ class QETxDetails(QObject, QtEventListener):
         self._short_id = tx_mined_info.short_id() or ""
 
     @pyqtSlot()
-    def sign_and_broadcast(self):
+    def signAndBroadcast(self):
         self._sign(broadcast=True)
 
     @pyqtSlot()
@@ -320,19 +319,23 @@ class QETxDetails(QObject, QtEventListener):
     def _sign(self, broadcast):
         # TODO: connecting/disconnecting signal handlers here is hmm
         try:
-            self._wallet.transactionSigned.disconnect(self.onSigned)
-            self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
             if broadcast:
+                self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
                 self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
         except:
             pass
-        self._wallet.transactionSigned.connect(self.onSigned)
-        self._wallet.broadcastSucceeded.connect(self.onBroadcastSucceeded)
+
         if broadcast:
+            self._wallet.broadcastSucceeded.connect(self.onBroadcastSucceeded)
             self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
-        self._wallet.sign(self._tx, broadcast=broadcast)
+
+        self._wallet.sign(self._tx, broadcast=broadcast, on_success=self.on_signed_tx)
         # side-effect: signing updates self._tx
         # we rely on this for broadcast
+
+    def on_signed_tx(self, tx: Transaction):
+        self._logger.debug('on_signed_tx')
+        self.update()
 
     @pyqtSlot()
     def broadcast(self):
@@ -348,15 +351,6 @@ class QETxDetails(QObject, QtEventListener):
         self.detailsChanged.emit()
 
         self._wallet.broadcast(self._tx)
-
-    @pyqtSlot(str)
-    def onSigned(self, txid):
-        if txid != self._txid:
-            return
-
-        self._logger.debug('onSigned')
-        self._wallet.transactionSigned.disconnect(self.onSigned)
-        self.update()
 
     @pyqtSlot(str)
     def onBroadcastSucceeded(self, txid):

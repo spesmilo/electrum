@@ -53,15 +53,25 @@ else:
 # note: f-strings cannot be translated! see https://stackoverflow.com/q/49797658
 #       So this does not work:   _(f"My name: {name}")
 #       instead use .format:     _("My name: {}").format(name)
-def _(x: str) -> str:
-    if x == "":
+def _(msg: str, *, context=None) -> str:
+    if msg == "":
         return ""  # empty string must not be translated. see #7158
     global language
-    #Thank you Electrum-mona !!
+    if context:
+        contexts = [context]
+        if context[-1] != "|":  # try with both "|" suffix and without
+            contexts.append(context + "|")
+        else:
+            contexts.append(context[:-1])
+        for ctx in contexts:
+            out = language.pgettext(ctx, msg)
+            if out != msg:  # found non-trivial translation
+                return out
+        # else try without context
     dic = [('BTC', 'GRS'), ('Electrum Technologies GmbH', 'Groestlcoin Developers'), ('Electrum', 'Electrum-GRS'), ('Bitcoin', 'Groestlcoin'), ('Bitcoins', 'Groestlcoins'), ('bitcoin', 'groestlcoin'), ('bitcoins', 'groestlcoins'), ('satoshi', 'gro'), ('satoshis', 'gros'), ('غرسلكوين' ,'بتكوين'), ('غرسلكوين' ,'بيتكوين'), ('غرسلكوين' ,'بیت‌کوین'), ('גרוסטלקוין' ,'הביטקוין'), ('비트코인', '그로스톨코인'), ('比特币', '格羅斯币'), ('比特幣', '格羅斯幣'), ('Биткоин', 'Грoстлкоин'), ('Биткойн', 'Грoстлкоин'), ('биткойн', 'Грoстлкоин'), ('ビットコイン', 'グロストルコイン')]
     for b, m in dic:
-        x = x.replace(m, b)
-    t = language.gettext(x)
+        msg = msg.replace(m, b)
+    t = language.gettext(msg)
     for b, m in dic:
         t = t.replace(b, m)
     return t

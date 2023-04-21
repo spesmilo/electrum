@@ -15,7 +15,6 @@ Pane {
 
     property string txid
     property string rawtx
-
     property alias label: txdetails.label
 
     signal detailsChanged
@@ -55,27 +54,17 @@ Pane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
                         Layout.bottomMargin: constants.paddingLarge
-                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel || txdetails.canRemove
-                        text: txdetails.canRemove
-                            ? qsTr('This transaction is local to your wallet. It has not been published yet.')
-                            : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
-                                ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
-                                : qsTr('You can bump its fee to speed up its confirmation'))
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.columnSpan: 2
-                        visible: txdetails.isUnrelated
-                        Image {
-                            source: '../../icons/warning.png'
-                            Layout.preferredWidth: constants.iconSizeSmall
-                            Layout.preferredHeight: constants.iconSizeSmall
-                        }
-                        Label {
-                            text: qsTr('Transaction is unrelated to this wallet')
-                            color: Material.accentColor
-                        }
+                        visible: txdetails.canBump || txdetails.canCpfp || txdetails.canCancel || txdetails.canRemove || txdetails.isUnrelated
+                        text: txdetails.isUnrelated
+                            ? qsTr('Transaction is unrelated to this wallet')
+                            : txdetails.canRemove
+                                ? qsTr('This transaction is local to your wallet. It has not been published yet.')
+                                : qsTr('This transaction is still unconfirmed.') + '\n' + (txdetails.canCancel
+                                    ? qsTr('You can bump its fee to speed up its confirmation, or cancel this transaction')
+                                    : qsTr('You can bump its fee to speed up its confirmation'))
+                        iconStyle: txdetails.isUnrelated
+                            ? InfoTextArea.IconStyle.Warn
+                            : InfoTextArea.IconStyle.Info
                     }
 
                     Label {
@@ -176,6 +165,7 @@ Pane {
                     Label {
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingSmall
+                        visible: !txdetails.isUnrelated
                         text: qsTr('Label')
                         color: Material.accentColor
                     }
@@ -187,6 +177,8 @@ Pane {
 
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
+
+                        visible: !txdetails.isUnrelated
 
                         RowLayout {
                             width: parent.width
@@ -318,9 +310,9 @@ Pane {
                 visible: txdetails.canBump || txdetails.canCpfp
                 onClicked: {
                     if (txdetails.canBump) {
-                        var dialog = rbfBumpFeeDialog.createObject(root, { txid: root.txid })
+                        var dialog = rbfBumpFeeDialog.createObject(root, { txid: txdetails.txid })
                     } else {
-                        var dialog = cpfpBumpFeeDialog.createObject(root, { txid: root.txid })
+                        var dialog = cpfpBumpFeeDialog.createObject(root, { txid: txdetails.txid })
                     }
                     dialog.open()
                 }
@@ -333,7 +325,7 @@ Pane {
                 text: qsTr('Cancel Tx')
                 visible: txdetails.canCancel
                 onClicked: {
-                    var dialog = rbfCancelDialog.createObject(root, { txid: root.txid })
+                    var dialog = rbfCancelDialog.createObject(root, { txid: txdetails.txid })
                     dialog.open()
                 }
             }
@@ -407,8 +399,6 @@ Pane {
     TxDetails {
         id: txdetails
         wallet: Daemon.currentWallet
-        txid: root.txid
-        rawtx: root.rawtx
         onLabelChanged: root.detailsChanged()
         onConfirmRemoveLocalTx: {
             var dialog = app.messageDialog.createObject(app, { text: message, yesno: true })
@@ -417,6 +407,13 @@ Pane {
                 root.close()
             })
             dialog.open()
+        }
+        Component.onCompleted: {
+            if (root.txid) {
+                txdetails.txid = root.txid
+            } else if (root.rawtx) {
+                txdetails.rawtx = root.rawtx
+            }
         }
     }
 
@@ -447,15 +444,16 @@ Pane {
         id: rbfBumpFeeDialog
         RbfBumpFeeDialog {
             id: dialog
+            required property string txid
             rbffeebumper: TxRbfFeeBumper {
                 id: rbffeebumper
                 wallet: Daemon.currentWallet
                 txid: dialog.txid
             }
             onAccepted: {
-                root.rawtx = rbffeebumper.getNewTx()
+                txdetails.rawtx = rbffeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Transaction fee updated.'),
@@ -472,6 +470,7 @@ Pane {
         id: cpfpBumpFeeDialog
         CpfpBumpFeeDialog {
             id: dialog
+            required property string txid
             cpfpfeebumper: TxCpfpFeeBumper {
                 id: cpfpfeebumper
                 wallet: Daemon.currentWallet
@@ -480,9 +479,9 @@ Pane {
 
             onAccepted: {
                 // replaces parent tx with cpfp tx
-                root.rawtx = cpfpfeebumper.getNewTx()
+                txdetails.rawtx = cpfpfeebumper.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('CPFP fee bump transaction created.'),
@@ -499,6 +498,7 @@ Pane {
         id: rbfCancelDialog
         RbfCancelDialog {
             id: dialog
+            required property string txid
             txcanceller: TxCanceller {
                 id: txcanceller
                 wallet: Daemon.currentWallet
@@ -506,9 +506,9 @@ Pane {
             }
 
             onAccepted: {
-                root.rawtx = txcanceller.getNewTx()
+                txdetails.rawtx = txcanceller.getNewTx()
                 if (txdetails.wallet.canSignWithoutCosigner) {
-                    txdetails.sign_and_broadcast()
+                    txdetails.signAndBroadcast()
                 } else {
                     var dialog = app.messageDialog.createObject(app, {
                         title: qsTr('Cancel transaction created.'),

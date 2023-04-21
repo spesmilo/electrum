@@ -254,7 +254,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         output_value = '!' if is_max else sum(output_values)
         conf_dlg = ConfirmTxDialog(window=self.window, make_tx=make_tx, output_value=output_value)
         if conf_dlg.not_enough_funds:
-            confirmed_only = self.config.get('confirmed_only', False)
+            # note: use confirmed_only=False here, regardless of config setting,
+            #       as the user needs to get to ConfirmTxDialog to change the config setting
             if not conf_dlg.can_pay_assuming_zero_fees(confirmed_only=False):
                 text = self.get_text_not_enough_funds_mentioning_frozen()
                 self.show_message(text)
@@ -271,8 +272,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         def sign_done(success):
             if success:
                 self.window.broadcast_or_show(tx)
-            else:
-                raise
         self.window.sign_tx(
             tx,
             callback=sign_done,
@@ -761,7 +760,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # Capture current TL window; override might be removed on return
         parent = self.window.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
-        self.wallet.set_broadcasting(tx, PR_BROADCASTING)
+        self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCASTING)
 
         def broadcast_done(result):
             # GUI thread
@@ -770,11 +769,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 if success:
                     parent.show_message(_('Payment sent.') + '\n' + msg)
                     self.invoice_list.update()
-                    self.wallet.set_broadcasting(tx, PR_BROADCAST)
+                    self.wallet.set_broadcasting(tx, broadcasting_status=PR_BROADCAST)
                 else:
                     msg = msg or ''
                     parent.show_error(msg)
-                    self.wallet.set_broadcasting(tx, None)
+                    self.wallet.set_broadcasting(tx, broadcasting_status=None)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
@@ -793,10 +792,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def payto_contacts(self, labels):
         paytos = [self.window.get_contact_payto(label) for label in labels]
         self.window.show_send_tab()
+        self.payto_e.do_clear()
         if len(paytos) == 1:
             self.payto_e.setText(paytos[0])
             self.amount_e.setFocus()
         else:
+            self.payto_e.setFocus()
             text = "\n".join([payto + ", 0" for payto in paytos])
             self.payto_e.setText(text)
-            self.payto_e.setFocus()

@@ -42,7 +42,7 @@ class ElectrumTranslator(QTranslator):
         super().__init__(parent)
 
     def translate(self, context, source_text, disambiguation, n):
-        return _(source_text)
+        return _(source_text, context=context)
 
 class ElectrumGui(BaseElectrumGui, Logger):
 

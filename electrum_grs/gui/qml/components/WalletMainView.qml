@@ -51,10 +51,6 @@ Item {
         }
     }
 
-    function showExportByTxid(txid, helptext) {
-        showExport(Daemon.currentWallet.getSerializedTx(txid), helptext)
-    }
-
     function showExport(data, helptext) {
         var dialog = exportTxDialog.createObject(app, {
             text: data[0],
@@ -334,7 +330,7 @@ Item {
                             if (Daemon.currentWallet.isWatchOnly) {
                                 dialog.finalizer.save()
                             } else {
-                                dialog.finalizer.signAndSave()
+                                dialog.finalizer.sign()
                             }
                         } else {
                             dialog.finalizer.signAndSend()
@@ -430,13 +426,24 @@ Item {
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
-                onFinishedSave: {
-                    if (wallet.isWatchOnly) {
-                        // tx was saved. Show QR for signer(s)
-                        showExportByTxid(txid, qsTr('Transaction created. Present this QR code to the signing device'))
-                    } else {
-                        // tx was (partially) signed and saved. Show QR for co-signers or online wallet
-                        showExportByTxid(txid, qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer'))
+                onFinished: {
+                    if (!complete) {
+                        var msg
+                        if (wallet.isWatchOnly) {
+                            // tx created in watchonly wallet. Show QR for signer(s)
+                            if (wallet.isMultisig) {
+                                msg = qsTr('Transaction created. Present this QR code to one of the co-cigners or signing devices')
+                            } else {
+                                msg = qsTr('Transaction created. Present this QR code to the signing device')
+                            }
+                        } else {
+                            if (signed) {
+                                msg = qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer')
+                            } else {
+                                msg = qsTr('Transaction created but not signed by this wallet yet. Sign the transaction and present this QR code to the next co-signer')
+                            }
+                        }
+                        showExport(getSerializedTx(), msg)
                     }
                     _confirmPaymentDialog.destroy()
                 }

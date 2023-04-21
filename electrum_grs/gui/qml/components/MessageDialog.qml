@@ -22,14 +22,20 @@ ElDialog {
 
     padding: 0
 
+    width: rootLayout.width
+
     ColumnLayout {
+        id: rootLayout
+        width: dialog.parent.width * 2/3
+
         ColumnLayout {
             visible: text
             Layout.margins: constants.paddingMedium
-            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
+
             TextArea {
                 id: message
-                Layout.preferredWidth: dialog.parent.width * 2/3
+                Layout.fillWidth: true
                 readOnly: true
                 wrapMode: TextInput.WordWrap
                 textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
@@ -40,7 +46,7 @@ ElDialog {
         }
 
         ButtonContainer {
-            Layout.preferredWidth: dialog.parent.width * 2/3
+            Layout.fillWidth: true
 
             FlatButton {
                 Layout.fillWidth: true

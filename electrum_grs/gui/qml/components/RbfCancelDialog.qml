@@ -10,7 +10,6 @@ import "controls"
 ElDialog {
     id: dialog
 
-    required property string txid
     required property QtObject txcanceller
 
     title: qsTr('Cancel Transaction')

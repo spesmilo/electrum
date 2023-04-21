@@ -280,7 +280,8 @@ class Jade_KeyStore(Hardware_KeyStore):
             change = [None] * len(tx.outputs())
             for index, txout in enumerate(tx.outputs()):
                 if txout.is_mine and txout.is_change:
-                    assert (desc := txout.script_descriptor)
+                    desc = txout.script_descriptor
+                    assert desc
                     if is_multisig:
                         # Multisig - wallet details must be registered on Jade hw
                         multisig_name = _register_multisig_wallet(wallet, self, txout.address)

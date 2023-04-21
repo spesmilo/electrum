@@ -12,7 +12,7 @@ from electrum_grs import SimpleConfig
 from electrum_grs import util
 from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
 from electrum_grs.wallet import (sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet,
-                             restore_wallet_from_text, Abstract_Wallet)
+                             restore_wallet_from_text, Abstract_Wallet, CannotBumpFee)
 from electrum_grs.util import (
     bfh, NotEnoughFunds, UnrelatedTransactionException,
     UserFacingException)
@@ -1100,6 +1100,9 @@ class TestWalletSending(ElectrumTestCase):
                     await self._bump_fee_p2wpkh_decrease_payment_batch(
                         simulate_moving_txs=simulate_moving_txs,
                         config=config)
+            with TmpConfig() as config:
+                with self.subTest(msg="_bump_fee_p2wpkh_insane_high_target_fee", simulate_moving_txs=simulate_moving_txs):
+                    await self._bump_fee_p2wpkh_insane_high_target_fee(config=config)
 
     async def _bump_fee_p2pkh_when_there_is_a_change_address(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean',
@@ -1290,6 +1293,43 @@ class TestWalletSending(ElectrumTestCase):
 
         wallet.adb.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, 18700, 0), wallet.get_balance())
+
+    async def _bump_fee_p2wpkh_insane_high_target_fee(self, *, config):
+        wallet = self.create_standard_wallet_from_seed('leader company camera enlist crash sleep insane aware anger hole hammer label',
+                                                       config=config)
+
+        # bootstrap wallet
+        funding_tx = Transaction('020000000001022ea8f7940c2e4bca2f34f21ba15a5c8d5e3c93d9c6deb17983412feefa0f1f6d0100000000fdffffff9d4ba5ab41951d506a7fa8272ef999ce3df166fe28f6f885aa791f012a0924cf0000000000fdffffff027485010000000000160014f80e86af4246960a24cd21c275a8e8842973fbcaa0860100000000001600149c6b743752604b98d30f1a5d27a5d5ce8919f4400247304402203bf6dd875a775f356d4bb8c4e295a2cd506338c100767518f2b31fb85db71c1302204dc4ebca5584fc1cc08bd7f7171135d1b67ca6c8812c3723cd332eccaa7b848101210360bdbd16d9ef390fd3e804c421e6f30e6b065ac314f4d2b9a80d2f0682ad1431024730440220126b442d7988c5883ca17c2429f51ce770e3a57895524c8dfe07b539e483019e02200b50feed4f42f0035c9a9ddd044820607281e45e29e41a29233c2b8be6080bac01210245d47d08915816a5ecc934cff1b17e00071ca06172f51d632ba95392e8aad4fdd38a1d00')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('dd0bf0d1563cd588b4c93cc1a9623c051ddb1c4f4581cf8ef43cfd27f031f246', funding_txid)
+        wallet.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        orig_rbf_tx = Transaction('0200000000010146f231f027fd3cf48ecf81454f1cdb1d053c62a9c13cc9b488d53c56d1f00bdd0100000000fdffffff02c8af000000000000160014999a95482213a896c72a251b6cc9f3d137b0a45850c3000000000000160014ea76d391236726af7d7a9c10abe600129154eb5a02473044022076d298537b524a926a8fadad0e9ded5868c8f4cf29246048f76f00eb4afa56310220739ad9e0417e97ce03fad98a454b4977972c2805cef37bfa822c6d6c56737c870121024196fb7b766ac987a08b69a5e108feae8513b7e72bc9e47899e27b36100f2af4d48a1d00')
+        orig_rbf_txid = orig_rbf_tx.txid()
+        self.assertEqual('db2f77709a4a04417b3a45838c21470877fe7c182a4f81005a21ce1315c6a5e6', orig_rbf_txid)
+        wallet.adb.receive_tx_callback(orig_rbf_txid, orig_rbf_tx, TX_HEIGHT_UNCONFIRMED)
+
+        with self.assertRaises(CannotBumpFee):
+            tx = wallet.bump_fee(
+                tx=tx_from_any(orig_rbf_tx.serialize()),
+                new_fee_rate=99999,
+                decrease_payment=True,
+            )
+        with self.assertRaises(CannotBumpFee):
+            tx = wallet.bump_fee(
+                tx=tx_from_any(orig_rbf_tx.serialize()),
+                new_fee_rate=99999,
+                decrease_payment=False,
+            )
+
+        tx = wallet.bump_fee(
+            tx=tx_from_any(orig_rbf_tx.serialize()),
+            new_fee_rate=60,
+            decrease_payment=True,
+        )
+        tx.locktime = 1936085
+        tx.version = 2
+        self.assertEqual('6b03c00f47cb145ffb632c3ce54dece29b9a980949ef5c574321f7fc83fa2238', tx.txid())
 
     @mock.patch.object(wallet.Abstract_Wallet, 'save_db')
     async def test_cpfp_p2pkh(self, mock_save_db):

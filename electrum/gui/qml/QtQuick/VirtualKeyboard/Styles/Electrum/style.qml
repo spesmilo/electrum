@@ -56,10 +56,10 @@ KeyboardStyle {
 
     keyboardDesignWidth: 2560
     keyboardDesignHeight: 1440
-    keyboardRelativeLeftMargin: 114 / keyboardDesignWidth
-    keyboardRelativeRightMargin: 114 / keyboardDesignWidth
-    keyboardRelativeTopMargin: 13 / keyboardDesignHeight
-    keyboardRelativeBottomMargin: 86 / keyboardDesignHeight
+    keyboardRelativeLeftMargin: 32 / keyboardDesignWidth
+    keyboardRelativeRightMargin: 32 / keyboardDesignWidth
+    keyboardRelativeTopMargin: 10 / keyboardDesignHeight
+    keyboardRelativeBottomMargin: 28 / keyboardDesignHeight
 
     keyboardBackground: Rectangle {
         color: constants.colorAlpha(Material.accentColor, 0.5) //mutedForeground //'red' //"black"

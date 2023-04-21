@@ -90,7 +90,7 @@ Pane {
                             Label {
                                 id: labelLabel
                                 font.pixelSize: model.label != '' ? constants.fontSizeLarge : constants.fontSizeSmall
-                                text: model.label != '' ? model.label : '<no label>'
+                                text: model.label != '' ? model.label : qsTr('<no label>')
                                 opacity: model.label != '' ? 1.0 : 0.8
                                 elide: Text.ElideRight
                                 maximumLineCount: 2

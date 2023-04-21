@@ -363,6 +363,9 @@ class ChannelsList(MyTreeView):
         menu.addAction(read_QIcon('update.png'), _('Submarine swap'), lambda: self.main_window.run_swap_dialog())
         menu.addSeparator()
         menu.addAction(_("Import channel backup"), lambda: self.main_window.do_process_from_text_channel_backup())
+        # only enable menu if has LN. Or we could selectively enable menu items?
+        #     and maybe add item "main_window.init_lightning_dialog()" when applicable
+        menu.setEnabled(self.wallet.has_lightning())
         self.new_channel_button = EnterButton(_('New Channel'), self.main_window.new_channel_dialog)
         self.new_channel_button.setEnabled(self.wallet.has_lightning())
         toolbar.insertWidget(2, self.new_channel_button)
