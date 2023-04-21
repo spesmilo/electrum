@@ -65,7 +65,7 @@ WizardComponent {
         }
 
         Rectangle {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.preferredHeight: 1
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
@@ -74,7 +74,9 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             text: qsTr('Add cosigner #%1 of %2 to your multi-sig wallet').arg(cosigner).arg(participants)
+            wrapMode: Text.Wrap
         }
         RadioButton {
             ButtonGroup.group: keystoregroup

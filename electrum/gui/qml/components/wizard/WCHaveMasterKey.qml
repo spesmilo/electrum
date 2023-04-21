@@ -89,7 +89,7 @@ WizardComponent {
         }
 
         Rectangle {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.preferredHeight: 1
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
@@ -103,9 +103,11 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             text: cosigner
                     ? qsTr('Enter cosigner master public key')
                     : qsTr('Create keystore from a master key')
+            wrapMode: Text.Wrap
         }
 
         RowLayout {
