@@ -23,7 +23,8 @@ Run install (this should install most dependencies):
 
 [libsecp256k1](https://github.com/bitcoin-core/secp256k1) is a required dependency.
 This is a C library, which you need to compile yourself.
-Electrum needs a dll, named `libsecp256k1-0.dll`, placed into the inner `electrum/` folder.
+Electrum needs a dll, named `libsecp256k1-0.dll` (or newer `libsecp256k1-*.dll`),
+placed into the inner `electrum/` folder.
 
 For Unix-like systems, the (`contrib/make_libsecp256k1.sh`) script does this for you,
 however it does not work on Windows.
@@ -53,7 +54,7 @@ Alternatively, MSYS2 and MinGW-w64 can be used directly on Windows, as follows.
 (note: this is a bit cumbersome, see [issue #5976](https://github.com/spesmilo/electrum/issues/5976)
 for discussion)
 
-### 3. Run electrum: 
+### 3. Run electrum:
 
 ```
 > python3 ./run_electrum
