@@ -343,15 +343,15 @@ class QETxFinalizer(TxFeeSlider):
         self.validChanged.emit()
 
     @pyqtSlot()
-    def save(self):
-        if not self._valid or not self._tx or not self._tx.txid():
-            self._logger.debug('no valid tx or no txid')
+    def saveOrShow(self):
+        if not self._valid or not self._tx:
+            self._logger.debug('no valid tx')
             return
 
         saved = False
-        if self._wallet.save_tx(self._tx):
-            saved = True
-            # self.finishedSave.emit(self._tx.txid())
+        if self._tx.txid():
+            if self._wallet.save_tx(self._tx):
+                saved = True
 
         self.finished.emit(False, saved, self._tx.is_complete())
 

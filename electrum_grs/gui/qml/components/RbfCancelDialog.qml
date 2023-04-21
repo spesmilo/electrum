@@ -141,17 +141,6 @@ ElDialog {
                     }
                 }
 
-                CheckBox {
-                    id: final_cb
-                    text: qsTr('Replace-by-Fee')
-                    Layout.columnSpan: 2
-                    checked: txcanceller.rbf
-                    onCheckedChanged: {
-                        if (activeFocus)
-                            txcanceller.rbf = checked
-                    }
-                }
-
                 Label {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
