@@ -102,6 +102,7 @@ ElDialog {
 
         FlatButton {
             Layout.fillWidth: true
+            icon.source: '../../icons/add.png'
             text: qsTr('Import')
             enabled: valid
             onClicked: doAccept()

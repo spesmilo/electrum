@@ -31,98 +31,13 @@ Pane {
             section.criteria: ViewSection.FullString
             section.delegate: sectionDelegate
 
-            delegate: ItemDelegate {
-                id: delegate
-                width: ListView.view.width
-                height: delegateLayout.height
-                highlighted: ListView.isCurrentItem
-
-                font.pixelSize: constants.fontSizeMedium // set default font size for child controls
-
+            delegate: AddressDelegate {
                 onClicked: {
                     var page = app.stack.push(Qt.resolvedUrl('AddressDetails.qml'), {'address': model.address})
                     page.addressDetailsChanged.connect(function() {
                         // update listmodel when details change
                         listview.model.update_address(model.address)
                     })
-                }
-
-                ColumnLayout {
-                    id: delegateLayout
-                    width: parent.width
-                    spacing: 0
-
-                    GridLayout {
-                        columns: 2
-                        Layout.topMargin: constants.paddingSmall
-                        Layout.leftMargin: constants.paddingLarge
-                        Layout.rightMargin: constants.paddingLarge
-
-                        Label {
-                            id: indexLabel
-                            font.bold: true
-                            text: '#' + ('00'+model.iaddr).slice(-2)
-                            Layout.fillWidth: true
-                        }
-                        Label {
-                            font.family: FixedFont
-                            text: model.address
-                            elide: Text.ElideMiddle
-                            Layout.fillWidth: true
-                        }
-
-                        Rectangle {
-                            id: useIndicator
-                            Layout.preferredWidth: constants.iconSizeMedium
-                            Layout.preferredHeight: constants.iconSizeMedium
-                            color: model.held
-                                    ? constants.colorAddressFrozen
-                                    : model.numtx > 0
-                                        ? model.balance.satsInt == 0
-                                            ? constants.colorAddressUsed
-                                            : constants.colorAddressUsedWithBalance
-                                        : model.type == 'receive'
-                                            ? constants.colorAddressExternal
-                                            : constants.colorAddressInternal
-                        }
-
-                        RowLayout {
-                            Label {
-                                id: labelLabel
-                                font.pixelSize: model.label != '' ? constants.fontSizeLarge : constants.fontSizeSmall
-                                text: model.label != '' ? model.label : qsTr('<no label>')
-                                opacity: model.label != '' ? 1.0 : 0.8
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
-                            Label {
-                                font.family: FixedFont
-                                text: Config.formatSats(model.balance, false)
-                                visible: model.balance.satsInt != 0
-                            }
-                            Label {
-                                color: Material.accentColor
-                                text: Config.baseUnit + ','
-                                visible: model.balance.satsInt != 0
-                            }
-                            Label {
-                                text: model.numtx
-                                visible: model.numtx > 0
-                            }
-                            Label {
-                                color: Material.accentColor
-                                text: qsTr('tx')
-                                visible: model.numtx > 0
-                            }
-                        }
-                    }
-
-                    Item {
-                        Layout.preferredWidth: 1
-                        Layout.preferredHeight: constants.paddingSmall
-                    }
                 }
             }
 
@@ -139,13 +54,20 @@ Pane {
             height: childrenRect.height
 
             required property string section
+            property string section_label: section == 'receive'
+                ? qsTr('receive addresses')
+                : section == 'change'
+                    ? qsTr('change addresses')
+                    : section == 'imported'
+                        ? qsTr('imported addresses')
+                        : section + ' ' + qsTr('addresses')
 
             ColumnLayout {
                 width: parent.width
                 Heading {
                     Layout.leftMargin: constants.paddingLarge
                     Layout.rightMargin: constants.paddingLarge
-                    text: root.section + ' ' + qsTr('addresses')
+                    text: root.section_label
                 }
             }
         }
