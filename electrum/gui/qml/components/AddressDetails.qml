@@ -200,11 +200,13 @@ Pane {
                 }
 
                 Label {
+                    visible: addressdetails.derivationPath
                     text: qsTr('Derivation path')
                     color: Material.accentColor
                 }
 
                 Label {
+                    visible: addressdetails.derivationPath
                     text: addressdetails.derivationPath
                 }
 

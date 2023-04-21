@@ -73,7 +73,7 @@ class QEAddressListModel(QAbstractListModel):
             return
 
         r_addresses = self.wallet.get_receiving_addresses()
-        c_addresses = self.wallet.get_change_addresses()
+        c_addresses = self.wallet.get_change_addresses() if self.wallet.wallet_type != 'imported' else []
         n_addresses = len(r_addresses) + len(c_addresses)
 
         def insert_row(atype, alist, address, iaddr):
@@ -84,10 +84,14 @@ class QEAddressListModel(QAbstractListModel):
 
         self.clear()
         self.beginInsertRows(QModelIndex(), 0, n_addresses - 1)
-        for i, address in enumerate(r_addresses):
-            insert_row('receive', self.receive_addresses, address, i)
-        for i, address in enumerate(c_addresses):
-            insert_row('change', self.change_addresses, address, i)
+        if self.wallet.wallet_type != 'imported':
+            for i, address in enumerate(r_addresses):
+                insert_row('receive', self.receive_addresses, address, i)
+            for i, address in enumerate(c_addresses):
+                insert_row('change', self.change_addresses, address, i)
+        else:
+            for i, address in enumerate(r_addresses):
+                insert_row('imported', self.receive_addresses, address, i)
         self.endInsertRows()
 
         self._dirty = False
