@@ -704,10 +704,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(str)
     def importAddresses(self, addresslist):
         self.wallet.import_addresses(addresslist.split())
+        self.dataChanged.emit()
 
     @pyqtSlot(str)
     def importPrivateKeys(self, keyslist):
         self.wallet.import_private_keys(keyslist.split(), self.password)
+        self.dataChanged.emit()
 
     @pyqtSlot(str)
     def importChannelBackup(self, backup_str):
