@@ -328,7 +328,7 @@ Item {
                     dialog.accepted.connect(function() {
                         if (!canComplete) {
                             if (Daemon.currentWallet.isWatchOnly) {
-                                dialog.finalizer.save()
+                                dialog.finalizer.saveOrShow()
                             } else {
                                 dialog.finalizer.sign()
                             }
