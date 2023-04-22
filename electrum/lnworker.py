@@ -1013,7 +1013,7 @@ class LNWallet(LNWorker):
         if (chan.get_state() in (ChannelState.OPEN, ChannelState.SHUTDOWN)
                 and chan.should_be_closed_due_to_expiring_htlcs(self.network.get_local_height())):
             self.logger.info(f"force-closing due to expiring htlcs")
-            await self.schedule_force_closing(chan.channel_id)
+            self.schedule_force_closing(chan.channel_id)
 
         elif chan.get_state() == ChannelState.FUNDED:
             peer = self._peers.get(chan.node_id)
