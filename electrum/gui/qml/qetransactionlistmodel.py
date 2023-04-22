@@ -253,7 +253,8 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                 continue
             txid = tx_item['txid']
             tx = self.wallet.db.get_transaction(txid)
-            assert tx is not None
+            if not tx:
+                continue
             txinfo = self.wallet.get_tx_info(tx)
             status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
             tx_item['date'] = status_str
