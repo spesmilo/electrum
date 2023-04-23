@@ -13,7 +13,7 @@ from electrum.mnemonic import is_any_2fa_seed_type
 
 
 class WizardViewState(NamedTuple):
-    view: str
+    view: Optional[str]
     wizard_data: Dict[str, Any]
     params: Dict[str, Any]
 
@@ -124,7 +124,7 @@ class AbstractWizard:
             self._logger.debug(f'view "{view}" last: {l}')
             return l
         else:
-            raise Exception('last handler for view {view} is not callable nor a bool literal')
+            raise Exception(f'last handler for view {view} is not callable nor a bool literal')
 
     def finished(self, wizard_data):
         self._logger.debug('finished.')
