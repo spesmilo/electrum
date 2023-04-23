@@ -28,7 +28,7 @@ import sys
 import time
 import datetime
 from datetime import date
-from typing import TYPE_CHECKING, Tuple, Dict
+from typing import TYPE_CHECKING, Tuple, Dict, Any
 import threading
 import enum
 from decimal import Decimal
@@ -128,7 +128,7 @@ class HistoryNode(CustomNode):
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
             except KeyError:
-                tx_mined_info = self.model.tx_mined_info_from_tx_item(tx_item)
+                tx_mined_info = self.model._tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
         if role == ROLE_SORT_ORDER:
@@ -353,7 +353,7 @@ class HistoryModel(CustomModel, Logger):
         self.tx_status_cache.clear()
         for txid, tx_item in self.transactions.items():
             if not tx_item.get('lightning', False):
-                tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
                 self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
         # update counter
         num_tx = len(self.transactions)
@@ -404,7 +404,7 @@ class HistoryModel(CustomModel, Logger):
         for tx_hash, tx_item in list(self.transactions.items()):
             if tx_item.get('lightning'):
                 continue
-            tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+            tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
             if tx_mined_info.conf > 0:
                 # note: we could actually break here if we wanted to rely on the order of txns in self.transactions
                 continue
@@ -441,8 +441,8 @@ class HistoryModel(CustomModel, Logger):
         return super().flags(idx) | int(extra_flags)
 
     @staticmethod
-    def tx_mined_info_from_tx_item(tx_item):
-        # FIXME a bit hackish to have to reconstruct the TxMinedInfo...
+    def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
+        # FIXME a bit hackish to have to reconstruct the TxMinedInfo... same thing in qml-gui
         tx_mined_info = TxMinedInfo(
             height=tx_item['height'],
             conf=tx_item['confirmations'],

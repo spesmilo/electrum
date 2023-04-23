@@ -1340,6 +1340,15 @@ class TxMinedInfo(NamedTuple):
             return f"{self.height}x{self.txpos}"
         return None
 
+    def is_local_like(self) -> bool:
+        """Returns whether the tx is local-like (LOCAL/FUTURE)."""
+        from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+        if self.height > 0:
+            return False
+        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            return False
+        return True
+
 
 class ShortID(bytes):
 
