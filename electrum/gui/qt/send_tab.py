@@ -4,7 +4,7 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Sequence, List
+from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Any
 from urllib.parse import urlparse
 
 from PyQt5.QtCore import pyqtSignal, QPoint
@@ -238,14 +238,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self,
             outputs: List[PartialTxOutput], *,
             nonlocal_only=False,
-            external_keypairs=None) -> None:
+            external_keypairs=None,
+            get_coins: Callable[..., Sequence[PartialTxInput]] = None,
+    ) -> None:
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
         is_sweep = bool(external_keypairs)
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
+        if get_coins is None:
+            get_coins = self.window.get_coins
         make_tx = lambda fee_est, *, confirmed_only=False: self.wallet.make_unsigned_transaction(
-            coins=self.window.get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
+            coins=get_coins(nonlocal_only=nonlocal_only, confirmed_only=confirmed_only),
             outputs=outputs,
             fee=fee_est,
             is_sweep=is_sweep)
@@ -266,7 +270,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
         is_preview = conf_dlg.is_preview
         if is_preview:
-            self.window.show_transaction(tx)
+            self.window.show_transaction(tx, external_keypairs=external_keypairs)
             return
         self.save_pending_invoice()
         def sign_done(success):

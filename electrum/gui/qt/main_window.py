@@ -1050,8 +1050,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .channel_details import ChannelDetailsDialog
         ChannelDetailsDialog(self, chan).show()
 
-    def show_transaction(self, tx: Transaction):
-        show_transaction(tx, parent=self)
+    def show_transaction(self, tx: Transaction, *, external_keypairs=None):
+        show_transaction(tx, parent=self, external_keypairs=external_keypairs)
 
     def show_lightning_transaction(self, tx_item):
         from .lightning_tx_dialog import LightningTxDialog
@@ -1174,7 +1174,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         invoice = self.wallet.get_invoice(key)
         if invoice and invoice.is_lightning() and invoice.get_address():
             if self.question(_('Payment failed') + '\n\n' + reason + '\n\n'+ 'Fallback to onchain payment?'):
-                self.send_tab.pay_onchain_dialog(self.get_coins(), invoice.get_outputs())
+                self.send_tab.pay_onchain_dialog(invoice.get_outputs())
         else:
             self.show_error(_('Payment failed') + '\n\n' + reason)
 
@@ -2387,6 +2387,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
 
     def sweep_key_dialog(self):
+        if not self.network:
+            self.show_error(_("You are offline."))
+            return
         d = WindowModalDialog(self, title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
         vbox = QVBoxLayout(d)
@@ -2450,7 +2453,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             coins, keypairs = result
             outputs = [PartialTxOutput.from_address_and_value(addr, value='!')]
             self.warn_if_watching_only()
-            self.send_tab.pay_onchain_dialog(coins, outputs, external_keypairs=keypairs)
+            self.send_tab.pay_onchain_dialog(
+                outputs, external_keypairs=keypairs, get_coins=lambda *args, **kwargs: coins)
         def on_failure(exc_info):
             self.on_error(exc_info)
         msg = _('Preparing sweep transaction...')
