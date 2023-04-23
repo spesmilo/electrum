@@ -228,7 +228,9 @@ class NewWalletWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
         self._current = WizardViewState('wallet_name', initial_data, {})
         return self._current
@@ -458,7 +460,9 @@ class ServerConnectWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
         self._current = WizardViewState('proxy_ask', initial_data, {})
         return self._current
