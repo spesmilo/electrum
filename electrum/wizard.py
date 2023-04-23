@@ -130,7 +130,7 @@ class AbstractWizard:
         self._logger.debug('finished.')
 
     def reset(self):
-        self.stack = []
+        self._stack = []
         self._current = WizardViewState(None, {}, {})
 
     def log_stack(self, _stack):
