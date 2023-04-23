@@ -1171,7 +1171,7 @@ class Ledger_Client_New(Ledger_Client):
                             registered_hmac,
                         )
                 else:
-                    def process_origin(origin: KeyOriginInfo) -> None:
+                    def process_origin(origin: KeyOriginInfo, *, script_addrtype=script_addrtype) -> None:
                         if is_standard_path(origin.path, script_addrtype, get_chain()):
                             # these policies do not need to be registered
                             policy = self.get_singlesig_default_wallet_policy(script_addrtype, origin.path[2])
