@@ -709,7 +709,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             if value is not None:
                 self.hm.update_fiat(index)
         else:
-            assert False
+            raise Exception(f"did not expect {column=!r} to get edited")
 
     def on_double_click(self, idx):
         tx_item = idx.internalPointer().get_data()

@@ -1362,7 +1362,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                     async with session.post(url, json=json, headers=headers) as resp:
                         return await on_finish(resp)
             else:
-                assert False
+                raise Exception(f"unexpected {method=!r}")
 
     @classmethod
     def send_http_on_proxy(cls, method, url, **kwargs):

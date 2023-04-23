@@ -165,7 +165,7 @@ class TrustedCoinCosignerClient(Logger):
                                                       on_finish=self.handle_response,
                                                       timeout=timeout)
             else:
-                assert False
+                raise Exception(f"unexpected {method=!r}")
         except TrustedCoinException:
             raise
         except Exception as e:
