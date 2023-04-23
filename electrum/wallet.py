@@ -439,6 +439,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             ln_xprv = node.to_xprv()
             self.db.put('lightning_privkey2', ln_xprv)
         self.lnworker = LNWallet(self, ln_xprv)
+        self.save_db()
         if self.network:
             self._start_network_lightning()
 
