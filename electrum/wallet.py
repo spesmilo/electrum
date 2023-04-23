@@ -721,11 +721,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def export_private_key(self, address: str, password: Optional[str]) -> str:
         if self.is_watching_only():
-            raise Exception(_("This is a watching-only wallet"))
+            raise UserFacingException(_("This is a watching-only wallet"))
         if not is_address(address):
-            raise Exception(f"Invalid bitcoin address: {address}")
+            raise UserFacingException(f"Invalid bitcoin address: {address}")
         if not self.is_mine(address):
-            raise Exception(_('Address not in wallet.') + f' {address}')
+            raise UserFacingException(_('Address not in wallet.') + f' {address}')
         index = self.get_address_index(address)
         pk, compressed = self.keystore.get_private_key(index, password)
         txin_type = self.get_txin_type(address)
