@@ -28,10 +28,11 @@ class AbstractWizard:
 
     _logger = get_logger(__name__)
 
-    navmap = {}
+    def __init__(self):
+        self.navmap = {}
 
-    _current = WizardViewState(None, {}, {})
-    _stack = [] # type: List[WizardViewState]
+        self._current = WizardViewState(None, {}, {})
+        self._stack = []  # type: List[WizardViewState]
 
     def navmap_merge(self, additional_navmap):
         # NOTE: only merges one level deep. Deeper dict levels will overwrite
@@ -165,6 +166,7 @@ class NewWalletWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'wallet_name': {
                 'next': 'wallet_type'
@@ -438,6 +440,7 @@ class ServerConnectWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'autoconnect': {
                 'next': 'server_config',
