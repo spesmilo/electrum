@@ -107,13 +107,13 @@ ElDialog {
                         icon.width: constants.iconSizeMedium
                         scale: 1.2
                         onClicked: {
-                            var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
-                            page.onFound.connect(function() {
-                                if (channelopener.validate_connect_str(page.scanData)) {
-                                    channelopener.connectStr = page.scanData
+                            var scan = qrscan.createObject(root.contentItem)
+                            scan.onFound.connect(function() {
+                                if (channelopener.validate_connect_str(scan.scanData)) {
+                                    channelopener.connectStr = scan.scanData
                                     node.text = channelopener.connectStr
                                 }
-                                app.stack.pop()
+                                scan.destroy()
                             })
                         }
                     }
@@ -203,6 +203,25 @@ ElDialog {
             amountLabelText: qsTr('Channel capacity')
             sendButtonText: qsTr('Open Channel')
             finalizer: channelopener.finalizer
+        }
+    }
+
+    Component {
+        id: qrscan
+        QRScan {
+            width: root.contentItem.width
+            height: root.contentItem.height
+
+            ToolButton {
+                icon.source: '../../icons/closebutton.png'
+                icon.height: constants.iconSizeMedium
+                icon.width: constants.iconSizeMedium
+                anchors.right: parent.right
+                anchors.top: parent.top
+                onClicked: {
+                    parent.destroy()
+                }
+            }
         }
     }
 
