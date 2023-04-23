@@ -97,7 +97,7 @@ class AmountEdit(SizedFreezableLineEdit):
         try:
             text = text.replace(DECIMAL_POINT, '.')
             return (int if self.is_int else Decimal)(text)
-        except:
+        except Exception:
             return None
 
     def get_amount(self) -> Union[None, Decimal, int]:
@@ -130,7 +130,7 @@ class BTCAmountEdit(AmountEdit):
         try:
             text = text.replace(DECIMAL_POINT, '.')
             x = Decimal(text)
-        except:
+        except Exception:
             return None
         # scale it to max allowed precision, make it an int
         power = pow(10, self.max_precision())

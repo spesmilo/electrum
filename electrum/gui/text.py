@@ -35,14 +35,14 @@ _ = lambda x:x  # i18n
 def parse_bip21(text):
     try:
         return util.parse_URI(text)
-    except:
+    except Exception:
         return
 
 def parse_bolt11(text):
     from electrum.lnaddr import lndecode
     try:
         return lndecode(text)
-    except:
+    except Exception:
         return
 
 
@@ -594,7 +594,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def parse_amount(self, text):
         try:
             x = Decimal(text)
-        except:
+        except Exception:
             return None
         power = pow(10, self.config.get_decimal_point())
         return int(power * x)

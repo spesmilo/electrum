@@ -297,7 +297,7 @@ def is_xpub(text):
     try:
         node = BIP32Node.from_xkey(text)
         return not node.is_private()
-    except:
+    except Exception:
         return False
 
 
@@ -305,7 +305,7 @@ def is_xprv(text):
     try:
         node = BIP32Node.from_xkey(text)
         return node.is_private()
-    except:
+    except Exception:
         return False
 
 
@@ -374,7 +374,7 @@ def is_bip32_derivation(s: str) -> bool:
         if not (s == 'm' or s.startswith('m/')):
             return False
         convert_bip32_strpath_to_intpath(s)
-    except:
+    except Exception:
         return False
     else:
         return True

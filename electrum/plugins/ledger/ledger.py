@@ -1355,7 +1355,7 @@ class LedgerPlugin(HW_PluginBase):
             version = ledger_bitcoin.__version__
         except ImportError:
             raise
-        except:
+        except Exception:
             version = "unknown"
         if LEDGER_BITCOIN:
             return version

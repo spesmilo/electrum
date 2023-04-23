@@ -411,7 +411,7 @@ class JadePlugin(HW_PluginBase):
             version = jadepy.__version__
         except ImportError:
             raise
-        except:
+        except Exception:
             version = "unknown"
         return version
 

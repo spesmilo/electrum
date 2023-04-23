@@ -358,7 +358,7 @@ class ElectrumWindow(App, Logger, EventListener):
         assert u == self.base_unit
         try:
             x = Decimal(a)
-        except:
+        except Exception:
             return None
         p = pow(10, self.decimal_point())
         return int(p * x)
@@ -487,7 +487,7 @@ class ElectrumWindow(App, Logger, EventListener):
         from electrum.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
-        except:
+        except Exception:
             tx = None
         if tx:
             self.tx_dialog(tx)

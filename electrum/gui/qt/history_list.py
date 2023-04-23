@@ -92,7 +92,7 @@ class HistorySortModel(QSortFilterProxyModel):
         if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
         try:
             return v1 < v2
-        except:
+        except Exception:
             return False
 
 def get_item_key(tx_item):
@@ -538,7 +538,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             try:
                 year = int(s)
-            except:
+            except Exception:
                 return
             self.start_date = datetime.datetime(year, 1, 1)
             self.end_date = datetime.datetime(year+1, 1, 1)

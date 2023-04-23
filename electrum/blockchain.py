@@ -622,7 +622,7 @@ class Blockchain(Logger):
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-        except:
+        except Exception:
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False

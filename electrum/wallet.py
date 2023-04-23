@@ -653,7 +653,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 text_dec = Decimal(text)
                 text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, add_thousands_sep=False))
                 reset = text_dec_rounded == def_fiat_rounded
-            except:
+            except Exception:
                 # garbage. not resetting, but not saving either
                 return False
         if reset:
@@ -673,7 +673,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         fiat_value = self.fiat_value.get(ccy, {}).get(txid)
         try:
             return Decimal(fiat_value)
-        except:
+        except Exception:
             return
 
     def is_mine(self, address) -> bool:
@@ -840,7 +840,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     try:
                         self.cpfp(tx, 0)
                         can_cpfp = True
-                    except:
+                    except Exception:
                         can_cpfp = False
                 else:
                     status = _('Local')
@@ -1107,7 +1107,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for x in data:
             try:
                 req = Request(**x)
-            except:
+            except Exception:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.add_payment_request(req, write_to_disk=False)
         self.save_db()
@@ -1121,7 +1121,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         for x in data:
             try:
                 invoice = Invoice(**x)
-            except:
+            except Exception:
                 raise FileImportFailed(_("Invalid invoice format"))
             self.save_invoice(invoice, write_to_disk=False)
         self.save_db()
@@ -3460,7 +3460,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         self.keystore = load_keystore(self.db, 'keystore')  # type: KeyStoreWithMPK
         try:
             xtype = bip32.xpub_type(self.keystore.xpub)
-        except:
+        except Exception:
             xtype = 'standard'
         self.txin_type = 'p2pkh' if xtype == 'standard' else xtype
 

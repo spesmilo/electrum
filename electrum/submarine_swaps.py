@@ -501,7 +501,7 @@ class SwapManager(Logger):
             limits = pairs['pairs']['BTC/BTC']['limits']
             self._min_amount = limits['minimal']
             self._max_amount = limits['maximal']
-        except:
+        except Exception:
             self._min_amount = 10000
             self._max_amount = 10000000
 

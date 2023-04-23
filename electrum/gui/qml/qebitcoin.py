@@ -158,7 +158,7 @@ class QEBitcoin(QObject):
         try:
             tx_from_any(rawtx)
             return True
-        except:
+        except Exception:
             return False
 
     @pyqtSlot(str, result=bool)

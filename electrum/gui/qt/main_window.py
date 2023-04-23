@@ -515,7 +515,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             screen = self.app.desktop().screenGeometry()
             assert screen.contains(QRect(*winpos))
             self.setGeometry(*winpos)
-        except:
+        except Exception:
             self.logger.info("using default geometry")
             self.setGeometry(100, 100, 840, 400)
 
@@ -631,7 +631,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         recent = self.config.get('recently_open', [])
         try:
             sorted(recent)
-        except:
+        except Exception:
             recent = []
         if filename in recent:
             recent.remove(filename)

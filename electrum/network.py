@@ -403,7 +403,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 data = f.read()
                 servers_list = json.loads(data)
             return [ServerAddr.from_str(s) for s in servers_list]
-        except:
+        except Exception:
             return []
 
     @with_recent_servers_lock
@@ -415,7 +415,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         try:
             with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
-        except:
+        except Exception:
             pass
 
     async def _server_is_lagging(self) -> bool:
@@ -516,7 +516,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 for n in FEE_ETA_TARGETS:
                     try:
                         out[n] = int(median(filter(None, [i.fee_estimates_eta.get(n) for i in self.interfaces.values()])))
-                    except:
+                    except Exception:
                         continue
                 return out
         else:
@@ -595,7 +595,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if server:
             try:
                 self.default_server = ServerAddr.from_str(server)
-            except:
+            except Exception:
                 self.logger.warning(f'failed to parse server-string ({server!r}); falling back to localhost:1:s.')
                 self.default_server = ServerAddr.from_str("localhost:1:s")
         else:
@@ -626,7 +626,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             if proxy:
                 proxy_modes.index(proxy['mode']) + 1
                 int(proxy['port'])
-        except:
+        except Exception:
             return
         self.config.set_key('auto_connect', net_params.auto_connect, False)
         self.config.set_key('oneserver', net_params.oneserver, False)

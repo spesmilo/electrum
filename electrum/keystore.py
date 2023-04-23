@@ -1084,13 +1084,13 @@ def load_keystore(db: 'WalletDB', name: str) -> KeyStore:
 def is_old_mpk(mpk: str) -> bool:
     try:
         int(mpk, 16)  # test if hex string
-    except:
+    except Exception:
         return False
     if len(mpk) != 128:
         return False
     try:
         ecc.ECPubkey(bfh('04' + mpk))
-    except:
+    except Exception:
         return False
     return True
 

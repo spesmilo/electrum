@@ -165,7 +165,7 @@ class SimpleConfig(Logger):
         try:
             json.dumps(key)
             json.dumps(value)
-        except:
+        except Exception:
             self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
             return
         self._set_key_in_user_config(key, value, save)
@@ -674,7 +674,7 @@ class SimpleConfig(Logger):
         if text:
             try:
                 return NetAddress.from_string(text)
-            except:
+            except Exception:
                 pass
 
     def format_amount(

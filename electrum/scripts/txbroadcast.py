@@ -12,7 +12,7 @@ from electrum.simple_config import SimpleConfig
 
 try:
     rawtx = sys.argv[1]
-except:
+except Exception:
     print("usage: txbroadcast rawtx")
     sys.exit(1)
 

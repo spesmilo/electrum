@@ -41,7 +41,7 @@ class Contacts(dict, Logger):
         d = self.db.get('contacts', {})
         try:
             self.update(d)
-        except:
+        except Exception:
             return
         # backward compatibility
         for k, v in self.items():

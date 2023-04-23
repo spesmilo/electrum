@@ -248,7 +248,7 @@ class QEConfig(AuthMixin, QObject):
         self._amount = QEAmount()
         try:
             x = Decimal(unitAmount)
-        except:
+        except Exception:
             return self._amount
 
         # scale it to max allowed precision, make it an int
