@@ -114,6 +114,7 @@ class QETxDetails(QObject, QtEventListener):
             try:
                 self._tx = tx_from_any(rawtx, deserialize=True)
                 self._txid = self._tx.txid()
+                self.txidChanged.emit()
                 self.update()
             except Exception as e:
                 self._tx = None

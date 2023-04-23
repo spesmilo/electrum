@@ -302,6 +302,10 @@ class QETxFinalizer(TxFeeSlider):
         return tx
 
     def update(self):
+        if not self._wallet:
+            self._logger.debug('wallet not set, ignoring update()')
+            return
+
         try:
             # make unsigned transaction
             tx = self.make_tx(amount = '!' if self._amount.isMax else self._amount.satsInt)

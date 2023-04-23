@@ -68,10 +68,15 @@ class PieChartObject:
         alpha = 0
         s = 0
         for name, color, amount in self._list:
-            delta = int(16 * 360 * amount/total)
             qp.setBrush(color)
-            qp.drawPie(self.R, alpha, delta)
-            alpha += delta
+            if amount == 0:
+                continue
+            elif amount == total:
+                qp.drawEllipse(self.R)
+            else:
+                delta = int(16 * 360 * amount/total)
+                qp.drawPie(self.R, alpha, delta)
+                alpha += delta
         qp.end()
 
 class PieChartWidget(QWidget, PieChartObject):
