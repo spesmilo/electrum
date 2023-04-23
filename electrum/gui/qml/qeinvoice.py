@@ -1,5 +1,5 @@
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Dict, Any
 import asyncio
 from urllib.parse import urlparse
 
@@ -552,7 +552,7 @@ class QEInvoiceParser(QEInvoice):
                         self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
-                    self.setValidOnchainInvoice(bip21['address'])
+                    self._validateRecipient_bip21_onchain(bip21)
             else:
                 self.setValidLightningInvoice(lninvoice)
                 if not self._wallet.wallet.lnworker.channels:
@@ -561,17 +561,20 @@ class QEInvoiceParser(QEInvoice):
                     self.validationSuccess.emit()
         else:
             self._logger.debug('flow without LN but having bip21 uri')
-            if 'amount' not in bip21:
-                amount = 0
-            else:
-                amount = bip21['amount']
-            outputs = [PartialTxOutput.from_address_and_value(bip21['address'], amount)]
-            self._logger.debug(outputs)
-            message = bip21['message'] if 'message' in bip21 else ''
-            invoice = self.create_onchain_invoice(outputs, message, None, bip21)
-            self._logger.debug(repr(invoice))
-            self.setValidOnchainInvoice(invoice)
-            self.validationSuccess.emit()
+            self._validateRecipient_bip21_onchain(bip21)
+
+    def _validateRecipient_bip21_onchain(self, bip21: Dict[str, Any]) -> None:
+        if 'amount' not in bip21:
+            amount = 0
+        else:
+            amount = bip21['amount']
+        outputs = [PartialTxOutput.from_address_and_value(bip21['address'], amount)]
+        self._logger.debug(outputs)
+        message = bip21['message'] if 'message' in bip21 else ''
+        invoice = self.create_onchain_invoice(outputs, message, None, bip21)
+        self._logger.debug(repr(invoice))
+        self.setValidOnchainInvoice(invoice)
+        self.validationSuccess.emit()
 
     def resolve_lnurl(self, lnurl):
         self._logger.debug('resolve_lnurl')
