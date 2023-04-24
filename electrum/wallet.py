@@ -1090,12 +1090,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._requests_addr_to_key.clear()
         self.save_db()
 
-    def get_invoices(self):
+    def get_invoices(self) -> List[Invoice]:
         out = list(self._invoices.values())
         out.sort(key=lambda x:x.time)
         return out
 
-    def get_unpaid_invoices(self):
+    def get_unpaid_invoices(self) -> List[Invoice]:
         invoices = self.get_invoices()
         return [x for x in invoices if self.get_invoice_status(x) != PR_PAID]
 
@@ -2638,7 +2638,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         out.sort(key=lambda x: x.time)
         return out
 
-    def get_unpaid_requests(self):
+    def get_unpaid_requests(self) -> List[Request]:
         out = [x for x in self._receive_requests.values() if self.get_invoice_status(x) != PR_PAID]
         out.sort(key=lambda x: x.time)
         return out

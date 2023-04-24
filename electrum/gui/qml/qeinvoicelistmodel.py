@@ -1,14 +1,19 @@
 from abc import abstractmethod
+from typing import TYPE_CHECKING, List, Dict, Any
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
-from electrum.invoices import BaseInvoice, PR_EXPIRED, LN_EXPIRY_NEVER
+from electrum.invoices import BaseInvoice, PR_EXPIRED, LN_EXPIRY_NEVER, Invoice, Request
 
 from .util import QtEventListener, qt_event_listener, status_update_timer_interval
 from .qetypes import QEAmount
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
+
 
 class QEAbstractInvoiceListModel(QAbstractListModel):
     _logger = get_logger(__name__)
@@ -21,7 +26,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
     _ROLE_MAP  = dict(zip(_ROLE_KEYS, [bytearray(x.encode()) for x in _ROLE_NAMES]))
     _ROLE_RMAP = dict(zip(_ROLE_NAMES, _ROLE_KEYS))
 
-    def __init__(self, wallet, parent=None):
+    def __init__(self, wallet: 'Abstract_Wallet', parent=None):
         super().__init__(parent)
         self.wallet = wallet
 
@@ -159,11 +164,11 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         raise Exception('provide impl')
 
     @abstractmethod
-    def get_invoice_list(self):
+    def get_invoice_list(self) -> List[BaseInvoice]:
         raise Exception('provide impl')
 
     @abstractmethod
-    def get_invoice_as_dict(self, invoice: BaseInvoice):
+    def get_invoice_as_dict(self, invoice: BaseInvoice) -> Dict[str, Any]:
         raise Exception('provide impl')
 
 
@@ -191,12 +196,14 @@ class QEInvoiceListModel(QEAbstractInvoiceListModel, QtEventListener):
         return item
 
     def get_invoice_list(self):
-        return self.wallet.get_unpaid_invoices()
+        lst = self.wallet.get_unpaid_invoices()
+        lst.reverse()
+        return lst
 
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_invoice(key)
 
-    def get_invoice_as_dict(self, invoice: BaseInvoice):
+    def get_invoice_as_dict(self, invoice: Invoice):
         return self.wallet.export_invoice(invoice)
 
 class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
@@ -223,12 +230,14 @@ class QERequestListModel(QEAbstractInvoiceListModel, QtEventListener):
         return item
 
     def get_invoice_list(self):
-        return self.wallet.get_unpaid_requests()
+        lst = self.wallet.get_unpaid_requests()
+        lst.reverse()
+        return lst
 
     def get_invoice_for_key(self, key: str):
         return self.wallet.get_request(key)
 
-    def get_invoice_as_dict(self, invoice: BaseInvoice):
+    def get_invoice_as_dict(self, invoice: Request):
         return self.wallet.export_request(invoice)
 
     @pyqtSlot(str, int)
