@@ -49,6 +49,7 @@ class _BaseRBFDialog(TxEditor):
             title=title,
             make_tx=self.rbf_func)
 
+        self.fee_e.setFrozen(True)  # disallow setting absolute fee for now, as wallet.bump_fee can only target feerate
         new_fee_rate = self.old_fee_rate + max(1, self.old_fee_rate // 20)
         self.feerate_e.setAmount(new_fee_rate)
         self.update()
