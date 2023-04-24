@@ -60,6 +60,8 @@ task:
     CI_BRANCH: $CIRRUS_BRANCH
     CI_PULL_REQUEST: $CIRRUS_PR
     # in addition, COVERALLS_REPO_TOKEN is set as an "override" in https://cirrus-ci.com/settings/...
+  depends_on:
+    - Flake8 Mandatory
 
 task:
   name: Locale
@@ -122,6 +124,8 @@ task:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
+  depends_on:
+    - Flake8 Mandatory
 
 task:
   container:
@@ -181,6 +185,8 @@ task:
   env:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Android build (Kivy $APK_ARCH)
@@ -207,6 +213,8 @@ task:
     - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Android build (QML $APK_ARCH)
@@ -233,6 +241,8 @@ task:
     - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
+  depends_on:
+    - Tox Python 3.8
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
@@ -289,6 +299,8 @@ task:
     path: "dist/*"
   env:
     CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
+  depends_on:
+    - Tox Python 3.8
 
 task:
   container:
@@ -310,6 +322,8 @@ task:
     - name: source-only tarball build
       env:
         OMIT_UNCLEAN_FILES: 1
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Submodules
