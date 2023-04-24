@@ -547,6 +547,7 @@ class GenericInputHandler:
             allow_multi: bool = False,
             show_error: Callable[[str], None],
             setText: Callable[[str], None] = None,
+            parent: QWidget = None,
     ) -> None:
         if setText is None:
             setText = self.setText
@@ -564,7 +565,9 @@ class GenericInputHandler:
             setText(new_text)
 
         from .qrreader import scan_qrcode
-        scan_qrcode(parent=self, config=config, callback=cb)
+        if parent is None:
+            parent = self if isinstance(self, QWidget) else None
+        scan_qrcode(parent=parent, config=config, callback=cb)
 
     def input_qr_from_screenshot(
             self,

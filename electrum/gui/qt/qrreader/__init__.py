@@ -49,6 +49,7 @@ def scan_qrcode(
         callback: Callable[[bool, str, Optional[str]], None],
 ) -> None:
     """Scans QR code using camera."""
+    assert parent is None or isinstance(parent, QWidget), f"parent should be a QWidget, not {parent!r}"
     if sys.platform == 'darwin' or sys.platform in ('windows', 'win32'):
         _scan_qrcode_using_qtmultimedia(parent=parent, config=config, callback=callback)
     else:  # desktop Linux and similar

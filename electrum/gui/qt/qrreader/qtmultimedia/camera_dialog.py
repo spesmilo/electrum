@@ -27,10 +27,10 @@ import time
 import math
 import sys
 import os
-from typing import List
+from typing import List, Optional
 
 from PyQt5.QtMultimedia import QCameraInfo, QCamera, QCameraViewfinderSettings
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QLabel, QWidget
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QSize, QRect, Qt, pyqtSignal, PYQT_VERSION
 
@@ -68,7 +68,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
 
     qr_finished = pyqtSignal(bool, str, object)
 
-    def __init__(self, parent, *, config: SimpleConfig):
+    def __init__(self, parent: Optional[QWidget], *, config: SimpleConfig):
         ''' Note: make sure parent is a "top_level_window()" as per
         MessageBoxMixin API else bad things can happen on macOS. '''
         QDialog.__init__(self, parent=parent)
