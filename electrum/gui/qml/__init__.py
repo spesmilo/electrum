@@ -65,6 +65,8 @@ class ElectrumGui(BaseElectrumGui, Logger):
         os.environ['QT_VIRTUALKEYBOARD_STYLE'] = 'Electrum'
         os.environ['QML2_IMPORT_PATH'] = 'electrum/gui/qml'
 
+        os.environ['QT_ANDROID_DISABLE_ACCESSIBILITY'] = '1'
+
         # set default locale to en_GB. This is for l10n (e.g. number formatting, number input etc),
         # but not for i18n, which is handled by the Translator
         # this can be removed once the backend wallet is fully l10n aware
