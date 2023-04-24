@@ -727,7 +727,7 @@ class OverlayControlMixin(GenericInputHandler):
             from .qrcodewidget import QRDialog
             try:
                 s = str(self.text())
-            except:
+            except Exception:
                 s = self.text()
             if not s:
                 return

@@ -169,7 +169,7 @@ class SPV(NetworkJobOnDefaultServer):
         tx = Transaction(raw_tx)
         try:
             tx.deserialize()
-        except:
+        except Exception:
             pass
         else:
             raise InnerNodeOfSpvProofIsValidTx()

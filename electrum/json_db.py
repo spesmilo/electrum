@@ -155,7 +155,7 @@ class JsonDB(Logger):
         try:
             json.dumps(key, cls=JsonDBJsonEncoder)
             json.dumps(value, cls=JsonDBJsonEncoder)
-        except:
+        except Exception:
             self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
             return False
         if value is not None:

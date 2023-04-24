@@ -175,7 +175,7 @@ class NodeInfo(NamedTuple):
         alias = payload['alias'].rstrip(b'\x00')
         try:
             alias = alias.decode('utf8')
-        except:
+        except Exception:
             alias = ''
         timestamp = payload['timestamp']
         node_info = NodeInfo(node_id=node_id, features=features, timestamp=timestamp, alias=alias)

@@ -92,7 +92,7 @@ class HistorySortModel(QSortFilterProxyModel):
         if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
         try:
             return v1 < v2
-        except:
+        except Exception:
             return False
 
 def get_item_key(tx_item):
@@ -538,7 +538,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             try:
                 year = int(s)
-            except:
+            except Exception:
                 return
             self.start_date = datetime.datetime(year, 1, 1)
             self.end_date = datetime.datetime(year+1, 1, 1)
@@ -709,7 +709,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             if value is not None:
                 self.hm.update_fiat(index)
         else:
-            assert False
+            raise Exception(f"did not expect {column=!r} to get edited")
 
     def on_double_click(self, idx):
         tx_item = idx.internalPointer().get_data()

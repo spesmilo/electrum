@@ -42,7 +42,7 @@ _logger = get_logger(__name__)
 HAS_PYAES = False
 try:
     import pyaes
-except:
+except Exception:
     pass
 else:
     HAS_PYAES = True
@@ -57,7 +57,7 @@ try:
     from Cryptodome.Cipher import ChaCha20_Poly1305 as CD_ChaCha20_Poly1305
     from Cryptodome.Cipher import ChaCha20 as CD_ChaCha20
     from Cryptodome.Cipher import AES as CD_AES
-except:
+except Exception:
     pass
 else:
     HAS_CRYPTODOME = True
@@ -75,7 +75,7 @@ try:
     from cryptography.hazmat.primitives.ciphers import modes as CG_modes
     from cryptography.hazmat.backends import default_backend as CG_default_backend
     import cryptography.hazmat.primitives.ciphers.aead as CG_aead
-except:
+except Exception:
     pass
 else:
     HAS_CRYPTOGRAPHY = True

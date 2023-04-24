@@ -1470,7 +1470,7 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
             invoice = lndecode(connect_contents)
             nodeid_bytes = invoice.pubkey.serialize()
             nodeid_hex = nodeid_bytes.hex()
-        except:
+        except Exception:
             # node id as hex?
             nodeid_hex = connect_contents
     if rest == '':
@@ -1479,7 +1479,7 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
         node_id = bfh(nodeid_hex)
         if len(node_id) != 33:
             raise Exception()
-    except:
+    except Exception:
         raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
     return node_id, rest
 

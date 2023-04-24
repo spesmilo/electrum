@@ -201,7 +201,7 @@ class QtPlugin(QtPluginBase):
             return
         for keystore in wallet.get_keystores():
             if type(keystore) == self.keystore_class:
-                def show_address():
+                def show_address(keystore=keystore):
                     keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore))
                 device_name = "{} ({})".format(self.device, keystore.label)
                 menu.addAction(_("Show on {}").format(device_name), show_address)

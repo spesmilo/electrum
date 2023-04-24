@@ -151,7 +151,7 @@ def RMD160Transform(state, block): #uint32 state[5], uchar block[64]
     if sys.byteorder == 'little':
         x = struct.unpack('<16L', bytes([x for x in block[0:64]]))
     else:
-        raise "Error!!"
+        raise Exception(f"unsupported {sys.byteorder=!r}")
     a = state[0]
     b = state[1]
     c = state[2]

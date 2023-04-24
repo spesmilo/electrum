@@ -739,7 +739,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             self._seed = self.wallet.get_seed(self.password)
             self.seedRetrieved.emit()
-        except:
+        except Exception:
             self._seed = ''
 
         self.dataChanged.emit()

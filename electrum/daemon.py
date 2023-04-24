@@ -110,6 +110,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
     lockfile = get_lockfile(config)
     while True:
         create_time = None
+        path = None
         try:
             with open(lockfile) as f:
                 socktype, address, create_time = ast.literal_eval(f.read())
@@ -127,7 +128,9 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = util.get_asyncio_loop()
-        async def request_coroutine():
+        async def request_coroutine(
+            *, socktype=socktype, path=path, auth=auth, server_url=server_url, endpoint=endpoint,
+        ):
             if socktype == 'unix':
                 connector = aiohttp.UnixConnector(path=path)
             elif socktype == 'tcp':

@@ -79,7 +79,7 @@ class BitBox02Client(HardwareClientBase):
     def close(self):
         try:
             self.bitbox02_device.close()
-        except:
+        except Exception:
             pass
 
     def has_usable_connection_with_device(self) -> bool:
@@ -104,7 +104,7 @@ class BitBox02Client(HardwareClientBase):
             self.handler.show_message(msg)
             try:
                 res = device_response()
-            except:
+            except Exception:
                 # Close the hid device on exception
                 hid_device.close()
                 raise
@@ -327,7 +327,7 @@ class BitBox02Client(HardwareClientBase):
                 )
             except bitbox02.DuplicateEntryException:
                 raise
-            except:
+            except Exception:
                 raise UserFacingException("Failed to register multisig\naccount configuration on BitBox02")
         return multisig_config
 
@@ -648,7 +648,7 @@ class BitBox02Plugin(HW_PluginBase):
         try:
             from bitbox02 import bitbox02
             version = bitbox02.__version__
-        except:
+        except Exception:
             version = "unknown"
         if requirements_ok:
             return version

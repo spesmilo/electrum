@@ -160,7 +160,7 @@ class CKCCClient(HardwareClientBase):
         try:
             self.ping_check()
             return True
-        except:
+        except Exception:
             return False
 
     @runs_in_hwd_thread
@@ -187,7 +187,7 @@ class CKCCClient(HardwareClientBase):
         try:
             echo = self.dev.send_recv(CCProtocolPacker.ping(req))
             assert echo == req
-        except:
+        except Exception:
             raise RuntimeError("Communication trouble with Coldcard")
 
     @runs_in_hwd_thread

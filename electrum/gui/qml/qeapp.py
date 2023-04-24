@@ -108,7 +108,7 @@ class QEAppController(BaseCrashReporter, QObject):
         # connect only once
         try:
             qewallet.userNotify.disconnect(self.on_wallet_usernotify)
-        except:
+        except Exception:
             pass
         qewallet.userNotify.connect(self.on_wallet_usernotify)
 

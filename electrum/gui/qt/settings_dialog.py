@@ -287,7 +287,7 @@ class SettingsDialog(QDialog, QtEventListener):
             val = block_ex_custom_e.text()
             try:
                 val = ast.literal_eval(val)  # to also accept tuples
-            except:
+            except Exception:
                 pass
             self.config.set_key('block_explorer_custom', val)
         block_ex_custom_e.editingFinished.connect(on_be_edit)

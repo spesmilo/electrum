@@ -515,7 +515,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             screen = self.app.desktop().screenGeometry()
             assert screen.contains(QRect(*winpos))
             self.setGeometry(*winpos)
-        except:
+        except Exception:
             self.logger.info("using default geometry")
             self.setGeometry(100, 100, 840, 400)
 
@@ -631,7 +631,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         recent = self.config.get('recently_open', [])
         try:
             sorted(recent)
-        except:
+        except Exception:
             recent = []
         if filename in recent:
             recent.remove(filename)
@@ -1294,8 +1294,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         else:
             self.show_message(message)
 
-    def query_choice(self, msg, choices, title=_('Question'), default_choice=None):
+    def query_choice(self, msg, choices, title=None, default_choice=None):
         # Needed by QtHandler for hardware wallets
+        if title is None:
+            title = _('Question')
         dialog = WindowModalDialog(self.top_level_window(), title=title)
         dialog.setMinimumWidth(400)
         clayout = ChoicesLayout(msg, choices, checked_index=default_choice)
@@ -1918,10 +1920,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         d = SeedDialog(self, seed, passphrase, config=self.config)
         d.exec_()
 
-    def show_qrcode(self, data, title = _("QR code"), parent=None, *,
+    def show_qrcode(self, data, title=None, parent=None, *,
                     help_text=None, show_copy_text_btn=False):
         if not data:
             return
+        if title is None:
+            title = _("QR code")
         d = QRDialog(
             data=data,
             parent=parent or self,

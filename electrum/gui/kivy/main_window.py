@@ -358,7 +358,7 @@ class ElectrumWindow(App, Logger, EventListener):
         assert u == self.base_unit
         try:
             x = Decimal(a)
-        except:
+        except Exception:
             return None
         p = pow(10, self.decimal_point())
         return int(p * x)
@@ -487,7 +487,7 @@ class ElectrumWindow(App, Logger, EventListener):
         from electrum.transaction import tx_from_any
         try:
             tx = tx_from_any(data)
-        except:
+        except Exception:
             tx = None
         if tx:
             self.tx_dialog(tx)
@@ -1119,7 +1119,7 @@ class ElectrumWindow(App, Logger, EventListener):
             arrow_pos=arrow_pos)
 
     @scheduled_in_gui_thread
-    def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
+    def show_info_bubble(self, text=None, pos=None, duration=0,
                          arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
         '''Method to show an Information Bubble
 
@@ -1130,6 +1130,8 @@ class ElectrumWindow(App, Logger, EventListener):
             width: width of the Bubble
             arrow_pos: arrow position for the bubble
         '''
+        if text is None:
+            text = _('Hello World')
         text = str(text)  # so that we also handle e.g. Exception
         info_bubble = self.info_bubble
         if not info_bubble:

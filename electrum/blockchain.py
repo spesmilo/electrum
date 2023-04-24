@@ -296,17 +296,17 @@ class Blockchain(Logger):
     def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
-            raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
+            raise InvalidHeader("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
-            raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
+            raise InvalidHeader("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+            raise InvalidHeader("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
         if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+            raise InvalidHeader(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
@@ -544,7 +544,7 @@ class Blockchain(Logger):
     def bits_to_target(cls, bits: int) -> int:
         # arith_uint256::SetCompact in Bitcoin Core
         if not (0 <= bits < (1 << 32)):
-            raise Exception(f"bits should be uint32. got {bits!r}")
+            raise InvalidHeader(f"bits should be uint32. got {bits!r}")
         bitsN = (bits >> 24) & 0xff
         bitsBase = bits & 0x7fffff
         if bitsN <= 3:
@@ -553,12 +553,12 @@ class Blockchain(Logger):
             target = bitsBase << (8 * (bitsN-3))
         if target != 0 and bits & 0x800000 != 0:
             # Bit number 24 (0x800000) represents the sign of N
-            raise Exception("target cannot be negative")
+            raise InvalidHeader("target cannot be negative")
         if (target != 0 and
                 (bitsN > 34 or
                  (bitsN > 33 and bitsBase > 0xff) or
                  (bitsN > 32 and bitsBase > 0xffff))):
-            raise Exception("target has overflown")
+            raise InvalidHeader("target has overflown")
         return target
 
     @classmethod
@@ -622,7 +622,7 @@ class Blockchain(Logger):
             return hash_header(header) == constants.net.GENESIS
         try:
             prev_hash = self.get_hash(height - 1)
-        except:
+        except Exception:
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False

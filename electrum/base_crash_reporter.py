@@ -130,7 +130,7 @@ class BaseCrashReporter(Logger):
         }
         try:
             args["wallet_type"] = self.get_wallet_type()
-        except:
+        except Exception:
             # Maybe the wallet isn't loaded yet
             pass
         return args

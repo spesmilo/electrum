@@ -617,7 +617,7 @@ class QEInvoiceParser(QEInvoice):
             try:
                 assert amount >= self.lnurlData['min_sendable_sat']
                 assert amount <= self.lnurlData['max_sendable_sat']
-            except:
+            except Exception:
                 self.lnurlError.emit('amount', _('Amount out of bounds'))
                 return
 

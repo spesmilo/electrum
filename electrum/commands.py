@@ -313,7 +313,7 @@ class Commands:
             # call literal_eval for backward compatibility (see #4225)
             try:
                 value = ast.literal_eval(value)
-            except:
+            except Exception:
                 pass
         return value
 
@@ -631,7 +631,7 @@ class Commands:
         """Convert xtype of a master key. e.g. xpub -> ypub"""
         try:
             node = BIP32Node.from_xkey(xkey)
-        except:
+        except Exception:
             raise Exception('xkey should be a master public/private key')
         return node._replace(xtype=xtype).to_xkey()
 
@@ -1376,7 +1376,7 @@ def eval_bool(x: str) -> bool:
     if x == 'true': return True
     try:
         return bool(ast.literal_eval(x))
-    except:
+    except Exception:
         return bool(x)
 
 param_descriptions = {

@@ -370,7 +370,7 @@ class ECPubkey(object):
         try:
             ECPubkey(b)
             return True
-        except:
+        except Exception:
             return False
 
 

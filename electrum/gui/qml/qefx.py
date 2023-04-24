@@ -105,7 +105,7 @@ class QEFX(QObject, QtEventListener):
         else:
             try:
                 sd = Decimal(satoshis)
-            except:
+            except Exception:
                 return ''
         if plain:
             return self.fx.ccy_amount_str(self.fx.fiat_value(satoshis, rate), add_thousands_sep=False)
@@ -122,14 +122,14 @@ class QEFX(QObject, QtEventListener):
         else:
             try:
                 sd = Decimal(satoshis)
-            except:
+            except Exception:
                 return ''
 
         try:
             td = Decimal(timestamp)
             if td == 0:
                 return ''
-        except:
+        except Exception:
             return ''
         dt = datetime.fromtimestamp(int(td))
         if plain:
@@ -143,7 +143,7 @@ class QEFX(QObject, QtEventListener):
         rate = self.fx.exchange_rate()
         try:
             fd = Decimal(fiat)
-        except:
+        except Exception:
             return ''
         v = fd / Decimal(rate) * COIN
         if v.is_nan():

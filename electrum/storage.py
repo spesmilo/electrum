@@ -142,7 +142,7 @@ class WalletStorage(Logger):
                 return StorageEncryptionVersion.XPUB_PASSWORD
             else:
                 return StorageEncryptionVersion.PLAINTEXT
-        except:
+        except Exception:
             return StorageEncryptionVersion.PLAINTEXT
 
     @staticmethod
