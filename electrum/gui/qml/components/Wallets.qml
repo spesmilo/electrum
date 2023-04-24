@@ -118,7 +118,7 @@ Pane {
 
         FlatButton {
             Layout.fillWidth: true
-            text: 'Create Wallet'
+            text: qsTr('Create Wallet')
             icon.source: '../../icons/add.png'
             onClicked: rootItem.createWallet()
         }

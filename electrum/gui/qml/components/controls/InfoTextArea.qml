@@ -39,7 +39,7 @@ TextHighlightPane {
         Image {
             Layout.preferredWidth: constants.iconSizeMedium
             Layout.preferredHeight: constants.iconSizeMedium
-            visible: iconStyle != InfoTextArea.IconStyle.Spinner
+            visible: iconStyle != InfoTextArea.IconStyle.Spinner && iconStyle != InfoTextArea.IconStyle.None
             source: iconStyle == InfoTextArea.IconStyle.Info
                 ? "../../../icons/info.png"
                 : iconStyle == InfoTextArea.IconStyle.Warn
