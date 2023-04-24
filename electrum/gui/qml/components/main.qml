@@ -361,6 +361,14 @@ ApplicationWindow
         }
     }
 
+    property alias scanDialog: _scanDialog
+    Component {
+        id: _scanDialog
+        ScanDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
