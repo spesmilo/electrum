@@ -62,35 +62,23 @@ WizardComponent {
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root)
-                        scan.onFound.connect(function() {
-                            if (verify(scan.scanData)) {
+                        var dialog = app.scanDialog.createObject(app, {
+                            hint: bitcoin.isAddressList(import_ta.text)
+                                ? qsTr('Scan another address')
+                                : bitcoin.isPrivateKeyList(import_ta.text)
+                                    ? qsTr('Scan another private key')
+                                    : qsTr('Scan a private key or an address')
+                        })
+                        dialog.onFound.connect(function() {
+                            if (verify(dialog.scanData)) {
                                 if (import_ta.text != '')
                                     import_ta.text = import_ta.text + ',\n'
-                                import_ta.text = import_ta.text + scan.scanData
+                                import_ta.text = import_ta.text + dialog.scanData
                             }
-                            scan.destroy()
+                            dialog.close()
                         })
+                        dialog.open()
                     }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: root.width
-            height: root.height
-
-            ToolButton {
-                icon.source: '../../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
                 }
             }
         }

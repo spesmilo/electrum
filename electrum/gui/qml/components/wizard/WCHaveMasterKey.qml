@@ -79,9 +79,10 @@ WizardComponent {
                     icon.source: '../../../icons/share.png'
                     icon.color: 'transparent'
                     onClicked: {
-                        var dialog = app.genericShareDialog.createObject(app,
-                            { title: qsTr('Master public key'), text: multisigMasterPubkey }
-                        )
+                        var dialog = app.genericShareDialog.createObject(app, {
+                            title: qsTr('Master public key'),
+                            text: multisigMasterPubkey
+                        })
                         dialog.open()
                     }
                 }
@@ -141,14 +142,19 @@ WizardComponent {
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root)
-                        scan.onFound.connect(function() {
-                            if (verifyMasterKey(scan.scanData))
-                                masterkey_ta.text = scan.scanData
+                        var dialog = app.scanDialog.createObject(app, {
+                            hint: cosigner
+                                ? qsTr('Scan a cosigner master public key')
+                                : qsTr('Scan a master key')
+                        })
+                        dialog.onFound.connect(function() {
+                            if (verifyMasterKey(dialog.scanData))
+                                masterkey_ta.text = dialog.scanData
                             else
                                 masterkey_ta.text = ''
-                            scan.destroy()
+                            dialog.close()
                         })
+                        dialog.open()
                     }
                 }
             }
@@ -162,25 +168,6 @@ WizardComponent {
             wrapMode: TextInput.WordWrap
             background: Rectangle {
                 color: 'transparent'
-            }
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: root.width
-            height: root.height
-
-            ToolButton {
-                icon.source: '../../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
-                }
             }
         }
     }

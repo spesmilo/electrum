@@ -107,14 +107,17 @@ ElDialog {
                         icon.width: constants.iconSizeMedium
                         scale: 1.2
                         onClicked: {
-                            var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
-                            page.onFound.connect(function() {
-                                if (channelopener.validate_connect_str(page.scanData)) {
-                                    channelopener.connectStr = page.scanData
+                            var dialog = app.scanDialog.createObject(app, {
+                                hint: qsTr('Scan a channel connect string')
+                            })
+                            dialog.onFound.connect(function() {
+                                if (channelopener.validate_connect_str(dialog.scanData)) {
+                                    channelopener.connectStr = dialog.scanData
                                     node.text = channelopener.connectStr
                                 }
-                                app.stack.pop()
+                                dialog.close()
                             })
+                            dialog.open()
                         }
                     }
                 }
@@ -260,4 +263,5 @@ ElDialog {
             root.close()
         }
     }
+
 }
