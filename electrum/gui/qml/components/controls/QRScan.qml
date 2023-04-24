@@ -10,6 +10,7 @@ Item {
     property bool active: false
     property string url
     property string scanData
+    property string hint
 
     property bool _pointsVisible
 
@@ -40,6 +41,20 @@ Item {
             visible: camera.cameraStatus == Camera.ActiveStatus
             anchors.bottom: parent.bottom
             color: Qt.rgba(0,0,0,0.5)
+        }
+        InfoTextArea {
+            visible: scanner.hint
+            background.opacity: 0.5
+            iconStyle: InfoTextArea.IconStyle.None
+            anchors {
+                top: parent.top
+                topMargin: constants.paddingXLarge
+                left: parent.left
+                leftMargin: constants.paddingXXLarge
+                right: parent.right
+                rightMargin: constants.paddingXXLarge
+            }
+            text: scanner.hint
         }
     }
 
@@ -151,7 +166,7 @@ Item {
     }
 
     Component.onCompleted: {
-        console.log('Scan page initialized')
+        console.log('enumerating cameras')
         QtMultimedia.availableCameras.forEach(function(item) {
             console.log('cam found, id=' + item.deviceId + ' name=' + item.displayName)
             console.log('pos=' + item.position + ' orientation=' + item.orientation)
