@@ -64,6 +64,8 @@ Item {
     }
 
     property QtObject menu: Menu {
+        id: menu
+
         parent: Overlay.overlay
         dim: true
         modal: true
@@ -71,7 +73,7 @@ Item {
             color: "#44000000"
         }
 
-        id: menu
+        width: parent.width / 2
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
