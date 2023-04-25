@@ -554,10 +554,14 @@ class QEInvoiceParser(QEInvoice):
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
                     self._validateRecipient_bip21_onchain(bip21)
             else:
-                self.setValidLightningInvoice(lninvoice)
                 if not self._wallet.wallet.lnworker.channels:
-                    self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
+                    if bip21 and 'address' in bip21:
+                        self._logger.debug('flow where invoice has both LN and onchain, we have LN enabled but no channels')
+                        self._validateRecipient_bip21_onchain(bip21)
+                    else:
+                        self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
                 else:
+                    self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()
         else:
             self._logger.debug('flow without LN but having bip21 uri')
