@@ -370,12 +370,12 @@ class QEInvoice(QObject, QtEventListener):
                     self.canPay = True
 
     @pyqtSlot()
-    def pay_lightning_invoice(self):
+    def payLightningInvoice(self):
         if not self.canPay:
             raise Exception('can not pay invoice, canPay is false')
 
         if self.invoiceType != QEInvoice.Type.LightningInvoice:
-            raise Exception('pay_lightning_invoice can only pay lightning invoices')
+            raise Exception('payLightningInvoice can only pay lightning invoices')
 
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
@@ -651,7 +651,7 @@ class QEInvoiceParser(QEInvoice):
         self.recipient = invoice['pr']
 
     @pyqtSlot()
-    def save_invoice(self):
+    def saveInvoice(self):
         if not self._effectiveInvoice:
             return
         if self.isSaved:

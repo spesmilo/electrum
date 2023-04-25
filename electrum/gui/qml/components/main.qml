@@ -420,7 +420,7 @@ ApplicationWindow
                 newww.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
                     // and load the new wallet
-                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                 })
                 newww.open()
             })
@@ -428,13 +428,13 @@ ApplicationWindow
         } else {
             Daemon.startNetwork()
             if (Daemon.availableWallets.rowCount() > 0) {
-                Daemon.load_wallet()
+                Daemon.loadWallet()
             } else {
                 var newww = app.newWalletWizard.createObject(app)
                 newww.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
                     // and load the new wallet
-                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                 })
                 newww.open()
             }

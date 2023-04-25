@@ -18,7 +18,7 @@ Wizard {
     wiz: Daemon.newWalletWizard
 
     Component.onCompleted: {
-        var view = wiz.start_wizard()
+        var view = wiz.startWizard()
         _loadNextComponent(view)
     }
 

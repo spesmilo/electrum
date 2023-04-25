@@ -164,7 +164,7 @@ Item {
                             newww.walletCreated.connect(function() {
                                 Daemon.availableWallets.reload()
                                 // and load the new wallet
-                                Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                                Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                             })
                             newww.open()
                         }
@@ -341,7 +341,7 @@ Item {
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     console.log('About to pay lightning invoice')
-                    invoice.pay_lightning_invoice()
+                    invoice.payLightningInvoice()
                 }
             }
 

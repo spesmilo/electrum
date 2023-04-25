@@ -13,7 +13,7 @@ class QEAbstractWizard(QObject):
         QObject.__init__(self, parent)
 
     @pyqtSlot(result=str)
-    def start_wizard(self):
+    def startWizard(self):
         self.start()
         return self._current.view
 

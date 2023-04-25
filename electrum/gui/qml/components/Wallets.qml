@@ -21,7 +21,7 @@ Pane {
         dialog.walletCreated.connect(function() {
             Daemon.availableWallets.reload()
             // and load the new wallet
-            Daemon.load_wallet(dialog.path, dialog.wizard_data['password'])
+            Daemon.loadWallet(dialog.path, dialog.wizard_data['password'])
         })
     }
 
@@ -59,7 +59,7 @@ Pane {
 
                         onClicked: {
                             if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name)
-                                Daemon.load_wallet(model.path)
+                                Daemon.loadWallet(model.path)
                             else
                                 app.stack.pop()
                         }

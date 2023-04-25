@@ -397,7 +397,7 @@ ElDialog {
                     if (invoice.amount.isEmpty) {
                         invoice.amountOverride = amountMax.checked ? MAX : Config.unitsToSats(amountBtc.text)
                     }
-                    invoice.save_invoice()
+                    invoice.saveInvoice()
                     app.stack.push(Qt.resolvedUrl('Invoices.qml'))
                     dialog.close()
                 }
@@ -414,7 +414,7 @@ ElDialog {
                     }
                     if (!invoice.isSaved) {
                         // save invoice if newly parsed
-                        invoice.save_invoice()
+                        invoice.saveInvoice()
                     }
                     doPay() // only signal here
                 }
@@ -432,7 +432,7 @@ ElDialog {
         if (payImmediately) {
             if (invoice.canPay) {
                 if (!invoice.isSaved) {
-                    invoice.save_invoice()
+                    invoice.saveInvoice()
                 }
                 doPay()
             }

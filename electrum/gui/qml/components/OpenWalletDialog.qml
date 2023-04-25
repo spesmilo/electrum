@@ -120,7 +120,7 @@ ElDialog {
         }
         onReadyChanged: {
             if (ready) {
-                Daemon.load_wallet(openwalletdialog.path, password.text)
+                Daemon.loadWallet(openwalletdialog.path, password.text)
                 openwalletdialog.close()
             }
         }
