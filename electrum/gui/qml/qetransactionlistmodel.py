@@ -36,10 +36,10 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
-        self.requestRefresh.connect(lambda: self.init_model())
+        self.requestRefresh.connect(lambda: self.initModel())
 
         self.setDirty()
-        self.init_model()
+        self.initModel()
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -59,6 +59,25 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
             if 'txid' in item and item['txid'] == txid:
                 self._update_future_txitem(i)
                 return
+
+    @qt_event_listener
+    def on_event_fee_histogram(self, histogram):
+        self._logger.debug(f'fee histogram updated')
+        for i, tx_item in enumerate(self.tx_history):
+            if 'height' not in tx_item:  # filter to on-chain
+                continue
+            if tx_item['confirmations'] > 0:  # filter out already mined
+                continue
+            txid = tx_item['txid']
+            tx = self.wallet.db.get_transaction(txid)
+            if not tx:
+                continue
+            txinfo = self.wallet.get_tx_info(tx)
+            status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
+            tx_item['date'] = status_str
+            index = self.index(i, 0)
+            roles = [self._ROLE_RMAP['date']]
+            self.dataChanged.emit(index, index, roles)
 
     def rowCount(self, index):
         return len(self.tx_history)
@@ -180,7 +199,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
     # initial model data
     @pyqtSlot()
     @pyqtSlot(bool)
-    def init_model(self, force: bool = False):
+    def initModel(self, force: bool = False):
         # only (re)construct if dirty or forced
         if not self._dirty and not force:
             return
@@ -237,7 +256,7 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
         self.dataChanged.emit(index, index, roles)
 
     @pyqtSlot(str, str)
-    def update_tx_label(self, key, label):
+    def updateTxLabel(self, key, label):
         for i, tx in enumerate(self.tx_history):
             if tx['key'] == key:
                 tx['label'] = label
@@ -257,22 +276,3 @@ class QETransactionListModel(QAbstractListModel, QtEventListener):
                     self.dataChanged.emit(index, index, roles)
                 elif tx_item['height'] in (TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL):
                     self._update_future_txitem(i)
-
-    @qt_event_listener
-    def on_event_fee_histogram(self, histogram):
-        self._logger.debug(f'fee histogram updated')
-        for i, tx_item in enumerate(self.tx_history):
-            if 'height' not in tx_item:  # filter to on-chain
-                continue
-            if tx_item['confirmations'] > 0:  # filter out already mined
-                continue
-            txid = tx_item['txid']
-            tx = self.wallet.db.get_transaction(txid)
-            if not tx:
-                continue
-            txinfo = self.wallet.get_tx_info(tx)
-            status, status_str = self.wallet.get_tx_status(txid, txinfo.tx_mined_status)
-            tx_item['date'] = status_str
-            index = self.index(i, 0)
-            roles = [self._ROLE_RMAP['date']]
-            self.dataChanged.emit(index, index, roles)

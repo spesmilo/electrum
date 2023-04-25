@@ -168,7 +168,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 # TODO: only update if it was paid over lightning,
                 # and even then, we can probably just add the payment instead
                 # of recreating the whole history (expensive)
-                self.historyModel.init_model(True)
+                self.historyModel.initModel(True)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
@@ -196,7 +196,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
             self.addressModel.setDirty()
-            self.historyModel.init_model(True) #setDirty()
+            self.historyModel.initModel(True) #setDirty()
             self.balanceChanged.emit()
 
     @qt_event_listener
@@ -206,7 +206,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.balanceChanged.emit()
             self.synchronizing = not wallet.is_up_to_date()
             if not self.synchronizing:
-                self.historyModel.init_model() # refresh if dirty
+                self.historyModel.initModel() # refresh if dirty
 
     @event_listener
     def on_event_channel(self, wallet, channel):
@@ -224,7 +224,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet == self.wallet:
             self.paymentSucceeded.emit(key)
-            self.historyModel.init_model(True) # TODO: be less dramatic
+            self.historyModel.initModel(True) # TODO: be less dramatic
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
@@ -527,7 +527,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.broadcast(tx)
         else:
             # not broadcasted, so refresh history here
-            self.historyModel.init_model(True)
+            self.historyModel.initModel(True)
 
         return True
 
@@ -589,7 +589,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 return
             self.wallet.save_db()
             self.saveTxSuccess.emit(tx.txid())
-            self.historyModel.init_model(True)
+            self.historyModel.initModel(True)
             return True
         except AddTransactionException as e:
             self.saveTxError.emit(tx.txid(), 'error', str(e))

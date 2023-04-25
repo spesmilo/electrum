@@ -26,24 +26,24 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         self._chaintips = 0
 
         self.network = network
-        self.init_model()
+        self.initModel()
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
     @qt_event_listener
     def on_event_network_updated(self):
         self._logger.info(f'network updated')
-        self.init_model()
+        self.initModel()
 
     @qt_event_listener
     def on_event_blockchain_updated(self):
         self._logger.info(f'blockchain updated')
-        self.init_model()
+        self.initModel()
 
     @qt_event_listener
     def on_event_default_server_changed(self):
         self._logger.info(f'default server changed')
-        self.init_model()
+        self.initModel()
 
     def rowCount(self, index):
         return len(self.servers)
@@ -81,7 +81,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         return chains
 
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         self.clear()
 
         servers = []

@@ -25,7 +25,7 @@ class QEAddressListModel(QAbstractListModel):
         super().__init__(parent)
         self.wallet = wallet
         self.setDirty()
-        self.init_model()
+        self.initModel()
 
     def rowCount(self, index):
         return len(self.receive_addresses) + len(self.change_addresses)
@@ -68,7 +68,7 @@ class QEAddressListModel(QAbstractListModel):
 
     # initial model data
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         if not self._dirty:
             return
 
@@ -97,7 +97,7 @@ class QEAddressListModel(QAbstractListModel):
         self._dirty = False
 
     @pyqtSlot(str)
-    def update_address(self, address):
+    def updateAddress(self, address):
         for i, a in enumerate(itertools.chain(self.receive_addresses, self.change_addresses)):
             if a['address'] == address:
                 self.do_update(i,a)

@@ -52,7 +52,7 @@ Pane {
                             onClicked: {
                                 var dialog = app.stack.getRoot().openInvoice(model.key)
                                 dialog.invoiceAmountChanged.connect(function () {
-                                    Daemon.currentWallet.invoiceModel.init_model()
+                                    Daemon.currentWallet.invoiceModel.initModel()
                                 })
                                 listview.currentIndex = -1
                             }
@@ -106,7 +106,7 @@ Pane {
                 onClicked: {
                     var dialog = app.stack.getRoot().openInvoice(listview.currentItem.getKey())
                     dialog.invoiceAmountChanged.connect(function () {
-                        Daemon.currentWallet.invoiceModel.init_model()
+                        Daemon.currentWallet.invoiceModel.initModel()
                     })
                 }
             }

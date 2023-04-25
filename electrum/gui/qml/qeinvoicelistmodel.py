@@ -35,7 +35,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self._timer.timeout.connect(self.updateStatusStrings)
 
         try:
-            self.init_model()
+            self.initModel()
         except Exception as e:
             self._logger.error(f'{repr(e)}')
             raise e
@@ -63,7 +63,7 @@ class QEAbstractInvoiceListModel(QAbstractListModel):
         self.endResetModel()
 
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         invoices = []
         for invoice in self.get_invoice_list():
             item = self.invoice_to_model(invoice)
