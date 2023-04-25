@@ -44,7 +44,7 @@ MSG_LIGHTNING_SCB_WARNING = _(
 """Electrum uses static channel backups. If you lose your wallet file, you will need to request your channel to be force-closed by the remote peer in order to recover your funds. This assumes that the remote peer is reachable, and has not lost its own data."""
 )
 
-MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + MSG_LIGHTNING_SCB_WARNING
+MSG_LIGHTNING_WARNING = MSG_LIGHTNING_EXPERIMENTAL_WARNING + "\n\n" + MSG_LIGHTNING_SCB_WARNING
 
 MSG_HELP_TRAMPOLINE = _(
 """Lightning payments require finding a path through the Lightning Network. You may use trampoline routing, or local routing (gossip).
