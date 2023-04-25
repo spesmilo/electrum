@@ -1,3 +1,27 @@
+# Release 4.4.1 (unreleased)
+ * Qt GUI:
+   - fix sweeping (#8340)
+   - fix send tab input_qr_from_camera (#8342)
+   - fix crash reporter showing if send fails on typical errors (#8312)
+   - bumpfee: disallow targeting an abs fee. only allow feerate (#8318)
+ * QML GUI:
+   - fix offline-signing or co-signing pre-segwit txs (#8319)
+   - add option to show onchain address in ReceiveDetailsDialog (#8331)
+   - fix strings unique to QML did not get localized/translated (#8323)
+   - allow paying bip21 uri onchain that has both onchain and bolt11
+     if we cannot pay on LN (#8334, 312e50e9)
+   - virtual keyboard: make buttons somewhat larger (75e65c5c)
+   - fix(?) Android crash with some OS-accessibility settings (#8344)
+   - fix channelopener.connectStr qr scan popping under (#8335)
+   - fix restoring from old mpk (watchonly for "old" seeds) (#8356)
+ * libsecp256k1: add runtime support for 0.3.x, bump bundled to 0.3.1
+ * forbid paying to "http:" lnurls (enforce https or .onion) (1b5c7d46)
+ * fix wallet.bump_fee "decrease payment" erroring on too high target
+   fee rate (#8316)
+ * fix performance regressions in tx logic (ee521545, 910832c1)
+ * fix "recursion depth exceeded" for utxo privacy analysis (#8315)
+
+
 # Release 4.4.0 (April 18, 2023)
 
  * New Android app, using QML instead of Kivy
