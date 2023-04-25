@@ -91,8 +91,8 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
         onGeneratedSeedChanged: {
-            seedtext.text = generated_seed
-            setWarningText(generated_seed.split(' ').length)
+            seedtext.text = generatedSeed
+            setWarningText(generatedSeed.split(' ').length)
         }
     }
 }
