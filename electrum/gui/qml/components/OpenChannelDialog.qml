@@ -95,7 +95,7 @@ ElDialog {
                         icon.height: constants.iconSizeMedium
                         icon.width: constants.iconSizeMedium
                         onClicked: {
-                            if (channelopener.validate_connect_str(AppController.clipboardToText())) {
+                            if (channelopener.validateConnectString(AppController.clipboardToText())) {
                                 channelopener.connectStr = AppController.clipboardToText()
                                 node.text = channelopener.connectStr
                             }
@@ -111,7 +111,7 @@ ElDialog {
                                 hint: qsTr('Scan a channel connect string')
                             })
                             dialog.onFound.connect(function() {
-                                if (channelopener.validate_connect_str(dialog.scanData)) {
+                                if (channelopener.validateConnectString(dialog.scanData)) {
                                     channelopener.connectStr = dialog.scanData
                                     node.text = channelopener.connectStr
                                 }
@@ -196,7 +196,7 @@ ElDialog {
             text: qsTr('Open Channel')
             icon.source: '../../icons/confirmed.png'
             enabled: channelopener.valid
-            onClicked: channelopener.open_channel()
+            onClicked: channelopener.openChannel()
         }
     }
 
@@ -225,7 +225,7 @@ ElDialog {
             var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
             dialog.open()
             dialog.accepted.connect(function() {
-                channelopener.open_channel(true)
+                channelopener.openChannel(true)
             })
         }
         onFinalizerChanged: {

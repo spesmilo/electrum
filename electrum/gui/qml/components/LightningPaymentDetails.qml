@@ -120,7 +120,7 @@ Pane {
                         icon.color: 'transparent'
                         onClicked: {
                             labelContent.editmode = false
-                            lnpaymentdetails.set_label(labelEdit.text)
+                            lnpaymentdetails.setLabel(labelEdit.text)
                         }
                     }
                     ToolButton {
