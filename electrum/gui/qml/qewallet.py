@@ -624,7 +624,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        self.delete_expired_requests()
+        self.deleteExpiredRequests()
         try:
             amount = amount.satsInt
             addr = self.wallet.get_unused_address()
