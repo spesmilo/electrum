@@ -62,7 +62,7 @@ Pane {
 
                     Label {
                         Layout.fillWidth: true
-                        text: channeldetails.short_cid
+                        text: channeldetails.shortCid
                     }
 
                     Label {
@@ -254,7 +254,7 @@ Pane {
                 text: qsTr('Backup')
                 onClicked: {
                     var dialog = app.genericShareDialog.createObject(root, {
-                        title: qsTr('Channel Backup for %1').arg(channeldetails.short_cid),
+                        title: qsTr('Channel Backup for %1').arg(channeldetails.shortCid),
                         text_qr: channeldetails.channelBackup(),
                         text_help: channeldetails.channelBackupHelpText(),
                         iconSource: Qt.resolvedUrl('../../icons/file.png')

@@ -65,7 +65,7 @@ class QELnPaymentDetails(QObject):
         return self._date
 
     @pyqtProperty(str, notify=detailsChanged)
-    def payment_hash(self):
+    def paymentHash(self):
         return self._phash
 
     @pyqtProperty(str, notify=detailsChanged)

@@ -166,7 +166,7 @@ class QEInvoice(QObject, QtEventListener):
         return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
 
     @pyqtProperty(str, notify=statusChanged)
-    def status_str(self):
+    def statusString(self):
         if not self._effectiveInvoice:
             return ''
         status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)

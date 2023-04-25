@@ -31,7 +31,7 @@ Item {
         GridLayout {
             id: balanceLayout
             columns: 3
-            opacity: Daemon.currentWallet.synchronizing || !Network.is_connected ? 0 : 1
+            opacity: Daemon.currentWallet.synchronizing || !Network.isConnected ? 0 : 1
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
@@ -129,7 +129,7 @@ Item {
     }
 
     Label {
-        opacity: Daemon.currentWallet.synchronizing && Network.is_connected ? 1 : 0
+        opacity: Daemon.currentWallet.synchronizing && Network.isConnected ? 1 : 0
         anchors.centerIn: balancePane
         text: Daemon.currentWallet.synchronizingProgress
         color: Material.accentColor
@@ -137,9 +137,9 @@ Item {
     }
 
     Label {
-        opacity: !Network.is_connected ? 1 : 0
+        opacity: !Network.isConnected ? 1 : 0
         anchors.centerIn: balancePane
-        text: Network.server_status
+        text: Network.serverStatus
         color: Material.accentColor
         font.pixelSize: constants.fontSizeLarge
     }

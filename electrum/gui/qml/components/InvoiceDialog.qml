@@ -52,7 +52,7 @@ ElDialog {
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
                     visible: text
-                    text:  invoice.userinfo ? invoice.userinfo : invoice.status_str
+                    text:  invoice.userinfo ? invoice.userinfo : invoice.statusString
                     iconStyle: invoice.status == Invoice.Failed || invoice.status == Invoice.Unknown
                         ? InfoTextArea.IconStyle.Warn
                         : invoice.status == Invoice.Expired
