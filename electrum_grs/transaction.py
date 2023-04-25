@@ -1195,18 +1195,18 @@ def convert_raw_tx_to_hex(raw: Union[str, bytes]) -> str:
     # try hex
     try:
         return binascii.unhexlify(raw).hex()
-    except:
+    except Exception:
         pass
     # try base43
     try:
         return base_decode(raw, base=43).hex()
-    except:
+    except Exception:
         pass
     # try base64
     if raw[0:6] in ('cHNidP', b'cHNidP'):  # base64 psbt
         try:
             return base64.b64decode(raw).hex()
-        except:
+        except Exception:
             pass
     # raw bytes (do not strip whitespaces in this case)
     if isinstance(raw_unstripped, bytes):

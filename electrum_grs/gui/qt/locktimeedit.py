@@ -93,7 +93,7 @@ class _LockTimeEditor:
             return True
         try:
             x = int(x)
-        except:
+        except Exception:
             return False
         return cls.min_allowed_value <= x <= cls.max_allowed_value
 
@@ -120,13 +120,13 @@ class LockTimeRawEdit(QLineEdit, _LockTimeEditor):
     def get_locktime(self) -> Optional[int]:
         try:
             return int(str(self.text()))
-        except:
+        except Exception:
             return None
 
     def set_locktime(self, x: Any) -> None:
         try:
             x = int(x)
-        except:
+        except Exception:
             self.setText('')
             return
         x = max(x, self.min_allowed_value)
@@ -185,7 +185,7 @@ class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
             return
         try:
             x = int(x)
-        except:
+        except Exception:
             self.setDateTime(QDateTime.currentDateTime())
             return
         dt = datetime.fromtimestamp(x)

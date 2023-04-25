@@ -22,14 +22,14 @@ class _(str):
     def bind(label):
         try:
             _.observers.add(label)
-        except:
+        except Exception:
             pass
         # garbage collection
         new = set()
         for label in _.observers:
             try:
                 new.add(label)
-            except:
+            except Exception:
                 pass
         _.observers = new
 
@@ -42,7 +42,7 @@ class _(str):
         for label in _.observers:
             try:
                 label.text = _(label.text.source_text)
-            except:
+            except Exception:
                 pass
         # Note that all invocations of _() inside the core electrum library
         # use electrum.i18n instead of electrum.gui.kivy.i18n, so we should update the

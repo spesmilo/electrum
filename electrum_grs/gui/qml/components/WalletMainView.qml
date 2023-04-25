@@ -64,6 +64,8 @@ Item {
     }
 
     property QtObject menu: Menu {
+        id: menu
+
         parent: Overlay.overlay
         dim: true
         modal: true
@@ -71,7 +73,7 @@ Item {
             color: "#44000000"
         }
 
-        id: menu
+        width: parent.width / 2
 
         MenuItem {
             icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
@@ -162,7 +164,7 @@ Item {
                             newww.walletCreated.connect(function() {
                                 Daemon.availableWallets.reload()
                                 // and load the new wallet
-                                Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                                Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                             })
                             newww.open()
                         }
@@ -191,7 +193,7 @@ Item {
                 }
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
-                    Daemon.currentWallet.delete_expired_requests()
+                    Daemon.currentWallet.deleteExpiredRequests()
                     app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
                     AppController.haptic()
                 }
@@ -339,7 +341,7 @@ Item {
                     dialog.open()
                 } else if (invoice.invoiceType == Invoice.LightningInvoice) {
                     console.log('About to pay lightning invoice')
-                    invoice.pay_lightning_invoice()
+                    invoice.payLightningInvoice()
                 }
             }
 

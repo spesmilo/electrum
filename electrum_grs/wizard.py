@@ -28,10 +28,11 @@ class AbstractWizard:
 
     _logger = get_logger(__name__)
 
-    navmap = {}
+    def __init__(self):
+        self.navmap = {}
 
-    _current = WizardViewState(None, {}, {})
-    _stack = [] # type: List[WizardViewState]
+        self._current = WizardViewState(None, {}, {})
+        self._stack = []  # type: List[WizardViewState]
 
     def navmap_merge(self, additional_navmap):
         # NOTE: only merges one level deep. Deeper dict levels will overwrite
@@ -130,7 +131,7 @@ class AbstractWizard:
         self._logger.debug('finished.')
 
     def reset(self):
-        self.stack = []
+        self._stack = []
         self._current = WizardViewState(None, {}, {})
 
     def log_stack(self, _stack):
@@ -165,6 +166,7 @@ class NewWalletWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'wallet_name': {
                 'next': 'wallet_type'
@@ -226,7 +228,9 @@ class NewWalletWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
         self._current = WizardViewState('wallet_name', initial_data, {})
         return self._current
@@ -438,6 +442,7 @@ class ServerConnectWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'autoconnect': {
                 'next': 'server_config',
@@ -455,7 +460,9 @@ class ServerConnectWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
         self._current = WizardViewState('proxy_ask', initial_data, {})
         return self._current

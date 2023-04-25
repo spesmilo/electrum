@@ -36,7 +36,7 @@ Pane {
                     var page = app.stack.push(Qt.resolvedUrl('AddressDetails.qml'), {'address': model.address})
                     page.addressDetailsChanged.connect(function() {
                         // update listmodel when details change
-                        listview.model.update_address(model.address)
+                        listview.model.updateAddress(model.address)
                     })
                 }
             }
@@ -74,6 +74,6 @@ Pane {
     }
 
     Component.onCompleted: {
-        Daemon.currentWallet.addressModel.init_model()
+        Daemon.currentWallet.addressModel.initModel()
     }
 }

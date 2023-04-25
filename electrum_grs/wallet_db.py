@@ -98,7 +98,7 @@ class WalletDB(JsonDB):
     def load_data(self, s):
         try:
             self.data = json.loads(s)
-        except:
+        except Exception:
             try:
                 d = ast.literal_eval(s)
                 labels = d.get('labels', {})
@@ -109,7 +109,7 @@ class WalletDB(JsonDB):
                 try:
                     json.dumps(key)
                     json.dumps(value)
-                except:
+                except Exception:
                     self.logger.info(f'Failed to convert label to json format: {key}')
                     continue
                 self.data[key] = value

@@ -9,7 +9,7 @@ from electrum_grs.simple_config import SimpleConfig
 
 try:
     txid = sys.argv[1]
-except:
+except Exception:
     print("usage: txradar txid")
     sys.exit(1)
 

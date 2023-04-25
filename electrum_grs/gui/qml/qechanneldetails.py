@@ -92,7 +92,7 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.node_id.hex()
 
     @pyqtProperty(str, notify=channelChanged)
-    def short_cid(self):
+    def shortCid(self):
         return self._channel.short_id_for_GUI()
 
     @pyqtProperty(str, notify=channelChanged)
@@ -171,7 +171,7 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.can_be_deleted()
 
     @pyqtProperty(str, notify=channelChanged)
-    def message_force_close(self, notify=channelChanged):
+    def messageForceClose(self, notify=channelChanged):
         return _(messages.MSG_REQUEST_FORCE_CLOSE).strip()
 
     @pyqtProperty(bool, notify=channelChanged)

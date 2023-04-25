@@ -63,7 +63,7 @@ ElDialog {
                 }
 
                 Label {
-                    text: channeldetails.short_cid
+                    text: channeldetails.shortCid
                 }
 
                 Label {
@@ -92,7 +92,7 @@ ElDialog {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
                     Layout.bottomMargin: constants.paddingLarge
-                    text: channeldetails.message_force_close
+                    text: channeldetails.messageForceClose
                 }
 
                 Label {

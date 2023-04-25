@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
 from electrum_grs.logging import get_logger
@@ -7,6 +9,7 @@ from electrum_grs.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, P
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, event_listener, status_update_timer_interval
+
 
 class QERequestDetails(QObject, QtEventListener):
 
@@ -30,7 +33,7 @@ class QERequestDetails(QObject, QtEventListener):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._key = None
         self._req = None
         self._timer = None
@@ -118,9 +121,13 @@ class QERequestDetails(QObject, QtEventListener):
     def bolt11(self):
         can_receive = self._wallet.wallet.lnworker.num_sats_can_receive() if  self._wallet.wallet.lnworker else 0
         if self._req and can_receive > 0 and (self._req.get_amount_sat() or 0) <= can_receive:
-            return self._wallet.wallet.get_bolt11_invoice(self._req)
+            bolt11 = self._wallet.wallet.get_bolt11_invoice(self._req)
         else:
             return ''
+        # encode lightning invoices as uppercase so QR encoding can use
+        # alphanumeric mode; resulting in smaller QR codes
+        bolt11 = bolt11.upper()
+        return bolt11
 
     @pyqtProperty(str, notify=detailsChanged)
     def bip21(self):

@@ -125,7 +125,7 @@ class MySortModel(QSortFilterProxyModel):
         v2 = item2.text()
         try:
             return Decimal(v1) < Decimal(v2)
-        except:
+        except Exception:
             return v1 < v2
 
 class ElectrumItemDelegate(QStyledItemDelegate):

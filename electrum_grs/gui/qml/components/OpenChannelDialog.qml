@@ -95,7 +95,7 @@ ElDialog {
                         icon.height: constants.iconSizeMedium
                         icon.width: constants.iconSizeMedium
                         onClicked: {
-                            if (channelopener.validate_connect_str(AppController.clipboardToText())) {
+                            if (channelopener.validateConnectString(AppController.clipboardToText())) {
                                 channelopener.connectStr = AppController.clipboardToText()
                                 node.text = channelopener.connectStr
                             }
@@ -107,14 +107,17 @@ ElDialog {
                         icon.width: constants.iconSizeMedium
                         scale: 1.2
                         onClicked: {
-                            var page = app.stack.push(Qt.resolvedUrl('Scan.qml'))
-                            page.onFound.connect(function() {
-                                if (channelopener.validate_connect_str(page.scanData)) {
-                                    channelopener.connectStr = page.scanData
+                            var dialog = app.scanDialog.createObject(app, {
+                                hint: qsTr('Scan a channel connect string')
+                            })
+                            dialog.onFound.connect(function() {
+                                if (channelopener.validateConnectString(dialog.scanData)) {
+                                    channelopener.connectStr = dialog.scanData
                                     node.text = channelopener.connectStr
                                 }
-                                app.stack.pop()
+                                dialog.close()
                             })
+                            dialog.open()
                         }
                     }
                 }
@@ -193,7 +196,7 @@ ElDialog {
             text: qsTr('Open Channel')
             icon.source: '../../icons/confirmed.png'
             enabled: channelopener.valid
-            onClicked: channelopener.open_channel()
+            onClicked: channelopener.openChannel()
         }
     }
 
@@ -222,7 +225,7 @@ ElDialog {
             var dialog = app.messageDialog.createObject(app, { 'text': message, 'yesno': true })
             dialog.open()
             dialog.accepted.connect(function() {
-                channelopener.open_channel(true)
+                channelopener.openChannel(true)
             })
         }
         onFinalizerChanged: {
@@ -249,7 +252,7 @@ ElDialog {
                     + qsTr('This channel will be usable after %1 confirmations').arg(min_depth)
             if (!tx_complete) {
                 message = message + '\n\n' + qsTr('Please sign and broadcast the funding transaction.')
-                channelopener.wallet.historyModel.init_model(true) // local tx doesn't trigger model update
+                channelopener.wallet.historyModel.initModel(true) // local tx doesn't trigger model update
             }
             app.channelOpenProgressDialog.state = 'success'
             app.channelOpenProgressDialog.info = message
@@ -260,4 +263,5 @@ ElDialog {
             root.close()
         }
     }
+
 }

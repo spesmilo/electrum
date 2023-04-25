@@ -193,7 +193,7 @@ class QENetwork(QObject, QtEventListener):
         return self._height
 
     @pyqtProperty(int, notify=serverHeightChanged)
-    def server_height(self):
+    def serverHeight(self):
         return self._server_height
 
     @pyqtProperty(str, notify=statusChanged)
@@ -223,11 +223,11 @@ class QENetwork(QObject, QtEventListener):
         return self._network_status
 
     @pyqtProperty(str, notify=statusChanged)
-    def server_status(self):
+    def serverStatus(self):
         return self.network.get_connection_status_for_GUI()
 
     @pyqtProperty(bool, notify=statusChanged)
-    def is_connected(self):
+    def isConnected(self):
         return self._is_connected
 
     @pyqtProperty(int, notify=chaintipsChanged)

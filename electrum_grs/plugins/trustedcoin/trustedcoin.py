@@ -133,12 +133,12 @@ class TrustedCoinCosignerClient(Logger):
             try:
                 r = await resp.json()
                 message = r['message']
-            except:
+            except Exception:
                 message = await resp.text()
             raise TrustedCoinException(message, resp.status)
         try:
             return await resp.json()
-        except:
+        except Exception:
             return await resp.text()
 
     def send_request(self, method, relative_url, data=None, *, timeout=None):
@@ -165,7 +165,7 @@ class TrustedCoinCosignerClient(Logger):
                                                       on_finish=self.handle_response,
                                                       timeout=timeout)
             else:
-                assert False
+                raise Exception(f"unexpected {method=!r}")
         except TrustedCoinException:
             raise
         except Exception as e:

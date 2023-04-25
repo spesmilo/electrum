@@ -85,6 +85,7 @@ ElDialog {
                             QRImage {
                                 qrdata: _bolt11
                                 render: _render_qr
+                                enableToggleText: true
                             }
                         }
                         Component {
@@ -92,6 +93,7 @@ ElDialog {
                             QRImage {
                                 qrdata: _bip21uri
                                 render: _render_qr
+                                enableToggleText: true
                             }
                         }
                         Component {
@@ -99,30 +101,8 @@ ElDialog {
                             QRImage {
                                 qrdata: _address
                                 render: _render_qr
+                                enableToggleText: true
                             }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            if (rootLayout.state == 'bolt11') {
-                                if (_bip21uri != '')
-                                    rootLayout.state = 'bip21uri'
-                                else if (_address != '')
-                                    rootLayout.state = 'address'
-                            } else if (rootLayout.state == 'bip21uri') {
-                                if (_address != '')
-                                    rootLayout.state = 'address'
-                                else if (_bolt11 != '')
-                                    rootLayout.state = 'bolt11'
-                            } else if (rootLayout.state == 'address') {
-                                if (_bolt11 != '')
-                                    rootLayout.state = 'bolt11'
-                                else if (_bip21uri != '')
-                                    rootLayout.state = 'bip21uri'
-                            }
-                            Config.preferredRequestType = rootLayout.state
                         }
                     }
                 }

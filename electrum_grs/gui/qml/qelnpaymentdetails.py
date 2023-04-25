@@ -50,7 +50,7 @@ class QELnPaymentDetails(QObject):
         return self._label
 
     @pyqtSlot(str)
-    def set_label(self, label: str):
+    def setLabel(self, label: str):
         if label != self._label:
             self._wallet.wallet.set_label(self._key, label)
             self._label = label
@@ -65,7 +65,7 @@ class QELnPaymentDetails(QObject):
         return self._date
 
     @pyqtProperty(str, notify=detailsChanged)
-    def payment_hash(self):
+    def paymentHash(self):
         return self._phash
 
     @pyqtProperty(str, notify=detailsChanged)

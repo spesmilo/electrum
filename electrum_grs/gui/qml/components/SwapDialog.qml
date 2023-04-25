@@ -124,7 +124,7 @@ ElDialog {
                 Layout.preferredWidth: 1
                 Layout.fillWidth: true
                 Label {
-                    text: Config.formatSats(swaphelper.server_miningfee)
+                    text: Config.formatSats(swaphelper.serverMiningfee)
                     font.family: FixedFont
                 }
                 Label {

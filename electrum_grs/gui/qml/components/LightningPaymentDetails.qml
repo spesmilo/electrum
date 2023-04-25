@@ -120,7 +120,7 @@ Pane {
                         icon.color: 'transparent'
                         onClicked: {
                             labelContent.editmode = false
-                            lnpaymentdetails.set_label(labelEdit.text)
+                            lnpaymentdetails.setLabel(labelEdit.text)
                         }
                     }
                     ToolButton {
@@ -146,7 +146,7 @@ Pane {
                 RowLayout {
                     width: parent.width
                     Label {
-                        text: lnpaymentdetails.payment_hash
+                        text: lnpaymentdetails.paymentHash
                         font.pixelSize: constants.fontSizeLarge
                         font.family: FixedFont
                         Layout.fillWidth: true
@@ -157,7 +157,7 @@ Pane {
                         icon.color: 'transparent'
                         onClicked: {
                             var dialog = app.genericShareDialog.createObject(root,
-                                { title: qsTr('Payment hash'), text: lnpaymentdetails.payment_hash }
+                                { title: qsTr('Payment hash'), text: lnpaymentdetails.paymentHash }
                             )
                             dialog.open()
                         }

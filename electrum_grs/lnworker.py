@@ -1041,7 +1041,7 @@ class LNWallet(LNWorker):
             self.wallet.set_reserved_state_of_address(addr, reserved=True)
         try:
             self.save_channel(chan)
-        except:
+        except Exception:
             chan.set_state(ChannelState.REDEEMED)
             self.remove_channel(chan.channel_id)
             raise
@@ -1485,13 +1485,13 @@ class LNWallet(LNWorker):
             if payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
             payload['raw'] = channel_update_typed
             return payload
-        except:  # FIXME: too broad
+        except Exception:  # FIXME: too broad
             try:
                 message_type, payload = decode_msg(channel_update_as_received)
                 if payload['chain_hash'] != constants.net.rev_genesis_bytes(): raise Exception()
                 payload['raw'] = channel_update_as_received
                 return payload
-            except:
+            except Exception:
                 return None
 
     @staticmethod

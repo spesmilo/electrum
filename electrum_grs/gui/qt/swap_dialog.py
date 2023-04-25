@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QGridLayout, QPushButton
@@ -170,7 +170,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.max_button.setChecked(False)
         self.update()
 
-    def _spend_max_forward_swap(self, tx):
+    def _spend_max_forward_swap(self, tx: Optional[PartialTransaction]) -> None:
         if tx:
             amount = tx.output_value_for_address(ln_dummy_address())
             self.send_amount_e.setAmount(amount)
@@ -178,7 +178,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             self.send_amount_e.setAmount(None)
             self.max_button.setChecked(False)
 
-    def _spend_max_reverse_swap(self):
+    def _spend_max_reverse_swap(self) -> None:
         amount = min(self.lnworker.num_sats_can_send(), self.swap_manager.get_max_amount())
         self.send_amount_e.setAmount(amount)
 
@@ -267,7 +267,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             self.window.protect(self.do_normal_swap, (lightning_amount, onchain_amount))
             return True
 
-    def update_tx(self):
+    def update_tx(self) -> None:
         if self.is_reverse:
             self.update_fee(None)
             return
@@ -280,7 +280,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             tx = self._create_tx(onchain_amount)
         self.update_fee(tx)
 
-    def _create_tx(self, onchain_amount):
+    def _create_tx(self, onchain_amount: Union[int, str, None]) -> Optional[PartialTransaction]:
         if self.is_reverse:
             return
         if onchain_amount is None:
@@ -289,6 +289,8 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         if onchain_amount == '!':
             max_amount = sum(c.value_sats() for c in coins)
             max_swap_amount = self.swap_manager.max_amount_forward_swap()
+            if max_swap_amount is None:
+                return None
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), onchain_amount)]

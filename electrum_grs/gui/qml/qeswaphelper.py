@@ -181,16 +181,16 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
             self._toreceive = toreceive
             self.toreceiveChanged.emit()
 
-    server_miningfeeChanged = pyqtSignal()
-    @pyqtProperty(QEAmount, notify=server_miningfeeChanged)
-    def server_miningfee(self):
+    serverMiningfeeChanged = pyqtSignal()
+    @pyqtProperty(QEAmount, notify=serverMiningfeeChanged)
+    def serverMiningfee(self):
         return self._server_miningfee
 
-    @server_miningfee.setter
-    def server_miningfee(self, server_miningfee):
+    @serverMiningfee.setter
+    def serverMiningfee(self, server_miningfee):
         if self._server_miningfee != server_miningfee:
             self._server_miningfee = server_miningfee
-            self.server_miningfeeChanged.emit()
+            self.serverMiningfeeChanged.emit()
 
     serverfeepercChanged = pyqtSignal()
     @pyqtProperty(str, notify=serverfeepercChanged)
@@ -319,7 +319,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         # fee breakdown
         self.serverfeeperc = f'{swap_manager.percentage:0.1f}%'
         server_miningfee = swap_manager.lockup_fee if self.isReverse else swap_manager.normal_fee
-        self.server_miningfee = QEAmount(amount_sat=server_miningfee)
+        self.serverMiningfee = QEAmount(amount_sat=server_miningfee)
         if self.isReverse:
             self.check_valid(self._send_amount, self._receive_amount)
         else:

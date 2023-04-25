@@ -361,6 +361,14 @@ ApplicationWindow
         }
     }
 
+    property alias scanDialog: _scanDialog
+    Component {
+        id: _scanDialog
+        ScanDialog {
+            onClosed: destroy()
+        }
+    }
+
     property alias channelOpenProgressDialog: _channelOpenProgressDialog
     ChannelOpenProgressDialog {
         id: _channelOpenProgressDialog
@@ -412,7 +420,7 @@ ApplicationWindow
                 newww.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
                     // and load the new wallet
-                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                 })
                 newww.open()
             })
@@ -420,13 +428,13 @@ ApplicationWindow
         } else {
             Daemon.startNetwork()
             if (Daemon.availableWallets.rowCount() > 0) {
-                Daemon.load_wallet()
+                Daemon.loadWallet()
             } else {
                 var newww = app.newWalletWizard.createObject(app)
                 newww.walletCreated.connect(function() {
                     Daemon.availableWallets.reload()
                     // and load the new wallet
-                    Daemon.load_wallet(newww.path, newww.wizard_data['password'])
+                    Daemon.loadWallet(newww.path, newww.wizard_data['password'])
                 })
                 newww.open()
             }
@@ -533,13 +541,13 @@ ApplicationWindow
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
         if (method == 'wallet') {
-            if (Daemon.currentWallet.verify_password('')) {
+            if (Daemon.currentWallet.verifyPassword('')) {
                 // wallet has no password
                 qtobject.authProceed()
             } else {
                 var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
                 dialog.accepted.connect(function() {
-                    if (Daemon.currentWallet.verify_password(dialog.password)) {
+                    if (Daemon.currentWallet.verifyPassword(dialog.password)) {
                         qtobject.authProceed()
                     } else {
                         qtobject.authCancel()

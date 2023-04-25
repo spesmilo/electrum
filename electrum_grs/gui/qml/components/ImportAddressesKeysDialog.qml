@@ -80,15 +80,20 @@ ElDialog {
                         icon.width: constants.iconSizeMedium
                         scale: 1.2
                         onClicked: {
-                            var scan = qrscan.createObject(root.contentItem) // can't use dialog as parent?
-                            scan.onFound.connect(function() {
-                                if (verify(scan.scanData)) {
+                            var dialog = app.scanDialog.createObject(app, {
+                                hint: Daemon.currentWallet.isWatchOnly
+                                    ? qsTr('Scan another address')
+                                    : qsTr('Scan another private key')
+                            })
+                            dialog.onFound.connect(function() {
+                                if (verify(dialog.scanData)) {
                                     if (import_ta.text != '')
                                         import_ta.text = import_ta.text + ',\n'
-                                    import_ta.text = import_ta.text + scan.scanData
+                                    import_ta.text = import_ta.text + dialog.scanData
                                 }
-                                scan.destroy()
+                                dialog.close()
                             })
+                            dialog.open()
                         }
                     }
                 }
@@ -106,25 +111,6 @@ ElDialog {
             text: qsTr('Import')
             enabled: valid
             onClicked: doAccept()
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: parent.width
-            height: parent.height
-
-            ToolButton {
-                icon.source: '../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
-                }
-            }
         }
     }
 

@@ -27,7 +27,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     def __init__(self, wallet, parent=None):
         super().__init__(parent)
         self.wallet = wallet
-        self.init_model()
+        self.initModel()
 
         # To avoid leaking references to "self" that prevent the
         # window from being GC-ed when closed, callbacks should be
@@ -44,7 +44,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
     @qt_event_listener
     def on_event_channels_updated(self, wallet):
         if wallet == self.wallet:
-            self.init_model()
+            self.initModel()
 
     def on_destroy(self):
         self.unregister_callbacks()
@@ -108,7 +108,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         return sum([1 if x['state_code'] == ChannelState.OPEN else 0 for x in self.channels])
 
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         self._logger.debug('init_model')
         if not self.wallet.lnworker:
             self._logger.warning('lnworker should be defined')
@@ -149,7 +149,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
         self.numOpenChannelsChanged.emit()
 
     @pyqtSlot(str)
-    def new_channel(self, cid):
+    def newChannel(self, cid):
         self._logger.debug('new channel with cid %s' % cid)
         lnchannels = self.wallet.lnworker.channels
         for channel in lnchannels.values():
@@ -163,7 +163,7 @@ class QEChannelListModel(QAbstractListModel, QtEventListener):
                 return
 
     @pyqtSlot(str)
-    def remove_channel(self, cid):
+    def removeChannel(self, cid):
         self._logger.debug('remove channel with cid %s' % cid)
         for i, channel in enumerate(self.channels):
             if cid == channel['cid']:

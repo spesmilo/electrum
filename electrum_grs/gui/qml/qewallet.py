@@ -168,7 +168,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 # TODO: only update if it was paid over lightning,
                 # and even then, we can probably just add the payment instead
                 # of recreating the whole history (expensive)
-                self.historyModel.init_model(True)
+                self.historyModel.initModel(True)
 
     @event_listener
     def on_event_invoice_status(self, wallet, key, status):
@@ -196,7 +196,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if wallet == self.wallet:
             self._logger.info(f'removed transaction {tx.txid()}')
             self.addressModel.setDirty()
-            self.historyModel.init_model(True) #setDirty()
+            self.historyModel.initModel(True) #setDirty()
             self.balanceChanged.emit()
 
     @qt_event_listener
@@ -206,7 +206,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.balanceChanged.emit()
             self.synchronizing = not wallet.is_up_to_date()
             if not self.synchronizing:
-                self.historyModel.init_model() # refresh if dirty
+                self.historyModel.initModel() # refresh if dirty
 
     @event_listener
     def on_event_channel(self, wallet, channel):
@@ -224,7 +224,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def on_event_payment_succeeded(self, wallet, key):
         if wallet == self.wallet:
             self.paymentSucceeded.emit(key)
-            self.historyModel.init_model(True) # TODO: be less dramatic
+            self.historyModel.initModel(True) # TODO: be less dramatic
 
     @event_listener
     def on_event_payment_failed(self, wallet, key, reason):
@@ -527,7 +527,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.broadcast(tx)
         else:
             # not broadcasted, so refresh history here
-            self.historyModel.init_model(True)
+            self.historyModel.initModel(True)
 
         return True
 
@@ -589,7 +589,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 return
             self.wallet.save_db()
             self.saveTxSuccess.emit(tx.txid())
-            self.historyModel.init_model(True)
+            self.historyModel.initModel(True)
             return True
         except AddTransactionException as e:
             self.saveTxError.emit(tx.txid(), 'error', str(e))
@@ -614,7 +614,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         threading.Thread(target=pay_thread, daemon=True).start()
 
     @pyqtSlot()
-    def delete_expired_requests(self):
+    def deleteExpiredRequests(self):
         keys = self.wallet.delete_expired_requests()
         for key in keys:
             self.requestModel.delete_invoice(key)
@@ -624,7 +624,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(QEAmount, str, int, bool, bool)
     @pyqtSlot(QEAmount, str, int, bool, bool, bool)
     def createRequest(self, amount: QEAmount, message: str, expiration: int, lightning_only: bool = False, reuse_address: bool = False):
-        self.delete_expired_requests()
+        self.deleteExpiredRequests()
         try:
             amount = amount.satsInt
             addr = self.wallet.get_unused_address()
@@ -654,27 +654,19 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
-    def delete_request(self, key: str):
+    def deleteRequest(self, key: str):
         self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
         self.requestModel.delete_invoice(key)
 
-    @pyqtSlot(str, result='QVariant')
-    def get_request(self, key: str):
-        return self.requestModel.get_model_invoice(key)
-
     @pyqtSlot(str)
-    def delete_invoice(self, key: str):
+    def deleteInvoice(self, key: str):
         self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
         self.invoiceModel.delete_invoice(key)
 
-    @pyqtSlot(str, result='QVariant')
-    def get_invoice(self, key: str):
-        return self.invoiceModel.get_model_invoice(key)
-
     @pyqtSlot(str, result=bool)
-    def verify_password(self, password):
+    def verifyPassword(self, password):
         try:
             self.wallet.storage.check_password(password)
             return True
@@ -682,7 +674,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return False
 
     @pyqtSlot(str)
-    def set_password(self, password):
+    def setPassword(self, password):
         if password == '':
             password = None
 
@@ -739,7 +731,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         try:
             self._seed = self.wallet.get_seed(self.password)
             self.seedRetrieved.emit()
-        except:
+        except Exception:
             self._seed = ''
 
         self.dataChanged.emit()

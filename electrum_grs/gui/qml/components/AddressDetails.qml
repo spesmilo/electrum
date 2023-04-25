@@ -123,7 +123,7 @@ Pane {
                             icon.color: 'transparent'
                             onClicked: {
                                 labelContent.editmode = false
-                                addressdetails.set_label(labelEdit.text)
+                                addressdetails.setLabel(labelEdit.text)
                             }
                         }
                         ToolButton {

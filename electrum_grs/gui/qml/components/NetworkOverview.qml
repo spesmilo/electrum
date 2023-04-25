@@ -69,11 +69,11 @@ Pane {
                 Label {
                     text: qsTr('Server Height:');
                     color: Material.accentColor
-                    visible: Network.server_height != Network.height
+                    visible: Network.serverHeight != Network.height
                 }
                 Label {
-                    text: Network.server_height + " (lagging)"
-                    visible: Network.server_height != Network.height
+                    text: Network.serverHeight + " (lagging)"
+                    visible: Network.serverHeight != Network.height
                 }
                 Heading {
                     Layout.columnSpan: 2

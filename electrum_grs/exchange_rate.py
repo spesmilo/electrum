@@ -104,7 +104,7 @@ class ExchangeBase(Logger):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 h = json.loads(f.read())
-        except:
+        except Exception:
             return None
         if not h:  # e.g. empty dict
             return None
@@ -294,7 +294,7 @@ def get_exchanges_and_currencies():
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.loads(f.read())
-    except:
+    except Exception:
         pass
     # or if not present, generate it now.
     print("cannot find currencies.json. will regenerate it now.")
@@ -308,7 +308,7 @@ def get_exchanges_and_currencies():
         try:
             d[name] = await exchange.get_currencies()
             print(name, "ok")
-        except:
+        except Exception:
             print(name, "error")
 
     async def query_all_exchanges_for_their_ccys_over_network():

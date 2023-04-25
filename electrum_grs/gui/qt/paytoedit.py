@@ -129,6 +129,7 @@ class PayToEdit(Logger, GenericInputHandler):
             allow_multi=False,
             show_error=self.win.show_error,
             setText=self._on_input_btn,
+            parent=self.win,
         )
         self.on_qr_from_screenshot_input_btn = partial(
             self.input_qr_from_screenshot,

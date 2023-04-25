@@ -126,7 +126,7 @@ class QETxDetails(QObject, QtEventListener):
         return self._label
 
     @pyqtSlot(str)
-    def set_label(self, label: str):
+    def setLabel(self, label: str):
         if label != self._label:
             self._wallet.wallet.set_label(self._txid, label)
             self._label = label
@@ -323,7 +323,7 @@ class QETxDetails(QObject, QtEventListener):
             if broadcast:
                 self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
                 self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
-        except:
+        except Exception:
             pass
 
         if broadcast:
@@ -344,7 +344,7 @@ class QETxDetails(QObject, QtEventListener):
 
         try:
             self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
-        except:
+        except Exception:
             pass
         self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
 

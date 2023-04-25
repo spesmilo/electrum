@@ -1,5 +1,5 @@
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Dict, Any
 import asyncio
 from urllib.parse import urlparse
 
@@ -166,7 +166,7 @@ class QEInvoice(QObject, QtEventListener):
         return self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
 
     @pyqtProperty(str, notify=statusChanged)
-    def status_str(self):
+    def statusString(self):
         if not self._effectiveInvoice:
             return ''
         status = self._wallet.wallet.get_invoice_status(self._effectiveInvoice)
@@ -370,12 +370,12 @@ class QEInvoice(QObject, QtEventListener):
                     self.canPay = True
 
     @pyqtSlot()
-    def pay_lightning_invoice(self):
+    def payLightningInvoice(self):
         if not self.canPay:
             raise Exception('can not pay invoice, canPay is false')
 
         if self.invoiceType != QEInvoice.Type.LightningInvoice:
-            raise Exception('pay_lightning_invoice can only pay lightning invoices')
+            raise Exception('payLightningInvoice can only pay lightning invoices')
 
         if self.amount.isEmpty:
             if self.amountOverride.isEmpty:
@@ -442,7 +442,6 @@ class QEInvoiceParser(QEInvoice):
     def clear(self):
         self.recipient = ''
         self.setInvoiceType(QEInvoice.Type.Invalid)
-        self._bip21 = None
         self._lnurlData = None
         self.canSave = False
         self.canPay = False
@@ -497,15 +496,15 @@ class QEInvoiceParser(QEInvoice):
         maybe_lightning_invoice = recipient
 
         try:
-            self._bip21 = parse_URI(recipient, lambda pr: self._bip70PrResolvedSignal.emit(pr))
-            if self._bip21:
-                if 'r' in self._bip21 or ('name' in self._bip21 and 'sig' in self._bip21): # TODO set flag in util?
+            bip21 = parse_URI(recipient, lambda pr: self._bip70PrResolvedSignal.emit(pr))
+            if bip21:
+                if 'r' in bip21 or ('name' in bip21 and 'sig' in bip21): # TODO set flag in util?
                     # let callback handle state
                     return
                 if ':' not in recipient:
                     # address only
                     # create bare invoice
-                    outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], 0)]
+                    outputs = [PartialTxOutput.from_address_and_value(bip21['address'], 0)]
                     invoice = self.create_onchain_invoice(outputs, None, None, None)
                     self._logger.debug(repr(invoice))
                     self.setValidOnchainInvoice(invoice)
@@ -513,10 +512,10 @@ class QEInvoiceParser(QEInvoice):
                     return
                 else:
                     # fallback lightning invoice?
-                    if 'lightning' in self._bip21:
-                        maybe_lightning_invoice = self._bip21['lightning']
+                    if 'lightning' in bip21:
+                        maybe_lightning_invoice = bip21['lightning']
         except InvalidBitcoinURI as e:
-            self._bip21 = None
+            bip21 = None
 
         lninvoice = None
         maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
@@ -538,14 +537,14 @@ class QEInvoiceParser(QEInvoice):
                     return
                 self._logger.exception(repr(e))
 
-        if not lninvoice and not self._bip21:
+        if not lninvoice and not bip21:
             self.validationError.emit('unknown',_('Unknown invoice'))
             self.clear()
             return
 
         if lninvoice:
             if not self._wallet.wallet.has_lightning():
-                if not self._bip21:
+                if not bip21:
                     if lninvoice.get_address():
                         self.setValidLightningInvoice(lninvoice)
                         self.validationSuccess.emit()
@@ -553,7 +552,7 @@ class QEInvoiceParser(QEInvoice):
                         self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
-                    self.setValidOnchainInvoice(self._bip21['address'])
+                    self._validateRecipient_bip21_onchain(bip21)
             else:
                 self.setValidLightningInvoice(lninvoice)
                 if not self._wallet.wallet.lnworker.channels:
@@ -562,17 +561,20 @@ class QEInvoiceParser(QEInvoice):
                     self.validationSuccess.emit()
         else:
             self._logger.debug('flow without LN but having bip21 uri')
-            if 'amount' not in self._bip21:
-                amount = 0
-            else:
-                amount = self._bip21['amount']
-            outputs = [PartialTxOutput.from_address_and_value(self._bip21['address'], amount)]
-            self._logger.debug(outputs)
-            message = self._bip21['message'] if 'message' in self._bip21 else ''
-            invoice = self.create_onchain_invoice(outputs, message, None, self._bip21)
-            self._logger.debug(repr(invoice))
-            self.setValidOnchainInvoice(invoice)
-            self.validationSuccess.emit()
+            self._validateRecipient_bip21_onchain(bip21)
+
+    def _validateRecipient_bip21_onchain(self, bip21: Dict[str, Any]) -> None:
+        if 'amount' not in bip21:
+            amount = 0
+        else:
+            amount = bip21['amount']
+        outputs = [PartialTxOutput.from_address_and_value(bip21['address'], amount)]
+        self._logger.debug(outputs)
+        message = bip21['message'] if 'message' in bip21 else ''
+        invoice = self.create_onchain_invoice(outputs, message, None, bip21)
+        self._logger.debug(repr(invoice))
+        self.setValidOnchainInvoice(invoice)
+        self.validationSuccess.emit()
 
     def resolve_lnurl(self, lnurl):
         self._logger.debug('resolve_lnurl')
@@ -615,7 +617,7 @@ class QEInvoiceParser(QEInvoice):
             try:
                 assert amount >= self.lnurlData['min_sendable_sat']
                 assert amount <= self.lnurlData['max_sendable_sat']
-            except:
+            except Exception:
                 self.lnurlError.emit('amount', _('Amount out of bounds'))
                 return
 
@@ -649,7 +651,7 @@ class QEInvoiceParser(QEInvoice):
         self.recipient = invoice['pr']
 
     @pyqtSlot()
-    def save_invoice(self):
+    def saveInvoice(self):
         if not self._effectiveInvoice:
             return
         if self.isSaved:

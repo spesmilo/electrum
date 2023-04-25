@@ -432,7 +432,7 @@ def json_encode(obj):
 def json_decode(x):
     try:
         return json.loads(x, parse_float=Decimal)
-    except:
+    except Exception:
         return x
 
 def json_normalize(x):
@@ -562,7 +562,7 @@ def assert_bytes(*args):
     try:
         for x in args:
             assert isinstance(x, (bytes, bytearray))
-    except:
+    except Exception:
         print('assert bytes failed', list(map(type, args)))
         raise
 
@@ -646,7 +646,7 @@ def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
         b = bytes.fromhex(text)
-    except:
+    except Exception:
         return False
     # forbid whitespaces in text:
     if len(text) != 2 * len(b):
@@ -1155,7 +1155,7 @@ def parse_json(message):
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
-    except:
+    except Exception:
         j = None
     return j, message[n+1:]
 
@@ -1303,6 +1303,15 @@ class TxMinedInfo(NamedTuple):
             assert self.height > 0
             return f"{self.height}x{self.txpos}"
         return None
+
+    def is_local_like(self) -> bool:
+        """Returns whether the tx is local-like (LOCAL/FUTURE)."""
+        from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+        if self.height > 0:
+            return False
+        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            return False
+        return True
 
 
 class ShortID(bytes):

@@ -1153,14 +1153,14 @@ def check_cert(host, cert):
     try:
         b = pem.dePem(cert, 'CERTIFICATE')
         x = x509.X509(b)
-    except:
+    except Exception:
         traceback.print_exc(file=sys.stdout)
         return
 
     try:
         x.check_date()
         expired = False
-    except:
+    except Exception:
         expired = True
 
     m = "host: %s\n"%host

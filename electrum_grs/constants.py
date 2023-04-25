@@ -35,7 +35,7 @@ def read_json(filename, default):
     try:
         with open(path, 'r') as f:
             r = json.loads(f.read())
-    except:
+    except Exception:
         r = default
     return r
 

@@ -352,7 +352,7 @@ class BaseWizard(Logger):
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
             try: transport_str = info.device.transport_ui_string[:20]
-            except: transport_str = 'unknown transport'
+            except Exception: transport_str = 'unknown transport'
             descr = f"{label} [{info.model_name or name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'

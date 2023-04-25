@@ -47,7 +47,7 @@ class RevealerPlugin(BasePlugin):
             return None
         try:
             int(txt, 16)
-        except:
+        except Exception:
             return None
         version = txt[0]
         if version not in cls.KNOWN_VERSIONS:

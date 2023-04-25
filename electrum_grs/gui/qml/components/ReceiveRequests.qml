@@ -93,7 +93,7 @@ Pane {
                 icon.source: '../../icons/delete.png'
                 visible: listview.currentIndex >= 0
                 onClicked: {
-                    Daemon.currentWallet.delete_request(listview.currentItem.getKey())
+                    Daemon.currentWallet.deleteRequest(listview.currentItem.getKey())
                 }
             }
             FlatButton {

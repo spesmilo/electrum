@@ -52,7 +52,7 @@ Pane {
                             onClicked: {
                                 var dialog = app.stack.getRoot().openInvoice(model.key)
                                 dialog.invoiceAmountChanged.connect(function () {
-                                    Daemon.currentWallet.invoiceModel.init_model()
+                                    Daemon.currentWallet.invoiceModel.initModel()
                                 })
                                 listview.currentIndex = -1
                             }
@@ -94,7 +94,7 @@ Pane {
                 icon.source: '../../icons/delete.png'
                 visible: listview.currentIndex >= 0
                 onClicked: {
-                    Daemon.currentWallet.delete_invoice(listview.currentItem.getKey())
+                    Daemon.currentWallet.deleteInvoice(listview.currentItem.getKey())
                 }
             }
             FlatButton {
@@ -106,7 +106,7 @@ Pane {
                 onClicked: {
                     var dialog = app.stack.getRoot().openInvoice(listview.currentItem.getKey())
                     dialog.invoiceAmountChanged.connect(function () {
-                        Daemon.currentWallet.invoiceModel.init_model()
+                        Daemon.currentWallet.invoiceModel.initModel()
                     })
                 }
             }

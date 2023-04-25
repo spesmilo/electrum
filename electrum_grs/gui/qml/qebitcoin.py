@@ -8,7 +8,7 @@ from electrum_grs.i18n import _
 from electrum_grs.bip32 import is_bip32_derivation, normalize_bip32_derivation, xpub_type
 from electrum_grs.logging import get_logger
 from electrum_grs.slip39 import decode_mnemonic, Slip39Error
-from electrum_grs.util import parse_URI, create_bip21_uri, InvalidBitcoinURI, get_asyncio_loop
+from electrum_grs.util import get_asyncio_loop
 from electrum_grs.transaction import tx_from_any
 from electrum_grs.mnemonic import Mnemonic, is_any_2fa_seed_type
 from electrum_grs.old_mnemonic import wordlist as old_wordlist
@@ -19,27 +19,24 @@ class QEBitcoin(QObject):
     _logger = get_logger(__name__)
 
     generatedSeedChanged = pyqtSignal()
-    generatedSeed = ''
-
     seedTypeChanged = pyqtSignal()
-    seedType = ''
-
     validationMessageChanged = pyqtSignal()
-    _validationMessage = ''
-
-    _words = None
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
+        self._seed_type = ''
+        self._generated_seed = ''
+        self._validationMessage = ''
+        self._words = None
 
     @pyqtProperty('QString', notify=generatedSeedChanged)
-    def generated_seed(self):
-        return self.generatedSeed
+    def generatedSeed(self):
+        return self._generated_seed
 
     @pyqtProperty('QString', notify=seedTypeChanged)
-    def seed_type(self):
-        return self.seedType
+    def seedType(self):
+        return self._seed_type
 
     @pyqtProperty('QString', notify=validationMessageChanged)
     def validationMessage(self):
@@ -58,7 +55,7 @@ class QEBitcoin(QObject):
         self._logger.debug('generating seed of type ' + str(seed_type))
 
         async def co_gen_seed(seed_type, language):
-            self.generatedSeed = mnemonic.Mnemonic(language).make_seed(seed_type=seed_type)
+            self._generated_seed = mnemonic.Mnemonic(language).make_seed(seed_type=seed_type)
             self._logger.debug('seed generated')
             self.generatedSeedChanged.emit()
 
@@ -101,7 +98,7 @@ class QEBitcoin(QObject):
         elif wallet_type == 'multisig' and seed_type not in ['standard', 'segwit', 'bip39']:
             seed_valid = False
 
-        self.seedType = seed_type
+        self._seed_type = seed_type
         self.seedTypeChanged.emit()
 
         self._logger.debug('seed verified: ' + str(seed_valid))
@@ -137,28 +134,12 @@ class QEBitcoin(QObject):
     def verifyDerivationPath(self, path):
         return is_bip32_derivation(path)
 
-    @pyqtSlot(str, result='QVariantMap')
-    def parse_uri(self, uri: str) -> dict:
-        try:
-            return parse_URI(uri)
-        except InvalidBitcoinURI as e:
-            return { 'error': str(e) }
-
-    @pyqtSlot(str, QEAmount, str, int, int, result=str)
-    def create_bip21_uri(self, address, satoshis, message, timestamp, expiry):
-        extra_params = {}
-        if expiry:
-            extra_params['time'] = str(timestamp)
-            extra_params['exp'] = str(expiry)
-
-        return create_bip21_uri(address, satoshis.satsInt, message, extra_query_params=extra_params)
-
     @pyqtSlot(str, result=bool)
     def isRawTx(self, rawtx):
         try:
             tx_from_any(rawtx)
             return True
-        except:
+        except Exception:
             return False
 
     @pyqtSlot(str, result=bool)

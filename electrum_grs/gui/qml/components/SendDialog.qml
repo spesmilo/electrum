@@ -15,7 +15,7 @@ ElDialog {
     signal txFound(data: string)
     signal channelBackupFound(data: string)
 
-    header: Item {}
+    header: null
     padding: 0
     topPadding: 0
 
@@ -39,9 +39,10 @@ ElDialog {
 
         QRScan {
             id: qrscan
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
+            hint: qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel backup')
             onFound: dialog.dispatch(scanData)
         }
 

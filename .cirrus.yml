@@ -154,3 +154,15 @@ task:
     - name: source-only tarball build
       env:
         OMIT_UNCLEAN_FILES: 1
+
+task:
+  name: Submodules
+  container:
+    image: python:3.8
+    cpu: 1
+    memory: 1G
+  fetch_script:
+    - git fetch --all --tags
+  check_script:
+    - ./contrib/deterministic-build/check_submodules.sh
+  only_if: $CIRRUS_TAG != ''

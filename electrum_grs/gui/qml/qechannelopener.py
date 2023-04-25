@@ -132,7 +132,7 @@ class QEChannelOpener(QObject, AuthMixin):
         self.validChanged.emit()
 
     @pyqtSlot(str, result=bool)
-    def validate_connect_str(self, connect_str):
+    def validateConnectString(self, connect_str):
         try:
             node_id, rest = extract_nodeid(connect_str)
         except ConnStringFormatError as e:
@@ -143,7 +143,7 @@ class QEChannelOpener(QObject, AuthMixin):
     # FIXME "max" button in amount_dialog should enforce LN_MAX_FUNDING_SAT
     @pyqtSlot()
     @pyqtSlot(bool)
-    def open_channel(self, confirm_backup_conflict=False):
+    def openChannel(self, confirm_backup_conflict=False):
         if not self.valid:
             return
 

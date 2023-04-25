@@ -372,10 +372,15 @@ class TxInOutWidget(QWidget):
         menu.exec_(global_pos)
 
 
-
-def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved=False):
+def show_transaction(
+    tx: Transaction,
+    *,
+    parent: 'ElectrumWindow',
+    prompt_if_unsaved: bool = False,
+    external_keypairs=None,
+):
     try:
-        d = TxDialog(tx, parent=parent, prompt_if_unsaved=prompt_if_unsaved)
+        d = TxDialog(tx, parent=parent, prompt_if_unsaved=prompt_if_unsaved, external_keypairs=external_keypairs)
     except SerializationError as e:
         _logger.exception('unable to deserialize the transaction')
         parent.show_critical(_("Electrum-GRS was unable to deserialize the transaction:") + "\n" + str(e))
@@ -383,13 +388,11 @@ def show_transaction(tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_uns
         d.show()
 
 
-
-
 class TxDialog(QDialog, MessageBoxMixin):
 
     throttled_update_sig = pyqtSignal()  # emit from thread to do update in main thread
 
-    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved, external_keypairs=None):
+    def __init__(self, tx: Transaction, *, parent: 'ElectrumWindow', prompt_if_unsaved: bool, external_keypairs=None):
         '''Transactions in the wallet will show their description.
         Pass desc to give a description for txs not yet in the wallet.
         '''

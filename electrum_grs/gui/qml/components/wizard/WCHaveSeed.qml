@@ -21,13 +21,13 @@ WizardComponent {
         if (cosigner) {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seed_type
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seedType
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['seed_type'] = bitcoin.seed_type
+            wizard_data['seed_type'] = bitcoin.seedType
             wizard_data['seed_extend'] = extendcb.checked
             wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         }
@@ -222,7 +222,7 @@ WizardComponent {
 
     Bitcoin {
         id: bitcoin
-        onSeedTypeChanged: contentText.text = bitcoin.seed_type
+        onSeedTypeChanged: contentText.text = bitcoin.seedType
         onValidationMessageChanged: validationtext.text = validationMessage
     }
 

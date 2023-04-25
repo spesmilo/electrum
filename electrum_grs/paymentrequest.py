@@ -126,7 +126,7 @@ class PaymentRequest:
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
-        except:
+        except Exception:
             self.error = "cannot parse payment request"
             return
         self.details = pb2.PaymentDetails()
@@ -157,7 +157,7 @@ class PaymentRequest:
         pr = pb2.PaymentRequest()
         try:
             pr.ParseFromString(self.raw)
-        except:
+        except Exception:
             self.error = "Error: Cannot parse payment request"
             return False
         if not pr.signature:

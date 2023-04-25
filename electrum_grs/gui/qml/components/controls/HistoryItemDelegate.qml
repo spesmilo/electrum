@@ -27,13 +27,13 @@ Item {
                     var page = app.stack.push(Qt.resolvedUrl('../LightningPaymentDetails.qml'), {'key': model.key})
                     page.detailsChanged.connect(function() {
                         // update listmodel when details change
-                        visualModel.model.update_tx_label(model.key, page.label)
+                        visualModel.model.updateTxLabel(model.key, page.label)
                     })
                 } else {
                     var page = app.stack.push(Qt.resolvedUrl('../TxDetails.qml'), {'txid': model.key})
                     page.detailsChanged.connect(function() {
                         // update listmodel when details change
-                        visualModel.model.update_tx_label(model.key, page.label)
+                        visualModel.model.updateTxLabel(model.key, page.label)
                     })
                 }
             }

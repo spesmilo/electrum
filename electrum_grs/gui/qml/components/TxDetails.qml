@@ -212,7 +212,7 @@ Pane {
                                 icon.color: 'transparent'
                                 onClicked: {
                                     labelContent.editmode = false
-                                    txdetails.set_label(labelEdit.text)
+                                    txdetails.setLabel(labelEdit.text)
                                 }
                             }
                             ToolButton {

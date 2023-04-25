@@ -341,7 +341,7 @@ class SendScreen(CScreen, Logger):
         else:
             try:
                 amount_sat = self.app.get_amount(self.amount)
-            except:
+            except Exception:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
                 return
         message = self.message
@@ -384,7 +384,7 @@ class SendScreen(CScreen, Logger):
         assert self.lnurl_data
         try:
             amount = self.app.get_amount(self.amount)
-        except:
+        except Exception:
             self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
             return
         if not (self.lnurl_data.min_sendable_sat <= amount <= self.lnurl_data.max_sendable_sat):
