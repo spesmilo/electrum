@@ -85,7 +85,7 @@ ElDialog {
                             QRImage {
                                 qrdata: _bolt11
                                 render: _render_qr
-                                enable_toggle_text: true
+                                enableToggleText: true
                             }
                         }
                         Component {
@@ -93,7 +93,7 @@ ElDialog {
                             QRImage {
                                 qrdata: _bip21uri
                                 render: _render_qr
-                                enable_toggle_text: true
+                                enableToggleText: true
                             }
                         }
                         Component {
@@ -101,7 +101,7 @@ ElDialog {
                             QRImage {
                                 qrdata: _address
                                 render: _render_qr
-                                enable_toggle_text: true
+                                enableToggleText: true
                             }
                         }
                     }
