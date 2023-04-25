@@ -628,7 +628,7 @@ class LedgerPlugin(HW_PluginBase):
             version = btchip.__version__
         except ImportError:
             raise
-        except:
+        except Exception:
             version = "unknown"
         if BTCHIP:
             return version
