@@ -35,7 +35,7 @@ class NewChannelDialog(WindowModalDialog):
         self.min_amount_sat = min_amount_sat or MIN_FUNDING_SAT
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
-        recov_tooltip = messages.to_rtf(_(messages.MSG_RECOVERABLE_CHANNELS))
+        recov_tooltip = messages.to_rtf(messages.MSG_RECOVERABLE_CHANNELS)
         menu.addConfig(
             _("Create recoverable channels"), 'use_recoverable_channels', True,
             tooltip=recov_tooltip,

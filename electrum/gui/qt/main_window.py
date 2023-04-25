@@ -1275,7 +1275,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         lnworker = self.wallet.lnworker
         if not chan.has_onchain_backup():
             data = lnworker.export_channel_backup(chan.channel_id)
-            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+            help_text = messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL
             help_text += '\n\n' + _('Alternatively, you can save a backup of your wallet file from the File menu')
             self.show_qrcode(
                 data, _('Save channel backup'),
@@ -1697,7 +1697,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return
         lnworker = self.wallet.lnworker
         if not lnworker.channels and not lnworker.channel_backups:
-            msg = _('Do you want to create your first channel?') + '\n\n' + _(messages.MSG_LIGHTNING_WARNING)
+            msg = _('Do you want to create your first channel?') + '\n\n' + messages.MSG_LIGHTNING_WARNING
             if not self.question(msg):
                 return
         d = NewChannelDialog(self, amount_sat, min_amount_sat)

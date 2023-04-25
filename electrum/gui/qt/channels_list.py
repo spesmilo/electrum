@@ -130,7 +130,7 @@ class ChannelsList(MyTreeView):
     def close_channel(self, channel_id):
         self.is_force_close = False
         msg = _('Cooperative close?')
-        msg += '\n' + _(messages.MSG_COOPERATIVE_CLOSE)
+        msg += '\n' + messages.MSG_COOPERATIVE_CLOSE
         if not self.main_window.question(msg):
             return
         coro = self.lnworker.close_channel(channel_id)
@@ -185,7 +185,7 @@ class ChannelsList(MyTreeView):
 
     def request_force_close(self, channel_id):
         msg = _('Request force-close from remote peer?')
-        msg += '\n' + _(messages.MSG_REQUEST_FORCE_CLOSE)
+        msg += '\n' + messages.MSG_REQUEST_FORCE_CLOSE
         if not self.main_window.question(msg):
             return
         def task():

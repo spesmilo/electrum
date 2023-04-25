@@ -105,7 +105,7 @@ class SettingsDialog(QDialog, QtEventListener):
         nz.valueChanged.connect(on_nz)
 
         # lightning
-        help_trampoline = _(messages.MSG_HELP_TRAMPOLINE)
+        help_trampoline = messages.MSG_HELP_TRAMPOLINE
         trampoline_cb = QCheckBox(_("Use trampoline routing"))
         trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
         trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
