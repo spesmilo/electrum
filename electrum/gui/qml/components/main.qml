@@ -541,13 +541,13 @@ ApplicationWindow
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
         if (method == 'wallet') {
-            if (Daemon.currentWallet.verify_password('')) {
+            if (Daemon.currentWallet.verifyPassword('')) {
                 // wallet has no password
                 qtobject.authProceed()
             } else {
                 var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
                 dialog.accepted.connect(function() {
-                    if (Daemon.currentWallet.verify_password(dialog.password)) {
+                    if (Daemon.currentWallet.verifyPassword(dialog.password)) {
                         qtobject.authProceed()
                     } else {
                         qtobject.authCancel()

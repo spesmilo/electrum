@@ -614,7 +614,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         threading.Thread(target=pay_thread, daemon=True).start()
 
     @pyqtSlot()
-    def delete_expired_requests(self):
+    def deleteExpiredRequests(self):
         keys = self.wallet.delete_expired_requests()
         for key in keys:
             self.requestModel.delete_invoice(key)
@@ -654,27 +654,19 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.requestCreateSuccess.emit(key)
 
     @pyqtSlot(str)
-    def delete_request(self, key: str):
+    def deleteRequest(self, key: str):
         self._logger.debug('delete req %s' % key)
         self.wallet.delete_request(key)
         self.requestModel.delete_invoice(key)
 
-    @pyqtSlot(str, result='QVariant')
-    def get_request(self, key: str):
-        return self.requestModel.get_model_invoice(key)
-
     @pyqtSlot(str)
-    def delete_invoice(self, key: str):
+    def deleteInvoice(self, key: str):
         self._logger.debug('delete inv %s' % key)
         self.wallet.delete_invoice(key)
         self.invoiceModel.delete_invoice(key)
 
-    @pyqtSlot(str, result='QVariant')
-    def get_invoice(self, key: str):
-        return self.invoiceModel.get_model_invoice(key)
-
     @pyqtSlot(str, result=bool)
-    def verify_password(self, password):
+    def verifyPassword(self, password):
         try:
             self.wallet.storage.check_password(password)
             return True
@@ -682,7 +674,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             return False
 
     @pyqtSlot(str)
-    def set_password(self, password):
+    def setPassword(self, password):
         if password == '':
             password = None
 

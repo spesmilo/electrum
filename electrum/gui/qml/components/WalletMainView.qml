@@ -193,7 +193,7 @@ Item {
                 }
                 onPressAndHold: {
                     Config.userKnowsPressAndHold = true
-                    Daemon.currentWallet.delete_expired_requests()
+                    Daemon.currentWallet.deleteExpiredRequests()
                     app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
                     AppController.haptic()
                 }

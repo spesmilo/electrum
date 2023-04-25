@@ -493,7 +493,7 @@ Pane {
                 infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
             })
             dialog.accepted.connect(function() {
-                Daemon.currentWallet.set_password(dialog.password)
+                Daemon.currentWallet.setPassword(dialog.password)
             })
             dialog.open()
         }
