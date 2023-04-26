@@ -63,6 +63,9 @@ _logger = get_logger(__name__)
 DEBUG_PSBT_PARSING = False
 
 
+_NEEDS_RECALC = ...  # sentinel value
+
+
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
@@ -170,10 +173,12 @@ class TxOutput:
     @scriptpubkey.setter
     def scriptpubkey(self, scriptpubkey: bytes):
         self._scriptpubkey = scriptpubkey
-        self._address = get_address_from_output_script(scriptpubkey)
+        self._address = _NEEDS_RECALC
 
     @property
     def address(self) -> Optional[str]:
+        if self._address is _NEEDS_RECALC:
+            self._address = get_address_from_output_script(self._scriptpubkey)
         return self._address
 
     def get_ui_address_str(self) -> str:
@@ -295,7 +300,7 @@ class TxInput:
         # update derived fields
         out_idx = self.prevout.out_idx
         self.__scriptpubkey = self._utxo.outputs()[out_idx].scriptpubkey
-        self.__address = get_address_from_output_script(self.__scriptpubkey)
+        self.__address = _NEEDS_RECALC
         self.__value_sats = self._utxo.outputs()[out_idx].value
 
     def validate_data(self, *, utxo: Optional['Transaction'] = None, **kwargs) -> None:
@@ -320,6 +325,8 @@ class TxInput:
 
     @property
     def address(self) -> Optional[str]:
+        if self.__address is _NEEDS_RECALC:
+            self.__address = get_address_from_output_script(self.__scriptpubkey)
         return self.__address
 
     @property
