@@ -1,4 +1,4 @@
-from electrum.i18n import _
+from electrum_grs.i18n import _
 
 # note: kivy uses its own i18n methods in order to allow changing the language at runtime.
 #       These strings use electrum.i18n directly, to be GUI-agnostic, so the language for these
