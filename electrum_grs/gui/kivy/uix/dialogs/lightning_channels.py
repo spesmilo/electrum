@@ -522,7 +522,7 @@ class ChannelDetailsPopup(Popup, Logger):
             choices=choices,
             key = min(choices.keys()),
             callback=self._close,
-            description=_(messages.MSG_REQUEST_FORCE_CLOSE),
+            description=messages.MSG_REQUEST_FORCE_CLOSE,
             keep_choice_order=True)
         dialog.open()
 

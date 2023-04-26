@@ -233,7 +233,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.maybe_show_funding_tx(chan, funding_tx)
         else:
             title = _('Save backup')
-            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+            help_text = messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL
             data = lnworker.export_channel_backup(chan.channel_id)
             popup = QRDialog(
                 title, data,

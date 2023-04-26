@@ -751,7 +751,7 @@ class ElectrumWindow(App, Logger, EventListener):
             self.show_error(_('Lightning is not enabled for this wallet'))
             return
         if not self.wallet.lnworker.channels and not self.wallet.lnworker.channel_backups:
-            warning = _(messages.MSG_LIGHTNING_WARNING)
+            warning = messages.MSG_LIGHTNING_WARNING
             d = Question(_('Do you want to create your first channel?') +
                          '\n\n' + warning, self.open_channel_dialog_with_warning)
             d.open()

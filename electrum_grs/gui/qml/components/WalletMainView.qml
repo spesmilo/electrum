@@ -232,6 +232,9 @@ Item {
         onValidationWarning: {
             if (code == 'no_channels') {
                 var dialog = app.messageDialog.createObject(app, { text: message })
+                dialog.closed.connect(function() {
+                    restartSendDialog()
+                })
                 dialog.open()
                 // TODO: ask user to open a channel, if funds allow
                 // and maybe store invoice if expiry allows

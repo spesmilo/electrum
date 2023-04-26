@@ -63,6 +63,9 @@ _logger = get_logger(__name__)
 DEBUG_PSBT_PARSING = False
 
 
+_NEEDS_RECALC = ...  # sentinel value
+
+
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
 
@@ -170,10 +173,12 @@ class TxOutput:
     @scriptpubkey.setter
     def scriptpubkey(self, scriptpubkey: bytes):
         self._scriptpubkey = scriptpubkey
-        self._address = get_address_from_output_script(scriptpubkey)
+        self._address = _NEEDS_RECALC
 
     @property
     def address(self) -> Optional[str]:
+        if self._address is _NEEDS_RECALC:
+            self._address = get_address_from_output_script(self._scriptpubkey)
         return self._address
 
     def get_ui_address_str(self) -> str:
@@ -265,6 +270,9 @@ class TxInput:
         self.spent_height = None  # type: Optional[int]  # height at which the TXO got spent
         self.spent_txid = None  # type: Optional[str]  # txid of the spender
         self._utxo = None  # type: Optional[Transaction]
+        self.__scriptpubkey = None  # type: Optional[bytes]
+        self.__address = None  # type: Optional[str]
+        self.__value_sats = None  # type: Optional[int]
 
     @property
     def short_id(self):
@@ -289,6 +297,11 @@ class TxInput:
             return
         self.validate_data(utxo=tx)
         self._utxo = tx
+        # update derived fields
+        out_idx = self.prevout.out_idx
+        self.__scriptpubkey = self._utxo.outputs()[out_idx].scriptpubkey
+        self.__address = _NEEDS_RECALC
+        self.__value_sats = self._utxo.outputs()[out_idx].value
 
     def validate_data(self, *, utxo: Optional['Transaction'] = None, **kwargs) -> None:
         utxo = utxo or self.utxo
@@ -308,23 +321,17 @@ class TxInput:
         return self._is_coinbase_output
 
     def value_sats(self) -> Optional[int]:
-        if self.utxo:
-            out_idx = self.prevout.out_idx
-            return self.utxo.outputs()[out_idx].value
-        return None
+        return self.__value_sats
 
     @property
     def address(self) -> Optional[str]:
-        if self.scriptpubkey:
-            return get_address_from_output_script(self.scriptpubkey)
-        return None
+        if self.__address is _NEEDS_RECALC:
+            self.__address = get_address_from_output_script(self.__scriptpubkey)
+        return self.__address
 
     @property
     def scriptpubkey(self) -> Optional[bytes]:
-        if self.utxo:
-            out_idx = self.prevout.out_idx
-            return self.utxo.outputs()[out_idx].scriptpubkey
-        return None
+        return self.__scriptpubkey
 
     def to_json(self):
         d = {
@@ -1560,6 +1567,8 @@ class PartialTxInput(TxInput, PSBTSection):
             return addr
         if self._trusted_address is not None:
             return self._trusted_address
+        if self.witness_utxo:
+            return self.witness_utxo.address
         return None
 
     @property

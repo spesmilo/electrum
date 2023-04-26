@@ -893,7 +893,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return {}
         with self.lock, self.transaction_lock:
             if self._last_full_history is None:
-                self._last_full_history = self.get_full_history(None)
+                self._last_full_history = self.get_full_history(None, include_lightning=False)
+                # populate cache in chronological order to avoid recursion limit
+                for _txid in self._last_full_history.keys():
+                    self.get_tx_parents(_txid)
+
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
                 return result
@@ -1657,6 +1661,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return True
 
+    @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,
             coins: Sequence[PartialTxInput],

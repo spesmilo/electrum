@@ -94,7 +94,7 @@ Builder.load_string('''
                     status: _('Yes') if (app.use_recoverable_channels and not self.disabled) else _('No')
                     title: _('Create recoverable channels') + ': ' + self.status
                     description: _("Add channel recovery data to funding transaction.")
-                    message: _(messages.MSG_RECOVERABLE_CHANNELS)
+                    message: messages.MSG_RECOVERABLE_CHANNELS
                     action: partial(root.boolean_dialog, 'use_recoverable_channels', _('Create recoverable channels'), self.message)
                 CardSeparator
                 SettingsItem:
@@ -181,7 +181,7 @@ class SettingsDialog(Factory.Popup):
         self._unit_dialog.open()
 
     def routing_dialog(self, item, dt):
-        description = _(messages.MSG_HELP_TRAMPOLINE)
+        description = messages.MSG_HELP_TRAMPOLINE
         def cb(text):
             self.app.use_gossip = (text == 'Gossip')
         dialog = ChoiceDialog(
