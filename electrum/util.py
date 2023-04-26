@@ -46,6 +46,7 @@ from ipaddress import IPv4Address, IPv6Address
 import random
 import secrets
 import functools
+from functools import partial
 from abc import abstractmethod, ABC
 import socket
 
@@ -449,15 +450,22 @@ def constant_time_compare(val1, val2):
     return hmac.compare_digest(to_bytes(val1, 'utf8'), to_bytes(val2, 'utf8'))
 
 
-# decorator that prints execution time
 _profiler_logger = _logger.getChild('profiler')
-def profiler(func):
+def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
+    """Function decorator that logs execution time.
+
+    min_threshold: if set, only log if time taken is higher than threshold
+    NOTE: does not work with async methods.
+    """
+    if func is None:
+        return partial(profiler, min_threshold=min_threshold)
     def do_profile(args, kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _profiler_logger.debug(f"{name} {t:,.4f} sec")
+        if min_threshold is None or t > min_threshold:
+            _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 

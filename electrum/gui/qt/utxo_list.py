@@ -35,6 +35,7 @@ from electrum.i18n import _
 from electrum.bitcoin import is_address
 from electrum.transaction import PartialTxInput, PartialTxOutput
 from electrum.lnutil import LN_MAX_FUNDING_SAT, MIN_FUNDING_SAT
+from electrum.util import profiler
 
 from .util import ColorScheme, MONOSPACE_FONT, EnterButton
 from .my_treeview import MyTreeView
@@ -87,6 +88,7 @@ class UTXOList(MyTreeView):
         menu.addAction(_('Coin control'), lambda: self.add_selection_to_coincontrol())
         return toolbar
 
+    @profiler(min_threshold=0.05)
     def update(self):
         # not calling maybe_defer_update() as it interferes with coincontrol status bar
         utxos = self.wallet.get_utxos()

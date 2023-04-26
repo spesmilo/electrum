@@ -1657,6 +1657,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return True
 
+    @profiler(min_threshold=0.1)
     def make_unsigned_transaction(
             self, *,
             coins: Sequence[PartialTxInput],
