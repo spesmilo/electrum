@@ -381,15 +381,18 @@ class NewWalletWizard(AbstractWizard):
                 raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
         elif data['keystore_type'] == 'masterkey':
             k = keystore.from_master_key(data['master_key'])
-            has_xpub = isinstance(k, keystore.Xpub)
-            assert has_xpub
-            t1 = xpub_type(k.xpub)
-            if data['wallet_type'] == 'multisig':
-                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                    raise Exception('wrong key type %s' % t1)
+            if isinstance(k, keystore.Xpub):  # has xpub
+                t1 = xpub_type(k.xpub)
+                if data['wallet_type'] == 'multisig':
+                    if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+                else:
+                    if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+            elif isinstance(k, keystore.Old_KeyStore):
+                pass
             else:
-                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                    raise Exception('wrong key type %s' % t1)
+                raise Exception(f"unexpected keystore type: {type(keystore)}")
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 

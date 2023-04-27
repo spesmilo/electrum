@@ -107,28 +107,27 @@ class QEBitcoin(QObject):
 
     @pyqtSlot(str, str, result=bool)
     def verifyMasterKey(self, key, wallet_type='standard'):
+        # FIXME exceptions raised in here are not well-behaved...
         self.validationMessage = ''
         if not keystore.is_master_key(key):
             self.validationMessage = _('Not a master key')
             return False
 
         k = keystore.from_master_key(key)
-        has_xpub = isinstance(k, keystore.Xpub)
-        assert has_xpub
-        t1 = xpub_type(k.xpub)
-
-        if wallet_type == 'standard':
-            if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
-                return False
-            return True
-        elif wallet_type == 'multisig':
-            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
-                return False
-            return True
-
-        raise Exception(f'Unsupported wallet type: {wallet_type}')
+        if isinstance(k, keystore.Xpub):  # has xpub  # TODO are these checks useful?
+            t1 = xpub_type(k.xpub)
+            if wallet_type == 'standard':
+                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                    self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                    return False
+                return True
+            elif wallet_type == 'multisig':
+                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                    self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                    return False
+                return True
+            raise Exception(f'Unsupported wallet type: {wallet_type}')
+        return True
 
     @pyqtSlot(str, result=bool)
     def verifyDerivationPath(self, path):

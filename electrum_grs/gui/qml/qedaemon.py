@@ -91,6 +91,7 @@ class QEWalletListModel(QAbstractListModel):
             self.wallets = wallets
             self.endRemoveRows()
 
+    @pyqtSlot(str, result=bool)
     def wallet_name_exists(self, name):
         for wallet_name, wallet_path in self.wallets:
             if name == wallet_name:

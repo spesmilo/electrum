@@ -884,7 +884,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_related_to_wallet=is_relevant,
         )
 
-    def get_tx_parents(self, txid) -> Dict:
+    def get_tx_parents(self, txid: str) -> Dict[str, Tuple[List[str], List[str]]]:
         """
         recursively calls itself and returns a flat dict:
         txid -> list of parent txids
@@ -901,9 +901,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
                 return result
-            result = {}
-            parents = []
-            uncles = []
+            result = {}   # type: Dict[str, Tuple[List[str], List[str]]]
+            parents = []  # type: List[str]
+            uncles = []   # type: List[str]
             tx = self.adb.get_transaction(txid)
             assert tx, f"cannot find {txid} in db"
             for i, txin in enumerate(tx.inputs()):
