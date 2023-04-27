@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from electrum import bip32, constants, ecc
 from electrum import descriptor
 from electrum.base_wizard import ScriptTypeNotSupported
-from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
 from electrum.bitcoin import EncodeBase58Check, int_to_hex, is_b58_address, is_segwit_script_type, var_int
 from electrum.crypto import hash_160
 from electrum.i18n import _
@@ -430,7 +430,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
         if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
-        bip32_path = bip32.normalize_bip32_derivation(bip32_path)
+        bip32_path = bip32.normalize_bip32_derivation(bip32_path, hardened_char="'")
         bip32_intpath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
@@ -931,10 +931,10 @@ class Ledger_Client_New(Ledger_Client):
 
     @runs_in_hwd_thread
     @test_pin_unlocked
-    def get_xpub(self, bip32_path, xtype):
+    def get_xpub(self, bip32_path: str, xtype):
         # try silently first; if not a standard path, repeat with on-screen display
 
-        bip32_path = bip32_path.replace('h', '\'')
+        bip32_path = normalize_bip32_derivation(bip32_path, hardened_char="'")
 
         # cache known path/xpubs combinations in order to avoid requesting them many times
         if bip32_path in self._known_xpubs:
@@ -1300,14 +1300,18 @@ class Ledger_KeyStore(Hardware_KeyStore):
         raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     def sign_message(self, sequence, *args, **kwargs):
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d" % sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         return self.get_client_dongle_object().sign_message(address_path, *args, **kwargs)
 
     def sign_transaction(self, *args, **kwargs):
         return self.get_client_dongle_object().sign_transaction(self, *args, **kwargs)
 
     def show_address(self, sequence, *args, **kwargs):
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d" % sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         return self.get_client_dongle_object().show_address(address_path, *args, **kwargs)
 
 

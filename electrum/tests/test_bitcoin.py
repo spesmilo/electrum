@@ -862,6 +862,10 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertEqual("m", convert_bip32_intpath_to_strpath([]))
         self.assertEqual("m/44h/5241h/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
 
+        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001], hardened_char="'"))
+        self.assertEqual("m", convert_bip32_intpath_to_strpath([], hardened_char="'"))
+        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221], hardened_char="'"))
+
     def test_normalize_bip32_derivation(self):
         self.assertEqual("m/0/1h/1h", normalize_bip32_derivation("m/0/1h/1'"))
         self.assertEqual("m", normalize_bip32_derivation("m////"))

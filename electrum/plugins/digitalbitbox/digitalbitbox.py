@@ -19,6 +19,7 @@ import copy
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
+from electrum.bip32 import normalize_bip32_derivation
 from electrum import descriptor
 from electrum import ecc
 from electrum.ecc import msg_magic
@@ -104,7 +105,8 @@ class DigitalBitbox_Client(HardwareClientBase):
             return False
         return True
 
-    def _get_xpub(self, bip32_path):
+    def _get_xpub(self, bip32_path: str):
+        bip32_path = normalize_bip32_derivation(bip32_path, hardened_char="'")
         if self.check_device_dialog():
             return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
 
@@ -458,6 +460,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         try:
             message = message.encode('utf8')
             inputPath = self.get_derivation_prefix() + "/%d/%d" % sequence
+            inputPath = normalize_bip32_derivation(inputPath, hardened_char="'")
             msg_hash = sha256d(msg_magic(message))
             inputHash = to_hexstr(msg_hash)
             hasharray = []
