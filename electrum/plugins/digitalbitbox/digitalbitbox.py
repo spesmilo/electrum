@@ -125,6 +125,9 @@ class DigitalBitbox_Client(HardwareClientBase):
         else:
             raise Exception('no reply')
 
+    def get_soft_device_id(self):
+        return None
+
     def dbb_has_password(self):
         reply = self.hid_send_plain(b'{"ping":""}')
         if 'ping' not in reply:
