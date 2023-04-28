@@ -256,6 +256,18 @@ else
 
     cd "$PROJECT_ROOT"
 
+    # check we have each binary
+    test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win1"       || fail "win1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win2"       || fail "win2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win3"       || fail "win3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
+
     if [ $REV != $VERSION ]; then
         fail "versions differ, not uploading"
     fi

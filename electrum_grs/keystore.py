@@ -508,7 +508,9 @@ class Xpub(MasterPublicKeyMixin):
         return self._xpub_bip32_node
 
     def get_derivation_prefix(self) -> Optional[str]:
-        return self._derivation_prefix
+        if self._derivation_prefix is None:
+            return None
+        return normalize_bip32_derivation(self._derivation_prefix)
 
     def get_root_fingerprint(self) -> Optional[str]:
         return self._root_fingerprint
