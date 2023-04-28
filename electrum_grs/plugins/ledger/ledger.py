@@ -9,7 +9,7 @@ from electrum_grs import bip32
 from electrum_grs import descriptor
 from electrum_grs.crypto import hash_160
 from electrum_grs.bitcoin import int_to_hex, var_int, is_segwit_script_type, is_b58_address
-from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath
+from electrum_grs.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, normalize_bip32_derivation
 from electrum_grs.i18n import _
 from electrum_grs.keystore import Hardware_KeyStore
 from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
@@ -110,7 +110,7 @@ class Ledger_Client(HardwareClientBase):
 
     @runs_in_hwd_thread
     @test_pin_unlocked
-    def get_xpub(self, bip32_path, xtype):
+    def get_xpub(self, bip32_path: str, xtype):
         self.checkDevice()
         # bip32_path is of the form 44'/17'/1'
         # S-L-O-W - we don't handle the fingerprint directly, so compute
@@ -122,7 +122,7 @@ class Ledger_Client(HardwareClientBase):
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
         if xtype in ['p2wpkh-p2sh', 'p2wsh-p2sh'] and not self.supports_segwit():
             raise UserFacingException(MSG_NEEDS_FW_UPDATE_SEGWIT)
-        bip32_path = bip32.normalize_bip32_derivation(bip32_path)
+        bip32_path = bip32.normalize_bip32_derivation(bip32_path, hardened_char="'")
         bip32_intpath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         bip32_path = bip32_path[2:]  # cut off "m/"
         if len(bip32_intpath) >= 1:
@@ -290,7 +290,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # prompt for the PIN before displaying the dialog if necessary
         client_electrum = self.get_client()
         client_ledger = self.get_client_dongle_object(client=client_electrum)
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
             info = client_ledger.signMessagePrepare(address_path, message)
@@ -559,7 +561,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
     @set_and_unset_signing
     def show_address(self, sequence, txin_type):
         client_ledger = self.get_client_dongle_object()
-        address_path = self.get_derivation_prefix()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation_prefix() + "/%d/%d" % sequence
+        address_path = normalize_bip32_derivation(address_path, hardened_char="'")
+        address_path = address_path[2:]  # cut m/
         self.handler.show_message(_("Showing address ..."))
         segwit = is_segwit_script_type(txin_type)
         segwitNative = txin_type == 'p2wpkh'
