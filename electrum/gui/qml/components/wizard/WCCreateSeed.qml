@@ -7,6 +7,8 @@ import org.electrum 1.0
 import "../controls"
 
 WizardComponent {
+    securePage: true
+
     valid: seedtext.text != ''
 
     function apply() {

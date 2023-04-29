@@ -11,6 +11,7 @@ Pane {
     property bool valid
     property bool last: false
     property string title: ''
+    property bool securePage: false
 
     leftPadding: constants.paddingXLarge
     rightPadding: constants.paddingXLarge

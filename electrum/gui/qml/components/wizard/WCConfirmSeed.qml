@@ -8,6 +8,8 @@ import ".."
 import "../controls"
 
 WizardComponent {
+    securePage: true
+
     valid: false
 
     function checkValid() {

@@ -8,6 +8,7 @@ import "../controls"
 
 WizardComponent {
     id: root
+    securePage: true
 
     valid: false
 

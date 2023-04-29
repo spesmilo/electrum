@@ -67,6 +67,7 @@ class QEAppController(BaseCrashReporter, QObject):
     sendingBugreport = pyqtSignal()
     sendingBugreportSuccess = pyqtSignal(str)
     sendingBugreportFailure = pyqtSignal(str)
+    secureWindowChanged = pyqtSignal()
 
     def __init__(self, qedaemon: 'QEDaemon', plugins: 'Plugins'):
         BaseCrashReporter.__init__(self, None, None, None)
@@ -79,6 +80,7 @@ class QEAppController(BaseCrashReporter, QObject):
         self._crash_user_text = ''
         self._app_started = False
         self._intent = ''
+        self._secureWindow = False
 
         # set up notification queue and notification_timer
         self.user_notification_queue = queue.Queue()
@@ -295,6 +297,18 @@ class QEAppController(BaseCrashReporter, QObject):
             return
         jview.performHapticFeedback(jHfc.VIRTUAL_KEY)
 
+    @pyqtProperty(bool, notify=secureWindowChanged)
+    def secureWindow(self):
+        return self._secureWindow
+
+    @secureWindow.setter
+    def secureWindow(self, secure):
+        if not self.isAndroid():
+            return
+        if self._secureWindow != secure:
+            jpythonActivity.setSecureWindow(secure)
+            self._secureWindow = secure
+            self.secureWindowChanged.emit()
 
 class ElectrumQmlApplication(QGuiApplication):
 
