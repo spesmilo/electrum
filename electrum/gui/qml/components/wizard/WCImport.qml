@@ -40,7 +40,7 @@ WizardComponent {
                 focus: true
                 wrapMode: TextEdit.WrapAnywhere
                 onTextChanged: valid = verify(text)
-                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
             }
             ColumnLayout {
                 Layout.alignment: Qt.AlignTop
