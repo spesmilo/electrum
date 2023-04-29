@@ -304,13 +304,17 @@ ApplicationWindow
     property alias newWalletWizard: _newWalletWizard
     Component {
         id: _newWalletWizard
-        NewWalletWizard { }
+        NewWalletWizard {
+            onClosed: destroy()
+        }
     }
 
     property alias serverConnectWizard: _serverConnectWizard
     Component {
         id: _serverConnectWizard
-        ServerConnectWizard { }
+        ServerConnectWizard {
+            onClosed: destroy()
+        }
     }
 
     property alias messageDialog: _messageDialog
