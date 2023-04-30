@@ -59,7 +59,8 @@ Pane {
 
                         onClicked: {
                             if (!Daemon.currentWallet || Daemon.currentWallet.name != model.name)
-                                Daemon.loadWallet(model.path)
+                                if (!Daemon.loading) // wallet load in progress
+                                    Daemon.loadWallet(model.path)
                             else
                                 app.stack.pop()
                         }

@@ -488,7 +488,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @auth_protect()
     def sign(self, tx, *, broadcast: bool = False, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[], None] = None):
-        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, on_success, broadcast), partial(self.on_sign_failed, on_failure))
+        sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast, on_success), partial(self.on_sign_failed, on_failure))
         if sign_hook:
             success = self.do_sign(tx, False)
             if success:
