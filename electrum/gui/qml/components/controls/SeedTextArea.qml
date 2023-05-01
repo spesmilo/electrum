@@ -11,7 +11,7 @@ Pane {
     padding: 0
 
     property string text
-    property alias readOnly: seedtextarea.readOnly
+    property bool readOnly: false
     property alias placeholderText: seedtextarea.placeholderText
 
     property var _suggestions: []
@@ -83,6 +83,7 @@ Pane {
             font.pixelSize: constants.fontSizeLarge
             font.family: FixedFont
             inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
+            readOnly: true
 
             background: Rectangle {
                 color: constants.darkerBackground
@@ -98,6 +99,21 @@ Pane {
                 _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
                 // TODO: cursorPosition only on suggestion apply
                 cursorPosition = text.length
+            }
+        }
+
+        SeedKeyboard {
+            id: kbd
+            Layout.fillWidth: true
+            Layout.preferredHeight: kbd.width / 2
+            visible: !root.readOnly
+            onKeyEvent: {
+                if (keycode == Qt.Key_Backspace) {
+                    if (seedtextarea.text.length > 0)
+                        seedtextarea.text = seedtextarea.text.substring(0, seedtextarea.text.length-1)
+                } else {
+                    seedtextarea.text = seedtextarea.text + text
+                }
             }
         }
     }
