@@ -8,34 +8,29 @@ Item {
 
     signal keyEvent(keycode: int, text: string)
 
-    property int padding: 15
+    property int hpadding: 0
+    property int vpadding: 15
 
-    property int keywidth: (root.width - 2 * padding) / 11 - keyhspacing
+    property int keywidth: (root.width - 2 * padding) / 10 - keyhspacing
     property int keyheight: (root.height - 2 * padding) / 4 - keyvspacing
     property int keyhspacing: 4
     property int keyvspacing: 5
 
-    function emitKeyEvent(key) {
-        var keycode
-        if (key == '<=') {
-            keycode = Qt.Key_Backspace
-        } else {
-            keycode = parseInt(key, 36) - 9 + 0x40 // map char to key code
-        }
+    function emitKeyEvent(key, keycode) {
         keyEvent(keycode, key)
     }
 
     ColumnLayout {
         id: rootLayout
-        x: padding
-        y: padding
-        width: parent.width - 2*padding
+        x: hpadding
+        y: vpadding
+        width: parent.width - 2*hpadding
         spacing: keyvspacing
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             spacing: keyhspacing
             Repeater {
-                model: ['q','w','e','r','t','y','u','i','o','p','<=']
+                model: ['q','w','e','r','t','y','u','i','o','p']
                 delegate: SeedKeyboardKey {
                     key: modelData
                     kbd: root
@@ -78,8 +73,16 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             SeedKeyboardKey {
                 key: ' '
+                keycode: Qt.Key_Space
                 kbd: root
                 implicitWidth: keywidth * 5
+                implicitHeight: keyheight
+            }
+            SeedKeyboardKey {
+                key: '<'
+                keycode: Qt.Key_Backspace
+                kbd: root
+                implicitWidth: keywidth
                 implicitHeight: keyheight
             }
             // spacer
