@@ -1565,8 +1565,20 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         self.reset_request_counters()
 
     async def _start(self, interface: 'Interface'):
+        self.logger.debug(f"starting. interface.server={repr(str(interface.server))}")
         self.interface = interface
-        await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
+
+        taskgroup = self.taskgroup
+        async def run_tasks_wrapper():
+            self.logger.debug(f"starting taskgroup ({hex(id(taskgroup))}).")
+            try:
+                await self._run_tasks(taskgroup=taskgroup)
+            except Exception as e:
+                self.logger.error(f"taskgroup died ({hex(id(taskgroup))}). exc={e!r}")
+                raise
+            finally:
+                self.logger.debug(f"taskgroup stopped ({hex(id(taskgroup))}).")
+        await interface.taskgroup.spawn(run_tasks_wrapper)
 
     @abstractmethod
     async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
@@ -1579,6 +1591,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             raise asyncio.CancelledError()
 
     async def stop(self, *, full_shutdown: bool = True):
+        self.logger.debug(f"stopping. {full_shutdown=}")
         if full_shutdown:
             unregister_callback(self._restart)
         await self.taskgroup.cancel_remaining()
