@@ -1399,7 +1399,16 @@ class LedgerPlugin(HW_PluginBase):
         return False, None
 
     def can_recognize_device(self, device: Device) -> bool:
-        return self._recognize_device(device.product_key)[0]
+        can_recognize = self._recognize_device(device.product_key)[0]
+        if can_recognize:
+            # Do a further check, duplicated from:
+            # https://github.com/LedgerHQ/ledgercomm/blob/bc5ada865980cb63c2b9b71a916e01f2f8e53716/ledgercomm/interfaces/hid_device.py#L79-L82
+            # Modern ledger devices can have multiple interfaces picked up by hid, only one of which is usable by us.
+            # If we try communicating with the wrong one, we might not get a reply and block forever.
+            if device.product_key[0] == 0x2c97:
+                if not (device.interface_number == 0 or device.usage_page == 0xffa0):
+                    return False
+        return can_recognize
 
     @classmethod
     def device_name_from_product_key(cls, product_key) -> Optional[str]:
