@@ -13,6 +13,8 @@ Pane {
     property string text
     property bool readOnly: false
     property alias placeholderText: seedtextarea.placeholderText
+    property string indicatorText
+    property bool indicatorValid
 
     property var _suggestions: []
 
@@ -59,6 +61,23 @@ Pane {
                 _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
                 // TODO: cursorPosition only on suggestion apply
                 cursorPosition = text.length
+            }
+
+            Rectangle {
+                anchors.fill: contentText
+                color: root.indicatorValid ? 'green' : 'red'
+                border.color: Material.accentColor
+                radius: 2
+            }
+            Label {
+                id: contentText
+                text: root.indicatorText
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                leftPadding: root.indicatorText != '' ? constants.paddingLarge : 0
+                rightPadding: root.indicatorText != '' ? constants.paddingLarge : 0
+                font.bold: false
+                font.pixelSize: constants.fontSizeSmall
             }
         }
 
