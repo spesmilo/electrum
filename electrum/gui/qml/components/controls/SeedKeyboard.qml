@@ -11,8 +11,8 @@ Item {
     property int hpadding: 0
     property int vpadding: 15
 
-    property int keywidth: (root.width - 2 * padding) / 10 - keyhspacing
-    property int keyheight: (root.height - 2 * padding) / 4 - keyvspacing
+    property int keywidth: (root.width - 2 * hpadding) / 10 - keyhspacing
+    property int keyheight: (root.height - 2 * vpadding) / 4 - keyvspacing
     property int keyhspacing: 4
     property int keyvspacing: 5
 
