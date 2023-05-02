@@ -29,6 +29,39 @@ Pane {
         id: rootLayout
         width: parent.width
         spacing: 0
+
+        TextArea {
+            id: seedtextarea
+            Layout.fillWidth: true
+            Layout.minimumHeight: fontMetrics.height * 3 + topPadding + bottomPadding
+
+            rightPadding: constants.paddingLarge
+            leftPadding: constants.paddingLarge
+
+            wrapMode: TextInput.WordWrap
+            font.bold: true
+            font.pixelSize: constants.fontSizeLarge
+            font.family: FixedFont
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
+            readOnly: true
+
+            background: Rectangle {
+                color: constants.darkerBackground
+            }
+
+            onTextChanged: {
+                // work around Qt issue, TextArea fires spurious textChanged events
+                // NOTE: might be Qt virtual keyboard, or Qt upgrade from 5.15.2 to 5.15.7
+                if (root.text != text)
+                    root.text = text
+
+                // update suggestions
+                _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
+                // TODO: cursorPosition only on suggestion apply
+                cursorPosition = text.length
+            }
+        }
+
         Flickable {
             Layout.preferredWidth: parent.width
             Layout.minimumHeight: fontMetrics.lineSpacing + 2*constants.paddingXXSmall + 2*constants.paddingXSmall + 2
@@ -67,38 +100,6 @@ Pane {
                         }
                     }
                 }
-            }
-        }
-
-        TextArea {
-            id: seedtextarea
-            Layout.fillWidth: true
-            Layout.minimumHeight: fontMetrics.height * 3 + topPadding + bottomPadding
-
-            rightPadding: constants.paddingLarge
-            leftPadding: constants.paddingLarge
-
-            wrapMode: TextInput.WordWrap
-            font.bold: true
-            font.pixelSize: constants.fontSizeLarge
-            font.family: FixedFont
-            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLowercaseOnly | Qt.ImhNoPredictiveText
-            readOnly: true
-
-            background: Rectangle {
-                color: constants.darkerBackground
-            }
-
-            onTextChanged: {
-                // work around Qt issue, TextArea fires spurious textChanged events
-                // NOTE: might be Qt virtual keyboard, or Qt upgrade from 5.15.2 to 5.15.7
-                if (root.text != text)
-                    root.text = text
-
-                // update suggestions
-                _suggestions = bitcoin.mnemonicsFor(seedtextarea.text.split(' ').pop())
-                // TODO: cursorPosition only on suggestion apply
-                cursorPosition = text.length
             }
         }
 
