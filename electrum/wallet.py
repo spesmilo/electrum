@@ -884,17 +884,20 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_related_to_wallet=is_relevant,
         )
 
+    def get_num_parents(self, txid: str) -> Optional[int]:
+        if not self.is_up_to_date():
+            return
+        return len(self.get_tx_parents(txid))
+
     def get_tx_parents(self, txid: str) -> Dict[str, Tuple[List[str], List[str]]]:
         """
-        recursively calls itself and returns a flat dict:
+        returns a flat dict:
         txid -> list of parent txids
         """
-        if not self.is_up_to_date():
-            return {}
         with self.lock, self.transaction_lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_full_history(None, include_lightning=False)
-                # populate cache in chronological order to avoid recursion limit
+                # populate cache in chronological order
                 for _txid in self._last_full_history.keys():
                     self.get_tx_parents(_txid)
 
@@ -924,7 +927,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
             for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
-                    result.update(self.get_tx_parents(_txid))
+                    p = self._tx_parents_cache[_txid]
+                    result.update(p)
             result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
