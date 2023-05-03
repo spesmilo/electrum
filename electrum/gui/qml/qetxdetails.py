@@ -372,7 +372,10 @@ class QETxDetails(QObject, QtEventListener):
         if txid != self._txid:
             return
 
-        self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+        try:
+            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+        except Exception:
+            pass
 
         self._can_broadcast = True
         self.detailsChanged.emit()
