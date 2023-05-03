@@ -164,6 +164,7 @@ WizardComponent {
                 id: infotext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+                Layout.bottomMargin: constants.paddingLarge
             }
 
             SeedTextArea {
@@ -173,24 +174,10 @@ WizardComponent {
 
                 placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
 
+                indicatorValid: root.valid
+
                 onTextChanged: {
                     startValidationTimer()
-                }
-
-                Rectangle {
-                    anchors.fill: contentText
-                    color: root.valid ? 'green' : 'red'
-                    border.color: Material.accentColor
-                    radius: 2
-                }
-                Label {
-                    id: contentText
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    leftPadding: text != '' ? constants.paddingLarge : 0
-                    rightPadding: text != '' ? constants.paddingLarge : 0
-                    font.bold: false
-                    font.pixelSize: constants.fontSizeSmall
                 }
             }
             TextArea {
@@ -223,13 +210,13 @@ WizardComponent {
 
     Bitcoin {
         id: bitcoin
-        onSeedTypeChanged: contentText.text = bitcoin.seedType
+        onSeedTypeChanged: seedtext.indicatorText = bitcoin.seedType
         onValidationMessageChanged: validationtext.text = validationMessage
     }
 
     function startValidationTimer() {
         valid = false
-        contentText.text = ''
+        seedtext.indicatorText = ''
         validationTimer.restart()
     }
 

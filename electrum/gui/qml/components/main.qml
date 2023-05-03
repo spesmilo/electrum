@@ -3,6 +3,7 @@ import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.3
 import QtQuick.Controls.Material 2.0
 import QtQuick.Controls.Material.impl 2.12
+import QtQuick.Window 2.15
 
 import QtQml 2.6
 import QtMultimedia 5.6
@@ -31,7 +32,6 @@ ApplicationWindow
     Constants { id: appconstants }
 
     property alias stack: mainStackView
-    property alias inputPanel: inputPanel
 
     property variant activeDialogs: []
 
@@ -224,7 +224,7 @@ ApplicationWindow
     StackView {
         id: mainStackView
         width: parent.width
-        height: inputPanel.y - header.height
+        height: keyboardFreeZone.height - header.height
         initialItem: Qt.resolvedUrl('WalletMainView.qml')
 
         function getRoot() {
@@ -266,39 +266,47 @@ ApplicationWindow
     }
 
     Item {
+        id: keyboardFreeZone
         // Item as first child in Overlay that adjusts its size to the available
         // screen space minus the virtual keyboard (e.g. to center dialogs in)
-        // see ElDialog.resizeWithKeyboard property
+        // see also ElDialog.resizeWithKeyboard property
         parent: Overlay.overlay
         width: parent.width
-        height: inputPanel.y
-    }
-
-    InputPanel {
-        id: inputPanel
-        width: parent.width
-        y: parent.height
+        height: parent.height
 
         states: State {
             name: "visible"
-            when: inputPanel.active
+            when: Qt.inputMethod.visible
             PropertyChanges {
-                target: inputPanel
-                y: parent.height - height
+                target: keyboardFreeZone
+                height: keyboardFreeZone.parent.height - Qt.inputMethod.keyboardRectangle.height / Screen.devicePixelRatio
             }
         }
-        transitions: Transition {
-            from: ''
-            to: 'visible'
-            reversible: true
-            ParallelAnimation {
-                NumberAnimation {
-                    properties: "y"
-                    duration: 250
-                    easing.type: Easing.OutQuad
+        transitions: [
+            Transition {
+                from: ''
+                to: 'visible'
+                ParallelAnimation {
+                    NumberAnimation {
+                        properties: "height"
+                        duration: 250
+                        easing.type: Easing.OutQuad
+                    }
+                }
+            },
+            Transition {
+                from: 'visible'
+                to: ''
+                ParallelAnimation {
+                    NumberAnimation {
+                        properties: "height"
+                        duration: 50
+                        easing.type: Easing.OutQuad
+                    }
                 }
             }
-        }
+        ]
+
     }
 
     property alias newWalletWizard: _newWalletWizard
