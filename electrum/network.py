@@ -1218,7 +1218,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         interface = self.interface
         return interface.tip if interface else 0
 
-    def get_local_height(self):
+    def get_local_height(self) -> int:
         """Length of header chain, POW-verified.
         In case of a chain split, this is for the branch the main interface is on,
         but it is the tip of that branch (even if main interface is behind).
