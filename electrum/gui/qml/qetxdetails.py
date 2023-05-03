@@ -322,7 +322,7 @@ class QETxDetails(QObject, QtEventListener):
         try:
             if broadcast:
                 self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
-                self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+                self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
         except Exception:
             pass
 
@@ -343,7 +343,7 @@ class QETxDetails(QObject, QtEventListener):
         assert self._tx.is_complete()
 
         try:
-            self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
         except Exception:
             pass
         self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
@@ -359,7 +359,10 @@ class QETxDetails(QObject, QtEventListener):
             return
 
         self._logger.debug('onBroadcastSucceeded')
-        self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+        try:
+            self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+        except Exception:
+            pass
 
         self._can_broadcast = False
         self.detailsChanged.emit()
