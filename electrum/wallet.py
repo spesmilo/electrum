@@ -929,6 +929,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     for k, v in sent.items():
                         if k != txin.prevout.to_str():
                             reuse_txid, reuse_height, reuse_pos = v
+                            if reuse_height <= 0:  # exclude not-yet-mined (we need topological ordering)
+                                continue
                             if (reuse_height, reuse_pos) < (my_height, my_pos):
                                 uncle_txid, uncle_index = k.split(':')
                                 uncles.append(uncle_txid)
