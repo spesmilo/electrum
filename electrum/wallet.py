@@ -846,6 +846,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         can_cpfp = False
                 else:
                     status = _('Local')
+                    if tx_mined_status.height == TX_HEIGHT_FUTURE:
+                        num_blocks_remainining = tx_mined_status.wanted_height - self.adb.get_local_height()
+                        num_blocks_remainining = max(0, num_blocks_remainining)
+                        status = _('Local (future: {})').format(_('in {} blocks').format(num_blocks_remainining))
                     can_broadcast = self.network is not None
                     can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
             else:
@@ -1517,11 +1521,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if height == TX_HEIGHT_FUTURE:
             num_blocks_remainining = tx_mined_info.wanted_height - self.adb.get_local_height()
             num_blocks_remainining = max(0, num_blocks_remainining)
-            return 2, f'in {num_blocks_remainining} blocks'
+            return 2, _('in {} blocks').format(num_blocks_remainining)
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
             if not tx:
-                return 2, 'unknown'
+                return 2, _("unknown")
             is_final = tx and tx.is_final()
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:
