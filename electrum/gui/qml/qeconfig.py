@@ -139,8 +139,10 @@ class QEConfig(AuthMixin, QObject):
             self.config.set_key('pin_code', pin_code, True)
             self.pinCodeChanged.emit()
 
-    @auth_protect(method='wallet')
-    def pinCodeRemoveAuth(self):
+    # TODO: this allows disabling PIN unconditionally if wallet has no password
+    # (which should never be the case however)
+    @auth_protect(method='wallet_password')
+    def pinCodeRemoveAuth(self, password=None):
         self.config.set_key('pin_code', '', True)
         self.pinCodeChanged.emit()
 

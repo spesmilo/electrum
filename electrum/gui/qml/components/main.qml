@@ -549,49 +549,102 @@ ApplicationWindow
         }
     }
 
+    // handle auth_protect decorator events
+    //
+    // 'wallet_password': User must supply a password
+    // that matches the storage password (if set)
+    // or the keystore password. This forces password
+    // verification in all cases, even for wallets using
+    // keystore-only passwords (unless the storage and
+    // keystore are both unencrypted).
+    // It's primary use is password knowledge verification
+    // before presenting a secret (e.g. seed) or doing
+    // something irreversible (e.g. delete wallet)
+    //
+    // 'keystore': User must supply a password
+    // that matches the keystore password (if set).
+    //
+    // 'keystore_else_pin': User must supply a password
+    // that matches the keystore password (if set), unless
+    // the keystore is 'unlocked' which means the wallet password
+    // has been given when opening the wallet, and is the same as
+    // the keystore password (should always be the case). In that
+    // case a PIN is asked.
+    // This is mainly used when signing a transaction.
+    //
+    // 'pin': User must supply the configured PIN code
+    //
+
     function handleAuthRequired(qtobject, method, authMessage) {
         console.log('auth using method ' + method)
-        if (method == 'wallet') {
-            if (Daemon.currentWallet.verifyPassword('')) {
+        if (method == 'wallet_password') {
+            if (!Daemon.currentWallet.isEncrypted
+                    && Daemon.currentWallet.verifyKeystorePassword('')) {
                 // wallet has no password
                 qtobject.authProceed()
             } else {
-                var dialog = app.passwordDialog.createObject(app, {'title': qsTr('Enter current password')})
-                dialog.accepted.connect(function() {
-                    if (Daemon.currentWallet.verifyPassword(dialog.password)) {
-                        qtobject.authProceed()
-                    } else {
-                        qtobject.authCancel()
-                    }
+                if (!Daemon.currentWallet.isEncrypted) {
+                    handleAuthVerifyPassword(qtobject, authMessage, function(password) {
+                        return Daemon.currentWallet.verifyKeystorePassword(password)
+                    })
+                } else {
+                    handleAuthVerifyPassword(qtobject, authMessage, function(password) {
+                        return Daemon.currentWallet.verifyPassword(password)
+                    })
+                }
+            }
+        } else if (method == 'keystore_else_pin') {
+            if (!Daemon.currentWallet.canHaveKeystoreEncryption()
+                    || Daemon.currentWallet.verifyKeystorePassword('')) {
+                handleAuthRequired(qtobject, 'pin', authMessage)
+            } else if (Daemon.currentWallet.isKeystorePasswordWalletPassword()) {
+                handleAuthRequired(qtobject, 'pin', authMessage)
+            } else {
+                handleAuthVerifyPassword(qtobject, authMessage, function(password) {
+                    return Daemon.currentWallet.verifyKeystorePassword(password)
                 })
-                dialog.rejected.connect(function() {
-                    qtobject.authCancel()
+            }
+        } else if (method == 'keystore') {
+            if (!Daemon.currentWallet.canHaveKeystoreEncryption()
+                    || Daemon.currentWallet.verifyKeystorePassword('')) {
+                qtobject.authProceed()
+            } else {
+                handleAuthVerifyPassword(qtobject, authMessage, function(password) {
+                    return Daemon.currentWallet.verifyKeystorePassword(password)
                 })
-                dialog.open()
             }
         } else if (method == 'pin') {
             if (Config.pinCode == '') {
                 // no PIN configured
                 handleAuthConfirmationOnly(qtobject, authMessage)
             } else {
-                var dialog = app.pinDialog.createObject(app, {
-                    mode: 'check',
-                    pincode: Config.pinCode,
-                    authMessage: authMessage
-                })
-                dialog.accepted.connect(function() {
-                    qtobject.authProceed()
-                    dialog.close()
-                })
-                dialog.rejected.connect(function() {
-                    qtobject.authCancel()
-                })
-                dialog.open()
+                handleAuthVerifyPin(qtobject, authMessage)
             }
         } else {
             console.log('unknown auth method ' + method)
             qtobject.authCancel()
         }
+    }
+
+    function handleAuthVerifyPassword(qtobject, authMessage, validator) {
+        var dialog = app.passwordDialog.createObject(app, {
+            title: authMessage ? authMessage : qsTr('Enter current password')
+        })
+        dialog.accepted.connect(function() {
+            if (validator(dialog.password)) {
+                qtobject.authProceed(dialog.password)
+            } else {
+                qtobject.authCancel()
+                var fdialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Password incorrect')
+                })
+                fdialog.open()
+            }
+        })
+        dialog.rejected.connect(function() {
+            qtobject.authCancel()
+        })
+        dialog.open()
     }
 
     function handleAuthConfirmationOnly(qtobject, authMessage) {
@@ -602,6 +655,22 @@ ApplicationWindow
         var dialog = app.messageDialog.createObject(app, {title: authMessage, yesno: true})
         dialog.accepted.connect(function() {
             qtobject.authProceed()
+        })
+        dialog.rejected.connect(function() {
+            qtobject.authCancel()
+        })
+        dialog.open()
+    }
+
+    function handleAuthVerifyPin(qtobject, authMessage) {
+        var dialog = app.pinDialog.createObject(app, {
+            mode: 'check',
+            pincode: Config.pinCode,
+            authMessage: authMessage
+        })
+        dialog.accepted.connect(function() {
+            qtobject.authProceed()
+            dialog.close()
         })
         dialog.rejected.connect(function() {
             qtobject.authCancel()

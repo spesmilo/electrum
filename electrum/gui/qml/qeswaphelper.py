@@ -341,15 +341,19 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         self.miningfee = QEAmount(amount_sat=self._tx.get_fee()) if self._tx else QEAmount()
         self.check_valid(pay_amount, self._receive_amount)
 
-    def do_normal_swap(self, lightning_amount, onchain_amount):
+    def do_normal_swap(self, lightning_amount, onchain_amount, password):
         assert self._tx
         if lightning_amount is None or onchain_amount is None:
             return
+
+        if password is None:
+            password = self._wallet.password
+
         loop = get_asyncio_loop()
         coro = self._wallet.wallet.lnworker.swap_manager.normal_swap(
             lightning_amount_sat=lightning_amount,
             expected_onchain_amount_sat=onchain_amount,
-            password=self._wallet.password,
+            password=password,
             tx=self._tx,
         )
 
@@ -424,15 +428,19 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         if not self._wallet.wallet.network:
             self.error.emit(_("You are offline."))
             return
-        self._do_execute_swap()
-
-    @auth_protect(message=_('Confirm Lightning swap?'))
-    def _do_execute_swap(self):
         if self.isReverse:
-            lightning_amount = self._send_amount
-            onchain_amount = self._receive_amount
-            self.do_reverse_swap(lightning_amount, onchain_amount)
+            self._do_execute_reverse_swap()
         else:
-            lightning_amount = self._receive_amount
-            onchain_amount = self._send_amount
-            self.do_normal_swap(lightning_amount, onchain_amount)
+            self._do_execute_forward_swap()
+
+    @auth_protect(method='pin', message=_('Confirm Lightning swap?'))
+    def _do_execute_reverse_swap(self):
+        lightning_amount = self._send_amount
+        onchain_amount = self._receive_amount
+        self.do_reverse_swap(lightning_amount, onchain_amount)
+
+    @auth_protect(method='keystore_or_pin', message=_('Confirm Lightning swap?'))
+    def _do_execute_forward_swap(self, password=None):
+        lightning_amount = self._receive_amount
+        onchain_amount = self._send_amount
+        self.do_normal_swap(lightning_amount, onchain_amount, password)

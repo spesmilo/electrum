@@ -25,12 +25,16 @@ class AuthMixin:
     authRequired = pyqtSignal([str, str], arguments=['method', 'authMessage'])
 
     @pyqtSlot()
-    def authProceed(self):
+    @pyqtSlot(str)
+    def authProceed(self, password=None):
         self._auth_logger.debug('Proceeding with authed fn()')
         try:
             self._auth_logger.debug(str(getattr(self, '__auth_fcall')))
             (func,args,kwargs,reject) = getattr(self, '__auth_fcall')
-            r = func(self, *args, **kwargs)
+            if password:
+                r = func(self, *args, **dict(kwargs, password=password))
+            else:
+                r = func(self, *args, **kwargs)
             return r
         except Exception as e:
             self._auth_logger.error(f'Error executing wrapped fn(): {repr(e)}')

@@ -75,6 +75,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     otpFailed = pyqtSignal([str,str], arguments=['code','message'])
     peersUpdated = pyqtSignal()
     seedRetrieved = pyqtSignal()
+    paymentAuthRejected = pyqtSignal()
 
     _network_signal = pyqtSignal(str, object)
 
@@ -486,26 +487,30 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         self.isLightningChanged.emit()
         self.dataChanged.emit()
 
-    @auth_protect()
-    def sign(self, tx, *, broadcast: bool = False, on_success: Callable[[Transaction], None] = None, on_failure: Callable[[], None] = None):
+    @auth_protect(method='keystore_else_pin')
+    def sign(self, tx, *,
+             broadcast: bool = False,
+             on_success: Callable[[Transaction], None] = None,
+             on_failure: Callable[[], None] = None,
+             password = None):
         sign_hook = run_hook('tc_sign_wrapper', self.wallet, tx, partial(self.on_sign_complete, broadcast, on_success), partial(self.on_sign_failed, on_failure))
         if sign_hook:
-            success = self.do_sign(tx, False)
+            success = self.do_sign(tx, False, password)
             if success:
                 self._logger.debug('plugin needs to sign tx too')
                 sign_hook(tx)
                 return
         else:
-            success = self.do_sign(tx, broadcast)
+            success = self.do_sign(tx, broadcast, password)
 
         if success:
             if on_success: on_success(tx)
         else:
             if on_failure: on_failure()
 
-    def do_sign(self, tx, broadcast):
+    def do_sign(self, tx, broadcast, password=None):
         try:
-            tx = self.wallet.sign_transaction(tx, self.password)
+            tx = self.wallet.sign_transaction(tx, self.password if password is None else password)
         except BaseException as e:
             self._logger.error(f'{e!r}')
             self.signFailed.emit(str(e))
@@ -595,11 +600,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             self.saveTxError.emit(tx.txid(), 'error', str(e))
             return False
 
-    paymentAuthRejected = pyqtSignal()
     def ln_auth_rejected(self):
         self.paymentAuthRejected.emit()
 
-    @auth_protect(message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
+    @auth_protect(method='pin', message=_('Pay lightning invoice?'), reject='ln_auth_rejected')
     def pay_lightning_invoice(self, invoice: 'QEInvoice'):
         amount_msat = invoice.get_amount_msat()
 
@@ -668,11 +672,58 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
     @pyqtSlot(str, result=bool)
     def verifyPassword(self, password):
+        if not password:
+            password = None
         try:
             self.wallet.check_password(password)
             return True
         except InvalidPassword as e:
             return False
+
+    @pyqtSlot(result=bool)
+    def canHaveKeystoreEncryption(self):
+        return self.wallet.can_have_keystore_encryption()
+
+    @pyqtSlot(str, result=bool)
+    def verifyKeystorePassword(self, password):
+        if not password:
+            password = None
+
+        if self.wallet.has_keystore_encryption() and not password:
+            self._logger.debug(f'verifyKeystorePassword({password!r}) failed')
+            return False
+
+        try:
+            self.wallet.keystore.check_password(password)
+            self._logger.debug(f'verifyKeystorePassword({password!r}) success')
+            return True
+        except InvalidPassword as e:
+            self._logger.debug(f'verifyKeystorePassword({password!r}) failed')
+            return False
+
+    @pyqtSlot(result=bool)
+    def isKeystorePasswordWalletPassword(self):
+        try:
+            self.wallet.keystore.check_password(self.password)
+            return True
+        except InvalidPassword as e:
+            return False
+
+    @pyqtSlot()
+    def startChangePassword(self):
+        if not self.canHaveKeystoreEncryption():
+            self._do_start_change_wallet_password()
+        else:
+            self._do_start_change_wallet_password_with_encryptable_keystore()
+
+    @auth_protect(method='wallet_password')
+    def _do_start_change_wallet_password(self, password=None):
+        self.requestNewPassword.emit()
+
+    @auth_protect(method='keystore')
+    def _do_start_change_wallet_password_with_encryptable_keystore(self, password=None):
+        self._keystore_password = password
+        self.requestNewPassword.emit()
 
     @pyqtSlot(str, result=bool)
     def setPassword(self, password):
@@ -685,10 +736,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         if storage.is_encrypted_with_hw_device():
             return False
 
-        current_password = self.password if self.password != '' else None
+        keystore_password = getattr(self, '_keystore_password', None)
+
+        current_password = self.password if self.password else (keystore_password if keystore_password else None)
 
         try:
-            self._logger.info('setting new password')
+            self._logger.info('Initiating password change')
             self.wallet.update_password(current_password, password, encrypt_storage=True)
             self.password = password
             return True
@@ -729,10 +782,10 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     def requestShowSeed(self):
         self.retrieve_seed()
 
-    @auth_protect(method='wallet')
-    def retrieve_seed(self):
+    @auth_protect(method='wallet_password', message=_('Enter password to reveal seed'))
+    def retrieve_seed(self, password=None):
         try:
-            self._seed = self.wallet.get_seed(self.password)
+            self._seed = self.wallet.get_seed(password)
             self.seedRetrieved.emit()
         except Exception:
             self._seed = ''
