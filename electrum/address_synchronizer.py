@@ -787,7 +787,7 @@ class AddressSynchronizer(Logger, EventListener):
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))
         return fee
 
-    def get_addr_io(self, address):
+    def get_addr_io(self, address: str):
         with self.lock, self.transaction_lock:
             h = self.get_address_history(address).items()
             received = {}

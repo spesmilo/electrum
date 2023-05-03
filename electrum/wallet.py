@@ -922,6 +922,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 parents.append(_txid)
                 # detect address reuse
                 addr = self.adb.get_txin_address(txin)
+                if addr is None:
+                    continue
                 received, sent = self.adb.get_addr_io(addr)
                 if len(sent) > 1:
                     my_txid, my_height, my_pos = sent[txin.prevout.to_str()]
