@@ -592,8 +592,8 @@ class FxThread(ThreadJob, EventListener):
     def can_have_history(self):
         return self.is_enabled() and self.ccy in self.exchange.history_ccys()
 
-    def has_history(self):
-        return self.can_have_history() and self.config.get('history_rates', False)
+    def has_history(self) -> bool:
+        return self.can_have_history() and bool(self.config.get('history_rates', False))
 
     def get_currency(self) -> str:
         '''Use when dynamic fetching is needed'''

@@ -252,7 +252,7 @@ class HistoryModel(CustomModel, Logger):
         return True
 
     def should_show_fiat(self):
-        if not self.window.config.get('history_rates', False):
+        if not bool(self.window.config.get('history_rates', False)):
             return False
         fx = self.window.fx
         if not fx or not fx.is_enabled():
