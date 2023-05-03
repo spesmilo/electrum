@@ -512,4 +512,10 @@ Pane {
         }
     }
 
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        value: seedText.visible
+    }
+
 }
