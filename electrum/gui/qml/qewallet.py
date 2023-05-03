@@ -690,15 +690,12 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
             password = None
 
         if self.wallet.has_keystore_encryption() and not password:
-            self._logger.debug(f'verifyKeystorePassword({password!r}) failed')
             return False
 
         try:
             self.wallet.keystore.check_password(password)
-            self._logger.debug(f'verifyKeystorePassword({password!r}) success')
             return True
         except InvalidPassword as e:
-            self._logger.debug(f'verifyKeystorePassword({password!r}) failed')
             return False
 
     @pyqtSlot(result=bool)
