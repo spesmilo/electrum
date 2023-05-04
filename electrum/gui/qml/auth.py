@@ -31,7 +31,7 @@ class AuthMixin:
         try:
             self._auth_logger.debug(str(getattr(self, '__auth_fcall')))
             (func,args,kwargs,reject) = getattr(self, '__auth_fcall')
-            if password:
+            if password and 'password' in func.__code__.co_varnames:
                 r = func(self, *args, **dict(kwargs, password=password))
             else:
                 r = func(self, *args, **kwargs)
