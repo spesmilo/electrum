@@ -549,7 +549,11 @@ ApplicationWindow
         }
     }
 
-    // handle auth_protect decorator events
+    // handle auth_protect decorator events. These MUST
+    // (eventually) end with a call to qtobject.authProceed()
+    // or qtobject.authCancel().
+    //
+    // The following method types are defined:
     //
     // 'wallet_password': User must supply a password
     // that matches the storage password (if set)
