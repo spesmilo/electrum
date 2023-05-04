@@ -214,7 +214,9 @@ class TxFeeSlider(FeeSlider):
             outputs.append({
                 'address': o.get_ui_address_str(),
                 'value_sats': o.value,
-                'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str())
+                'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
+                'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
+                'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str())
             })
         self.outputs = outputs
 

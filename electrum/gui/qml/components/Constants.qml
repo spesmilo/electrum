@@ -41,7 +41,6 @@ Item {
     property color colorProgress: '#ffffff80'
     property color colorDone: '#ff80ff80'
 
-    property color colorMine: "yellow"
     property color colorLightningLocal: "blue"
     property color colorLightningRemote: "yellow"
     property color colorChannelOpen: "#ff80ff80"
@@ -57,11 +56,12 @@ Item {
     property color colorPiechartParticipant: 'gray'
     property color colorPiechartSignature: 'yellow'
 
-    property color colorAddressExternal: Qt.rgba(0,1,0,0.5)
-    property color colorAddressInternal: Qt.rgba(1,0.93,0,0.75)
+    property color colorAddressExternal: "#8af296" //Qt.rgba(0,1,0,0.5)
+    property color colorAddressInternal: "#ffff00" //Qt.rgba(1,0.93,0,0.75)
     property color colorAddressUsed: Qt.rgba(0.5,0.5,0.5,1)
     property color colorAddressUsedWithBalance: Qt.rgba(0.75,0.75,0.75,1)
     property color colorAddressFrozen: Qt.rgba(0.5,0.5,1,1)
+    property color colorAddressBilling: "#8cb3f2"
 
     function colorAlpha(baseColor, alpha) {
         return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, alpha)

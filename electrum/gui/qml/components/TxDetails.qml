@@ -279,7 +279,13 @@ Pane {
                                     wrapMode: Text.Wrap
                                     font.pixelSize: constants.fontSizeLarge
                                     font.family: FixedFont
-                                    color: modelData.is_mine ? constants.colorMine : Material.foreground
+                                    color: modelData.is_mine
+                                        ? modelData.is_change
+                                            ? constants.colorAddressInternal
+                                            : constants.colorAddressExternal
+                                        : modelData.is_billing
+                                            ? constants.colorAddressBilling
+                                            : Material.foreground
                                 }
                                 Label {
                                     text: Config.formatSats(modelData.value)

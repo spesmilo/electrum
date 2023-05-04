@@ -247,8 +247,10 @@ class QETxDetails(QObject, QtEventListener):
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
             'value': QEAmount(amount_sat=x.value),
-            'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str())
-            }, self._tx.outputs()))
+            'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
+            'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
+            'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str())
+        }, self._tx.outputs()))
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
