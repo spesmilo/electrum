@@ -1,13 +1,19 @@
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.logging import get_logger
 from electrum_grs.storage import WalletStorage, StorageEncryptionVersion
 from electrum_grs.wallet_db import WalletDB
+from electrum_grs.wallet import Wallet
 from electrum_grs.bip32 import normalize_bip32_derivation, xpub_type
 from electrum_grs.util import InvalidPassword, WalletFileException
 from electrum_grs import keystore
+
+if TYPE_CHECKING:
+    from electrum_grs.simple_config import SimpleConfig
+
 
 class QEWalletDB(QObject):
     _logger = get_logger(__name__)
@@ -29,6 +35,7 @@ class QEWalletDB(QObject):
 
         from .qeapp import ElectrumQmlApplication
         self.daemon = ElectrumQmlApplication._daemon
+        self._config = self.daemon.config  # type: SimpleConfig
 
         self.reset()
 
@@ -144,9 +151,24 @@ class QEWalletDB(QObject):
             except InvalidPassword as e:
                 self.validPassword = False
                 self.invalidPassword.emit()
+        else:  # storage not encrypted; but it might still have a keystore pw
+            # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
+            #       this also completely ignores db.requires_split(), db.get_action(), etc
+            db = WalletDB(self._storage.read(), manual_upgrades=False)
+            wallet = Wallet(db, self._storage, config=self._config)
+            self.needsPassword = wallet.has_password()
+            if self.needsPassword:
+                try:
+                    wallet.check_password('' if not self._password else self._password)
+                    self.validPassword = True
+                except InvalidPassword as e:
+                    self.validPassword = False
+                    self._storage = None
+                    self.invalidPassword.emit()
 
-        if not self._storage.is_past_initial_decryption():
-            self._storage = None
+        if self._storage:
+            if not self._storage.is_past_initial_decryption():
+                self._storage = None
 
     def load_db(self):
         # needs storage accessible
