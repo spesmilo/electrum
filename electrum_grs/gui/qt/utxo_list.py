@@ -134,8 +134,8 @@ class UTXOList(MyTreeView):
         utxo = self._utxo_dict[key]
         utxo_item = [self.std_model.item(row, col) for col in self.Columns]
         txid = utxo.prevout.txid.hex()
-        parents = self.wallet.get_tx_parents(txid)
-        utxo_item[self.Columns.PARENTS].setText('%6s'%len(parents))
+        num_parents = self.wallet.get_num_parents(txid)
+        utxo_item[self.Columns.PARENTS].setText('%6s'%num_parents if num_parents else '-')
         label = self.wallet.get_label_for_txid(txid) or ''
         utxo_item[self.Columns.LABEL].setText(label)
         SELECTED_TO_SPEND_TOOLTIP = _('Coin selected to be spent')

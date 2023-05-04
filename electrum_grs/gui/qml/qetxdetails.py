@@ -247,8 +247,10 @@ class QETxDetails(QObject, QtEventListener):
         self._outputs = list(map(lambda x: {
             'address': x.get_ui_address_str(),
             'value': QEAmount(amount_sat=x.value),
-            'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str())
-            }, self._tx.outputs()))
+            'is_mine': self._wallet.wallet.is_mine(x.get_ui_address_str()),
+            'is_change': self._wallet.wallet.is_change(x.get_ui_address_str()),
+            'is_billing': self._wallet.wallet.is_billing_address(x.get_ui_address_str())
+        }, self._tx.outputs()))
 
         txinfo = self._wallet.wallet.get_tx_info(self._tx)
 
@@ -322,7 +324,7 @@ class QETxDetails(QObject, QtEventListener):
         try:
             if broadcast:
                 self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
-                self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+                self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
         except Exception:
             pass
 
@@ -343,7 +345,7 @@ class QETxDetails(QObject, QtEventListener):
         assert self._tx.is_complete()
 
         try:
-            self._wallet.broadcastfailed.disconnect(self.onBroadcastFailed)
+            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
         except Exception:
             pass
         self._wallet.broadcastFailed.connect(self.onBroadcastFailed)
@@ -359,7 +361,10 @@ class QETxDetails(QObject, QtEventListener):
             return
 
         self._logger.debug('onBroadcastSucceeded')
-        self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+        try:
+            self._wallet.broadcastSucceeded.disconnect(self.onBroadcastSucceeded)
+        except Exception:
+            pass
 
         self._can_broadcast = False
         self.detailsChanged.emit()
@@ -369,7 +374,10 @@ class QETxDetails(QObject, QtEventListener):
         if txid != self._txid:
             return
 
-        self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+        try:
+            self._wallet.broadcastFailed.disconnect(self.onBroadcastFailed)
+        except Exception:
+            pass
 
         self._can_broadcast = True
         self.detailsChanged.emit()

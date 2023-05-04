@@ -16,17 +16,14 @@ Pane {
     property bool _is2fa: Daemon.currentWallet && Daemon.currentWallet.walletType == '2fa'
 
     function enableLightning() {
-        var dialog = app.messageDialog.createObject(rootItem,
-                {'title': qsTr('Enable Lightning for this wallet?'), 'yesno': true})
+        var dialog = app.messageDialog.createObject(rootItem, {
+            title: qsTr('Enable Lightning for this wallet?'),
+            yesno: true
+        })
         dialog.accepted.connect(function() {
             Daemon.currentWallet.enableLightning()
         })
         dialog.open()
-    }
-
-    function changePassword() {
-        // trigger dialog via wallet (auth then signal)
-        Daemon.startChangePassword()
     }
 
     function importAddressesKeys() {
@@ -44,7 +41,7 @@ Pane {
             Layout.fillHeight: true
 
             contentHeight: flickableRoot.height
-            clip:true
+            clip: true
             interactive: height < contentHeight
 
             Pane {
@@ -416,7 +413,7 @@ Pane {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr('Change Password')
-                onClicked: rootItem.changePassword()
+                onClicked: Daemon.startChangePassword()
                 icon.source: '../../icons/lock.png'
             }
             FlatButton {
@@ -466,19 +463,30 @@ Pane {
         }
         function onWalletDeleteError(code, message) {
             if (code == 'unpaid_requests') {
-                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message, yesno: true })
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Error'),
+                    text: message,
+                    yesno: true
+                })
                 dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true)
                 })
                 dialog.open()
             } else if (code == 'balance') {
-                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message, yesno: true })
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Error'),
+                    text: message,
+                    yesno: true
+                })
                 dialog.accepted.connect(function() {
                     Daemon.checkThenDeleteWallet(Daemon.currentWallet, true, true)
                 })
                 dialog.open()
             } else {
-                var dialog = app.messageDialog.createObject(app, {title: qsTr('Error'), text: message })
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Error'),
+                    text: message
+                })
                 dialog.open()
             }
         }
@@ -510,6 +518,12 @@ Pane {
             height: parent.height
             onClosed: destroy()
         }
+    }
+
+    Binding {
+        target: AppController
+        property: 'secureWindow'
+        value: seedText.visible
     }
 
 }

@@ -339,6 +339,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         self._receive_requests      = db.get_dict('payment_requests')  # type: Dict[str, Request]
         self._invoices              = db.get_dict('invoices')  # type: Dict[str, Invoice]
         self._reserved_addresses   = set(db.get('reserved_addresses', []))
+        self._num_parents          = db.get_dict('num_parents')
 
         self._freeze_lock = threading.RLock()  # for mutating/iterating frozen_{addresses,coins}
 
@@ -472,6 +473,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def clear_tx_parents_cache(self):
         with self.lock, self.transaction_lock:
             self._tx_parents_cache.clear()
+            self._num_parents.clear()
             self._last_full_history = None
 
     @event_listener
@@ -844,6 +846,10 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                         can_cpfp = False
                 else:
                     status = _('Local')
+                    if tx_mined_status.height == TX_HEIGHT_FUTURE:
+                        num_blocks_remainining = tx_mined_status.wanted_height - self.adb.get_local_height()
+                        num_blocks_remainining = max(0, num_blocks_remainining)
+                        status = _('Local (future: {})').format(_('in {} blocks').format(num_blocks_remainining))
                     can_broadcast = self.network is not None
                     can_bump = (is_any_input_ismine or is_swap) and not tx.is_final()
             else:
@@ -884,17 +890,22 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             is_related_to_wallet=is_relevant,
         )
 
+    def get_num_parents(self, txid: str) -> Optional[int]:
+        if not self.is_up_to_date():
+            return
+        if txid not in self._num_parents:
+            self._num_parents[txid] = len(self.get_tx_parents(txid))
+        return self._num_parents[txid]
+
     def get_tx_parents(self, txid: str) -> Dict[str, Tuple[List[str], List[str]]]:
         """
-        recursively calls itself and returns a flat dict:
+        returns a flat dict:
         txid -> list of parent txids
         """
-        if not self.is_up_to_date():
-            return {}
         with self.lock, self.transaction_lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_full_history(None, include_lightning=False)
-                # populate cache in chronological order to avoid recursion limit
+                # populate cache in chronological order
                 for _txid in self._last_full_history.keys():
                     self.get_tx_parents(_txid)
 
@@ -911,6 +922,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 parents.append(_txid)
                 # detect address reuse
                 addr = self.adb.get_txin_address(txin)
+                if addr is None:
+                    continue
                 received, sent = self.adb.get_addr_io(addr)
                 if len(sent) > 1:
                     my_txid, my_height, my_pos = sent[txin.prevout.to_str()]
@@ -918,13 +931,16 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     for k, v in sent.items():
                         if k != txin.prevout.to_str():
                             reuse_txid, reuse_height, reuse_pos = v
+                            if reuse_height <= 0:  # exclude not-yet-mined (we need topological ordering)
+                                continue
                             if (reuse_height, reuse_pos) < (my_height, my_pos):
                                 uncle_txid, uncle_index = k.split(':')
                                 uncles.append(uncle_txid)
 
             for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
-                    result.update(self.get_tx_parents(_txid))
+                    p = self._tx_parents_cache[_txid]
+                    result.update(p)
             result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
@@ -1509,11 +1525,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         if height == TX_HEIGHT_FUTURE:
             num_blocks_remainining = tx_mined_info.wanted_height - self.adb.get_local_height()
             num_blocks_remainining = max(0, num_blocks_remainining)
-            return 2, f'in {num_blocks_remainining} blocks'
+            return 2, _('in {} blocks').format(num_blocks_remainining)
         if conf == 0:
             tx = self.db.get_transaction(tx_hash)
             if not tx:
-                return 2, 'unknown'
+                return 2, _("unknown")
             is_final = tx and tx.is_final()
             fee = self.adb.get_tx_fee(tx_hash)
             if fee is not None:

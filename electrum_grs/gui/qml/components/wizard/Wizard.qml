@@ -2,6 +2,8 @@ import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
 
+import org.electrum 1.0
+
 import "../controls"
 
 ElDialog {
@@ -141,6 +143,11 @@ ElDialog {
                 _setWizardData({})
             }
 
+            Binding {
+                target: AppController
+                property: 'secureWindow'
+                value: pages.contentChildren[pages.currentIndex].securePage
+            }
         }
 
         ColumnLayout {

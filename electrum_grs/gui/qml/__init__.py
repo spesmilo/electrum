@@ -61,10 +61,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # os.environ['QML_IMPORT_TRACE'] = '1'
         # os.environ['QT_DEBUG_PLUGINS'] = '1'
 
-        os.environ['QT_IM_MODULE'] = 'qtvirtualkeyboard'
-        os.environ['QT_VIRTUALKEYBOARD_STYLE'] = 'Electrum'
-        os.environ['QML2_IMPORT_PATH'] = 'electrum/gui/qml'
-
         os.environ['QT_ANDROID_DISABLE_ACCESSIBILITY'] = '1'
 
         # set default locale to en_GB. This is for l10n (e.g. number formatting, number input etc),

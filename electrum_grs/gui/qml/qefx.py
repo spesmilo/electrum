@@ -63,7 +63,7 @@ class QEFX(QObject, QtEventListener):
     historicRatesChanged = pyqtSignal()
     @pyqtProperty(bool, notify=historicRatesChanged)
     def historicRates(self):
-        return self.fx.config.get('history_rates', True)
+        return bool(self.fx.config.get('history_rates', True))
 
     @historicRates.setter
     def historicRates(self, checked):

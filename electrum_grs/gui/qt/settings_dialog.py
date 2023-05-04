@@ -307,7 +307,7 @@ class SettingsDialog(QDialog, QtEventListener):
         def update_currencies():
             if not self.fx:
                 return
-            h = self.config.get('history_rates', False)
+            h = bool(self.config.get('history_rates', False))
             currencies = sorted(self.fx.get_currencies(h))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
@@ -319,7 +319,7 @@ class SettingsDialog(QDialog, QtEventListener):
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = self.config.get('history_rates', False)
+                h = bool(self.config.get('history_rates', False))
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -356,7 +356,7 @@ class SettingsDialog(QDialog, QtEventListener):
         update_currencies()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        self.history_rates_cb.setChecked(self.config.get('history_rates', False))
+        self.history_rates_cb.setChecked(bool(self.config.get('history_rates', False)))
         self.history_rates_cb.stateChanged.connect(on_history_rates)
         ex_combo.currentIndexChanged.connect(on_exchange)
 

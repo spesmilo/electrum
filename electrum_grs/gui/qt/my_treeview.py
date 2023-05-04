@@ -83,7 +83,7 @@ class MyMenu(QMenu):
         b = self.config.get(name, default)
         m = self.addAction(text, lambda: self._do_toggle_config(name, default, callback))
         m.setCheckable(True)
-        m.setChecked(b)
+        m.setChecked(bool(b))
         m.setToolTip(tooltip)
         return m
 
