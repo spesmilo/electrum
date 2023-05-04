@@ -1,4 +1,4 @@
-# Release 4.4.2 (unreleased)
+# Release 4.4.2 (May 4, 2023)
  * Qt GUI:
    - fix undefined var check in swap_dialog (#8341)
    - really fix "recursion depth exceeded" for utxo privacy analysis (#8315)
