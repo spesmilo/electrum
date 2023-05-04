@@ -439,7 +439,7 @@ class QESwapHelper(AuthMixin, QObject, QtEventListener):
         onchain_amount = self._receive_amount
         self.do_reverse_swap(lightning_amount, onchain_amount)
 
-    @auth_protect(method='keystore_or_pin', message=_('Confirm Lightning swap?'))
+    @auth_protect(method='keystore_else_pin', message=_('Confirm Lightning swap?'))
     def _do_execute_forward_swap(self, password=None):
         lightning_amount = self._receive_amount
         onchain_amount = self._send_amount
