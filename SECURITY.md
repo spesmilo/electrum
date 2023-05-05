@@ -2,11 +2,13 @@
 
 ## Reporting a Vulnerability
 
-The following keys may be used to communicate sensitive information to developers:
+To report security issues, send an email to the addresses listed below (not for support).
+Please send any report to all emails listed here.
+The following GPG keys may be used to communicate sensitive information to developers.
 
-| Name | Email | Fingerprint |
-|------|-------|----------------|
-| jackielove4u | groestlcoin@gmail.com | 287A E4CA 1187 C68C 08B4 9CB2 D11B D4F3 3F1D B499 |
+| Name         | Email                      | Fingerprint                                       |
+|--------------|----------------------------|---------------------------------------------------|
+| jackielove4u | groestlcoin [AT] gmail.com | 287A E4CA 1187 C68C 08B4 9CB2 D11B D4F3 3F1D B499 |
 
 You can import a key by running the following command with that
 individual’s fingerprint: `gpg --recv-keys "<fingerprint>"`

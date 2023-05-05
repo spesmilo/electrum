@@ -3,11 +3,16 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.2"
+        "version": "1.4"
     },
     "esplora-signet.groestlcoin.org": {
         "pruning": "-",
         "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.emzy.de": {
+        "pruning": "-",
+        "s": "53002",
         "version": "1.4"
     }
 }
