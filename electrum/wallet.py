@@ -225,12 +225,14 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     return locktime
 
 
+class CannotRBFTx(Exception): pass
 
-class CannotBumpFee(Exception):
+
+class CannotBumpFee(CannotRBFTx):
     def __str__(self):
         return _('Cannot bump fee') + ':\n\n' + Exception.__str__(self)
 
-class CannotDoubleSpendTx(Exception):
+class CannotDoubleSpendTx(CannotRBFTx):
     def __str__(self):
         return _('Cannot cancel transaction') + ':\n\n' + Exception.__str__(self)
 
