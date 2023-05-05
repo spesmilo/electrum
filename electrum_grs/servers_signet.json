@@ -9,10 +9,5 @@
         "pruning": "-",
         "t": "50001",
         "version": "1.4"
-    },
-    "electrum.emzy.de": {
-        "pruning": "-",
-        "s": "53002",
-        "version": "1.4"
     }
 }
