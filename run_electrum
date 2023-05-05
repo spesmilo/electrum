@@ -384,14 +384,22 @@ def main():
         sys.exit(1)
 
     config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
 
     # set language as early as possible
     # Note: we are already too late for strings that are declared in the global scope
     #       of an already imported module. However, the GUI and the plugins at least have
-    #       not been imported yet.
-    # Note: it is ok to call set_language() again later. E.g. the Qt GUI has additional
-    #       tools to figure out the default language so it will get called again there.
-    set_language(config.get('language'))
+    #       not been imported yet. (see #4621)
+    # Note: it is ok to call set_language() again later, but note that any call only applies
+    #       to not-yet-evaluated strings.
+    if cmdname == 'gui':
+        from electrum.gui.default_lang import get_default_language
+        gui_name = config.get('gui', 'qt')
+        lang = config.get('language')
+        if not lang:
+            lang = get_default_language(gui_name=gui_name)
+            _logger.info(f"get_default_language: detected default as {lang=!r}")
+        set_language(lang)
 
     if config.get('testnet'):
         constants.set_testnet()
@@ -401,8 +409,6 @@ def main():
         constants.set_simnet()
     elif config.get('signet'):
         constants.set_signet()
-
-    cmdname = config.get('cmd')
 
     if cmdname == 'daemon' and config.get("detach"):
         # detect lockfile.

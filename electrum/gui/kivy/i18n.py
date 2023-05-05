@@ -1,5 +1,10 @@
 import gettext
 
+from electrum.logging import get_logger
+
+
+_logger = get_logger(__name__)
+
 
 class _(str):
 
@@ -35,6 +40,7 @@ class _(str):
 
     @staticmethod
     def switch_lang(lang):
+        _logger.info(f"switch_lang() called with {lang=!r}")
         # get the right locales directory, and instantiate a gettext
         from electrum.i18n import LOCALE_DIR, set_language
         locales = gettext.translation('electrum', LOCALE_DIR, languages=[lang], fallback=True)

@@ -1117,10 +1117,6 @@ class IconLabel(QWidget):
         self.icon.setPixmap(icon.pixmap(self.icon_size))
         self.icon.repaint()  # macOS hack for #6269
 
-def get_default_language():
-    name = QLocale.system().name()
-    return name if name in languages else 'en_UK'
-
 
 def char_width_in_lineedit() -> int:
     char_width = QFontMetrics(QLineEdit().font()).averageCharWidth()
