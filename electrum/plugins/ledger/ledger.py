@@ -1235,8 +1235,9 @@ class Ledger_Client_New(Ledger_Client):
             # For each wallet, sign
             for __, (__, wallet, wallet_hmac) in wallets.items():
                 input_sigs = self.client.sign_psbt(psbt, wallet, wallet_hmac)
-                for idx, pubkey, sig in input_sigs:
-                    tx.add_signature_to_txin(txin_idx=idx, signing_pubkey=pubkey.hex(), sig=sig.hex())
+                for idx, part_sig in input_sigs:
+                    tx.add_signature_to_txin(
+                        txin_idx=idx, signing_pubkey=part_sig.pubkey.hex(), sig=part_sig.signature.hex())
         except DenyError:
             pass  # cancelled by user
         except BaseException as e:
@@ -1317,7 +1318,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
 class LedgerPlugin(HW_PluginBase):
     keystore_class = Ledger_KeyStore
-    minimum_library = (0, 1, 1)
+    minimum_library = (0, 2, 0)
+    maximum_library = (0, 3, 0)
     DEVICE_IDS = [(0x2581, 0x1807),  # HW.1 legacy btchip
                   (0x2581, 0x2b7c),  # HW.1 transitional production
                   (0x2581, 0x3b7c),  # HW.1 ledger production
