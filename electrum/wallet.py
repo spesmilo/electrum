@@ -907,9 +907,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         with self.lock, self.transaction_lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_full_history(None, include_lightning=False)
-                # populate cache in chronological order
-                for _txid in self._last_full_history.keys():
-                    self.get_tx_parents(_txid)
+                # populate cache in chronological order (confirmed tx only)
+                # todo: get_full_history should return unconfirmed tx topologically sorted
+                for _txid, tx_item in self._last_full_history.items():
+                    if tx_item['height'] > 0:
+                        self.get_tx_parents(_txid)
 
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
@@ -941,8 +943,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
             for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
-                    p = self._tx_parents_cache[_txid]
-                    result.update(p)
+                    result.update(self.get_tx_parents(_txid))
             result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
