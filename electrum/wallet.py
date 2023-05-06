@@ -1860,7 +1860,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return True
 
-    def set_frozen_state_of_addresses(self, addrs: Sequence[str], freeze: bool) -> bool:
+    def set_frozen_state_of_addresses(
+        self,
+        addrs: Iterable[str],
+        freeze: bool,
+        *,
+        write_to_disk: bool = True,
+    ) -> bool:
         """Set frozen state of the addresses to FREEZE, True or False"""
         if all(self.is_mine(addr) for addr in addrs):
             with self._freeze_lock:
@@ -1870,10 +1876,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._frozen_addresses -= set(addrs)
                 self.db.put('frozen_addresses', list(self._frozen_addresses))
             util.trigger_callback('status')
+            if write_to_disk:
+                self.save_db()
             return True
         return False
 
-    def set_frozen_state_of_coins(self, utxos: Sequence[str], freeze: bool) -> None:
+    def set_frozen_state_of_coins(
+        self,
+        utxos: Iterable[str],
+        freeze: bool,
+        *,
+        write_to_disk: bool = True,
+    ) -> None:
         """Set frozen state of the utxos to FREEZE, True or False"""
         # basic sanity check that input is not garbage: (see if raises)
         [TxOutpoint.from_str(utxo) for utxo in utxos]
@@ -1881,6 +1895,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for utxo in utxos:
                 self._frozen_coins[utxo] = bool(freeze)
         util.trigger_callback('status')
+        if write_to_disk:
+            self.save_db()
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
@@ -3133,7 +3149,7 @@ class Imported_Wallet(Simple_Wallet):
         self.set_label(address, None)
         if req:= self.get_request_by_addr(address):
             self.delete_request(req.get_id())
-        self.set_frozen_state_of_addresses([address], False)
+        self.set_frozen_state_of_addresses([address], False, write_to_disk=False)
         pubkey = self.get_public_key(address)
         self.db.remove_imported_address(address)
         if pubkey:
