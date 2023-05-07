@@ -2605,10 +2605,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_bolt11_invoice(self, req: Request) -> str:
         if not self.lnworker:
             return ''
+        if (payment_hash := req.payment_hash) is None:  # e.g. req might have been generated before enabling LN
+            return ''
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=req.payment_hash,
+            payment_hash=payment_hash,
             amount_msat=amount_msat,
             message=req.message,
             expiry=req.exp,
