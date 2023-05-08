@@ -272,48 +272,11 @@ Pane {
 
                     Repeater {
                         model: txdetails.outputs
-                        delegate: TextHighlightPane {
+                        delegate: TxOutput {
                             Layout.columnSpan: 2
                             Layout.fillWidth: true
 
-                            RowLayout {
-                                width: parent.width
-                                Label {
-                                    text: modelData.address
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.Wrap
-                                    font.pixelSize: constants.fontSizeLarge
-                                    font.family: FixedFont
-                                    color: modelData.is_mine
-                                        ? modelData.is_change
-                                            ? constants.colorAddressInternal
-                                            : constants.colorAddressExternal
-                                        : modelData.is_billing
-                                            ? constants.colorAddressBilling
-                                            : Material.foreground
-                                }
-                                Label {
-                                    text: Config.formatSats(modelData.value)
-                                    font.pixelSize: constants.fontSizeMedium
-                                    font.family: FixedFont
-                                }
-                                Label {
-                                    text: Config.baseUnit
-                                    font.pixelSize: constants.fontSizeMedium
-                                    color: Material.accentColor
-                                }
-                                ToolButton {
-                                    icon.source: '../../icons/share.png'
-                                    icon.color: 'transparent'
-                                    onClicked: {
-                                        var dialog = app.genericShareDialog.createObject(root, {
-                                            title: qsTr('Tx Output'),
-                                            text: modelData.address
-                                        })
-                                        dialog.open()
-                                    }
-                                }
-                            }
+                            model: modelData
                         }
                     }
                 }
