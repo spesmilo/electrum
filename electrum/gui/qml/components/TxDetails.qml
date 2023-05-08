@@ -297,6 +297,17 @@ Pane {
                                     font.pixelSize: constants.fontSizeMedium
                                     color: Material.accentColor
                                 }
+                                ToolButton {
+                                    icon.source: '../../icons/share.png'
+                                    icon.color: 'transparent'
+                                    onClicked: {
+                                        var dialog = app.genericShareDialog.createObject(root, {
+                                            title: qsTr('Tx Output'),
+                                            text: modelData.address
+                                        })
+                                        dialog.open()
+                                    }
+                                }
                             }
                         }
                     }
