@@ -8,6 +8,8 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
+import sys
+
 import attr
 from aiorpcx import NetAddress
 
@@ -1211,6 +1213,18 @@ class LnFeatures(IntFlag):
             r.append(feature_name or f"bit_{flag}")
         return r
 
+    if hasattr(IntFlag, "_numeric_repr_"):  # python 3.11+
+        # performance improvement (avoid base2<->base10), see #8403
+        _numeric_repr_ = hex
+
+    def __repr__(self):
+        # performance improvement (avoid base2<->base10), see #8403
+        return f"<{self._name_}: {hex(self._value_)}>"
+
+    def __str__(self):
+        # performance improvement (avoid base2<->base10), see #8403
+        return hex(self._value_)
+
 
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
@@ -1332,11 +1346,22 @@ def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnF
     return our_features
 
 
-def validate_features(features: int) -> None:
+if hasattr(sys, "get_int_max_str_digits"):
+    # check that the user or other library has not lowered the limit (from default)
+    assert sys.get_int_max_str_digits() >= 4300, f"sys.get_int_max_str_digits() too low: {sys.get_int_max_str_digits()}"
+
+
+def validate_features(features: int) -> LnFeatures:
     """Raises IncompatibleOrInsaneFeatures if
     - a mandatory feature is listed that we don't recognize, or
     - the features are inconsistent
+    For convenience, returns the parsed features.
     """
+    if features.bit_length() > 10_000:
+        # This is an implementation-specific limit for how high feature bits we allow.
+        # Needed as LnFeatures subclasses IntFlag, and uses ints internally.
+        # See https://docs.python.org/3/library/stdtypes.html#integer-string-conversion-length-limitation
+        raise IncompatibleOrInsaneFeatures(f"features bitvector too large: {features.bit_length()=} > 10_000")
     features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
@@ -1345,6 +1370,7 @@ def validate_features(features: int) -> None:
     if not features.validate_transitive_dependencies():
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")
+    return features
 
 
 def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
