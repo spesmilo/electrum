@@ -225,12 +225,14 @@ def get_locktime_for_new_transaction(network: 'Network') -> int:
     return locktime
 
 
+class CannotRBFTx(Exception): pass
 
-class CannotBumpFee(Exception):
+
+class CannotBumpFee(CannotRBFTx):
     def __str__(self):
         return _('Cannot bump fee') + ':\n\n' + Exception.__str__(self)
 
-class CannotDoubleSpendTx(Exception):
+class CannotDoubleSpendTx(CannotRBFTx):
     def __str__(self):
         return _('Cannot cancel transaction') + ':\n\n' + Exception.__str__(self)
 
@@ -905,9 +907,11 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         with self.lock, self.transaction_lock:
             if self._last_full_history is None:
                 self._last_full_history = self.get_full_history(None, include_lightning=False)
-                # populate cache in chronological order
-                for _txid in self._last_full_history.keys():
-                    self.get_tx_parents(_txid)
+                # populate cache in chronological order (confirmed tx only)
+                # todo: get_full_history should return unconfirmed tx topologically sorted
+                for _txid, tx_item in self._last_full_history.items():
+                    if tx_item['height'] > 0:
+                        self.get_tx_parents(_txid)
 
             result = self._tx_parents_cache.get(txid, None)
             if result is not None:
@@ -939,8 +943,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
             for _txid in parents + uncles:
                 if _txid in self._last_full_history.keys():
-                    p = self._tx_parents_cache[_txid]
-                    result.update(p)
+                    result.update(self.get_tx_parents(_txid))
             result[txid] = parents, uncles
             self._tx_parents_cache[txid] = result
             return result
@@ -1858,7 +1861,13 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             return False
         return True
 
-    def set_frozen_state_of_addresses(self, addrs: Sequence[str], freeze: bool) -> bool:
+    def set_frozen_state_of_addresses(
+        self,
+        addrs: Iterable[str],
+        freeze: bool,
+        *,
+        write_to_disk: bool = True,
+    ) -> bool:
         """Set frozen state of the addresses to FREEZE, True or False"""
         if all(self.is_mine(addr) for addr in addrs):
             with self._freeze_lock:
@@ -1868,10 +1877,18 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     self._frozen_addresses -= set(addrs)
                 self.db.put('frozen_addresses', list(self._frozen_addresses))
             util.trigger_callback('status')
+            if write_to_disk:
+                self.save_db()
             return True
         return False
 
-    def set_frozen_state_of_coins(self, utxos: Sequence[str], freeze: bool) -> None:
+    def set_frozen_state_of_coins(
+        self,
+        utxos: Iterable[str],
+        freeze: bool,
+        *,
+        write_to_disk: bool = True,
+    ) -> None:
         """Set frozen state of the utxos to FREEZE, True or False"""
         # basic sanity check that input is not garbage: (see if raises)
         [TxOutpoint.from_str(utxo) for utxo in utxos]
@@ -1879,6 +1896,8 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             for utxo in utxos:
                 self._frozen_coins[utxo] = bool(freeze)
         util.trigger_callback('status')
+        if write_to_disk:
+            self.save_db()
 
     def is_address_reserved(self, addr: str) -> bool:
         # note: atm 'reserved' status is only taken into consideration for 'change addresses'
@@ -2586,10 +2605,12 @@ class Abstract_Wallet(ABC, Logger, EventListener):
     def get_bolt11_invoice(self, req: Request) -> str:
         if not self.lnworker:
             return ''
+        if (payment_hash := req.payment_hash) is None:  # e.g. req might have been generated before enabling LN
+            return ''
         amount_msat = req.get_amount_msat() or None
         assert (amount_msat is None or amount_msat > 0), amount_msat
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
-            payment_hash=req.payment_hash,
+            payment_hash=payment_hash,
             amount_msat=amount_msat,
             message=req.message,
             expiry=req.exp,
@@ -3131,7 +3152,7 @@ class Imported_Wallet(Simple_Wallet):
         self.set_label(address, None)
         if req:= self.get_request_by_addr(address):
             self.delete_request(req.get_id())
-        self.set_frozen_state_of_addresses([address], False)
+        self.set_frozen_state_of_addresses([address], False, write_to_disk=False)
         pubkey = self.get_public_key(address)
         self.db.remove_imported_address(address)
         if pubkey:

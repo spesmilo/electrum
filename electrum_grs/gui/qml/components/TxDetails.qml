@@ -152,17 +152,6 @@ Pane {
                     }
 
                     Label {
-                        visible: txdetails.isMined
-                        text: qsTr('Mined at')
-                        color: Material.accentColor
-                    }
-
-                    Label {
-                        visible: txdetails.isMined
-                        text: txdetails.shortId
-                    }
-
-                    Label {
                         Layout.columnSpan: 2
                         Layout.topMargin: constants.paddingSmall
                         visible: !txdetails.isUnrelated
@@ -222,6 +211,22 @@ Pane {
                                 onClicked: labelContent.editmode = false
                             }
                         }
+                    }
+
+                    Heading {
+                        Layout.columnSpan: 2
+                        text: qsTr('Technical properties')
+                    }
+
+                    Label {
+                        visible: txdetails.isMined
+                        text: qsTr('Mined at')
+                        color: Material.accentColor
+                    }
+
+                    Label {
+                        visible: txdetails.isMined
+                        text: txdetails.shortId
                     }
 
                     Label {

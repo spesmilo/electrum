@@ -1044,7 +1044,7 @@ class Transaction:
               Relatedly, this should *not* be called from the network thread.
         """
         # note side-effect: tx is being mutated
-        from .network import NetworkException
+        from .network import NetworkException, Network
         self.add_info_from_wallet(wallet)
         try:
             if self.is_missing_info_from_network():

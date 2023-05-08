@@ -1770,6 +1770,7 @@ class LNWallet(LNWorker):
             fallback_address: Optional[str],
             channels: Optional[Sequence[Channel]] = None,
     ) -> Tuple[LnAddr, str]:
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
 
         pair = self._bolt11_cache.get(payment_hash)
         if pair:
@@ -1825,6 +1826,7 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
 
     def get_preimage(self, payment_hash: bytes) -> Optional[bytes]:
+        assert isinstance(payment_hash, bytes), f"expected bytes, but got {type(payment_hash)}"
         r = self.preimages.get(payment_hash.hex())
         return bytes.fromhex(r) if r else None
 

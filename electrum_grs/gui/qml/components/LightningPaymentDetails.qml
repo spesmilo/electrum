@@ -132,6 +132,11 @@ Pane {
                 }
             }
 
+            Heading {
+                Layout.columnSpan: 2
+                text: qsTr('Technical properties')
+            }
+
             Label {
                 Layout.columnSpan: 2
                 Layout.topMargin: constants.paddingSmall

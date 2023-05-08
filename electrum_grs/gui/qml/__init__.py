@@ -33,9 +33,6 @@ if TYPE_CHECKING:
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
 
-if 'ANDROID_DATA' in os.environ:
-    from jnius import autoclass, cast
-    jLocale = autoclass("java.util.Locale")
 
 class ElectrumTranslator(QTranslator):
     def __init__(self, parent=None):
@@ -50,12 +47,6 @@ class ElectrumGui(BaseElectrumGui, Logger):
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
-
-        lang = config.get('language','')
-        if not lang:
-            lang = self.get_default_language()
-        self.logger.info(f'setting language {lang}')
-        set_language(lang)
 
         # uncomment to debug plugin and import tracing
         # os.environ['QML_IMPORT_TRACE'] = '1'
@@ -119,12 +110,3 @@ class ElectrumGui(BaseElectrumGui, Logger):
     def stop(self):
         self.logger.info('closing GUI')
         self.app.quit()
-
-    def get_default_language(self):
-        # On Android QLocale does not return the system locale
-        try:
-            name = str(jLocale.getDefault().toString())
-        except Exception:
-            name = QLocale.system().name()
-        self.logger.info(f'System default locale: {name}')
-        return name if name in languages else 'en_GB'

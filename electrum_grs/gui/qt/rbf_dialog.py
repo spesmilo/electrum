@@ -15,7 +15,7 @@ from .util import (ColorScheme, WindowModalDialog, Buttons,
 
 from electrum_grs.i18n import _
 from electrum_grs.transaction import PartialTransaction
-from electrum_grs.wallet import CannotBumpFee
+from electrum_grs.wallet import CannotRBFTx
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -124,7 +124,7 @@ class _BaseRBFDialog(TxEditor):
         else:
             try:
                 self.tx = self.make_tx(fee_rate)
-            except CannotBumpFee as e:
+            except CannotRBFTx as e:
                 self.tx = None
                 self.error = str(e)
 
