@@ -393,7 +393,7 @@ def main():
     # Note: it is ok to call set_language() again later, but note that any call only applies
     #       to not-yet-evaluated strings.
     if cmdname == 'gui':
-        from electrum.gui.default_lang import get_default_language
+        from electrum_grs.gui.default_lang import get_default_language
         gui_name = config.get('gui', 'qt')
         lang = config.get('language')
         if not lang:

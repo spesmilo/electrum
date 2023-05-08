@@ -1,6 +1,6 @@
 from kivy.utils import get_color_from_hex
 
-from electrum.gui.default_lang import get_default_language as _get_default_language
+from electrum_grs.gui.default_lang import get_default_language as _get_default_language
 
 
 def address_colors(wallet, addr):
