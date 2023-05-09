@@ -7,7 +7,7 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from electrum.i18n import _
 from electrum.gui import messages
 from electrum.util import bfh
-from electrum.lnutil import extract_nodeid, LNPeerAddr, ln_dummy_address, ConnStringFormatError
+from electrum.lnutil import extract_nodeid, ln_dummy_address, ConnStringFormatError
 from electrum.lnworker import hardcoded_trampoline_nodes
 from electrum.logging import get_logger
 
@@ -218,37 +218,6 @@ class QEChannelOpener(QObject, AuthMixin):
         self._logger.debug('starting open thread')
         self.channelOpening.emit(conn_str)
         threading.Thread(target=open_thread, daemon=True).start()
-
-        # TODO: it would be nice to show this before broadcasting
-        #if chan.has_onchain_backup():
-            #self.maybe_show_funding_tx(chan, funding_tx)
-        #else:
-            #title = _('Save backup')
-            #help_text = messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL
-            #data = lnworker.export_channel_backup(chan.channel_id)
-            #popup = QRDialog(
-                #title, data,
-                #show_text=False,
-                #text_for_clipboard=data,
-                #help_text=help_text,
-                #close_button_text=_('OK'),
-                #on_close=lambda: self.maybe_show_funding_tx(chan, funding_tx))
-            #popup.open()
-
-
-    #def maybe_show_funding_tx(self, chan, funding_tx):
-        #n = chan.constraints.funding_txn_minimum_depth
-        #message = '\n'.join([
-            #_('Channel established.'),
-            #_('Remote peer ID') + ':' + chan.node_id.hex(),
-            #_('This channel will be usable after {} confirmations').format(n)
-        #])
-        #if not funding_tx.is_complete():
-            #message += '\n\n' + _('Please sign and broadcast the funding transaction')
-        #self.app.show_info(message)
-
-        #if not funding_tx.is_complete():
-            #self.app.tx_dialog(funding_tx)
 
     @pyqtSlot(str, result=str)
     def channelBackup(self, cid):

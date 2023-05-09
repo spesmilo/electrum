@@ -1,15 +1,13 @@
-from abc import abstractmethod
-
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
-from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum import blockchain
 
-from .util import QtEventListener, qt_event_listener, event_listener
+from .util import QtEventListener, qt_event_listener
+
 
 class QEServerListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -108,7 +106,6 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['address'] = i.server.to_friendly_name()
                 server['height'] = i.tip
 
-                #self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         # disconnected servers
@@ -132,7 +129,6 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['name'] = s.net_addr_str()
                 server['address'] = server['name']
 
-                # self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)
