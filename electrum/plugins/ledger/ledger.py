@@ -666,7 +666,7 @@ class Ledger_Client_Legacy(Ledger_Client):
             # Sign all inputs
             firstTransaction = True
             inputIndex = 0
-            rawTx = tx.serialize_to_network()
+            rawTx = tx.serialize_to_network(include_sigs=False)
             if self.is_hw1():
                 self.dongleObject.enableAlternate2fa(False)
             if segwitTransaction:
