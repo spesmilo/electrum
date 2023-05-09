@@ -11,6 +11,7 @@ from electrum_grs.logging import get_logger
 
 from .util import TaskThread
 
+
 class QEBip39RecoveryListModel(QAbstractListModel):
     _logger = get_logger(__name__)
 
@@ -38,8 +39,6 @@ class QEBip39RecoveryListModel(QAbstractListModel):
         self._thread = None
         self._root_seed = None
         self._state = QEBip39RecoveryListModel.State.Idle
-        # self._busy = False
-        # self._userinfo = ''
 
     def rowCount(self, index):
         return len(self._accounts)
@@ -59,10 +58,6 @@ class QEBip39RecoveryListModel(QAbstractListModel):
         self.beginResetModel()
         self._accounts = []
         self.endResetModel()
-
-    # @pyqtProperty(str, notify=userinfoChanged)
-    # def userinfo(self):
-    #     return self._userinfo
 
     @pyqtProperty(int, notify=stateChanged)
     def state(self):
@@ -126,4 +121,3 @@ class QEBip39RecoveryListModel(QAbstractListModel):
         account_node = root_node.subkey_at_private_derivation(account_path)
         account_xpub = account_node.to_xpub()
         return account_xpub
-

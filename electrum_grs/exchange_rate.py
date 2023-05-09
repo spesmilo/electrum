@@ -392,6 +392,9 @@ class FxThread(ThreadJob, EventListener):
             return text
         return text[:dp_loc] + util.DECIMAL_POINT + text[dp_loc+1:]
 
+    def ccy_precision(self, ccy=None) -> int:
+        return CCY_PRECISIONS.get(self.ccy if ccy is None else ccy, 2)
+
     async def run(self):
         while True:
             # every few minutes, refresh spot price

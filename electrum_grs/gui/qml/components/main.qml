@@ -7,7 +7,6 @@ import QtQuick.Window 2.15
 
 import QtQml 2.6
 import QtMultimedia 5.6
-import QtQuick.VirtualKeyboard 2.15
 
 import org.electrum 1.0
 

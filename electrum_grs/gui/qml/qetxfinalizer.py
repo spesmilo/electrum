@@ -9,12 +9,12 @@ from electrum_grs.i18n import _
 from electrum_grs.transaction import PartialTxOutput, PartialTransaction, Transaction
 from electrum_grs.util import NotEnoughFunds, profiler
 from electrum_grs.wallet import CannotBumpFee, CannotDoubleSpendTx, CannotCPFP
-from electrum_grs.network import NetworkException
 from electrum_grs.plugin import run_hook
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, event_listener
+
 
 class FeeSlider(QObject):
     def __init__(self, parent=None):
@@ -125,6 +125,7 @@ class FeeSlider(QObject):
     def update(self):
         raise NotImplementedError()
 
+
 class TxFeeSlider(FeeSlider):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -213,12 +214,13 @@ class TxFeeSlider(FeeSlider):
         for o in tx.outputs():
             outputs.append({
                 'address': o.get_ui_address_str(),
-                'value_sats': o.value,
+                'value': o.value,
                 'is_mine': self._wallet.wallet.is_mine(o.get_ui_address_str()),
                 'is_change': self._wallet.wallet.is_change(o.get_ui_address_str()),
                 'is_billing': self._wallet.wallet.is_billing_address(o.get_ui_address_str())
             })
         self.outputs = outputs
+
 
 class QETxFinalizer(TxFeeSlider):
     _logger = get_logger(__name__)
@@ -402,6 +404,7 @@ class QETxFinalizer(TxFeeSlider):
         txqr = self._tx.to_qr_data()
         return [str(self._tx), txqr[0], txqr[1]]
 
+
 # mixin for watching an existing TX based on its txid for verified event
 # requires self._wallet to contain a QEWallet instance
 # exposes txid qt property
@@ -447,6 +450,7 @@ class TxMonMixin(QtEventListener):
     # override
     def tx_verified(self):
         pass
+
 
 class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
@@ -578,6 +582,7 @@ class QETxRbfFeeBumper(TxFeeSlider, TxMonMixin):
     def getNewTx(self):
         return str(self._tx)
 
+
 class QETxCanceller(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
 
@@ -611,7 +616,6 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
         if self._oldfee_rate != oldfeerate:
             self._oldfee_rate = oldfeerate
             self.oldfeeRateChanged.emit()
-
 
     def get_tx(self):
         assert self._txid
@@ -673,6 +677,7 @@ class QETxCanceller(TxFeeSlider, TxMonMixin):
     @pyqtSlot(result=str)
     def getNewTx(self):
         return str(self._tx)
+
 
 class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     _logger = get_logger(__name__)
@@ -743,7 +748,6 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
     def totalSize(self):
         return self._total_size
 
-
     def get_tx(self):
         assert self._txid
         self._parent_tx = self._wallet.wallet.db.get_transaction(self._txid)
@@ -805,7 +809,6 @@ class QETxCpfpFeeBumper(TxFeeSlider, TxMonMixin):
             self._logger.warning('max fee exceeded')
             self.warning = _('Max fee exceeded')
             return
-
 
         comb_fee = fee + self._parent_fee
         comb_feerate = comb_fee / self._total_size

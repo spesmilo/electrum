@@ -1,4 +1,4 @@
-import QtQuick 2.6
+import QtQuick 2.15
 import QtQuick.Controls 2.0
 
 import org.electrum 1.0
@@ -11,6 +11,10 @@ TextField {
     font.family: FixedFont
     placeholderText: qsTr('Amount')
     inputMethodHints: Qt.ImhDigitsOnly
+    validator: RegularExpressionValidator {
+        regularExpression: Config.btcAmountRegex
+    }
+
     property Amount textAsSats
     onTextChanged: {
         textAsSats = Config.unitsToSats(amount.text)
