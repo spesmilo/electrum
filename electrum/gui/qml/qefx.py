@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
 
 from electrum.bitcoin import COIN
 from electrum.exchange_rate import FxThread
@@ -59,6 +59,15 @@ class QEFX(QObject, QtEventListener):
             self.enabled = self.enabled and currency != ''
             self.fiatCurrencyChanged.emit()
             self.rateSourcesChanged.emit()
+
+    @pyqtProperty('QRegularExpression', notify=fiatCurrencyChanged)
+    def fiatAmountRegex(self):
+        decimals = self.fx.ccy_precision()
+        exp = '[0-9]*'
+        if decimals:
+            exp += '\\.'
+            exp += '[0-9]{0,%d}' % decimals
+        return QRegularExpression(exp)
 
     historicRatesChanged = pyqtSignal()
     @pyqtProperty(bool, notify=historicRatesChanged)
