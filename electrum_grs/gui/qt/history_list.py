@@ -546,10 +546,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.end_button.setText(_('To') + ' ' + self.format_date(self.end_date))
         self.hide_rows()
 
+    CONFIG_KEY_SHOW_TOOLBAR = "show_toolbar_history"
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_tx_label = toolbar.itemAt(0).widget()
-        menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar(self.config))
+        self._toolbar_checkbox = menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar())
         self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
         self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)
         self.menu_summary = menu.addAction(_("&Summary"), self.show_summary)

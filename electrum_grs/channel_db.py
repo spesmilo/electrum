@@ -68,7 +68,7 @@ class ChannelInfo(NamedTuple):
     @staticmethod
     def from_msg(payload: dict) -> 'ChannelInfo':
         features = int.from_bytes(payload['features'], 'big')
-        validate_features(features)
+        features = validate_features(features)
         channel_id = payload['short_channel_id']
         node_id_1 = payload['node_id_1']
         node_id_2 = payload['node_id_2']
@@ -164,7 +164,7 @@ class NodeInfo(NamedTuple):
     def from_msg(payload) -> Tuple['NodeInfo', Sequence['LNPeerAddr']]:
         node_id = payload['node_id']
         features = int.from_bytes(payload['features'], "big")
-        validate_features(features)
+        features = validate_features(features)
         addresses = NodeInfo.parse_addresses_field(payload['addresses'])
         peer_addrs = []
         for host, port in addresses:
