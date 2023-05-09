@@ -63,7 +63,7 @@ from electrum_grs.qrreader import MissingQrDetectionLib
 from .util import read_QIcon
 
 if TYPE_CHECKING:
-    from electrum import SimpleConfig
+    from electrum_grs import SimpleConfig
     from .main_window import ElectrumWindow
 
 
