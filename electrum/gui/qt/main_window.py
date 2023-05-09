@@ -1339,6 +1339,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         if toolbar:
             vbox.addLayout(toolbar)
         vbox.addWidget(l)
+        if toolbar:
+            l.show_toolbar()
         return w
 
     def create_addresses_tab(self):

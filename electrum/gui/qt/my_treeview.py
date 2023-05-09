@@ -51,7 +51,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate,
                              QMenu, QStyleOptionViewItem, QLayout, QLayoutItem, QAbstractButton,
-                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy)
+                             QGraphicsEffect, QGraphicsScene, QGraphicsPixmapItem, QSizePolicy, QAction)
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, resource_path
@@ -63,6 +63,7 @@ from electrum.qrreader import MissingQrDetectionLib
 from .util import read_QIcon
 
 if TYPE_CHECKING:
+    from electrum import SimpleConfig
     from .main_window import ElectrumWindow
 
 
@@ -73,13 +74,13 @@ class MyMenu(QMenu):
         self.setToolTipsVisible(True)
         self.config = config
 
-    def addToggle(self, text: str, callback, *, tooltip=''):
+    def addToggle(self, text: str, callback, *, tooltip='') -> QAction:
         m = self.addAction(text, callback)
         m.setCheckable(True)
         m.setToolTip(tooltip)
         return m
 
-    def addConfig(self, text:str, name:str, default:bool, *, tooltip='', callback=None):
+    def addConfig(self, text: str, name: str, default: bool, *, tooltip='', callback=None) -> QAction:
         b = self.config.get(name, default)
         m = self.addAction(text, lambda: self._do_toggle_config(name, default, callback))
         m.setCheckable(True)
@@ -94,7 +95,7 @@ class MyMenu(QMenu):
             callback()
 
 
-def create_toolbar_with_menu(config, title):
+def create_toolbar_with_menu(config: 'SimpleConfig', title):
     menu = MyMenu(config)
     toolbar_button = QToolButton()
     toolbar_button.setIcon(read_QIcon("preferences.png"))
@@ -401,7 +402,15 @@ class MyTreeView(QTreeView):
     def create_toolbar_with_menu(self, title):
         return create_toolbar_with_menu(self.config, title)
 
-    def show_toolbar(self, state, config=None):
+    CONFIG_KEY_SHOW_TOOLBAR = None  # type: Optional[str]
+    _toolbar_checkbox = None  # type: Optional[QAction]
+    def show_toolbar(self, state: bool = None):
+        if state is None:  # get value from config
+            if self.config and self.CONFIG_KEY_SHOW_TOOLBAR:
+                state = self.config.get(self.CONFIG_KEY_SHOW_TOOLBAR, None)
+            if state is None:
+                return
+        assert isinstance(state, bool), state
         if state == self.toolbar_shown:
             return
         self.toolbar_shown = state
@@ -409,9 +418,18 @@ class MyTreeView(QTreeView):
             b.setVisible(state)
         if not state:
             self.on_hide_toolbar()
+        if self._toolbar_checkbox is not None:
+            # update the cb state now, in case the checkbox was not what triggered us
+            self._toolbar_checkbox.setChecked(state)
 
-    def toggle_toolbar(self, config=None):
-        self.show_toolbar(not self.toolbar_shown, config)
+    def on_hide_toolbar(self):
+        pass
+
+    def toggle_toolbar(self):
+        new_state = not self.toolbar_shown
+        self.show_toolbar(new_state)
+        if self.config and self.CONFIG_KEY_SHOW_TOOLBAR:
+            self.config.set_key(self.CONFIG_KEY_SHOW_TOOLBAR, new_state)
 
     def add_copy_menu(self, menu: QMenu, idx) -> QMenu:
         cc = menu.addMenu(_("Copy"))
