@@ -87,6 +87,7 @@ Pane {
 
                     FormattedAmount {
                         visible: !txdetails.isUnrelated
+                        Layout.preferredWidth: 1
                         Layout.fillWidth: true
                         amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount
                     }
@@ -107,9 +108,12 @@ Pane {
                     }
 
                     Label {
+                        Layout.preferredWidth: 1
+                        Layout.fillWidth: true
                         visible: txdetails.feeRateStr != ""
                         text: qsTr('Transaction fee rate')
                         color: Material.accentColor
+                        wrapMode: Text.Wrap
                     }
 
                     Label {
