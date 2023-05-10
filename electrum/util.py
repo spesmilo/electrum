@@ -104,6 +104,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
+    """Returns the max number of digits allowed after the decimal point."""
     # e.g. "BTC" -> 8
     try:
         return base_units[unit_name]
