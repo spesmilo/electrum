@@ -88,7 +88,7 @@ ElDialog {
 
                         GridLayout {
                             id: itemLayout
-                            columns: 2
+                            columns: 3
                             rowSpacing: 0
 
                             anchors {
@@ -98,9 +98,20 @@ ElDialog {
                                 rightMargin: constants.paddingMedium
                             }
 
+                            Item {
+                                Layout.columnSpan: 3
+                                Layout.preferredHeight: constants.paddingLarge
+                                Layout.preferredWidth: 1
+                            }
+                            Image {
+                                Layout.rowSpan: 3
+                                source: Qt.resolvedUrl('../../icons/wallet.png')
+                            }
                             Label {
                                 Layout.columnSpan: 2
+                                Layout.fillWidth: true
                                 text: model.description
+                                wrapMode: Text.Wrap
                             }
                             Label {
                                 text: qsTr('script type')
@@ -119,7 +130,7 @@ ElDialog {
                                 text: model.derivation_path
                             }
                             Item {
-                                Layout.columnSpan: 2
+                                Layout.columnSpan: 3
                                 Layout.preferredHeight: constants.paddingLarge
                                 Layout.preferredWidth: 1
                             }
