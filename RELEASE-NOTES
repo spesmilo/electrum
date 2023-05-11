@@ -1,5 +1,4 @@
 # Release 4.4.3 (May 11, 2023)
-
  * Intentionally break multisig wallets that have heterogeneous master
    keys. Versions 4.4.0 to 4.4.2 of Electrum for Android did not check
    that master keys used the same script type.  This may result in the
@@ -7,6 +6,23 @@
    any existing version of Electrum. It is not sure whether any users
    are affected by this; if there are any, we will publish
    instructions on how to spend those coins (#8417, #8418).
+ * Qt GUI:
+   - handle expected errors in DSCancelDialog (#8390)
+   - persist addresses tab toolbar "show/hide" state (b40a608b)
+ * QML GUI:
+   - implement bip39 account detection (0e0c7980)
+   - add share toolbutton for outputs in TxDetails (#8410)
+ * Hardware wallets:
+   - Ledger:
+     - fix old bitcoin app support (<2.1): "no sig for ..." (#8365)
+     - bump req ledger-bitcoin (0.2.0+), adapt to API change (30204991)
+ * Lightning:
+   - limit max feature bit we accept to 10_000 (#8403)
+   - do not disconnect on "warning" messages (6fade55d)
+ * fix wallet.get_tx_parents for chain of unconf txs (#8391)
+ * locale: translate more strings when using "default" lang (a0c43573)
+ * wallet: persist frozen state of addresses to disk right away (#8389)
+
 
 # Release 4.4.2 (May 4, 2023)
  * Qt GUI:
