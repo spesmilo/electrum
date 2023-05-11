@@ -342,10 +342,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 wallet = self.daemon.load_wallet(path, None)
             except Exception as e:
                 self.logger.exception('')
+                err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
                 custom_message_box(icon=QMessageBox.Warning,
                                    parent=None,
                                    title=_('Error'),
-                                   text=_('Cannot load wallet') + ' (1):\n' + repr(e))
+                                   text=_('Cannot load wallet') + ' (1):\n' + err_text)
+                if isinstance(e, WalletFileException) and e.should_report_crash:
+                    send_exception_to_crash_reporter(e)
                 # if app is starting, still let wizard appear
                 if not app_is_starting:
                     return
@@ -364,10 +367,13 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 window = self._create_window_for_wallet(wallet)
         except Exception as e:
             self.logger.exception('')
+            err_text = str(e) if isinstance(e, WalletFileException) else repr(e)
             custom_message_box(icon=QMessageBox.Warning,
                                parent=None,
                                title=_('Error'),
-                               text=_('Cannot load wallet') + '(2) :\n' + repr(e))
+                               text=_('Cannot load wallet') + '(2) :\n' + err_text)
+            if isinstance(e, WalletFileException) and e.should_report_crash:
+                send_exception_to_crash_reporter(e)
             if app_is_starting:
                 # If we raise in this context, there are no more fallbacks, we will shut down.
                 # Worst case scenario, we might have gotten here without user interaction,

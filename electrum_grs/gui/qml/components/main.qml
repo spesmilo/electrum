@@ -495,7 +495,7 @@ ApplicationWindow
         }
         function onWalletOpenError(error) {
             console.log('wallet open error')
-            var dialog = app.messageDialog.createObject(app, {'text': error})
+            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), 'text': error })
             dialog.open()
         }
         function onAuthRequired(method, authMessage) {

@@ -57,7 +57,7 @@ if TYPE_CHECKING:
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 51     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 52     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -79,6 +79,12 @@ class DBMetadata(StoredObject):
             return "unknown"
         date_str = datetime.date.fromtimestamp(ts).isoformat()
         return f"using {ver}, on {date_str}"
+
+
+# note: subclassing WalletFileException for some specific cases
+#       allows the crash reporter to distinguish them and open
+#       separate tracking issues
+class WalletFileExceptionVersion51(WalletFileException): pass
 
 
 class WalletDB(JsonDB):
@@ -220,6 +226,7 @@ class WalletDB(JsonDB):
         self._convert_version_49()
         self._convert_version_50()
         self._convert_version_51()
+        self._convert_version_52()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
         self._after_upgrade_tasks()
@@ -1016,6 +1023,38 @@ class WalletDB(JsonDB):
             item['payment_hash'] = payment_hash
         self.data['seed_version'] = 51
 
+    def _detect_insane_version_51(self) -> int:
+        """Returns 0 if file okay,
+        error code 1: multisig wallet has old_mpk
+        error code 2: multisig wallet has mixed Ypub/Zpub
+        """
+        assert self.get('seed_version') == 51
+        xpub_type = None
+        for ks_name in ['x{}/'.format(i) for i in range(1, 16)]:  # having any such field <=> multisig wallet
+            ks = self.data.get(ks_name, None)
+            if ks is None: continue
+            ks_type = ks.get('type')
+            if ks_type == "old":
+                return 1  # error
+            assert ks_type in ("bip32", "hardware"), f"unexpected {ks_type=}"
+            xpub = ks.get('xpub') or None
+            assert xpub is not None
+            assert isinstance(xpub, str)
+            if xpub_type is None:  # first iter
+                xpub_type = xpub[0:4]
+            if xpub[0:4] != xpub_type:
+                return 2  # error
+        # looks okay
+        return 0
+
+    def _convert_version_52(self):
+        if not self._is_upgrade_method_needed(51, 51):
+            return
+        if (error_code := self._detect_insane_version_51()) != 0:
+            # should not get here; get_seed_version should have caught this
+            raise Exception(f'unsupported wallet file: version_51 with error {error_code}')
+        self.data['seed_version'] = 52
+
     def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -1071,9 +1110,11 @@ class WalletDB(JsonDB):
             raise WalletFileException('This version of Electrum-GRS is too old to open this wallet.\n'
                                       '(highest supported storage version: {}, version of this file: {})'
                                       .format(FINAL_SEED_VERSION, seed_version))
-        if seed_version==14 and self.get('seed_type') == 'segwit':
+        if seed_version == 14 and self.get('seed_type') == 'segwit':
             self._raise_unsupported_version(seed_version)
-        if seed_version >=12:
+        if seed_version == 51 and self._detect_insane_version_51():
+            self._raise_unsupported_version(seed_version)
+        if seed_version >= 12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
             self._raise_unsupported_version(seed_version)
@@ -1092,6 +1133,23 @@ class WalletDB(JsonDB):
             else:
                 # creation was complete if electrum-grs was run from source
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
+        if seed_version == 51:
+            error_code = self._detect_insane_version_51()
+            assert error_code != 0
+            msg += f" ({error_code=})"
+            if error_code == 1:
+                msg += "\nThis is a multisig wallet containing an old_mpk (pre-bip32 master public key)."
+                msg += "\nPlease contact us to help recover it by opening an issue on GitHub."
+            elif error_code == 2:
+                msg += ("\nThis is a multisig wallet containing mixed xpub/Ypub/Zpub."
+                        "\nThe script type is determined by the type of the first keystore."
+                        "\nTo recover, you should re-create the wallet with matching type "
+                        "(converted if needed) master keys."
+                        "\nOr you can contact us to help recover it by opening an issue on GitHub.")
+            else:
+                raise Exception(f"unexpected {error_code=}")
+            raise WalletFileExceptionVersion51(msg, should_report_crash=True)
+        # generic exception
         raise WalletFileException(msg)
 
     def _add_db_creation_metadata(self):

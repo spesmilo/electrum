@@ -8,7 +8,7 @@ from electrum_grs.storage import WalletStorage, StorageEncryptionVersion
 from electrum_grs.wallet_db import WalletDB
 from electrum_grs.wallet import Wallet
 from electrum_grs.bip32 import normalize_bip32_derivation, xpub_type
-from electrum_grs.util import InvalidPassword, WalletFileException
+from electrum_grs.util import InvalidPassword, WalletFileException, send_exception_to_crash_reporter
 from electrum_grs import keystore
 
 if TYPE_CHECKING:
@@ -120,9 +120,16 @@ class QEWalletDB(QObject):
 
     @pyqtSlot()
     def verify(self):
-        self.load_storage()
-        if self._storage:
-            self.load_db()
+        try:
+            self._load_storage()
+            if self._storage:
+                self._load_db()
+        except WalletFileException as e:
+            self._logger.error(f"verify errored: {repr(e)}")
+            self._storage = None
+            self.walletOpenProblem.emit(str(e))
+            if e.should_report_crash:
+                send_exception_to_crash_reporter(e)
 
     @pyqtSlot()
     def doSplit(self):
@@ -134,7 +141,8 @@ class QEWalletDB(QObject):
 
         self.splitFinished.emit()
 
-    def load_storage(self):
+    def _load_storage(self):
+        """can raise WalletFileException"""
         self._storage = WalletStorage(self._path)
         if not self._storage.file_exists():
             self._logger.warning('file does not exist')
@@ -170,27 +178,23 @@ class QEWalletDB(QObject):
             if not self._storage.is_past_initial_decryption():
                 self._storage = None
 
-    def load_db(self):
+    def _load_db(self):
+        """can raise WalletFileException"""
         # needs storage accessible
-        try:
-            self._db = WalletDB(self._storage.read(), manual_upgrades=True)
-            if self._db.requires_split():
-                self._logger.warning('wallet requires split')
-                self._requiresSplit = True
-                self.requiresSplitChanged.emit()
-                return
-            if self._db.get_action():
-                self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
-                return
+        self._db = WalletDB(self._storage.read(), manual_upgrades=True)
+        if self._db.requires_split():
+            self._logger.warning('wallet requires split')
+            self._requiresSplit = True
+            self.requiresSplitChanged.emit()
+            return
+        if self._db.get_action():
+            self._logger.warning('action pending. QML version doesn\'t support continuation of wizard')
+            return
 
-            if self._db.requires_upgrade():
-                self._logger.warning('wallet requires upgrade, upgrading')
-                self._db.upgrade()
-                self._db.write(self._storage)
+        if self._db.requires_upgrade():
+            self._logger.warning('wallet requires upgrade, upgrading')
+            self._db.upgrade()
+            self._db.write(self._storage)
 
-            self._ready = True
-            self.readyChanged.emit()
-        except WalletFileException as e:
-            self._logger.error(f'{repr(e)}')
-            self._storage = None
-            self.walletOpenProblem.emit(str(e))
+        self._ready = True
+        self.readyChanged.emit()

@@ -223,7 +223,7 @@ class QEDaemon(AuthMixin, QObject):
 
                 self._backendWalletLoaded.emit(local_password)
             except WalletFileException as e:
-                self._logger.error(str(e))
+                self._logger.error(f"load_wallet_task errored opening wallet: {e!r}")
                 self.walletOpenError.emit(str(e))
             finally:
                 self._loading = False
