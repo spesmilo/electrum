@@ -187,7 +187,10 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class WalletFileException(Exception): pass
+class WalletFileException(Exception):
+    def __init__(self, message='', *, should_report_crash: bool = False):
+        Exception.__init__(self, message)
+        self.should_report_crash = should_report_crash
 
 
 class BitcoinException(Exception): pass
