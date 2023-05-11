@@ -41,8 +41,10 @@ Item {
     property color colorProgress: '#ffffff80'
     property color colorDone: '#ff80ff80'
 
-    property color colorLightningLocal: "blue"
+    property color colorLightningLocal: "#6060ff"
+    property color colorLightningLocalReserve: "#0000a0"
     property color colorLightningRemote: "yellow"
+    property color colorLightningRemoteReserve: Qt.darker(colorLightningRemote, 1.5)
     property color colorChannelOpen: "#ff80ff80"
 
     property color colorPiechartTotal: Material.accentColor

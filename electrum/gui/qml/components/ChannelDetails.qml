@@ -170,6 +170,10 @@ Pane {
                             capacity: channeldetails.capacity
                             localCapacity: channeldetails.localCapacity
                             remoteCapacity: channeldetails.remoteCapacity
+                            canSend: channeldetails.canSend
+                            canReceive: channeldetails.canReceive
+                            frozenForSending: channeldetails.frozenForSending
+                            frozenForReceiving: channeldetails.frozenForReceiving
                         }
 
                         Label {
