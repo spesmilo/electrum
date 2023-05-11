@@ -17,7 +17,7 @@ Item {
     height: 10
     implicitWidth: 100
 
-    onWidthChanged: {
+    function update() {
         var cap = capacity.satsInt * 1000
         var twocap = cap * 2
         l1.width = width * (cap - localCapacity.msatsInt) / twocap
@@ -37,6 +37,31 @@ Item {
         }
         r1.width = width * (cap - remoteCapacity.msatsInt) / twocap
     }
+
+    onWidthChanged: update()
+    onFrozenForSendingChanged: update()
+    onFrozenForReceivingChanged: update()
+
+    Connections {
+        target: localCapacity
+        function onMsatsIntChanged() { update() }
+    }
+
+    Connections {
+        target: remoteCapacity
+        function onMsatsIntChanged() { update() }
+    }
+
+    Connections {
+        target: canSend
+        function onMsatsIntChanged() { update() }
+    }
+
+    Connections {
+        target: canReceive
+        function onMsatsIntChanged() { update() }
+    }
+
     Rectangle {
         id: l1
         x: 0
