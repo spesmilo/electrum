@@ -1,3 +1,13 @@
+# Release 4.4.3 (May 11, 2023)
+
+ * Intentionally break multisig wallets that have heterogeneous master
+   keys. Versions 4.4.0 to 4.4.2 of Electrum for Android did not check
+   that master keys used the same script type.  This may result in the
+   creation of multisig wallets that that cannot be spent from with
+   any existing version of Electrum. It is not sure whether any users
+   are affected by this; if there are any, we will publish
+   instructions on how to spend those coins (#8417, #8418).
+
 # Release 4.4.2 (May 4, 2023)
  * Qt GUI:
    - fix undefined var check in swap_dialog (#8341)
