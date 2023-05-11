@@ -3532,6 +3532,12 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.wallet_type = db.get('wallet_type')
         self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, db, storage, config=config)
+        # sanity checks
+        for ks in self.get_keystores():
+            if not isinstance(ks, keystore.Xpub):
+                raise Exception(f"unexpected keystore type={type(ks)} in multisig")
+            if bip32.xpub_type(self.keystore.xpub) != bip32.xpub_type(ks.xpub):
+                raise Exception(f"multisig wallet needs to have homogeneous xpub types")
 
     def get_public_keys(self, address):
         return [pk.hex() for pk in self.get_public_keys_with_deriv_info(address)]
