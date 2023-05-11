@@ -305,18 +305,38 @@ class NewWalletWizard(AbstractWizard):
 
         return True
 
-    def has_duplicate_keys(self, wizard_data):
+    def has_duplicate_masterkeys(self, wizard_data) -> bool:
+        """Multisig wallets need distinct master keys. If True, need to prevent wallet-creation."""
         xpubs = []
         xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
             xpubs.append(self.keystore_from_data(data).get_master_public_key())
+        assert xpubs
+        return len(xpubs) != len(set(xpubs))
 
-        while len(xpubs):
-            xpub = xpubs.pop()
-            if xpub in xpubs:
+    def has_heterogeneous_masterkeys(self, wizard_data) -> bool:
+        """Multisig wallets need homogeneous master keys.
+        All master keys need to be bip32, and e.g. Ypub cannot be mixed with Zpub.
+        If True, need to prevent wallet-creation.
+        """
+        xpubs = []
+        xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
+        for cosigner in wizard_data['multisig_cosigner_data']:
+            data = wizard_data['multisig_cosigner_data'][cosigner]
+            xpubs.append(self.keystore_from_data(data).get_master_public_key())
+        assert xpubs
+        try:
+            k_xpub_type = xpub_type(xpubs[0])
+        except Exception:
+            return True  # maybe old_mpk?
+        for xpub in xpubs:
+            try:
+                my_xpub_type = xpub_type(xpub)
+            except Exception:
+                return True  # maybe old_mpk?
+            if my_xpub_type != k_xpub_type:
                 return True
-
         return False
 
     def keystore_from_data(self, data):
@@ -422,10 +442,17 @@ class NewWalletWizard(AbstractWizard):
             db.put('x3/', data['x3/'])
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
+            if not isinstance(k, keystore.Xpub):
+                raise Exception(f"unexpected keystore(main) type={type(k)} in multisig. not bip32.")
+            k_xpub_type = xpub_type(k.xpub)
             db.put('wallet_type', '%dof%d' % (data['multisig_signatures'],data['multisig_participants']))
             db.put('x1/', k.dump())
             for cosigner in data['multisig_cosigner_data']:
                 cosigner_keystore = self.keystore_from_data(data['multisig_cosigner_data'][cosigner])
+                if not isinstance(cosigner_keystore, keystore.Xpub):
+                    raise Exception(f"unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.")
+                if k_xpub_type != xpub_type(cosigner_keystore.xpub):
+                    raise Exception("multisig wallet needs to have homogeneous xpub types")
                 if data['encrypt'] and cosigner_keystore.may_have_password():
                     cosigner_keystore.update_password(None, data['password'])
                 db.put(f'x{cosigner}/', cosigner_keystore.dump())

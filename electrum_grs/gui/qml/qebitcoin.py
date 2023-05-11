@@ -113,22 +113,30 @@ class QEBitcoin(QObject):
             return False
 
         k = keystore.from_master_key(key)
-        if isinstance(k, keystore.Xpub):  # has xpub  # TODO are these checks useful?
-            t1 = xpub_type(k.xpub)
-            if wallet_type == 'standard':
-                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+        if wallet_type == 'standard':
+            if isinstance(k, keystore.Xpub):  # has bip32 xpub
+                t1 = xpub_type(k.xpub)
+                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:  # disallow Ypub/Zpub
                     self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
                     return False
-                return True
-            elif wallet_type == 'multisig':
-                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                    self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
-                    return False
-                return True
+            elif isinstance(k, keystore.Old_KeyStore):
+                pass
             else:
-                self.validationMessage = '%s: %s' % (_('Unsupported wallet type'), wallet_type)
-                self.logger.error(f'Unsupported wallet type: {wallet_type}')
+                self._logger.error(f"unexpected keystore type: {type(keystore)}")
                 return False
+        elif wallet_type == 'multisig':
+            if not isinstance(k, keystore.Xpub):  # old mpk?
+                self.validationMessage = '%s: %s' % (_('Wrong key type'), "not bip32")
+                return False
+            t1 = xpub_type(k.xpub)
+            if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:  # disallow ypub/zpub
+                self.validationMessage = '%s: %s' % (_('Wrong key type'), t1)
+                return False
+        else:
+            self.validationMessage = '%s: %s' % (_('Unsupported wallet type'), wallet_type)
+            self._logger.error(f'Unsupported wallet type: {wallet_type}')
+            return False
+        # looks okay
         return True
 
     @pyqtSlot(str, result=bool)

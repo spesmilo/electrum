@@ -33,6 +33,10 @@ Wizard {
             walletwizard.path = wiz.path
             walletwizard.walletCreated()
         }
+        function onCreateError(error) {
+            var dialog = app.messageDialog.createObject(app, { text: error })
+            dialog.open()
+        }
     }
 }
 

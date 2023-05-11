@@ -289,7 +289,8 @@ class BIP32Node(NamedTuple):
         return hash_160(self.eckey.get_public_key_bytes(compressed=True))[0:4]
 
 
-def xpub_type(x):
+def xpub_type(x: str):
+    assert x is not None
     return BIP32Node.from_xkey(x).xtype
 
 

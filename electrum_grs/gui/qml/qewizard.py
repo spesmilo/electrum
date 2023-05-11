@@ -83,10 +83,16 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         return self._daemon.singlePasswordEnabled
 
     @pyqtSlot('QJSValue', result=bool)
-    def hasDuplicateKeys(self, js_data):
-        self._logger.info('Checking for duplicate keys')
+    def hasDuplicateMasterKeys(self, js_data):
+        self._logger.info('Checking for duplicate masterkeys')
         data = js_data.toVariant()
-        return self.has_duplicate_keys(data)
+        return self.has_duplicate_masterkeys(data)
+
+    @pyqtSlot('QJSValue', result=bool)
+    def hasHeterogeneousMasterKeys(self, js_data):
+        self._logger.info('Checking for heterogeneous masterkeys')
+        data = js_data.toVariant()
+        return self.has_heterogeneous_masterkeys(data)
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
