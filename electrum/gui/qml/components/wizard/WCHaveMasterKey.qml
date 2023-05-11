@@ -42,8 +42,12 @@ WizardComponent {
 
         if (cosigner) {
             applyMasterKey(key)
-            if (wiz.hasDuplicateKeys(wizard_data)) {
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
                 validationtext.text = qsTr('Error: duplicate master public key')
+                return false
+            }
+            if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: master public key types do not match')
                 return false
             }
         }
