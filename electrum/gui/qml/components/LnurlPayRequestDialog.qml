@@ -17,7 +17,10 @@ ElDialog {
 
     padding: 0
 
-    property bool valid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
+    property bool commentValid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
+    property bool amountValid: amountBtc.textAsSats.satsInt >= parseInt(invoiceParser.lnurlData['min_sendable_sat'])
+        && amountBtc.textAsSats.satsInt <= parseInt(invoiceParser.lnurlData['max_sendable_sat'])
+    property bool valid: commentValid && amountValid
 
     ColumnLayout {
         width: parent.width
