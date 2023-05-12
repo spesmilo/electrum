@@ -17,7 +17,7 @@ from electrum.transaction import PartialTxOutput
 from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
                            maybe_extract_lightning_payment_identifier, get_asyncio_loop)
 from electrum.lnutil import format_short_channel_id
-from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
+from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, lightning_address_to_url
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
 
@@ -493,6 +493,8 @@ class QEInvoiceParser(QEInvoice):
             self.setInvoiceType(QEInvoice.Type.Invalid)
             return
 
+        self._logger.debug(f'recipient={recipient!r}')
+
         maybe_lightning_invoice = recipient
 
         try:
@@ -537,8 +539,13 @@ class QEInvoiceParser(QEInvoice):
                     return
                 self._logger.exception(repr(e))
 
+        if not lninvoice:
+            if lightning_address_to_url(recipient):
+                self.resolve_lightning_address(recipient)
+                return
+
         if not lninvoice and not bip21:
-            self.validationError.emit('unknown',_('Unknown invoice'))
+            self.validationError.emit('unknown', _('Unknown invoice'))
             self.clear()
             return
 
@@ -549,7 +556,7 @@ class QEInvoiceParser(QEInvoice):
                         self.setValidLightningInvoice(lninvoice)
                         self.validationSuccess.emit()
                     else:
-                        self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
+                        self.validationError.emit('no_lightning', _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
                 else:
                     self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
                     self._validateRecipient_bip21_onchain(bip21)
@@ -559,7 +566,7 @@ class QEInvoiceParser(QEInvoice):
                         self._logger.debug('flow where invoice has both LN and onchain, we have LN enabled but no channels')
                         self._validateRecipient_bip21_onchain(bip21)
                     else:
-                        self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
+                        self.validationWarning.emit('no_channels', _('Detected valid Lightning invoice, but there are no open channels'))
                 else:
                     self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()
@@ -580,20 +587,27 @@ class QEInvoiceParser(QEInvoice):
         self.setValidOnchainInvoice(invoice)
         self.validationSuccess.emit()
 
-    def resolve_lnurl(self, lnurl):
+    def _resolve_lnurlp_task(self, url: str):
+        try:
+            coro = request_lnurl(url)
+            fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
+            self.on_lnurl(fut.result())
+        except Exception as e:
+            self.validationError.emit('lnurl', repr(e))
+
+    def resolve_lnurl(self, lnurl: str):
         self._logger.debug('resolve_lnurl')
         url = decode_lnurl(lnurl)
         self._logger.debug(f'{repr(url)}')
 
-        def resolve_task():
-            try:
-                coro = request_lnurl(url)
-                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
-                self.on_lnurl(fut.result())
-            except Exception as e:
-                self.validationError.emit('lnurl', repr(e))
+        threading.Thread(target=self._resolve_lnurlp_task, args=(url,), daemon=True).start()
 
-        threading.Thread(target=resolve_task, daemon=True).start()
+    def resolve_lightning_address(self, lightning_address: str):
+        self._logger.debug('resolve_lightning_address')
+        url = lightning_address_to_url(lightning_address)
+        self._logger.debug(f'{repr(url)}')
+
+        threading.Thread(target=self._resolve_lnurlp_task, args=(url,), daemon=True).start()
 
     def on_lnurl(self, lnurldata):
         self._logger.debug('on_lnurl')
