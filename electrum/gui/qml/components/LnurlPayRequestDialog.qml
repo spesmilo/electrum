@@ -21,20 +21,24 @@ ElDialog {
 
     ColumnLayout {
         width: parent.width
+
         spacing: 0
 
         GridLayout {
+            id: rootLayout
             columns: 2
 
             Layout.fillWidth: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
+            Layout.bottomMargin: constants.paddingLarge
 
             Label {
                 text: qsTr('Provider')
                 color: Material.accentColor
             }
             Label {
+                Layout.fillWidth: true
                 text: invoiceParser.lnurlData['domain']
             }
             Label {
@@ -42,8 +46,8 @@ ElDialog {
                 color: Material.accentColor
             }
             Label {
-                text: invoiceParser.lnurlData['metadata_plaintext']
                 Layout.fillWidth: true
+                text: invoiceParser.lnurlData['metadata_plaintext']
                 wrapMode: Text.Wrap
             }
 
@@ -52,36 +56,69 @@ ElDialog {
                 color: Material.accentColor
             }
 
-            BtcField {
-                id: amountBtc
-                text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
-                enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
-                color: Material.foreground // override gray-out on disabled
-                fiatfield: null
-                Layout.preferredWidth: parent.width /3
-                onTextAsSatsChanged: {
-                    invoiceParser.amountOverride = textAsSats
+            RowLayout {
+                Layout.fillWidth: true
+                BtcField {
+                    id: amountBtc
+                    Layout.preferredWidth: rootLayout.width /3
+                    text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
+                    enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                    color: Material.foreground // override gray-out on disabled
+                    fiatfield: amountFiat
+                    onTextAsSatsChanged: {
+                        invoiceParser.amountOverride = textAsSats
+                    }
+                }
+                Label {
+                    text: Config.baseUnit
+                    color: Material.accentColor
                 }
             }
-            Label {
-                Layout.columnSpan: 2
-                text: invoiceParser.lnurlData['min_sendable_sat'] == invoiceParser.lnurlData['max_sendable_sat']
-                        ? ''
-                        : qsTr('Amount must be between %1 and %2').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])) + Config.baseUnit
+
+            Item { visible: Daemon.fx.enabled; Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
+
+            RowLayout {
+                visible: Daemon.fx.enabled
+                FiatField {
+                    id: amountFiat
+                    Layout.preferredWidth: rootLayout.width / 3
+                    btcfield: amountBtc
+                }
+                Label {
+                    text: Daemon.fx.fiatCurrency
+                    color: Material.accentColor
+                }
             }
 
+            InfoTextArea {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                compact: true
+                visible: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                text: qsTr('Amount must be between %1 and %2 %3').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])).arg(Config.baseUnit)
+            }
+
+            Label {
+                Layout.columnSpan: 2
+                visible: invoiceParser.lnurlData['comment_allowed'] > 0
+                text: qsTr('Message')
+                color: Material.accentColor
+            }
             TextArea {
                 id: comment
-                visible: invoiceParser.lnurlData['comment_allowed'] > 0
                 Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width
+                Layout.fillWidth: true
+                Layout.leftMargin: constants.paddingLarge
                 Layout.minimumHeight: 80
+                visible: invoiceParser.lnurlData['comment_allowed'] > 0
                 wrapMode: TextEdit.Wrap
                 placeholderText: qsTr('Enter an (optional) message for the receiver')
                 color: text.length > invoiceParser.lnurlData['comment_allowed'] ? constants.colorError : Material.foreground
             }
 
             Label {
+                Layout.columnSpan: 2
+                Layout.leftMargin: constants.paddingLarge
                 visible: invoiceParser.lnurlData['comment_allowed'] > 0
                 text: qsTr('%1 characters remaining').arg(Math.max(0, (invoiceParser.lnurlData['comment_allowed'] - comment.text.length) ))
                 color: constants.mutedForeground
