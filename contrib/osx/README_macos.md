@@ -33,12 +33,11 @@ On Intel-based (x86_64) Macs:
 $ python3 -m pip install --user pyqt5
 ```
 
-Re ARM-based Macs (Apple M1), there are no prebuilt wheels on PyPI.
+On ARM-based Macs (Apple M1), there are no prebuilt wheels on PyPI.
 As a workaround, we can install it from `brew`:
-```
+```zsh
 $ brew install pyqt5
-$ echo 'export PATH="/opt/homebrew/opt/qt@5/bin:$PATH"' >> ~/.zshrc
-$ echo 'export PATH="/opt/homebrew/opt/pyqt@5/5.15.4_1/bin:$PATH"' >> ~/.zshrc
+$ echo 'export PYTHONPATH="/opt/homebrew/Cellar/pyqt@5/5.15.7_2/lib/python3.9/site-packages"' >> ~/.zshrc
 $ source ~/.zshrc
 ```
 
