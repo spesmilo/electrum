@@ -129,19 +129,24 @@ WizardComponent {
                 property string scripttype: 'p2sh'
                 text: qsTr('legacy multisig (p2sh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2sh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2sh' : false
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh-p2sh'
                 text: qsTr('p2sh-segwit multisig (p2wsh-p2sh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2wsh-p2sh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2wsh-p2sh' : false
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh'
-                checked: isMultisig
                 text: qsTr('native segwit multisig (p2wsh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2wsh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2wsh' : isMultisig
             }
 
             InfoTextArea {
