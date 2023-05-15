@@ -30,15 +30,15 @@ class QEBitcoin(QObject):
         self._validationMessage = ''
         self._words = None
 
-    @pyqtProperty('QString', notify=generatedSeedChanged)
+    @pyqtProperty(str, notify=generatedSeedChanged)
     def generatedSeed(self):
         return self._generated_seed
 
-    @pyqtProperty('QString', notify=seedTypeChanged)
+    @pyqtProperty(str, notify=seedTypeChanged)
     def seedType(self):
         return self._seed_type
 
-    @pyqtProperty('QString', notify=validationMessageChanged)
+    @pyqtProperty(str, notify=validationMessageChanged)
     def validationMessage(self):
         return self._validationMessage
 
