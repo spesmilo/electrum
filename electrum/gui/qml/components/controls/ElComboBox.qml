@@ -20,12 +20,9 @@ ComboBox {
 
     // determine widest element and store in implicitChildrenWidth
     function updateImplicitWidth() {
-        console.log('updating implicit width')
-        console.log(cb.count)
         for (let i = 0; i < cb.count; i++) {
             var txt = cb.textAt(i)
             var txtwidth = fontMetrics.advanceWidth(txt)
-            console.log(txt + ' is ' + txtwidth + ' wide')
             if (txtwidth > cb.implicitChildrenWidth) {
                 cb.implicitChildrenWidth = txtwidth
             }
