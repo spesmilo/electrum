@@ -306,6 +306,12 @@ Item {
             })
             dialog.open()
         }
+        function onPaymentFailed(invoice_id, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
+            dialog.open()
+        }
     }
 
     Component {
