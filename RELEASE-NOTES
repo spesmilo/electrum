@@ -1,3 +1,115 @@
+# Release 4.4.3 (May 11, 2023)
+ * Intentionally break multisig wallets that have heterogeneous master
+   keys. Versions 4.4.0 to 4.4.2 of Electrum for Android did not check
+   that master keys used the same script type. This may have resulted
+   in the creation of multisig wallets that that cannot be spent from
+   with any existing version of Electrum. It is not sure whether any
+   users are affected by this; if there are any, we will publish
+   instructions on how to spend those coins (#8417, #8418).
+ * Qt GUI:
+   - handle expected errors in DSCancelDialog (#8390)
+   - persist addresses tab toolbar "show/hide" state (b40a608b)
+ * QML GUI:
+   - implement bip39 account detection (0e0c7980)
+   - add share toolbutton for outputs in TxDetails (#8410)
+ * Hardware wallets:
+   - Ledger:
+     - fix old bitcoin app support (<2.1): "no sig for ..." (#8365)
+     - bump req ledger-bitcoin (0.2.0+), adapt to API change (30204991)
+ * Lightning:
+   - limit max feature bit we accept to 10_000 (#8403)
+   - do not disconnect on "warning" messages (6fade55d)
+ * fix wallet.get_tx_parents for chain of unconf txs (#8391)
+ * locale: translate more strings when using "default" lang (a0c43573)
+ * wallet: persist frozen state of addresses to disk right away (#8389)
+
+
+# Release 4.4.2 (May 4, 2023)
+ * Qt GUI:
+   - fix undefined var check in swap_dialog (#8341)
+   - really fix "recursion depth exceeded" for utxo privacy analysis (#8315)
+ * QML GUI:
+   - fix signing txs for 2fa wallets (#8368)
+   - fix for wallets with encrypted-keystore but unencrypted-storage (#8374)
+   - properly delete wizard components after use (#8357)
+   - avoid entering loadWallet if daemon is already busy loading (#8355)
+   - no auto capitalization on import and master key text fields (5600375d)
+   - remove Qt virtual keyboard and add Seedkeyboard for seed entry (#8371, #8352)
+   - add runtime toggling of android SECURE_FLAG, to allow screenshots (#8351)
+   - restrict cases where server is shown "lagging" (53d61c01)
+ * fix hardened char "h" vs "'" needed for some hw wallets (#8364, 499f5153)
+ * fix digitalbitbox(1) support (22b8c4e3)
+ * fix wrong type for "history_rates" config option (#8367)
+ * fix issues with wallet.get_tx_parents (a1bfea61, 56fa8325)
+
+
+# Release 4.4.1 (April 27, 2023)
+ * Qt GUI:
+   - fix sweeping (#8340)
+   - fix send tab input_qr_from_camera (#8342)
+   - fix crash reporter showing if send fails on typical errors (#8312)
+   - bumpfee: disallow targeting an abs fee. only allow feerate (#8318)
+ * QML GUI:
+   - fix offline-signing or co-signing pre-segwit txs (#8319)
+   - add option to show onchain address in ReceiveDetailsDialog (#8331)
+   - fix strings unique to QML did not get localized/translated (#8323)
+   - allow paying bip21 uri onchain that has both onchain and bolt11
+     if we cannot pay on LN (#8334, 312e50e9)
+   - virtual keyboard: make buttons somewhat larger (75e65c5c)
+   - fix(?) Android crash with some OS-accessibility settings (#8344)
+   - fix channelopener.connectStr qr scan popping under (#8335)
+   - fix restoring from old mpk (watchonly for "old" seeds) (#8356)
+ * libsecp256k1: add runtime support for 0.3.x, bump bundled to 0.3.1
+ * forbid paying to "http:" lnurls (enforce https or .onion) (1b5c7d46)
+ * fix wallet.bump_fee "decrease payment" erroring on too high target
+   fee rate (#8316)
+ * fix performance regressions in tx logic (ee521545, 910832c1)
+ * fix "recursion depth exceeded" for utxo privacy analysis (#8315)
+
+
+# Release 4.4.0 (April 18, 2023)
+
+ * New Android app, using QML instead of Kivy
+   - Using Qt 5.15.7, PyQt 5.15.9
+   - This release still on python3.8
+   - Feature parity with Kivy
+   - Android Back button used throughout, for cancel/close/back
+   - Note: two topbar menus; tap wallet name for wallet menu, tap
+     network orb for application menu
+   - Note: long-press Receive/Send for list of payment requests/invoices
+ * Qt GUI improvements
+   - New onchain transaction creation flow, with configurable preview
+   - Various options have been moved to toolbars, where their effect
+     can be more directly observed.
+ * Privacy features:
+    - lightning: support for option scid_alias.
+    - Qt GUI: UTXO privacy analysis: this dialog displays all the
+      wallet transactions that are either parent of a UTXO, or can be
+      related to it through address reuse (Note that in the case of
+      address reuse, it does not display children transactions.)
+    - Coins tab: New menu that lets users easily spend a selection
+      of UTXOs into a new channel, or into a submarine swap (Qt GUI).
+ * Internal:
+    - Lightning invoices are regenerated everytime routing hints are
+      deprecated due to liquidity changes.
+    - Script descriptors are used internally to sign transactions.
+
+
+# Release 4.3.4 - Copyright is Dubious (January 26, 2023)
+ * Lightning:
+   - make sending trampoline payments more reliable (5251e7f8)
+   - use different trampoline feature bits than eclair (#8141)
+ * invoice-handling: fix get_request_by_addr incorrectly mapping
+   addresses to request ids when an address was reused (#8113)
+ * fix a deadlock in wallet.py (52e2da3a)
+ * CLI: detect if daemon is already running (c7e2125f)
+ * add an AppStream metainfo.xml file for Linux packagers (#8149)
+ * payserver plugin:
+   -replaced vendored qrcode lib
+   -added tabs for on-chain and lightning invoices
+   -revamped html and javascript
+
+
 # Release 4.3.3 - (January 3, 2023)
  * Lightning:
    - fix handling failed HTLCs in gossip-based routing (#7995)

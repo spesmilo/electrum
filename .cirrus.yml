@@ -2,7 +2,7 @@ task:
   container:
     image: $ELECTRUM_IMAGE
     cpu: 1
-    memory: 1G
+    memory: 2G
   matrix:
     - name: Tox Python $ELECTRUM_PYTHON_VERSION
       env:
@@ -17,9 +17,15 @@ task:
        - env:
            ELECTRUM_PYTHON_VERSION: 3.10
        - env:
-           ELECTRUM_PYTHON_VERSION: 3
+           ELECTRUM_PYTHON_VERSION: 3.11
        - env:
            ELECTRUM_PYTHON_VERSION: rc
+       - name: Tox Python 3 debug mode
+         env:
+           ELECTRUM_PYTHON_VERSION: 3
+           # enable additional checks:
+           PYTHONASYNCIODEBUG: "1"
+           PYTHONDEVMODE: "1"
     - name: Tox PyPy
       allow_failures: true
       env:
@@ -35,9 +41,11 @@ task:
     - git tag
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-0
+    - apt-get -y install libsecp256k1-dev
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
   tox_script:
+    - export PYTHONASYNCIODEBUG
+    - export PYTHONDEVMODE
     - tox
   coveralls_script:
     - if [ ! -z "$COVERALLS_REPO_TOKEN" ] ; then coveralls ; fi
@@ -52,6 +60,8 @@ task:
     CI_BRANCH: $CIRRUS_BRANCH
     CI_PULL_REQUEST: $CIRRUS_PR
     # in addition, COVERALLS_REPO_TOKEN is set as an "override" in https://cirrus-ci.com/settings/...
+  depends_on:
+    - Flake8 Mandatory
 
 task:
   name: Locale
@@ -64,7 +74,7 @@ task:
     fingerprint_script: echo Locale && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS_CI
   install_script:
     - apt-get update
-    - apt-get -y install gettext
+    - apt-get -y install gettext qttools5-dev-tools
     - pip install -r $ELECTRUM_REQUIREMENTS_CI
     - pip install requests
   locale_script:
@@ -74,7 +84,7 @@ task:
     ELECTRUM_REQUIREMENTS_CI: contrib/requirements/requirements-ci.txt
     # in addition, crowdin_api_key is set as an "override" in https://cirrus-ci.com/settings/...
   depends_on:
-    - Tox Python 3.9
+    - Tox Python 3.8
   only_if: $CIRRUS_BRANCH == 'master'
 
 task:
@@ -93,7 +103,7 @@ task:
     populate_script: mkdir -p /tmp/bitcoind
   install_script:
     - apt-get update
-    - apt-get -y install libsecp256k1-0 curl jq bc
+    - apt-get -y install libsecp256k1-dev curl jq bc
     - pip3 install .[tests]
     # install e-x some commits after 1.16.0 tag, where it uses same aiorpcx as electrum
     - pip3 install git+https://github.com/spesmilo/electrumx.git@c8d2cc0d5cf9e549a90ca876d85fed9a90b8c4ed
@@ -114,6 +124,8 @@ task:
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
     # ElectrumX exits with an error without this:
     ALLOW_ROOT: 1
+  depends_on:
+    - Flake8 Mandatory
 
 task:
   container:
@@ -124,9 +136,9 @@ task:
     folder: ~/.cache/pip
     fingerprint_script: echo Flake8 && echo $ELECTRUM_IMAGE && cat $ELECTRUM_REQUIREMENTS
   install_script:
-    - pip install flake8
+    - pip install flake8 flake8-bugbear
   flake8_script:
-    - flake8 . --count --select=$ELECTRUM_LINTERS --show-source --statistics
+    - flake8 . --count --select="$ELECTRUM_LINTERS" --ignore="$ELECTRUM_LINTERS_IGNORE" --show-source --statistics --exclude "*_pb2.py,electrum/_vendor/"
   env:
     ELECTRUM_IMAGE: python:3.8
     ELECTRUM_REQUIREMENTS: contrib/requirements/requirements.txt
@@ -136,10 +148,13 @@ task:
         # list of error codes:
         # - https://flake8.pycqa.org/en/latest/user/error-codes.html
         # - https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
-        ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,F63,F7,F82,W191,W29
+        # - https://github.com/PyCQA/flake8-bugbear/tree/8c0e7eb04217494d48d0ab093bf5b31db0921989#list-of-warnings
+        ELECTRUM_LINTERS: E9,E101,E129,E273,E274,E703,E71,F63,F7,F82,W191,W29,B
+        ELECTRUM_LINTERS_IGNORE: B007,B009,B010,B019
     - name: Flake8 Non-Mandatory
       env:
-        ELECTRUM_LINTERS: E,F,W,C90
+        ELECTRUM_LINTERS: E,F,W,C90,B
+        ELECTRUM_LINTERS_IGNORE: ""
       allow_failures: true
 
 task:
@@ -170,6 +185,8 @@ task:
   env:
     CIRRUS_WORKING_DIR: /opt/wine64/drive_c/electrum
     CIRRUS_DOCKER_CONTEXT: contrib/build-wine
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Android build (Kivy $APK_ARCH)
@@ -196,6 +213,8 @@ task:
     - ./contrib/android/make_apk.sh kivy "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Android build (QML $APK_ARCH)
@@ -222,6 +241,8 @@ task:
     - ./contrib/android/make_apk.sh qml "$APK_ARCH" debug
   binaries_artifacts:
     path: "dist/*"
+  depends_on:
+    - Tox Python 3.8
 
 ## mac build disabled, as Cirrus CI no longer supports Intel-based mac builds
 #task:
@@ -278,6 +299,8 @@ task:
     path: "dist/*"
   env:
     CIRRUS_DOCKER_CONTEXT: contrib/build-linux/appimage
+  depends_on:
+    - Tox Python 3.8
 
 task:
   container:
@@ -299,6 +322,8 @@ task:
     - name: source-only tarball build
       env:
         OMIT_UNCLEAN_FILES: 1
+  depends_on:
+    - Tox Python 3.8
 
 task:
   name: Submodules

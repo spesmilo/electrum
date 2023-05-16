@@ -4,8 +4,8 @@ import os
 
 from electrum import constants, blockchain
 from electrum.simple_config import SimpleConfig
-from electrum.blockchain import Blockchain, deserialize_header, hash_header
-from electrum.util import bh2u, bfh, make_dir
+from electrum.blockchain import Blockchain, deserialize_header, hash_header, InvalidHeader
+from electrum.util import bfh, make_dir
 
 from . import ElectrumTestCase
 
@@ -418,11 +418,11 @@ class TestBlockchain(ElectrumTestCase):
         # Make sure that we don't generate compacts with the 0x00800000 bit set
         self.assertEqual(0x02008000, Blockchain.target_to_bits(0x80))
 
-        with self.assertRaises(Exception):  # target cannot be negative
+        with self.assertRaises(InvalidHeader):  # target cannot be negative
             Blockchain.bits_to_target(0x01fedcba)
-        with self.assertRaises(Exception):  # target cannot be negative
+        with self.assertRaises(InvalidHeader):  # target cannot be negative
             Blockchain.bits_to_target(0x04923456)
-        with self.assertRaises(Exception):  # overflow
+        with self.assertRaises(InvalidHeader):  # overflow
             Blockchain.bits_to_target(0xff123456)
 
 
@@ -441,20 +441,20 @@ class TestVerifyHeader(ElectrumTestCase):
         Blockchain.verify_header(self.header, self.prev_hash, self.target)
 
     def test_expected_hash_mismatch(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(InvalidHeader):
             Blockchain.verify_header(self.header, self.prev_hash, self.target,
                                      expected_header_hash="foo")
 
     def test_prev_hash_mismatch(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(InvalidHeader):
             Blockchain.verify_header(self.header, "foo", self.target)
 
     def test_target_mismatch(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(InvalidHeader):
             other_target = Blockchain.bits_to_target(0x1d00eeee)
             Blockchain.verify_header(self.header, self.prev_hash, other_target)
 
     def test_insufficient_pow(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(InvalidHeader):
             self.header["nonce"] = 42
             Blockchain.verify_header(self.header, self.prev_hash, self.target)

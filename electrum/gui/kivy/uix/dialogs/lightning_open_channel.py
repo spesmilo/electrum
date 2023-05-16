@@ -6,7 +6,6 @@ from kivy.factory import Factory
 from electrum.gui import messages
 from electrum.gui.kivy.i18n import _
 from electrum.lnaddr import lndecode
-from electrum.util import bh2u
 from electrum.bitcoin import COIN
 import electrum.simple_config as config
 from electrum.logging import Logger
@@ -150,7 +149,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             if not fee:
                 fee = config.FEERATE_FALLBACK_STATIC_FEE
             self.amount = self.app.format_amount_and_units(self.lnaddr.amount * COIN + fee * 2)  # FIXME magic number?!
-            self.pubkey = bh2u(self.lnaddr.pubkey.serialize())
+            self.pubkey = self.lnaddr.pubkey.serialize().hex()
         if self.msg:
             self.app.show_info(self.msg)
 
@@ -200,7 +199,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
         lnworker = self.app.wallet.lnworker
         coins = self.app.wallet.get_spendable_coins(None, nonlocal_only=True)
         node_id, rest = extract_nodeid(conn_str)
-        make_tx = lambda rbf: lnworker.mktx_for_open_channel(
+        make_tx = lambda: lnworker.mktx_for_open_channel(
             coins=coins,
             funding_sat=amount,
             node_id=node_id,
@@ -211,7 +210,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             amount = amount,
             make_tx=make_tx,
             on_pay=on_pay,
-            show_final=False)
+        )
         d.open()
 
     def do_open_channel(self, funding_tx, conn_str, password):
@@ -234,7 +233,7 @@ class LightningOpenChannelDialog(Factory.Popup, Logger):
             self.maybe_show_funding_tx(chan, funding_tx)
         else:
             title = _('Save backup')
-            help_text = _(messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL)
+            help_text = messages.MSG_CREATED_NON_RECOVERABLE_CHANNEL
             data = lnworker.export_channel_backup(chan.channel_id)
             popup = QRDialog(
                 title, data,

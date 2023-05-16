@@ -292,6 +292,7 @@ class ServerAddr:
 
     @classmethod
     def from_str(cls, s: str) -> 'ServerAddr':
+        """Constructs a ServerAddr or raises ValueError."""
         # host might be IPv6 address, hence do rsplit:
         host, port, protocol = str(s).rsplit(':', 2)
         return ServerAddr(host=host, port=port, protocol=protocol)
@@ -299,20 +300,29 @@ class ServerAddr:
     @classmethod
     def from_str_with_inference(cls, s: str) -> Optional['ServerAddr']:
         """Construct ServerAddr from str, guessing missing details.
+        Does not raise - just returns None if guessing failed.
         Ongoing compatibility not guaranteed.
         """
         if not s:
             return None
+        host = ""
+        if s[0] == "[" and "]" in s:  # IPv6 address
+            host_end = s.index("]")
+            host = s[1:host_end]
+            s = s[host_end+1:]
         items = str(s).rsplit(':', 2)
         if len(items) < 2:
             return None  # although maybe we could guess the port too?
-        host = items[0]
+        host = host or items[0]
         port = items[1]
         if len(items) >= 3:
             protocol = items[2]
         else:
             protocol = PREFERRED_NETWORK_PROTOCOL
-        return ServerAddr(host=host, port=port, protocol=protocol)
+        try:
+            return ServerAddr(host=host, port=port, protocol=protocol)
+        except ValueError:
+            return None
 
     def to_friendly_name(self) -> str:
         # note: this method is closely linked to from_str_with_inference
@@ -1111,11 +1121,21 @@ class Interface(Logger):
     async def get_estimatefee(self, num_blocks: int) -> int:
         """Returns a feerate estimate for getting confirmed within
         num_blocks blocks, in sat/kbyte.
+        Returns -1 if the server could not provide an estimate.
         """
         if not is_non_negative_integer(num_blocks):
             raise Exception(f"{repr(num_blocks)} is not a num_blocks")
         # do request
-        res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        try:
+            res = await self.session.send_request('blockchain.estimatefee', [num_blocks])
+        except aiorpcx.jsonrpc.ProtocolError as e:
+            # The protocol spec says the server itself should already have returned -1
+            # if it cannot provide an estimate, however apparently electrs does not conform
+            # and sends an error instead. Convert it here:
+            if "cannot estimate fee" in e.message:
+                res = -1
+            else:
+                raise
         # check response
         if res != -1:
             assert_non_negative_int_or_float(res)
@@ -1133,14 +1153,14 @@ def check_cert(host, cert):
     try:
         b = pem.dePem(cert, 'CERTIFICATE')
         x = x509.X509(b)
-    except:
+    except Exception:
         traceback.print_exc(file=sys.stdout)
         return
 
     try:
         x.check_date()
         expired = False
-    except:
+    except Exception:
         expired = True
 
     m = "host: %s\n"%host

@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS
 
@@ -31,6 +32,12 @@ class QEChannelDetails(QObject, QtEventListener):
         self._wallet = None
         self._channelid = None
         self._channel = None
+
+        self._capacity = QEAmount()
+        self._local_capacity = QEAmount()
+        self._remote_capacity = QEAmount()
+        self._can_receive = QEAmount()
+        self._can_send = QEAmount()
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -85,12 +92,16 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.node_id.hex()
 
     @pyqtProperty(str, notify=channelChanged)
-    def short_cid(self):
+    def shortCid(self):
         return self._channel.short_id_for_GUI()
 
     @pyqtProperty(str, notify=channelChanged)
     def state(self):
         return self._channel.get_state_for_GUI()
+
+    @pyqtProperty(int, notify=channelChanged)
+    def stateCode(self):
+        return self._channel.get_state()
 
     @pyqtProperty(str, notify=channelChanged)
     def initiator(self):
@@ -100,23 +111,31 @@ class QEChannelDetails(QObject, QtEventListener):
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def capacity(self):
-        self._capacity = QEAmount(amount_sat=self._channel.get_capacity())
+        self._capacity.copyFrom(QEAmount(amount_sat=self._channel.get_capacity()))
         return self._capacity
 
     @pyqtProperty(QEAmount, notify=channelChanged)
+    def localCapacity(self):
+        if not self._channel.is_backup():
+            self._local_capacity.copyFrom(QEAmount(amount_msat=self._channel.balance(LOCAL)))
+        return self._local_capacity
+
+    @pyqtProperty(QEAmount, notify=channelChanged)
+    def remoteCapacity(self):
+        if not self._channel.is_backup():
+            self._remote_capacity.copyFrom(QEAmount(amount_msat=self._channel.balance(REMOTE)))
+        return self._remote_capacity
+
+    @pyqtProperty(QEAmount, notify=channelChanged)
     def canSend(self):
-        if self._channel.is_backup():
-            self._can_send = QEAmount()
-        else:
-            self._can_send = QEAmount(amount_sat=self._channel.available_to_spend(LOCAL)/1000)
+        if not self._channel.is_backup():
+            self._can_send.copyFrom(QEAmount(amount_msat=self._channel.available_to_spend(LOCAL)))
         return self._can_send
 
     @pyqtProperty(QEAmount, notify=channelChanged)
     def canReceive(self):
-        if self._channel.is_backup():
-            self._can_receive = QEAmount()
-        else:
-            self._can_receive = QEAmount(amount_sat=self._channel.available_to_spend(REMOTE)/1000)
+        if not self._channel.is_backup():
+            self._can_receive.copyFrom(QEAmount(amount_msat=self._channel.available_to_spend(REMOTE)))
         return self._can_receive
 
     @pyqtProperty(bool, notify=channelChanged)
@@ -152,8 +171,8 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.can_be_deleted()
 
     @pyqtProperty(str, notify=channelChanged)
-    def message_force_close(self, notify=channelChanged):
-        return _(messages.MSG_REQUEST_FORCE_CLOSE)
+    def messageForceClose(self, notify=channelChanged):
+        return messages.MSG_REQUEST_FORCE_CLOSE.strip()
 
     @pyqtProperty(bool, notify=channelChanged)
     def isBackup(self):
@@ -177,29 +196,30 @@ class QEChannelDetails(QObject, QtEventListener):
         else:
             self._logger.debug(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
 
-    # this method assumes the qobject is not destroyed before the close either fails or succeeds
     @pyqtSlot(str)
-    def close_channel(self, closetype):
-        async def do_close(closetype, channel_id):
+    def closeChannel(self, closetype):
+        channel_id = self._channel.channel_id
+        def do_close():
             try:
                 if closetype == 'remote_force':
-                    await self._wallet.wallet.lnworker.request_force_close(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.request_force_close(channel_id))
                 elif closetype == 'local_force':
-                    await self._wallet.wallet.lnworker.force_close_channel(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.force_close_channel(channel_id))
                 else:
-                    await self._wallet.wallet.lnworker.close_channel(channel_id)
+                    self._wallet.wallet.network.run_from_another_thread(self._wallet.wallet.lnworker.close_channel(channel_id))
                 self.channelCloseSuccess.emit()
             except Exception as e:
                 self._logger.exception("Could not close channel: " + repr(e))
                 self.channelCloseFailed.emit(_('Could not close channel: ') + repr(e))
 
-        loop = self._wallet.wallet.network.asyncio_loop
-        coro = do_close(closetype, self._channel.channel_id)
-        asyncio.run_coroutine_threadsafe(coro, loop)
+        threading.Thread(target=do_close, daemon=True).start()
 
     @pyqtSlot()
     def deleteChannel(self):
-        self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
+        if self.isBackup:
+            self._wallet.wallet.lnworker.remove_channel_backup(self._channel.channel_id)
+        else:
+            self._wallet.wallet.lnworker.remove_channel(self._channel.channel_id)
 
     @pyqtSlot(result=str)
     def channelBackup(self):
@@ -208,7 +228,9 @@ class QEChannelDetails(QObject, QtEventListener):
     @pyqtSlot(result=str)
     def channelBackupHelpText(self):
         return ' '.join([
-            _("Channel backups can be imported in another instance of the same wallet, by scanning this QR code."),
+            _("Channel backups can be imported in another instance of the same wallet."),
+            _("In the Electrum mobile app, use the 'Send' button to scan this QR code."),
+            '\n\n',
             _("Please note that channel backups cannot be used to restore your channels."),
             _("If you lose your wallet file, the only thing you can do with a backup is to request your channel to be closed, so that your funds will be sent on-chain."),
         ])

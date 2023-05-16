@@ -50,6 +50,9 @@ TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
 TX_HEIGHT_UNCONFIRMED = 0
 
+TX_TIMESTAMP_INF = 999_999_999_999
+TX_HEIGHT_INF = 10 ** 9
+
 
 class HistoryItem(NamedTuple):
     txid: str
@@ -79,7 +82,7 @@ class AddressSynchronizer(Logger, EventListener):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted height
+        self.future_tx = {}  # type: Dict[str, int]  # txid -> wanted (abs) height
         # Txs the server claims are mined but still pending verification:
         self.unverified_tx = defaultdict(int)  # type: Dict[str, int]  # txid -> height. Access with self.lock.
         # Txs the server claims are in the mempool:
@@ -116,21 +119,21 @@ class AddressSynchronizer(Logger, EventListener):
     def get_addresses(self):
         return sorted(self.db.get_history())
 
-    def get_address_history(self, addr: str) -> Sequence[Tuple[str, int]]:
-        """Returns the history for the address, in the format that would be returned by a server.
+    def get_address_history(self, addr: str) -> Dict[str, int]:
+        """Returns the history for the address, as a txid->height dict.
+        In addition to what we have from the server, this includes local and future txns.
 
-        Note: The difference between db.get_addr_history and this method is that
-        db.get_addr_history stores the response from a server, so it only includes txns
-        a server sees, i.e. that does not contain local and future txns.
+        Also see related method db.get_addr_history, which stores the response from the server,
+        so that only includes txns the server sees.
         """
-        h = []
+        h = {}
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
             related_txns = self._history_local.get(addr, set())
             for tx_hash in related_txns:
                 tx_height = self.get_tx_height(tx_hash).height
-                h.append((tx_hash, tx_height))
+                h[tx_hash] = tx_height
         return h
 
     def get_address_history_len(self, addr: str) -> int:
@@ -138,9 +141,8 @@ class AddressSynchronizer(Logger, EventListener):
         return len(self._history_local.get(addr, ()))
 
     def get_txin_address(self, txin: TxInput) -> Optional[str]:
-        if isinstance(txin, PartialTxInput):
-            if txin.address:
-                return txin.address
+        if txin.address:
+            return txin.address
         prevout_hash = txin.prevout.txid.hex()
         prevout_n = txin.prevout.out_idx
         for addr in self.db.get_txo_addresses(prevout_hash):
@@ -180,6 +182,7 @@ class AddressSynchronizer(Logger, EventListener):
                 self.add_unverified_or_unconfirmed_tx(tx_hash, tx_height)
 
     def start_network(self, network: Optional['Network']) -> None:
+        assert self.network is None, "already started"
         self.network = network
         if self.network is not None:
             self.synchronizer = Synchronizer(self)
@@ -242,8 +245,15 @@ class AddressSynchronizer(Logger, EventListener):
                     conflicting_txns -= {tx_hash}
             return conflicting_txns
 
-    def get_transaction(self, txid: str) -> Transaction:
-        return self.db.get_transaction(txid)
+    def get_transaction(self, txid: str) -> Optional[Transaction]:
+        tx = self.db.get_transaction(txid)
+        if tx:
+            tx.deserialize()
+            for txin in tx._inputs:
+                tx_mined_info = self.get_tx_height(txin.prevout.txid.hex())
+                txin.block_height = tx_mined_info.height  # not SPV-ed
+                txin.block_txpos = tx_mined_info.txpos
+        return tx
 
     def add_transaction(self, tx: Transaction, *, allow_unrelated=False, is_new=True) -> bool:
         """
@@ -341,7 +351,7 @@ class AddressSynchronizer(Logger, EventListener):
             self.db.add_transaction(tx_hash, tx)
             self.db.add_num_inputs_to_tx(tx_hash, len(tx.inputs()))
             if is_new:
-                util.trigger_callback('adb_added_tx', self, tx_hash)
+                util.trigger_callback('adb_added_tx', self, tx_hash, tx)
             return True
 
     def remove_transaction(self, tx_hash: str) -> None:
@@ -393,6 +403,7 @@ class AddressSynchronizer(Logger, EventListener):
                     scripthash = bitcoin.script_to_scripthash(txo.scriptpubkey.hex())
                     prevout = TxOutpoint(bfh(tx_hash), idx)
                     self.db.remove_prevout_by_scripthash(scripthash, prevout=prevout, value=txo.value)
+        util.trigger_callback('adb_removed_tx', self, tx_hash, tx)
 
     def get_depending_transactions(self, tx_hash: str) -> Set[str]:
         """Returns all (grand-)children of tx_hash in this wallet."""
@@ -411,7 +422,7 @@ class AddressSynchronizer(Logger, EventListener):
     def receive_history_callback(self, addr: str, hist, tx_fees: Dict[str, int]):
         with self.lock:
             old_hist = self.get_address_history(addr)
-            for tx_hash, height in old_hist:
+            for tx_hash, height in old_hist.items():
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
@@ -429,6 +440,10 @@ class AddressSynchronizer(Logger, EventListener):
             if tx is None:
                 continue
             self.add_transaction(tx, allow_unrelated=True, is_new=False)
+            # if we already had this tx, see if its height changed (e.g. local->unconfirmed)
+            old_height = old_hist.get(tx_hash, None)
+            if old_height is not None and old_height != tx_height:
+                util.trigger_callback('adb_tx_height_changed', self, tx_hash, old_height, tx_height)
 
         # Store fees
         for tx_hash, fee_sat in tx_fees.items():
@@ -469,26 +484,29 @@ class AddressSynchronizer(Logger, EventListener):
                 self._history_local.clear()
                 self._get_balance_cache.clear()  # invalidate cache
 
-    def get_txpos(self, tx_hash: str) -> Tuple[int, int]:
-        """Returns (height, txpos) tuple, even if the tx is unverified."""
+    def _get_tx_sort_key(self, tx_hash: str) -> Tuple[int, int]:
+        """Returns a key to be used for sorting txs."""
         with self.lock:
-            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
-            if verified_tx_mined_info:
-                height = verified_tx_mined_info.height
-                txpos = verified_tx_mined_info.txpos
-                assert height > 0, height
-                assert txpos is not None
-                return height, txpos
-            elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                assert height > 0, height
-                return height, -1
-            elif tx_hash in self.unconfirmed_tx:
-                height = self.unconfirmed_tx[tx_hash]
-                assert height <= 0, height
-                return (10**9 - height), -1
-            else:
-                return (10**9 + 1), -1
+            tx_mined_info = self.get_tx_height(tx_hash)
+            height = self.tx_height_to_sort_height(tx_mined_info.height)
+            txpos = tx_mined_info.txpos or -1
+            return height, txpos
+
+    @classmethod
+    def tx_height_to_sort_height(cls, height: int = None):
+        """Return a height-like value to be used for sorting txs."""
+        if height is not None:
+            if height > 0:
+                return height
+            if height == TX_HEIGHT_UNCONFIRMED:
+                return TX_HEIGHT_INF
+            if height == TX_HEIGHT_UNCONF_PARENT:
+                return TX_HEIGHT_INF + 1
+            if height == TX_HEIGHT_FUTURE:
+                return TX_HEIGHT_INF + 2
+            if height == TX_HEIGHT_LOCAL:
+                return TX_HEIGHT_INF + 3
+        return TX_HEIGHT_INF + 100
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
@@ -511,7 +529,7 @@ class AddressSynchronizer(Logger, EventListener):
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)  # type: Dict[str, int]
         for addr in domain:
-            h = self.get_address_history(addr)
+            h = self.get_address_history(addr).items()
             for tx_hash, height in h:
                 tx_deltas[tx_hash] += self.get_tx_delta(tx_hash, addr)
         # 2. create sorted history
@@ -521,7 +539,7 @@ class AddressSynchronizer(Logger, EventListener):
             tx_mined_status = self.get_tx_height(tx_hash)
             fee = self.get_tx_fee(tx_hash)
             history.append((tx_hash, tx_mined_status, delta, fee))
-        history.sort(key = lambda x: self.get_txpos(x[0]))
+        history.sort(key = lambda x: self._get_tx_sort_key(x[0]))
         # 3. add balance
         h2 = []
         balance = 0
@@ -647,9 +665,17 @@ class AddressSynchronizer(Logger, EventListener):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.db.get('stored_height', 0)
 
-    def set_future_tx(self, txid:str, wanted_height: int):
+    def set_future_tx(self, txid: str, *, wanted_height: int):
+        """Mark a local tx as "future" (encumbered by a timelock).
+        wanted_height is the min (abs) block height at which the tx can get into the mempool (be broadcast).
+                      note: tx becomes consensus-valid to be mined in a block at height wanted_height+1
+        In case of a CSV-locked tx with unconfirmed inputs, the wanted_height is a best-case guess.
+        """
         with self.lock:
+            old_height = self.future_tx.get(txid) or None
             self.future_tx[txid] = wanted_height
+        if old_height != wanted_height:
+            util.trigger_callback('adb_set_future_tx', self, txid)
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         if tx_hash is None:  # ugly backwards compat...
@@ -665,10 +691,9 @@ class AddressSynchronizer(Logger, EventListener):
             elif tx_hash in self.unconfirmed_tx:
                 height = self.unconfirmed_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)
-            elif tx_hash in self.future_tx:
-                num_blocks_remainining = self.future_tx[tx_hash] - self.get_local_height()
-                if num_blocks_remainining > 0:
-                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=-num_blocks_remainining)
+            elif wanted_height := self.future_tx.get(tx_hash):
+                if wanted_height > self.get_local_height():
+                    return TxMinedInfo(height=TX_HEIGHT_FUTURE, conf=0, wanted_height=wanted_height)
                 else:
                     return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
             else:
@@ -762,33 +787,35 @@ class AddressSynchronizer(Logger, EventListener):
         self.db.add_num_inputs_to_tx(txid, len(tx.inputs()))
         return fee
 
-    def get_addr_io(self, address):
+    def get_addr_io(self, address: str):
         with self.lock, self.transaction_lock:
-            h = self.get_address_history(address)
+            h = self.get_address_history(address).items()
             received = {}
             sent = {}
             for tx_hash, height in h:
+                tx_mined_info = self.get_tx_height(tx_hash)
+                txpos = tx_mined_info.txpos if tx_mined_info.txpos is not None else -1
                 d = self.db.get_txo_addr(tx_hash, address)
                 for n, (v, is_cb) in d.items():
-                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
-            for tx_hash, height in h:
+                    received[tx_hash + ':%d'%n] = (height, txpos, v, is_cb)
                 l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
-                    sent[txi] = tx_hash, height
+                    sent[txi] = tx_hash, height, txpos
         return received, sent
 
     def get_addr_outputs(self, address: str) -> Dict[TxOutpoint, PartialTxInput]:
-        coins, spent = self.get_addr_io(address)
+        received, sent = self.get_addr_io(address)
         out = {}
-        for prevout_str, v in coins.items():
-            tx_height, value, is_cb = v
+        for prevout_str, v in received.items():
+            tx_height, tx_pos, value, is_cb = v
             prevout = TxOutpoint.from_str(prevout_str)
             utxo = PartialTxInput(prevout=prevout, is_coinbase_output=is_cb)
             utxo._trusted_address = address
             utxo._trusted_value_sats = value
             utxo.block_height = tx_height
-            if prevout_str in spent:
-                txid, height = spent[prevout_str]
+            utxo.block_txpos = tx_pos
+            if prevout_str in sent:
+                txid, height, pos = sent[prevout_str]
                 utxo.spent_txid = txid
                 utxo.spent_height = height
             else:
@@ -807,8 +834,10 @@ class AddressSynchronizer(Logger, EventListener):
     # return the total amount ever received by an address
     def get_addr_received(self, address):
         received, sent = self.get_addr_io(address)
-        return sum([v for height, v, is_cb in received.values()])
+        return sum([value for height, pos, value, is_cb in received.values()])
 
+    @with_lock
+    @with_transaction_lock
     @with_local_height_cached
     def get_balance(self, domain, *, excluded_addresses: Set[str] = None,
                     excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
@@ -835,14 +864,14 @@ class AddressSynchronizer(Logger, EventListener):
 
         c = u = x = 0
         mempool_height = self.get_local_height() + 1  # height of next block
-        for utxo in coins.values():
+        for utxo in coins.values():  # type: PartialTxInput
             if utxo.spent_height is not None:
                 continue
             if utxo.prevout.to_str() in excluded_coins:
                 continue
             v = utxo.value_sats()
             tx_height = utxo.block_height
-            is_cb = utxo._is_coinbase_output
+            is_cb = utxo.is_coinbase_output()
             if is_cb and tx_height + COINBASE_MATURITY > mempool_height:
                 x += v
             elif tx_height > 0:

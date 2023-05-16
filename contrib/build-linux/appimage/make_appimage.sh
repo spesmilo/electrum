@@ -12,6 +12,10 @@ CACHEDIR="$CONTRIB_APPIMAGE/.cache/appimage"
 export DLL_TARGET_DIR="$CACHEDIR/dlls"
 PIP_CACHE_DIR="$CONTRIB_APPIMAGE/.cache/pip_cache"
 
+. "$CONTRIB"/build_tools_util.sh
+
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 export GCC_STRIP_BINARIES="1"
 
 # pinned versions
@@ -21,8 +25,6 @@ PKG2APPIMAGE_COMMIT="a9c85b7e61a3a883f4a35c41c5decb5af88b6b5d"
 
 VERSION=$(git describe --tags --dirty --always)
 APPIMAGE="$DISTDIR/electrum-$VERSION-x86_64.AppImage"
-
-. "$CONTRIB"/build_tools_util.sh
 
 rm -rf "$BUILDDIR"
 mkdir -p "$APPDIR" "$CACHEDIR" "$PIP_CACHE_DIR" "$DISTDIR" "$DLL_TARGET_DIR"
@@ -76,12 +78,12 @@ info "installing python."
 )
 
 
-if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.0" ]; then
+if [ -f "$DLL_TARGET_DIR/libsecp256k1.so.2" ]; then
     info "libsecp256k1 already built, skipping"
 else
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 fi
-cp -f "$DLL_TARGET_DIR/libsecp256k1.so.0" "$APPDIR/usr/lib/libsecp256k1.so.0" || fail "Could not copy libsecp to its destination"
+cp -f "$DLL_TARGET_DIR"/libsecp256k1.so.* "$APPDIR/usr/lib/" || fail "Could not copy libsecp to its destination"
 
 
 # note: libxcb-util1 is not available in debian 10 (buster), only libxcb-util0. So we build it ourselves.

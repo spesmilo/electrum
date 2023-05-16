@@ -29,6 +29,7 @@ import hashlib
 import base64
 import zlib
 from enum import IntEnum
+from typing import Optional
 
 from . import ecc
 from .util import (profiler, InvalidPassword, WalletFileException, bfh, standardize_path,
@@ -141,7 +142,7 @@ class WalletStorage(Logger):
                 return StorageEncryptionVersion.XPUB_PASSWORD
             else:
                 return StorageEncryptionVersion.PLAINTEXT
-        except:
+        except Exception:
             return StorageEncryptionVersion.PLAINTEXT
 
     @staticmethod
@@ -186,9 +187,11 @@ class WalletStorage(Logger):
             s = s.decode('utf8')
         return s
 
-    def check_password(self, password) -> None:
+    def check_password(self, password: Optional[str]) -> None:
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
+            if password is not None:
+                raise InvalidPassword("password given but wallet has no password")
             return
         if not self.is_past_initial_decryption():
             self.decrypt(password)  # this sets self.pubkey

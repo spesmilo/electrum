@@ -16,7 +16,7 @@ from electrum.util import InvalidPassword
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.wallet import CannotBumpFee, CannotCPFP, CannotDoubleSpendTx
 from electrum.transaction import Transaction, PartialTransaction
-from electrum.network import NetworkException
+from electrum.network import NetworkException, Network
 
 from electrum.gui.kivy.i18n import _
 from electrum.gui.kivy.util import address_colors
@@ -120,19 +120,21 @@ Builder.load_string('''
 
 class TxDialog(Factory.Popup):
 
-    def __init__(self, app, tx):
+    def __init__(self, app, tx: Transaction):
         Factory.Popup.__init__(self)
         self.app = app  # type: ElectrumWindow
         self.wallet = self.app.wallet
-        self.tx = tx  # type: Transaction
+        self.tx = tx
         self.config = self.app.electrum_config
 
         # If the wallet can populate the inputs with more info, do it now.
         # As a result, e.g. we might learn an imported address tx is segwit,
         # or that a beyond-gap-limit address is is_mine.
         # note: this might fetch prev txs over the network.
-        # note: this is a no-op for complete txs
         tx.add_info_from_wallet(self.wallet)
+        if not tx.is_complete() and tx.is_missing_info_from_network():
+            Network.run_from_another_thread(
+                tx.add_info_from_network(self.wallet.network, timeout=10))  # FIXME is this needed?...
 
     def on_open(self):
         self.update()
@@ -201,19 +203,6 @@ class TxDialog(Factory.Popup):
         )
         action_dropdown.update(options=options)
 
-    def _add_info_to_tx_from_wallet_and_network(self, tx: PartialTransaction) -> bool:
-        """Returns whether successful."""
-        # note side-effect: tx is being mutated
-        assert isinstance(tx, PartialTransaction)
-        try:
-            # note: this might download input utxos over network
-            # FIXME network code in gui thread...
-            tx.add_info_from_wallet(self.wallet, ignore_network_issues=False)
-        except NetworkException as e:
-            self.app.show_error(repr(e))
-            return False
-        return True
-
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
         tx = self.tx
@@ -221,7 +210,7 @@ class TxDialog(Factory.Popup):
         assert txid
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
-        if not self._add_info_to_tx_from_wallet_and_network(tx):
+        if not tx.add_info_from_wallet_and_network(wallet=self.wallet, show_error=self.app.show_error):
             return
         fee = tx.get_fee()
         assert fee is not None
@@ -295,7 +284,7 @@ class TxDialog(Factory.Popup):
         assert txid
         if not isinstance(tx, PartialTransaction):
             tx = PartialTransaction.from_tx(tx)
-        if not self._add_info_to_tx_from_wallet_and_network(tx):
+        if not tx.add_info_from_wallet_and_network(wallet=self.wallet, show_error=self.app.show_error):
             return
         fee = tx.get_fee()
         assert fee is not None
@@ -343,7 +332,7 @@ class TxDialog(Factory.Popup):
 
     def show_qr(self):
         original_raw_tx = str(self.tx)
-        qr_data = self.tx.to_qr_data()
+        qr_data = self.tx.to_qr_data()[0]
         self.app.qr_dialog(_("Raw Transaction"), qr_data, text_for_clipboard=original_raw_tx)
 
     def remove_local_tx(self):

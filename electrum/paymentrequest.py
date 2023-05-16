@@ -39,7 +39,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'contrib/generate_payreqpb2.sh'")
 
 from . import bitcoin, constants, ecc, util, transaction, x509, rsakey
-from .util import bh2u, bfh, make_aiohttp_session
+from .util import bfh, make_aiohttp_session, error_text_bytes_to_safe_str
 from .invoices import Invoice, get_id_from_onchain_outputs
 from .crypto import sha256
 from .bitcoin import address_to_script
@@ -94,12 +94,8 @@ async def get_payment_request(url: str) -> 'PaymentRequest':
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
                 if resp_content:
-                    try:
-                        error_text_received = resp_content.decode("utf8")
-                    except UnicodeDecodeError:
-                        error_text_received = "(failed to decode error)"
-                    else:
-                        error_text_received = error_text_received[:400]
+                    error_text_received = error_text_bytes_to_safe_str(resp_content)
+                    error_text_received = error_text_received[:400]
                     error_oneline = ' -- '.join(error.split('\n'))
                     _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
                                  f"{repr(e)} text: {error_text_received}")
@@ -130,7 +126,7 @@ class PaymentRequest:
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
-        except:
+        except Exception:
             self.error = "cannot parse payment request"
             return
         self.details = pb2.PaymentDetails()
@@ -152,6 +148,7 @@ class PaymentRequest:
         self.payment_url = self.details.payment_url
 
     def verify(self, contacts):
+        # FIXME: we should enforce that this method was called before we attempt payment
         if self.error:
             return False
         if not self.raw:
@@ -160,7 +157,7 @@ class PaymentRequest:
         pr = pb2.PaymentRequest()
         try:
             pr.ParseFromString(self.raw)
-        except:
+        except Exception:
             self.error = "Error: Cannot parse payment request"
             return False
         if not pr.signature:
@@ -305,12 +302,8 @@ class PaymentRequest:
             if isinstance(e, aiohttp.ClientResponseError):
                 error += f"\nGot HTTP status code {e.status}."
                 if resp_content:
-                    try:
-                        error_text_received = resp_content.decode("utf8")
-                    except UnicodeDecodeError:
-                        error_text_received = "(failed to decode error)"
-                    else:
-                        error_text_received = error_text_received[:400]
+                    error_text_received = error_text_bytes_to_safe_str(resp_content)
+                    error_text_received = error_text_received[:400]
                     error_oneline = ' -- '.join(error.split('\n'))
                     _logger.info(f"{error_oneline} -- [DO NOT TRUST THIS MESSAGE] "
                                  f"{repr(e)} text: {error_text_received}")

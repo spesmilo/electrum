@@ -1,20 +1,52 @@
-from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
-
+import copy
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
+from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QRegularExpression
+
+from electrum.bitcoin import TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+from electrum.i18n import set_language, languages
 from electrum.logging import get_logger
-from electrum.util import DECIMAL_POINT_DEFAULT, format_satoshis
+from electrum.util import DECIMAL_POINT_DEFAULT, base_unit_name_to_decimal_point
 from electrum.invoices import PR_DEFAULT_EXPIRATION_WHEN_CREATING
 
 from .qetypes import QEAmount
 from .auth import AuthMixin, auth_protect
 
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
+
 class QEConfig(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
-    def __init__(self, config, parent=None):
+    def __init__(self, config: 'SimpleConfig', parent=None):
         super().__init__(parent)
         self.config = config
+
+    languageChanged = pyqtSignal()
+    @pyqtProperty(str, notify=languageChanged)
+    def language(self):
+        return self.config.get('language')
+
+    @language.setter
+    def language(self, language):
+        if language not in languages:
+            return
+        if self.config.get('language') != language:
+            self.config.set_key('language', language)
+            set_language(language)
+            self.languageChanged.emit()
+
+    languagesChanged = pyqtSignal()
+    @pyqtProperty('QVariantList', notify=languagesChanged)
+    def languagesAvailable(self):
+        # sort on translated languages, then re-add Default on top
+        langs = copy.deepcopy(languages)
+        default = langs.pop('')
+        langs_sorted = sorted(list(map(lambda x: {'value': x[0], 'text': x[1]}, langs.items())), key=lambda x: x['text'])
+        langs_sorted.insert(0, {'value': '', 'text': default})
+        return langs_sorted
 
     autoConnectChanged = pyqtSignal()
     @pyqtProperty(bool, notify=autoConnectChanged)
@@ -30,16 +62,6 @@ class QEConfig(AuthMixin, QObject):
     @pyqtProperty(bool, notify=autoConnectChanged)
     def autoConnectDefined(self):
         return self.config.get('auto_connect') is not None
-
-    serverStringChanged = pyqtSignal()
-    @pyqtProperty('QString', notify=serverStringChanged)
-    def serverString(self):
-        return self.config.get('server')
-
-    @serverString.setter
-    def serverString(self, server):
-        self.config.set_key('server', server, True)
-        self.serverStringChanged.emit()
 
     manualServerChanged = pyqtSignal()
     @pyqtProperty(bool, notify=manualServerChanged)
@@ -60,6 +82,18 @@ class QEConfig(AuthMixin, QObject):
     def baseUnit(self, unit):
         self.config.set_base_unit(unit)
         self.baseUnitChanged.emit()
+
+    @pyqtProperty('QRegularExpression', notify=baseUnitChanged)
+    def btcAmountRegex(self):
+        decimal_point = base_unit_name_to_decimal_point(self.config.get_base_unit())
+        max_digits_before_dp = (
+            len(str(TOTAL_COIN_SUPPLY_LIMIT_IN_BTC))
+            + (base_unit_name_to_decimal_point("BTC") - decimal_point))
+        exp = '[0-9]{0,%d}' % max_digits_before_dp
+        if decimal_point > 0:
+            exp += '\\.'
+            exp += '[0-9]{0,%d}' % decimal_point
+        return QRegularExpression(exp)
 
     thousandsSeparatorChanged = pyqtSignal()
     @pyqtProperty(bool, notify=thousandsSeparatorChanged)
@@ -167,6 +201,29 @@ class QEConfig(AuthMixin, QObject):
             self.config.set_key('trustedcoin_prepay', num_prepay)
             self.trustedcoinPrepayChanged.emit()
 
+    preferredRequestTypeChanged = pyqtSignal()
+    @pyqtProperty(str, notify=preferredRequestTypeChanged)
+    def preferredRequestType(self):
+        return self.config.get('preferred_request_type', 'bolt11')
+
+    @preferredRequestType.setter
+    def preferredRequestType(self, preferred_request_type):
+        if preferred_request_type != self.config.get('preferred_request_type', 'bolt11'):
+            self.config.set_key('preferred_request_type', preferred_request_type)
+            self.preferredRequestTypeChanged.emit()
+
+    userKnowsPressAndHoldChanged = pyqtSignal()
+    @pyqtProperty(bool, notify=userKnowsPressAndHoldChanged)
+    def userKnowsPressAndHold(self):
+        return self.config.get('user_knows_press_and_hold', False)
+
+    @userKnowsPressAndHold.setter
+    def userKnowsPressAndHold(self, userKnowsPressAndHold):
+        if userKnowsPressAndHold != self.config.get('user_knows_press_and_hold', False):
+            self.config.set_key('user_knows_press_and_hold', userKnowsPressAndHold)
+            self.userKnowsPressAndHoldChanged.emit()
+
+
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
     @pyqtSlot(QEAmount, result=str)
@@ -186,15 +243,11 @@ class QEConfig(AuthMixin, QObject):
             msats = amount.msatsInt
         else:
             return '---'
-
-        s = format_satoshis(msats/1000,
-                            decimal_point=self.decimal_point(),
-                            precision=3)
-        return s
-        #if with_unit:
-            #return self.config.format_amount_and_units(msats)
-        #else:
-            #return self.config.format_amount(satoshis)
+        precision = 3  # config.amt_precision_post_satoshi is not exposed in preferences
+        if with_unit:
+            return self.config.format_amount_and_units(msats/1000, precision=precision)
+        else:
+            return self.config.format_amount(msats/1000, precision=precision)
 
     # TODO delegate all this to config.py/util.py
     def decimal_point(self):
@@ -208,7 +261,7 @@ class QEConfig(AuthMixin, QObject):
         self._amount = QEAmount()
         try:
             x = Decimal(unitAmount)
-        except:
+        except Exception:
             return self._amount
 
         # scale it to max allowed precision, make it an int

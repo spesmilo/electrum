@@ -1,9 +1,11 @@
 import QtQuick 2.6
 import QtQuick.Layouts 1.0
 import QtQuick.Controls 2.1
+import QtQuick.Controls.Material 2.0
 
 import org.electrum 1.0
 
+import ".."
 import "../controls"
 
 WizardComponent {
@@ -84,15 +86,6 @@ WizardComponent {
             width: parent.width
 
             Label {
-                text: qsTr('Script type and Derivation path')
-            }
-            Button {
-                text: qsTr('Detect Existing Accounts')
-                enabled: false
-                visible: !isMultisig
-            }
-
-            Label {
                 text: qsTr('Choose the type of addresses in your wallet.')
             }
 
@@ -139,22 +132,65 @@ WizardComponent {
             }
 
             InfoTextArea {
-                Layout.preferredWidth: parent.width
+                Layout.fillWidth: true
                 text: qsTr('You can override the suggested derivation path.') + ' ' +
                     qsTr('If you are not sure what this is, leave this field unchanged.')
+            }
+
+            Label {
+                text: qsTr('Derivation path')
             }
 
             TextField {
                 id: derivationpathtext
                 Layout.fillWidth: true
-                placeholderText: qsTr('Derivation path')
+                Layout.leftMargin: constants.paddingMedium
                 onTextChanged: validate()
             }
+
+            Pane {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: constants.paddingLarge
+                padding: 0
+                visible: !isMultisig
+                background: Rectangle {
+                    color: Qt.lighter(Material.dialogColor, 1.5)
+                }
+
+                FlatButton {
+                    text: qsTr('Detect Existing Accounts')
+                    onClicked: {
+                        var dialog = bip39recoveryDialog.createObject(mainLayout, {
+                            walletType: wizard_data['wallet_type'],
+                            seed: wizard_data['seed'],
+                            seedExtraWords: wizard_data['seed_extra_words']
+                        })
+                        dialog.accepted.connect(function () {
+                            // select matching script type button and set derivation path
+                            for (var i = 0; i < scripttypegroup.buttons.length; i++) {
+                                var btn = scripttypegroup.buttons[i]
+                                if (btn.visible && btn.scripttype == dialog.scriptType) {
+                                    btn.checked = true
+                                    derivationpathtext.text = dialog.derivationPath
+                                    return
+                                }
+                            }
+                        })
+                        dialog.open()
+                    }
+                }
+            }
+
         }
     }
 
     Bitcoin {
         id: bitcoin
+    }
+
+    Component {
+        id: bip39recoveryDialog
+        BIP39RecoveryDialog { }
     }
 
     Component.onCompleted: {

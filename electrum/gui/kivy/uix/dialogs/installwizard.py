@@ -665,7 +665,7 @@ class WizardOTPDialogBase(WizardDialog):
             return
         try:
             return int(otp)
-        except:
+        except Exception:
             return
 
     def on_text(self, dt):
@@ -1037,7 +1037,7 @@ class AddXpubDialog(WizardDialog):
         def is_valid(x):
             try:
                 return kwargs['is_valid'](x)
-            except:
+            except Exception:
                 return False
         self.is_valid = is_valid
         self.title = kwargs['title']

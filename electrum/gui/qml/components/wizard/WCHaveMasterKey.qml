@@ -9,6 +9,7 @@ import "../controls"
 
 WizardComponent {
     id: root
+    securePage: true
 
     valid: false
 
@@ -41,8 +42,12 @@ WizardComponent {
 
         if (cosigner) {
             applyMasterKey(key)
-            if (wiz.hasDuplicateKeys(wizard_data)) {
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
                 validationtext.text = qsTr('Error: duplicate master public key')
+                return false
+            }
+            if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: master public key types do not match')
                 return false
             }
         }
@@ -54,17 +59,17 @@ WizardComponent {
         width: parent.width
 
         Label {
+            Layout.fillWidth: true
+
             visible: cosigner
             text: qsTr('Here is your master public key. Please share it with your cosigners')
-            Layout.fillWidth: true
             wrapMode: Text.Wrap
         }
 
         TextHighlightPane {
-            visible: cosigner
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
+
+            visible: cosigner
 
             RowLayout {
                 width: parent.width
@@ -79,9 +84,10 @@ WizardComponent {
                     icon.source: '../../../icons/share.png'
                     icon.color: 'transparent'
                     onClicked: {
-                        var dialog = app.genericShareDialog.createObject(app,
-                            { title: qsTr('Master public key'), text: multisigMasterPubkey }
-                        )
+                        var dialog = app.genericShareDialog.createObject(app, {
+                            title: qsTr('Master public key'),
+                            text: multisigMasterPubkey
+                        })
                         dialog.open()
                     }
                 }
@@ -89,7 +95,7 @@ WizardComponent {
         }
 
         Rectangle {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.preferredHeight: 1
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
@@ -103,9 +109,11 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             text: cosigner
                     ? qsTr('Enter cosigner master public key')
                     : qsTr('Create keystore from a master key')
+            wrapMode: Text.Wrap
         }
 
         RowLayout {
@@ -119,6 +127,7 @@ WizardComponent {
                     if (activeFocus)
                         verifyMasterKey(text)
                 }
+                inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
             }
             ColumnLayout {
                 ToolButton {
@@ -138,14 +147,19 @@ WizardComponent {
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root)
-                        scan.onFound.connect(function() {
-                            if (verifyMasterKey(scan.scanData))
-                                masterkey_ta.text = scan.scanData
+                        var dialog = app.scanDialog.createObject(app, {
+                            hint: cosigner
+                                ? qsTr('Scan a cosigner master public key')
+                                : qsTr('Scan a master key')
+                        })
+                        dialog.onFound.connect(function() {
+                            if (verifyMasterKey(dialog.scanData))
+                                masterkey_ta.text = dialog.scanData
                             else
                                 masterkey_ta.text = ''
-                            scan.destroy()
+                            dialog.close()
                         })
+                        dialog.open()
                     }
                 }
             }
@@ -159,25 +173,6 @@ WizardComponent {
             wrapMode: TextInput.WordWrap
             background: Rectangle {
                 color: 'transparent'
-            }
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: root.width
-            height: root.height
-
-            ToolButton {
-                icon.source: '../../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
-                }
             }
         }
     }

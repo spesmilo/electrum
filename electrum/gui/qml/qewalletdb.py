@@ -1,19 +1,26 @@
 import os
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum.logging import get_logger
 from electrum.storage import WalletStorage, StorageEncryptionVersion
 from electrum.wallet_db import WalletDB
+from electrum.wallet import Wallet
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
-from electrum.util import InvalidPassword
+from electrum.util import InvalidPassword, WalletFileException, send_exception_to_crash_reporter
 from electrum import keystore
+
+if TYPE_CHECKING:
+    from electrum.simple_config import SimpleConfig
+
 
 class QEWalletDB(QObject):
     _logger = get_logger(__name__)
 
     fileNotFound = pyqtSignal()
-    pathChanged = pyqtSignal([bool], arguments=["ready"])
+    walletOpenProblem = pyqtSignal([str], arguments=['error'])
+    pathChanged = pyqtSignal([bool], arguments=['ready'])
     needsPasswordChanged = pyqtSignal()
     needsHWDeviceChanged = pyqtSignal()
     passwordChanged = pyqtSignal()
@@ -28,6 +35,7 @@ class QEWalletDB(QObject):
 
         from .qeapp import ElectrumQmlApplication
         self.daemon = ElectrumQmlApplication._daemon
+        self._config = self.daemon.config  # type: SimpleConfig
 
         self.reset()
 
@@ -112,9 +120,16 @@ class QEWalletDB(QObject):
 
     @pyqtSlot()
     def verify(self):
-        self.load_storage()
-        if self._storage:
-            self.load_db()
+        try:
+            self._load_storage()
+            if self._storage:
+                self._load_db()
+        except WalletFileException as e:
+            self._logger.error(f"verify errored: {repr(e)}")
+            self._storage = None
+            self.walletOpenProblem.emit(str(e))
+            if e.should_report_crash:
+                send_exception_to_crash_reporter(e)
 
     @pyqtSlot()
     def doSplit(self):
@@ -126,7 +141,8 @@ class QEWalletDB(QObject):
 
         self.splitFinished.emit()
 
-    def load_storage(self):
+    def _load_storage(self):
+        """can raise WalletFileException"""
         self._storage = WalletStorage(self._path)
         if not self._storage.file_exists():
             self._logger.warning('file does not exist')
@@ -143,11 +159,27 @@ class QEWalletDB(QObject):
             except InvalidPassword as e:
                 self.validPassword = False
                 self.invalidPassword.emit()
+        else:  # storage not encrypted; but it might still have a keystore pw
+            # FIXME hack... load both db and full wallet, just to tell if it has keystore pw.
+            #       this also completely ignores db.requires_split(), db.get_action(), etc
+            db = WalletDB(self._storage.read(), manual_upgrades=False)
+            wallet = Wallet(db, self._storage, config=self._config)
+            self.needsPassword = wallet.has_password()
+            if self.needsPassword:
+                try:
+                    wallet.check_password('' if not self._password else self._password)
+                    self.validPassword = True
+                except InvalidPassword as e:
+                    self.validPassword = False
+                    self._storage = None
+                    self.invalidPassword.emit()
 
-        if not self._storage.is_past_initial_decryption():
-            self._storage = None
+        if self._storage:
+            if not self._storage.is_past_initial_decryption():
+                self._storage = None
 
-    def load_db(self):
+    def _load_db(self):
+        """can raise WalletFileException"""
         # needs storage accessible
         self._db = WalletDB(self._storage.read(), manual_upgrades=True)
         if self._db.requires_split():
@@ -166,4 +198,3 @@ class QEWalletDB(QObject):
 
         self._ready = True
         self.readyChanged.emit()
-

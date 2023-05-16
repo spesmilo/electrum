@@ -32,7 +32,7 @@ from aiorpcx import run_in_thread, RPCError
 
 from . import util
 from .transaction import Transaction, PartialTransaction
-from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
+from .util import make_aiohttp_session, NetworkJobOnDefaultServer, random_shuffled_copy, OldTaskGroup
 from .bitcoin import address_to_scripthash, is_address
 from .logging import Logger
 from .interface import GracefulDisconnect, NetworkTimeout
@@ -51,7 +51,7 @@ def history_status(h):
     status = ''
     for tx_hash, height in h:
         status += tx_hash + ':%d:' % height
-    return bh2u(hashlib.sha256(status.encode('ascii')).digest())
+    return hashlib.sha256(status.encode('ascii')).digest().hex()
 
 
 class SynchronizerBase(NetworkJobOnDefaultServer):

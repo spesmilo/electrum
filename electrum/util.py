@@ -46,6 +46,7 @@ from ipaddress import IPv4Address, IPv6Address
 import random
 import secrets
 import functools
+from functools import partial
 from abc import abstractmethod, ABC
 import socket
 
@@ -63,6 +64,7 @@ if TYPE_CHECKING:
     from .network import Network
     from .interface import Interface
     from .simple_config import SimpleConfig
+    from .paymentrequest import PaymentRequest
 
 
 _logger = get_logger(__name__)
@@ -102,6 +104,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
+    """Returns the max number of digits allowed after the decimal point."""
     # e.g. "BTC" -> 8
     try:
         return base_units[unit_name]
@@ -144,6 +147,10 @@ class NoDynamicFeeEstimates(Exception):
         return _('Dynamic fee estimates not available')
 
 
+class BelowDustLimit(Exception):
+    pass
+
+
 class InvalidPassword(Exception):
     def __init__(self, message: Optional[str] = None):
         self.message = message
@@ -180,7 +187,10 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class WalletFileException(Exception): pass
+class WalletFileException(Exception):
+    def __init__(self, message='', *, should_report_crash: bool = False):
+        Exception.__init__(self, message)
+        self.should_report_crash = should_report_crash
 
 
 class BitcoinException(Exception): pass
@@ -198,6 +208,17 @@ class InvoiceError(UserFacingException): pass
 class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
+
+
+def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
+    # helper function mainly for float->Decimal conversion, i.e.:
+    #   >>> Decimal(41754.681)
+    #   Decimal('41754.680999999996856786310672760009765625')
+    #   >>> Decimal("41754.681")
+    #   Decimal('41754.681')
+    if isinstance(x, Decimal):
+        return x
+    return Decimal(str(x))
 
 
 # note: this is not a NamedTuple as then its json encoding cannot be customized
@@ -416,7 +437,7 @@ def json_encode(obj):
 def json_decode(x):
     try:
         return json.loads(x, parse_float=Decimal)
-    except:
+    except Exception:
         return x
 
 def json_normalize(x):
@@ -433,15 +454,22 @@ def constant_time_compare(val1, val2):
     return hmac.compare_digest(to_bytes(val1, 'utf8'), to_bytes(val2, 'utf8'))
 
 
-# decorator that prints execution time
 _profiler_logger = _logger.getChild('profiler')
-def profiler(func):
+def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
+    """Function decorator that logs execution time.
+
+    min_threshold: if set, only log if time taken is higher than threshold
+    NOTE: does not work with async methods.
+    """
+    if func is None:
+        return partial(profiler, min_threshold=min_threshold)
     def do_profile(args, kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        _profiler_logger.debug(f"{name} {t:,.4f} sec")
+        if min_threshold is None or t > min_threshold:
+            _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
@@ -546,7 +574,7 @@ def assert_bytes(*args):
     try:
         for x in args:
             assert isinstance(x, (bytes, bytearray))
-    except:
+    except Exception:
         print('assert bytes failed', list(map(type, args)))
         raise
 
@@ -583,17 +611,6 @@ def to_bytes(something, encoding='utf8') -> bytes:
 
 
 bfh = bytes.fromhex
-
-
-def bh2u(x: bytes) -> str:
-    """
-    str with hex representation of a bytes-like object
-
-    >>> x = bytes((1, 2, 10))
-    >>> bh2u(x)
-    '01020A'
-    """
-    return x.hex()
 
 
 def xor_bytes(a: bytes, b: bytes) -> bytes:
@@ -641,7 +658,7 @@ def is_hex_str(text: Any) -> bool:
     if not isinstance(text, str): return False
     try:
         b = bytes.fromhex(text)
-    except:
+    except Exception:
         return False
     # forbid whitespaces in text:
     if len(text) != 2 * len(b):
@@ -778,18 +795,25 @@ def quantize_feerate(fee) -> Union[None, Decimal, int]:
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
 
 
-def timestamp_to_datetime(timestamp: Optional[int]) -> Optional[datetime]:
+def timestamp_to_datetime(timestamp: Union[int, float, None]) -> Optional[datetime]:
     if timestamp is None:
         return None
     return datetime.fromtimestamp(timestamp)
 
-def format_time(timestamp):
+
+def format_time(timestamp: Union[int, float, None]) -> str:
     date = timestamp_to_datetime(timestamp)
-    return date.isoformat(' ')[:-3] if date else _("Unknown")
+    return date.isoformat(' ', timespec="minutes") if date else _("Unknown")
 
 
-# Takes a timestamp and returns a string with the approximation of the age
-def age(from_date, since_date = None, target_tz=None, include_seconds=False):
+def age(
+    from_date: Union[int, float, None],  # POSIX timestamp
+    *,
+    since_date: datetime = None,
+    target_tz=None,
+    include_seconds: bool = False,
+) -> str:
+    """Takes a timestamp and returns a string with the approximation of the age"""
     if from_date is None:
         return _("Unknown")
 
@@ -797,38 +821,67 @@ def age(from_date, since_date = None, target_tz=None, include_seconds=False):
     if since_date is None:
         since_date = datetime.now(target_tz)
 
-    td = time_difference(from_date - since_date, include_seconds)
-    return (_("{} ago") if from_date < since_date else _("in {}")).format(td)
-
-
-def time_difference(distance_in_time, include_seconds):
-    #distance_in_time = since_date - from_date
+    distance_in_time = from_date - since_date
+    is_in_past = from_date < since_date
     distance_in_seconds = int(round(abs(distance_in_time.days * 86400 + distance_in_time.seconds)))
-    distance_in_minutes = int(round(distance_in_seconds/60))
+    distance_in_minutes = int(round(distance_in_seconds / 60))
 
     if distance_in_minutes == 0:
         if include_seconds:
-            return _("{} seconds").format(distance_in_seconds)
+            if is_in_past:
+                return _("{} seconds ago").format(distance_in_seconds)
+            else:
+                return _("in {} seconds").format(distance_in_seconds)
         else:
-            return _("less than a minute")
+            if is_in_past:
+                return _("less than a minute ago")
+            else:
+                return _("in less than a minute")
     elif distance_in_minutes < 45:
-        return _("about {} minutes").format(distance_in_minutes)
+        if is_in_past:
+            return _("about {} minutes ago").format(distance_in_minutes)
+        else:
+            return _("in about {} minutes").format(distance_in_minutes)
     elif distance_in_minutes < 90:
-        return _("about 1 hour")
+        if is_in_past:
+            return _("about 1 hour ago")
+        else:
+            return _("in about 1 hour")
     elif distance_in_minutes < 1440:
-        return _("about {} hours").format(round(distance_in_minutes / 60.0))
+        if is_in_past:
+            return _("about {} hours ago").format(round(distance_in_minutes / 60.0))
+        else:
+            return _("in about {} hours").format(round(distance_in_minutes / 60.0))
     elif distance_in_minutes < 2880:
-        return _("about 1 day")
+        if is_in_past:
+            return _("about 1 day ago")
+        else:
+            return _("in about 1 day")
     elif distance_in_minutes < 43220:
-        return _("about {} days").format(round(distance_in_minutes / 1440))
+        if is_in_past:
+            return _("about {} days ago").format(round(distance_in_minutes / 1440))
+        else:
+            return _("in about {} days").format(round(distance_in_minutes / 1440))
     elif distance_in_minutes < 86400:
-        return _("about 1 month")
+        if is_in_past:
+            return _("about 1 month ago")
+        else:
+            return _("in about 1 month")
     elif distance_in_minutes < 525600:
-        return _("about {} months").format(round(distance_in_minutes / 43200))
+        if is_in_past:
+            return _("about {} months ago").format(round(distance_in_minutes / 43200))
+        else:
+            return _("in about {} months").format(round(distance_in_minutes / 43200))
     elif distance_in_minutes < 1051200:
-        return _("about 1 year")
+        if is_in_past:
+            return _("about 1 year ago")
+        else:
+            return _("in about 1 year")
     else:
-        return _("over {} years").format(round(distance_in_minutes / 525600))
+        if is_in_past:
+            return _("over {} years ago").format(round(distance_in_minutes / 525600))
+        else:
+            return _("in over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
@@ -896,6 +949,8 @@ signet_block_explorers = {
     'bitcoinexplorer.org': ('https://signet.bitcoinexplorer.org/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'wakiyamap.dev': ('https://signet-explorer.wakiyamap.dev/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'ex.signet.bublina.eu.org': ('https://ex.signet.bublina.eu.org/',
                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                        {'tx': 'tx/', 'addr': 'address/'}),
@@ -970,7 +1025,12 @@ class InvalidBitcoinURI(Exception): pass
 
 
 # TODO rename to parse_bip21_uri or similar
-def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
+def parse_URI(
+    uri: str,
+    on_pr: Callable[['PaymentRequest'], None] = None,
+    *,
+    loop: asyncio.AbstractEventLoop = None,
+) -> dict:
     """Raises InvalidBitcoinURI on malformed URI."""
     from . import bitcoin
     from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
@@ -1034,7 +1094,7 @@ def parse_URI(uri: str, on_pr: Callable = None, *, loop=None) -> dict:
             raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
     if 'sig' in out:
         try:
-            out['sig'] = bh2u(bitcoin.base_decode(out['sig'], base=58))
+            out['sig'] = bitcoin.base_decode(out['sig'], base=58).hex()
         except Exception as e:
             raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
     if 'lightning' in out:
@@ -1143,7 +1203,7 @@ def parse_json(message):
         return None, message
     try:
         j = json.loads(message[0:n].decode('utf8'))
-    except:
+    except Exception:
         j = None
     return j, message[n+1:]
 
@@ -1280,10 +1340,85 @@ def with_lock(func):
 
 class TxMinedInfo(NamedTuple):
     height: int                        # height of block that mined tx
-    conf: Optional[int] = None         # number of confirmations, SPV verified (None means unknown)
+    conf: Optional[int] = None         # number of confirmations, SPV verified. >=0, or None (None means unknown)
     timestamp: Optional[int] = None    # timestamp of block that mined tx
     txpos: Optional[int] = None        # position of tx in serialized block
     header_hash: Optional[str] = None  # hash of block that mined tx
+    wanted_height: Optional[int] = None  # in case of timelock, min abs block height
+
+    def short_id(self) -> Optional[str]:
+        if self.txpos is not None and self.txpos >= 0:
+            assert self.height > 0
+            return f"{self.height}x{self.txpos}"
+        return None
+
+    def is_local_like(self) -> bool:
+        """Returns whether the tx is local-like (LOCAL/FUTURE)."""
+        from .address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+        if self.height > 0:
+            return False
+        if self.height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
+            return False
+        return True
+
+
+class ShortID(bytes):
+
+    def __repr__(self):
+        return f"<ShortID: {format_short_id(self)}>"
+
+    def __str__(self):
+        return format_short_id(self)
+
+    @classmethod
+    def from_components(cls, block_height: int, tx_pos_in_block: int, output_index: int) -> 'ShortID':
+        bh = block_height.to_bytes(3, byteorder='big')
+        tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
+        oi = output_index.to_bytes(2, byteorder='big')
+        return ShortID(bh + tpos + oi)
+
+    @classmethod
+    def from_str(cls, scid: str) -> 'ShortID':
+        """Parses a formatted scid str, e.g. '643920x356x0'."""
+        components = scid.split("x")
+        if len(components) != 3:
+            raise ValueError(f"failed to parse ShortID: {scid!r}")
+        try:
+            components = [int(x) for x in components]
+        except ValueError:
+            raise ValueError(f"failed to parse ShortID: {scid!r}") from None
+        return ShortID.from_components(*components)
+
+    @classmethod
+    def normalize(cls, data: Union[None, str, bytes, 'ShortID']) -> Optional['ShortID']:
+        if isinstance(data, ShortID) or data is None:
+            return data
+        if isinstance(data, str):
+            assert len(data) == 16
+            return ShortID.fromhex(data)
+        if isinstance(data, (bytes, bytearray)):
+            assert len(data) == 8
+            return ShortID(data)
+
+    @property
+    def block_height(self) -> int:
+        return int.from_bytes(self[:3], byteorder='big')
+
+    @property
+    def txpos(self) -> int:
+        return int.from_bytes(self[3:6], byteorder='big')
+
+    @property
+    def output_index(self) -> int:
+        return int.from_bytes(self[6:8], byteorder='big')
+
+
+def format_short_id(short_channel_id: Optional[bytes]):
+    if not short_channel_id:
+        return _('Not yet available')
+    return str(int.from_bytes(short_channel_id[:3], 'big')) \
+        + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
+        + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
 def make_aiohttp_session(proxy: Optional[dict], headers=None, timeout=None):
@@ -1434,8 +1569,20 @@ class NetworkJobOnDefaultServer(Logger, ABC):
         self.reset_request_counters()
 
     async def _start(self, interface: 'Interface'):
+        self.logger.debug(f"starting. interface.server={repr(str(interface.server))}")
         self.interface = interface
-        await interface.taskgroup.spawn(self._run_tasks(taskgroup=self.taskgroup))
+
+        taskgroup = self.taskgroup
+        async def run_tasks_wrapper():
+            self.logger.debug(f"starting taskgroup ({hex(id(taskgroup))}).")
+            try:
+                await self._run_tasks(taskgroup=taskgroup)
+            except Exception as e:
+                self.logger.error(f"taskgroup died ({hex(id(taskgroup))}). exc={e!r}")
+                raise
+            finally:
+                self.logger.debug(f"taskgroup stopped ({hex(id(taskgroup))}).")
+        await interface.taskgroup.spawn(run_tasks_wrapper)
 
     @abstractmethod
     async def _run_tasks(self, *, taskgroup: OldTaskGroup) -> None:
@@ -1448,6 +1595,7 @@ class NetworkJobOnDefaultServer(Logger, ABC):
             raise asyncio.CancelledError()
 
     async def stop(self, *, full_shutdown: bool = True):
+        self.logger.debug(f"stopping. {full_shutdown=}")
         if full_shutdown:
             unregister_callback(self._restart)
         await self.taskgroup.cancel_remaining()
@@ -1507,12 +1655,17 @@ def is_tor_socks_port(host: str, port: int) -> bool:
     return False
 
 
+AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = False  # used by unit tests
+
 _asyncio_event_loop = None  # type: Optional[asyncio.AbstractEventLoop]
 def get_asyncio_loop() -> asyncio.AbstractEventLoop:
     """Returns the global asyncio event loop we use."""
-    if _asyncio_event_loop is None:
-        raise Exception("event loop not created yet")
-    return _asyncio_event_loop
+    if loop := _asyncio_event_loop:
+        return loop
+    if AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP:
+        if loop := get_running_loop():
+            return loop
+    raise Exception("event loop not created yet")
 
 
 def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
@@ -1723,7 +1876,6 @@ class CallbackManager:
     def __init__(self):
         self.callback_lock = threading.Lock()
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
-        self.asyncio_loop = None
 
     def register_callback(self, func, events):
         with self.callback_lock:
@@ -1741,21 +1893,20 @@ class CallbackManager:
         Can be called from any thread. The callback itself will get scheduled
         on the event loop.
         """
-        if self.asyncio_loop is None:
-            self.asyncio_loop = get_asyncio_loop()
-            assert self.asyncio_loop.is_running(), "event loop not running"
+        loop = get_asyncio_loop()
+        assert loop.is_running(), "event loop not running"
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
             # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                asyncio.run_coroutine_threadsafe(callback(*args), self.asyncio_loop)
-            elif get_running_loop() == self.asyncio_loop:
+                asyncio.run_coroutine_threadsafe(callback(*args), loop)
+            elif get_running_loop() == loop:
                 # run callback immediately, so that it is guaranteed
                 # to have been executed when this method returns
                 callback(*args)
             else:
-                self.asyncio_loop.call_soon_threadsafe(callback, *args)
+                loop.call_soon_threadsafe(callback, *args)
 
 
 callback_mgr = CallbackManager()
@@ -1977,3 +2128,26 @@ def get_running_loop() -> Optional[asyncio.AbstractEventLoop]:
         return asyncio.get_running_loop()
     except RuntimeError:
         return None
+
+
+def error_text_str_to_safe_str(err: str) -> str:
+    """Converts an untrusted error string to a sane printable ascii str.
+    Never raises.
+    """
+    return error_text_bytes_to_safe_str(err.encode("ascii", errors='backslashreplace'))
+
+
+def error_text_bytes_to_safe_str(err: bytes) -> str:
+    """Converts an untrusted error bytes text to a sane printable ascii str.
+    Never raises.
+
+    Note that naive ascii conversion would be insufficient. Fun stuff:
+    >>> b = b"my_long_prefix_blabla" + 21 * b"\x08" + b"malicious_stuff"
+    >>> s = b.decode("ascii")
+    >>> print(s)
+    malicious_stuffblabla
+    """
+    # convert to ascii, to get rid of unicode stuff
+    ascii_text = err.decode("ascii", errors='backslashreplace')
+    # do repr to handle ascii special chars (especially when printing/logging the str)
+    return repr(ascii_text)

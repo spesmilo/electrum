@@ -1,15 +1,13 @@
-from abc import abstractmethod
-
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtCore import Qt, QAbstractListModel, QModelIndex
 
-from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.util import Satoshis, format_time
 from electrum.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum import blockchain
 
-from .util import QtEventListener, qt_event_listener, event_listener
+from .util import QtEventListener, qt_event_listener
+
 
 class QEServerListModel(QAbstractListModel, QtEventListener):
     _logger = get_logger(__name__)
@@ -26,24 +24,24 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         self._chaintips = 0
 
         self.network = network
-        self.init_model()
+        self.initModel()
         self.register_callbacks()
         self.destroyed.connect(lambda: self.unregister_callbacks())
 
     @qt_event_listener
     def on_event_network_updated(self):
         self._logger.info(f'network updated')
-        self.init_model()
+        self.initModel()
 
     @qt_event_listener
     def on_event_blockchain_updated(self):
         self._logger.info(f'blockchain updated')
-        self.init_model()
+        self.initModel()
 
     @qt_event_listener
     def on_event_default_server_changed(self):
         self._logger.info(f'default server changed')
-        self.init_model()
+        self.initModel()
 
     def rowCount(self, index):
         return len(self.servers)
@@ -81,7 +79,7 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
         return chains
 
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         self.clear()
 
         servers = []
@@ -108,7 +106,6 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['address'] = i.server.to_friendly_name()
                 server['height'] = i.tip
 
-                self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         # disconnected servers
@@ -132,7 +129,6 @@ class QEServerListModel(QAbstractListModel, QtEventListener):
                 server['name'] = s.net_addr_str()
                 server['address'] = server['name']
 
-                self._logger.debug(f'adding server: {repr(server)}')
                 servers.append(server)
 
         self.beginInsertRows(QModelIndex(), 0, len(servers) - 1)

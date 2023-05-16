@@ -14,7 +14,7 @@ from electrum.plugin import Device, hook, runs_in_hwd_thread
 from electrum.keystore import Hardware_KeyStore, KeyStoreWithMPK
 from electrum.transaction import PartialTransaction
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Abstract_Wallet
-from electrum.util import bfh, bh2u, versiontuple, UserFacingException
+from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.logging import get_logger
 
@@ -160,7 +160,7 @@ class CKCCClient(HardwareClientBase):
         try:
             self.ping_check()
             return True
-        except:
+        except Exception:
             return False
 
     @runs_in_hwd_thread
@@ -187,7 +187,7 @@ class CKCCClient(HardwareClientBase):
         try:
             echo = self.dev.send_recv(CCProtocolPacker.ping(req))
             assert echo == req
-        except:
+        except Exception:
             raise RuntimeError("Communication trouble with Coldcard")
 
     @runs_in_hwd_thread

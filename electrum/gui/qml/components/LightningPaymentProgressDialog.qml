@@ -17,12 +17,6 @@ ElDialog {
 
     title: qsTr('Paying Lightning Invoice...')
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     Item {
         id: s
         state: ''

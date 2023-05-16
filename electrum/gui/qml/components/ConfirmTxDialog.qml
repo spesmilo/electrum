@@ -17,10 +17,7 @@ ElDialog {
     property alias amountLabelText: amountLabel.text
     property alias sendButtonText: sendButton.text
 
-    signal txcancelled
-    signal txaccepted
-
-    title: qsTr('Confirm Transaction')
+    title: qsTr('Transaction Fee')
 
     // copy these to finalizer
     onAddressChanged: finalizer.address = address
@@ -29,12 +26,6 @@ ElDialog {
     width: parent.width
     height: parent.height
     padding: 0
-
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     function updateAmountText() {
         btcValue.text = Config.formatSats(finalizer.effectiveAmount, false)
@@ -49,13 +40,16 @@ ElDialog {
         spacing: 0
 
         GridLayout {
-            width: parent.width
-            columns: 2
+            Layout.fillWidth: true
             Layout.leftMargin: constants.paddingLarge
             Layout.rightMargin: constants.paddingLarge
 
+            columns: 2
+
             Label {
                 id: amountLabel
+                Layout.fillWidth: true
+                Layout.minimumWidth: implicitWidth
                 text: qsTr('Amount to send')
                 color: Material.accentColor
             }
@@ -64,6 +58,7 @@ ElDialog {
                 Label {
                     id: btcValue
                     font.bold: true
+                    font.family: FixedFont
                 }
 
                 Label {
@@ -134,37 +129,46 @@ ElDialog {
                 text: finalizer.target
             }
 
-            Slider {
-                id: feeslider
-                leftPadding: constants.paddingMedium
-                snapMode: Slider.SnapOnRelease
-                stepSize: 1
-                from: 0
-                to: finalizer.sliderSteps
-                onValueChanged: {
-                    if (activeFocus)
-                        finalizer.sliderPos = value
-                }
-                Component.onCompleted: {
-                    value = finalizer.sliderPos
-                }
-                Connections {
-                    target: finalizer
-                    function onSliderPosChanged() {
-                        feeslider.value = finalizer.sliderPos
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+
+                Slider {
+                    id: feeslider
+                    Layout.fillWidth: true
+                    leftPadding: constants.paddingMedium
+
+                    snapMode: Slider.SnapOnRelease
+                    stepSize: 1
+                    from: 0
+                    to: finalizer.sliderSteps
+
+                    onValueChanged: {
+                        if (activeFocus)
+                            finalizer.sliderPos = value
+                    }
+                    Component.onCompleted: {
+                        value = finalizer.sliderPos
+                    }
+                    Connections {
+                        target: finalizer
+                        function onSliderPosChanged() {
+                            feeslider.value = finalizer.sliderPos
+                        }
                     }
                 }
-            }
 
-            FeeMethodComboBox {
-                id: target
-                feeslider: finalizer
+                FeeMethodComboBox {
+                    id: target
+                    feeslider: finalizer
+                }
             }
 
             InfoTextArea {
                 Layout.columnSpan: 2
-                Layout.preferredWidth: parent.width * 3/4
-                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                Layout.topMargin: constants.paddingLarge
+                Layout.bottomMargin: constants.paddingLarge
                 visible: finalizer.warning != ''
                 text: finalizer.warning
                 iconStyle: InfoTextArea.IconStyle.Warn
@@ -178,32 +182,12 @@ ElDialog {
 
             Repeater {
                 model: finalizer.outputs
-                delegate: TextHighlightPane {
+                delegate: TxOutput {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
-                    RowLayout {
-                        width: parent.width
-                        Label {
-                            text: modelData.address
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            font.pixelSize: constants.fontSizeLarge
-                            font.family: FixedFont
-                            color: modelData.is_mine ? constants.colorMine : Material.foreground
-                        }
-                        Label {
-                            text: Config.formatSats(modelData.value_sats)
-                            font.pixelSize: constants.fontSizeMedium
-                            font.family: FixedFont
-                        }
-                        Label {
-                            text: Config.baseUnit
-                            font.pixelSize: constants.fontSizeMedium
-                            color: Material.accentColor
-                        }
-                    }
+
+                    allowShare: false
+                    model: modelData
                 }
             }
         }
@@ -218,12 +202,9 @@ ElDialog {
                     : qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
             enabled: finalizer.valid
-            onClicked: {
-                txaccepted()
-                dialog.close()
-            }
+            onClicked: doAccept()
         }
     }
 
-    onClosed: txcancelled()
+    onClosed: doReject()
 }

@@ -278,7 +278,7 @@ def get_wordlist() -> Wordlist:
     return wordlist
 
 
-def process_mnemonics(mnemonics: List[str]) -> Tuple[bool, str]:
+def process_mnemonics(mnemonics: List[str]) -> Tuple[Optional[EncryptedSeed], str]:
     # Collect valid shares.
     shares = []
     for i, mnemonic in enumerate(mnemonics):
@@ -297,11 +297,11 @@ def process_mnemonics(mnemonics: List[str]) -> Tuple[bool, str]:
     common_params = shares[0].common_parameters()
     for share in shares:
         if share.common_parameters() != common_params:
-            error_text = _("Share") + ' #%d ' % share.index + _("is not part of the current set.")
+            error_text = _("Share #{} is not part of the current set.").format(share.index)
             return None, _ERROR_STYLE % error_text
         for other in groups[share.group_index]:
             if share.member_index == other.member_index:
-                error_text = _("Share") + ' #%d ' % share.index + _("is a duplicate of share") + ' #%d.' % other.index
+                error_text = _("Share #{} is a duplicate of share #{}.").format(share.index, other.index)
                 return None, _ERROR_STYLE % error_text
         groups[share.group_index].add(share)
 
@@ -319,7 +319,8 @@ def process_mnemonics(mnemonics: List[str]) -> Tuple[bool, str]:
     group_count = shares[0].group_count
     status = ''
     if group_count > 1:
-        status += _('Completed') + ' <b>%d</b> ' % groups_completed + _('of') + ' <b>%d</b> ' % group_threshold + _('groups needed:<br/>')
+        status += _('Completed {} of {} groups needed').format(f"<b>{groups_completed}</b>", f"<b>{group_threshold}</b>")
+        status += ":<br/>"
 
     for group_index in range(group_count):
         group_prefix = _make_group_prefix(identifier, iteration_exponent, group_index, group_threshold, group_count)
@@ -368,11 +369,11 @@ def _make_group_prefix(identifier, iteration_exponent, group_index, group_thresh
 def _group_status(group: Set[Share], group_prefix) -> str:
     len(group)
     if not group:
-        return _EMPTY + '<b>0</b> ' + _('shares from group') + ' <b>' + group_prefix + '</b>.<br/>'
+        return _EMPTY + _('{} shares from group {}').format('<b>0</b> ', f'<b>{group_prefix}</b>') + f'.<br/>'
     else:
         share = next(iter(group))
         icon = _FINISHED if len(group) >= share.member_threshold else _INPROGRESS
-        return icon + '<b>%d</b> ' % len(group) + _('of') + ' <b>%d</b> ' % share.member_threshold + _('shares needed from group') + ' <b>%s</b>.<br/>' % group_prefix
+        return icon + _('{} of {} shares needed from group {}').format(f'<b>{len(group)}</b>', f'<b>{share.member_threshold}</b>', f'<b>{group_prefix}</b>') + f'.<br/>'
 
 
 """

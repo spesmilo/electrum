@@ -14,7 +14,7 @@ from kivy.properties import StringProperty
 
 from electrum.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
                                PR_PAID, PR_UNKNOWN, PR_EXPIRED, PR_INFLIGHT,
-                               pr_expiration_values, Invoice)
+                               pr_expiration_values, Invoice, Request)
 from electrum import bitcoin, constants
 from electrum import lnutil
 from electrum.transaction import tx_from_any, PartialTxOutput
@@ -126,9 +126,12 @@ class HistoryScreen(CScreen):
             fee_text = '' if fee is None else 'fee: %d sat'%fee
         else:
             tx_hash = tx_item['txid']
-            tx_mined_info = TxMinedInfo(height=tx_item['height'],
-                                        conf=tx_item['confirmations'],
-                                        timestamp=tx_item['timestamp'])
+            tx_mined_info = TxMinedInfo(
+                height=tx_item['height'],
+                conf=tx_item['confirmations'],
+                timestamp=tx_item['timestamp'],
+                wanted_height=tx_item.get('wanted_height', None),
+            )
             status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_info)
             icon = f'atlas://{KIVY_GUI_PATH}/theming/atlas/light/' + TX_ICONS[status]
             message = tx_item['label'] or tx_hash
@@ -338,7 +341,7 @@ class SendScreen(CScreen, Logger):
         else:
             try:
                 amount_sat = self.app.get_amount(self.amount)
-            except:
+            except Exception:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
                 return
         message = self.message
@@ -381,7 +384,7 @@ class SendScreen(CScreen, Logger):
         assert self.lnurl_data
         try:
             amount = self.app.get_amount(self.amount)
-        except:
+        except Exception:
             self.app.show_error(_('Invalid amount') + ':\n' + self.amount)
             return
         if not (self.lnurl_data.min_sendable_sat <= amount <= self.lnurl_data.max_sendable_sat):
@@ -536,12 +539,12 @@ class ReceiveScreen(CScreen):
         self.update()
         self.app.show_request(key)
 
-    def get_card(self, req: Invoice) -> Dict[str, Any]:
+    def get_card(self, req: Request) -> Dict[str, Any]:
         is_lightning = req.is_lightning()
         if not is_lightning:
             address = req.get_address()
         else:
-            address = req.lightning_invoice
+            address = self.app.wallet.get_bolt11_invoice(req)
         key = req.get_id()
         amount = req.get_amount_sat()
         description = req.message

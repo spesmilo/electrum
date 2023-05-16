@@ -19,11 +19,13 @@ import copy
 from electrum.crypto import sha256d, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum.bitcoin import public_key_to_p2pkh
 from electrum.bip32 import BIP32Node, convert_bip32_intpath_to_strpath, is_all_public_derivation
+from electrum.bip32 import normalize_bip32_derivation
+from electrum import descriptor
 from electrum import ecc
 from electrum.ecc import msg_magic
 from electrum.wallet import Standard_Wallet
 from electrum import constants
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, Sighash
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.util import to_string, UserCancelled, UserFacingException, bfh
@@ -80,7 +82,7 @@ class DigitalBitbox_Client(HardwareClientBase):
         if self.opened:
             try:
                 self.dbb_hid.close()
-            except:
+            except Exception:
                 pass
         self.opened = False
 
@@ -103,7 +105,8 @@ class DigitalBitbox_Client(HardwareClientBase):
             return False
         return True
 
-    def _get_xpub(self, bip32_path):
+    def _get_xpub(self, bip32_path: str):
+        bip32_path = normalize_bip32_derivation(bip32_path, hardened_char="'")
         if self.check_device_dialog():
             return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
 
@@ -121,6 +124,9 @@ class DigitalBitbox_Client(HardwareClientBase):
             return xpub
         else:
             raise Exception('no reply')
+
+    def get_soft_device_id(self):
+        return None
 
     def dbb_has_password(self):
         reply = self.hid_send_plain(b'{"ping":""}')
@@ -457,6 +463,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         try:
             message = message.encode('utf8')
             inputPath = self.get_derivation_prefix() + "/%d/%d" % sequence
+            inputPath = normalize_bip32_derivation(inputPath, hardened_char="'")
             msg_hash = sha256d(msg_magic(message))
             inputHash = to_hexstr(msg_hash)
             hasharray = []
@@ -527,7 +534,9 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 if txin.is_coinbase_input():
                     self.give_error("Coinbase not supported") # should never happen
 
-                if txin.script_type != 'p2pkh':
+                desc = txin.script_descriptor
+                assert desc
+                if desc.to_legacy_electrum_script_type() != 'p2pkh':
                     p2pkhTransaction = False
 
                 my_pubkey, inputPath = self.find_my_pubkey_in_txinout(txin)
@@ -557,9 +566,10 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 tx_copy = copy.deepcopy(tx)
                 # monkey-patch method of tx_copy instance to change serialization
                 def input_script(self, txin: PartialTxInput, *, estimate_size=False):
-                    if txin.script_type == 'p2pkh':
+                    desc = txin.script_descriptor
+                    if isinstance(desc, descriptor.PKHDescriptor):
                         return Transaction.get_preimage_script(txin)
-                    raise Exception("unsupported type %s" % txin.script_type)
+                    raise Exception(f"unsupported txin type. only p2pkh is supported. got: {desc.to_string()[:10]}")
                 tx_copy.input_script = input_script.__get__(tx_copy, PartialTransaction)
                 tx_dbb_serialized = tx_copy.serialize_to_network()
             else:
@@ -645,7 +655,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = ecc.der_sig_from_r_and_s(sig_r, sig_s)
-                    sig = to_hexstr(sig) + '01'
+                    sig = to_hexstr(sig) + Sighash.to_sigbytes(Sighash.ALL).hex()
                     tx.add_signature_to_txin(txin_idx=i, signing_pubkey=pubkey_bytes.hex(), sig=sig)
         except UserCancelled:
             raise

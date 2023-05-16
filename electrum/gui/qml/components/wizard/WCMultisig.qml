@@ -39,8 +39,6 @@ WizardComponent {
             id: rootLayout
             width: parent.width
 
-            Label { text: qsTr('Multisig wallet') }
-
             InfoTextArea {
                 Layout.preferredWidth: parent.width
                 text: qsTr('Choose the number of participants, and the number of signatures needed to unlock funds in your wallet.')

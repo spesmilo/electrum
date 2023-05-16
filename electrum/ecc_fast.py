@@ -37,17 +37,28 @@ class LibModuleMissing(Exception): pass
 
 
 def load_library():
+    # note: for a mapping between bitcoin-core/secp256k1 git tags and .so.V libtool version numbers,
+    #       see https://github.com/bitcoin-core/secp256k1/pull/1055#issuecomment-1227505189
+    tested_libversions = [2, 1, 0, ]  # try latest version first
+    libnames = []
     if sys.platform == 'darwin':
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.0.dylib'),
-                         'libsecp256k1.0.dylib')
+        for v in tested_libversions:
+            libnames.append(f"libsecp256k1.{v}.dylib")
     elif sys.platform in ('windows', 'win32'):
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1-0.dll'),
-                         'libsecp256k1-0.dll')
+        for v in tested_libversions:
+            libnames.append(f"libsecp256k1-{v}.dll")
     elif 'ANDROID_DATA' in os.environ:
-        library_paths = ('libsecp256k1.so',)
+        libnames = ['libsecp256k1.so', ]  # don't care about version number. we built w/e is available.
     else:  # desktop Linux and similar
-        library_paths = (os.path.join(os.path.dirname(__file__), 'libsecp256k1.so.0'),
-                         'libsecp256k1.so.0')
+        for v in tested_libversions:
+            libnames.append(f"libsecp256k1.so.{v}")
+        # maybe we could fall back to trying "any" version? maybe guarded with an env var?
+        #libnames.append(f"libsecp256k1.so")
+    library_paths = []
+    for libname in libnames:  # try local files in repo dir first
+        library_paths.append(os.path.join(os.path.dirname(__file__), libname))
+    for libname in libnames:
+        library_paths.append(libname)
 
     exceptions = []
     secp256k1 = None

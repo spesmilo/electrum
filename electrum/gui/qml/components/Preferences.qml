@@ -9,6 +9,7 @@ import "controls"
 
 Pane {
     id: preferences
+    objectName: 'Properties'
 
     property string title: qsTr("Preferences")
 
@@ -46,7 +47,20 @@ Pane {
 
                     ElComboBox {
                         id: language
-                        enabled: false
+                        textRole: 'text'
+                        valueRole: 'value'
+                        model: Config.languagesAvailable
+                        onCurrentValueChanged: {
+                            if (activeFocus) {
+                                if (Config.language != currentValue) {
+                                    Config.language = currentValue
+                                    var dialog = app.messageDialog.createObject(app, {
+                                        text: qsTr('Please restart Electrum to activate the new GUI settings')
+                                    })
+                                    dialog.open()
+                                }
+                            }
+                        }
                     }
 
                     Label {
@@ -77,22 +91,6 @@ Pane {
                         Label {
                             Layout.fillWidth: true
                             text: qsTr('Add thousands separators to bitcoin amounts')
-                            wrapMode: Text.Wrap
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.columnSpan: 2
-                        Layout.fillWidth: true
-                        Layout.leftMargin: -constants.paddingSmall
-                        spacing: 0
-                        Switch {
-                            id: checkSoftware
-                            enabled: false
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            text: qsTr('Automatically check for software updates')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -162,52 +160,66 @@ Pane {
                         }
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: -constants.paddingSmall
+                        spacing: 0
+                        Switch {
+                            id: usePin
+                            checked: Config.pinCode
+                            onCheckedChanged: {
+                                if (activeFocus) {
+                                    console.log('PIN active ' + checked)
+                                    if (checked) {
+                                        var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
+                                        dialog.accepted.connect(function() {
+                                            Config.pinCode = dialog.pincode
+                                            dialog.close()
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = false
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        focus = false
+                                        Config.pinCode = ''
+                                        // re-add binding, pincode still set if auth failed
+                                        checked = Qt.binding(function () { return Config.pinCode })
+                                    }
+                                }
+
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: qsTr('PIN protect payments')
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Pane {
+                        background: Rectangle { color: Material.dialogColor }
+                        padding: 0
+                        visible: Config.pinCode != ''
+                        FlatButton {
+                            text: qsTr('Modify')
+                            onClicked: {
+                                var dialog = pinSetup.createObject(preferences, {
+                                    mode: 'change',
+                                    pincode: Config.pinCode
+                                })
+                                dialog.accepted.connect(function() {
+                                    Config.pinCode = dialog.pincode
+                                    dialog.close()
+                                })
+                                dialog.open()
+                            }
+                        }
+                    }
+
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Wallet behavior')
-                    }
-
-                    Label {
-                        text: qsTr('PIN')
-                    }
-
-                    RowLayout {
-                        Label {
-                            text: Config.pinCode == '' ? qsTr('Off'): qsTr('On')
-                            color: Material.accentColor
-                            Layout.rightMargin: constants.paddingMedium
-                        }
-                        Button {
-                            text: qsTr('Enable')
-                            visible: Config.pinCode == ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'enter'})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Change')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                var dialog = pinSetup.createObject(preferences, {mode: 'change', pincode: Config.pinCode})
-                                dialog.accepted.connect(function() {
-                                    Config.pinCode = dialog.pincode
-                                    dialog.close()
-                                })
-                                dialog.open()
-                            }
-                        }
-                        Button {
-                            text: qsTr('Remove')
-                            visible: Config.pinCode != ''
-                            onClicked: {
-                                Config.pinCode = ''
-                            }
-                        }
                     }
 
                     RowLayout {
@@ -228,18 +240,6 @@ Pane {
                         }
                     }
 
-                    Label {
-                        text: qsTr('Default request expiry')
-                        Layout.fillWidth: false
-                    }
-
-                    RequestExpiryComboBox {
-                        onCurrentValueChanged: {
-                            if (activeFocus)
-                                Config.requestExpiry = currentValue
-                        }
-                    }
-
                     PrefsHeading {
                         Layout.columnSpan: 2
                         text: qsTr('Lightning')
@@ -256,10 +256,11 @@ Pane {
                                 if (activeFocus) {
                                     if (!checked) {
                                         var dialog = app.messageDialog.createObject(app, {
-                                            text: qsTr('Using plain gossip mode is not recommended on mobile. Are you sure?'),
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('Electrum will have to download the Lightning Network graph, which is not recommended on mobile.'),
                                             yesno: true
                                         })
-                                        dialog.yesClicked.connect(function() {
+                                        dialog.accepted.connect(function() {
                                             Config.useGossip = true
                                         })
                                         dialog.rejected.connect(function() {
@@ -288,8 +289,24 @@ Pane {
                         Switch {
                             id: useRecoverableChannels
                             onCheckedChanged: {
-                                if (activeFocus)
-                                    Config.useRecoverableChannels = checked
+                                if (activeFocus) {
+                                    if (!checked) {
+                                        var dialog = app.messageDialog.createObject(app, {
+                                            title: qsTr('Are you sure?'),
+                                            text: qsTr('This option allows you to recover your lightning funds if you lose your device, or if you uninstall this app while lightning channels are active. Do not disable it unless you know how to recover channels from backups.'),
+                                            yesno: true
+                                        })
+                                        dialog.accepted.connect(function() {
+                                            Config.useRecoverableChannels = false
+                                        })
+                                        dialog.rejected.connect(function() {
+                                            checked = true // revert
+                                        })
+                                        dialog.open()
+                                    } else {
+                                        Config.useRecoverableChannels = checked
+                                    }
+                                }
                             }
                         }
                         Label {
@@ -313,7 +330,7 @@ Pane {
                         }
                         Label {
                             Layout.fillWidth: true
-                            text: qsTr('Use onchain fallback address for Lightning payment requests')
+                            text: qsTr('Create lightning invoices with on-chain fallback address')
                             wrapMode: Text.Wrap
                         }
                     }
@@ -355,6 +372,7 @@ Pane {
     }
 
     Component.onCompleted: {
+        language.currentIndex = language.indexOfValue(Config.language)
         baseUnit.currentIndex = _baseunits.indexOf(Config.baseUnit)
         thousands.checked = Config.thousandsSeparator
         currencies.currentIndex = currencies.indexOfValue(Daemon.fx.fiatCurrency)

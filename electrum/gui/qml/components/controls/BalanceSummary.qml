@@ -9,37 +9,38 @@ Item {
     implicitWidth: balancePane.implicitWidth
     implicitHeight: balancePane.implicitHeight
 
+    property string formattedConfirmedBalance
     property string formattedTotalBalance
     property string formattedTotalBalanceFiat
-    property string formattedLightningCanReceive
-    property string formattedLightningCanReceiveFiat
-    property string formattedLightningCanSend
-    property string formattedLightningCanSendFiat
+    property string formattedLightningBalance
 
     function setBalances() {
+        root.formattedConfirmedBalance = Config.formatSats(Daemon.currentWallet.confirmedBalance)
         root.formattedTotalBalance = Config.formatSats(Daemon.currentWallet.totalBalance)
-        root.formattedLightningCanReceive = Config.formatSats(Daemon.currentWallet.lightningCanReceive)
-        root.formattedLightningCanSend = Config.formatSats(Daemon.currentWallet.lightningCanSend)
+        root.formattedLightningBalance = Config.formatSats(Daemon.currentWallet.lightningBalance)
         if (Daemon.fx.enabled) {
             root.formattedTotalBalanceFiat = Daemon.fx.fiatValue(Daemon.currentWallet.totalBalance, false)
-            root.formattedLightningCanReceiveFiat = Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanReceive, false)
-            root.formattedLightningCanSendFiat = Daemon.fx.fiatValue(Daemon.currentWallet.lightningCanSend, false)
         }
     }
 
     TextHighlightPane {
         id: balancePane
+        leftPadding: constants.paddingXLarge
+        rightPadding: constants.paddingXLarge
 
         GridLayout {
+            id: balanceLayout
             columns: 3
+            opacity: Daemon.currentWallet.synchronizing || !Network.isConnected ? 0 : 1
 
             Label {
                 font.pixelSize: constants.fontSizeXLarge
-                text: qsTr('Balance:')
+                text: qsTr('Balance') + ':'
                 color: Material.accentColor
             }
 
             Label {
+                Layout.alignment: Qt.AlignRight
                 font.pixelSize: constants.fontSizeXLarge
                 font.family: FixedFont
                 text: formattedTotalBalance
@@ -52,13 +53,13 @@ Item {
 
             Item {
                 visible: Daemon.fx.enabled
-                Layout.preferredHeight: 1
                 Layout.preferredWidth: 1
             }
             Label {
                 Layout.alignment: Qt.AlignRight
                 visible: Daemon.fx.enabled
                 font.pixelSize: constants.fontSizeLarge
+                font.family: FixedFont
                 color: constants.mutedForeground
                 text: formattedTotalBalanceFiat
             }
@@ -68,98 +69,87 @@ Item {
                 color: constants.mutedForeground
                 text: Daemon.fx.fiatCurrency
             }
+
             RowLayout {
+                Layout.alignment: Qt.AlignRight
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
                     source: '../../../icons/lightning.png'
                 }
                 Label {
-                    text: qsTr('can receive:')
+                    text: qsTr('Lightning') + ':'
                     font.pixelSize: constants.fontSizeSmall
                     color: Material.accentColor
                 }
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
-                text: formattedLightningCanReceive
+                text: formattedLightningBalance
                 font.family: FixedFont
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
-            }
-            Item {
-                visible: Daemon.fx.enabled
-                Layout.preferredHeight: 1
-                Layout.preferredWidth: 1
-            }
-            Label {
-                Layout.alignment: Qt.AlignRight
-                visible: Daemon.fx.enabled
-                font.pixelSize: constants.fontSizeSmall
-                color: constants.mutedForeground
-                text: formattedLightningCanReceiveFiat
-            }
-            Label {
-                visible: Daemon.fx.enabled
-                font.pixelSize: constants.fontSizeSmall
-                color: constants.mutedForeground
-                text: Daemon.fx.fiatCurrency
             }
 
             RowLayout {
+                Layout.alignment: Qt.AlignRight
+                visible: Daemon.currentWallet.isLightning
                 Image {
                     Layout.preferredWidth: constants.iconSizeSmall
                     Layout.preferredHeight: constants.iconSizeSmall
-                    source: '../../../icons/lightning.png'
+                    source: '../../../icons/bitcoin.png'
                 }
                 Label {
-                    text: qsTr('can send:')
+                    text: qsTr('On-chain') + ':'
                     font.pixelSize: constants.fontSizeSmall
                     color: Material.accentColor
                 }
             }
             Label {
+                id: formattedConfirmedBalanceLabel
+                visible: Daemon.currentWallet.isLightning
                 Layout.alignment: Qt.AlignRight
-                text: formattedLightningCanSend
+                text: formattedConfirmedBalance
                 font.family: FixedFont
             }
             Label {
+                visible: Daemon.currentWallet.isLightning
                 font.pixelSize: constants.fontSizeSmall
                 color: Material.accentColor
                 text: Config.baseUnit
-            }
-            Item {
-                visible: Daemon.fx.enabled
-                Layout.preferredHeight: 1
-                Layout.preferredWidth: 1
-            }
-            Label {
-                Layout.alignment: Qt.AlignRight
-                visible: Daemon.fx.enabled
-                font.pixelSize: constants.fontSizeSmall
-                color: constants.mutedForeground
-                text: formattedLightningCanSendFiat
-            }
-            Label {
-                visible: Daemon.fx.enabled
-                font.pixelSize: constants.fontSizeSmall
-                color: constants.mutedForeground
-                text: Daemon.fx.fiatCurrency
             }
         }
 
+    }
+
+    Label {
+        opacity: Daemon.currentWallet.synchronizing && Network.isConnected ? 1 : 0
+        anchors.centerIn: balancePane
+        text: Daemon.currentWallet.synchronizingProgress
+        color: Material.accentColor
+        font.pixelSize: constants.fontSizeLarge
+    }
+
+    Label {
+        opacity: !Network.isConnected ? 1 : 0
+        anchors.centerIn: balancePane
+        text: Network.serverStatus
+        color: Material.accentColor
+        font.pixelSize: constants.fontSizeLarge
     }
 
     MouseArea {
-        anchors.fill: balancePane
+        anchors.fill: parent
         onClicked: {
-            app.stack.pushOnRoot(Qt.resolvedUrl('../WalletDetails.qml'))
+            app.stack.push(Qt.resolvedUrl('../BalanceDetails.qml'))
         }
     }
-
 
     // instead of all these explicit connections, we should expose
     // formatted balances directly as a property
@@ -171,7 +161,9 @@ Item {
 
     Connections {
         target: Daemon
-        function onWalletLoaded() { setBalances() }
+        function onWalletLoaded() {
+            setBalances()
+        }
     }
 
     Connections {
@@ -185,6 +177,11 @@ Item {
         function onBalanceChanged() {
             setBalances()
         }
+    }
+
+    FontMetrics {
+        id: fontMetrics
+        font: formattedConfirmedBalanceLabel.font
     }
 
     Component.onCompleted: setBalances()

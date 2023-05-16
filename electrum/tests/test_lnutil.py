@@ -2,6 +2,7 @@ import unittest
 import json
 
 from electrum import bitcoin
+from electrum import ecc
 from electrum.json_db import StoredDict
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
@@ -9,12 +10,15 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid, calc_fees_for_commitment_tx, UpdateAddHtlc, LnFeatures,
-                             ln_compare_features, IncompatibleLightningFeatures, ChannelType)
-from electrum.util import bh2u, bfh, MyEncoder
-from electrum.transaction import Transaction, PartialTransaction
+                             ln_compare_features, IncompatibleLightningFeatures, ChannelType,
+                             ImportedChannelBackupStorage)
+from electrum.util import bfh, MyEncoder
+from electrum.transaction import Transaction, PartialTransaction, Sighash
 from electrum.lnworker import LNWallet
+from electrum.wallet import restore_wallet_from_text, Standard_Wallet
+from electrum.simple_config import SimpleConfig
 
-from . import ElectrumTestCase
+from . import ElectrumTestCase, as_testnet
 
 
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'
@@ -575,7 +579,7 @@ class TestLNUtil(ElectrumTestCase):
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=htlc_output_index,
             amount_msat=amount_msat,
-            witness_script=bh2u(htlc))
+            witness_script=htlc.hex())
         our_htlc_tx = make_htlc_tx(
             cltv_expiry=cltv_timeout,
             inputs=our_htlc_tx_inputs,
@@ -724,8 +728,9 @@ class TestLNUtil(ElectrumTestCase):
         assert type(privkey) is bytes
         assert len(pubkey) == 33
         assert len(privkey) == 33
-        tx.sign({bh2u(pubkey): (privkey[:-1], True)})
-        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + "01")
+        tx.sign({pubkey.hex(): (privkey[:-1], True)})
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        tx.add_signature_to_txin(txin_idx=0, signing_pubkey=remote_pubkey.hex(), sig=remote_signature + sighash)
 
     def test_get_compressed_pubkey_from_bech32(self):
         self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',
@@ -752,11 +757,23 @@ class TestLNUtil(ElectrumTestCase):
             split_host_port("electrum.org:")
 
     def test_extract_nodeid(self):
+        pubkey1 = ecc.GENERATOR.get_public_key_bytes(compressed=True)
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 32 + "@localhost")
         with self.assertRaises(ConnStringFormatError):
             extract_nodeid("00" * 33 + "@")
+        # pubkey + host
         self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44"), (pubkey1, "11.22.33.44"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]"), (pubkey1, "[2001:41d0:e:734::1]"))
+        # pubkey + host + port
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@11.22.33.44:5555"), (pubkey1, "11.22.33.44:5555"))
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}@[2001:41d0:e:734::1]:8888"), (pubkey1, "[2001:41d0:e:734::1]:8888"))
+        # just pubkey
+        self.assertEqual(extract_nodeid(f"{pubkey1.hex()}"), (pubkey1, None))
+        # bolt11 invoice
+        self.assertEqual(extract_nodeid("lnbc241ps9zprzpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqs9qypqszrwfgrl5k3rt4q4mclc8t00p2tcjsf9pmpcq6lu5zhmampyvk43fk30eqpdm8t5qmdpzan25aqxqaqdzmy0smrtduazjcxx975vz78ccpx0qhev"),
+                         (bfh("03e7156ae33b0a208d0744199163177e909e80176e55d97a2f221ede0f934dd9ad"), None))
 
     def test_ln_features_validate_transitive_dependencies(self):
         features = LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
@@ -902,3 +919,29 @@ class TestLNUtil(ElectrumTestCase):
         # ignore unknown channel types
         channel_type = ChannelType(0b10000000001000000000010).discard_unknown_and_check()
         self.assertEqual(ChannelType(0b10000000001000000000000), channel_type)
+
+    @as_testnet
+    async def test_decode_imported_channel_backup(self):
+        encrypted_cb = "channel_backup:Adn87xcGIs9H2kfp4VpsOaNKWCHX08wBoqq37l1cLYKGlJamTeoaLEwpJA81l1BXF3GP/mRxqkY+whZG9l51G8izIY/kmMSvnh0DOiZEdwaaT/1/MwEHfsEomruFqs+iW24SFJPHbMM7f80bDtIxcLfZkKmgcKBAOlcqtq+dL3U3yH74S8BDDe2L4snaxxpCjF0JjDMBx1UR/28D+QlIi+lbvv1JMaCGXf+AF1+3jLQf8+lVI+rvFdyArws6Ocsvjf+ANQeSGUwW6Nb2xICQcMRgr1DO7bO4pgGu408eYRr2v3ayJBVtnKwSwd49gF5SDSjTDAO4CCM0uj9H5RxyzH7fqotkd9J80MBr84RiBXAeXKz+Ap8608/FVqgQ9BOcn6LhuAQdE5zXpmbQyw5jUGkPvHuseR+rzthzncy01odUceqTNg=="
+        config = SimpleConfig({'electrum_path': self.electrum_path})
+        d = restore_wallet_from_text("9dk", path=None, gap_limit=2, config=config)
+        wallet1 = d['wallet']  # type: Standard_Wallet
+        decoded_cb = ImportedChannelBackupStorage.from_encrypted_str(encrypted_cb, password=wallet1.get_fingerprint())
+        self.assertEqual(
+            ImportedChannelBackupStorage(
+                funding_txid='97767fdefef3152319363b772914d71e5eb70e793b835c13dce20037d3ac13fe',
+                funding_index=1,
+                funding_address='tb1qfsxllwl2edccpar9jas9wsxd4vhcewlxqwmn0w27kurkme3jvkdqn4msdp',
+                is_initiator=True,
+                node_id=bfh('02bf82e22f99dcd7ac1de4aad5152ce48f0694c46ec582567f379e0adbf81e2d0f'),
+                privkey=bfh('7e634853dc47f0bc2f2e0d1054b302fcb414371ddbd889f29ba8aa4e8b62c772'),
+                host='lightning.electrum.org',
+                port=9739,
+                channel_seed=bfh('ce9bad44ff8521d9f57fd202ad7cdedceb934f0056f42d0f3aa7a576b505332a'),
+                local_delay=1008,
+                remote_delay=720,
+                remote_payment_pubkey=bfh('02a1bbc818e2e88847016a93c223eb4adef7bb8becb3709c75c556b6beb3afe7bd'),
+                remote_revocation_pubkey=bfh('022f28b7d8d1f05768ada3df1b0966083b8058e1e7197c57393e302ec118d7f0ae'),
+            ),
+            decoded_cb,
+        )

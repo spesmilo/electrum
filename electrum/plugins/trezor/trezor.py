@@ -1,21 +1,21 @@
 import traceback
 import sys
-from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING
+from typing import NamedTuple, Any, Optional, Dict, Union, List, Tuple, TYPE_CHECKING, Sequence
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32 as parse_path
+from electrum.util import bfh, versiontuple, UserCancelled, UserFacingException
+from electrum.bip32 import BIP32Node
+from electrum import descriptor
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import Device, runs_in_hwd_thread
-from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
+from electrum.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput, Sighash
 from electrum.keystore import Hardware_KeyStore
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 from electrum.logging import get_logger
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
-                                LibraryFoundButUnusable, OutdatedHwFirmwareException,
-                                get_xpubs_and_der_suffixes_from_txinout)
+                                LibraryFoundButUnusable, OutdatedHwFirmwareException)
 
 _logger = get_logger(__name__)
 
@@ -284,7 +284,7 @@ class TrezorPlugin(HW_PluginBase):
         else:
             raise RuntimeError("Unsupported recovery method")
 
-    def _make_node_path(self, xpub, address_n):
+    def _make_node_path(self, xpub: str, address_n: Sequence[int]):
         bip32node = BIP32Node.from_xkey(xpub)
         node = HDNodeType(
             depth=bip32node.depth,
@@ -370,7 +370,8 @@ class TrezorPlugin(HW_PluginBase):
                                        amount_unit=self.get_trezor_amount_unit(),
                                        serialize=False,
                                        prev_txes=prev_tx)
-        signatures = [(bh2u(x) + '01') for x in signatures]
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        signatures = [(x.hex() + sighash) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread
@@ -385,14 +386,9 @@ class TrezorPlugin(HW_PluginBase):
         script_type = self.get_trezor_input_script_type(wallet.txin_type)
 
         # prepare multisig, if available:
-        xpubs = wallet.get_master_public_keys()
-        if len(xpubs) > 1:
-            pubkeys = wallet.get_public_keys(address)
-            # sort xpubs using the order of pubkeys
-            sorted_pairs = sorted(zip(pubkeys, xpubs))
-            multisig = self._make_multisig(
-                wallet.m,
-                [(xpub, deriv_suffix) for pubkey, xpub in sorted_pairs])
+        desc = wallet.get_script_descriptor_for_address(address)
+        if multi := desc.get_simple_multisig():
+            multisig = self._make_multisig(multi)
         else:
             multisig = None
 
@@ -416,10 +412,11 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    if len(txin.pubkeys) > 1:
-                        xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txin)
-                        txinputtype.multisig = self._make_multisig(txin.num_sig, xpubs_and_deriv_suffixes)
-                    txinputtype.script_type = self.get_trezor_input_script_type(txin.script_type)
+                    desc = txin.script_descriptor
+                    assert desc
+                    if multi := desc.get_simple_multisig():
+                        txinputtype.multisig = self._make_multisig(multi)
+                    txinputtype.script_type = self.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
                     my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
                     if full_path:
                         txinputtype.address_n = full_path
@@ -432,22 +429,27 @@ class TrezorPlugin(HW_PluginBase):
 
         return inputs
 
-    def _make_multisig(self, m, xpubs):
-        if len(xpubs) == 1:
-            return None
-        pubkeys = [self._make_node_path(xpub, deriv) for xpub, deriv in xpubs]
+    def _make_multisig(self, desc: descriptor.MultisigDescriptor):
+        pubkeys = []
+        for pubkey_provider in desc.pubkeys:
+            assert not pubkey_provider.is_range()
+            assert pubkey_provider.extkey is not None
+            xpub = pubkey_provider.pubkey
+            der_suffix = pubkey_provider.get_der_suffix_int_list()
+            pubkeys.append(self._make_node_path(xpub, der_suffix))
         return MultisigRedeemScriptType(
             pubkeys=pubkeys,
             signatures=[b''] * len(pubkeys),
-            m=m)
+            m=desc.thresh)
 
     def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore'):
 
         def create_output_by_derivation():
-            script_type = self.get_trezor_output_script_type(txout.script_type)
-            if len(txout.pubkeys) > 1:
-                xpubs_and_deriv_suffixes = get_xpubs_and_der_suffixes_from_txinout(tx, txout)
-                multisig = self._make_multisig(txout.num_sig, xpubs_and_deriv_suffixes)
+            desc = txout.script_descriptor
+            assert desc
+            script_type = self.get_trezor_output_script_type(desc.to_legacy_electrum_script_type())
+            if multi := desc.get_simple_multisig():
+                multisig = self._make_multisig(multi)
             else:
                 multisig = None
             my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txout)

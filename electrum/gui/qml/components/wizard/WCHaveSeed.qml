@@ -9,6 +9,7 @@ import "../controls"
 
 WizardComponent {
     id: root
+    securePage: true
 
     valid: false
 
@@ -21,13 +22,13 @@ WizardComponent {
         if (cosigner) {
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed'] = seedtext.text
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seed_type
+            wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_type'] = bitcoin.seedType
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extend'] = extendcb.checked
             wizard_data['multisig_cosigner_data'][cosigner.toString()]['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         } else {
             wizard_data['seed'] = seedtext.text
             wizard_data['seed_variant'] = seed_variant_cb.currentValue
-            wizard_data['seed_type'] = bitcoin.seed_type
+            wizard_data['seed_type'] = bitcoin.seedType
             wizard_data['seed_extend'] = extendcb.checked
             wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
         }
@@ -64,8 +65,11 @@ WizardComponent {
             return
         } else {
             apply()
-            if (wiz.hasDuplicateKeys(wizard_data)) {
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
                 validationtext.text = qsTr('Error: duplicate master public key')
+                return
+            } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: master public key types do not match')
                 return
             } else {
                 valid = true
@@ -93,11 +97,10 @@ WizardComponent {
             }
 
             TextHighlightPane {
-                visible: cosigner
                 Layout.columnSpan: 2
                 Layout.fillWidth: true
-                padding: 0
-                leftPadding: constants.paddingSmall
+
+                visible: cosigner
 
                 RowLayout {
                     width: parent.width
@@ -142,6 +145,7 @@ WizardComponent {
                 visible: !is2fa
                 text: qsTr('Seed Type')
             }
+
             ComboBox {
                 id: seed_variant_cb
                 visible: !is2fa
@@ -158,37 +162,25 @@ WizardComponent {
                     checkValid()
                 }
             }
+
             InfoTextArea {
                 id: infotext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
+                Layout.bottomMargin: constants.paddingLarge
             }
-            Label {
-                text: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
-                Layout.columnSpan: 2
-            }
+
             SeedTextArea {
                 id: seedtext
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
-                onTextChanged: {
-                    validationTimer.restart()
-                }
 
-                Rectangle {
-                    anchors.fill: contentText
-                    color: root.valid ? 'green' : 'red'
-                    border.color: Material.accentColor
-                    radius: 2
-                }
-                Label {
-                    id: contentText
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    leftPadding: text != '' ? constants.paddingLarge : 0
-                    rightPadding: text != '' ? constants.paddingLarge : 0
-                    font.bold: false
-                    font.pixelSize: constants.fontSizeSmall
+                placeholderText: cosigner ? qsTr('Enter cosigner seed') : qsTr('Enter your seed')
+
+                indicatorValid: root.valid
+
+                onTextChanged: {
+                    startValidationTimer()
                 }
             }
             TextArea {
@@ -206,7 +198,7 @@ WizardComponent {
                 id: extendcb
                 Layout.columnSpan: 2
                 text: qsTr('Extend seed with custom words')
-                onCheckedChanged: validationTimer.restart()
+                onCheckedChanged: startValidationTimer()
             }
             TextField {
                 id: customwordstext
@@ -214,15 +206,21 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 placeholderText: qsTr('Enter your custom word(s)')
-                onTextChanged: validationTimer.restart()
+                onTextChanged: startValidationTimer()
             }
         }
     }
 
     Bitcoin {
         id: bitcoin
-        onSeedTypeChanged: contentText.text = bitcoin.seed_type
+        onSeedTypeChanged: seedtext.indicatorText = bitcoin.seedType
         onValidationMessageChanged: validationtext.text = validationMessage
+    }
+
+    function startValidationTimer() {
+        valid = false
+        seedtext.indicatorText = ''
+        validationTimer.restart()
     }
 
     Timer {

@@ -11,12 +11,24 @@ import "controls"
 Item {
     id: mainView
 
-    property string title: Daemon.currentWallet ? Daemon.currentWallet.name : ''
+    property string title: Daemon.currentWallet ? Daemon.currentWallet.name : qsTr('no wallet loaded')
 
     property var _sendDialog
+    property string _intentUri
+
+    property string _request_amount
+    property string _request_description
+    property string _request_expiry
 
     function openInvoice(key) {
-        var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, invoice_key: key })
+        invoice.key = key
+        var dialog = invoiceDialog.createObject(app, { invoice: invoice })
+        dialog.open()
+        return dialog
+    }
+
+    function openRequest(key) {
+        var dialog = receiveDialog.createObject(app, { key: key })
         dialog.open()
         return dialog
     }
@@ -39,7 +51,21 @@ Item {
         }
     }
 
+    function showExport(data, helptext) {
+        var dialog = exportTxDialog.createObject(app, {
+            text: data[0],
+            text_qr: data[1],
+            text_help: helptext,
+            text_warn: data[2]
+                ? ''
+                : qsTr('Warning: Some data (prev txs / "full utxos") was left out of the QR code as it would not fit. This might cause issues if signing offline. As a workaround, try exporting the tx as file or text instead.')
+        })
+        dialog.open()
+    }
+
     property QtObject menu: Menu {
+        id: menu
+
         parent: Overlay.overlay
         dim: true
         modal: true
@@ -47,151 +73,150 @@ Item {
             color: "#44000000"
         }
 
-        id: menu
+        width: parent.width / 2
+
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/wallet.png'
             action: Action {
-                text: qsTr('Invoices');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Invoices.qml'))
-                enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_receive.png'
+                text: qsTr('Wallet details')
+                enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'WalletDetails'
+                onTriggered: menu.openPage(Qt.resolvedUrl('WalletDetails.qml'))
             }
         }
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/tab_addresses.png'
             action: Action {
                 text: qsTr('Addresses');
                 onTriggered: menu.openPage(Qt.resolvedUrl('Addresses.qml'));
-                enabled: Daemon.currentWallet
-                icon.source: '../../icons/tab_addresses.png'
+                enabled: Daemon.currentWallet && app.stack.currentItem.objectName != 'Addresses'
             }
         }
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/lightning.png'
             action: Action {
                 text: qsTr('Channels');
-                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning
+                enabled: Daemon.currentWallet && Daemon.currentWallet.isLightning && app.stack.currentItem.objectName != 'Channels'
                 onTriggered: menu.openPage(Qt.resolvedUrl('Channels.qml'))
-                icon.source: '../../icons/lightning.png'
             }
         }
 
-        MenuItem {
-            icon.color: 'transparent'
-            action: Action {
-                text: qsTr('Preferences');
-                onTriggered: menu.openPage(Qt.resolvedUrl('Preferences.qml'))
-                icon.source: '../../icons/preferences.png'
-            }
-        }
+        MenuSeparator { }
 
         MenuItem {
-            icon.color: 'transparent'
+            icon.color: action.enabled ? 'transparent' : Material.iconDisabledColor
+            icon.source: '../../icons/file.png'
             action: Action {
-                text: qsTr('About');
-                onTriggered: menu.openPage(Qt.resolvedUrl('About.qml'))
-                icon.source: '../../icons/electrum.png'
+                text: qsTr('Other wallets')
+                enabled: app.stack.currentItem.objectName != 'Wallets'
+                onTriggered: menu.openPage(Qt.resolvedUrl('Wallets.qml'))
             }
         }
 
         function openPage(url) {
-            stack.push(url)
+            stack.pushOnRoot(url)
             currentIndex = -1
         }
     }
 
     ColumnLayout {
-        anchors.centerIn: parent
-        width: parent.width
-        spacing: 2*constants.paddingXLarge
-        visible: !Daemon.currentWallet
-
-        Label {
-            text: qsTr('No wallet loaded')
-            font.pixelSize: constants.fontSizeXXLarge
-            Layout.alignment: Qt.AlignHCenter
-        }
-
-        Pane {
-            Layout.alignment: Qt.AlignHCenter
-            padding: 0
-            background: Rectangle {
-                color: Material.dialogColor
-            }
-            FlatButton {
-                text: qsTr('Open/Create Wallet')
-                icon.source: '../../icons/wallet.png'
-                onClicked: {
-                    if (Daemon.availableWallets.rowCount() > 0) {
-                        stack.push(Qt.resolvedUrl('Wallets.qml'))
-                    } else {
-                        var newww = app.newWalletWizard.createObject(app)
-                        newww.walletCreated.connect(function() {
-                            Daemon.availableWallets.reload()
-                            // and load the new wallet
-                            Daemon.load_wallet(newww.path, newww.wizard_data['password'])
-                        })
-                        newww.open()
-                    }
-                }
-            }
-        }
-    }
-
-    ColumnLayout {
         anchors.fill: parent
-        visible: Daemon.currentWallet
+        spacing: 0
 
         History {
             id: history
-            Layout.preferredWidth: parent.width
+            visible: Daemon.currentWallet
+            Layout.fillWidth: true
             Layout.fillHeight: true
         }
 
-        RowLayout {
-            spacing: 0
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillHeight: true
+            spacing: 2*constants.paddingXLarge
+            visible: !Daemon.currentWallet
 
-            FlatButton {
-                Layout.fillWidth: false
-                Layout.preferredWidth: implicitHeight
-                text: qsTr('≡')
-                onClicked: {
-                    mainView.menu.open()
-                    mainView.menu.y = mainView.height - mainView.menu.height
+            Item {
+                Layout.fillHeight: true
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr('No wallet loaded')
+                font.pixelSize: constants.fontSizeXXLarge
+            }
+
+            Pane {
+                Layout.alignment: Qt.AlignHCenter
+                padding: 0
+                background: Rectangle {
+                    color: Material.dialogColor
+                }
+                FlatButton {
+                    text: qsTr('Open/Create Wallet')
+                    icon.source: '../../icons/wallet.png'
+                    onClicked: {
+                        if (Daemon.availableWallets.rowCount() > 0) {
+                            stack.push(Qt.resolvedUrl('Wallets.qml'))
+                        } else {
+                            var newww = app.newWalletWizard.createObject(app)
+                            newww.walletCreated.connect(function() {
+                                Daemon.availableWallets.reload()
+                                // and load the new wallet
+                                Daemon.loadWallet(newww.path, newww.wizard_data['password'])
+                            })
+                            newww.open()
+                        }
+                    }
                 }
             }
-            Rectangle {
-                Layout.fillWidth: false
-                Layout.preferredWidth: 2
-                Layout.preferredHeight: parent.height * 2/3
-                Layout.alignment: Qt.AlignVCenter
-                color: constants.darkerBackground
+            Item {
+                Layout.fillHeight: true
             }
+        }
+
+        ButtonContainer {
+            id: buttonContainer
+            Layout.fillWidth: true
+
             FlatButton {
+                id: receiveButton
+                visible: Daemon.currentWallet
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_receive.png'
                 text: qsTr('Receive')
                 onClicked: {
-                    var dialog = receiveDialog.createObject(mainView)
+                    var dialog = receiveDetailsDialog.createObject(mainView)
                     dialog.open()
                 }
-            }
-            Rectangle {
-                Layout.fillWidth: false
-                Layout.preferredWidth: 2
-                Layout.preferredHeight: parent.height * 2/3
-                Layout.alignment: Qt.AlignVCenter
-                color: constants.darkerBackground
+                onPressAndHold: {
+                    Config.userKnowsPressAndHold = true
+                    Daemon.currentWallet.deleteExpiredRequests()
+                    app.stack.push(Qt.resolvedUrl('ReceiveRequests.qml'))
+                    AppController.haptic()
+                }
             }
             FlatButton {
+                visible: Daemon.currentWallet
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 icon.source: '../../icons/tab_send.png'
                 text: qsTr('Send')
                 onClicked: openSendDialog()
+                onPressAndHold: {
+                    Config.userKnowsPressAndHold = true
+                    app.stack.push(Qt.resolvedUrl('Invoices.qml'))
+                    AppController.haptic()
+                }
             }
         }
+    }
+
+    Invoice {
+        id: invoice
+        wallet: Daemon.currentWallet
     }
 
     InvoiceParser {
@@ -207,6 +232,9 @@ Item {
         onValidationWarning: {
             if (code == 'no_channels') {
                 var dialog = app.messageDialog.createObject(app, { text: message })
+                dialog.closed.connect(function() {
+                    restartSendDialog()
+                })
                 dialog.open()
                 // TODO: ask user to open a channel, if funds allow
                 // and maybe store invoice if expiry allows
@@ -214,13 +242,18 @@ Item {
         }
         onValidationSuccess: {
             closeSendDialog()
-            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser })
+            var dialog = invoiceDialog.createObject(app, { invoice: invoiceParser, payImmediately: invoiceParser.isLnurlPay })
             dialog.open()
         }
         onInvoiceCreateError: console.log(code + ' ' + message)
 
         onLnurlRetrieved: {
+            closeSendDialog()
             var dialog = lnurlPayDialog.createObject(app, { invoiceParser: invoiceParser })
+            dialog.open()
+        }
+        onLnurlError: {
+            var dialog = app.messageDialog.createObject(app, { title: qsTr('Error'), text: message })
             dialog.open()
         }
     }
@@ -228,53 +261,36 @@ Item {
     Connections {
         target: AppController
         function onUriReceived(uri) {
+            console.log('uri received: ' + uri)
+            if (!Daemon.currentWallet) {
+                console.log('No wallet open, deferring')
+                _intentUri = uri
+                return
+            }
             invoiceParser.recipient = uri
         }
     }
 
-    Component {
-        id: invoiceDialog
-        InvoiceDialog {
-            width: parent.width
-            height: parent.height
-
-            onDoPay: {
-                if (invoice.invoiceType == Invoice.OnchainInvoice) {
-                    var dialog = confirmPaymentDialog.createObject(mainView, {
-                            'address': invoice.address,
-                            'satoshis': invoice.amount,
-                            'message': invoice.message
-                    })
-                    var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
-                    dialog.txaccepted.connect(function() {
-                        if (!canComplete) {
-                            dialog.finalizer.signAndSave()
-                        } else {
-                            dialog.finalizer.signAndSend()
-                        }
-                    })
-                    dialog.open()
-                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
-                    console.log('About to pay lightning invoice')
-                    if (invoice.key == '') {
-                        console.log('No invoice key, aborting')
-                        return
-                    }
-                    var dialog = lightningPaymentProgressDialog.createObject(mainView, {
-                        invoice_key: invoice.key
-                    })
-                    dialog.open()
-                    Daemon.currentWallet.pay_lightning_invoice(invoice.key)
-                }
-                close()
+    Connections {
+        target: Daemon
+        function onWalletLoaded() {
+            if (_intentUri) {
+                invoiceParser.recipient = _intentUri
+                _intentUri = ''
             }
-
-            onClosed: destroy()
         }
     }
 
     Connections {
         target: Daemon.currentWallet
+        function onRequestCreateSuccess(key) {
+            openRequest(key)
+        }
+        function onRequestCreateError(error) {
+            console.log(error)
+            var dialog = app.messageDialog.createObject(app, {text: error})
+            dialog.open()
+        }
         function onOtpRequested() {
             console.log('OTP requested')
             var dialog = otpDialog.createObject(mainView)
@@ -284,8 +300,62 @@ Item {
             })
             dialog.open()
         }
-        function onBroadcastFailed() {
-            notificationPopup.show(qsTr('Broadcast transaction failed'))
+        function onBroadcastFailed(txid, code, message) {
+            var dialog = app.messageDialog.createObject(app, {
+                text: message
+            })
+            dialog.open()
+        }
+    }
+
+    Component {
+        id: invoiceDialog
+        InvoiceDialog {
+            id: _invoiceDialog
+
+            width: parent.width
+            height: parent.height
+
+            onDoPay: {
+                if (invoice.invoiceType == Invoice.OnchainInvoice
+                    || (invoice.invoiceType == Invoice.LightningInvoice
+                        && invoice.amountOverride.isEmpty
+                            ? invoice.amount.satsInt > Daemon.currentWallet.lightningCanSend
+                            : invoice.amountOverride.satsInt > Daemon.currentWallet.lightningCanSend
+                        ))
+                    {
+                    var dialog = confirmPaymentDialog.createObject(mainView, {
+                            address: invoice.address,
+                            satoshis: invoice.amountOverride.isEmpty ? invoice.amount : invoice.amountOverride,
+                            message: invoice.message
+                    })
+                    var canComplete = !Daemon.currentWallet.isWatchOnly && Daemon.currentWallet.canSignWithoutCosigner
+                    dialog.accepted.connect(function() {
+                        if (!canComplete) {
+                            if (Daemon.currentWallet.isWatchOnly) {
+                                dialog.finalizer.saveOrShow()
+                            } else {
+                                dialog.finalizer.sign()
+                            }
+                        } else {
+                            dialog.finalizer.signAndSend()
+                        }
+                    })
+                    dialog.open()
+                } else if (invoice.invoiceType == Invoice.LightningInvoice) {
+                    console.log('About to pay lightning invoice')
+                    invoice.payLightningInvoice()
+                }
+            }
+
+            onClosed: destroy()
+
+            Connections {
+                target: Daemon.currentWallet
+                function onSaveTxSuccess(txid) {
+                    _invoiceDialog.close()
+                }
+            }
         }
     }
 
@@ -298,6 +368,46 @@ Item {
             onTxFound: {
                 app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { rawtx: data })
                 close()
+            }
+            onChannelBackupFound: {
+                var dialog = app.messageDialog.createObject(app, {
+                    title: qsTr('Import Channel backup?'),
+                    yesno: true
+                })
+                dialog.accepted.connect(function() {
+                    Daemon.currentWallet.importChannelBackup(data)
+                    close()
+                })
+                dialog.rejected.connect(function() {
+                    close()
+                })
+                dialog.open()
+            }
+            onClosed: destroy()
+        }
+    }
+
+    function createRequest(lightning_only, reuse_address) {
+        var qamt = Config.unitsToSats(_request_amount)
+        Daemon.currentWallet.createRequest(qamt, _request_description, _request_expiry, lightning_only, reuse_address)
+    }
+
+    Component {
+        id: receiveDetailsDialog
+
+        ReceiveDetailsDialog {
+            id: _receiveDetailsDialog
+            width: parent.width * 0.9
+            anchors.centerIn: parent
+            onAccepted: {
+                console.log('accepted')
+                _request_amount = _receiveDetailsDialog.amount
+                _request_description = _receiveDetailsDialog.description
+                _request_expiry = _receiveDetailsDialog.expiry
+                createRequest(false, false)
+            }
+            onRejected: {
+                console.log('rejected')
             }
             onClosed: destroy()
         }
@@ -321,13 +431,32 @@ Item {
             finalizer: TxFinalizer {
                 wallet: Daemon.currentWallet
                 canRbf: true
-                onFinishedSave: {
-                    // tx was (partially) signed and saved. Show QR for co-signers or online wallet
-                    var page = app.stack.push(Qt.resolvedUrl('TxDetails.qml'), { txid: txid })
-                    page.showExport()
+                onFinished: {
+                    if (!complete) {
+                        var msg
+                        if (wallet.isWatchOnly) {
+                            // tx created in watchonly wallet. Show QR for signer(s)
+                            if (wallet.isMultisig) {
+                                msg = qsTr('Transaction created. Present this QR code to one of the co-cigners or signing devices')
+                            } else {
+                                msg = qsTr('Transaction created. Present this QR code to the signing device')
+                            }
+                        } else {
+                            if (signed) {
+                                msg = qsTr('Transaction created and partially signed by this wallet. Present this QR code to the next co-signer')
+                            } else {
+                                msg = qsTr('Transaction created but not signed by this wallet yet. Sign the transaction and present this QR code to the next co-signer')
+                            }
+                        }
+                        showExport(getSerializedTx(), msg)
+                    }
                     _confirmPaymentDialog.destroy()
                 }
             }
+            // TODO: lingering confirmPaymentDialogs can raise exceptions in
+            // the child finalizer when currentWallet disappears, but we need
+            // it long enough for the finalizer to finish..
+            // onClosed: destroy()
         }
     }
 
@@ -357,5 +486,13 @@ Item {
             onClosed: destroy()
         }
     }
+
+    Component {
+        id: exportTxDialog
+        ExportTxDialog {
+            onClosed: destroy()
+        }
+    }
+
 }
 

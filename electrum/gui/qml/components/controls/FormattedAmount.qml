@@ -24,7 +24,7 @@ GridLayout {
     }
     Label {
         visible: valid
-        text: amount.msatsInt > 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
+        text: amount.msatsInt != 0 ? Config.formatMilliSats(amount) : Config.formatSats(amount)
         font.family: FixedFont
     }
     Label {
@@ -34,9 +34,30 @@ GridLayout {
     }
 
     Label {
+        id: fiatLabel
         Layout.columnSpan: singleLine ? 1 : 2
         visible: showAlt && Daemon.fx.enabled && valid
-        text: '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
         font.pixelSize: constants.fontSizeSmall
     }
+
+    function setFiatValue() {
+        if (showAlt)
+            fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+    }
+
+    onAmountChanged: setFiatValue()
+
+    Connections {
+        target: Daemon.fx
+        function onQuotesUpdated() { setFiatValue() }
+    }
+
+    Connections {
+        target: amount
+        function onValueChanged() {
+            setFiatValue()
+        }
+    }
+
+    Component.onCompleted: setFiatValue()
 }

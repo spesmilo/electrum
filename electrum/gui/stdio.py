@@ -25,7 +25,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config, daemon, plugins):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path())
+        storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
@@ -68,7 +68,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.updated()
 
     @event_listener
-    def on_event_banner(self):
+    def on_event_banner(self, *args):
         self.print_banner()
 
     def main_command(self):
@@ -177,7 +177,9 @@ class ElectrumGui(BaseElectrumGui, EventListener):
 
 
     def main(self):
-        while self.done == 0: self.main_command()
+        self.daemon.start_network()
+        while self.done == 0:
+            self.main_command()
 
     def do_send(self):
         if not is_address(self.str_recipient):

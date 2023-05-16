@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Dict, Tuple, Optional, List, Any, Callable
 from electrum import bip32, constants
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
-from electrum.transaction import PartialTransaction
+from electrum.transaction import PartialTransaction, Sighash
 from electrum.wallet import Standard_Wallet, Multisig_Wallet, Deterministic_Wallet
-from electrum.util import bh2u, UserFacingException
+from electrum.util import UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported, BaseWizard
 from electrum.logging import get_logger
 from electrum.plugin import Device, DeviceInfo, runs_in_hwd_thread
@@ -79,7 +79,7 @@ class BitBox02Client(HardwareClientBase):
     def close(self):
         try:
             self.bitbox02_device.close()
-        except:
+        except Exception:
             pass
 
     def has_usable_connection_with_device(self) -> bool:
@@ -104,7 +104,7 @@ class BitBox02Client(HardwareClientBase):
             self.handler.show_message(msg)
             try:
                 res = device_response()
-            except:
+            except Exception:
                 # Close the hid device on exception
                 hid_device.close()
                 raise
@@ -201,7 +201,7 @@ class BitBox02Client(HardwareClientBase):
     @runs_in_hwd_thread
     def get_password_for_storage_encryption(self) -> str:
         derivation = get_derivation_used_for_hw_device_encryption()
-        derivation_list = bip32.convert_bip32_path_to_list_of_uint32(derivation)
+        derivation_list = bip32.convert_bip32_strpath_to_intpath(derivation)
         xpub = self.bitbox02_device.electrum_encryption_key(derivation_list)
         node = bip32.BIP32Node.from_xkey(xpub, net = constants.BitcoinMainnet()).subkey_at_public_derivation(())
         return node.eckey.get_public_key_bytes(compressed=True).hex()
@@ -218,7 +218,7 @@ class BitBox02Client(HardwareClientBase):
 
         self.fail_if_not_initialized()
 
-        xpub_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        xpub_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if xtype == "p2wpkh":
@@ -327,7 +327,7 @@ class BitBox02Client(HardwareClientBase):
                 )
             except bitbox02.DuplicateEntryException:
                 raise
-            except:
+            except Exception:
                 raise UserFacingException("Failed to register multisig\naccount configuration on BitBox02")
         return multisig_config
 
@@ -341,7 +341,7 @@ class BitBox02Client(HardwareClientBase):
                 "Need to setup communication first before attempting any BitBox02 calls"
             )
 
-        address_keypath = bip32.convert_bip32_path_to_list_of_uint32(bip32_path)
+        address_keypath = bip32.convert_bip32_strpath_to_intpath(bip32_path)
         coin_network = self.coin_network_from_electrum_network()
 
         if address_type == "p2wpkh":
@@ -444,9 +444,11 @@ class BitBox02Client(HardwareClientBase):
                 }
             )
 
+            desc = txin.script_descriptor
+            assert desc
             if tx_script_type is None:
-                tx_script_type = txin.script_type
-            elif tx_script_type != txin.script_type:
+                tx_script_type = desc.to_legacy_electrum_script_type()
+            elif tx_script_type != desc.to_legacy_electrum_script_type():
                 raise Exception("Cannot mix different input script types")
 
         if tx_script_type == "p2wpkh":
@@ -523,7 +525,8 @@ class BitBox02Client(HardwareClientBase):
         # Fill signatures
         if len(sigs) != len(tx.inputs()):
             raise Exception("Incorrect number of inputs signed.")  # Should never occur
-        signatures = [bh2u(ecc.der_sig_from_sig_string(x[1])) + "01" for x in sigs]
+        sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
+        signatures = [ecc.der_sig_from_sig_string(x[1]).hex() + sighash for x in sigs]
         tx.update_signatures(signatures)
 
     def sign_message(self, keypath: str, message: bytes, script_type: str) -> bytes:
@@ -546,7 +549,7 @@ class BitBox02Client(HardwareClientBase):
                 script_config=bitbox02.btc.BTCScriptConfig(
                     simple_type=simple_type,
                 ),
-                keypath=bip32.convert_bip32_path_to_list_of_uint32(keypath),
+                keypath=bip32.convert_bip32_strpath_to_intpath(keypath),
             ),
             message,
         )
@@ -645,7 +648,7 @@ class BitBox02Plugin(HW_PluginBase):
         try:
             from bitbox02 import bitbox02
             version = bitbox02.__version__
-        except:
+        except Exception:
             version = "unknown"
         if requirements_ok:
             return version

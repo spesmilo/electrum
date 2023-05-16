@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import sys
 
@@ -14,18 +15,17 @@ from electrum import segwit_addr
 from electrum.segwit_addr import DecodedBech32
 from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
-                            is_xpub, convert_bip32_path_to_list_of_uint32,
+                            is_xpub, convert_bip32_strpath_to_intpath,
                             normalize_bip32_derivation, is_all_public_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
-from electrum.util import bfh, bh2u, InvalidPassword, randrange
+from electrum.util import bfh, InvalidPassword, randrange
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
 
 from electrum import ecc_fast
 
 from . import ElectrumTestCase
-from . import TestCaseForTestnet
 from . import FAST_TESTS
 
 
@@ -36,27 +36,43 @@ def needs_test_with_all_aes_implementations(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
-            func(*args, **kwargs)
-            return
-        has_cryptodome = crypto.HAS_CRYPTODOME
-        has_cryptography = crypto.HAS_CRYPTOGRAPHY
-        has_pyaes = crypto.HAS_PYAES
-        try:
-            if has_pyaes:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
-                func(*args, **kwargs)  # pyaes
-            if has_cryptodome:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
-                func(*args, **kwargs)  # cryptodome
-            if has_cryptography:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
-                func(*args, **kwargs)  # cryptography
-        finally:
-            crypto.HAS_CRYPTODOME = has_cryptodome
-            crypto.HAS_CRYPTOGRAPHY = has_cryptography
-            crypto.HAS_PYAES = has_pyaes
+    if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+        return func
+    has_cryptodome = crypto.HAS_CRYPTODOME
+    has_cryptography = crypto.HAS_CRYPTOGRAPHY
+    has_pyaes = crypto.HAS_PYAES
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                if has_pyaes:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
+                    await func(*args, **kwargs)  # pyaes
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
+                    await func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
+                    await func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+                crypto.HAS_PYAES = has_pyaes
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                if has_pyaes:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, False, True
+                    func(*args, **kwargs)  # pyaes
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = True, False, False
+                    func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY, crypto.HAS_PYAES) = False, True, False
+                    func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+                crypto.HAS_PYAES = has_pyaes
     return run_test
 
 
@@ -67,22 +83,34 @@ def needs_test_with_all_chacha20_implementations(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
-            func(*args, **kwargs)
-            return
-        has_cryptodome = crypto.HAS_CRYPTODOME
-        has_cryptography = crypto.HAS_CRYPTOGRAPHY
-        try:
-            if has_cryptodome:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
-                func(*args, **kwargs)  # cryptodome
-            if has_cryptography:
-                (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
-                func(*args, **kwargs)  # cryptography
-        finally:
-            crypto.HAS_CRYPTODOME = has_cryptodome
-            crypto.HAS_CRYPTOGRAPHY = has_cryptography
+    if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+        return func
+    has_cryptodome = crypto.HAS_CRYPTODOME
+    has_cryptography = crypto.HAS_CRYPTOGRAPHY
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
+                    await func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
+                    await func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                if has_cryptodome:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = True, False
+                    func(*args, **kwargs)  # cryptodome
+                if has_cryptography:
+                    (crypto.HAS_CRYPTODOME, crypto.HAS_CRYPTOGRAPHY) = False, True
+                    func(*args, **kwargs)  # cryptography
+            finally:
+                crypto.HAS_CRYPTODOME = has_cryptodome
+                crypto.HAS_CRYPTOGRAPHY = has_cryptography
     return run_test
 
 
@@ -94,13 +122,21 @@ def disable_ecdsa_r_value_grinding(func):
     NOTE: this is inherently sequential;
     tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
-        try:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
-            func(*args, **kwargs)
-        finally:
-            ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
+    is_grinding = ecc.ENABLE_ECDSA_R_VALUE_GRINDING
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
+                return await func(*args, **kwargs)
+            finally:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = False
+                return func(*args, **kwargs)
+            finally:
+                ecc.ENABLE_ECDSA_R_VALUE_GRINDING = is_grinding
     return run_test
 
 
@@ -450,17 +486,17 @@ class Test_bitcoin(ElectrumTestCase):
 
     def test_push_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
-        self.assertEqual(push_script(''), bh2u(bytes([opcodes.OP_0])))
-        self.assertEqual(push_script('07'), bh2u(bytes([opcodes.OP_7])))
-        self.assertEqual(push_script('10'), bh2u(bytes([opcodes.OP_16])))
-        self.assertEqual(push_script('81'), bh2u(bytes([opcodes.OP_1NEGATE])))
+        self.assertEqual(push_script(''), bytes([opcodes.OP_0]).hex())
+        self.assertEqual(push_script('07'), bytes([opcodes.OP_7]).hex())
+        self.assertEqual(push_script('10'), bytes([opcodes.OP_16]).hex())
+        self.assertEqual(push_script('81'), bytes([opcodes.OP_1NEGATE]).hex())
         self.assertEqual(push_script('11'), '0111')
         self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
-        self.assertEqual(push_script(76 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')))
-        self.assertEqual(push_script(100 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')))
-        self.assertEqual(push_script(255 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')))
-        self.assertEqual(push_script(256 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')))
-        self.assertEqual(push_script(520 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')))
+        self.assertEqual(push_script(76 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')).hex())
+        self.assertEqual(push_script(100 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')).hex())
+        self.assertEqual(push_script(255 * '42'), (bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')).hex())
+        self.assertEqual(push_script(256 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')).hex())
+        self.assertEqual(push_script(520 * '42'), (bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')).hex())
 
     def test_add_number_to_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
@@ -653,7 +689,8 @@ class Test_bitcoin(ElectrumTestCase):
                          segwit_addr.bech32_decode('1p2gdwpf'))
 
 
-class Test_bitcoin_testnet(TestCaseForTestnet):
+class Test_bitcoin_testnet(ElectrumTestCase):
+    TESTNET = True
 
     def test_address_to_script(self):
         # bech32/bech32m native segwit
@@ -723,7 +760,7 @@ class Test_xprv_xpub(ElectrumTestCase):
     def _do_test_bip32(self, seed: str, sequence: str):
         node = BIP32Node.from_rootseed(bfh(seed), xtype='standard')
         xprv, xpub = node.to_xprv(), node.to_xpub()
-        int_path = convert_bip32_path_to_list_of_uint32(sequence)
+        int_path = convert_bip32_strpath_to_intpath(sequence)
         for n in int_path:
             if n & bip32.BIP32_PRIME == 0:
                 xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation([n]).to_xpub()
@@ -778,6 +815,28 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertFalse(is_xprv('xprv1nval1d'))
         self.assertFalse(is_xprv('xprv661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
 
+    def test_bip32_from_xkey(self):
+        bip32node1 = BIP32Node.from_xkey("xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy")
+        self.assertEqual(
+            BIP32Node(
+                xtype='standard',
+                eckey=ecc.ECPubkey(bytes.fromhex("022a471424da5e657499d1ff51cb43c47481a03b1e77f951fe64cec9f5a48f7011")),
+                chaincode=bytes.fromhex("c783e67b921d2beb8f6b389cc646d7263b4145701dadd2161548a8b078e65e9e"),
+                depth=5,
+                fingerprint=bytes.fromhex("d880d7d8"),
+                child_number=bytes.fromhex("3b9aca00"),
+            ),
+            bip32node1)
+        with self.assertRaises(ValueError):
+            BIP32Node.from_xkey(
+                "zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8",
+                allow_custom_headers=False)
+        bip32node2 = BIP32Node.from_xkey(
+            "zpub6jftahH18ngZyLeqfLBFAm7YaWFVttE9pku5pNMX2qPzTjoq1FVgZMmhjecyB2nqFb31gHE9vNvbaggU6vvWpNZbXEWLLUjYjFqG95LNyT8",
+            allow_custom_headers=True)
+        self.assertEqual(bytes.fromhex("03f18e53f3386a5f9a9d2c369ad3b84b429eb397b4bc69ce600f2d833b54ba32f4"),
+                         bip32node2.eckey.get_public_key_bytes(compressed=True))
+
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))
@@ -793,21 +852,25 @@ class Test_xprv_xpub(ElectrumTestCase):
         self.assertFalse(is_bip32_derivation("m/q8462"))
         self.assertFalse(is_bip32_derivation("m/-8h"))
 
-    def test_convert_bip32_path_to_list_of_uint32(self):
-        self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_path_to_list_of_uint32("m/0/-1/1'"))
-        self.assertEqual([], convert_bip32_path_to_list_of_uint32("m/"))
-        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
+    def test_convert_bip32_strpath_to_intpath(self):
+        self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_strpath_to_intpath("m/0/-1/1'"))
+        self.assertEqual([], convert_bip32_strpath_to_intpath("m/"))
+        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_strpath_to_intpath("m/44'/5241h/221"))
 
     def test_convert_bip32_intpath_to_strpath(self):
-        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
+        self.assertEqual("m/0/1h/1h", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
         self.assertEqual("m", convert_bip32_intpath_to_strpath([]))
-        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
+        self.assertEqual("m/44h/5241h/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
+
+        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001], hardened_char="'"))
+        self.assertEqual("m", convert_bip32_intpath_to_strpath([], hardened_char="'"))
+        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221], hardened_char="'"))
 
     def test_normalize_bip32_derivation(self):
-        self.assertEqual("m/0/1'/1'", normalize_bip32_derivation("m/0/1h/1'"))
+        self.assertEqual("m/0/1h/1h", normalize_bip32_derivation("m/0/1h/1'"))
         self.assertEqual("m", normalize_bip32_derivation("m////"))
-        self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
-        self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
+        self.assertEqual("m/0/2/1h", normalize_bip32_derivation("m/0/2/-1/"))
+        self.assertEqual("m/0/1h/1h/5h", normalize_bip32_derivation("m/0//-1/1'///5h"))
 
     def test_is_xkey_consistent_with_key_origin_info(self):
         ### actual data (high depth path)
@@ -941,7 +1004,8 @@ class Test_xprv_xpub(ElectrumTestCase):
             self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
-class Test_xprv_xpub_testnet(TestCaseForTestnet):
+class Test_xprv_xpub_testnet(ElectrumTestCase):
+    TESTNET = True
 
     def test_version_bytes(self):
         xprv_headers_b58 = {

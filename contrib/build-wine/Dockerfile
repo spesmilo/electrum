@@ -1,4 +1,4 @@
-FROM debian:bullseye@sha256:bfe6615d017d1eebe19f349669de58cda36c668ef916e618be78071513c690e5
+FROM debian:bullseye@sha256:43ef0c6c3585d5b406caa7a0f232ff5a19c1402aeb415f68bcd1cf9d10180af8
 
 # need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
@@ -46,7 +46,7 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
         rm winehq.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/debian/ && \
     apt-get update -q && \
-    apt-get install -qy \
+    apt-get install -qy --allow-downgrades \
         wine-stable-amd64:amd64=7.0.0.0~bullseye-1 \
         wine-stable-i386:i386=7.0.0.0~bullseye-1 \
         wine-stable:amd64=7.0.0.0~bullseye-1 \
@@ -59,11 +59,12 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-get clean
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+ARG UID=1000
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
-RUN useradd --create-home --shell /bin/bash ${USER}
+RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
 RUN usermod -append --groups sudo ${USER}
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 WORKDIR ${WORK_DIR}

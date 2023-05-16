@@ -8,16 +8,22 @@ import json
 from collections import namedtuple, defaultdict
 from typing import NamedTuple, List, Tuple, Mapping, Optional, TYPE_CHECKING, Union, Dict, Set, Sequence
 import re
+import sys
+
 import attr
 from aiorpcx import NetAddress
 
-from .util import bfh, bh2u, inv_dict, UserFacingException
+from .util import bfh, inv_dict, UserFacingException
 from .util import list_enabled_bits
-from .crypto import sha256
+from .util import ShortID as ShortChannelID
+from .util import format_short_id as format_short_channel_id
+
+from .crypto import sha256, pw_decode_with_version_and_mac
 from .transaction import (Transaction, PartialTransaction, PartialTxInput, TxOutpoint,
                           PartialTxOutput, opcodes, TxOutput)
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
+from . import descriptor
 from .bitcoin import (push_script, redeem_script_to_address, address_to_script,
                       construct_witness, construct_script)
 from . import segwit_addr
@@ -260,44 +266,52 @@ class ImportedChannelBackupStorage(ChannelBackupStorage):
 
     def to_bytes(self) -> bytes:
         vds = BCDataStream()
-        vds.write_int16(CHANNEL_BACKUP_VERSION)
+        vds.write_uint16(CHANNEL_BACKUP_VERSION)
         vds.write_boolean(self.is_initiator)
         vds.write_bytes(self.privkey, 32)
         vds.write_bytes(self.channel_seed, 32)
         vds.write_bytes(self.node_id, 33)
         vds.write_bytes(bfh(self.funding_txid), 32)
-        vds.write_int16(self.funding_index)
+        vds.write_uint16(self.funding_index)
         vds.write_string(self.funding_address)
         vds.write_bytes(self.remote_payment_pubkey, 33)
         vds.write_bytes(self.remote_revocation_pubkey, 33)
-        vds.write_int16(self.local_delay)
-        vds.write_int16(self.remote_delay)
+        vds.write_uint16(self.local_delay)
+        vds.write_uint16(self.remote_delay)
         vds.write_string(self.host)
-        vds.write_int16(self.port)
+        vds.write_uint16(self.port)
         return bytes(vds.input)
 
     @staticmethod
-    def from_bytes(s):
+    def from_bytes(s: bytes) -> "ImportedChannelBackupStorage":
         vds = BCDataStream()
         vds.write(s)
-        version = vds.read_int16()
+        version = vds.read_uint16()
         if version != CHANNEL_BACKUP_VERSION:
             raise Exception(f"unknown version for channel backup: {version}")
         return ImportedChannelBackupStorage(
-            is_initiator = vds.read_boolean(),
-            privkey = vds.read_bytes(32).hex(),
-            channel_seed = vds.read_bytes(32).hex(),
-            node_id = vds.read_bytes(33).hex(),
-            funding_txid = vds.read_bytes(32).hex(),
-            funding_index = vds.read_int16(),
-            funding_address = vds.read_string(),
-            remote_payment_pubkey = vds.read_bytes(33).hex(),
-            remote_revocation_pubkey = vds.read_bytes(33).hex(),
-            local_delay = vds.read_int16(),
-            remote_delay = vds.read_int16(),
-            host = vds.read_string(),
-            port = vds.read_int16())
+            is_initiator=vds.read_boolean(),
+            privkey=vds.read_bytes(32),
+            channel_seed=vds.read_bytes(32),
+            node_id=vds.read_bytes(33),
+            funding_txid=vds.read_bytes(32).hex(),
+            funding_index=vds.read_uint16(),
+            funding_address=vds.read_string(),
+            remote_payment_pubkey=vds.read_bytes(33),
+            remote_revocation_pubkey=vds.read_bytes(33),
+            local_delay=vds.read_uint16(),
+            remote_delay=vds.read_uint16(),
+            host=vds.read_string(),
+            port=vds.read_uint16(),
+        )
 
+    @staticmethod
+    def from_encrypted_str(data: str, *, password: str) -> "ImportedChannelBackupStorage":
+        if not data.startswith('channel_backup:'):
+            raise ValueError("missing or invalid magic bytes")
+        encrypted = data[15:]
+        decrypted = pw_decode_with_version_and_mac(encrypted, password)
+        return ImportedChannelBackupStorage.from_bytes(decrypted)
 
 
 class ScriptHtlc(NamedTuple):
@@ -427,7 +441,7 @@ class RevocationStore:
             this_bucket = self.buckets[i]
             e = shachain_derive(new_element, this_bucket.index)
             if e != this_bucket:
-                raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
+                raise Exception("hash is not derivable: {} {} {}".format(e.secret.hex(), this_bucket.secret.hex(), this_bucket.index))
         self.buckets[bucket] = new_element
         self.storage['index'] = index - 1
 
@@ -471,7 +485,7 @@ def shachain_derive(element, to_index):
         to_index)
 
 ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
-ShachainElement.__str__ = lambda self: "ShachainElement(" + bh2u(self.secret) + "," + str(self.index) + ")"
+ShachainElement.__str__ = lambda self: f"ShachainElement({self.secret.hex()},{self.index})"
 
 def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> bytes:
     """Generate per commitment secret."""
@@ -525,7 +539,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
         delayed_pubkey=local_delayedpubkey,
     )
 
-    p2wsh = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+    p2wsh = bitcoin.redeem_script_to_address('p2wsh', script.hex())
     weight = HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
     fee = local_feerate * weight
     fee = fee // 1000 * 1000
@@ -737,7 +751,7 @@ def possible_output_idxs_of_htlc_in_ctx(*, chan: 'Channel', pcp: bytes, subject:
                                                       local_htlc_pubkey=htlc_pubkey,
                                                       payment_hash=payment_hash,
                                                       cltv_expiry=cltv_expiry)
-    htlc_address = redeem_script_to_address('p2wsh', bh2u(preimage_script))
+    htlc_address = redeem_script_to_address('p2wsh', preimage_script.hex())
     candidates = ctx.get_output_idxs_from_address(htlc_address)
     return {output_idx for output_idx in candidates
             if ctx.outputs()[output_idx].value == htlc.amount_msat // 1000}
@@ -803,7 +817,7 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
     htlc_tx_inputs = make_htlc_tx_inputs(
         commit.txid(), ctx_output_idx,
         amount_msat=amount_msat,
-        witness_script=bh2u(preimage_script))
+        witness_script=preimage_script.hex())
     if is_htlc_success:
         cltv_expiry = 0
     htlc_tx = make_htlc_tx(cltv_expiry=cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
@@ -811,13 +825,14 @@ def make_htlc_tx_with_open_channel(*, chan: 'Channel', pcp: bytes, subject: 'HTL
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
         funding_pos: int, funding_txid: str, funding_sat: int) -> PartialTxInput:
-    pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
+    pubkeys = sorted([local_funding_pubkey.hex(), remote_funding_pubkey.hex()])
     # commitment tx input
     prevout = TxOutpoint(txid=bfh(funding_txid), out_idx=funding_pos)
     c_input = PartialTxInput(prevout=prevout)
-    c_input.script_type = 'p2wsh'
-    c_input.pubkeys = [bfh(pk) for pk in pubkeys]
-    c_input.num_sig = 2
+
+    ppubkeys = [descriptor.PubkeyProvider.parse(pk) for pk in pubkeys]
+    multi = descriptor.MultisigDescriptor(pubkeys=ppubkeys, thresh=2, is_sorted=True)
+    c_input.script_descriptor = descriptor.WSHDescriptor(subdescriptor=multi)
     c_input._trusted_value_sats = funding_sat
     return c_input
 
@@ -856,7 +871,7 @@ def make_commitment_outputs(*, fees_per_participant: Mapping[HTLCOwner, int], lo
     non_htlc_outputs = [to_local, to_remote]
     htlc_outputs = []
     for script, htlc in htlcs:
-        addr = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+        addr = bitcoin.redeem_script_to_address('p2wsh', script.hex())
         htlc_outputs.append(PartialTxOutput(scriptpubkey=bfh(address_to_script(addr)),
                                             value=htlc.amount_msat // 1000))
 
@@ -982,13 +997,13 @@ def make_commitment_output_to_local_witness_script(
 def make_commitment_output_to_local_address(
         revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> str:
     local_script = make_commitment_output_to_local_witness_script(revocation_pubkey, to_self_delay, delayed_pubkey)
-    return bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
+    return bitcoin.redeem_script_to_address('p2wsh', local_script.hex())
 
 def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> str:
-    return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+    return bitcoin.pubkey_to_address('p2wpkh', remote_payment_pubkey.hex())
 
 def sign_and_get_sig_string(tx: PartialTransaction, local_config, remote_config):
-    tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
+    tx.sign({local_config.multisig_key.pubkey.hex(): (local_config.multisig_key.privkey, True)})
     sig = tx.inputs()[0].part_sigs[local_config.multisig_key.pubkey]
     sig_64 = sig_string_from_der_sig(sig[:-1])
     return sig_64
@@ -997,7 +1012,7 @@ def funding_output_script(local_config, remote_config) -> str:
     return funding_output_script_from_keys(local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey)
 
 def funding_output_script_from_keys(pubkey1: bytes, pubkey2: bytes) -> str:
-    pubkeys = sorted([bh2u(pubkey1), bh2u(pubkey2)])
+    pubkeys = sorted([pubkey1.hex(), pubkey2.hex()])
     return transaction.multisig_script(pubkeys, 2)
 
 
@@ -1198,6 +1213,18 @@ class LnFeatures(IntFlag):
             r.append(feature_name or f"bit_{flag}")
         return r
 
+    if hasattr(IntFlag, "_numeric_repr_"):  # python 3.11+
+        # performance improvement (avoid base2<->base10), see #8403
+        _numeric_repr_ = hex
+
+    def __repr__(self):
+        # performance improvement (avoid base2<->base10), see #8403
+        return f"<{self._name_}: {hex(self._value_)}>"
+
+    def __str__(self):
+        # performance improvement (avoid base2<->base10), see #8403
+        return hex(self._value_)
+
 
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
@@ -1319,11 +1346,22 @@ def ln_compare_features(our_features: 'LnFeatures', their_features: int) -> 'LnF
     return our_features
 
 
-def validate_features(features: int) -> None:
+if hasattr(sys, "get_int_max_str_digits"):
+    # check that the user or other library has not lowered the limit (from default)
+    assert sys.get_int_max_str_digits() >= 4300, f"sys.get_int_max_str_digits() too low: {sys.get_int_max_str_digits()}"
+
+
+def validate_features(features: int) -> LnFeatures:
     """Raises IncompatibleOrInsaneFeatures if
     - a mandatory feature is listed that we don't recognize, or
     - the features are inconsistent
+    For convenience, returns the parsed features.
     """
+    if features.bit_length() > 10_000:
+        # This is an implementation-specific limit for how high feature bits we allow.
+        # Needed as LnFeatures subclasses IntFlag, and uses ints internally.
+        # See https://docs.python.org/3/library/stdtypes.html#integer-string-conversion-length-limitation
+        raise IncompatibleOrInsaneFeatures(f"features bitvector too large: {features.bit_length()=} > 10_000")
     features = LnFeatures(features)
     enabled_features = list_enabled_bits(features)
     for fbit in enabled_features:
@@ -1332,6 +1370,7 @@ def validate_features(features: int) -> None:
     if not features.validate_transitive_dependencies():
         raise IncompatibleOrInsaneFeatures(f"not all transitive dependencies are set. "
                                            f"features={features}")
+    return features
 
 
 def derive_payment_secret_from_payment_preimage(payment_preimage: bytes) -> bytes:
@@ -1437,7 +1476,16 @@ def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as strin
         raise ConnStringFormatError(_('Port number must be decimal'))
     return host, port
 
-def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
+
+def extract_nodeid(connect_contents: str) -> Tuple[bytes, Optional[str]]:
+    """Takes a connection-string-like str, and returns a tuple (node_id, rest),
+    where rest is typically a host (with maybe port). Examples:
+    - extract_nodeid(pubkey@host:port) == (pubkey, host:port)
+    - extract_nodeid(pubkey@host) == (pubkey, host)
+    - extract_nodeid(pubkey) == (pubkey, None)
+    - extract_nodeid(bolt11_invoice) == (pubkey, None)
+    Can raise ConnStringFormatError.
+    """
     rest = None
     try:
         # connection string?
@@ -1447,8 +1495,8 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
             # invoice?
             invoice = lndecode(connect_contents)
             nodeid_bytes = invoice.pubkey.serialize()
-            nodeid_hex = bh2u(nodeid_bytes)
-        except:
+            nodeid_hex = nodeid_bytes.hex()
+        except Exception:
             # node id as hex?
             nodeid_hex = connect_contents
     if rest == '':
@@ -1457,7 +1505,7 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
         node_id = bfh(nodeid_hex)
         if len(node_id) != 33:
             raise Exception()
-    except:
+    except Exception:
         raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
     return node_id, rest
 
@@ -1487,63 +1535,7 @@ NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH
 
 
-class ShortChannelID(bytes):
 
-    def __repr__(self):
-        return f"<ShortChannelID: {format_short_channel_id(self)}>"
-
-    def __str__(self):
-        return format_short_channel_id(self)
-
-    @classmethod
-    def from_components(cls, block_height: int, tx_pos_in_block: int, output_index: int) -> 'ShortChannelID':
-        bh = block_height.to_bytes(3, byteorder='big')
-        tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
-        oi = output_index.to_bytes(2, byteorder='big')
-        return ShortChannelID(bh + tpos + oi)
-
-    @classmethod
-    def from_str(cls, scid: str) -> 'ShortChannelID':
-        """Parses a formatted scid str, e.g. '643920x356x0'."""
-        components = scid.split("x")
-        if len(components) != 3:
-            raise ValueError(f"failed to parse ShortChannelID: {scid!r}")
-        try:
-            components = [int(x) for x in components]
-        except ValueError:
-            raise ValueError(f"failed to parse ShortChannelID: {scid!r}") from None
-        return ShortChannelID.from_components(*components)
-
-    @classmethod
-    def normalize(cls, data: Union[None, str, bytes, 'ShortChannelID']) -> Optional['ShortChannelID']:
-        if isinstance(data, ShortChannelID) or data is None:
-            return data
-        if isinstance(data, str):
-            assert len(data) == 16
-            return ShortChannelID.fromhex(data)
-        if isinstance(data, (bytes, bytearray)):
-            assert len(data) == 8
-            return ShortChannelID(data)
-
-    @property
-    def block_height(self) -> int:
-        return int.from_bytes(self[:3], byteorder='big')
-
-    @property
-    def txpos(self) -> int:
-        return int.from_bytes(self[3:6], byteorder='big')
-
-    @property
-    def output_index(self) -> int:
-        return int.from_bytes(self[6:8], byteorder='big')
-
-
-def format_short_channel_id(short_channel_id: Optional[bytes]):
-    if not short_channel_id:
-        return _('Not yet available')
-    return str(int.from_bytes(short_channel_id[:3], 'big')) \
-        + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
-        + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
 
 @attr.s(frozen=True)

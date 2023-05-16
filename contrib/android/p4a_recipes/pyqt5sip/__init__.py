@@ -6,13 +6,13 @@ from pythonforandroid.util import load_source
 util = load_source('util', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'util.py'))
 
 
-assert PyQt5SipRecipe._version == "12.9.0"
+assert PyQt5SipRecipe._version == "12.11.1"
 assert PyQt5SipRecipe.depends == ['setuptools', 'python3']
 assert PyQt5SipRecipe.python_depends == []
 
 
 class PyQt5SipRecipePinned(util.InheritedRecipeMixin, PyQt5SipRecipe):
-    sha512sum = "ca6f3b18b64391fded88732a8109a04d85727bbddecdf126679b187c7f0487c3c1f69ada3e8c54051281a43c6f2de70390ac5ff18a1bed79994070ddde730c5f"
+    sha512sum = "9a24b6e8356fdb1070672ee37e5f4259d72a75bb60376ad0946274331ae29a6cceb98a6c5a278bf5e8015a3d493c925bacab8593ef02c310ff3773bd3ee46a5d"
 
 
 recipe = PyQt5SipRecipePinned()

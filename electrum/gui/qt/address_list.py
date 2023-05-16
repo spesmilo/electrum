@@ -23,7 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import enum
 from enum import IntEnum
+from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
@@ -35,7 +37,11 @@ from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, MONOSPACE_FONT, ColorScheme, webopen, MySortModel
+from .util import MONOSPACE_FONT, ColorScheme, webopen
+from .my_treeview import MyTreeView, MySortModel
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 class AddressUsageStateFilter(IntEnum):
@@ -47,7 +53,7 @@ class AddressUsageStateFilter(IntEnum):
 
     def ui_text(self) -> str:
         return {
-            self.ALL: _('All'),
+            self.ALL: _('All status'),
             self.UNUSED: _('Unused'),
             self.FUNDED: _('Funded'),
             self.USED_AND_EMPTY: _('Used'),
@@ -62,7 +68,7 @@ class AddressTypeFilter(IntEnum):
 
     def ui_text(self) -> str:
         return {
-            self.ALL: _('All'),
+            self.ALL: _('All types'),
             self.RECEIVING: _('Receiving'),
             self.CHANGE: _('Change'),
         }[self]
@@ -70,13 +76,13 @@ class AddressTypeFilter(IntEnum):
 
 class AddressList(MyTreeView):
 
-    class Columns(IntEnum):
-        TYPE = 0
-        ADDRESS = 1
-        LABEL = 2
-        COIN_BALANCE = 3
-        FIAT_BALANCE = 4
-        NUM_TXS = 5
+    class Columns(MyTreeView.BaseColumnsEnum):
+        TYPE = enum.auto()
+        ADDRESS = enum.auto()
+        LABEL = enum.auto()
+        COIN_BALANCE = enum.auto()
+        FIAT_BALANCE = enum.auto()
+        NUM_TXS = enum.auto()
 
     filter_columns = [Columns.TYPE, Columns.ADDRESS, Columns.LABEL, Columns.COIN_BALANCE]
 
@@ -84,11 +90,13 @@ class AddressList(MyTreeView):
     ROLE_ADDRESS_STR = Qt.UserRole + 1001
     key_role = ROLE_ADDRESS_STR
 
-    def __init__(self, parent):
-        super().__init__(parent, self.create_menu,
-                         stretch_column=self.Columns.LABEL,
-                         editable_columns=[self.Columns.LABEL])
-        self.wallet = self.parent.wallet
+    def __init__(self, main_window: 'ElectrumWindow'):
+        super().__init__(
+            main_window=main_window,
+            stretch_column=self.Columns.LABEL,
+            editable_columns=[self.Columns.LABEL],
+        )
+        self.wallet = self.main_window.wallet
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
@@ -108,21 +116,34 @@ class AddressList(MyTreeView):
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
 
+    def on_double_click(self, idx):
+        addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
+        self.main_window.show_address(addr)
+
+    CONFIG_KEY_SHOW_TOOLBAR = "show_toolbar_addresses"
+    def create_toolbar(self, config):
+        toolbar, menu = self.create_toolbar_with_menu('')
+        self.num_addr_label = toolbar.itemAt(0).widget()
+        self._toolbar_checkbox = menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar())
+        menu.addConfig(_('Show Fiat balances'), 'fiat_address', False, callback=self.main_window.app.update_fiat_signal.emit)
+        hbox = self.create_toolbar_buttons()
+        toolbar.insertLayout(1, hbox)
+        return toolbar
+
+    def should_show_fiat(self):
+        return self.main_window.fx and self.main_window.fx.is_enabled() and self.config.get('fiat_address', False)
+
     def get_toolbar_buttons(self):
-        return QLabel(_("Filter:")), self.change_button, self.used_button
+        return self.change_button, self.used_button
 
     def on_hide_toolbar(self):
         self.show_change = AddressTypeFilter.ALL  # type: AddressTypeFilter
         self.show_used = AddressUsageStateFilter.ALL  # type: AddressUsageStateFilter
         self.update()
 
-    def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_addresses', state)
-
     def refresh_headers(self):
-        fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
-            ccy = fx.get_currency()
+        if self.should_show_fiat():
+            ccy = self.main_window.fx.get_currency()
         else:
             ccy = _('Fiat')
         headers = {
@@ -161,8 +182,9 @@ class AddressList(MyTreeView):
         self.proxy.setDynamicSortFilter(False)  # temp. disable re-sorting after every change
         self.std_model.clear()
         self.refresh_headers()
-        fx = self.parent.fx
+        fx = self.main_window.fx
         set_address = None
+        num_shown = 0
         self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
             c, u, x = self.wallet.get_addr_balance(address)
@@ -176,7 +198,9 @@ class AddressList(MyTreeView):
                 continue
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
-            labels = ['', address, '', '', '', '']
+            num_shown += 1
+            labels = [""] * len(self.Columns)
+            labels[self.Columns.ADDRESS] = address
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):
@@ -207,12 +231,14 @@ class AddressList(MyTreeView):
                 set_address = QPersistentModelIndex(address_idx)
         self.set_current_idx(set_address)
         # show/hide columns
-        if fx and fx.get_fiat_address_config():
+        if self.should_show_fiat():
             self.showColumn(self.Columns.FIAT_BALANCE)
         else:
             self.hideColumn(self.Columns.FIAT_BALANCE)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
+        # update counter
+        self.num_addr_label.setText(_("{} addresses").format(num_shown))
 
     def refresh_row(self, key, row):
         assert row is not None
@@ -221,10 +247,10 @@ class AddressList(MyTreeView):
         num = self.wallet.adb.get_address_history_len(address)
         c, u, x = self.wallet.get_addr_balance(address)
         balance = c + u + x
-        balance_text = self.parent.format_amount(balance, whitespaces=True)
+        balance_text = self.main_window.format_amount(balance, whitespaces=True)
         # create item
-        fx = self.parent.fx
-        if fx and fx.get_fiat_address_config():
+        fx = self.main_window.fx
+        if self.should_show_fiat():
             rate = fx.exchange_rate()
             fiat_balance_str = fx.value_str(balance, rate)
         else:
@@ -258,40 +284,40 @@ class AddressList(MyTreeView):
             if not item:
                 return
             addr = addrs[0]
+            menu.addAction(_('Details'), lambda: self.main_window.show_address(addr))
             addr_column_title = self.std_model.horizontalHeaderItem(self.Columns.LABEL).text()
             addr_idx = idx.sibling(idx.row(), self.Columns.LABEL)
             self.add_copy_menu(menu, idx)
-            menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
-            #menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
+            #menu.addAction(_("Request payment"), lambda: self.main_window.receive_at(addr))
             if self.wallet.can_export():
-                menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
+                menu.addAction(_("Private key"), lambda: self.main_window.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():
-                menu.addAction(_("Sign/verify message"), lambda: self.parent.sign_verify_message(addr))
-                menu.addAction(_("Encrypt/decrypt message"), lambda: self.parent.encrypt_message(addr))
+                menu.addAction(_("Sign/verify message"), lambda: self.main_window.sign_verify_message(addr))
+                menu.addAction(_("Encrypt/decrypt message"), lambda: self.main_window.encrypt_message(addr))
             if can_delete:
-                menu.addAction(_("Remove from wallet"), lambda: self.parent.remove_address(addr))
+                menu.addAction(_("Remove from wallet"), lambda: self.main_window.remove_address(addr))
             addr_URL = block_explorer_URL(self.config, 'addr', addr)
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webopen(addr_URL))
 
             if not self.wallet.is_frozen_address(addr):
-                menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
+                menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], True))
             else:
-                menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
+                menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses([addr], False))
 
         else:
             # multiple items selected
-            menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
-            menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+            menu.addAction(_("Freeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, True))
+            menu.addAction(_("Unfreeze"), lambda: self.main_window.set_frozen_state_of_addresses(addrs, False))
 
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:
-            if self.parent.utxo_list.are_in_coincontrol(coins):
-                menu.addAction(_("Remove from coin control"), lambda: self.parent.utxo_list.remove_from_coincontrol(coins))
+            if self.main_window.utxo_list.are_in_coincontrol(coins):
+                menu.addAction(_("Remove from coin control"), lambda: self.main_window.utxo_list.remove_from_coincontrol(coins))
             else:
-                menu.addAction(_("Add to coin control"), lambda: self.parent.utxo_list.add_to_coincontrol(coins))
+                menu.addAction(_("Add to coin control"), lambda: self.main_window.utxo_list.add_to_coincontrol(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -301,7 +327,7 @@ class AddressList(MyTreeView):
             try:
                 self.wallet.check_address_for_corruption(text)
             except InternalAddressCorruption as e:
-                self.parent.show_error(str(e))
+                self.main_window.show_error(str(e))
                 raise
         super().place_text_on_clipboard(text, title=title)
 
@@ -311,7 +337,7 @@ class AddressList(MyTreeView):
         return self.get_role_data_from_coordinate(row, 0, role=self.ROLE_ADDRESS_STR)
 
     def on_edited(self, idx, edit_key, *, text):
-        self.parent.wallet.set_label(edit_key, text)
-        self.parent.history_model.refresh('address label edited')
-        self.parent.utxo_list.update()
-        self.parent.update_completions()
+        self.wallet.set_label(edit_key, text)
+        self.main_window.history_model.refresh('address label edited')
+        self.main_window.utxo_list.update()
+        self.main_window.update_completions()

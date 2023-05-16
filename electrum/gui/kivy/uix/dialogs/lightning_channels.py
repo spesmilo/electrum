@@ -5,13 +5,12 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
 
-from electrum.util import bh2u
 from electrum.logging import Logger
 from electrum.lnutil import LOCAL, REMOTE, format_short_channel_id
 from electrum.lnchannel import AbstractChannel, Channel, ChannelState, ChanCloseOption
 from electrum.gui.kivy.i18n import _
 from electrum.transaction import PartialTxOutput, Transaction
-from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate, get_asyncio_loop
 from electrum.lnutil import ln_dummy_address
 from electrum.gui import messages
 
@@ -435,7 +434,7 @@ class ChannelBackupPopup(Popup, Logger):
     def _request_force_close(self, b):
         if not b:
             return
-        loop = self.app.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.request_force_close(self.chan.channel_id), loop)
         try:
             coro.result(5)
@@ -465,8 +464,8 @@ class ChannelDetailsPopup(Popup, Logger):
         self.app = app
         self.chan = chan
         self.title = _('Channel details')
-        self.node_id = bh2u(chan.node_id)
-        self.channel_id = bh2u(chan.channel_id)
+        self.node_id = chan.node_id.hex()
+        self.channel_id = chan.channel_id.hex()
         self.funding_txid = chan.funding_outpoint.txid
         self.short_id = format_short_channel_id(chan.short_channel_id)
         self.capacity = self.app.format_amount_and_units(chan.get_capacity())
@@ -523,12 +522,12 @@ class ChannelDetailsPopup(Popup, Logger):
             choices=choices,
             key = min(choices.keys()),
             callback=self._close,
-            description=_(messages.MSG_REQUEST_FORCE_CLOSE),
+            description=messages.MSG_REQUEST_FORCE_CLOSE,
             keep_choice_order=True)
         dialog.open()
 
     def _close(self, choice):
-        loop = self.app.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         if choice == 0:
             coro = self.app.wallet.lnworker.close_channel(self.chan.channel_id)
             msg = _('Channel closed')
@@ -601,7 +600,7 @@ class ChannelDetailsPopup(Popup, Logger):
     def _do_force_close(self, b):
         if not b:
             return
-        loop = self.app.wallet.network.asyncio_loop
+        loop = get_asyncio_loop()
         coro = asyncio.run_coroutine_threadsafe(self.app.wallet.lnworker.force_close_channel(self.chan.channel_id), loop)
         try:
             coro.result(1)

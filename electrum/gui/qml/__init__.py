@@ -15,14 +15,15 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5.QtQml on Linux systems, you may try 'sudo apt-get install python3-pyqt5.qtquick'")
 
-from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTimer, pyqtSignal,
+from PyQt5.QtCore import (Qt, QCoreApplication, QObject, QLocale, QTranslator, QTimer, pyqtSignal,
                           QT_VERSION_STR, PYQT_VERSION_STR)
 from PyQt5.QtGui import QGuiApplication
 
-from electrum.i18n import set_language, languages
+from electrum.i18n import _, set_language, languages
 from electrum.plugin import run_hook
 from electrum.util import profiler
 from electrum.logging import Logger
+from electrum.gui import BaseElectrumGui
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
@@ -32,14 +33,31 @@ if TYPE_CHECKING:
 
 from .qeapp import ElectrumQmlApplication, Exception_Hook
 
-class ElectrumGui(Logger):
+
+class ElectrumTranslator(QTranslator):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def translate(self, context, source_text, disambiguation, n):
+        return _(source_text, context=context)
+
+class ElectrumGui(BaseElectrumGui, Logger):
 
     @profiler
     def __init__(self, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
-        set_language(config.get('language', self.get_default_language()))
+        BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         Logger.__init__(self)
-        #os.environ['QML_IMPORT_TRACE'] = '1'
-        #os.environ['QT_DEBUG_PLUGINS'] = '1'
+
+        # uncomment to debug plugin and import tracing
+        # os.environ['QML_IMPORT_TRACE'] = '1'
+        # os.environ['QT_DEBUG_PLUGINS'] = '1'
+
+        os.environ['QT_ANDROID_DISABLE_ACCESSIBILITY'] = '1'
+
+        # set default locale to en_GB. This is for l10n (e.g. number formatting, number input etc),
+        # but not for i18n, which is handled by the Translator
+        # this can be removed once the backend wallet is fully l10n aware
+        QLocale.setDefault(QLocale('en_GB'))
 
         self.logger.info(f"Qml GUI starting up... Qt={QT_VERSION_STR}, PyQt={PYQT_VERSION_STR}")
         self.logger.info("CWD=%s" % os.getcwd())
@@ -59,8 +77,9 @@ class ElectrumGui(Logger):
             os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
 
         self.gui_thread = threading.current_thread()
-        self.plugins = plugins
-        self.app = ElectrumQmlApplication(sys.argv, config, daemon, plugins)
+        self.app = ElectrumQmlApplication(sys.argv, config=config, daemon=daemon, plugins=plugins)
+        self.translator = ElectrumTranslator()
+        self.app.installTranslator(self.translator)
 
         # timer
         self.timer = QTimer(self.app)
@@ -91,7 +110,3 @@ class ElectrumGui(Logger):
     def stop(self):
         self.logger.info('closing GUI')
         self.app.quit()
-
-    def get_default_language(self):
-        name = QLocale.system().name()
-        return name if name in languages else 'en_UK'

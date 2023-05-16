@@ -7,6 +7,8 @@ import org.electrum 1.0
 import "../controls"
 
 WizardComponent {
+    securePage: true
+
     valid: seedtext.text != ''
 
     function apply() {
@@ -48,7 +50,12 @@ WizardComponent {
                 Layout.fillWidth: true
                 iconStyle: InfoTextArea.IconStyle.Warn
             }
-            Label { text: qsTr('Your wallet generation seed is:') }
+
+            Label {
+                Layout.topMargin: constants.paddingMedium
+                text: qsTr('Your wallet generation seed is:')
+            }
+
             SeedTextArea {
                 id: seedtext
                 readOnly: true
@@ -60,16 +67,19 @@ WizardComponent {
                     visible: seedtext.text == ''
                 }
             }
+
             CheckBox {
                 id: extendcb
                 text: qsTr('Extend seed with custom words')
             }
+
             TextField {
                 id: customwordstext
                 visible: extendcb.checked
                 Layout.fillWidth: true
                 placeholderText: qsTr('Enter your custom word(s)')
             }
+
             Component.onCompleted : {
                 setWarningText(12)
             }
@@ -83,8 +93,8 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
         onGeneratedSeedChanged: {
-            seedtext.text = generated_seed
-            setWarningText(generated_seed.split(' ').length)
+            seedtext.text = generatedSeed
+            setWarningText(generatedSeed.split(' ').length)
         }
     }
 }

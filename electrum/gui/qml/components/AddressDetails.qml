@@ -22,7 +22,7 @@ Pane {
         spacing: 0
 
         Flickable {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
             leftMargin: constants.paddingLarge
@@ -39,6 +39,11 @@ Pane {
 
                 columns: 2
 
+                Heading {
+                    Layout.columnSpan: 2
+                    text: qsTr('Address details')
+                }
+
                 Label {
                     text: qsTr('Address')
                     Layout.columnSpan: 2
@@ -48,8 +53,6 @@ Pane {
                 TextHighlightPane {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
 
                     RowLayout {
                         width: parent.width
@@ -74,8 +77,9 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Label')
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Label')
                     color: Material.accentColor
                 }
 
@@ -86,8 +90,6 @@ Pane {
 
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
-                    padding: 0
-                    leftPadding: constants.paddingSmall
 
                     RowLayout {
                         width: parent.width
@@ -121,7 +123,7 @@ Pane {
                             icon.color: 'transparent'
                             onClicked: {
                                 labelContent.editmode = false
-                                addressdetails.set_label(labelEdit.text)
+                                addressdetails.setLabel(labelEdit.text)
                             }
                         }
                         ToolButton {
@@ -134,8 +136,9 @@ Pane {
                 }
 
                 Label {
-                    text: qsTr('Public keys')
                     Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Public keys')
                     color: Material.accentColor
                 }
 
@@ -144,8 +147,7 @@ Pane {
                     delegate: TextHighlightPane {
                         Layout.columnSpan: 2
                         Layout.fillWidth: true
-                        padding: 0
-                        leftPadding: constants.paddingSmall
+
                         RowLayout {
                             width: parent.width
                             Label {
@@ -157,7 +159,7 @@ Pane {
                             }
                             ToolButton {
                                 icon.source: '../../icons/share.png'
-                                icon.color: 'transparent'
+                                enabled: modelData
                                 onClicked: {
                                     var dialog = app.genericShareDialog.createObject(root,
                                         { title: qsTr('Public key'), text: modelData }
@@ -198,11 +200,13 @@ Pane {
                 }
 
                 Label {
+                    visible: addressdetails.derivationPath
                     text: qsTr('Derivation path')
                     color: Material.accentColor
                 }
 
                 Label {
+                    visible: addressdetails.derivationPath
                     text: addressdetails.derivationPath
                 }
 

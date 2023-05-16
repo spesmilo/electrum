@@ -1,33 +1,43 @@
 #!/bin/bash
 #
-# This script, for the RELEASEMANAGER:
-# - builds and uploads all binaries,
+# This script is used for stage 1 of the release process. It operates exclusively on the airlock.
+# This script, for the RELEASEMANAGER (RM):
+# - builds and uploads all binaries to airlock,
 # - assumes all keys are available, and signs everything
 # This script, for other builders:
 # - builds all reproducible binaries,
-# - downloads binaries built by the release manager, compares and signs them,
+# - downloads binaries built by the release manager (from airlock), compares and signs them,
 # - and then uploads sigs
 # Note: the .dmg should be built separately beforehand and copied into dist/
 #       (as it is built on a separate machine)
 #
+#
 # env vars:
 # - ELECBUILD_NOCACHE: if set, forces rebuild of docker images
-# - WWW_DIR: path to "electrum-web" git clone
-#
-# additional env vars for the RELEASEMANAGER:
-# - for signing the version announcement file:
-#   - ELECTRUM_SIGNING_ADDRESS (required)
-#   - ELECTRUM_SIGNING_WALLET (required)
 #
 # "uploadserver" is set in /etc/hosts
 #
 # Note: steps before doing a new release:
 # - update locale:
-#     1. cd /opt/electrum-locale && ./update && git push
+#     1. cd /opt/electrum-locale && ./update.py && git push
 #     2. cd to the submodule dir, and git pull
 #     3. cd .. && git push
 # - update RELEASE-NOTES and version.py
 # - $ git tag -s $VERSION -m $VERSION
+#
+# -----
+# Then, typical release flow:
+# - RM runs release.sh
+# - Another SFTPUSER BUILDER runs `$ ./release.sh`
+# - now airlock contains new binaries and two sigs for each
+# - deploy.sh will verify sigs and move binaries across airlock
+# - new binaries are now publicly available on uploadserver, but not linked from website yet
+# - other BUILDERS can now also try to reproduce binaries and open PRs with sigs against spesmilo/electrum-signatures
+#   - these PRs can get merged as they come
+#   - run add_cosigner
+# - after some time, RM can run release_www.sh to create and commit website-update
+#   - then run WWW_DIR/publish.sh to update website
+# - at least two people need to run WWW_DIR/publish.sh
 #
 
 set -e
@@ -41,10 +51,6 @@ cd "$PROJECT_ROOT"
 
 # rm -rf dist/*
 # rm -f .buildozer
-
-if [ -z "$WWW_DIR" ] ; then
-    WWW_DIR=/opt/electrum-web
-fi
 
 GPGUSER=$1
 if [ -z "$GPGUSER" ]; then
@@ -73,7 +79,7 @@ if [ ! -z "$RELEASEMANAGER" ] ; then
 fi
 
 
-VERSION=$(python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)")
+VERSION=$("$CONTRIB"/print_electrum_version.py)
 info "VERSION: $VERSION"
 REV=$(git describe --tags)
 info "REV: $REV"
@@ -143,15 +149,18 @@ apk1="Electrum-$VERSION.0-armeabi-v7a-release.apk"
 apk1_unsigned="Electrum-$VERSION.0-armeabi-v7a-release-unsigned.apk"
 apk2="Electrum-$VERSION.0-arm64-v8a-release.apk"
 apk2_unsigned="Electrum-$VERSION.0-arm64-v8a-release-unsigned.apk"
+apk3="Electrum-$VERSION.0-x86_64-release.apk"
+apk3_unsigned="Electrum-$VERSION.0-x86_64-release-unsigned.apk"
 if test -f "dist/$apk1"; then
     info "file exists: $apk1"
 else
     if [ ! -z "$RELEASEMANAGER" ] ; then
-        ./contrib/android/build.sh kivy all release $password
+        ./contrib/android/build.sh qml all release $password
     else
-        ./contrib/android/build.sh kivy all release-unsigned
+        ./contrib/android/build.sh qml all release-unsigned
         mv "dist/$apk1_unsigned" "dist/$apk1"
         mv "dist/$apk2_unsigned" "dist/$apk2"
+        mv "dist/$apk3_unsigned" "dist/$apk3"
     fi
 fi
 
@@ -212,6 +221,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$win3"       || fail "win3 not found among sftp downloads"
     test -f "$apk1"       || fail "apk1 not found among sftp downloads"
     test -f "$apk2"       || fail "apk2 not found among sftp downloads"
+    test -f "$apk3"       || fail "apk3 not found among sftp downloads"
     test -f "$dmg"        || fail "dmg not found among sftp downloads"
     test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
     test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
@@ -221,6 +231,7 @@ if [ -z "$RELEASEMANAGER" ] ; then
     test -f "$CONTRIB/build-wine/dist/$win3" || fail "win3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
     test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
     test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
     # compare downloaded binaries against ones we built
     cmp --silent "$tarball"    "$PROJECT_ROOT/dist/$tarball"    || fail "files are different. tarball."
@@ -231,11 +242,12 @@ if [ -z "$RELEASEMANAGER" ] ; then
     "$CONTRIB/build-wine/unsign.sh" || fail "files are different. windows."
     "$CONTRIB/android/apkdiff.py" "$apk1" "$PROJECT_ROOT/dist/$apk1" || fail "files are different. android."
     "$CONTRIB/android/apkdiff.py" "$apk2" "$PROJECT_ROOT/dist/$apk2" || fail "files are different. android."
+    "$CONTRIB/android/apkdiff.py" "$apk3" "$PROJECT_ROOT/dist/$apk3" || fail "files are different. android."
     cmp --silent "$dmg" "$PROJECT_ROOT/dist/$dmg" || fail "files are different. macos."
     # all files matched. sign them.
     rm -rf "$PROJECT_ROOT/dist/sigs/"
     mkdir --parents "$PROJECT_ROOT/dist/sigs/"
-    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$dmg" ; do
+    for fname in "$tarball" "$srctarball" "$appimage" "$win1" "$win2" "$win3" "$apk1" "$apk2" "$apk3" "$dmg" ; do
         signame="$fname.$GPGUSER.asc"
         gpg --sign --armor --detach $PUBKEY --output "$PROJECT_ROOT/dist/sigs/$signame" "$fname"
     done
@@ -247,33 +259,29 @@ else
 
     cd "$PROJECT_ROOT"
 
-    info "updating www repo"
-    ./contrib/make_download $WWW_DIR
-    info "signing the version announcement file"
-    sig=$(./run_electrum -o signmessage $ELECTRUM_SIGNING_ADDRESS $VERSION -w $ELECTRUM_SIGNING_WALLET)
-    echo "{ \"version\":\"$VERSION\", \"signatures\":{ \"$ELECTRUM_SIGNING_ADDRESS\":\"$sig\"}}" > $WWW_DIR/version
-
+    # check we have each binary
+    test -f "$PROJECT_ROOT/dist/$tarball"    || fail "tarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$srctarball" || fail "srctarball not found among built files"
+    test -f "$PROJECT_ROOT/dist/$appimage"   || fail "appimage not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win1"       || fail "win1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win2"       || fail "win2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$win3"       || fail "win3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk1"       || fail "apk1 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk2"       || fail "apk2 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$apk3"       || fail "apk3 not found among built files"
+    test -f "$PROJECT_ROOT/dist/$dmg"        || fail "dmg not found among built files"
 
     if [ $REV != $VERSION ]; then
         fail "versions differ, not uploading"
     fi
 
     # upload the files
-    if test -f dist/uploaded; then
-        info "files already uploaded"
-    else
-        ./contrib/upload.sh
-        touch dist/uploaded
-    fi
+    ./contrib/upload.sh
 
-    # push changes to website repo
-    pushd $WWW_DIR
-    git diff
-    git commit -a -m "version $VERSION"
-    git push
-    popd
 fi
 
 
 info "release.sh finished successfully."
-info "now you should run WWW_DIR/publish.sh to sign the website commit and upload signature"
+info "After two people ran release.sh, the binaries will be publicly available on uploadserver."
+info "Then, we wait for additional signers, and run add_cosigner for them."
+info "Finally, release_www.sh needs to be run, for the website to be updated."

@@ -31,7 +31,7 @@ from threading import RLock
 import attr
 from math import inf
 
-from .util import profiler, with_lock, bh2u
+from .util import profiler, with_lock
 from .logging import Logger
 from .lnutil import (NUM_MAX_EDGES_IN_PAYMENT_PATH, ShortChannelID, LnFeatures,
                      NBLOCK_CLTV_EXPIRY_TOO_FAR_INTO_FUTURE)

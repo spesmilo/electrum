@@ -1,3 +1,4 @@
+import itertools
 from typing import TYPE_CHECKING
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
@@ -24,7 +25,7 @@ class QEAddressListModel(QAbstractListModel):
         super().__init__(parent)
         self.wallet = wallet
         self.setDirty()
-        self.init_model()
+        self.initModel()
 
     def rowCount(self, index):
         return len(self.receive_addresses) + len(self.change_addresses)
@@ -67,13 +68,13 @@ class QEAddressListModel(QAbstractListModel):
 
     # initial model data
     @pyqtSlot()
-    def init_model(self):
+    def initModel(self):
         if not self._dirty:
             return
 
         r_addresses = self.wallet.get_receiving_addresses()
-        c_addresses = self.wallet.get_change_addresses()
-        n_addresses = len(r_addresses) + len(c_addresses) if self.wallet.use_change else 0
+        c_addresses = self.wallet.get_change_addresses() if self.wallet.wallet_type != 'imported' else []
+        n_addresses = len(r_addresses) + len(c_addresses)
 
         def insert_row(atype, alist, address, iaddr):
             item = self.addr_to_model(address)
@@ -83,31 +84,24 @@ class QEAddressListModel(QAbstractListModel):
 
         self.clear()
         self.beginInsertRows(QModelIndex(), 0, n_addresses - 1)
-        i = 0
-        for address in r_addresses:
-            insert_row('receive', self.receive_addresses, address, i)
-            i = i + 1
-        i = 0
-        for address in c_addresses if self.wallet.use_change else []:
-            insert_row('change', self.change_addresses, address, i)
-            i = i + 1
+        if self.wallet.wallet_type != 'imported':
+            for i, address in enumerate(r_addresses):
+                insert_row('receive', self.receive_addresses, address, i)
+            for i, address in enumerate(c_addresses):
+                insert_row('change', self.change_addresses, address, i)
+        else:
+            for i, address in enumerate(r_addresses):
+                insert_row('imported', self.receive_addresses, address, i)
         self.endInsertRows()
 
         self._dirty = False
 
     @pyqtSlot(str)
-    def update_address(self, address):
-        i = 0
-        for a in self.receive_addresses:
+    def updateAddress(self, address):
+        for i, a in enumerate(itertools.chain(self.receive_addresses, self.change_addresses)):
             if a['address'] == address:
                 self.do_update(i,a)
                 return
-            i = i + 1
-        for a in self.change_addresses:
-            if a['address'] == address:
-                self.do_update(i,a)
-                return
-            i = i + 1
 
     def do_update(self, modelindex, modelitem):
         mi = self.createIndex(modelindex, 0)

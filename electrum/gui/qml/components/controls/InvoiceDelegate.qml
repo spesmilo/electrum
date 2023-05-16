@@ -5,10 +5,16 @@ import QtQuick.Controls.Material 2.0
 
 ItemDelegate {
     id: root
+
     height: item.height
     width: ListView.view.width
-
     font.pixelSize: constants.fontSizeSmall // set default font size for child controls
+
+    highlighted: ListView.isCurrentItem
+
+    function getKey() {
+        return model.key
+    }
 
     GridLayout {
         id: item
@@ -130,6 +136,7 @@ ItemDelegate {
             Layout.preferredHeight: constants.paddingTiny
             color: 'transparent'
         }
+
     }
 
     Connections {

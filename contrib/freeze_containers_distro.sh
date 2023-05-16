@@ -32,15 +32,15 @@ wget -O /dev/null ${DEBIAN_SNAPSHOT} 2>/dev/null
 echo "Valid!"
 
 # build-linux
-echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main non-free contrib" >$contrib/build-linux/appimage/apt.sources.list
-echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main non-free contrib" >>$contrib/build-linux/appimage/apt.sources.list
+echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main" >$contrib/build-linux/appimage/apt.sources.list
+echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_APPIMAGE_DISTRO} main" >>$contrib/build-linux/appimage/apt.sources.list
 
 # build-wine
-echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >$contrib/build-wine/apt.sources.list
-echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main non-free contrib" >>$contrib/build-wine/apt.sources.list
+echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main" >$contrib/build-wine/apt.sources.list
+echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_WINE_DISTRO} main" >>$contrib/build-wine/apt.sources.list
 
 # android
-echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >$contrib/android/apt.sources.list
-echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main non-free contrib" >>$contrib/android/apt.sources.list
+echo "deb ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main" >$contrib/android/apt.sources.list
+echo "deb-src ${DEBIAN_SNAPSHOT} ${DEBIAN_ANDROID_DISTRO} main" >>$contrib/android/apt.sources.list
 
 echo "updated APT sources to ${DEBIAN_SNAPSHOT}"

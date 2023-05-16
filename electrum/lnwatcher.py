@@ -11,7 +11,7 @@ from typing import NamedTuple, Dict
 from . import util
 from .sql_db import SqlDB, sql
 from .wallet_db import WalletDB
-from .util import bh2u, bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
+from .util import bfh, log_exceptions, ignore_exceptions, TxMinedInfo, random_shuffled_copy
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_FUTURE
 from .transaction import Transaction, TxOutpoint
 from .transaction import match_script_against_template
@@ -69,7 +69,7 @@ class SweepStore(SqlDB):
     def get_sweep_tx(self, funding_outpoint, prevout):
         c = self.conn.cursor()
         c.execute("SELECT tx FROM sweep_txs WHERE funding_outpoint=? AND prevout=?", (funding_outpoint, prevout))
-        return [Transaction(bh2u(r[0])) for r in c.fetchall()]
+        return [Transaction(r[0].hex()) for r in c.fetchall()]
 
     @sql
     def list_sweep_tx(self):
@@ -141,7 +141,7 @@ class LNWatcher(Logger, EventListener):
 
     LOGGING_SHORTCUT = 'W'
 
-    def __init__(self, adb, network: 'Network'):
+    def __init__(self, adb: 'AddressSynchronizer', network: 'Network'):
 
         Logger.__init__(self)
         self.adb = adb
@@ -212,7 +212,7 @@ class LNWatcher(Logger, EventListener):
         if not self.adb.is_mine(address):
             return
         spenders = self.inspect_tx_candidate(funding_outpoint, 0)
-        # inspect_tx_candidate might have added new addresses, in which case we return ealy
+        # inspect_tx_candidate might have added new addresses, in which case we return early
         if not self.adb.is_up_to_date():
             return
         funding_txid = funding_outpoint.split(':')[0]
@@ -324,7 +324,7 @@ class WatchTower(LNWatcher):
 
     LOGGING_SHORTCUT = 'W'
 
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         adb = AddressSynchronizer(WalletDB({}, manual_upgrades=False), network.config, name=self.diagnostic_name())
         adb.start_network(network)
         LNWatcher.__init__(self, adb, network)
@@ -514,13 +514,18 @@ class LNWalletWatcher(LNWatcher):
             wanted_height = sweep_info.cltv_expiry
             if wanted_height - local_height > 0:
                 can_broadcast = False
-                reason = 'waiting for {}: CLTV ({} > {})'.format(name, local_height, sweep_info.cltv_expiry)
+                # self.logger.debug(f"pending redeem for {prevout}. waiting for {name}: CLTV ({local_height=}, {wanted_height=})")
         if sweep_info.csv_delay:
             prev_height = self.adb.get_tx_height(prev_txid)
-            wanted_height = sweep_info.csv_delay + prev_height.height - 1
-            if prev_height.height <= 0 or wanted_height - local_height > 0:
+            if prev_height.height > 0:
+                wanted_height = prev_height.height + sweep_info.csv_delay - 1
+            else:
+                wanted_height = local_height + sweep_info.csv_delay
+            if wanted_height - local_height > 0:
                 can_broadcast = False
-                reason = 'waiting for {}: CSV ({} >= {})'.format(name, prev_height.conf, sweep_info.csv_delay)
+                # self.logger.debug(
+                #     f"pending redeem for {prevout}. waiting for {name}: CSV "
+                #     f"({local_height=}, {wanted_height=}, {prev_height.height=}, {sweep_info.csv_delay=})")
         if can_broadcast:
             self.logger.info(f'we can broadcast: {name}')
             tx_was_added = await self.network.try_broadcasting(new_tx, name)
@@ -536,8 +541,9 @@ class LNWalletWatcher(LNWatcher):
                     self.logger.info(f'added redeem tx: {name}. prevout: {prevout}')
             else:
                 tx_was_added = False
-            # set future tx regardless of tx_was_added, because  it is not persisted
-            self.adb.set_future_tx(new_tx.txid(), wanted_height)
+            # set future tx regardless of tx_was_added, because it is not persisted
+            # (and wanted_height can change if input of CSV was not mined before)
+            self.adb.set_future_tx(new_tx.txid(), wanted_height=wanted_height)
         if tx_was_added:
             self.lnworker.wallet.set_label(new_tx.txid(), name)
             if old_tx and old_tx.txid() != new_tx.txid():

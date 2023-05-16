@@ -145,7 +145,7 @@ class AmountDialog(Factory.Popup):
             try:
                 Decimal(amount+c)
                 amount += c
-            except:
+            except Exception:
                 pass
             # truncate btc amounts to max precision:
             if not kb.is_fiat and '.' in amount:

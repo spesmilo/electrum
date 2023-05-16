@@ -15,12 +15,6 @@ ElDialog
 
     property bool _sending: false
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     width: parent.width
     height: parent.height
 
@@ -54,7 +48,8 @@ ElDialog
             Layout.alignment: Qt.AlignCenter
             text: qsTr('Show report contents')
             onClicked: {
-                console.log('traceback: ' + crashData.traceback.stack)
+                if (crashData.traceback)
+                    console.log('traceback: ' + crashData.traceback.stack)
                 var dialog = report.createObject(app, {
                     reportText: crashData.reportstring
                 })
@@ -112,21 +107,23 @@ ElDialog
             property string reportText
 
             z: 3000
-            modal: true
-            parent: Overlay.overlay
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
 
             width: parent.width
             height: parent.height
 
             header: null
 
-            Label {
-                text: reportText
-                wrapMode: Text.Wrap
-                width: parent.width
+            Flickable {
+                anchors.fill: parent
+                contentHeight: reportLabel.implicitHeight
+                interactive: height < contentHeight
+
+                Label {
+                    id: reportLabel
+                    text: reportText
+                    wrapMode: Text.Wrap
+                    width: parent.width
+                }
             }
         }
     }

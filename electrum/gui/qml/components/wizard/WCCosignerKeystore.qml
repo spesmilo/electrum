@@ -30,17 +30,17 @@ WizardComponent {
         width: parent.width
 
         Label {
+            Layout.fillWidth: true
+
             visible: cosigner
             text: qsTr('Here is your master public key. Please share it with your cosigners')
-            Layout.fillWidth: true
             wrapMode: Text.Wrap
         }
 
         TextHighlightPane {
-            visible: cosigner
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
+
+            visible: cosigner
 
             RowLayout {
                 width: parent.width
@@ -65,7 +65,7 @@ WizardComponent {
         }
 
         Rectangle {
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.preferredHeight: 1
             Layout.topMargin: constants.paddingLarge
             Layout.bottomMargin: constants.paddingLarge
@@ -74,7 +74,9 @@ WizardComponent {
         }
 
         Label {
+            Layout.fillWidth: true
             text: qsTr('Add cosigner #%1 of %2 to your multi-sig wallet').arg(cosigner).arg(participants)
+            wrapMode: Text.Wrap
         }
         RadioButton {
             ButtonGroup.group: keystoregroup

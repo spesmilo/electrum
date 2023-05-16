@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from electrum import util
@@ -344,3 +345,95 @@ class TestUtil(ElectrumTestCase):
         self.assertFalse(util.is_subpath("/a/b/c", "c"))
         self.assertFalse(util.is_subpath("a", "/a/b/c"))
         self.assertFalse(util.is_subpath("c", "/a/b/c"))
+
+    def test_error_text_bytes_to_safe_str(self):
+        # ascii
+        self.assertEqual("'test'", util.error_text_bytes_to_safe_str(b"test"))
+        self.assertEqual('"test123 \'QWE"', util.error_text_bytes_to_safe_str(b"test123 'QWE"))
+        self.assertEqual("'prefix: \\x08\\x08\\x08\\x08\\x08\\x08\\x08\\x08malicious_stuff'",
+                         util.error_text_bytes_to_safe_str(b"prefix: " + 8 * b"\x08" + b"malicious_stuff"))
+        # unicode
+        self.assertEqual("'here is some unicode: \\\\xe2\\\\x82\\\\xbf \\\\xf0\\\\x9f\\\\x98\\\\x80 \\\\xf0\\\\x9f\\\\x98\\\\x88'",
+                         util.error_text_bytes_to_safe_str(b'here is some unicode: \xe2\x82\xbf \xf0\x9f\x98\x80 \xf0\x9f\x98\x88'))
+        # not even unicode
+        self.assertEqual("""\'\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\t\\n\\x0b\\x0c\\r\\x0e\\x0f\\x10\\x11\\x12\\x13\\x14\\x15\\x16\\x17\\x18\\x19\\x1a\\x1b\\x1c\\x1d\\x1e\\x1f !"#$%&\\\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\\x7f\\\\x80\\\\x81\\\\x82\\\\x83\\\\x84\\\\x85\\\\x86\\\\x87\\\\x88\\\\x89\\\\x8a\\\\x8b\\\\x8c\\\\x8d\\\\x8e\\\\x8f\\\\x90\\\\x91\\\\x92\\\\x93\\\\x94\\\\x95\\\\x96\\\\x97\\\\x98\\\\x99\\\\x9a\\\\x9b\\\\x9c\\\\x9d\\\\x9e\\\\x9f\\\\xa0\\\\xa1\\\\xa2\\\\xa3\\\\xa4\\\\xa5\\\\xa6\\\\xa7\\\\xa8\\\\xa9\\\\xaa\\\\xab\\\\xac\\\\xad\\\\xae\\\\xaf\\\\xb0\\\\xb1\\\\xb2\\\\xb3\\\\xb4\\\\xb5\\\\xb6\\\\xb7\\\\xb8\\\\xb9\\\\xba\\\\xbb\\\\xbc\\\\xbd\\\\xbe\\\\xbf\\\\xc0\\\\xc1\\\\xc2\\\\xc3\\\\xc4\\\\xc5\\\\xc6\\\\xc7\\\\xc8\\\\xc9\\\\xca\\\\xcb\\\\xcc\\\\xcd\\\\xce\\\\xcf\\\\xd0\\\\xd1\\\\xd2\\\\xd3\\\\xd4\\\\xd5\\\\xd6\\\\xd7\\\\xd8\\\\xd9\\\\xda\\\\xdb\\\\xdc\\\\xdd\\\\xde\\\\xdf\\\\xe0\\\\xe1\\\\xe2\\\\xe3\\\\xe4\\\\xe5\\\\xe6\\\\xe7\\\\xe8\\\\xe9\\\\xea\\\\xeb\\\\xec\\\\xed\\\\xee\\\\xef\\\\xf0\\\\xf1\\\\xf2\\\\xf3\\\\xf4\\\\xf5\\\\xf6\\\\xf7\\\\xf8\\\\xf9\\\\xfa\\\\xfb\\\\xfc\\\\xfd\\\\xfe\\\\xff\'""",
+                         util.error_text_bytes_to_safe_str(bytes(range(256))))
+
+    def test_error_text_str_to_safe_str(self):
+        # ascii
+        self.assertEqual("'test'", util.error_text_str_to_safe_str("test"))
+        self.assertEqual('"test123 \'QWE"', util.error_text_str_to_safe_str("test123 'QWE"))
+        self.assertEqual("'prefix: \\x08\\x08\\x08\\x08\\x08\\x08\\x08\\x08malicious_stuff'",
+                         util.error_text_str_to_safe_str("prefix: " + 8 * "\x08" + "malicious_stuff"))
+        # unicode
+        self.assertEqual("'here is some unicode: \\\\u20bf \\\\U0001f600 \\\\U0001f608'",
+                         util.error_text_str_to_safe_str("here is some unicode: ₿ 😀 😈"))
+
+    def test_age(self):
+        now = datetime(2023, 4, 16, 22, 30, 00)
+        self.assertEqual("Unknown",
+                         util.age(from_date=None, since_date=now))
+        # past
+        self.assertEqual("less than a minute ago",
+                         util.age(from_date=now.timestamp()-1, since_date=now))
+        self.assertEqual("1 seconds ago",
+                         util.age(from_date=now.timestamp()-1, since_date=now, include_seconds=True))
+        self.assertEqual("25 seconds ago",
+                         util.age(from_date=now.timestamp()-25, since_date=now, include_seconds=True))
+        self.assertEqual("about 30 minutes ago",
+                         util.age(from_date=now.timestamp()-1800, since_date=now))
+        self.assertEqual("about 30 minutes ago",
+                         util.age(from_date=now.timestamp()-1800, since_date=now, include_seconds=True))
+        self.assertEqual("about 1 hour ago",
+                         util.age(from_date=now.timestamp()-3300, since_date=now))
+        self.assertEqual("about 2 hours ago",
+                         util.age(from_date=now.timestamp()-8700, since_date=now))
+        self.assertEqual("about 7 hours ago",
+                         util.age(from_date=now.timestamp()-26700, since_date=now))
+        self.assertEqual("about 1 day ago",
+                         util.age(from_date=now.timestamp()-109800, since_date=now))
+        self.assertEqual("about 3 days ago",
+                         util.age(from_date=now.timestamp()-282600, since_date=now))
+        self.assertEqual("about 15 days ago",
+                         util.age(from_date=now.timestamp()-1319400, since_date=now))
+        self.assertEqual("about 1 month ago",
+                         util.age(from_date=now.timestamp()-3220200, since_date=now))
+        self.assertEqual("about 3 months ago",
+                         util.age(from_date=now.timestamp()-8317800, since_date=now))
+        self.assertEqual("about 1 year ago",
+                         util.age(from_date=now.timestamp()-39853800, since_date=now))
+        self.assertEqual("over 3 years ago",
+                         util.age(from_date=now.timestamp()-103012200, since_date=now))
+        # future
+        self.assertEqual("in less than a minute",
+                         util.age(from_date=now.timestamp()+1, since_date=now))
+        self.assertEqual("in 1 seconds",
+                         util.age(from_date=now.timestamp()+1, since_date=now, include_seconds=True))
+        self.assertEqual("in 25 seconds",
+                         util.age(from_date=now.timestamp()+25, since_date=now, include_seconds=True))
+        self.assertEqual("in about 30 minutes",
+                         util.age(from_date=now.timestamp()+1800, since_date=now))
+        self.assertEqual("in about 30 minutes",
+                         util.age(from_date=now.timestamp()+1800, since_date=now, include_seconds=True))
+        self.assertEqual("in about 1 hour",
+                         util.age(from_date=now.timestamp()+3300, since_date=now))
+        self.assertEqual("in about 2 hours",
+                         util.age(from_date=now.timestamp()+8700, since_date=now))
+        self.assertEqual("in about 7 hours",
+                         util.age(from_date=now.timestamp()+26700, since_date=now))
+        self.assertEqual("in about 1 day",
+                         util.age(from_date=now.timestamp()+109800, since_date=now))
+        self.assertEqual("in about 3 days",
+                         util.age(from_date=now.timestamp()+282600, since_date=now))
+        self.assertEqual("in about 15 days",
+                         util.age(from_date=now.timestamp()+1319400, since_date=now))
+        self.assertEqual("in about 1 month",
+                         util.age(from_date=now.timestamp()+3220200, since_date=now))
+        self.assertEqual("in about 3 months",
+                         util.age(from_date=now.timestamp()+8317800, since_date=now))
+        self.assertEqual("in about 1 year",
+                         util.age(from_date=now.timestamp()+39853800, since_date=now))
+        self.assertEqual("in over 3 years",
+                         util.age(from_date=now.timestamp()+103012200, since_date=now))
+
+

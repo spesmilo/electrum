@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
                              QMessageBox, QHBoxLayout, QVBoxLayout)
 
 from electrum.i18n import _
-from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
+from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue, CrashReportResponse
 from electrum.logging import Logger
 from electrum import constants
 from electrum.network import Network
@@ -103,12 +103,13 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.show()
 
     def send_report(self):
-        def on_success(response):
-            # note: 'response' coming from (remote) crash reporter server.
-            # It contains a URL to the GitHub issue, so we allow rich text.
+        def on_success(response: CrashReportResponse):
+            text = response.text
+            if response.url:
+                text += f" You can track further progress on <a href='{response.url}'>GitHub</a>."
             self.show_message(parent=self,
                               title=_("Crash report"),
-                              msg=response,
+                              msg=text,
                               rich_text=True)
             self.close()
         def on_failure(exc_info):

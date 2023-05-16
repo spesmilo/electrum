@@ -17,7 +17,7 @@ from . import util
 from .bitcoin import COIN
 from .i18n import _
 from .util import (ThreadJob, make_dir, log_exceptions, OldTaskGroup,
-                   make_aiohttp_session, resource_path, EventListener, event_listener)
+                   make_aiohttp_session, resource_path, EventListener, event_listener, to_decimal)
 from .network import Network
 from .simple_config import SimpleConfig
 from .logging import Logger
@@ -38,18 +38,6 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   # Cryptocurrencies
                   'BTC': 8, 'LTC': 8, 'XRP': 6, 'ETH': 18,
                   }
-
-
-def to_decimal(x: Union[str, float, int, Decimal]) -> Decimal:
-    # helper function mainly for float->Decimal conversion, i.e.:
-    #   >>> Decimal(41754.681)
-    #   Decimal('41754.680999999996856786310672760009765625')
-    #   >>> Decimal("41754.681")
-    #   Decimal('41754.681')
-    if isinstance(x, Decimal):
-        return x
-    return Decimal(str(x))
-
 
 POLL_PERIOD_SPOT_RATE = 150  # approx. every 2.5 minutes, try to refresh spot price
 EXPIRY_SPOT_RATE = 600       # spot price becomes stale after 10 minutes
@@ -116,7 +104,7 @@ class ExchangeBase(Logger):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 h = json.loads(f.read())
-        except:
+        except Exception:
             return None
         if not h:  # e.g. empty dict
             return None
@@ -161,8 +149,13 @@ class ExchangeBase(Logger):
         return []
 
     def historical_rate(self, ccy: str, d_t: datetime) -> Decimal:
-        rate = self._history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d')) or 'NaN'
-        return Decimal(rate)
+        date_str = d_t.strftime('%Y-%m-%d')
+        rate = self._history.get(ccy, {}).get(date_str) or 'NaN'
+        try:
+            return Decimal(rate)
+        except Exception:  # guard against garbage coming from exchange
+            #self.logger.debug(f"found corrupted historical_rate: {rate=!r}. for {ccy=} at {date_str}")
+            return Decimal('NaN')
 
     async def request_history(self, ccy: str) -> Dict[str, Union[str, float]]:
         raise NotImplementedError()  # implemented by subclasses
@@ -476,7 +469,7 @@ def get_exchanges_and_currencies():
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.loads(f.read())
-    except:
+    except Exception:
         pass
     # or if not present, generate it now.
     print("cannot find currencies.json. will regenerate it now.")
@@ -490,7 +483,7 @@ def get_exchanges_and_currencies():
         try:
             d[name] = await exchange.get_currencies()
             print(name, "ok")
-        except:
+        except Exception:
             print(name, "error")
 
     async def query_all_exchanges_for_their_ccys_over_network():
@@ -526,10 +519,9 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob, EventListener):
 
-    def __init__(self, config: SimpleConfig, network: Optional[Network]):
+    def __init__(self, *, config: SimpleConfig):
         ThreadJob.__init__(self)
         self.config = config
-        self.network = network
         self.register_callbacks()
         self.ccy = self.get_currency()
         self.history_used_spot = False
@@ -575,6 +567,9 @@ class FxThread(ThreadJob, EventListener):
             return text
         return text[:dp_loc] + util.DECIMAL_POINT + text[dp_loc+1:]
 
+    def ccy_precision(self, ccy=None) -> int:
+        return CCY_PRECISIONS.get(self.ccy if ccy is None else ccy, 2)
+
     async def run(self):
         while True:
             # every few minutes, refresh spot price
@@ -583,7 +578,7 @@ class FxThread(ThreadJob, EventListener):
                     await self._trigger.wait()
                     self._trigger.clear()
                 # we were manually triggered, so get historical rates
-                if self.is_enabled() and self.show_history():
+                if self.is_enabled() and self.has_history():
                     self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             except TaskTimeout:
                 pass
@@ -597,26 +592,11 @@ class FxThread(ThreadJob, EventListener):
         self.config.set_key('use_exchange_rate', bool(b))
         self.trigger_update()
 
-    def get_history_config(self, *, allow_none=False):
-        val = self.config.get('history_rates', None)
-        if val is None and allow_none:
-            return None
-        return bool(val)
+    def can_have_history(self):
+        return self.is_enabled() and self.ccy in self.exchange.history_ccys()
 
-    def set_history_config(self, b):
-        self.config.set_key('history_rates', bool(b))
-
-    def get_history_capital_gains_config(self):
-        return bool(self.config.get('history_rates_capital_gains', False))
-
-    def set_history_capital_gains_config(self, b):
-        self.config.set_key('history_rates_capital_gains', bool(b))
-
-    def get_fiat_address_config(self):
-        return bool(self.config.get('fiat_address'))
-
-    def set_fiat_address_config(self, b):
-        self.config.set_key('fiat_address', bool(b))
+    def has_history(self) -> bool:
+        return self.can_have_history() and bool(self.config.get('history_rates', False))
 
     def get_currency(self) -> str:
         '''Use when dynamic fetching is needed'''
@@ -625,9 +605,6 @@ class FxThread(ThreadJob, EventListener):
     def config_exchange(self):
         return self.config.get('use_exchange', DEFAULT_EXCHANGE)
 
-    def show_history(self):
-        return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
-
     def set_currency(self, ccy: str):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
@@ -635,8 +612,8 @@ class FxThread(ThreadJob, EventListener):
         self.on_quotes()
 
     def trigger_update(self):
-        if self.network:
-            self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
+        loop = util.get_asyncio_loop()
+        loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
         class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
@@ -678,8 +655,11 @@ class FxThread(ThreadJob, EventListener):
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
-            self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
+        if rate.is_nan():
+            return _("  (No FX rate available)")
+        amount = 1000 if decimal_point == 0 else 1
+        value = self.value_str(amount * COIN / (10**(8 - decimal_point)), rate)
+        return " %d %s~%s %s" % (amount, base_unit, value, self.ccy)
 
     def fiat_value(self, satoshis, rate) -> Decimal:
         return Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)

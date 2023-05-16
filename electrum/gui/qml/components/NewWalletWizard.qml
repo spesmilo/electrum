@@ -18,7 +18,7 @@ Wizard {
     wiz: Daemon.newWalletWizard
 
     Component.onCompleted: {
-        var view = wiz.start_wizard()
+        var view = wiz.startWizard()
         _loadNextComponent(view)
     }
 
@@ -32,6 +32,10 @@ Wizard {
         function onCreateSuccess() {
             walletwizard.path = wiz.path
             walletwizard.walletCreated()
+        }
+        function onCreateError(error) {
+            var dialog = app.messageDialog.createObject(app, { text: error })
+            dialog.open()
         }
     }
 }

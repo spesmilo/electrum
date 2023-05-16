@@ -28,12 +28,12 @@ import sys
 import time
 import datetime
 from datetime import date
-from typing import TYPE_CHECKING, Tuple, Dict
+from typing import TYPE_CHECKING, Tuple, Dict, Any
 import threading
-from enum import IntEnum
+import enum
 from decimal import Decimal
 
-from PyQt5.QtGui import QMouseEvent, QFont, QBrush, QColor
+from PyQt5.QtGui import QFont, QBrush, QColor
 from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
                           QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
 from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
@@ -50,8 +50,9 @@ from electrum.logging import get_logger, Logger
 
 from .custom_model import CustomNode, CustomModel
 from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
-                   filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
+                   filename_field, AcceptFileDragDrop, WindowModalDialog,
                    CloseButton, webopen, WWLabel)
+from .my_treeview import MyTreeView
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet
@@ -60,12 +61,6 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
-
-try:
-    from electrum.plot import plot_history, NothingToPlotException
-except:
-    _logger.info("could not import electrum.plot. This feature needs matplotlib to be installed.")
-    plot_history = None
 
 # note: this list needs to be kept in sync with another in kivy
 TX_ICONS = [
@@ -85,16 +80,6 @@ TX_ICONS = [
 ROLE_SORT_ORDER = Qt.UserRole + 1000
 
 
-class HistoryColumns(IntEnum):
-    STATUS = 0
-    DESCRIPTION = 1
-    AMOUNT = 2
-    BALANCE = 3
-    FIAT_VALUE = 4
-    FIAT_ACQ_PRICE = 5
-    FIAT_CAP_GAINS = 6
-    TXID = 7
-
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
         item1 = self.sourceModel().data(source_left, ROLE_SORT_ORDER)
@@ -107,7 +92,7 @@ class HistorySortModel(QSortFilterProxyModel):
         if v2 is None or isinstance(v2, Decimal) and v2.is_nan(): v2 = -float("inf")
         try:
             return v1 < v2
-        except:
+        except Exception:
             return False
 
 def get_item_key(tx_item):
@@ -116,15 +101,18 @@ def get_item_key(tx_item):
 
 class HistoryNode(CustomNode):
 
+    model: 'HistoryModel'
+
     def get_data_for_role(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:
         # note: this method is performance-critical.
         # it is called a lot, and so must run extremely fast.
         assert index.isValid()
         col = index.column()
-        window = self.model.parent
+        window = self.model.window
         tx_item = self.get_data()
         is_lightning = tx_item.get('lightning', False)
         timestamp = tx_item['timestamp']
+        short_id = None
         if is_lightning:
             status = 0
             if timestamp is None:
@@ -133,11 +121,14 @@ class HistoryNode(CustomNode):
                 status_str = format_time(int(timestamp))
         else:
             tx_hash = tx_item['txid']
+            txpos_in_block = tx_item.get('txpos_in_block')
+            if txpos_in_block is not None and txpos_in_block >= 0:
+                short_id = f"{tx_item['height']}x{txpos_in_block}"
             conf = tx_item['confirmations']
             try:
                 status, status_str = self.model.tx_status_cache[tx_hash]
             except KeyError:
-                tx_mined_info = self.model.tx_mined_info_from_tx_item(tx_item)
+                tx_mined_info = self.model._tx_mined_info_from_tx_item(tx_item)
                 status, status_str = window.wallet.get_tx_status(tx_hash, tx_mined_info)
 
         if role == ROLE_SORT_ORDER:
@@ -159,6 +150,7 @@ class HistoryNode(CustomNode):
                 HistoryColumns.FIAT_CAP_GAINS:
                     tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
                 HistoryColumns.TXID: tx_hash if not is_lightning else None,
+                HistoryColumns.SHORT_ID: short_id,
             }
             return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
@@ -223,15 +215,17 @@ class HistoryNode(CustomNode):
             return QVariant(window.fx.format_fiat(cg))
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
+        elif col == HistoryColumns.SHORT_ID:
+            return QVariant(short_id or "")
         return QVariant()
 
 
 class HistoryModel(CustomModel, Logger):
 
-    def __init__(self, parent: 'ElectrumWindow'):
-        CustomModel.__init__(self, parent, len(HistoryColumns))
+    def __init__(self, window: 'ElectrumWindow'):
+        CustomModel.__init__(self, window, len(HistoryColumns))
         Logger.__init__(self)
-        self.parent = parent
+        self.window = window
         self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
@@ -244,23 +238,34 @@ class HistoryModel(CustomModel, Logger):
 
     def update_label(self, index):
         tx_item = index.internalPointer().get_data()
-        tx_item['label'] = self.parent.wallet.get_label_for_txid(get_item_key(tx_item))
+        tx_item['label'] = self.window.wallet.get_label_for_txid(get_item_key(tx_item))
         topLeft = bottomRight = self.createIndex(index.row(), HistoryColumns.DESCRIPTION)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
-        self.parent.utxo_list.update()
+        self.window.utxo_list.update()
 
     def get_domain(self):
         """Overridden in address_dialog.py"""
-        return self.parent.wallet.get_addresses()
+        return self.window.wallet.get_addresses()
 
     def should_include_lightning_payments(self) -> bool:
         """Overridden in address_dialog.py"""
         return True
 
+    def should_show_fiat(self):
+        if not bool(self.window.config.get('history_rates', False)):
+            return False
+        fx = self.window.fx
+        if not fx or not fx.is_enabled():
+            return False
+        return fx.has_history()
+
+    def should_show_capital_gains(self):
+        return self.should_show_fiat() and self.window.config.get('history_rates_capital_gains', False)
+
     @profiler
     def refresh(self, reason: str):
         self.logger.info(f"refreshing... reason: {reason}")
-        assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
+        assert self.window.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         assert self.view, 'view not set'
         if self.view.maybe_defer_update():
             return
@@ -268,14 +273,16 @@ class HistoryModel(CustomModel, Logger):
         selected_row = None
         if selected:
             selected_row = selected.row()
-        fx = self.parent.fx
+        fx = self.window.fx
         if fx: fx.history_used_spot = False
-        wallet = self.parent.wallet
+        wallet = self.window.wallet
         self.set_visibility_of_columns()
         transactions = wallet.get_full_history(
-            self.parent.fx,
+            self.window.fx,
             onchain_domain=self.get_domain(),
-            include_lightning=self.should_include_lightning_payments())
+            include_lightning=self.should_include_lightning_payments(),
+            include_fiat=self.should_show_fiat(),
+        )
         if transactions == self.transactions:
             return
         old_length = self._root.childCount()
@@ -346,17 +353,22 @@ class HistoryModel(CustomModel, Logger):
         self.tx_status_cache.clear()
         for txid, tx_item in self.transactions.items():
             if not tx_item.get('lightning', False):
-                tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
-                self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
+                tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
+                self.tx_status_cache[txid] = self.window.wallet.get_tx_status(txid, tx_mined_info)
+        # update counter
+        num_tx = len(self.transactions)
+        if self.view:
+            self.view.num_tx_label.setText(_("{} transactions").format(num_tx))
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.view.showColumn(col) if b else self.view.hideColumn(col)
         # txid
         set_visible(HistoryColumns.TXID, False)
+        set_visible(HistoryColumns.SHORT_ID, False)
         # fiat
-        history = self.parent.fx.show_history()
-        cap_gains = self.parent.fx.get_history_capital_gains_config()
+        history = self.should_show_fiat()
+        cap_gains = self.should_show_capital_gains()
         set_visible(HistoryColumns.FIAT_VALUE, history)
         set_visible(HistoryColumns.FIAT_ACQ_PRICE, history and cap_gains)
         set_visible(HistoryColumns.FIAT_CAP_GAINS, history and cap_gains)
@@ -366,8 +378,8 @@ class HistoryModel(CustomModel, Logger):
         txid = tx_item['txid']
         fee = tx_item.get('fee')
         value = tx_item['value'].value
-        fiat_fields = self.parent.wallet.get_tx_item_fiat(
-            tx_hash=txid, amount_sat=value, fx=self.parent.fx, tx_fee=fee.value if fee else None)
+        fiat_fields = self.window.wallet.get_tx_item_fiat(
+            tx_hash=txid, amount_sat=value, fx=self.window.fx, tx_fee=fee.value if fee else None)
         tx_item.update(fiat_fields)
         self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
 
@@ -377,7 +389,7 @@ class HistoryModel(CustomModel, Logger):
             tx_item = self.transactions[tx_hash]
         except KeyError:
             return
-        self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+        self.tx_status_cache[tx_hash] = self.window.wallet.get_tx_status(tx_hash, tx_mined_info)
         tx_item.update({
             'confirmations':  tx_mined_info.conf,
             'timestamp':      tx_mined_info.timestamp,
@@ -392,7 +404,7 @@ class HistoryModel(CustomModel, Logger):
         for tx_hash, tx_item in list(self.transactions.items()):
             if tx_item.get('lightning'):
                 continue
-            tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+            tx_mined_info = self._tx_mined_info_from_tx_item(tx_item)
             if tx_mined_info.conf > 0:
                 # note: we could actually break here if we wanted to rely on the order of txns in self.transactions
                 continue
@@ -402,11 +414,11 @@ class HistoryModel(CustomModel, Logger):
         assert orientation == Qt.Horizontal
         if role != Qt.DisplayRole:
             return None
-        fx = self.parent.fx
+        fx = self.window.fx
         fiat_title = 'n/a fiat value'
         fiat_acq_title = 'n/a fiat acquisition price'
         fiat_cg_title = 'n/a fiat capital gains'
-        if fx and fx.show_history():
+        if self.should_show_fiat():
             fiat_title = '%s '%fx.ccy + _('Value')
             fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
             fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
@@ -419,6 +431,7 @@ class HistoryModel(CustomModel, Logger):
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
             HistoryColumns.TXID: 'TXID',
+            HistoryColumns.SHORT_ID: 'Short ID',
         }[section]
 
     def flags(self, idx: QModelIndex) -> int:
@@ -428,17 +441,37 @@ class HistoryModel(CustomModel, Logger):
         return super().flags(idx) | int(extra_flags)
 
     @staticmethod
-    def tx_mined_info_from_tx_item(tx_item):
-        tx_mined_info = TxMinedInfo(height=tx_item['height'],
-                                    conf=tx_item['confirmations'],
-                                    timestamp=tx_item['timestamp'])
+    def _tx_mined_info_from_tx_item(tx_item: Dict[str, Any]) -> TxMinedInfo:
+        # FIXME a bit hackish to have to reconstruct the TxMinedInfo... same thing in qml-gui
+        tx_mined_info = TxMinedInfo(
+            height=tx_item['height'],
+            conf=tx_item['confirmations'],
+            timestamp=tx_item['timestamp'],
+            wanted_height=tx_item.get('wanted_height', None),
+        )
         return tx_mined_info
 
+
 class HistoryList(MyTreeView, AcceptFileDragDrop):
-    filter_columns = [HistoryColumns.STATUS,
-                      HistoryColumns.DESCRIPTION,
-                      HistoryColumns.AMOUNT,
-                      HistoryColumns.TXID]
+
+    class Columns(MyTreeView.BaseColumnsEnum):
+        STATUS = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        BALANCE = enum.auto()
+        FIAT_VALUE = enum.auto()
+        FIAT_ACQ_PRICE = enum.auto()
+        FIAT_CAP_GAINS = enum.auto()
+        TXID = enum.auto()
+        SHORT_ID = enum.auto()  # ~SCID
+
+    filter_columns = [
+        Columns.STATUS,
+        Columns.DESCRIPTION,
+        Columns.AMOUNT,
+        Columns.TXID,
+        Columns.SHORT_ID,
+    ]
 
     def tx_item_from_proxy_row(self, proxy_row):
         hm_idx = self.model().mapToSource(self.model().index(proxy_row, 0))
@@ -454,11 +487,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     return True
             return False
 
-    def __init__(self, parent, model: HistoryModel):
-        super().__init__(parent, self.create_menu,
-                         stretch_column=HistoryColumns.DESCRIPTION,
-                         editable_columns=[HistoryColumns.DESCRIPTION, HistoryColumns.FIAT_VALUE])
-        self.config = parent.config
+    def __init__(self, main_window: 'ElectrumWindow', model: HistoryModel):
+        super().__init__(
+            main_window=main_window,
+            stretch_column=HistoryColumns.DESCRIPTION,
+            editable_columns=[HistoryColumns.DESCRIPTION, HistoryColumns.FIAT_VALUE],
+        )
         self.hm = model
         self.proxy = HistorySortModel(self)
         self.proxy.setSourceModel(model)
@@ -468,8 +502,16 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_date = None
         self.end_date = None
         self.years = []
-        self.create_toolbar_buttons()
-        self.wallet = self.parent.wallet  # type: Abstract_Wallet
+        self.period_combo = QComboBox()
+        self.start_button = QPushButton('-')
+        self.start_button.pressed.connect(self.select_start_date)
+        self.start_button.setEnabled(False)
+        self.end_button = QPushButton('-')
+        self.end_button.pressed.connect(self.select_end_date)
+        self.end_button.setEnabled(False)
+        self.period_combo.addItems([_('All'), _('Custom')])
+        self.period_combo.activated.connect(self.on_combo)
+        self.wallet = self.main_window.wallet  # type: Abstract_Wallet
         self.sortByColumn(HistoryColumns.STATUS, Qt.AscendingOrder)
         self.setRootIsDecorated(True)
         self.header().setStretchLastSection(False)
@@ -496,7 +538,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         else:
             try:
                 year = int(s)
-            except:
+            except Exception:
                 return
             self.start_date = datetime.datetime(year, 1, 1)
             self.end_date = datetime.datetime(year+1, 1, 1)
@@ -504,16 +546,28 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.end_button.setText(_('To') + ' ' + self.format_date(self.end_date))
         self.hide_rows()
 
-    def create_toolbar_buttons(self):
-        self.period_combo = QComboBox()
-        self.start_button = QPushButton('-')
-        self.start_button.pressed.connect(self.select_start_date)
-        self.start_button.setEnabled(False)
-        self.end_button = QPushButton('-')
-        self.end_button.pressed.connect(self.select_end_date)
-        self.end_button.setEnabled(False)
-        self.period_combo.addItems([_('All'), _('Custom')])
-        self.period_combo.activated.connect(self.on_combo)
+    CONFIG_KEY_SHOW_TOOLBAR = "show_toolbar_history"
+    def create_toolbar(self, config):
+        toolbar, menu = self.create_toolbar_with_menu('')
+        self.num_tx_label = toolbar.itemAt(0).widget()
+        self._toolbar_checkbox = menu.addToggle(_("Filter by Date"), lambda: self.toggle_toolbar())
+        self.menu_fiat = menu.addConfig(_('Show Fiat Values'), 'history_rates', False, callback=self.main_window.app.update_fiat_signal.emit)
+        self.menu_capgains = menu.addConfig(_('Show Capital Gains'), 'history_rates_capital_gains', False, callback=self.main_window.app.update_fiat_signal.emit)
+        self.menu_summary = menu.addAction(_("&Summary"), self.show_summary)
+        menu.addAction(_("&Plot"), self.plot_history_dialog)
+        menu.addAction(_("&Export"), self.export_history_dialog)
+        hbox = self.create_toolbar_buttons()
+        toolbar.insertLayout(1, hbox)
+        self.update_toolbar_menu()
+        return toolbar
+
+    def update_toolbar_menu(self):
+        fx = self.main_window.fx
+        self.menu_fiat.setEnabled(fx and fx.can_have_history())
+        # setChecked because has_history can be modified through settings dialog
+        self.menu_fiat.setChecked(fx and fx.has_history())
+        self.menu_capgains.setEnabled(fx and fx.has_history())
+        self.menu_summary.setEnabled(fx and fx.has_history())
 
     def get_toolbar_buttons(self):
         return self.period_combo, self.start_button, self.end_button
@@ -522,9 +576,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.start_date = None
         self.end_date = None
         self.hide_rows()
-
-    def save_toolbar_state(self, state, config):
-        config.set_key('show_toolbar_history', state)
 
     def select_start_date(self):
         self.start_date = self.select_date(self.start_button)
@@ -555,26 +606,25 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return datetime.datetime(date.year, date.month, date.day)
 
     def show_summary(self):
-        fx = self.parent.fx
-        show_fiat = fx and fx.is_enabled() and fx.get_history_config()
-        if not show_fiat:
-            self.parent.show_message(_("Enable fiat exchange rate with history."))
+        if not self.hm.should_show_fiat():
+            self.main_window.show_message(_("Enable fiat exchange rate with history."))
             return
+        fx = self.main_window.fx
         h = self.wallet.get_detailed_history(
             from_timestamp = time.mktime(self.start_date.timetuple()) if self.start_date else None,
             to_timestamp = time.mktime(self.end_date.timetuple()) if self.end_date else None,
             fx=fx)
         summary = h['summary']
         if not summary:
-            self.parent.show_message(_("Nothing to summarize."))
+            self.main_window.show_message(_("Nothing to summarize."))
             return
         start = summary['begin']
         end = summary['end']
         flow = summary['flow']
         start_date = start.get('date')
         end_date = end.get('date')
-        format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
-        format_fiat = lambda x: str(x) + ' ' + self.parent.fx.ccy
+        format_amount = lambda x: self.main_window.format_amount(x.value) + ' ' + self.main_window.base_unit()
+        format_fiat = lambda x: str(x) + ' ' + self.main_window.fx.ccy
 
         d = WindowModalDialog(self, _("Summary"))
         d.setMinimumSize(600, 150)
@@ -629,16 +679,21 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         d.exec_()
 
     def plot_history_dialog(self):
-        if plot_history is None:
-            self.parent.show_message(
+        try:
+            from electrum.plot import plot_history, NothingToPlotException
+        except Exception as e:
+            _logger.error(f"could not import electrum.plot. This feature needs matplotlib to be installed. exc={e!r}")
+            self.main_window.show_message(
                 _("Can't plot history.") + '\n' +
-                _("Perhaps some dependencies are missing...") + " (matplotlib?)")
+                _("Perhaps some dependencies are missing...") + " (matplotlib?)" + '\n' +
+                f"Error: {e!r}"
+            )
             return
         try:
             plt = plot_history(list(self.hm.transactions.values()))
             plt.show()
         except NothingToPlotException as e:
-            self.parent.show_message(str(e))
+            self.main_window.show_message(str(e))
 
     def on_edited(self, idx, edit_key, *, text):
         index = self.model().mapToSource(idx)
@@ -648,39 +703,26 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if column == HistoryColumns.DESCRIPTION:
             if self.wallet.set_label(key, text): #changed
                 self.hm.update_label(index)
-                self.parent.update_completions()
+                self.main_window.update_completions()
         elif column == HistoryColumns.FIAT_VALUE:
-            self.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, tx_item['value'].value)
+            self.wallet.set_fiat_value(key, self.main_window.fx.ccy, text, self.main_window.fx, tx_item['value'].value)
             value = tx_item['value'].value
             if value is not None:
                 self.hm.update_fiat(index)
         else:
-            assert False
+            raise Exception(f"did not expect {column=!r} to get edited")
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent):
-        org_idx: QModelIndex = self.indexAt(event.pos())
-        idx = self.proxy.mapToSource(org_idx)
-        if not idx.isValid():
-            # can happen e.g. before list is populated for the first time
-            return
+    def on_double_click(self, idx):
         tx_item = idx.internalPointer().get_data()
-        if self.hm.flags(idx) & Qt.ItemIsEditable:
-            super().mouseDoubleClickEvent(event)
-        else:
-            if tx_item.get('lightning'):
-                if tx_item['type'] == 'payment':
-                    self.parent.show_lightning_transaction(tx_item)
-                return
-            tx_hash = tx_item['txid']
-            tx = self.wallet.db.get_transaction(tx_hash)
-            if not tx:
-                return
-            self.show_transaction(tx_item, tx)
-
-    def show_transaction(self, tx_item, tx):
+        if tx_item.get('lightning'):
+            if tx_item['type'] == 'payment':
+                self.main_window.show_lightning_transaction(tx_item)
+            return
         tx_hash = tx_item['txid']
-        label = self.wallet.get_label_for_txid(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
-        self.parent.show_transaction(tx, tx_desc=label)
+        tx = self.wallet.adb.get_transaction(tx_hash)
+        if not tx:
+            return
+        self.main_window.show_transaction(tx)
 
     def add_copy_menu(self, menu, idx):
         cc = menu.addMenu(_("Copy"))
@@ -705,56 +747,54 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_item = idx.internalPointer().get_data()
         if tx_item.get('lightning') and tx_item['type'] == 'payment':
             menu = QMenu()
-            menu.addAction(_("View Payment"), lambda: self.parent.show_lightning_transaction(tx_item))
+            menu.addAction(_("Details"), lambda: self.main_window.show_lightning_transaction(tx_item))
             cc = self.add_copy_menu(menu, idx)
             cc.addAction(_("Payment Hash"), lambda: self.place_text_on_clipboard(tx_item['payment_hash'], title="Payment Hash"))
             cc.addAction(_("Preimage"), lambda: self.place_text_on_clipboard(tx_item['preimage'], title="Preimage"))
             key = tx_item['payment_hash']
             log = self.wallet.lnworker.logs.get(key)
             if log:
-                menu.addAction(_("View log"), lambda: self.parent.send_tab.invoice_list.show_log(key, log))
+                menu.addAction(_("View log"), lambda: self.main_window.send_tab.invoice_list.show_log(key, log))
             menu.exec_(self.viewport().mapToGlobal(position))
             return
         tx_hash = tx_item['txid']
-        if tx_item.get('lightning'):
-            tx = self.wallet.adb.get_transaction(tx_hash)
-        else:
-            tx = self.wallet.db.get_transaction(tx_hash)
+        tx = self.wallet.adb.get_transaction(tx_hash)
         if not tx:
             return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         tx_details = self.wallet.get_tx_info(tx)
         is_unconfirmed = tx_details.tx_mined_status.height <= 0
         menu = QMenu()
+        menu.addAction(_("Details"), lambda: self.main_window.show_transaction(tx))
         if tx_details.can_remove:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
-        cc = self.add_copy_menu(menu, idx)
-        cc.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
+        copy_menu = self.add_copy_menu(menu, idx)
+        copy_menu.addAction(_("Transaction ID"), lambda: self.place_text_on_clipboard(tx_hash, title="TXID"))
+        menu_edit = menu.addMenu(_("Edit"))
         for c in self.editable_columns:
             if self.isColumnHidden(c): continue
             label = self.hm.headerData(c, Qt.Horizontal, Qt.DisplayRole)
             # TODO use siblingAtColumn when min Qt version is >=5.11
             persistent = QPersistentModelIndex(org_idx.sibling(org_idx.row(), c))
-            menu.addAction(_("Edit {}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
-        menu.addAction(_("View Transaction"), lambda: self.show_transaction(tx_item, tx))
+            menu_edit.addAction(_("{}").format(label), lambda p=persistent: self.edit(QModelIndex(p)))
         channel_id = tx_item.get('channel_id')
         if channel_id and self.wallet.lnworker and (chan := self.wallet.lnworker.get_channel_by_id(bytes.fromhex(channel_id))):
-            menu.addAction(_("View Channel"), lambda: self.parent.show_channel_details(chan))
+            menu.addAction(_("View Channel"), lambda: self.main_window.show_channel_details(chan))
         if is_unconfirmed and tx:
             if tx_details.can_bump:
-                menu.addAction(_("Increase fee"), lambda: self.parent.bump_fee_dialog(tx))
+                menu.addAction(_("Increase fee"), lambda: self.main_window.bump_fee_dialog(tx))
             else:
                 if tx_details.can_cpfp:
-                    menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp_dialog(tx))
+                    menu.addAction(_("Child pays for parent"), lambda: self.main_window.cpfp_dialog(tx))
             if tx_details.can_dscancel:
-                menu.addAction(_("Cancel (double-spend)"), lambda: self.parent.dscancel_dialog(tx))
+                menu.addAction(_("Cancel (double-spend)"), lambda: self.main_window.dscancel_dialog(tx))
         invoices = self.wallet.get_relevant_invoices_for_tx(tx_hash)
         if len(invoices) == 1:
-            menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.parent.show_onchain_invoice(inv))
+            menu.addAction(_("View invoice"), lambda inv=invoices[0]: self.main_window.show_onchain_invoice(inv))
         elif len(invoices) > 1:
             menu_invs = menu.addMenu(_("Related invoices"))
             for inv in invoices:
-                menu_invs.addAction(_("View invoice"), lambda inv=inv: self.parent.show_onchain_invoice(inv))
+                menu_invs.addAction(_("View invoice"), lambda inv=inv: self.main_window.show_onchain_invoice(inv))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webopen(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -765,30 +805,30 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if num_child_txs > 0:
             question = (_("Are you sure you want to remove this transaction and {} child transactions?")
                         .format(num_child_txs))
-        if not self.parent.question(msg=question,
+        if not self.main_window.question(msg=question,
                                     title=_("Please confirm")):
             return
         self.wallet.adb.remove_transaction(tx_hash)
         self.wallet.save_db()
         # need to update at least: history_list, utxo_list, address_list
-        self.parent.need_update.set()
+        self.main_window.need_update.set()
 
     def onFileAdded(self, fn):
         try:
             with open(fn) as f:
-                tx = self.parent.tx_from_text(f.read())
+                tx = self.main_window.tx_from_text(f.read())
         except IOError as e:
-            self.parent.show_error(e)
+            self.main_window.show_error(e)
             return
         if not tx:
             return
-        self.parent.save_transaction_into_wallet(tx)
+        self.main_window.save_transaction_into_wallet(tx)
 
     def export_history_dialog(self):
         d = WindowModalDialog(self, _('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
-        defaultname = os.path.expanduser('~/electrum-history.csv')
+        defaultname = f'electrum-history-{self.wallet.basename()}.csv'
         select_msg = _('Select file to export your wallet transactions to')
         hbox, filename_e, csv_button = filename_field(self, self.config, defaultname, select_msg)
         vbox.addLayout(hbox)
@@ -806,12 +846,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.do_export_history(filename, csv_button.isChecked())
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
-            self.parent.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
+            self.main_window.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
-        self.parent.show_message(_("Your wallet history has been successfully exported."))
+        self.main_window.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        hist = self.wallet.get_detailed_history(fx=self.parent.fx)
+        hist = self.wallet.get_detailed_history(fx=self.main_window.fx)
         txns = hist['transactions']
         lines = []
         if is_csv:
@@ -848,3 +888,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def get_role_data_from_coordinate(self, row, col, *, role):
         idx = self.model().mapToSource(self.model().index(row, col))
         return self.hm.data(idx, role).value()
+
+
+HistoryColumns = HistoryList.Columns

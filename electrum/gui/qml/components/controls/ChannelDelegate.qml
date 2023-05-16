@@ -22,7 +22,7 @@ ItemDelegate {
             left: parent.left
             right: parent.right
             leftMargin: constants.paddingSmall
-            rightMargin: constants.paddingSmall
+            rightMargin: constants.paddingMedium
         }
 
         columns: 2
@@ -37,7 +37,9 @@ ItemDelegate {
         Image {
             id: walleticon
             source: model.is_backup
-                        ? '../../../icons/nocloud.png'
+                        ? model.is_imported
+                            ? '../../../icons/cloud_no.png'
+                            : '../../../icons/lightning_disconnected.png'
                         : model.is_trampoline
                             ? '../../../icons/kangaroo.png'
                             : '../../../icons/lightning.png'
@@ -103,44 +105,14 @@ ItemDelegate {
             }
         }
 
-        Item {
-            id: chviz
-            visible: !_closed
+        ChannelBar {
             Layout.fillWidth: true
-            height: 10
-            onWidthChanged: {
-                var cap = model.capacity.satsInt * 1000
-                var twocap = cap * 2
-                b1.width = width * (cap - model.can_send.msatsInt) / twocap
-                b2.width = width * model.can_send.msatsInt / twocap
-                b3.width = width * model.can_receive.msatsInt / twocap
-                b4.width = width * (cap - model.can_receive.msatsInt) / twocap
-            }
-            Rectangle {
-                id: b1
-                x: 0
-                height: parent.height
-                color: 'gray'
-            }
-            Rectangle {
-                id: b2
-                anchors.left: b1.right
-                height: parent.height
-                color: constants.colorLightningLocal
-            }
-            Rectangle {
-                id: b3
-                anchors.left: b2.right
-                height: parent.height
-                color: constants.colorLightningRemote
-            }
-            Rectangle {
-                id: b4
-                anchors.left: b3.right
-                height: parent.height
-                color: 'gray'
-            }
+            visible: !_closed && !model.is_backup
+            capacity: model.capacity
+            localCapacity: model.local_capacity
+            remoteCapacity: model.remote_capacity
         }
+
         Item {
             visible: _closed
             Layout.fillWidth: true

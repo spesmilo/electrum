@@ -5,21 +5,34 @@ import QtQuick.Controls 2.1
 import "../controls"
 
 WizardComponent {
-    valid: password1.text === password2.text && password1.text.length > 4
+    valid: password1.text === password2.text && password1.text.length >= 6
 
     function apply() {
         wizard_data['password'] = password1.text
         wizard_data['encrypt'] = password1.text != ''
     }
 
-    GridLayout {
-        columns: 1
-        Label { text: qsTr('Password protect wallet?') }
+    ColumnLayout {
+        width: parent.width
+
+        Label {
+            Layout.fillWidth: true
+            text: Daemon.singlePasswordEnabled
+                ? qsTr('Enter password')
+                : qsTr('Enter password for %1').arg(wizard_data['wallet_name'])
+            wrapMode: Text.Wrap
+        }
         PasswordField {
             id: password1
         }
+        Label {
+            text: qsTr('Enter password (again)')
+        }
         PasswordField {
             id: password2
+            showReveal: false
+            echoMode: password1.echoMode
+            enabled: password1.text.length >= 6
         }
     }
 }

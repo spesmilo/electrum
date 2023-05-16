@@ -22,8 +22,6 @@ WizardComponent {
 
         TextHighlightPane {
             Layout.fillWidth: true
-            padding: 0
-            leftPadding: constants.paddingSmall
 
             RowLayout {
                 width: parent.width

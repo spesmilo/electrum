@@ -10,63 +10,55 @@ import "controls"
 ElDialog {
     id: openwalletdialog
 
-    width: parent.width * 4/5
-
-    anchors.centerIn: parent
-
-    title: qsTr("Open Wallet")
-    iconSource: '../../../icons/wallet.png'
-
     property string name
     property string path
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
+    property bool _unlockClicked: false
+
+    title: qsTr('Open Wallet')
+    iconSource: Qt.resolvedUrl('../../icons/wallet.png')
 
     focus: true
 
-    property bool _unlockClicked: false
+    width: parent.width * 4/5
+    anchors.centerIn: parent
+
+    padding: 0
 
     ColumnLayout {
-        id: rootLayout
+        spacing: 0
         width: parent.width
-        spacing: constants.paddingLarge
 
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: name
-        }
-
-        Item {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: passwordLayout.width
-            Layout.preferredHeight: notice.height
+        ColumnLayout {
+            id: rootLayout
+            Layout.fillWidth: true
+            Layout.leftMargin: constants.paddingXXLarge
+            Layout.rightMargin: constants.paddingXXLarge
+            spacing: constants.paddingLarge
 
             InfoTextArea {
                 id: notice
-                text: qsTr("Wallet requires password to unlock")
+                text: Daemon.singlePasswordEnabled
+                    ? qsTr('Please enter password')
+                    : qsTr('Wallet <b>%1</b> requires password to unlock').arg(name)
                 visible: wallet_db.needsPassword
                 iconStyle: InfoTextArea.IconStyle.Warn
-                width: parent.width
+                Layout.fillWidth: true
             }
-        }
 
-        RowLayout {
-            id: passwordLayout
-            Layout.alignment: Qt.AlignHCenter
             Label {
                 text: qsTr('Password')
                 visible: wallet_db.needsPassword
                 Layout.fillWidth: true
+                color: Material.accentColor
             }
 
             PasswordField {
                 id: password
-                visible: wallet_db.needsPassword
                 Layout.fillWidth: true
+                Layout.leftMargin: constants.paddingXLarge
+                visible: wallet_db.needsPassword
+
                 onTextChanged: {
                     unlockButton.enabled = true
                     _unlockClicked = false
@@ -75,38 +67,38 @@ ElDialog {
                     unlock()
                 }
             }
-        }
 
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            text: !wallet_db.validPassword && _unlockClicked ? qsTr("Invalid Password") : ''
-            color: constants.colorError
-            font.pixelSize: constants.fontSizeLarge
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: !wallet_db.validPassword && _unlockClicked ? qsTr("Invalid Password") : ''
+                color: constants.colorError
+                font.pixelSize: constants.fontSizeLarge
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                visible: wallet_db.requiresSplit
+                text: qsTr('Wallet requires splitting')
+                font.pixelSize: constants.fontSizeLarge
+            }
+
+            FlatButton {
+                Layout.alignment: Qt.AlignHCenter
+                visible: wallet_db.requiresSplit
+                text: qsTr('Split wallet')
+                onClicked: wallet_db.doSplit()
+            }
         }
 
         FlatButton {
             id: unlockButton
-            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
             visible: wallet_db.needsPassword
             icon.source: '../../icons/unlock.png'
             text: qsTr("Unlock")
             onClicked: {
                 unlock()
             }
-        }
-
-        Label {
-            Layout.alignment: Qt.AlignHCenter
-            visible: wallet_db.requiresSplit
-            text: qsTr('Wallet requires splitting')
-            font.pixelSize: constants.fontSizeLarge
-        }
-
-        FlatButton {
-            Layout.alignment: Qt.AlignHCenter
-            visible: wallet_db.requiresSplit
-            text: qsTr('Split wallet')
-            onClicked: wallet_db.doSplit()
         }
 
     }
@@ -128,12 +120,19 @@ ElDialog {
         }
         onReadyChanged: {
             if (ready) {
-                Daemon.load_wallet(openwalletdialog.path, password.text)
+                Daemon.loadWallet(openwalletdialog.path, password.text)
                 openwalletdialog.close()
             }
         }
         onInvalidPassword: {
             password.tf.forceActiveFocus()
+        }
+        onNeedsPasswordChanged: {
+            notice.visible = needsPassword
+        }
+        onWalletOpenProblem: {
+            openwalletdialog.close()
+            Daemon.onWalletOpenProblem(error)
         }
     }
 

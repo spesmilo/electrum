@@ -44,8 +44,9 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 is_pyinstaller = getattr(sys, 'frozen', False)
 is_android = 'ANDROID_DATA' in os.environ
 is_appimage = 'APPIMAGE' in os.environ
+is_binary_distributable = is_pyinstaller or is_android or is_appimage
 # is_local: unpacked tar.gz but not pip installed, or git clone
-is_local = (not is_pyinstaller and not is_android and not is_appimage
+is_local = (not is_binary_distributable
             and os.path.exists(os.path.join(script_dir, "electrum.desktop")))
 is_git_clone = is_local and os.path.exists(os.path.join(script_dir, ".git"))
 
@@ -61,6 +62,19 @@ if is_pyinstaller:
     # prevents users from moving or renaming the exe file while running (doing which
     # causes ImportErrors and other runtime failures). (see #4072)
     _file = open(sys.executable, 'rb')
+
+if is_binary_distributable:
+    # Ensure that asserts are enabled.
+    # Code *should not rely* on asserts being enabled. In particular, safety and security checks should
+    # always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
+    # In case we are a binary build, we know for a fact that we want the asserts, so enforce them.
+    # When running from source, defer to the user. (a warning is logged in __init__.py)
+    try:
+        assert False
+    except AssertionError:
+        pass
+    else:
+        sys.exit("Error: Running with asserts disabled, in a binary distributable! Please check build settings.")
 
 
 def check_imports():
@@ -370,14 +384,22 @@ def main():
         sys.exit(1)
 
     config = SimpleConfig(config_options)
+    cmdname = config.get('cmd')
 
     # set language as early as possible
     # Note: we are already too late for strings that are declared in the global scope
     #       of an already imported module. However, the GUI and the plugins at least have
-    #       not been imported yet.
-    # Note: it is ok to call set_language() again later. E.g. the Qt GUI has additional
-    #       tools to figure out the default language so it will get called again there.
-    set_language(config.get('language'))
+    #       not been imported yet. (see #4621)
+    # Note: it is ok to call set_language() again later, but note that any call only applies
+    #       to not-yet-evaluated strings.
+    if cmdname == 'gui':
+        from electrum.gui.default_lang import get_default_language
+        gui_name = config.get('gui', 'qt')
+        lang = config.get('language')
+        if not lang:
+            lang = get_default_language(gui_name=gui_name)
+            _logger.info(f"get_default_language: detected default as {lang=!r}")
+        set_language(lang)
 
     if config.get('testnet'):
         constants.set_testnet()
@@ -388,11 +410,9 @@ def main():
     elif config.get('signet'):
         constants.set_signet()
 
-    cmdname = config.get('cmd')
-
     if cmdname == 'daemon' and config.get("detach"):
         # detect lockfile.
-        # This is not as goog as get_file_descriptor, but that would require the asyncio loop
+        # This is not as good as get_file_descriptor, but that would require the asyncio loop
         lockfile = daemon.get_lockfile(config)
         if os.path.exists(lockfile):
             print_stderr("Daemon already running (lockfile detected).")
@@ -434,7 +454,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd)
+            d = daemon.Daemon(config, fd, start_network=False)
             try:
                 d.run_gui(config, plugins)
             except BaseException as e:
@@ -474,6 +494,11 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
                 print_msg("Daemon not running; try 'electrum daemon -d'")
                 if not cmd.requires_network:
                     print_msg("To run this command without a daemon, use --offline")
+                if cmd.name == "stop":  # remove lockfile if it exists, as daemon looks dead
+                    lockfile = daemon.get_lockfile(config)
+                    if os.path.exists(lockfile):
+                        print_msg("Found lingering lockfile for daemon. Removing.")
+                        daemon.remove_lockfile(lockfile)
                 sys_exit(1)
             except Exception as e:
                 print_stderr(str(e) or repr(e))

@@ -15,12 +15,6 @@ ElDialog {
 
     property InvoiceParser invoiceParser
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
     padding: 0
 
     property bool valid: comment.text.length <= invoiceParser.lnurlData['comment_allowed']
@@ -52,18 +46,28 @@ ElDialog {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
             }
+
             Label {
-                text: invoiceParser.lnurlData['min_sendable_sat'] == invoiceParser.lnurlData['max_sendable_sat']
-                        ? qsTr('Amount')
-                        : qsTr('Amount range')
+                text: qsTr('Amount')
                 color: Material.accentColor
             }
+
+            BtcField {
+                id: amountBtc
+                text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
+                enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
+                color: Material.foreground // override gray-out on disabled
+                fiatfield: null
+                Layout.preferredWidth: parent.width /3
+                onTextAsSatsChanged: {
+                    invoiceParser.amountOverride = textAsSats
+                }
+            }
             Label {
+                Layout.columnSpan: 2
                 text: invoiceParser.lnurlData['min_sendable_sat'] == invoiceParser.lnurlData['max_sendable_sat']
-                        ? invoiceParser.lnurlData['min_sendable_sat'] == 0
-                            ? qsTr('Unspecified')
-                            : invoiceParser.lnurlData['min_sendable_sat']
-                        : invoiceParser.lnurlData['min_sendable_sat'] + ' < amount < ' + invoiceParser.lnurlData['max_sendable_sat']
+                        ? ''
+                        : qsTr('Amount must be between %1 and %2').arg(Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])).arg(Config.formatSats(invoiceParser.lnurlData['max_sendable_sat'])) + Config.baseUnit
             }
 
             TextArea {
@@ -88,13 +92,14 @@ ElDialog {
         FlatButton {
             Layout.topMargin: constants.paddingLarge
             Layout.fillWidth: true
-            text: qsTr('Proceed')
+            text: qsTr('Pay')
             icon.source: '../../icons/confirmed.png'
             enabled: valid
             onClicked: {
-                invoiceParser.lnurlGetInvoice(invoiceParser.lnurlData['min_sendable_sat'], comment.text)
+                invoiceParser.lnurlGetInvoice(comment.text)
                 dialog.close()
             }
         }
     }
+
 }

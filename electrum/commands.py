@@ -41,8 +41,8 @@ from typing import Optional, TYPE_CHECKING, Dict, List
 import os
 
 from .import util, ecc
-from .util import (bfh, bh2u, format_satoshis, json_decode, json_normalize,
-                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend)
+from .util import (bfh, format_satoshis, json_decode, json_normalize,
+                   is_hash256_str, is_hex_str, to_bytes, parse_max_spend, to_decimal)
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN
 from .bip32 import BIP32Node
@@ -66,6 +66,7 @@ from . import submarine_swaps
 from . import GuiImportError
 from . import crypto
 from . import constants
+from . import descriptor
 
 if TYPE_CHECKING:
     from .network import Network
@@ -84,10 +85,10 @@ def satoshis_or_max(amount):
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN*Decimal(amount)) if amount is not None else None
+    return int(COIN*to_decimal(amount)) if amount is not None else None
 
 def format_satoshis(x):
-    return str(Decimal(x)/COIN) if x is not None else None
+    return str(to_decimal(x)/COIN) if x is not None else None
 
 
 class Command:
@@ -312,7 +313,7 @@ class Commands:
             # call literal_eval for backward compatibility (see #4225)
             try:
                 value = ast.literal_eval(value)
-            except:
+            except Exception:
                 pass
         return value
 
@@ -356,7 +357,7 @@ class Commands:
         for txin in wallet.get_utxos():
             d = txin.to_json()
             v = d.pop("value_sats")
-            d["value"] = str(Decimal(v)/COIN) if v is not None else None
+            d["value"] = str(to_decimal(v)/COIN) if v is not None else None
             coins.append(d)
         return coins
 
@@ -370,9 +371,17 @@ class Commands:
 
     @command('')
     async def serialize(self, jsontx):
-        """Create a transaction from json inputs.
-        Inputs must have a redeemPubkey.
-        Outputs must be a list of {'address':address, 'value':satoshi_amount}.
+        """Create a signed raw transaction from a json tx template.
+
+        Example value for "jsontx" arg: {
+            "inputs": [
+                {"prevout_hash": "9d221a69ca3997cbeaf5624d723e7dc5f829b1023078c177d37bdae95f37c539", "prevout_n": 1,
+                 "value_sats": 1000000, "privkey": "p2wpkh:cVDXzzQg6RoCTfiKpe8MBvmm5d5cJc6JLuFApsFDKwWa6F5TVHpD"}
+            ],
+            "outputs": [
+                {"address": "tb1q4s8z6g5jqzllkgt8a4har94wl8tg0k9m8kv5zd", "value_sats": 990000}
+            ]
+        }
         """
         keypairs = {}
         inputs = []  # type: List[PartialTxInput]
@@ -385,7 +394,10 @@ class Commands:
             else:
                 raise Exception("missing prevout for txin")
             txin = PartialTxInput(prevout=prevout)
-            txin._trusted_value_sats = int(txin_dict.get('value', txin_dict['value_sats']))
+            try:
+                txin._trusted_value_sats = int(txin_dict.get('value') or txin_dict['value_sats'])
+            except KeyError:
+                raise Exception("missing 'value_sats' field for txin")
             nsequence = txin_dict.get('nsequence', None)
             if nsequence is not None:
                 txin.nsequence = nsequence
@@ -394,13 +406,23 @@ class Commands:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
                 pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
                 keypairs[pubkey] = privkey, compressed
-                txin.script_type = txin_type
-                txin.pubkeys = [bfh(pubkey)]
-                txin.num_sig = 1
+                desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+                txin.script_descriptor = desc
             inputs.append(txin)
 
-        outputs = [PartialTxOutput.from_address_and_value(txout['address'], int(txout.get('value', txout['value_sats'])))
-                   for txout in jsontx.get('outputs')]
+        outputs = []  # type: List[PartialTxOutput]
+        for txout_dict in jsontx.get('outputs'):
+            try:
+                txout_addr = txout_dict['address']
+            except KeyError:
+                raise Exception("missing 'address' field for txout")
+            try:
+                txout_val = int(txout_dict.get('value') or txout_dict['value_sats'])
+            except KeyError:
+                raise Exception("missing 'value_sats' field for txout")
+            txout = PartialTxOutput.from_address_and_value(txout_addr, txout_val)
+            outputs.append(txout)
+
         tx = PartialTransaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.serialize()
@@ -420,11 +442,11 @@ class Commands:
         for priv in privkey:
             txin_type, priv2, compressed = bitcoin.deserialize_privkey(priv)
             pubkey = ecc.ECPrivkey(priv2).get_public_key_bytes(compressed=compressed)
-            address = bitcoin.pubkey_to_address(txin_type, pubkey.hex())
+            desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=txin_type)
+            address = desc.expand().address()
             if address in txins_dict.keys():
                 for txin in txins_dict[address]:
-                    txin.pubkeys = [pubkey]
-                    txin.script_type = txin_type
+                    txin.script_descriptor = desc
                 tx.sign({pubkey.hex(): (priv2, compressed)})
 
         return tx.serialize()
@@ -521,13 +543,13 @@ class Commands:
         """Return the balance of your wallet. """
         c, u, x = wallet.get_balance()
         l = wallet.lnworker.get_balance() if wallet.lnworker else None
-        out = {"confirmed": str(Decimal(c)/COIN)}
+        out = {"confirmed": str(to_decimal(c)/COIN)}
         if u:
-            out["unconfirmed"] = str(Decimal(u)/COIN)
+            out["unconfirmed"] = str(to_decimal(u)/COIN)
         if x:
-            out["unmatured"] = str(Decimal(x)/COIN)
+            out["unmatured"] = str(to_decimal(x)/COIN)
         if l:
-            out["lightning"] = str(Decimal(l)/COIN)
+            out["lightning"] = str(to_decimal(l)/COIN)
         return out
 
     @command('n')
@@ -537,8 +559,8 @@ class Commands:
         """
         sh = bitcoin.address_to_scripthash(address)
         out = await self.network.get_balance_for_scripthash(sh)
-        out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
-        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
+        out["confirmed"] =  str(to_decimal(out["confirmed"])/COIN)
+        out["unconfirmed"] =  str(to_decimal(out["unconfirmed"])/COIN)
         return out
 
     @command('n')
@@ -609,7 +631,7 @@ class Commands:
         """Convert xtype of a master key. e.g. xpub -> ypub"""
         try:
             node = BIP32Node.from_xkey(xkey)
-        except:
+        except Exception:
             raise Exception('xkey should be a master public/private key')
         return node._replace(xtype=xtype).to_xkey()
 
@@ -749,7 +771,7 @@ class Commands:
             kwargs['to_timestamp'] = time.mktime(end_date.timetuple())
         if show_fiat:
             from .exchange_rate import FxThread
-            fx = FxThread(self.config, None)
+            fx = FxThread(config=self.config)
             kwargs['fx'] = fx
 
         return json_normalize(wallet.get_detailed_history(**kwargs))
@@ -762,6 +784,8 @@ class Commands:
         coins = wallet.get_spendable_coins(None)
         if domain_coins is not None:
             coins = [coin for coin in coins if (coin.prevout.to_str() in domain_coins)]
+        tx.add_info_from_wallet(wallet)
+        await tx.add_info_from_network(self.network)
         new_tx = wallet.bump_fee(
             tx=tx,
             txid=tx.txid(),
@@ -951,7 +975,7 @@ class Commands:
         return wallet.get_unused_address()
 
     @command('w')
-    async def add_request(self, amount, memo='', expiration=3600, force=False, wallet: Abstract_Wallet = None):
+    async def add_request(self, amount, memo='', expiry=3600, force=False, wallet: Abstract_Wallet = None):
         """Create a payment request, using the first unused address of the wallet.
         The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
@@ -962,8 +986,8 @@ class Commands:
             else:
                 return False
         amount = satoshis(amount)
-        expiration = int(expiration) if expiration else None
-        key = wallet.create_request(amount, memo, expiration, addr)
+        expiry = int(expiry) if expiry else None
+        key = wallet.create_request(amount, memo, expiry, addr)
         req = wallet.get_request(key)
         return wallet.export_request(req)
 
@@ -1032,7 +1056,7 @@ class Commands:
         else:
             raise Exception('Invalid fee estimation method: {}'.format(fee_method))
         if fee_level is not None:
-            fee_level = Decimal(fee_level)
+            fee_level = to_decimal(fee_level)
         return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
 
     @command('w')
@@ -1126,7 +1150,7 @@ class Commands:
     @command('wl')
     async def nodeid(self, wallet: Abstract_Wallet = None):
         listen_addr = self.config.get('lightning_listen')
-        return bh2u(wallet.lnworker.node_keypair.pubkey) + (('@' + listen_addr) if listen_addr else '')
+        return wallet.lnworker.node_keypair.pubkey.hex() + (('@' + listen_addr) if listen_addr else '')
 
     @command('wl')
     async def list_channels(self, wallet: Abstract_Wallet = None):
@@ -1142,7 +1166,7 @@ class Commands:
                 'channel_point': chan.funding_outpoint.to_str(),
                 'state': chan.get_state().name,
                 'peer_state': chan.peer_state.name,
-                'remote_pubkey': bh2u(chan.node_id),
+                'remote_pubkey': chan.node_id.hex(),
                 'local_balance': chan.balance(LOCAL)//1000,
                 'remote_balance': chan.balance(REMOTE)//1000,
                 'local_ctn': chan.get_latest_ctn(LOCAL),
@@ -1334,7 +1358,7 @@ class Commands:
             raise Exception(f'Currency to convert to ({to_ccy}) is unknown or rate is unavailable')
         # Conversion
         try:
-            from_amount = Decimal(from_amount)
+            from_amount = to_decimal(from_amount)
             to_amount = from_amount / rate_from * rate_to
         except InvalidOperation:
             raise Exception("from_amount is not a number")
@@ -1352,7 +1376,7 @@ def eval_bool(x: str) -> bool:
     if x == 'true': return True
     try:
         return bool(ast.literal_eval(x))
-    except:
+    except Exception:
         return bool(x)
 
 param_descriptions = {
@@ -1405,7 +1429,7 @@ command_options = {
     'addtransaction': (None,'Whether transaction is to be used for broadcasting afterwards. Adds transaction to the wallet'),
     'domain':      ("-D", "List of addresses"),
     'memo':        ("-m", "Description of the request"),
-    'expiration':  (None, "Time in seconds"),
+    'expiry':      (None, "Time in seconds"),
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
     'pending':     (None, "Show only pending requests."),
@@ -1432,7 +1456,7 @@ command_options = {
 
 # don't use floats because of rounding errors
 from .transaction import convert_raw_tx_to_hex
-json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
+json_loads = lambda x: json.loads(x, parse_float=lambda x: str(to_decimal(x)))
 arg_types = {
     'num': int,
     'nbits': int,
@@ -1445,8 +1469,8 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'fee': lambda x: str(Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if not parse_max_spend(x) else x,
+    'fee': lambda x: str(to_decimal(x)) if x is not None else None,
+    'amount': lambda x: str(to_decimal(x)) if not parse_max_spend(x) else x,
     'locktime': int,
     'addtransaction': eval_bool,
     'fee_method': str,

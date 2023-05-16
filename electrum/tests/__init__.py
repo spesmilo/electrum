@@ -1,3 +1,5 @@
+import asyncio
+import os
 import unittest
 import threading
 import tempfile
@@ -18,50 +20,46 @@ FAST_TESTS = False
 
 electrum.logging._configure_stderr_logging()
 
-
-# some unit tests are modifying globals...
-class SequentialTestCase(unittest.TestCase):
-
-    test_lock = threading.Lock()
-
-    def setUp(self):
-        super().setUp()
-        self.test_lock.acquire()
-
-    def tearDown(self):
-        super().tearDown()
-        self.test_lock.release()
+electrum.util.AS_LIB_USER_I_WANT_TO_MANAGE_MY_OWN_ASYNCIO_LOOP = True
 
 
-class ElectrumTestCase(SequentialTestCase):
+class ElectrumTestCase(unittest.IsolatedAsyncioTestCase):
     """Base class for our unit tests."""
 
-    # maxDiff = None
+    TESTNET = False
+    # maxDiff = None  # for debugging
 
-    def setUp(self):
-        super().setUp()
-        self.asyncio_loop, self._stop_loop, self._loop_thread = util.create_and_start_event_loop()
-        self.electrum_path = tempfile.mkdtemp()
-
-    def tearDown(self):
-        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
-        self._loop_thread.join(timeout=1)
-        super().tearDown()
-        shutil.rmtree(self.electrum_path)
-
-
-class TestCaseForTestnet(ElectrumTestCase):
-    """Class that runs member tests in testnet mode"""
+    # some unit tests are modifying globals... so we run sequentially:
+    _test_lock = threading.Lock()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        constants.set_testnet()
+        if cls.TESTNET:
+            constants.set_testnet()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        constants.set_mainnet()
+        if cls.TESTNET:
+            constants.set_mainnet()
+
+    def setUp(self):
+        self._test_lock.acquire()
+        super().setUp()
+        self.electrum_path = tempfile.mkdtemp()
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        loop = util.get_asyncio_loop()
+        # IsolatedAsyncioTestCase creates event loops with debug=True, which makes the tests take ~4x time
+        if not (os.environ.get("PYTHONASYNCIODEBUG") or os.environ.get("PYTHONDEVMODE")):
+            loop.set_debug(False)
+
+    def tearDown(self):
+        shutil.rmtree(self.electrum_path)
+        super().tearDown()
+        self._test_lock.release()
 
 
 def as_testnet(func):
@@ -69,12 +67,19 @@ def as_testnet(func):
 
     NOTE: this is inherently sequential; tests running in parallel would break things
     """
-    def run_test(*args, **kwargs):
-        old_net = constants.net
-        try:
-            constants.set_testnet()
-            func(*args, **kwargs)
-        finally:
-            constants.net = old_net
+    old_net = constants.net
+    if asyncio.iscoroutinefunction(func):
+        async def run_test(*args, **kwargs):
+            try:
+                constants.set_testnet()
+                return await func(*args, **kwargs)
+            finally:
+                constants.net = old_net
+    else:
+        def run_test(*args, **kwargs):
+            try:
+                constants.set_testnet()
+                return func(*args, **kwargs)
+            finally:
+                constants.net = old_net
     return run_test
-

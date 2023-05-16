@@ -53,7 +53,7 @@ from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .logging import get_logger, Logger
 from . import GuiImportError
-from .plugin import run_hook
+from .plugin import run_hook, Plugins
 
 if TYPE_CHECKING:
     from electrum import gui
@@ -110,6 +110,7 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
     lockfile = get_lockfile(config)
     while True:
         create_time = None
+        path = None
         try:
             with open(lockfile) as f:
                 socktype, address, create_time = ast.literal_eval(f.read())
@@ -127,7 +128,9 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
         server_url = 'http://%s:%d' % (host, port)
         auth = aiohttp.BasicAuth(login=rpc_user, password=rpc_password)
         loop = util.get_asyncio_loop()
-        async def request_coroutine():
+        async def request_coroutine(
+            *, socktype=socktype, path=path, auth=auth, server_url=server_url, endpoint=endpoint,
+        ):
             if socktype == 'unix':
                 connector = aiohttp.UnixConnector(path=path)
             elif socktype == 'tcp':
@@ -305,9 +308,12 @@ class CommandsServer(AuthenticatedServer):
         return True
 
     async def gui(self, config_options):
+        # note: "config_options" is coming from the short-lived CLI-invocation,
+        #        while self.config is the config of the long-lived daemon process.
+        #       "config_options" should have priority.
         if self.daemon.gui_object:
             if hasattr(self.daemon.gui_object, 'new_window'):
-                path = self.config.get_wallet_path(use_gui_last_wallet=True)
+                path = config_options.get('wallet_path') or self.config.get_wallet_path(use_gui_last_wallet=True)
                 self.daemon.gui_object.new_window(path, config_options.get('url'))
                 response = "ok"
             else:
@@ -373,11 +379,19 @@ class WatchTowerServer(AuthenticatedServer):
 
 class Daemon(Logger):
 
-    network: Optional[Network]
-    gui_object: Optional['gui.BaseElectrumGui']
+    network: Optional[Network] = None
+    gui_object: Optional['gui.BaseElectrumGui'] = None
+    watchtower: Optional['WatchTowerServer'] = None
 
     @profiler
-    def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
+    def __init__(
+        self,
+        config: SimpleConfig,
+        fd=None,
+        *,
+        listen_jsonrpc: bool = True,
+        start_network: bool = True,  # setting to False allows customising network settings before starting it
+    ):
         Logger.__init__(self)
         self.config = config
         self.listen_jsonrpc = listen_jsonrpc
@@ -389,11 +403,9 @@ class Daemon(Logger):
             self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
                                 "Use the load_wallet command instead.")
         self.asyncio_loop = util.get_asyncio_loop()
-        self.network = None
         if not config.get('offline'):
             self.network = Network(config, daemon=self)
-        self.fx = FxThread(config, self.network)
-        self.gui_object = None
+        self.fx = FxThread(config=config)
         # path -> wallet;   make sure path is standardized.
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         self._wallet_lock = threading.RLock()
@@ -403,23 +415,14 @@ class Daemon(Logger):
         if listen_jsonrpc:
             self.commands_server = CommandsServer(self, fd)
             daemon_jobs.append(self.commands_server.run())
-        # server-side watchtower
-        self.watchtower = None
-        watchtower_address = self.config.get_netaddress('watchtower_address')
-        if not config.get('offline') and watchtower_address:
-            self.watchtower = WatchTowerServer(self.network, watchtower_address)
-            daemon_jobs.append(self.watchtower.run)
-        if self.network:
-            self.network.start(jobs=[self.fx.run])
-            # prepare lightning functionality, also load channel db early
-            if self.config.get('use_gossip', False):
-                self.network.start_gossip()
 
         self._stop_entered = False
         self._stopping_soon_or_errored = threading.Event()
         self._stopped_event = threading.Event()
         self.taskgroup = OldTaskGroup()
         asyncio.run_coroutine_threadsafe(self._run(jobs=daemon_jobs), self.asyncio_loop)
+        if start_network and self.network:
+            self.start_network()
 
     @log_exceptions
     async def _run(self, jobs: Iterable = None):
@@ -438,6 +441,20 @@ class Daemon(Logger):
             # note: we could just "await self.stop()", but in that case GUI users would
             #       not see the exception (especially if the GUI did not start yet).
             self._stopping_soon_or_errored.set()
+
+    def start_network(self):
+        self.logger.info(f"starting network.")
+        assert not self.config.get('offline')
+        assert self.network
+        # server-side watchtower
+        if watchtower_address := self.config.get_netaddress('watchtower_address'):
+            self.watchtower = WatchTowerServer(self.network, watchtower_address)
+            asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.watchtower.run), self.asyncio_loop)
+
+        self.network.start(jobs=[self.fx.run])
+        # prepare lightning functionality, also load channel db early
+        if self.config.get('use_gossip', False):
+            self.network.start_gossip()
 
     def with_wallet_lock(func):
         def func_wrapper(self: 'Daemon', *args, **kwargs):
@@ -460,6 +477,7 @@ class Daemon(Logger):
         return wallet
 
     @staticmethod
+    @profiler
     def _load_wallet(
             path,
             password,
@@ -562,7 +580,7 @@ class Daemon(Logger):
             self.logger.info("stopped")
             self._stopped_event.set()
 
-    def run_gui(self, config, plugins):
+    def run_gui(self, config: 'SimpleConfig', plugins: 'Plugins'):
         threading.current_thread().name = 'GUI'
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
@@ -600,6 +618,11 @@ class Daemon(Logger):
             if not os.path.isfile(path):
                 continue
             wallet = self.get_wallet(path)
+            # note: we only create a new wallet object if one was not loaded into the wallet already.
+            #       This is to avoid having two wallet objects contending for the same file.
+            #       Take care: this only works if the daemon knows about all wallet objects.
+            #                  if other code already has created a Wallet() for a file but did not tell the daemon,
+            #                  hard-to-understand bugs will follow...
             if wallet is None:
                 try:
                     wallet = self._load_wallet(path, old_password, manual_upgrades=False, config=self.config)
@@ -614,13 +637,18 @@ class Daemon(Logger):
             if not wallet.storage.is_encrypted():
                 is_unified = False
             try:
-                wallet.check_password(old_password)
+                try:
+                    wallet.check_password(old_password)
+                    old_password_real = old_password
+                except util.InvalidPassword:
+                    wallet.check_password(None)
+                    old_password_real = None
             except Exception:
                 failed.append(path)
                 continue
             if new_password:
                 self.logger.info(f'updating password for wallet: {path!r}')
-                wallet.update_password(old_password, new_password, encrypt_storage=True)
+                wallet.update_password(old_password_real, new_password, encrypt_storage=True)
         can_be_unified = failed == []
         is_unified = can_be_unified and is_unified
         return can_be_unified, is_unified

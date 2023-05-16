@@ -77,10 +77,12 @@ class QEAmount(QObject):
     def isEmpty(self):
         return not(self._is_max or self._amount_sat or self._amount_msat)
 
+    @pyqtSlot()
     def clear(self):
-        self.satsInt = 0
-        self.msatsInt = 0
-        self.isMax = False
+        self._amount_sat = 0
+        self._amount_msat = 0
+        self._is_max = False
+        self.valueChanged.emit()
 
     def copyFrom(self, amount):
         if not amount:

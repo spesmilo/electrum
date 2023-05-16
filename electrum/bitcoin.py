@@ -28,7 +28,7 @@ from typing import List, Tuple, TYPE_CHECKING, Optional, Union, Sequence
 import enum
 from enum import IntEnum, Enum
 
-from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
+from .util import bfh, BitcoinException, assert_bytes, to_bytes, inv_dict, is_hex_str
 from . import version
 from . import segwit_addr
 from . import constants
@@ -198,7 +198,7 @@ class opcodes(IntEnum):
 
 
 def rev_hex(s: str) -> str:
-    return bh2u(bfh(s)[::-1])
+    return bfh(s)[::-1].hex()
 
 
 def int_to_hex(i: int, length: int=1) -> str:
@@ -238,7 +238,7 @@ def script_num_to_hex(i: int) -> str:
     elif neg:
         result[-1] |= 0x80
 
-    return bh2u(result)
+    return result.hex()
 
 
 def var_int(i: int) -> str:
@@ -288,11 +288,11 @@ def push_script(data: str) -> str:
     if data_len == 0 or data_len == 1 and data[0] == 0:
         return opcodes.OP_0.hex()
     elif data_len == 1 and data[0] <= 16:
-        return bh2u(bytes([opcodes.OP_1 - 1 + data[0]]))
+        return bytes([opcodes.OP_1 - 1 + data[0]]).hex()
     elif data_len == 1 and data[0] == 0x81:
         return opcodes.OP_1NEGATE.hex()
 
-    return _op_push(data_len) + bh2u(data)
+    return _op_push(data_len) + data.hex()
 
 
 def make_op_return(x:bytes) -> bytes:
@@ -310,7 +310,7 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
         if type(item) is int:
             item = script_num_to_hex(item)
         elif isinstance(item, (bytes, bytearray)):
-            item = bh2u(item)
+            item = item.hex()
         else:
             assert is_hex_str(item)
         witness += witness_push(item)
@@ -366,7 +366,7 @@ def dust_threshold(network: 'Network' = None) -> int:
 
 
 def hash_encode(x: bytes) -> str:
-    return bh2u(x[::-1])
+    return x[::-1].hex()
 
 
 def hash_decode(x: str) -> bytes:
@@ -398,7 +398,6 @@ def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
 def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash160_to_p2pkh(hash_160(public_key), net=net)
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
@@ -408,11 +407,9 @@ def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     return addr
 
 def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
 def script_to_p2wsh(script: str, *, net=None) -> str:
-    if net is None: net = constants.net
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
@@ -424,21 +421,13 @@ def p2wsh_nested_script(witness_script: str) -> str:
     return construct_script([0, wsh])
 
 def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
-    if net is None: net = constants.net
-    if txin_type == 'p2pkh':
-        return public_key_to_p2pkh(bfh(pubkey), net=net)
-    elif txin_type == 'p2wpkh':
-        return public_key_to_p2wpkh(bfh(pubkey), net=net)
-    elif txin_type == 'p2wpkh-p2sh':
-        scriptSig = p2wpkh_nested_script(pubkey)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
-    else:
-        raise NotImplementedError(txin_type)
+    from . import descriptor
+    desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey, script_type=txin_type)
+    return desc.expand().address(net=net)
 
 
 # TODO this method is confusingly named
 def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> str:
-    if net is None: net = constants.net
     if txin_type == 'p2sh':
         # given scriptcode is a redeem_script
         return hash160_to_p2sh(hash_160(bfh(scriptcode)), net=net)
@@ -453,7 +442,7 @@ def redeem_script_to_address(txin_type: str, scriptcode: str, *, net=None) -> st
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script: str, *, net=None) -> str:
+def script_to_address(script: str, *, net=None) -> Optional[str]:
     from .transaction import get_address_from_output_script
     return get_address_from_output_script(bfh(script), net=net)
 
@@ -469,7 +458,7 @@ def address_to_script(addr: str, *, net=None) -> str:
         return construct_script([witver, bytes(witprog)])
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
-        script = pubkeyhash_to_p2pkh_script(bh2u(hash_160_))
+        script = pubkeyhash_to_p2pkh_script(hash_160_.hex())
     elif addrtype == net.ADDRTYPE_P2SH:
         script = construct_script([opcodes.OP_HASH160, hash_160_, opcodes.OP_EQUAL])
     else:
@@ -524,7 +513,7 @@ def address_to_scripthash(addr: str, *, net=None) -> str:
 
 def script_to_scripthash(script: str) -> str:
     h = sha256(bfh(script))[0:32]
-    return bh2u(bytes(reversed(h)))
+    return h[::-1].hex()
 
 def public_key_to_p2pk_script(pubkey: str) -> str:
     return construct_script([pubkey, opcodes.OP_CHECKSIG])
@@ -618,7 +607,7 @@ def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
     csum_found = vchRet[-4:]
     csum_calculated = sha256d(payload)[0:4]
     if csum_calculated != csum_found:
-        raise InvalidChecksum(f'calculated {bh2u(csum_calculated)}, found {bh2u(csum_found)}')
+        raise InvalidChecksum(f'calculated {csum_calculated.hex()}, found {csum_found.hex()}')
     else:
         return payload
 
@@ -733,7 +722,6 @@ def is_b58_address(addr: str, *, net=None) -> bool:
     return True
 
 def is_address(addr: str, *, net=None) -> bool:
-    if net is None: net = constants.net
     return is_segwit_address(addr, net=net) \
            or is_b58_address(addr, net=net)
 

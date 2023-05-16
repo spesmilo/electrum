@@ -10,6 +10,8 @@ LOCALE="$PROJECT_ROOT"/electrum/locale/
 
 . "$CONTRIB"/build_tools_util.sh
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 
 # arguments have been checked in build.sh
 export ELEC_APK_GUI=$1
@@ -45,7 +47,7 @@ info "apk building phase starts."
 # So, in particular, to build a testnet apk, simply uncomment:
 #export APP_PACKAGE_DOMAIN=org.electrum.testnet
 
-if [ ! $CI ]; then
+if [ $CI ]; then
     # override log level specified in buildozer.spec to "debug":
     export BUILDOZER_LOG_LEVEL=2
 fi
@@ -87,6 +89,7 @@ fi
 
 if [[ "$2" == "all" ]] ; then
     # build all apks
+    # FIXME failures are not propagated out: we should fail the script if any arch build fails
     export APP_ANDROID_ARCH=armeabi-v7a
     make $TARGET
     export APP_ANDROID_ARCH=arm64-v8a

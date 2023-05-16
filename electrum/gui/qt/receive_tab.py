@@ -6,7 +6,7 @@ from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit,
+from PyQt5.QtWidgets import (QComboBox, QLabel, QVBoxLayout, QGridLayout, QLineEdit, QTextEdit,
                              QHBoxLayout, QPushButton, QWidget, QSizePolicy, QFrame)
 
 from electrum.bitcoin import is_address
@@ -19,7 +19,7 @@ from electrum.logging import Logger
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .qrcodewidget import QRCodeWidget
 from .util import read_QIcon, ColorScheme, HelpLabel, WWLabel, MessageBoxMixin, MONOSPACE_FONT
-from .util import ButtonsTextEdit
+from .util import ButtonsTextEdit, get_iconname_qrcode
 
 if TYPE_CHECKING:
     from . import ElectrumGui
@@ -27,6 +27,14 @@ if TYPE_CHECKING:
 
 
 class ReceiveTab(QWidget, MessageBoxMixin, Logger):
+
+    # strings updated by update_current_request
+    addr = ''
+    lnaddr = ''
+    URI = ''
+    address_help = ''
+    URI_help = ''
+    ln_help = ''
 
     def __init__(self, window: 'ElectrumWindow'):
         QWidget.__init__(self, window)
@@ -58,37 +66,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
 
         self.window.connect_fields(self.receive_amount_e, self.fiat_receive_e)
 
-        self.expires_combo = QComboBox()
-        evl = sorted(pr_expiration_values.items())
-        evl_keys = [i[0] for i in evl]
-        evl_values = [i[1] for i in evl]
-        default_expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
-        try:
-            i = evl_keys.index(default_expiry)
-        except ValueError:
-            i = 0
-        self.expires_combo.addItems(evl_values)
-        self.expires_combo.setCurrentIndex(i)
-        def on_expiry(i):
-            self.config.set_key('request_expiry', evl_keys[i])
-        self.expires_combo.currentIndexChanged.connect(on_expiry)
-        msg = ''.join([
-            _('Expiration date of your request.'), ' ',
-            _('This information is seen by the recipient if you send them a signed payment request.'),
-            '\n\n',
-            _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
-            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
-            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
-            '\n\n',
-            _('For Lightning requests, payments will not be accepted after the expiration.'),
-        ])
-        grid.addWidget(HelpLabel(_('Expires after') + ' (?)', msg), 2, 0)
-        grid.addWidget(self.expires_combo, 2, 1)
-        self.expires_label = QLineEdit('')
-        self.expires_label.setReadOnly(1)
-        self.expires_label.setFocusPolicy(Qt.NoFocus)
-        self.expires_label.hide()
-        grid.addWidget(self.expires_label, 2, 1)
+        self.expiry_button = QPushButton('')
+        self.expiry_button.clicked.connect(self.expiry_dialog)
+        grid.addWidget(QLabel(_('Expiry')), 2, 0)
+        grid.addWidget(self.expiry_button, 2, 1)
 
         self.clear_invoice_button = QPushButton(_('Clear'))
         self.clear_invoice_button.clicked.connect(self.do_clear)
@@ -100,18 +81,16 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         buttons.addWidget(self.create_invoice_button)
         grid.addLayout(buttons, 4, 0, 1, -1)
 
-        self.receive_address_e = ButtonsTextEdit()
-        self.receive_address_help_text = WWLabel('')
-        vbox = QVBoxLayout()
-        vbox.addWidget(self.receive_address_help_text)
-        self.receive_address_help = FramedWidget()
-        self.receive_address_help.setVisible(False)
-        self.receive_address_help.setLayout(vbox)
+        self.receive_e = QTextEdit()
+        self.receive_e.setFont(QFont(MONOSPACE_FONT))
+        self.receive_e.setReadOnly(True)
+        self.receive_e.setContextMenuPolicy(Qt.NoContextMenu)
+        self.receive_e.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.receive_e.textChanged.connect(self.update_receive_widgets)
 
-        self.receive_URI_e = ButtonsTextEdit()
-        self.receive_URI_help = WWLabel('')
-        self.receive_lightning_e = ButtonsTextEdit()
-        self.receive_lightning_help_text = WWLabel('')
+        self.receive_qr = QRCodeWidget(manual_size=True)
+
+        self.receive_help_text = WWLabel('')
         self.receive_rebalance_button = QPushButton('Rebalance')
         self.receive_rebalance_button.suggestion = None
         def on_receive_rebalance():
@@ -130,51 +109,55 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         buttons.addWidget(self.receive_rebalance_button)
         buttons.addWidget(self.receive_swap_button)
         vbox = QVBoxLayout()
-        vbox.addWidget(self.receive_lightning_help_text)
+        vbox.addWidget(self.receive_help_text)
         vbox.addLayout(buttons)
-        self.receive_lightning_help = FramedWidget()
-        self.receive_lightning_help.setVisible(False)
-        self.receive_lightning_help.setLayout(vbox)
-        self.receive_address_qr = QRCodeWidget(manual_size=True)
-        self.receive_URI_qr = QRCodeWidget(manual_size=True)
-        self.receive_lightning_qr = QRCodeWidget(manual_size=True)
+        self.receive_help_widget = FramedWidget()
+        self.receive_help_widget.setVisible(False)
+        self.receive_help_widget.setLayout(vbox)
 
-        for e in [self.receive_address_e, self.receive_URI_e, self.receive_lightning_e]:
-            e.setFont(QFont(MONOSPACE_FONT))
-            e.addCopyButton()
-            e.setReadOnly(True)
+        self.receive_widget = ReceiveWidget(
+            self, self.receive_e, self.receive_qr, self.receive_help_widget)
 
-        self.receive_lightning_e.textChanged.connect(self.update_receive_widgets)
+        receive_widget_sp = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        receive_widget_sp.setRetainSizeWhenHidden(True)
+        self.receive_widget.setSizePolicy(receive_widget_sp)
+        self.receive_widget.setVisible(False)
 
-        self.receive_address_widget = ReceiveTabWidget(self,
-            self.receive_address_e, self.receive_address_qr, self.receive_address_help)
-        self.receive_URI_widget = ReceiveTabWidget(self,
-            self.receive_URI_e, self.receive_URI_qr, self.receive_URI_help)
-        self.receive_lightning_widget = ReceiveTabWidget(self,
-            self.receive_lightning_e, self.receive_lightning_qr, self.receive_lightning_help)
-
-        from .util import VTabWidget
-        self.receive_tabs = VTabWidget()
-        self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height())
-
-        #self.receive_tabs.setMinimumHeight(ReceiveTabWidget.min_size.height() + 4) # for margins
-        self.receive_tabs.addTab(self.receive_URI_widget, read_QIcon("link.png"), _('URI'))
-        self.receive_tabs.addTab(self.receive_address_widget, read_QIcon("bitcoin.png"), _('Address'))
-        self.receive_tabs.addTab(self.receive_lightning_widget, read_QIcon("lightning.png"), _('Lightning'))
-        self.receive_tabs.currentChanged.connect(self.update_receive_qr_window)
-        self.receive_tabs.setCurrentIndex(self.config.get('receive_tabs_index', 0))
-        self.receive_tabs.currentChanged.connect(lambda i: self.config.set_key('receive_tabs_index', i))
-        receive_tabs_sp = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
-        receive_tabs_sp.setRetainSizeWhenHidden(True)
-        self.receive_tabs.setSizePolicy(receive_tabs_sp)
-        self.receive_tabs.setVisible(False)
-
-        self.receive_requests_label = QLabel(_('Receive queue'))
+        self.receive_requests_label = QLabel(_('Requests'))
         # with QDarkStyle, this label may partially cover the qrcode widget.
         # setMaximumWidth prevents that
         self.receive_requests_label.setMaximumWidth(400)
         from .request_list import RequestList
         self.request_list = RequestList(self)
+        # toolbar
+        self.toolbar, menu = self.request_list.create_toolbar_with_menu('')
+
+        self.toggle_qr_button = QPushButton('')
+        self.toggle_qr_button.setIcon(read_QIcon(get_iconname_qrcode()))
+        self.toggle_qr_button.setToolTip(_('Switch between text and QR code view'))
+        self.toggle_qr_button.clicked.connect(self.toggle_receive_qr)
+        self.toggle_qr_button.setEnabled(False)
+        self.toolbar.insertWidget(2, self.toggle_qr_button)
+
+        self.toggle_view_button = QPushButton('')
+        self.toggle_view_button.setToolTip(_('switch between view'))
+        self.toggle_view_button.clicked.connect(self.toggle_view)
+        self.toggle_view_button.setEnabled(False)
+        self.update_view_button()
+        self.toolbar.insertWidget(2, self.toggle_view_button)
+        # menu
+        menu.addConfig(
+            _('Add on-chain fallback to lightning requests'), 'bolt11_fallback', True,
+            callback=self.on_toggle_bolt11_fallback)
+        menu.addConfig(
+            _('Add lightning requests to bitcoin URIs'), 'bip21_lightning', False,
+            tooltip=_('This may result in large QR codes'),
+            callback=self.update_current_request)
+        self.qr_menu_action = menu.addToggle(_("Show detached QR code window"), self.window.toggle_qr_window)
+        menu.addAction(_("Import requests"), self.window.import_requests)
+        menu.addAction(_("Export requests"), self.window.export_requests)
+        menu.addAction(_("Delete expired requests"), self.request_list.delete_expired_requests)
+        self.toolbar_menu = menu
 
         # layout
         vbox_g = QVBoxLayout()
@@ -183,10 +166,11 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
         hbox.addStretch()
-        hbox.addWidget(self.receive_tabs)
+        hbox.addWidget(self.receive_widget)
 
         self.searchable_list = self.request_list
         vbox = QVBoxLayout(self)
+        vbox.addLayout(self.toolbar)
         vbox.addLayout(hbox)
         vbox.addStretch()
         vbox.addWidget(self.receive_requests_label)
@@ -194,78 +178,128 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         vbox.setStretchFactor(hbox, 40)
         vbox.setStretchFactor(self.request_list, 60)
         self.request_list.update()  # after parented and put into a layout, can update without flickering
+        self.update_expiry_text()
 
-    def toggle_receive_qr(self, e):
+    def update_expiry_text(self):
+        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        text = pr_expiration_values[expiry]
+        self.expiry_button.setText(text)
+
+    def expiry_dialog(self):
+        msg = ''.join([
+            _('Expiration period of your request.'), ' ',
+            _('This information is seen by the recipient if you send them a signed payment request.'),
+            '\n\n',
+            _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
+            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
+            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
+            '\n\n',
+            _('For Lightning requests, payments will not be accepted after the expiration.'),
+        ])
+        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiry'), default_choice=expiry)
+        if v is None:
+            return
+        self.config.set_key('request_expiry', v)
+        self.update_expiry_text()
+
+    def on_toggle_bolt11_fallback(self):
+        if not self.wallet.lnworker:
+            return
+        self.wallet.lnworker.clear_invoices_cache()
+        self.update_current_request()
+
+    def update_view_button(self):
+        i = self.config.get('receive_tabs_index', 0)
+        if i == 0:
+            icon, text = read_QIcon("link.png"), _('Bitcoin URI')
+        elif i == 1:
+            icon, text = read_QIcon("bitcoin.png"), _('Address')
+        elif i == 2:
+            icon, text = read_QIcon("lightning.png"), _('Lightning')
+        self.toggle_view_button.setText(text)
+        self.toggle_view_button.setIcon(icon)
+
+    def toggle_view(self):
+        i = self.config.get('receive_tabs_index', 0)
+        i = (i + 1) % (3 if self.wallet.has_lightning() else 2)
+        self.config.set_key('receive_tabs_index', i)
+        self.update_current_request()
+        self.update_view_button()
+
+    def on_tab_changed(self):
+        text, data, help_text, title = self.get_tab_data()
+        self.window.do_copy(data, title=title)
+        self.update_receive_qr_window()
+
+    def do_copy(self, e):
         if e.button() != Qt.LeftButton:
             return
+        text, data, help_text, title = self.get_tab_data()
+        self.window.do_copy(data, title=title)
+
+    def toggle_receive_qr(self):
         b = not self.config.get('receive_qr_visible', False)
         self.config.set_key('receive_qr_visible', b)
         self.update_receive_widgets()
 
     def update_receive_widgets(self):
         b = self.config.get('receive_qr_visible', False)
-        self.receive_URI_widget.update_visibility(b)
-        self.receive_address_widget.update_visibility(b)
-        self.receive_lightning_widget.update_visibility(b)
+        self.receive_widget.update_visibility(b)
 
     def update_current_request(self):
         key = self.request_list.get_current_key()
         req = self.wallet.get_request(key) if key else None
         if req is None:
-            self.receive_URI_e.setText('')
-            self.receive_lightning_e.setText('')
-            self.receive_address_e.setText('')
+            self.receive_e.setText('')
+            self.addr = self.URI = self.lnaddr = ''
+            self.address_help = self.URI_help = self.ln_help = ''
             return
         help_texts = self.wallet.get_help_texts_for_receive_request(req)
-        addr = (req.get_address() or '') if not help_texts.address_is_error else ''
-        URI = (self.wallet.get_request_URI(req) or '') if not help_texts.URI_is_error else ''
-        lnaddr = (req.lightning_invoice or '') if not help_texts.ln_is_error else ''
-        address_help = help_texts.address_help
-        URI_help = help_texts.URI_help
-        ln_help = help_texts.ln_help
+        self.addr = (req.get_address() or '') if not help_texts.address_is_error else ''
+        self.URI = (self.wallet.get_request_URI(req) or '') if not help_texts.URI_is_error else ''
+        self.lnaddr = self.wallet.get_bolt11_invoice(req) if not help_texts.ln_is_error else ''
+        self.address_help = help_texts.address_help
+        self.URI_help = help_texts.URI_help
+        self.ln_help = help_texts.ln_help
         can_rebalance = help_texts.can_rebalance()
         can_swap = help_texts.can_swap()
         self.receive_rebalance_button.suggestion = help_texts.ln_rebalance_suggestion
         self.receive_swap_button.suggestion = help_texts.ln_swap_suggestion
-
         self.receive_rebalance_button.setVisible(can_rebalance)
         self.receive_swap_button.setVisible(can_swap)
         self.receive_rebalance_button.setEnabled(can_rebalance and self.window.num_tasks() == 0)
         self.receive_swap_button.setEnabled(can_swap and self.window.num_tasks() == 0)
-        icon_name = "lightning.png" if lnaddr else "lightning_disconnected.png"
-        self.receive_tabs.setTabIcon(2, read_QIcon(icon_name))
-        # encode lightning invoices as uppercase so QR encoding can use
-        # alphanumeric mode; resulting in smaller QR codes
-        lnaddr_qr = lnaddr.upper()
-        self.receive_address_e.setText(addr)
-        self.receive_address_qr.setData(addr)
-        self.receive_address_help_text.setText(address_help)
-        self.receive_URI_e.setText(URI)
-        self.receive_URI_qr.setData(URI)
-        self.receive_URI_help.setText(URI_help)
-        self.receive_lightning_e.setText(lnaddr)  # TODO maybe prepend "lightning:" ??
-        self.receive_lightning_help_text.setText(ln_help)
-        self.receive_lightning_qr.setData(lnaddr_qr)
-        self.update_textedit_warning(text_e=self.receive_address_e, warning_text=address_help)
-        self.update_textedit_warning(text_e=self.receive_URI_e, warning_text=URI_help)
-        self.update_textedit_warning(text_e=self.receive_lightning_e, warning_text=ln_help)
+        text, data, help_text, title = self.get_tab_data()
+        self.receive_e.setText(text)
+        self.receive_qr.setData(data)
+        self.receive_help_text.setText(help_text)
+        for w in [self.receive_e, self.receive_qr]:
+            w.setEnabled(bool(text) and not help_text)
+            w.setToolTip(help_text)
         # macOS hack (similar to #4777)
-        self.receive_lightning_e.repaint()
-        self.receive_URI_e.repaint()
-        self.receive_address_e.repaint()
+        self.receive_e.repaint()
         # always show
-        self.receive_tabs.setVisible(True)
+        self.receive_widget.setVisible(True)
+        self.toggle_qr_button.setEnabled(True)
+        self.toggle_view_button.setEnabled(True)
         self.update_receive_qr_window()
+
+    def get_tab_data(self):
+        i = self.config.get('receive_tabs_index', 0)
+        if i == 0:
+            out = self.URI, self.URI, self.URI_help, _('Bitcoin URI')
+        elif i == 1:
+            out = self.addr, self.addr, self.address_help, _('Address')
+        elif i == 2:
+            # encode lightning invoices as uppercase so QR encoding can use
+            # alphanumeric mode; resulting in smaller QR codes
+            out = self.lnaddr, self.lnaddr.upper(), self.ln_help, _('Lightning Request')
+        return out
 
     def update_receive_qr_window(self):
         if self.window.qr_window and self.window.qr_window.isVisible():
-            i = self.receive_tabs.currentIndex()
-            if i == 0:
-                data = self.receive_URI_qr.data
-            elif i == 1:
-                data = self.receive_address_qr.data
-            else:
-                data = self.receive_lightning_qr.data
+            text, data, help_text, title = self.get_tab_data()
             self.window.qr_window.qrw.setData(data)
 
     def create_invoice(self):
@@ -301,11 +335,8 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         # clear request fields
         self.receive_amount_e.setText('')
         self.receive_message_e.setText('')
-        # copy to clipboard
-        r = self.wallet.get_request(key)
-        content = r.lightning_invoice if r.is_lightning() else r.get_address()
-        title = _('Invoice') if r.is_lightning() else _('Address')
-        self.window.do_copy(content, title=title)
+        # copy current tab to clipboard
+        self.on_tab_changed()
 
     def get_bitcoin_address_for_request(self, amount) -> Optional[str]:
         addr = self.wallet.get_unused_address()
@@ -327,41 +358,34 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         return addr
 
     def do_clear(self):
-        self.receive_address_e.setText('')
-        self.receive_URI_e.setText('')
-        self.receive_lightning_e.setText('')
-        self.receive_tabs.setVisible(False)
+        self.receive_e.setText('')
+        self.addr = self.URI = self.lnaddr = ''
+        self.address_help = self.URI_help = self.ln_help = ''
+        self.receive_widget.setVisible(False)
+        self.toggle_qr_button.setEnabled(False)
+        self.toggle_view_button.setEnabled(False)
         self.receive_message_e.setText('')
         self.receive_amount_e.setAmount(None)
-        self.expires_label.hide()
-        self.expires_combo.show()
         self.request_list.clearSelection()
 
-    def update_textedit_warning(self, *, text_e: ButtonsTextEdit, warning_text: Optional[str]):
-        if bool(text_e.text()) and warning_text:
-            text_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
-            text_e.setToolTip(warning_text)
-        else:
-            text_e.setStyleSheet("")
-            text_e.setToolTip(text_e._default_tooltip)
 
 
-class ReceiveTabWidget(QWidget):
+class ReceiveWidget(QWidget):
     min_size = QSize(200, 200)
 
     def __init__(self, receive_tab: 'ReceiveTab', textedit: QWidget, qr: QWidget, help_widget: QWidget):
+        QWidget.__init__(self)
         self.textedit = textedit
         self.qr = qr
         self.help_widget = help_widget
-        QWidget.__init__(self)
+        self.setMinimumSize(self.min_size)
         for w in [textedit, qr, help_widget]:
             w.setMinimumSize(self.min_size)
+
         for w in [textedit, qr]:
-            w.mousePressEvent = receive_tab.toggle_receive_qr
-            tooltip = _('Click to switch between text and QR code view')
-            w._default_tooltip = tooltip
-            w.setToolTip(tooltip)
+            w.mousePressEvent = receive_tab.do_copy
             w.setCursor(QCursor(Qt.PointingHandCursor))
+
         textedit.setFocusPolicy(Qt.NoFocus)
         if isinstance(help_widget, QLabel):
             help_widget.setFrameStyle(QFrame.StyledPanel)
@@ -374,7 +398,7 @@ class ReceiveTabWidget(QWidget):
         self.setLayout(hbox)
 
     def update_visibility(self, is_qr):
-        if str(self.textedit.text()):
+        if str(self.textedit.toPlainText()):
             self.help_widget.setVisible(False)
             self.textedit.setVisible(not is_qr)
             self.qr.setVisible(is_qr)
@@ -383,6 +407,12 @@ class ReceiveTabWidget(QWidget):
             self.textedit.setVisible(False)
             self.qr.setVisible(False)
 
+    def resizeEvent(self, e):
+        # keep square aspect ratio when resized
+        size = e.size()
+        w = size.height()
+        self.setFixedWidth(w)
+        return super().resizeEvent(e)
 
 class FramedWidget(QFrame):
     def __init__(self):

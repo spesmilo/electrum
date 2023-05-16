@@ -7,7 +7,7 @@ import "controls"
 
 ElDialog {
     id: dialog
-    title: qsTr("Message")
+    title: yesno ? qsTr("Question") : qsTr("Message")
     iconSource: yesno
         ? Qt.resolvedUrl('../../icons/question.png')
         : Qt.resolvedUrl('../../icons/info.png')
@@ -16,52 +16,64 @@ ElDialog {
     property alias text: message.text
     property bool richText: false
 
-    signal yesClicked
-
-    parent: Overlay.overlay
-    modal: true
     z: 1 // raise z so it also covers dialogs using overlay as parent
 
     anchors.centerIn: parent
 
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
+    padding: 0
+
+    width: rootLayout.width
 
     ColumnLayout {
-        TextArea {
-            id: message
-            Layout.preferredWidth: Overlay.overlay.width *2/3
-            readOnly: true
-            wrapMode: TextInput.WordWrap
-            textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
-            background: Rectangle {
-                color: 'transparent'
+        id: rootLayout
+        width: dialog.parent.width * 2/3
+
+        ColumnLayout {
+            visible: text
+            Layout.margins: constants.paddingMedium
+            Layout.fillWidth: true
+
+            TextArea {
+                id: message
+                Layout.fillWidth: true
+                readOnly: true
+                wrapMode: TextInput.WordWrap
+                textFormat: richText ? TextEdit.RichText : TextEdit.PlainText
+                background: Rectangle {
+                    color: 'transparent'
+                }
             }
         }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            Button {
+        ButtonContainer {
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                textUnderIcon: false
                 text: qsTr('Ok')
+                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
                 visible: !yesno
-                onClicked: dialog.close()
+                onClicked: doAccept()
             }
-            Button {
-                text: qsTr('Yes')
-                visible: yesno
-                onClicked: {
-                    yesClicked()
-                    dialog.close()
-                }
-            }
-            Button {
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                textUnderIcon: false
                 text: qsTr('No')
+                icon.source: Qt.resolvedUrl('../../icons/closebutton.png')
                 visible: yesno
-                onClicked: {
-                    reject()
-                    dialog.close()
-                }
+                onClicked: doReject()
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                textUnderIcon: false
+                text: qsTr('Yes')
+                icon.source: Qt.resolvedUrl('../../icons/confirmed.png')
+                visible: yesno
+                onClicked: doAccept()
             }
         }
     }

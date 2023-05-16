@@ -12,15 +12,8 @@ ElDialog {
 
     title: qsTr('Server settings')
 
-    parent: Overlay.overlay
-    modal: true
-
     width: parent.width
     height: parent.height
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
 
     padding: 0
 
@@ -49,7 +42,6 @@ ElDialog {
             icon.source: '../../icons/confirmed.png'
             onClicked: {
                 Config.autoConnect = serverconfig.auto_connect
-                Config.serverString = serverconfig.address
                 Network.server = serverconfig.address
                 rootItem.close()
             }

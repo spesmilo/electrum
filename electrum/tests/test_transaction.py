@@ -5,13 +5,14 @@ from electrum.transaction import (convert_raw_tx_to_hex, tx_from_any, Transactio
                                   PartialTransaction, TxOutpoint, PartialTxInput,
                                   PartialTxOutput, Sighash, match_script_against_template,
                                   SCRIPTPUBKEY_TEMPLATE_ANYSEGWIT)
-from electrum.util import bh2u, bfh
+from electrum.util import bfh
 from electrum.bitcoin import (deserialize_privkey, opcodes,
                               construct_script, construct_witness)
 from electrum.ecc import ECPrivkey
-from .test_bitcoin import disable_ecdsa_r_value_grinding
+from electrum import descriptor
 
-from . import ElectrumTestCase, TestCaseForTestnet
+from .test_bitcoin import disable_ecdsa_r_value_grinding
+from . import ElectrumTestCase
 
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
@@ -30,7 +31,7 @@ class TestBCDataStream(ElectrumTestCase):
         with self.assertRaises(transaction.SerializationError):
             s.write_compact_size(-1)
 
-        self.assertEqual(bh2u(s.input),
+        self.assertEqual(s.input.hex(),
                           '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
         for v in values:
             self.assertEqual(s.read_compact_size(), v)
@@ -89,9 +90,10 @@ class TestTransaction(ElectrumTestCase):
 
     def test_tx_update_signatures(self):
         tx = tx_from_any("cHNidP8BAFUBAAAAASpcmpT83pj1WBzQAWLGChOTbOt1OJ6mW/OGM7Qk60AxAAAAAAD/////AUBCDwAAAAAAGXapFCMKw3g0BzpCFG8R74QUrpKf6q/DiKwAAAAAAAAA")
-        tx.inputs()[0].script_type = 'p2pkh'
-        tx.inputs()[0].pubkeys = [bfh('02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6')]
-        tx.inputs()[0].num_sig = 1
+        pubkey = bfh('02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6')
+        script_type = 'p2pkh'
+        desc = descriptor.get_singlesig_descriptor_from_legacy_leaf(pubkey=pubkey.hex(), script_type=script_type)
+        tx.inputs()[0].script_descriptor = desc
         tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.serialize(), signed_blob)
 
@@ -857,7 +859,8 @@ class TestTransaction(ElectrumTestCase):
 # txns from Bitcoin Core ends <---
 
 
-class TestTransactionTestnet(TestCaseForTestnet):
+class TestTransactionTestnet(ElectrumTestCase):
+    TESTNET = True
 
     def test_spending_op_cltv_p2sh(self):
         # from https://github.com/brianddk/reddit/blob/8ca383c9e00cb5a4c1201d1bab534d5886d3cb8f/python/elec-p2sh-hodl.py
@@ -872,7 +875,6 @@ class TestTransactionTestnet(TestCaseForTestnet):
         prevout = TxOutpoint(txid=bfh('6d500966f9e494b38a04545f0cea35fc7b3944e341a64b804fed71cdee11d434'), out_idx=1)
         txin = PartialTxInput(prevout=prevout)
         txin.nsequence = 2 ** 32 - 3
-        txin.script_type = 'p2sh'
         redeem_script = bfh(construct_script([
             locktime, opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, pubkey, opcodes.OP_CHECKSIG,
         ]))
@@ -934,7 +936,6 @@ class TestSighashTypes(ElectrumTestCase):
     prevout = TxOutpoint(txid=bfh('6eb98797a21c6c10aa74edf29d618be109f48a8e94c694f3701e08ca69186436'), out_idx=1)
     txin = PartialTxInput(prevout=prevout)
     txin.nsequence=0xffffffff
-    txin.script_type='p2sh-p2wsh'
     txin.witness_script = bfh('56210307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba32103b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b21034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a21033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f42103a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac162102d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b56ae')
     txin.redeem_script = bfh('0020a16b5755f7f6f96dbd65f5f0d6ab9418b89af4b1f14a1bb8a09062c35f0dcb54')
     txin._trusted_value_sats = 987654321
@@ -944,7 +945,6 @@ class TestSighashTypes(ElectrumTestCase):
 
     def test_check_sighash_types_sighash_all(self):
         self.txin.sighash=Sighash.ALL
-        self.txin.pubkeys = [bfh('0307b8ae49ac90a048e9b53357a2354b3334e9c8bee813ecb98e99a7e07e8c3ba3')]
         privkey = bfh('730fff80e1413068a05b57d6a58261f07551163369787f349438ea38ca80fac6')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
@@ -953,7 +953,6 @@ class TestSighashTypes(ElectrumTestCase):
 
     def test_check_sighash_types_sighash_none(self):
         self.txin.sighash=Sighash.NONE
-        self.txin.pubkeys = [bfh('03b28f0c28bfab54554ae8c658ac5c3e0ce6e79ad336331f78c428dd43eea8449b')]
         privkey = bfh('11fa3d25a17cbc22b29c44a484ba552b5a53149d106d3d853e22fdd05a2d8bb3')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
@@ -962,7 +961,6 @@ class TestSighashTypes(ElectrumTestCase):
 
     def test_check_sighash_types_sighash_single(self):
         self.txin.sighash=Sighash.SINGLE
-        self.txin.pubkeys = [bfh('034b8113d703413d57761b8b9781957b8c0ac1dfe69f492580ca4195f50376ba4a')]
         privkey = bfh('77bf4141a87d55bdd7f3cd0bdccf6e9e642935fec45f2f30047be7b799120661')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
@@ -972,7 +970,6 @@ class TestSighashTypes(ElectrumTestCase):
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_all_anyonecanpay(self):
         self.txin.sighash=Sighash.ALL|Sighash.ANYONECANPAY
-        self.txin.pubkeys = [bfh('033400f6afecb833092a9a21cfdf1ed1376e58c5d1f47de74683123987e967a8f4')]
         privkey = bfh('14af36970f5025ea3e8b5542c0f8ebe7763e674838d08808896b63c3351ffe49')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
@@ -982,7 +979,6 @@ class TestSighashTypes(ElectrumTestCase):
     @disable_ecdsa_r_value_grinding
     def test_check_sighash_types_sighash_none_anyonecanpay(self):
         self.txin.sighash=Sighash.NONE|Sighash.ANYONECANPAY
-        self.txin.pubkeys = [bfh('03a6d48b1131e94ba04d9737d61acdaa1322008af9602b3b14862c07a1789aac16')]
         privkey = bfh('fe9a95c19eef81dde2b95c1284ef39be497d128e2aa46916fb02d552485e0323')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)
@@ -991,7 +987,6 @@ class TestSighashTypes(ElectrumTestCase):
 
     def test_check_sighash_types_sighash_single_anyonecanpay(self):
         self.txin.sighash=Sighash.SINGLE|Sighash.ANYONECANPAY
-        self.txin.pubkeys = [bfh('02d8b661b0b3302ee2f162b09e07a55ad5dfbe673a9f01d9f0c19617681024306b')]
         privkey = bfh('428a7aee9f0c2af0cd19af3cf1c78149951ea528726989b2e83e4778d2c3f890')
         tx = PartialTransaction.from_io(inputs=[self.txin], outputs=[self.txout1,self.txout2], locktime=self.locktime, version=1, BIP69_sort=False)
         sig = tx.sign_txin(0,privkey)

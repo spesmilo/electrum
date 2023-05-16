@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 
 
 class AddressHistoryModel(HistoryModel):
-    def __init__(self, parent: 'ElectrumWindow', address):
-        super().__init__(parent)
+    def __init__(self, window: 'ElectrumWindow', address):
+        super().__init__(window)
         self.address = address
 
     def get_domain(self):
@@ -51,13 +51,15 @@ class AddressHistoryModel(HistoryModel):
 
 class AddressDialog(WindowModalDialog):
 
-    def __init__(self, parent: 'ElectrumWindow', address: str):
+    def __init__(self, window: 'ElectrumWindow', address: str, *, parent=None):
+        if parent is None:
+            parent = window
         WindowModalDialog.__init__(self, parent, _("Address"))
         self.address = address
-        self.parent = parent
-        self.config = parent.config
-        self.wallet = parent.wallet
-        self.app = parent.app
+        self.window = window
+        self.config = window.config
+        self.wallet = window.wallet
+        self.app = window.app
         self.saved = True
 
         self.setMinimumWidth(700)
@@ -100,19 +102,20 @@ class AddressDialog(WindowModalDialog):
             der_path_e.setReadOnly(True)
             vbox.addWidget(der_path_e)
 
-        vbox.addWidget(QLabel(_("History")))
-        addr_hist_model = AddressHistoryModel(self.parent, self.address)
-        self.hw = HistoryList(self.parent, addr_hist_model)
+        addr_hist_model = AddressHistoryModel(self.window, self.address)
+        self.hw = HistoryList(self.window, addr_hist_model)
+        self.hw.num_tx_label = QLabel('')
         addr_hist_model.set_view(self.hw)
+        vbox.addWidget(self.hw.num_tx_label)
         vbox.addWidget(self.hw)
 
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.format_amount = self.parent.format_amount
+        self.format_amount = self.window.format_amount
         addr_hist_model.refresh('address dialog constructor')
 
     def show_qr(self):
         text = self.address
         try:
-            self.parent.show_qrcode(text, 'Address', parent=self)
+            self.window.show_qrcode(text, 'Address', parent=self)
         except Exception as e:
             self.show_message(repr(e))

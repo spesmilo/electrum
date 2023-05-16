@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from enum import IntEnum
+import enum
 from typing import Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
@@ -35,7 +35,8 @@ from electrum.util import format_time
 from electrum.plugin import run_hook
 from electrum.invoices import Invoice
 
-from .util import MyTreeView, pr_icons, read_QIcon, webopen, MySortModel
+from .util import pr_icons, read_QIcon, webopen
+from .my_treeview import MyTreeView, MySortModel
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -50,14 +51,13 @@ ROLE_SORT_ORDER = Qt.UserRole + 2
 class RequestList(MyTreeView):
     key_role = ROLE_KEY
 
-    class Columns(IntEnum):
-        DATE = 0
-        DESCRIPTION = 1
-        AMOUNT = 2
-        STATUS = 3
-        ADDRESS = 4
-        LN_INVOICE = 5
-        LN_RHASH = 6
+    class Columns(MyTreeView.BaseColumnsEnum):
+        DATE = enum.auto()
+        DESCRIPTION = enum.auto()
+        AMOUNT = enum.auto()
+        STATUS = enum.auto()
+        ADDRESS = enum.auto()
+        LN_RHASH = enum.auto()
 
     headers = {
         Columns.DATE: _('Date'),
@@ -65,18 +65,19 @@ class RequestList(MyTreeView):
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
         Columns.ADDRESS: _('Address'),
-        Columns.LN_INVOICE: 'LN Request',
         Columns.LN_RHASH: 'LN RHASH',
     }
     filter_columns = [
         Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT,
-        Columns.ADDRESS, Columns.LN_INVOICE, Columns.LN_RHASH,
+        Columns.ADDRESS, Columns.LN_RHASH,
     ]
 
     def __init__(self, receive_tab: 'ReceiveTab'):
         window = receive_tab.window
-        super().__init__(window, self.create_menu,
-                         stretch_column=self.Columns.DESCRIPTION)
+        super().__init__(
+            main_window=window,
+            stretch_column=self.Columns.DESCRIPTION,
+        )
         self.wallet = window.wallet
         self.receive_tab = receive_tab
         self.std_model = QStandardItemModel(self)
@@ -143,14 +144,13 @@ class RequestList(MyTreeView):
             amount = req.get_amount_sat()
             message = req.get_message()
             date = format_time(timestamp)
-            amount_str = self.parent.format_amount(amount) if amount else ""
+            amount_str = self.main_window.format_amount(amount) if amount else ""
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = date
             labels[self.Columns.DESCRIPTION] = message
             labels[self.Columns.AMOUNT] = amount_str
             labels[self.Columns.STATUS] = status_str
             labels[self.Columns.ADDRESS] = req.get_address() or ""
-            labels[self.Columns.LN_INVOICE] = req.lightning_invoice or ""
             labels[self.Columns.LN_RHASH] = req.rhash if req.is_lightning() else ""
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
@@ -194,29 +194,31 @@ class RequestList(MyTreeView):
             self.update()
             return
         menu = QMenu(self)
+        copy_menu = self.add_copy_menu(menu, idx)
         if req.get_address():
-            menu.addAction(_("Copy Address"), lambda: self.parent.do_copy(req.get_address(), title='Bitcoin Address'))
+            copy_menu.addAction(_("Address"), lambda: self.main_window.do_copy(req.get_address(), title='Bitcoin Address'))
         if URI := self.wallet.get_request_URI(req):
-            menu.addAction(_("Copy URI"), lambda: self.parent.do_copy(URI, title='Bitcoin URI'))
+            copy_menu.addAction(_("Bitcoin URI"), lambda: self.main_window.do_copy(URI, title='Bitcoin URI'))
         if req.is_lightning():
-            menu.addAction(_("Copy Lightning Request"), lambda: self.parent.do_copy(req.lightning_invoice, title='Lightning Request'))
-        self.add_copy_menu(menu, idx)
+            copy_menu.addAction(_("Lightning Request"), lambda: self.main_window.do_copy(self.wallet.get_bolt11_invoice(req), title='Lightning Request'))
         #if 'view_url' in req:
         #    menu.addAction(_("View in web browser"), lambda: webopen(req['view_url']))
         menu.addAction(_("Delete"), lambda: self.delete_requests([key]))
-        run_hook('receive_list_menu', self.parent, menu, key)
+        run_hook('receive_list_menu', self.main_window, menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def delete_requests(self, keys):
-        for key in keys:
-            self.wallet.delete_request(key, write_to_disk=False)
-            self.delete_item(key)
-        self.wallet.save_db()
+        self.wallet.delete_requests(keys)
+        self.update()
+        self.receive_tab.do_clear()
+
+    def delete_expired_requests(self):
+        keys = self.wallet.delete_expired_requests()
+        self.update()
         self.receive_tab.do_clear()
 
     def set_visibility_of_columns(self):
         def set_visible(col: int, b: bool):
             self.showColumn(col) if b else self.hideColumn(col)
         set_visible(self.Columns.ADDRESS, False)
-        set_visible(self.Columns.LN_INVOICE, False)
         set_visible(self.Columns.LN_RHASH, False)

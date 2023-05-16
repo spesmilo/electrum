@@ -1,6 +1,6 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM debian:bullseye@sha256:bfe6615d017d1eebe19f349669de58cda36c668ef916e618be78071513c690e5
+FROM debian:bullseye@sha256:43ef0c6c3585d5b406caa7a0f232ff5a19c1402aeb415f68bcd1cf9d10180af8
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -141,11 +141,12 @@ RUN apt -y update -qq \
 
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
+ARG UID=1000
 ENV USER="user"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
-RUN useradd --create-home --shell /bin/bash ${USER}
+RUN useradd --uid $UID --create-home --shell /bin/bash ${USER}
 RUN usermod -append --groups sudo ${USER}
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 WORKDIR ${WORK_DIR}
@@ -167,7 +168,7 @@ RUN cd /opt \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421
+    # commit: from branch sombernight/electrum_20210421 (note: careful with force-pushing! see #8162)
     && git checkout "6f03256e8312f8d1e5a6da3a2a1bf06e2738325e^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
@@ -178,8 +179,8 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch accumulator/electrum_20210421d
-    && git checkout "d33e07ba4c7931da46122a32f3807709a73cb7f6^{commit}" \
+    # commit: from branch accumulator/electrum_20210421d (note: careful with force-pushing! see #8162)
+    && git checkout "052b9f7945bae557347fa4a4b418040d9da9eaff^{commit}" \
     && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars

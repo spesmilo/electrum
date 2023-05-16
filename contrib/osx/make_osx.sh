@@ -25,6 +25,8 @@ mkdir -p "$CACHEDIR" "$DLL_TARGET_DIR"
 
 cd "$PROJECT_ROOT"
 
+git -C "$PROJECT_ROOT" rev-parse 2>/dev/null || fail "Building outside a git clone is not supported."
+
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install xcode command line tools to continue"
@@ -228,13 +230,13 @@ info "generating locale"
 info "Installing some build-time deps for compilation..."
 brew install swig
 
-if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" ]; then
+if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
     info "Building libsecp256k1 dylib..."
     "$CONTRIB"/make_libsecp256k1.sh || fail "Could not build libsecp"
 else
     info "Skipping libsecp256k1 build: reusing already built dylib."
 fi
-cp -f "$DLL_TARGET_DIR/libsecp256k1.0.dylib" "$PROJECT_ROOT/electrum/" || fail "Could not copy libsecp256k1 dylib"
+cp -f "$DLL_TARGET_DIR"/libsecp256k1.*.dylib "$PROJECT_ROOT/electrum/" || fail "Could not copy libsecp256k1 dylib"
 
 if [ ! -f "$DLL_TARGET_DIR/libzbar.0.dylib" ]; then
     info "Building ZBar dylib..."

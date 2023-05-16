@@ -5,9 +5,10 @@
 # - ELECBUILD_UPLOADFROM
 # - SSHUSER
 
-set -e
+set -ex
 
 PROJECT_ROOT="$(dirname "$(readlink -e "$0")")/.."
+CONTRIB="$PROJECT_ROOT/contrib"
 
 if [ -z "$SSHUSER" ]; then
     SSHUSER=thomasv
@@ -15,8 +16,8 @@ fi
 
 cd "$PROJECT_ROOT"
 
-version=$(git describe --tags --abbrev=0)
-echo $version
+VERSION=$("$CONTRIB"/print_electrum_version.py)
+echo "$VERSION"
 
 if [ -z "$ELECBUILD_UPLOADFROM" ]; then
     cd "$PROJECT_ROOT/dist"
@@ -30,9 +31,12 @@ fi
 
 sftp -oBatchMode=no -b - "$SSHUSER@uploadserver" << !
    cd electrum-downloads-airlock
-   -mkdir "$version"
-   -chmod 777 "$version"
-   cd "$version"
-   mput *
+   -mkdir "$VERSION"
+   -chmod 777 "$VERSION"
+   cd "$VERSION"
+   -mput *
+   -chmod 444 *  # this prevents future re-uploads of same file
    bye
 !
+
+"$CONTRIB/trigger_deploy.sh" "$SSHUSER" "$VERSION"

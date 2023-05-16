@@ -13,7 +13,7 @@ class QEAbstractWizard(QObject):
         QObject.__init__(self, parent)
 
     @pyqtSlot(result=str)
-    def start_wizard(self):
+    def startWizard(self):
         self.start()
         return self._current.view
 
@@ -83,16 +83,21 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         return self._daemon.singlePasswordEnabled
 
     @pyqtSlot('QJSValue', result=bool)
-    def hasDuplicateKeys(self, js_data):
-        self._logger.info('Checking for duplicate keys')
+    def hasDuplicateMasterKeys(self, js_data):
+        self._logger.info('Checking for duplicate masterkeys')
         data = js_data.toVariant()
-        return self.has_duplicate_keys(data)
+        return self.has_duplicate_masterkeys(data)
+
+    @pyqtSlot('QJSValue', result=bool)
+    def hasHeterogeneousMasterKeys(self, js_data):
+        self._logger.info('Checking for heterogeneous masterkeys')
+        data = js_data.toVariant()
+        return self.has_heterogeneous_masterkeys(data)
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
         data = js_data.toVariant()
-        self._logger.debug(str(data))
 
         if single_password_enabled and single_password:
             data['encrypt'] = True
@@ -109,7 +114,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
 
             self.createSuccess.emit()
         except Exception as e:
-            self._logger.error(repr(e))
+            self._logger.error(f"createStorage errored: {e!r}")
             self.createError.emit(str(e))
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
@@ -122,6 +127,7 @@ class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
         # attach view names
         self.navmap_merge({
             'autoconnect': { 'gui': 'WCAutoConnect' },
+            'proxy_ask': { 'gui': 'WCProxyAsk' },
             'proxy_config': { 'gui': 'WCProxyConfig' },
             'server_config': { 'gui': 'WCServerConfig' },
         })

@@ -9,9 +9,11 @@ from electrum.wallet_db import WalletDB
 from electrum.bip32 import normalize_bip32_derivation, xpub_type
 from electrum import keystore
 from electrum import bitcoin
+from electrum.mnemonic import is_any_2fa_seed_type
+
 
 class WizardViewState(NamedTuple):
-    view: str
+    view: Optional[str]
     wizard_data: Dict[str, Any]
     params: Dict[str, Any]
 
@@ -26,10 +28,11 @@ class AbstractWizard:
 
     _logger = get_logger(__name__)
 
-    navmap = {}
+    def __init__(self):
+        self.navmap = {}
 
-    _current = WizardViewState(None, {}, {})
-    _stack = [] # type: List[WizardViewState]
+        self._current = WizardViewState(None, {}, {})
+        self._stack = []  # type: List[WizardViewState]
 
     def navmap_merge(self, additional_navmap):
         # NOTE: only merges one level deep. Deeper dict levels will overwrite
@@ -122,13 +125,13 @@ class AbstractWizard:
             self._logger.debug(f'view "{view}" last: {l}')
             return l
         else:
-            raise Exception('last handler for view {view} is not callable nor a bool literal')
+            raise Exception(f'last handler for view {view} is not callable nor a bool literal')
 
     def finished(self, wizard_data):
         self._logger.debug('finished.')
 
     def reset(self):
-        self.stack = []
+        self._stack = []
         self._current = WizardViewState(None, {}, {})
 
     def log_stack(self, _stack):
@@ -163,6 +166,7 @@ class NewWalletWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'wallet_name': {
                 'next': 'wallet_type'
@@ -224,7 +228,9 @@ class NewWalletWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
         self._current = WizardViewState('wallet_name', initial_data, {})
         return self._current
@@ -233,7 +239,7 @@ class NewWalletWizard(AbstractWizard):
         raise NotImplementedError()
 
     def is_bip39_seed(self, wizard_data):
-        return wizard_data['seed_variant'] == 'bip39'
+        return wizard_data.get('seed_variant') == 'bip39'
 
     def is_multisig(self, wizard_data):
         return wizard_data['wallet_type'] == 'multisig'
@@ -299,18 +305,38 @@ class NewWalletWizard(AbstractWizard):
 
         return True
 
-    def has_duplicate_keys(self, wizard_data):
+    def has_duplicate_masterkeys(self, wizard_data) -> bool:
+        """Multisig wallets need distinct master keys. If True, need to prevent wallet-creation."""
         xpubs = []
         xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
             xpubs.append(self.keystore_from_data(data).get_master_public_key())
+        assert xpubs
+        return len(xpubs) != len(set(xpubs))
 
-        while len(xpubs):
-            xpub = xpubs.pop()
-            if xpub in xpubs:
+    def has_heterogeneous_masterkeys(self, wizard_data) -> bool:
+        """Multisig wallets need homogeneous master keys.
+        All master keys need to be bip32, and e.g. Ypub cannot be mixed with Zpub.
+        If True, need to prevent wallet-creation.
+        """
+        xpubs = []
+        xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
+        for cosigner in wizard_data['multisig_cosigner_data']:
+            data = wizard_data['multisig_cosigner_data'][cosigner]
+            xpubs.append(self.keystore_from_data(data).get_master_public_key())
+        assert xpubs
+        try:
+            k_xpub_type = xpub_type(xpubs[0])
+        except Exception:
+            return True  # maybe old_mpk?
+        for xpub in xpubs:
+            try:
+                my_xpub_type = xpub_type(xpub)
+            except Exception:
+                return True  # maybe old_mpk?
+            if my_xpub_type != k_xpub_type:
                 return True
-
         return False
 
     def keystore_from_data(self, data):
@@ -363,24 +389,30 @@ class NewWalletWizard(AbstractWizard):
                 self._logger.debug('creating keystore from bip39 seed')
                 root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
                 derivation = normalize_bip32_derivation(data['derivation_path'])
-                script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                if data['wallet_type'] == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
                 k = keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
-            elif data['seed_type'] == '2fa_segwit': # TODO: legacy 2fa '2fa'
+            elif is_any_2fa_seed_type(data['seed_type']):
                 self._logger.debug('creating keystore from 2fa seed')
                 k = keystore.from_xprv(data['x1/']['xprv'])
             else:
                 raise Exception('unsupported/unknown seed_type %s' % data['seed_type'])
         elif data['keystore_type'] == 'masterkey':
             k = keystore.from_master_key(data['master_key'])
-            has_xpub = isinstance(k, keystore.Xpub)
-            assert has_xpub
-            t1 = xpub_type(k.xpub)
-            if data['wallet_type'] == 'multisig':
-                if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
-                    raise Exception('wrong key type %s' % t1)
+            if isinstance(k, keystore.Xpub):  # has xpub
+                t1 = xpub_type(k.xpub)
+                if data['wallet_type'] == 'multisig':
+                    if t1 not in ['standard', 'p2wsh', 'p2wsh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+                else:
+                    if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
+                        raise Exception('wrong key type %s' % t1)
+            elif isinstance(k, keystore.Old_KeyStore):
+                pass
             else:
-                if t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
-                    raise Exception('wrong key type %s' % t1)
+                raise Exception(f"unexpected keystore type: {type(keystore)}")
         else:
             raise Exception('unsupported/unknown keystore_type %s' % data['keystore_type'])
 
@@ -410,10 +442,17 @@ class NewWalletWizard(AbstractWizard):
             db.put('x3/', data['x3/'])
             db.put('use_trustedcoin', True)
         elif data['wallet_type'] == 'multisig':
+            if not isinstance(k, keystore.Xpub):
+                raise Exception(f"unexpected keystore(main) type={type(k)} in multisig. not bip32.")
+            k_xpub_type = xpub_type(k.xpub)
             db.put('wallet_type', '%dof%d' % (data['multisig_signatures'],data['multisig_participants']))
             db.put('x1/', k.dump())
             for cosigner in data['multisig_cosigner_data']:
                 cosigner_keystore = self.keystore_from_data(data['multisig_cosigner_data'][cosigner])
+                if not isinstance(cosigner_keystore, keystore.Xpub):
+                    raise Exception(f"unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.")
+                if k_xpub_type != xpub_type(cosigner_keystore.xpub):
+                    raise Exception("multisig wallet needs to have homogeneous xpub types")
                 if data['encrypt'] and cosigner_keystore.may_have_password():
                     cosigner_keystore.update_password(None, data['password'])
                 db.put(f'x{cosigner}/', cosigner_keystore.dump())
@@ -433,13 +472,17 @@ class ServerConnectWizard(AbstractWizard):
     _logger = get_logger(__name__)
 
     def __init__(self, daemon):
+        AbstractWizard.__init__(self)
         self.navmap = {
             'autoconnect': {
-                'next': 'proxy_config',
+                'next': 'server_config',
                 'last': lambda v,d: d['autoconnect']
             },
+            'proxy_ask': {
+                'next': lambda d: 'proxy_config' if d['want_proxy'] else 'autoconnect'
+            },
             'proxy_config': {
-                'next': 'server_config'
+                'next': 'autoconnect'
             },
             'server_config': {
                 'last': True
@@ -447,7 +490,9 @@ class ServerConnectWizard(AbstractWizard):
         }
         self._daemon = daemon
 
-    def start(self, initial_data = {}):
+    def start(self, initial_data=None):
+        if initial_data is None:
+            initial_data = {}
         self.reset()
-        self._current = WizardViewState('autoconnect', initial_data, {})
+        self._current = WizardViewState('proxy_ask', initial_data, {})
         return self._current

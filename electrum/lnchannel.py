@@ -35,11 +35,11 @@ import attr
 
 from . import ecc
 from . import constants, util
-from .util import bfh, bh2u, chunks, TxMinedInfo
+from .util import bfh, chunks, TxMinedInfo
 from .invoices import PR_PAID
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
-from .transaction import Transaction, PartialTransaction, TxInput
+from .transaction import Transaction, PartialTransaction, TxInput, Sighash
 from .logging import Logger
 from .lnonion import decode_onion_error, OnionFailureCode, OnionRoutingFailure
 from . import lnutil
@@ -230,6 +230,29 @@ class AbstractChannel(Logger, ABC):
     def is_redeemed(self):
         return self.get_state() == ChannelState.REDEEMED
 
+    def need_to_subscribe(self) -> bool:
+        """Whether lnwatcher/synchronizer need to be watching this channel."""
+        if not self.is_redeemed():
+            return True
+        # Chan already deeply closed. Still, if some txs are missing, we should sub.
+        # check we have funding tx
+        # note: tx might not be directly related to the wallet, e.g. chan opened by remote
+        if (funding_item := self.get_funding_height()) is None:
+            return True
+        if self.lnworker:
+            funding_txid, funding_height, funding_timestamp = funding_item
+            if self.lnworker.wallet.adb.get_transaction(funding_txid) is None:
+                return True
+        # check we have closing tx
+        # note: tx might not be directly related to the wallet, e.g. local-fclose
+        if (closing_item := self.get_closing_height()) is None:
+            return True
+        if self.lnworker:
+            closing_txid, closing_height, closing_timestamp = closing_item
+            if self.lnworker.wallet.adb.get_transaction(closing_txid) is None:
+                return True
+        return False
+
     @abstractmethod
     def get_close_options(self) -> Sequence[ChanCloseOption]:
         pass
@@ -268,10 +291,10 @@ class AbstractChannel(Logger, ABC):
             their_sweep_info = self.create_sweeptxs_for_their_ctx(ctx)
             if our_sweep_info is not None:
                 self._sweep_info[txid] = our_sweep_info
-                self.logger.info(f'we force closed')
+                self.logger.info(f'we (local) force closed')
             elif their_sweep_info is not None:
                 self._sweep_info[txid] = their_sweep_info
-                self.logger.info(f'they force closed.')
+                self.logger.info(f'they (remote) force closed.')
             else:
                 self._sweep_info[txid] = {}
                 self.logger.info(f'not sure who closed.')
@@ -508,6 +531,9 @@ class ChannelBackup(AbstractChannel):
 
     def is_backup(self):
         return True
+
+    def get_remote_alias(self) -> Optional[bytes]:
+        return None
 
     def create_sweeptxs_for_their_ctx(self, ctx):
         return {}
@@ -985,10 +1011,11 @@ class Channel(AbstractChannel):
         """
         # TODO: when more channel types are supported, this method should depend on channel type
         next_remote_ctn = self.get_next_ctn(REMOTE)
-        self.logger.info(f"sign_next_commitment {next_remote_ctn}")
+        self.logger.info(f"sign_next_commitment. ctn={next_remote_ctn}")
 
         pending_remote_commitment = self.get_next_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
+        self.logger.debug(f"sign_next_commitment. {pending_remote_commitment.serialize()=}. {sig_64.hex()=}")
 
         their_remote_htlc_privkey_number = derive_privkey(
             int.from_bytes(self.config[LOCAL].htlc_basepoint.privkey, 'big'),
@@ -1036,8 +1063,12 @@ class Channel(AbstractChannel):
         pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise LNProtocolWarning(
-                f'failed verifying signature of our updated commitment transaction: '
-                f'{bh2u(sig)} preimage is {preimage_hex}, rawtx: {pending_local_commitment.serialize()}')
+                f'failed verifying signature for our updated commitment transaction. '
+                f'sig={sig.hex()}. '
+                f'pre_hash={pre_hash.hex()}. '
+                f'pubkey={self.config[REMOTE].multisig_key.pubkey}. '
+                f'ctx={pending_local_commitment.serialize()} '
+            )
 
         htlc_sigs_string = b''.join(htlc_sigs)
 
@@ -1074,16 +1105,26 @@ class Channel(AbstractChannel):
                                                           commit=ctx,
                                                           ctx_output_idx=ctx_output_idx,
                                                           htlc=htlc)
-        pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
+        preimage_hex = htlc_tx.serialize_preimage(0)
+        pre_hash = sha256d(bfh(preimage_hex))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, pcp)
         if not ecc.verify_signature(remote_htlc_pubkey, htlc_sig, pre_hash):
-            raise LNProtocolWarning(f'failed verifying HTLC signatures: {htlc} {htlc_direction}, rawtx: {htlc_tx.serialize()}')
+            raise LNProtocolWarning(
+                f'failed verifying HTLC signatures: {htlc=}, {htlc_direction=}. '
+                f'htlc_tx={htlc_tx.serialize()}. '
+                f'htlc_sig={htlc_sig.hex()}. '
+                f'remote_htlc_pubkey={remote_htlc_pubkey.hex()}. '
+                f'pre_hash={pre_hash.hex()}. '
+                f'ctx={ctx.serialize()}. '
+                f'ctx_output_idx={ctx_output_idx}. '
+                f'ctn={ctn}. '
+            )
 
     def get_remote_htlc_sig_for_htlc(self, *, htlc_relative_idx: int) -> bytes:
         data = self.config[LOCAL].current_htlc_signatures
         htlc_sigs = list(chunks(data, 64))
         htlc_sig = htlc_sigs[htlc_relative_idx]
-        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sig) + b'\x01'
+        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sig) + Sighash.to_sigbytes(Sighash.ALL)
         return remote_htlc_sig
 
     def revoke_current_commitment(self):
@@ -1507,8 +1548,8 @@ class Channel(AbstractChannel):
                 },
                 local_amount_msat=self.balance(LOCAL),
                 remote_amount_msat=self.balance(REMOTE) if not drop_remote else 0,
-                local_script=bh2u(local_script),
-                remote_script=bh2u(remote_script),
+                local_script=local_script.hex(),
+                remote_script=remote_script.hex(),
                 htlcs=[],
                 dust_limit_sat=self.config[LOCAL].dust_limit_sat)
 
@@ -1534,9 +1575,9 @@ class Channel(AbstractChannel):
     def force_close_tx(self) -> PartialTransaction:
         tx = self.get_latest_commitment(LOCAL)
         assert self.signature_fits(tx)
-        tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
+        tx.sign({self.config[LOCAL].multisig_key.pubkey.hex(): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
-        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
+        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + Sighash.to_sigbytes(Sighash.ALL)
         tx.add_signature_to_txin(txin_idx=0,
                                  signing_pubkey=self.config[REMOTE].multisig_key.pubkey.hex(),
                                  sig=remote_sig.hex())
@@ -1606,7 +1647,7 @@ class Channel(AbstractChannel):
         funding_idx = self.funding_outpoint.output_index
         conf = funding_height.conf
         if conf < self.funding_txn_minimum_depth():
-            self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
+            #self.logger.info(f"funding tx is still not at sufficient depth. actual depth: {conf}")
             return False
         assert conf > 0
         # check funding_tx amount and script

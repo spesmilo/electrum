@@ -8,80 +8,95 @@ import "controls"
 ElDialog {
     id: dialog
 
-    property QtObject txdetails
-
-    property string text
+    required property string text
     property string text_qr
     // if text_qr is undefined text will be used
     property string text_help
+    property string text_warn
 
-    title: qsTr('Export Transaction')
-
-    parent: Overlay.overlay
-    modal: true
+    title: qsTr('Share Transaction')
 
     width: parent.width
     height: parent.height
 
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
+    padding: 0
 
-    Flickable {
+    ColumnLayout {
         anchors.fill: parent
-        contentHeight: rootLayout.height
-        clip:true
-        interactive: height < contentHeight
+        spacing: 0
 
-        ColumnLayout {
-            id: rootLayout
-            width: parent.width
-            spacing: constants.paddingMedium
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: qr.height
-                Layout.topMargin: constants.paddingSmall
-                Layout.bottomMargin: constants.paddingSmall
-                QRImage {
-                    id: qr
-                    qrdata: dialog.text_qr
-                    anchors.centerIn: parent
-                }
-            }
+            contentHeight: rootLayout.height
+            clip:true
+            interactive: height < contentHeight
 
-            Label {
-                visible: dialog.text_help
-                text: dialog.text_help
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
+            ColumnLayout {
+                id: rootLayout
+                width: parent.width
+                spacing: constants.paddingMedium
 
-            Rectangle {
-                height: 1
-                Layout.preferredWidth: qr.width
-                Layout.alignment: Qt.AlignHCenter
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
-
-                FlatButton {
-                    text: qsTr('Copy')
-                    icon.source: '../../icons/copy_bw.png'
-                    onClicked: AppController.textToClipboard(dialog.text)
-                }
-                FlatButton {
-                    text: qsTr('Share')
-                    icon.source: '../../icons/share.png'
-                    onClicked: {
-                        AppController.doShare(dialog.text, dialog.title)
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: qr.height
+                    Layout.topMargin: constants.paddingSmall
+                    Layout.bottomMargin: constants.paddingSmall
+                    QRImage {
+                        id: qr
+                        qrdata: dialog.text_qr
+                        anchors.centerIn: parent
                     }
+                }
+
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.margins: constants.paddingLarge
+                    visible: dialog.text_help
+                    text: dialog.text_help
+                }
+
+                InfoTextArea {
+                    Layout.fillWidth: true
+                    Layout.margins: constants.paddingLarge
+                    Layout.topMargin: dialog.text_help
+                        ? 0
+                        : constants.paddingLarge
+                    visible: dialog.text_warn
+                    text: dialog.text_warn
+                    iconStyle: InfoTextArea.IconStyle.Warn
                 }
             }
         }
+
+        ButtonContainer {
+            Layout.fillWidth: true
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Copy')
+                icon.source: '../../icons/copy_bw.png'
+                onClicked: {
+                    AppController.textToClipboard(dialog.text)
+                    toaster.show(this, qsTr('Copied!'))
+                }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Share')
+                icon.source: '../../icons/share.png'
+                onClicked: {
+                    AppController.doShare(dialog.text, dialog.title)
+                }
+            }
+        }
+    }
+
+    Toaster {
+        id: toaster
     }
 
     Connections {
@@ -91,10 +106,5 @@ ElDialog {
                 qr.render = true
             }
         }
-    }
-
-    Component.onCompleted: {
-        text = dialog.txdetails.serializedTx(false)
-        text_qr = dialog.txdetails.serializedTx(true)
     }
 }

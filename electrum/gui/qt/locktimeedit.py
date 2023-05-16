@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from typing import Optional, Any
 
-from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
 from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QWidget, QLineEdit, QStyle, QStyleOptionFrame, QComboBox,
                              QHBoxLayout, QDateTimeEdit)
@@ -18,6 +18,8 @@ from .util import char_width_in_lineedit, ColorScheme
 
 
 class LockTimeEdit(QWidget):
+
+    valueEdited = pyqtSignal()
 
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
@@ -63,6 +65,11 @@ class LockTimeEdit(QWidget):
             hbox.addWidget(w)
         hbox.addStretch(1)
 
+        self.locktime_height_e.textEdited.connect(self.valueEdited.emit)
+        self.locktime_raw_e.textEdited.connect(self.valueEdited.emit)
+        self.locktime_date_e.dateTimeChanged.connect(self.valueEdited.emit)
+        self.combo.currentIndexChanged.connect(self.valueEdited.emit)
+
     def get_locktime(self) -> Optional[int]:
         return self.editor.get_locktime()
 
@@ -86,7 +93,7 @@ class _LockTimeEditor:
             return True
         try:
             x = int(x)
-        except:
+        except Exception:
             return False
         return cls.min_allowed_value <= x <= cls.max_allowed_value
 
@@ -113,13 +120,13 @@ class LockTimeRawEdit(QLineEdit, _LockTimeEditor):
     def get_locktime(self) -> Optional[int]:
         try:
             return int(str(self.text()))
-        except:
+        except Exception:
             return None
 
     def set_locktime(self, x: Any) -> None:
         try:
             x = int(x)
-        except:
+        except Exception:
             self.setText('')
             return
         x = max(x, self.min_allowed_value)
@@ -178,7 +185,7 @@ class LockTimeDateEdit(QDateTimeEdit, _LockTimeEditor):
             return
         try:
             x = int(x)
-        except:
+        except Exception:
             self.setDateTime(QDateTime.currentDateTime())
             return
         dt = datetime.fromtimestamp(x)

@@ -1,28 +1,28 @@
 from functools import wraps, partial
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, pyqtProperty
 
 from electrum.logging import get_logger
 
-def auth_protect(func=None, reject=None, method='pin'):
+def auth_protect(func=None, reject=None, method='pin', message=''):
     if func is None:
-        return partial(auth_protect, reject=reject, method=method)
+        return partial(auth_protect, reject=reject, method=method, message=message)
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        self._logger.debug(str(self))
+        _logger = get_logger(__name__)
+        _logger.debug(f'{str(self)}.{func.__name__}')
         if hasattr(self, '__auth_fcall'):
-            self._logger.debug('object already has a pending authed function call')
+            _logger.debug('object already has a pending authed function call')
             raise Exception('object already has a pending authed function call')
-        setattr(self, '__auth_fcall', (func,args,kwargs,reject))
-        getattr(self, 'authRequired').emit(method)
+        setattr(self, '__auth_fcall', (func, args, kwargs, reject))
+        getattr(self, 'authRequired').emit(method, message)
 
     return wrapper
 
 class AuthMixin:
     _auth_logger = get_logger(__name__)
-
-    authRequired = pyqtSignal([str],arguments=['method'])
+    authRequired = pyqtSignal([str, str], arguments=['method', 'authMessage'])
 
     @pyqtSlot()
     def authProceed(self):
@@ -33,7 +33,7 @@ class AuthMixin:
             r = func(self, *args, **kwargs)
             return r
         except Exception as e:
-            self._auth_logger.error('Error executing wrapped fn(): %s' % repr(e))
+            self._auth_logger.error(f'Error executing wrapped fn(): {repr(e)}')
             raise e
         finally:
             delattr(self,'__auth_fcall')
@@ -50,9 +50,9 @@ class AuthMixin:
                 if hasattr(self, reject):
                     getattr(self, reject)()
                 else:
-                    self._auth_logger.error('Reject method \'%s\' not defined' % reject)
+                    self._auth_logger.error(f'Reject method "{reject}" not defined')
         except Exception as e:
-            self._auth_logger.error('Error executing reject function \'%s\': %s' % (reject, repr(e)))
+            self._auth_logger.error(f'Error executing reject function "{reject}": {repr(e)}')
             raise e
         finally:
             delattr(self, '__auth_fcall')

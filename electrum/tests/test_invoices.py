@@ -1,29 +1,30 @@
 import os
 import time
 
-from . import TestCaseForTestnet
+from . import ElectrumTestCase
 
 from electrum.simple_config import SimpleConfig
 from electrum.wallet import restore_wallet_from_text, Standard_Wallet, Abstract_Wallet
-from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, Invoice
+from electrum.invoices import PR_UNPAID, PR_PAID, PR_UNCONFIRMED, BaseInvoice
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.transaction import Transaction, PartialTxOutput
 from electrum.util import TxMinedInfo
 
 
-class TestWalletPaymentRequests(TestCaseForTestnet):
+class TestWalletPaymentRequests(ElectrumTestCase):
     """test 'incoming' invoices"""
+    TESTNET = True
 
     def setUp(self):
-        TestCaseForTestnet.setUp(self)
+        super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
         self.wallet1_path = os.path.join(self.electrum_path, "somewallet1")
         self.wallet2_path = os.path.join(self.electrum_path, "somewallet2")
-        self._orig_get_cur_time = Invoice._get_cur_time
+        self._orig_get_cur_time = BaseInvoice._get_cur_time
 
     def tearDown(self):
-        TestCaseForTestnet.tearDown(self)
-        Invoice._get_cur_time = staticmethod(self._orig_get_cur_time)
+        super().tearDown()
+        BaseInvoice._get_cur_time = staticmethod(self._orig_get_cur_time)
 
     def create_wallet2(self) -> Standard_Wallet:
         text = 'cross end slow expose giraffe fuel track awake turtle capital ranch pulp'
@@ -36,7 +37,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         wallet2.adb.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
         return wallet2
 
-    def test_wallet_with_ln_creates_payreq_and_gets_paid_on_ln(self):
+    async def test_wallet_with_ln_creates_payreq_and_gets_paid_on_ln(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -53,7 +54,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         wallet1.lnworker.set_request_status(bytes.fromhex(pr.rhash), PR_PAID)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_with_ln_creates_payreq_and_gets_paid_onchain(self):
+    async def test_wallet_with_ln_creates_payreq_and_gets_paid_onchain(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -83,7 +84,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_without_ln_creates_payreq_and_gets_paid_onchain(self):
+    async def test_wallet_without_ln_creates_payreq_and_gets_paid_onchain(self):
         text = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -113,7 +114,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_PAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_gets_paid_onchain_in_the_past(self):
+    async def test_wallet_gets_paid_onchain_in_the_past(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=2, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -142,7 +143,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         wallet1.adb.add_verified_tx(tx.txid(), tx_info)
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr))
 
-    def test_wallet_reuse_unused_fallback_onchain_addr_when_getting_paid_with_lightning(self):
+    async def test_wallet_reuse_unused_fallback_onchain_addr_when_getting_paid_with_lightning(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=5, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -155,8 +156,6 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertTrue(pr1.is_lightning())
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr1))
         self.assertEqual(addr1, pr1.get_address())
-        self.assertEqual(addr1, pr1._lnaddr.get_fallback_address())
-        self.assertTrue(pr1.can_be_paid_onchain())
         self.assertFalse(pr1.has_expired())
 
         # create payreq2
@@ -197,7 +196,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertEqual(PR_UNPAID, wallet1.get_invoice_status(pr4))
         self.assertEqual(addr4, pr4.get_address())
 
-    def test_wallet_reuse_addr_of_expired_request(self):
+    async def test_wallet_reuse_addr_of_expired_request(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -212,7 +211,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertEqual(addr1, pr1.get_address())
         self.assertFalse(pr1.has_expired())
 
-        Invoice._get_cur_time = lambda *args: time.time() + 100_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 100_000
         self.assertTrue(pr1.has_expired())
 
         # create payreq2
@@ -225,7 +224,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertEqual(addr2, pr2.get_address())
         self.assertFalse(pr2.has_expired())
 
-    def test_wallet_get_request_by_addr(self):
+    async def test_wallet_get_request_by_addr(self):
         text = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
         d = restore_wallet_from_text(text, path=self.wallet1_path, gap_limit=3, config=self.config)
         wallet1 = d['wallet']  # type: Standard_Wallet
@@ -239,7 +238,7 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertFalse(pr1.has_expired())
         self.assertEqual(pr1, wallet1.get_request_by_addr(addr1))
 
-        Invoice._get_cur_time = lambda *args: time.time() + 100_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 100_000
         self.assertTrue(pr1.has_expired())
         self.assertEqual(None, wallet1.get_request_by_addr(addr1))
 
@@ -264,6 +263,6 @@ class TestWalletPaymentRequests(TestCaseForTestnet):
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr1))
 
         # now make both invoices be past their expiration date. pr2 should be unaffected.
-        Invoice._get_cur_time = lambda *args: time.time() + 200_000
+        BaseInvoice._get_cur_time = lambda *args: time.time() + 200_000
         self.assertEqual(PR_UNCONFIRMED, wallet1.get_invoice_status(pr2))
         self.assertEqual(pr2, wallet1.get_request_by_addr(addr1))

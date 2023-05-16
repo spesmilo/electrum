@@ -27,13 +27,13 @@ Item {
                     var page = app.stack.push(Qt.resolvedUrl('../LightningPaymentDetails.qml'), {'key': model.key})
                     page.detailsChanged.connect(function() {
                         // update listmodel when details change
-                        visualModel.model.update_tx_label(model.key, page.label)
+                        visualModel.model.updateTxLabel(model.key, page.label)
                     })
                 } else {
                     var page = app.stack.push(Qt.resolvedUrl('../TxDetails.qml'), {'txid': model.key})
                     page.detailsChanged.connect(function() {
                         // update listmodel when details change
-                        visualModel.model.update_tx_label(model.key, page.label)
+                        visualModel.model.updateTxLabel(model.key, page.label)
                     })
                 }
             }
@@ -49,13 +49,13 @@ Item {
 
                 Image {
                     readonly property variant tx_icons : [
-                        "../../../icons/unconfirmed.png",
-                        "../../../icons/clock1.png",
-                        "../../../icons/clock2.png",
-                        "../../../icons/clock3.png",
-                        "../../../icons/clock4.png",
-                        "../../../icons/clock5.png",
-                        "../../../icons/confirmed_bw.png"
+                        '../../../icons/unconfirmed.png',
+                        '../../../icons/clock1.png',
+                        '../../../icons/clock2.png',
+                        '../../../icons/clock3.png',
+                        '../../../icons/clock4.png',
+                        '../../../icons/clock5.png',
+                        '../../../icons/confirmed_bw.png'
                     ]
 
                     Layout.preferredWidth: constants.iconSizeLarge
@@ -63,7 +63,7 @@ Item {
                     Layout.alignment: Qt.AlignVCenter
                     Layout.rowSpan: 2
                     source: model.lightning
-                        ? "../../../icons/lightning.png"
+                        ? '../../../icons/lightning.png'
                         : model.complete && model.section != 'local'
                             ? tx_icons[Math.min(6,model.confirmations)]
                             : '../../../icons/offline_tx.png'
@@ -72,7 +72,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     font.pixelSize: model.label !== '' ? constants.fontSizeLarge : constants.fontSizeMedium
-                    text: model.label !== '' ? model.label : '<no label>'
+                    text: model.label !== '' ? model.label : qsTr('<no label>')
                     color: model.label !== '' ? Material.foreground : constants.mutedForeground
                     wrapMode: Text.Wrap
                     maximumLineCount: 2
@@ -119,11 +119,10 @@ Item {
 
         Rectangle {
             visible: delegate.ListView.section == delegate.ListView.nextSection
-            // Layout.fillWidth: true
             Layout.preferredWidth: parent.width * 2/3
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredHeight: constants.paddingTiny
-            color: Material.background //Qt.rgba(0,0,0,0.10)
+            color: Material.background
         }
 
     }

@@ -118,9 +118,7 @@ class LightningTxDialog(Factory.Popup):
         self.amount_str = format_amount(-self.amount if self.is_sent else self.amount)
         if tx_item.get('fee_msat'):
             self.fee_str = format_amount(Decimal(tx_item['fee_msat']) / 1000)
-        invoice = (self.app.wallet.get_invoice(self.payment_hash)
-                   or self.app.wallet.get_request(self.payment_hash))
+        self.invoice = ''
+        invoice = self.app.wallet.get_invoice(self.payment_hash)  # only check outgoing invoices
         if invoice:
             self.invoice = invoice.lightning_invoice or ''
-        else:
-            self.invoice = ''

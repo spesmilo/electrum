@@ -35,14 +35,14 @@ _ = lambda x:x  # i18n
 def parse_bip21(text):
     try:
         return util.parse_URI(text)
-    except:
+    except Exception:
         return
 
 def parse_bolt11(text):
     from electrum.lnaddr import lndecode
     try:
         return lndecode(text)
-    except:
+    except Exception:
         return
 
 
@@ -52,7 +52,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def __init__(self, *, config: 'SimpleConfig', daemon: 'Daemon', plugins: 'Plugins'):
         BaseElectrumGui.__init__(self, config=config, daemon=daemon, plugins=plugins)
         self.network = daemon.network
-        storage = WalletStorage(config.get_wallet_path())
+        storage = WalletStorage(config.get_wallet_path(use_gui_last_wallet=True))
         if not storage.file_exists():
             print("Wallet not found. try 'electrum create'")
             exit()
@@ -517,6 +517,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         pass
 
     def main(self):
+        self.daemon.start_network()
         tty.setraw(sys.stdin)
         try:
             while self.tab != -1:
@@ -593,7 +594,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
     def parse_amount(self, text):
         try:
             x = Decimal(text)
-        except:
+        except Exception:
             return None
         power = pow(10, self.config.get_decimal_point())
         return int(power * x)

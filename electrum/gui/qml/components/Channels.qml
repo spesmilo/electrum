@@ -9,6 +9,8 @@ import "controls"
 
 Pane {
     id: root
+    objectName: 'Channels'
+
     padding: 0
 
     ColumnLayout {
@@ -38,7 +40,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can send:')
+                text: qsTr('You can send') + ':'
                 color: Material.accentColor
             }
 
@@ -47,7 +49,7 @@ Pane {
             }
 
             Label {
-                text: qsTr('You can receive:')
+                text: qsTr('You can receive') + ':'
                 color: Material.accentColor
             }
 
@@ -80,6 +82,21 @@ Pane {
                     clip: true
                     model: Daemon.currentWallet.channelModel
 
+                    section.property: 'is_backup'
+                    section.criteria: ViewSection.FullString
+                    section.delegate: RowLayout {
+                        width: ListView.view.width
+                        required property string section
+                        Label {
+                            visible: section == 'true'
+                            text: qsTr('Channel backups')
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.topMargin: constants.paddingLarge
+                            font.pixelSize: constants.fontSizeSmall
+                            color: Material.accentColor
+                        }
+                    }
+
                     delegate: ChannelDelegate {
                         onClicked: {
                             app.stack.push(Qt.resolvedUrl('ChannelDetails.qml'), { 'channelid': model.cid })
@@ -89,7 +106,7 @@ Pane {
                     ScrollIndicator.vertical: ScrollIndicator { }
 
                     Label {
-                        visible: Daemon.currentWallet.channelModel.count == 0
+                        visible: listview.model.count == 0
                         anchors.centerIn: parent
                         width: listview.width * 4/5
                         font.pixelSize: constants.fontSizeXXLarge
@@ -102,53 +119,31 @@ Pane {
             }
         }
 
-
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            text: qsTr('Swap');
-            visible: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
-            icon.source: '../../icons/status_waiting.png'
-            onClicked: {
-                var dialog = swapDialog.createObject(root)
-                dialog.open()
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                text: qsTr('Swap');
+                enabled: Daemon.currentWallet.lightningCanSend.satsInt > 0 || Daemon.currentWallet.lightningCanReceive.satInt > 0
+                icon.source: Qt.resolvedUrl('../../icons/update.png')
+                onClicked: app.startSwap()
             }
-        }
 
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Open Channel')
-            onClicked: {
-                var dialog = openChannelDialog.createObject(root)
-                dialog.open()
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                enabled: Daemon.currentWallet.confirmedBalance.satsInt > 0
+                text: qsTr('Open Channel')
+                onClicked: {
+                    var dialog = openChannelDialog.createObject(root)
+                    dialog.open()
+                }
+                icon.source: '../../icons/lightning.png'
             }
-            icon.source: '../../icons/lightning.png'
+
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            text: qsTr('Import channel backup')
-            onClicked: {
-                var dialog = importChannelBackupDialog.createObject(root)
-                dialog.open()
-            }
-            icon.source: '../../icons/file.png'
-        }
-
-    }
-
-    Connections {
-        target: Daemon.currentWallet
-        function onImportChannelBackupFailed(message) {
-            var dialog = app.messageDialog.createObject(root, { text: message })
-            dialog.open()
-        }
-    }
-
-    Component {
-        id: swapDialog
-        SwapDialog {
-            onClosed: destroy()
-        }
     }
 
     Component {
@@ -162,6 +157,14 @@ Pane {
         id: importChannelBackupDialog
         ImportChannelBackupDialog {
             onClosed: destroy()
+        }
+    }
+
+    Connections {
+        target: Daemon.currentWallet
+        function onImportChannelBackupFailed(message) {
+            var dialog = app.messageDialog.createObject(root, { title: qsTr('Error'), text: message })
+            dialog.open()
         }
     }
 

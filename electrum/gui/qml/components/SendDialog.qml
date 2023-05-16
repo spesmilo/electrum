@@ -13,15 +13,9 @@ ElDialog {
     property InvoiceParser invoiceParser
 
     signal txFound(data: string)
+    signal channelBackupFound(data: string)
 
-    parent: Overlay.overlay
-    modal: true
-
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
-
-    header: Item {}
+    header: null
     padding: 0
     topPadding: 0
 
@@ -32,6 +26,8 @@ ElDialog {
     function dispatch(data) {
         if (bitcoin.isRawTx(data)) {
             txFound(data)
+        } else if (Daemon.currentWallet.isValidChannelBackup(data)) {
+            channelBackupFound(data)
         } else {
             invoiceParser.recipient = data
         }
@@ -43,75 +39,25 @@ ElDialog {
 
         QRScan {
             id: qrscan
-            Layout.preferredWidth: parent.width
+            Layout.fillWidth: true
             Layout.fillHeight: true
 
+            hint: qsTr('Scan an Invoice, an Address, an LNURL-pay, a PSBT or a Channel backup')
             onFound: dialog.dispatch(scanData)
         }
 
-        FlatButton {
+        ButtonContainer {
             Layout.fillWidth: true
-            icon.source: '../../icons/pen.png'
-            text: qsTr('Manual input')
-            onClicked: {
-                var _mid = manualInputDialog.createObject(mainView)
-                _mid.accepted.connect(function() {
-                    dialog.dispatch(_mid.recipient)
-                })
-                _mid.open()
+
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                icon.source: '../../icons/copy_bw.png'
+                text: qsTr('Paste')
+                onClicked: dialog.dispatch(AppController.clipboardToText())
             }
         }
 
-        FlatButton {
-            Layout.fillWidth: true
-            icon.source: '../../icons/paste.png'
-            text: qsTr('Paste from clipboard')
-            onClicked: dialog.dispatch(AppController.clipboardToText())
-        }
-    }
-
-    Component {
-        id: manualInputDialog
-        ElDialog {
-            property alias recipient: recipientTextEdit.text
-
-            iconSource: Qt.resolvedUrl('../../icons/pen.png')
-
-            anchors.centerIn: parent
-            implicitWidth: parent.width * 0.9
-
-            parent: Overlay.overlay
-            modal: true
-
-            Overlay.modal: Rectangle {
-                color: "#aa000000"
-            }
-
-            title: qsTr('Manual Input')
-
-            ColumnLayout {
-                width: parent.width
-
-                Label {
-                    text: 'Enter a bitcoin address or a Lightning invoice'
-                    wrapMode: Text.Wrap
-                    Layout.maximumWidth: parent.width
-                }
-
-                TextField {
-                    id: recipientTextEdit
-                    topPadding: constants.paddingXXLarge
-                    bottomPadding: constants.paddingXXLarge
-                    Layout.preferredWidth: parent.width
-                    font.family: FixedFont
-
-                    wrapMode: TextInput.WrapAnywhere
-                    placeholderText: qsTr('Enter the payment request here')
-                }
-            }
-
-            onClosed: destroy()
-        }
     }
 
     Bitcoin {

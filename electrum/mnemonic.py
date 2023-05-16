@@ -30,7 +30,7 @@ import string
 from typing import Sequence, Dict
 from types import MappingProxyType
 
-from .util import resource_path, bfh, bh2u, randrange
+from .util import resource_path, bfh, randrange
 from .crypto import hmac_oneshot
 from . import version
 from .logging import Logger
@@ -224,7 +224,7 @@ class Mnemonic(Logger):
 
 def is_new_seed(x: str, prefix=version.SEED_PREFIX) -> bool:
     x = normalize_text(x)
-    s = bh2u(hmac_oneshot(b"Seed version", x.encode('utf8'), hashlib.sha512))
+    s = hmac_oneshot(b"Seed version", x.encode('utf8'), hashlib.sha512).hex()
     return s.startswith(prefix)
 
 

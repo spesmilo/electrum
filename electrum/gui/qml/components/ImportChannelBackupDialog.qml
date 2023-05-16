@@ -11,11 +11,6 @@ ElDialog {
 
     property bool valid: false
 
-    modal: true
-    parent: Overlay.overlay
-    Overlay.modal: Rectangle {
-        color: "#aa000000"
-    }
     width: parent.width
     height: parent.height
 
@@ -26,6 +21,10 @@ ElDialog {
 
     function verifyChannelBackup(text) {
         return valid = Daemon.currentWallet.isValidChannelBackup(text)
+    }
+
+    onAccepted: {
+        Daemon.currentWallet.importChannelBackup(channelbackup_ta.text)
     }
 
     ColumnLayout {
@@ -60,11 +59,14 @@ ElDialog {
                     icon.width: constants.iconSizeMedium
                     scale: 1.2
                     onClicked: {
-                        var scan = qrscan.createObject(root.contentItem)
-                        scan.onFound.connect(function() {
-                            channelbackup_ta.text = scan.scanData
-                            scan.destroy()
+                        var dialog = app.scanDialog.createObject(app, {
+                            hint:  qsTr('Scan a channel backup')
                         })
+                        dialog.onFound.connect(function() {
+                            channelbackup_ta.text = dialog.scanData
+                            dialog.close()
+                        })
+                        dialog.open()
                     }
                 }
             }
@@ -89,29 +91,7 @@ ElDialog {
             Layout.fillWidth: true
             enabled: valid
             text: qsTr('Import')
-            onClicked: {
-                Daemon.currentWallet.importChannelBackup(channelbackup_ta.text)
-                root.accept()
-            }
-        }
-    }
-
-    Component {
-        id: qrscan
-        QRScan {
-            width: root.contentItem.width
-            height: root.contentItem.height
-
-            ToolButton {
-                icon.source: '../../icons/closebutton.png'
-                icon.height: constants.iconSizeMedium
-                icon.width: constants.iconSizeMedium
-                anchors.right: parent.right
-                anchors.top: parent.top
-                onClicked: {
-                    parent.destroy()
-                }
-            }
+            onClicked: doAccept()
         }
     }
 

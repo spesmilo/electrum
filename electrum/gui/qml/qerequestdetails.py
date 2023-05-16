@@ -1,4 +1,4 @@
-from time import time
+from typing import Optional
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, QTimer, Q_ENUMS
 
@@ -8,7 +8,8 @@ from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_IN
 
 from .qewallet import QEWallet
 from .qetypes import QEAmount
-from .util import QtEventListener, event_listener
+from .util import QtEventListener, event_listener, status_update_timer_interval
+
 
 class QERequestDetails(QObject, QtEventListener):
 
@@ -32,11 +33,15 @@ class QERequestDetails(QObject, QtEventListener):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._key = None
         self._req = None
         self._timer = None
         self._amount = None
+
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.updateStatusString)
 
         self.register_callbacks()
         self.destroyed.connect(lambda: self.on_destroy())
@@ -114,7 +119,15 @@ class QERequestDetails(QObject, QtEventListener):
 
     @pyqtProperty(str, notify=detailsChanged)
     def bolt11(self):
-        return self._req.lightning_invoice if self._req else ''
+        can_receive = self._wallet.wallet.lnworker.num_sats_can_receive() if  self._wallet.wallet.lnworker else 0
+        if self._req and can_receive > 0 and (self._req.get_amount_sat() or 0) <= can_receive:
+            bolt11 = self._wallet.wallet.get_bolt11_invoice(self._req)
+        else:
+            return ''
+        # encode lightning invoices as uppercase so QR encoding can use
+        # alphanumeric mode; resulting in smaller QR codes
+        bolt11 = bolt11.upper()
+        return bolt11
 
     @pyqtProperty(str, notify=detailsChanged)
     def bip21(self):
@@ -134,31 +147,16 @@ class QERequestDetails(QObject, QtEventListener):
         self._amount = QEAmount(from_invoice=self._req)
 
         self.detailsChanged.emit()
-        self.initStatusStringTimer()
+        self.statusChanged.emit()
+        self.set_status_timer()
 
-    def initStatusStringTimer(self):
+    def set_status_timer(self):
         if self.status == PR_UNPAID:
             if self.expiration > 0 and self.expiration != LN_EXPIRY_NEVER:
-                self._timer = QTimer(self)
-                self._timer.setSingleShot(True)
-                self._timer.timeout.connect(self.updateStatusString)
-
-                # very roughly according to util.time_difference
-                exp_in = int(self.expiration - time())
-                exp_in_min = int(exp_in/60)
-
-                interval = 0
-                if exp_in < 0:
-                    interval = 0
-                if exp_in_min < 2:
-                    interval = 1000
-                elif exp_in_min < 90:
-                    interval = 1000 * 60
-                elif exp_in_min < 1440:
-                    interval = 1000 * 60 * 60
-
+                self._logger.debug(f'set_status_timer, expiration={self.expiration}')
+                interval = status_update_timer_interval(self.expiration)
                 if interval > 0:
-                    self._logger.debug(f'setting status update timer to {interval}, req expires in {exp_in} seconds')
+                    self._logger.debug(f'setting status update timer to {interval}')
                     self._timer.setInterval(interval)  # msec
                     self._timer.start()
 
@@ -166,5 +164,5 @@ class QERequestDetails(QObject, QtEventListener):
     @pyqtSlot()
     def updateStatusString(self):
         self.statusChanged.emit()
-        self.initStatusStringTimer()
+        self.set_status_timer()
 
