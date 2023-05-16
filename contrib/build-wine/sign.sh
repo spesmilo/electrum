@@ -1,6 +1,11 @@
 #!/bin/bash
 
 here=$(dirname "$0")
+if [ -z "$WIN_SIGNING_PASSWORD" ]; then
+    echo "password missing"
+    exit 1
+fi
+
 test -n "$here" -a -d "$here" || exit
 cd $here
 
@@ -20,16 +25,18 @@ mkdir -p signed >/dev/null 2>&1
 
 cd dist
 echo "Found $(ls *.exe | wc -w) files to sign."
+
 for f in $(ls *.exe); do
     echo "Signing $f..."
     osslsigncode sign \
-      -h sha256 \
-      -certs "$CERT_FILE" \
-      -key "$KEY_FILE" \
-      -n "Electrum" \
-      -i "https://electrum.org/" \
-      -t "http://timestamp.digicert.com/" \
-      -in "$f" \
-      -out "../signed/$f"
+        -pass "$WIN_SIGNING_PASSWORD" \
+        -h sha256 \
+        -certs "$CERT_FILE" \
+        -key "$KEY_FILE" \
+        -n "Electrum" \
+        -i "https://electrum.org/" \
+        -t "http://timestamp.digicert.com/" \
+        -in "$f" \
+        -out "../signed/$f"
     ls ../signed/$f -lah
 done

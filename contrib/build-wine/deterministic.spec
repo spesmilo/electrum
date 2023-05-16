@@ -2,12 +2,10 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
-import sys
-for i, x in enumerate(sys.argv):
-    if x == '--name':
-        cmdline_name = sys.argv[i+1]
-        break
-else:
+import sys, os
+
+cmdline_name = os.environ.get("ELECTRUM_CMDLINE_NAME")
+if not cmdline_name:
     raise Exception('no name')
 
 home = 'C:\\electrum\\'
@@ -17,12 +15,15 @@ hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
-hiddenimports += collect_submodules('btchip')
+hiddenimports += collect_submodules('btchip')          # device plugin: ledger
+hiddenimports += collect_submodules('ledger_bitcoin')  # device plugin: ledger
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
 hiddenimports += collect_submodules('smartcard') # satochip
+hiddenimports += ['electrum.plugins.jade.jade']
+hiddenimports += ['electrum.plugins.jade.jadepy.jade']
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 
@@ -64,7 +65,6 @@ a = Analysis([home+'run_electrum',
               home+'electrum/dnssec.py',
               home+'electrum/commands.py',
               home+'electrum/plugins/cosigner_pool/qt.py',
-              home+'electrum/plugins/email_requests/qt.py',
               home+'electrum/plugins/trezor/qt.py',
               home+'electrum/plugins/safe_t/client.py',
               home+'electrum/plugins/safe_t/qt.py',
@@ -72,6 +72,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/plugins/ledger/qt.py',
               home+'electrum/plugins/coldcard/qt.py',
               home+'electrum/plugins/satochip/qt.py',
+              home+'electrum/plugins/jade/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
@@ -104,6 +105,14 @@ for x in a.datas.copy():
         if x[0].lower().startswith(r):
             a.datas.remove(x)
             print('----> Removed x =', x)
+
+# not reproducible (see #7739):
+print("Removing *.dist-info/ from datas:")
+for x in a.datas.copy():
+    if ".dist-info\\" in x[0].lower():
+        a.datas.remove(x)
+        print('----> Removed x =', x)
+
 
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]

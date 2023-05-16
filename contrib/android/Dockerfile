@@ -1,13 +1,21 @@
 # based on https://github.com/kivy/python-for-android/blob/master/Dockerfile
 
-FROM ubuntu:20.04@sha256:86ac87f73641c920fb42cc9612d4fb57b5626b56ea2a19b894d0673fd5b4f2e9
+FROM debian:bullseye@sha256:bfe6615d017d1eebe19f349669de58cda36c668ef916e618be78071513c690e5
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 ENV ANDROID_HOME="/opt/android"
 
-# configure locale
+# need ca-certificates before using snapshot packages
 RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends \
+    ca-certificates
+
+# pin the distro packages.
+COPY contrib/android/apt.sources.list /etc/apt/sources.list
+COPY contrib/android/apt.preferences /etc/apt/preferences.d/snapshot
+
+# configure locale
+RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends --allow-downgrades \
     locales && \
     locale-gen en_US.UTF-8
 ENV LANG="en_US.UTF-8" \
@@ -15,7 +23,10 @@ ENV LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8"
 
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends curl unzip ca-certificates \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
+    curl \
+    unzip \
+    ca-certificates \
     && apt -y autoremove
 
 
@@ -42,12 +53,12 @@ RUN curl --location --progress-bar \
 ENV ANDROID_SDK_HOME="${ANDROID_HOME}/android-sdk"
 
 # get the latest version from https://developer.android.com/studio/index.html
-ENV ANDROID_SDK_TOOLS_VERSION="6514223"
-ENV ANDROID_SDK_BUILD_TOOLS_VERSION="29.0.3"
-ENV ANDROID_SDK_HASH="ef319a5afdb41822cb1c88d93bc7c23b0af4fc670abca89ff0346ee6688da797"
+ENV ANDROID_SDK_TOOLS_VERSION="8092744"
+ENV ANDROID_SDK_BUILD_TOOLS_VERSION="30.0.3"
+ENV ANDROID_SDK_HASH="d71f75333d79c9c6ef5c39d3456c6c58c613de30e6a751ea0dbd433e8f8b9cbf"
 ENV ANDROID_SDK_TOOLS_ARCHIVE="commandlinetools-linux-${ANDROID_SDK_TOOLS_VERSION}_latest.zip"
 ENV ANDROID_SDK_TOOLS_DL_URL="https://dl.google.com/android/repository/${ANDROID_SDK_TOOLS_ARCHIVE}"
-ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
+ENV ANDROID_SDK_MANAGER="${ANDROID_SDK_HOME}/cmdline-tools/bin/sdkmanager --sdk_root=${ANDROID_SDK_HOME}"
 
 # download and install Android SDK
 RUN curl --location --progress-bar \
@@ -65,17 +76,16 @@ RUN mkdir --parents "${ANDROID_SDK_HOME}/.android/" \
 
 # accept Android licenses (JDK necessary!)
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
         openjdk-11-jdk-headless \
     && apt -y autoremove
 RUN yes | ${ANDROID_SDK_MANAGER} --licenses > /dev/null
 
 # download platforms, API, build tools
-RUN ${ANDROID_SDK_MANAGER} "platforms;android-24" > /dev/null && \
-    ${ANDROID_SDK_MANAGER} "platforms;android-29" > /dev/null && \
+RUN ${ANDROID_SDK_MANAGER} "platforms;android-30" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "build-tools;${ANDROID_SDK_BUILD_TOOLS_VERSION}" > /dev/null && \
     ${ANDROID_SDK_MANAGER} "extras;android;m2repository" > /dev/null && \
-    chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
+    chmod +x "${ANDROID_SDK_HOME}/cmdline-tools/bin/avdmanager"
 
 # download ANT
 ENV APACHE_ANT_VERSION="1.9.4"
@@ -94,20 +104,15 @@ RUN curl --location --progress-bar \
     && rm -rf "${APACHE_ANT_ARCHIVE}"
 
 
-ENV USER="user"
-ENV HOME_DIR="/home/${USER}"
-ENV WORK_DIR="${HOME_DIR}/wspace" \
-    PATH="${HOME_DIR}/.local/bin:${PATH}"
-
 # install system/build dependencies
 # https://github.com/kivy/buildozer/blob/master/docs/source/installation.rst#android-on-ubuntu-2004-64bit
-# TODO probably need to pin versions of at least some of these for over-time reproducibility?
 RUN apt -y update -qq \
-    && apt -y install -qq --no-install-recommends \
+    && apt -y install -qq --no-install-recommends --allow-downgrades \
         python3 \
         python3-dev \
         python3-pip \
         python3-setuptools \
+        python3-venv \
         wget \
         lbzip2 \
         patch \
@@ -135,24 +140,25 @@ RUN apt -y update -qq \
     && apt -y clean
 
 
-# prepare non root env
+# create new user to avoid using root; but with sudo access and no password for convenience.
+ENV USER="user"
+ENV HOME_DIR="/home/${USER}"
+ENV WORK_DIR="${HOME_DIR}/wspace" \
+    PATH="${HOME_DIR}/.local/bin:${PATH}"
 RUN useradd --create-home --shell /bin/bash ${USER}
-
-# with sudo access and no password
 RUN usermod -append --groups sudo ${USER}
 RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-
 WORKDIR ${WORK_DIR}
-
-# user needs ownership/write access to these directories
 RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
 RUN chown ${USER} /opt
 USER ${USER}
 
 
+COPY contrib/deterministic-build/requirements-build-base.txt /opt/deterministic-build/
 COPY contrib/deterministic-build/requirements-build-android.txt /opt/deterministic-build/
-RUN python3 -m pip install --no-dependencies --user \
+RUN python3 -m pip install --no-build-isolation --no-dependencies --user \
+    -r /opt/deterministic-build/requirements-build-base.txt
+RUN python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: --user \
     -r /opt/deterministic-build/requirements-build-android.txt
 
 # install buildozer
@@ -162,19 +168,21 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
     && git fetch --all \
     # commit: from branch sombernight/electrum_20210421
-    && git checkout "d570116e88184b0eca0c6b59a25edd49d977da23^{commit}" \
-    && python3 -m pip install --no-dependencies --user -e .
+    && git checkout "6f03256e8312f8d1e5a6da3a2a1bf06e2738325e^{commit}" \
+    && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # install python-for-android
 RUN cd /opt \
     && git clone https://github.com/kivy/python-for-android \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
+    && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421b
-    && git checkout "cdee188f0ef28ff8452207da409912da19e917ca^{commit}" \
-    && python3 -m pip install --no-dependencies --user -e .
+    # commit: from branch accumulator/electrum_20210421d
+    && git checkout "d33e07ba4c7931da46122a32f3807709a73cb7f6^{commit}" \
+    && python3 -m pip install --no-build-isolation --no-dependencies --user -e .
 
 # build env vars
 ENV USE_SDK_WRAPPER=1
 ENV GRADLE_OPTS="-Xmx1536M -Dorg.gradle.jvmargs='-Xmx1536M'"
+#ENV P4A_FULL_DEBUG=1

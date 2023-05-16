@@ -102,6 +102,13 @@ Builder.load_string('''
                     title: _('Lightning Routing') + ': ' + self.status
                     description: _("Use trampoline routing or gossip.")
                     action: partial(root.routing_dialog, self)
+                CardSeparator
+                SettingsItem:
+                    disabled: bool(app.electrum_config.get('verbosity')) and not app.enable_debug_logs
+                    status: 'ON' if (bool(app.electrum_config.get('verbosity')) or app.enable_debug_logs) else 'OFF'
+                    title: _('Enable debug logs') + ': ' + self.status
+                    description: "(developer) Log to stderr, to inspect with logcat."
+                    action: partial(root.boolean_dialog, 'enable_debug_logs', _('Debug Logs'), self.description)
 
                 # disabled: there is currently only one coin selection policy
                 #CardSeparator
@@ -136,7 +143,7 @@ class SettingsDialog(Factory.Popup):
         self.wallet = self.app.wallet
         self.use_encryption = self.wallet.has_password() if self.wallet else False
         self.has_pin_code = self.app.has_pin_code()
-        self.enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.has_deterministic_node_id())
+        self.enable_toggle_use_recoverable_channels = bool(self.wallet.lnworker and self.wallet.lnworker.can_have_recoverable_channels())
 
     def get_language_name(self) -> str:
         lang = self.config.get('language') or ''

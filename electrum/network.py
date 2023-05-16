@@ -32,7 +32,7 @@ import socket
 import json
 import sys
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, TYPE_CHECKING, Iterable, Set, Any, TypeVar
 import traceback
 import concurrent
 from concurrent import futures
@@ -40,12 +40,12 @@ import copy
 import functools
 
 import aiorpcx
-from aiorpcx import TaskGroup, ignore_after
+from aiorpcx import ignore_after
 from aiohttp import ClientResponse
 
 from . import util
-from .util import (log_exceptions, ignore_exceptions,
-                   bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter,
+from .util import (log_exceptions, ignore_exceptions, OldTaskGroup,
+                   bfh, make_aiohttp_session, send_exception_to_crash_reporter,
                    is_hash256_str, is_non_negative_integer, MyEncoder, NetworkRetryManager,
                    nullcontext)
 from .bitcoin import COIN
@@ -64,6 +64,8 @@ from .i18n import _
 from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
     from .channel_db import ChannelDB
     from .lnrouter import LNPathFinder
     from .lnworker import LNGossip
@@ -77,6 +79,8 @@ _logger = get_logger(__name__)
 NUM_TARGET_CONNECTED_SERVERS = 10
 NUM_STICKY_SERVERS = 4
 NUM_RECENT_SERVERS = 20
+
+T = TypeVar('T')
 
 
 def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
@@ -246,7 +250,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     LOGGING_SHORTCUT = 'n'
 
-    taskgroup: Optional[TaskGroup]
+    taskgroup: Optional[OldTaskGroup]
     interface: Optional[Interface]
     interfaces: Dict[ServerAddr, Interface]
     _connecting_ifaces: Set[ServerAddr]
@@ -273,7 +277,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             init_retry_delay_urgent=1,
         )
 
-        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop = util.get_asyncio_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
 
         assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
@@ -336,6 +340,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         self.auto_connect = self.config.get('auto_connect', True)
         self.proxy = None
+        self.tor_proxy = False
         self._maybe_set_oneserver()
 
         # Dump network messages (all interfaces).  Set at runtime from the console.
@@ -348,7 +353,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         if self.config.get('run_watchtower', False):
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
-            self.local_watchtower.start_network(self)
+            self.local_watchtower.adb.start_network(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
 
     def has_internet_connection(self) -> bool:
@@ -381,9 +386,11 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.channel_db = None
             self.path_finder = None
 
-    def run_from_another_thread(self, coro, *, timeout=None):
-        assert util.get_running_loop() != self.asyncio_loop, 'must not be called from network thread'
-        fut = asyncio.run_coroutine_threadsafe(coro, self.asyncio_loop)
+    @classmethod
+    def run_from_another_thread(cls, coro: 'Coroutine[Any, Any, T]', *, timeout=None) -> T:
+        loop = util.get_asyncio_loop()
+        assert util.get_running_loop() != loop, 'must not be called from asyncio thread'
+        fut = asyncio.run_coroutine_threadsafe(coro, loop)
         return fut.result(timeout)
 
     @staticmethod
@@ -437,7 +444,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def is_connected(self):
         interface = self.interface
-        return interface is not None and interface.ready.done()
+        return interface is not None and interface.is_connected_and_ready()
 
     def is_connecting(self):
         return self.connection_status == 'connecting'
@@ -462,7 +469,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         async def get_relay_fee():
             self.relay_fee = await interface.get_relay_fee()
 
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             await group.spawn(get_banner)
             await group.spawn(get_donation_address)
             await group.spawn(get_server_peers)
@@ -597,7 +604,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.proxy = proxy
         dns_hacks.configure_dns_depending_on_proxy(bool(proxy))
         self.logger.info(f'setting proxy {proxy}')
-        util.trigger_callback('proxy_set', self.proxy)
+
+        self.tor_proxy = False
+        if bool(proxy) and proxy['mode'] == 'socks5':
+            # test for Tor
+            self.tor_proxy = util.is_tor_socks_port(proxy['host'], int(proxy['port']))
+            if self.tor_proxy:
+                self.logger.info(f'Proxy is TOR')
+
+        util.trigger_callback('proxy_set', self.proxy, self.tor_proxy)
 
     @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
@@ -707,11 +722,19 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
         i = self.interfaces[server]
         if old_interface != i:
+            if not i.is_connected_and_ready():
+                return
             self.logger.info(f"switching to {server}")
-            assert i.ready.done(), "interface we are switching to is not ready yet"
             blockchain_updated = i.blockchain != self.blockchain()
             self.interface = i
-            await i.taskgroup.spawn(self._request_server_info(i))
+            try:
+                await i.taskgroup.spawn(self._request_server_info(i))
+            except RuntimeError as e:  # see #7677
+                if len(e.args) >= 1 and e.args[0] == 'task group terminated':
+                    self.logger.warning(f"tried to switch to {server} but interface.taskgroup is already dead.")
+                    self.interface = None
+                    return
+                raise
             util.trigger_callback('default_server_changed')
             self.default_server_changed_event.set()
             self.default_server_changed_event.clear()
@@ -758,6 +781,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
+        if self.config.get('network_timeout', None):
+            return int(self.config.get('network_timeout'))
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
         if self.proxy:
@@ -839,7 +864,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 assert iface.ready.done(), "interface not ready yet"
                 # try actual request
                 try:
-                    async with TaskGroup(wait=any) as group:
+                    async with OldTaskGroup(wait=any) as group:
                         task = await group.spawn(func(self, *args, **kwargs))
                         await group.spawn(iface.got_disconnected.wait())
                 except RequestTimedOut:
@@ -855,7 +880,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 if task.done() and not task.cancelled():
                     return task.result()
                 # otherwise; try again
-            raise BestEffortRequestFailed('no interface to do request on... gave up.')
+            raise BestEffortRequestFailed('cannot establish a connection... gave up.')
         return make_reliable_wrapper
 
     def catch_server_exceptions(func):
@@ -892,13 +917,15 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             self.logger.info(f"unexpected txid for broadcast_transaction [DO NOT TRUST THIS MESSAGE]: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))
 
-    async def try_broadcasting(self, tx, name):
+    async def try_broadcasting(self, tx, name) -> bool:
         try:
             await self.broadcast_transaction(tx)
         except Exception as e:
             self.logger.info(f'error: could not broadcast {name} {tx.txid()}, {str(e)}')
+            return False
         else:
             self.logger.info(f'success: broadcasting {name} {tx.txid()}')
+            return True
 
     @staticmethod
     def sanitize_tx_broadcast_response(server_msg) -> str:
@@ -1184,7 +1211,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     async def _start(self):
         assert not self.taskgroup
-        self.taskgroup = taskgroup = SilentTaskGroup()
+        self.taskgroup = taskgroup = OldTaskGroup()
         assert not self.interface and not self.interfaces
         assert not self._connecting_ifaces
         assert not self._closing_ifaces
@@ -1195,19 +1222,17 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         await self.taskgroup.spawn(self._run_new_interface(self.default_server))
 
         async def main():
-            self.logger.info("starting taskgroup.")
+            self.logger.info(f"starting taskgroup ({hex(id(taskgroup))}).")
             try:
                 # note: if a task finishes with CancelledError, that
                 # will NOT raise, and the group will keep the other tasks running
                 async with taskgroup as group:
                     await group.spawn(self._maintain_sessions())
                     [await group.spawn(job) for job in self._jobs]
-            except asyncio.CancelledError:
-                raise
             except Exception as e:
-                self.logger.exception("taskgroup died.")
+                self.logger.exception(f"taskgroup died ({hex(id(taskgroup))}).")
             finally:
-                self.logger.info("taskgroup stopped.")
+                self.logger.info(f"taskgroup stopped ({hex(id(taskgroup))}).")
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
         util.trigger_callback('network_updated')
@@ -1227,7 +1252,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         # timeout: if full_shutdown, it is up to the caller to time us out,
         #          otherwise if e.g. restarting due to proxy changes, we time out fast
         async with (nullcontext() if full_shutdown else ignore_after(1)):
-            async with TaskGroup() as group:
+            async with OldTaskGroup() as group:
                 await group.spawn(self.taskgroup.cancel_remaining())
                 if full_shutdown:
                     await group.spawn(self.stop_gossip(full_shutdown=full_shutdown))
@@ -1240,13 +1265,13 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             util.trigger_callback('network_updated')
 
     async def _ensure_there_is_a_main_interface(self):
-        if self.is_connected():
+        if self.interface:
             return
         # if auto_connect is set, try a different server
         if self.auto_connect and not self.is_connecting():
             await self._switch_to_random_interface()
         # if auto_connect is not set, or still no main interface, retry current
-        if not self.is_connected() and not self.is_connecting():
+        if not self.interface and not self.is_connecting():
             if self._can_retry_addr(self.default_server, urgent=True):
                 await self.switch_to_interface(self.default_server)
 
@@ -1273,21 +1298,21 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                     await self.interface.taskgroup.spawn(self._request_fee_estimates, self.interface)
 
         while True:
-            try:
-                await maybe_start_new_interfaces()
-                await maintain_healthy_spread_of_connected_servers()
-                await maintain_main_interface()
-            except asyncio.CancelledError:
-                # suppress spurious cancellations
-                group = self.taskgroup
-                if not group or group.closed():
-                    raise
+            await maybe_start_new_interfaces()
+            await maintain_healthy_spread_of_connected_servers()
+            await maintain_main_interface()
             await asyncio.sleep(0.1)
 
     @classmethod
-    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None,
-                                  body: bytes = None, json: dict = None, headers=None,
-                                  on_finish=None, timeout=None):
+    async def async_send_http_on_proxy(
+            cls, method: str, url: str, *,
+            params: dict = None,
+            body: bytes = None,
+            json: dict = None,
+            headers=None,
+            on_finish=None,
+            timeout=None,
+    ):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1319,8 +1344,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             assert util.get_running_loop() != network.asyncio_loop
             loop = network.asyncio_loop
         else:
-            loop = asyncio.get_event_loop()
-        coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
+            loop = util.get_asyncio_loop()
+        coro = asyncio.run_coroutine_threadsafe(cls.async_send_http_on_proxy(method, url, **kwargs), loop)
         # note: _send_http_on_proxy has its own timeout, so no timeout here:
         return coro.result()
 
@@ -1331,11 +1356,19 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         session = self.interface.session
         return parse_servers(await session.send_request('server.peers.subscribe'))
 
-    async def send_multiple_requests(self, servers: Sequence[ServerAddr], method: str, params: Sequence):
+    async def send_multiple_requests(
+            self,
+            servers: Sequence[ServerAddr],
+            method: str,
+            params: Sequence,
+            *,
+            timeout: int = None,
+    ):
+        if timeout is None:
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         responses = dict()
         async def get_response(server: ServerAddr):
             interface = Interface(network=self, server=server, proxy=self.proxy)
-            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
             try:
                 await asyncio.wait_for(interface.ready, timeout)
             except BaseException as e:
@@ -1346,7 +1379,16 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             except Exception as e:
                 res = e
             responses[interface.server] = res
-        async with TaskGroup() as group:
+        async with OldTaskGroup() as group:
             for server in servers:
                 await group.spawn(get_response(server))
         return responses
+
+    async def prune_offline_servers(self, hostmap):
+        peers = filter_protocol(hostmap, allowed_protocols=("t", "s",))
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Generic)
+        replies = await self.send_multiple_requests(peers, 'blockchain.headers.subscribe', [], timeout=timeout)
+        servers_replied = {serveraddr.host for serveraddr in replies.keys()}
+        servers_dict = {k: v for k, v in hostmap.items()
+                        if k in servers_replied}
+        return servers_dict

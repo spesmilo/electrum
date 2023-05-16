@@ -1,15 +1,10 @@
 #!/bin/bash
 
-# Please update these carefully, some versions won't work under Wine
-NSIS_FILENAME=nsis-3.05-setup.exe
-NSIS_URL=https://downloads.sourceforge.net/project/nsis/NSIS%203/3.05/$NSIS_FILENAME
-NSIS_SHA256=1a3cc9401667547b9b9327a177b13485f7c59c2303d4b6183e7bc9e6c8d6bfdb
+PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
+PYINSTALLER_COMMIT="0fe956a2c6157e1b276819de1a050c242de70a29"
+# ^ latest commit from "v4" branch, somewhat after "4.10" tag
 
-PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
-PYINSTALLER_COMMIT="80ee4d613ecf75a1226b960a560ee01459e65ddb"
-# ^ tag 4.2, plus a custom commit that fixes cross-compilation with MinGW
-
-PYTHON_VERSION=3.8.8
+PYTHON_VERSION=3.9.13
 
 
 # Let's begin!
@@ -44,20 +39,17 @@ for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
     download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi"
     download_if_not_exist "$PYTHON_DOWNLOADS/${msifile}.msi.asc" "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYARCH/${msifile}.msi.asc"
-    verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV
-    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$WINE_PYHOME
+    verify_signature "$PYTHON_DOWNLOADS/${msifile}.msi.asc" $KEYRING_PYTHON_DEV || fail "invalid sig for ${msifile}.msi"
+    wine msiexec /i "$PYTHON_DOWNLOADS/${msifile}.msi" /qb TARGETDIR=$WINE_PYHOME || fail "wine msiexec failed for ${msifile}.msi"
 done
 
 break_legacy_easy_install
 
 info "Installing build dependencies."
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location \
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
+    --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-base.txt
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-binary :all: --no-warn-script-location \
     --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-build-wine.txt
-
-info "Installing NSIS."
-download_if_not_exist "$CACHEDIR/$NSIS_FILENAME" "$NSIS_URL"
-verify_hash "$CACHEDIR/$NSIS_FILENAME" "$NSIS_SHA256"
-wine "$CACHEDIR/$NSIS_FILENAME" /S
 
 
 # copy already built DLLs
@@ -99,17 +91,12 @@ info "Building PyInstaller."
     pushd bootloader
     # cross-compile to Windows using host python
     python3 ./waf all CC="${GCC_TRIPLET_HOST}-gcc" \
-                      CFLAGS="-static \
-                              -Wno-dangling-else \
-                              -Wno-error=unused-value \
-                              -Wno-error=implicit-function-declaration \
-                              -Wno-error=int-to-pointer-cast \
-                              -Wno-error=stringop-truncation"
+                      CFLAGS="-static"
     popd
     # sanity check bootloader is there:
     [[ -e "PyInstaller/bootloader/Windows-$PYINST_ARCH/runw.exe" ]] || fail "Could not find runw.exe in target dir!"
 ) || fail "PyInstaller build failed"
 info "Installing PyInstaller."
-$WINE_PYTHON -m pip install --no-dependencies --no-warn-script-location ./pyinstaller
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location ./pyinstaller
 
 info "Wine is configured."

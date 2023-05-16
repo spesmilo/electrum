@@ -31,12 +31,12 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
                              QMessageBox, QHBoxLayout, QVBoxLayout)
 
 from electrum.i18n import _
-from electrum.base_crash_reporter import BaseCrashReporter
+from electrum.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQueue
 from electrum.logging import Logger
 from electrum import constants
 from electrum.network import Network
 
-from .util import MessageBoxMixin, read_QIcon, WaitingDialog
+from .util import MessageBoxMixin, read_QIcon, WaitingDialog, font_height
 
 if TYPE_CHECKING:
     from electrum.simple_config import SimpleConfig
@@ -76,7 +76,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         main_box.addWidget(QLabel(BaseCrashReporter.DESCRIBE_ERROR_MESSAGE))
 
         self.description_textfield = QTextEdit()
-        self.description_textfield.setFixedHeight(50)
+        self.description_textfield.setFixedHeight(4 * font_height())
         self.description_textfield.setPlaceholderText(self.USER_COMMENT_PLACEHOLDER)
         main_box.addWidget(self.description_textfield)
 
@@ -172,10 +172,12 @@ class Exception_Hook(QObject, Logger):
 
         sys.excepthook = self.handler
         self._report_exception.connect(_show_window)
+        EarlyExceptionsQueue.set_hook_as_ready()
 
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
         if not config.get(BaseCrashReporter.config_key, default=True):
+            EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         if not cls._INSTANCE:
             cls._INSTANCE = Exception_Hook(config=config)

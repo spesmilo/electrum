@@ -12,7 +12,7 @@ class NFCBase(Widget):
     '''
 
     payload = ObjectProperty(None)
-    '''This is the data gotten from the tag. 
+    '''This is the data gotten from the tag.
     '''
 
     def nfc_init(self):

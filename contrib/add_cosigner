@@ -1,0 +1,65 @@
+#!/usr/bin/python3
+#
+# This script is part of the workflow for BUILDERs to reproduce and sign the
+# release binaries. (for builders who do not have sftp access to "electrum-downloads-airlock")
+#
+# - BUILDER builds all binaries and checks they match the official releases
+#   (using release.sh, and perhaps some manual steps)
+# - BUILDER creates a PR against https://github.com/spesmilo/electrum-signatures/
+#   to add their sigs for a given release, which then gets merged
+# - SFTPUSER runs `$ electrum/contrib/add_cosigner $BUILDER`
+# - SFTPUSER runs `$ SSHUSER=$SFTPUSER electrum/contrib/upload.sh`
+# - SFTPUSER runs `$ electrum/contrib/make_download $WWW_DIR`
+# -     $ (cd $WWW_DIR; git commit -a -m "add_cosigner"; git push)
+# - SFTPUSER runs `$ electrum-web/publish.sh $SFTPUSER`
+# - (for the website to be updated, both ThomasV and SomberNight needs to run publish.sh)
+
+import re
+import os
+import sys
+import importlib
+
+
+# cd to project root
+os.chdir(os.path.dirname(os.path.dirname(__file__)))
+
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum/version.py')
+version_module = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
+
+ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
+APK_VERSION = version_module.APK_VERSION
+print("version", ELECTRUM_VERSION)
+
+# GPG names of cosigner
+cosigner = sys.argv[1]
+
+version = version_win = version_mac = ELECTRUM_VERSION
+
+files = {
+    "tgz": f"Electrum-{version}.tar.gz",
+    "tgz_srconly": f"Electrum-sourceonly-{version}.tar.gz",
+    "appimage": f"electrum-{version}-x86_64.AppImage",
+    "mac": f"electrum-{version_mac}.dmg",
+    "win": f"electrum-{version_win}.exe",
+    "win_setup": f"electrum-{version_win}-setup.exe",
+    "win_portable": f"electrum-{version_win}-portable.exe",
+    "apk_arm64": f"Electrum-{APK_VERSION}-arm64-v8a-release.apk",
+    "apk_armeabi": f"Electrum-{APK_VERSION}-armeabi-v7a-release.apk",
+}
+
+
+for shortname, filename in files.items():
+    path = f"dist/{filename}"
+    link = f"https://download.electrum.org/{version}/{filename}"
+    if not os.path.exists(path):
+        os.system(f"wget -q {link} -O {path}")
+    if not os.path.getsize(path):
+        raise Exception(path)
+    sig_name = f"{filename}.{cosigner}.asc"
+    sig_url = f"https://raw.githubusercontent.com/spesmilo/electrum-signatures/master/{version}/{filename}/{sig_name}"
+    sig_path = f"dist/{sig_name}"
+    os.system(f"wget -nc {sig_url} -O {sig_path}")
+    if os.system(f"gpg --verify {sig_path} {path}") != 0:
+        raise Exception(sig_name)

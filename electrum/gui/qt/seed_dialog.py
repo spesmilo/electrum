@@ -38,7 +38,7 @@ from electrum import slip39
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
                    EnterButton, CloseButton, WindowModalDialog, ColorScheme,
-                   ChoicesLayout)
+                   ChoicesLayout, font_height)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
@@ -157,7 +157,7 @@ class SeedLayout(QVBoxLayout):
             self.seed_e.textChanged.connect(self.on_edit)
             self.initialize_completer()
 
-        self.seed_e.setMaximumHeight(75)
+        self.seed_e.setMaximumHeight(max(75, 5 * font_height()))
         hbox = QHBoxLayout()
         if icon:
             logo = QLabel()
@@ -281,6 +281,15 @@ class SeedLayout(QVBoxLayout):
         else:
             t = seed_type(s)
             label = _('Seed Type') + ': ' + t if t else ''
+            if t and not b:  # electrum seed, but does not conform to dialog rules
+                msg = ' '.join([
+                    '<b>' + _('Warning') + ':</b>  ',
+                    _("Looks like you have entered a valid seed of type '{}' but this dialog does not support such seeds.").format(t),
+                    _("If unsure, try restoring as '{}'.").format(_("Standard wallet")),
+                ])
+                self.seed_warning.setText(msg)
+            else:
+                self.seed_warning.setText("")
 
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)

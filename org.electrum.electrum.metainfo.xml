@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2013 Soren Stoutner <soren@stoutner.com> -->
+<component type="desktop-application">
+  <id>org.electrum.electrum</id>
+
+  <name>Electrum</name>
+  <summary>Bitcoin Wallet</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Electrum is a lightweight Bitcoin wallet focused is speed, with low resource usage and simplifying Bitcoin.
+      Startup times are instant because it operates in conjunction with high-performance servers that handle the most complicated parts of the Bitcoin system.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">electrum.desktop</launchable>
+
+  <content_rating type="oars-1.1" />
+</component>

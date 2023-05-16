@@ -29,7 +29,7 @@ import time
 import threading
 import sys
 from typing import (NamedTuple, Any, Union, TYPE_CHECKING, Optional, Tuple,
-                    Dict, Iterable, List, Sequence, Callable, TypeVar)
+                    Dict, Iterable, List, Sequence, Callable, TypeVar, Mapping)
 import concurrent
 from concurrent import futures
 from functools import wraps, partial
@@ -43,7 +43,7 @@ from .logging import get_logger, Logger
 
 if TYPE_CHECKING:
     from .plugins.hw_wallet import HW_PluginBase, HardwareClientBase, HardwareHandlerBase
-    from .keystore import Hardware_KeyStore
+    from .keystore import Hardware_KeyStore, KeyStore
     from .wallet import Abstract_Wallet
 
 
@@ -60,7 +60,7 @@ class Plugins(DaemonThread):
     @profiler
     def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
-        self.setName('Plugins')
+        self.name = 'Plugins'  # set name of thread
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}
@@ -401,12 +401,10 @@ class DeviceMgr(ThreadJob):
 
     def __init__(self, config: SimpleConfig):
         ThreadJob.__init__(self)
-        # Keyed by xpub.  The value is the device id
-        # has been paired, and None otherwise. Needs self.lock.
-        self.xpub_ids = {}  # type: Dict[str, str]
-        # A list of clients.  The key is the client, the value is
-        # a (path, id_) pair. Needs self.lock.
-        self.clients = {}  # type: Dict[HardwareClientBase, Tuple[Union[str, bytes], str]]
+        # A pairing_code->id_ map. Item only present if we have active pairing. Needs self.lock.
+        self.pairing_code_to_id = {}  # type: Dict[str, str]
+        # A client->id_ map. Needs self.lock.
+        self.clients = {}  # type: Dict[HardwareClientBase, str]
         # What we recognise.  (vendor_id, product_id) -> Plugin
         self._recognised_hardware = {}  # type: Dict[Tuple[int, int], HW_PluginBase]
         self._recognised_vendor = {}  # type: Dict[int, HW_PluginBase]  # vendor_id -> Plugin
@@ -453,31 +451,31 @@ class DeviceMgr(ThreadJob):
         if client:
             self.logger.info(f"Registering {client}")
             with self.lock:
-                self.clients[client] = (device.path, device.id_)
+                self.clients[client] = device.id_
         return client
 
-    def xpub_id(self, xpub):
+    def id_by_pairing_code(self, pairing_code):
         with self.lock:
-            return self.xpub_ids.get(xpub)
+            return self.pairing_code_to_id.get(pairing_code)
 
-    def xpub_by_id(self, id_):
+    def pairing_code_by_id(self, id_):
         with self.lock:
-            for xpub, xpub_id in self.xpub_ids.items():
-                if xpub_id == id_:
-                    return xpub
+            for pairing_code, id2 in self.pairing_code_to_id.items():
+                if id2 == id_:
+                    return pairing_code
             return None
 
-    def unpair_xpub(self, xpub):
+    def unpair_pairing_code(self, pairing_code):
         with self.lock:
-            if xpub not in self.xpub_ids:
+            if pairing_code not in self.pairing_code_to_id:
                 return
-            _id = self.xpub_ids.pop(xpub)
+            _id = self.pairing_code_to_id.pop(pairing_code)
         self._close_client(_id)
 
     def unpair_id(self, id_):
-        xpub = self.xpub_by_id(id_)
-        if xpub:
-            self.unpair_xpub(xpub)
+        pairing_code = self.pairing_code_by_id(id_)
+        if pairing_code:
+            self.unpair_pairing_code(pairing_code)
         else:
             self._close_client(id_)
 
@@ -488,13 +486,9 @@ class DeviceMgr(ThreadJob):
         if client:
             client.close()
 
-    def pair_xpub(self, xpub, id_):
-        with self.lock:
-            self.xpub_ids[xpub] = id_
-
     def _client_by_id(self, id_) -> Optional['HardwareClientBase']:
         with self.lock:
-            for client, (path, client_id) in self.clients.items():
+            for client, client_id in self.clients.items():
                 if client_id == id_:
                     return client
         return None
@@ -517,12 +511,16 @@ class DeviceMgr(ThreadJob):
         if handler is None:
             raise Exception(_("Handler not found for") + ' ' + plugin.name + '\n' + _("A library is probably missing."))
         handler.update_status(False)
-        if devices is None:
-            devices = self.scan_devices()
-        xpub = keystore.xpub
-        derivation = keystore.get_derivation_prefix()
-        assert derivation is not None
-        client = self.client_by_xpub(plugin, xpub, handler, devices)
+        pcode = keystore.pairing_code()
+        client = None
+        # search existing clients first (fast-path)
+        if not devices:
+            client = self.client_by_pairing_code(plugin=plugin, pairing_code=pcode, handler=handler, devices=[])
+        # search clients again, now allowing a (slow) scan
+        if client is None:
+            if devices is None:
+                devices = self.scan_devices()
+            client = self.client_by_pairing_code(plugin=plugin, pairing_code=pcode, handler=handler, devices=devices)
         if client is None and force_pair:
             try:
                 info = self.select_device(plugin, handler, keystore, devices,
@@ -530,20 +528,23 @@ class DeviceMgr(ThreadJob):
             except CannotAutoSelectDevice:
                 pass
             else:
-                client = self.force_pair_xpub(plugin, handler, info, xpub, derivation)
+                client = self.force_pair_keystore(plugin=plugin, handler=handler, info=info, keystore=keystore)
         if client:
             handler.update_status(True)
-        if client:
             # note: if select_device was called, we might also update label etc here:
             keystore.opportunistically_fill_in_missing_info_from_device(client)
         self.logger.info("end client for keystore")
         return client
 
-    def client_by_xpub(self, plugin: 'HW_PluginBase', xpub, handler: 'HardwareHandlerBase',
-                       devices: Sequence['Device']) -> Optional['HardwareClientBase']:
-        _id = self.xpub_id(xpub)
+    def client_by_pairing_code(
+        self, *, plugin: 'HW_PluginBase', pairing_code: str, handler: 'HardwareHandlerBase',
+        devices: Sequence['Device'],
+    ) -> Optional['HardwareClientBase']:
+        _id = self.id_by_pairing_code(pairing_code)
         client = self._client_by_id(_id)
         if client:
+            if type(client.plugin) != type(plugin):
+                return
             # An unpaired client might have another wallet's handler
             # from a prior scan.  Replace to fix dialog parenting.
             client.handler = handler
@@ -553,13 +554,20 @@ class DeviceMgr(ThreadJob):
             if device.id_ == _id:
                 return self.create_client(device, handler, plugin)
 
-    def force_pair_xpub(self, plugin: 'HW_PluginBase', handler: 'HardwareHandlerBase',
-                        info: 'DeviceInfo', xpub, derivation) -> Optional['HardwareClientBase']:
-        # The wallet has not been previously paired, so let the user
-        # choose an unpaired device and compare its first address.
+    def force_pair_keystore(
+        self,
+        *,
+        plugin: 'HW_PluginBase',
+        handler: 'HardwareHandlerBase',
+        info: 'DeviceInfo',
+        keystore: 'Hardware_KeyStore',
+    ) -> 'HardwareClientBase':
+        xpub = keystore.xpub
+        derivation = keystore.get_derivation_prefix()
+        assert derivation is not None
         xtype = bip32.xpub_type(xpub)
         client = self._client_by_id(info.device.id_)
-        if client and client.is_pairable():
+        if client and client.is_pairable() and type(client.plugin) == type(plugin):
             # See comment above for same code
             client.handler = handler
             # This will trigger a PIN/passphrase entry request
@@ -569,7 +577,9 @@ class DeviceMgr(ThreadJob):
                  # Bad / cancelled PIN / passphrase
                 client_xpub = None
             if client_xpub == xpub:
-                self.pair_xpub(xpub, info.device.id_)
+                keystore.opportunistically_fill_in_missing_info_from_device(client)
+                with self.lock:
+                    self.pairing_code_to_id[keystore.pairing_code()] = info.device.id_
                 return client
 
         # The user input has wrong PIN or passphrase, or cancelled input,
@@ -581,17 +591,22 @@ class DeviceMgr(ThreadJob):
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
               'receive will be unspendable.').format(plugin.device))
 
-    def unpaired_device_infos(self, handler: Optional['HardwareHandlerBase'], plugin: 'HW_PluginBase',
-                              devices: Sequence['Device'] = None,
-                              include_failing_clients=False) -> List['DeviceInfo']:
-        '''Returns a list of DeviceInfo objects: one for each connected,
-        unpaired device accepted by the plugin.'''
+    def list_pairable_device_infos(
+        self,
+        *,
+        handler: Optional['HardwareHandlerBase'],
+        plugin: 'HW_PluginBase',
+        devices: Sequence['Device'] = None,
+        include_failing_clients: bool = False,
+    ) -> List['DeviceInfo']:
+        """Returns a list of DeviceInfo objects: one for each connected device accepted by the plugin.
+        Already paired devices are also included, as it is okay to reuse them.
+        """
         if not plugin.libraries_available:
             message = plugin.get_library_not_available_message()
             raise HardwarePluginLibraryUnavailable(message)
         if devices is None:
             devices = self.scan_devices()
-        devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
         infos = []
         for device in devices:
             if not plugin.can_recognize_device(device):
@@ -625,15 +640,17 @@ class DeviceMgr(ThreadJob):
         # ideally this should not be called from the GUI thread...
         # assert handler.get_gui_thread() != threading.current_thread(), 'must not be called from GUI thread'
         while True:
-            infos = self.unpaired_device_infos(handler, plugin, devices)
+            infos = self.list_pairable_device_infos(handler=handler, plugin=plugin, devices=devices)
             if infos:
                 break
             if not allow_user_interaction:
                 raise CannotAutoSelectDevice()
             msg = _('Please insert your {}').format(plugin.device)
-            if keystore.label:
-                msg += ' ({})'.format(keystore.label)
-            msg += '. {}\n\n{}'.format(
+            msg += " ("
+            if keystore.label and keystore.label not in PLACEHOLDER_HW_CLIENT_LABELS:
+                msg += f"label: {keystore.label}, "
+            msg += f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r}"
+            msg += ').\n\n{}\n\n{}'.format(
                 _('Verify the cable is connected and that '
                   'no other application is using it.'),
                 _('Try to connect again?')
@@ -647,6 +664,7 @@ class DeviceMgr(ThreadJob):
         if keystore.soft_device_id:
             for info in infos:
                 if info.soft_device_id == keystore.soft_device_id:
+                    self.logger.debug(f"select_device. auto-selected(1) {plugin.device}: soft_device_id matched")
                     return info
         # method 2: select device by label
         #           but only if not a placeholder label and only if there is no collision
@@ -655,28 +673,39 @@ class DeviceMgr(ThreadJob):
                 and device_labels.count(keystore.label) == 1):
             for info in infos:
                 if info.label == keystore.label:
+                    self.logger.debug(f"select_device. auto-selected(2) {plugin.device}: label recognised")
                     return info
         # method 3: if there is only one device connected, and we don't have useful label/soft_device_id
         #           saved for keystore anyway, select it
         if (len(infos) == 1
                 and keystore.label in PLACEHOLDER_HW_CLIENT_LABELS
                 and keystore.soft_device_id is None):
+            self.logger.debug(f"select_device. auto-selected(3) {plugin.device}: only one device")
             return infos[0]
 
+        self.logger.debug(f"select_device. auto-select failed for {plugin.device}. {allow_user_interaction=}")
         if not allow_user_interaction:
             raise CannotAutoSelectDevice()
         # ask user to select device manually
-        msg = _("Please select which {} device to use:").format(plugin.device)
+        msg = (
+                _("Could not automatically pair with device for given keystore.") + "\n"
+                + f"(keystore label: {keystore.label!r}, "
+                + f"bip32 root fingerprint: {keystore.get_root_fingerprint()!r})\n\n")
+        msg += _("Please select which {} device to use:").format(plugin.device)
+        msg += "\n(" + _("Or click cancel to skip this keystore instead.") + ")"
         descriptions = ["{label} ({maybe_model}{init}, {transport})"
                         .format(label=info.label or _("An unnamed {}").format(info.plugin_name),
                                 init=(_("initialized") if info.initialized else _("wiped")),
                                 transport=info.device.transport_ui_string,
                                 maybe_model=f"{info.model_name}, " if info.model_name else "")
                         for info in infos]
+        self.logger.debug(f"select_device. prompting user for manual selection of {plugin.device}. "
+                          f"num options: {len(infos)}. options: {infos}")
         c = handler.query_choice(msg, descriptions)
         if c is None:
             raise UserCancelled()
         info = infos[c]
+        self.logger.debug(f"select_device. user manually selected {plugin.device}. device info: {info}")
         # note: updated label/soft_device_id will be saved after pairing succeeds
         return info
 
@@ -723,15 +752,15 @@ class DeviceMgr(ThreadJob):
                 devices.extend(new_devices)
 
         # find out what was disconnected
-        pairs = [(dev.path, dev.id_) for dev in devices]
+        client_ids = [dev.id_ for dev in devices]
         disconnected_clients = []
         with self.lock:
             connected = {}
-            for client, pair in self.clients.items():
-                if pair in pairs and client.has_usable_connection_with_device():
-                    connected[client] = pair
+            for client, id_ in self.clients.items():
+                if id_ in client_ids and client.has_usable_connection_with_device():
+                    connected[client] = id_
                 else:
-                    disconnected_clients.append((client, pair[1]))
+                    disconnected_clients.append((client, id_))
             self.clients = connected
 
         # Unpair disconnected devices
@@ -741,3 +770,75 @@ class DeviceMgr(ThreadJob):
                 client.handler.update_status(False)
 
         return devices
+
+    @classmethod
+    def version_info(cls) -> Mapping[str, Optional[str]]:
+        ret = {}
+        # add libusb
+        try:
+            import usb1
+        except Exception as e:
+            ret["libusb.version"] = None
+        else:
+            ret["libusb.version"] = ".".join(map(str, usb1.getVersion()[:4]))
+            try:
+                ret["libusb.path"] = usb1.libusb1.libusb._name
+            except AttributeError:
+                ret["libusb.path"] = None
+        # add hidapi
+        from importlib.metadata import version
+        try:
+            ret["hidapi.version"] = version("hidapi")  # FIXME does not work in macOS binary
+        except ImportError:
+            ret["hidapi.version"] = None
+        return ret
+
+    def trigger_pairings(
+            self,
+            keystores: Sequence['KeyStore'],
+            *,
+            allow_user_interaction: bool = True,
+            devices: Sequence['Device'] = None,
+    ) -> None:
+        """Given a list of keystores, try to pair each with a connected hardware device.
+
+        E.g. for a multisig-wallet, it is more user-friendly to use this method than to
+        try to pair each keystore individually. Consider the following scenario:
+        - three hw keystores in a 2-of-3 multisig wallet, devices d2 (for ks2) and d3 (for ks3) are connected
+        - assume none of the devices are paired yet
+        1. if we tried to individually pair keystores, we might try with ks1 first
+           - but ks1 cannot be paired automatically, as neither d2 nor d3 matches the stored fingerprint
+           - the user might then be prompted if they want to manually pair ks1 with either d2 or d3,
+             which is confusing and error-prone. It's especially problematic if the hw device does
+             not support labels (such as Ledger), as then the user cannot easily distinguish
+             same-type devices. (see #4199)
+        2. instead, if using this method, we would auto-pair ks2-d2 and ks3-d3 first,
+           and then tell the user ks1 could not be paired (and there are no devices left to try)
+        """
+        from .keystore import Hardware_KeyStore
+        keystores = [ks for ks in keystores if isinstance(ks, Hardware_KeyStore)]
+        if not keystores:
+            return
+        if devices is None:
+            devices = self.scan_devices()
+        # first pair with all devices that can be auto-selected
+        for ks in keystores:
+            try:
+                ks.get_client(
+                    force_pair=True,
+                    allow_user_interaction=False,
+                    devices=devices,
+                )
+            except UserCancelled:
+                pass
+        if allow_user_interaction:
+            # now do manual selections
+            for ks in keystores:
+                try:
+                    ks.get_client(
+                        force_pair=True,
+                        allow_user_interaction=True,
+                        devices=devices,
+                    )
+                except UserCancelled:
+                    pass

@@ -16,7 +16,7 @@ set -e
 
 . $(dirname "$0")/build_tools_util.sh || (echo "Could not source build_tools_util.sh" && exit 1)
 
-here=$(dirname $(realpath "$0" 2> /dev/null || grealpath "$0"))
+here="$(dirname "$(realpath "$0" 2> /dev/null || grealpath "$0")")"
 CONTRIB="$here"
 PROJECT_ROOT="$CONTRIB/.."
 
@@ -24,7 +24,7 @@ pkgname="zbar"
 info "Building $pkgname..."
 
 (
-    cd $CONTRIB
+    cd "$CONTRIB"
     if [ ! -d zbar ]; then
         git clone https://github.com/mchehab/zbar.git
     fi
@@ -81,13 +81,13 @@ info "Building $pkgname..."
             --disable-static \
             --enable-shared || fail "Could not configure $pkgname. Please make sure you have a C compiler installed and try again."
     fi
-    make -j4 || fail "Could not build $pkgname"
+    make "-j$CPU_COUNT" || fail "Could not build $pkgname"
     make install || fail "Could not install $pkgname"
     . "$here/$pkgname/dist/lib/libzbar.la"
     host_strip "$here/$pkgname/dist/lib/$dlname"
     cp -fpv "$here/$pkgname/dist/lib/$dlname" "$PROJECT_ROOT/electrum" || fail "Could not copy the $pkgname binary to its destination"
     info "$dlname has been placed in the inner 'electrum' folder."
     if [ -n "$DLL_TARGET_DIR" ] ; then
-        cp -fpv "$here/$pkgname/dist/lib/$dlname" "$DLL_TARGET_DIR" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
+        cp -fpv "$here/$pkgname/dist/lib/$dlname" "$DLL_TARGET_DIR/" || fail "Could not copy the $pkgname binary to DLL_TARGET_DIR"
     fi
 )

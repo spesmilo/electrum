@@ -46,7 +46,7 @@ def b2a_base64(b):
 
 def dePem(s, name):
     """Decode a PEM string into a bytearray of its payload.
-    
+
     The input must contain an appropriate PEM prefix and postfix
     based on the input name string, e.g. for name="CERTIFICATE":
 
@@ -54,13 +54,13 @@ def dePem(s, name):
     MIIBXDCCAUSgAwIBAgIBADANBgkqhkiG9w0BAQUFADAPMQ0wCwYDVQQDEwRUQUNL
     ...
     KoZIhvcNAQEFBQADAwA5kw==
-    -----END CERTIFICATE-----    
+    -----END CERTIFICATE-----
 
     The first such PEM block in the input will be found, and its
     payload will be base64 decoded and returned.
     """
     prefix  = "-----BEGIN %s-----" % name
-    postfix = "-----END %s-----" % name    
+    postfix = "-----END %s-----" % name
     start = s.find(prefix)
     if start == -1:
         raise SyntaxError("Missing PEM prefix")
@@ -90,7 +90,7 @@ def dePemList(s, name):
     YMEBdw69PUP8JB4AdqA3K6BVCWfcjN36lx6JwxmZQncS6sww7DecFO/qjSePCxwM
     +kdDqX/9/183nmjx6bf0ewhPXkA0nVXsDYZaydN8rJU1GaMlnjcIYxY= -----END TACK
     BREAK SIG----- "
-    
+
     All such PEM blocks will be found, decoded, and return in an ordered list
     of bytearrays, which may have zero elements if not PEM blocks are found.
      """
@@ -111,15 +111,15 @@ def dePemList(s, name):
 
 def pem(b, name):
     """Encode a payload bytearray into a PEM string.
-    
+
     The input will be base64 encoded, then wrapped in a PEM prefix/postfix
     based on the name string, e.g. for name="CERTIFICATE":
-    
+
     -----BEGIN CERTIFICATE-----
     MIIBXDCCAUSgAwIBAgIBADANBgkqhkiG9w0BAQUFADAPMQ0wCwYDVQQDEwRUQUNL
     ...
     KoZIhvcNAQEFBQADAwA5kw==
-    -----END CERTIFICATE-----    
+    -----END CERTIFICATE-----
     """
     s1 = b2a_base64(b)[:-1] # remove terminating \n
     s2 = b""

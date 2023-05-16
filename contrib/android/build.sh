@@ -14,6 +14,21 @@ DISTDIR="$PROJECT_ROOT/dist"
 
 . "$CONTRIB"/build_tools_util.sh
 
+# check arguments
+if [[ -n "$3" \
+	  && ( "$1" == "kivy" || "$1" == "qml" ) \
+	  && ( "$2" == "all"  || "$2" == "armeabi-v7a" || "$2" == "arm64-v8a" || "$2" == "x86" ) \
+	  && ( "$3" == "debug"  || "$3" == "release" || "$3" == "release-unsigned" ) ]] ; then
+    info "arguments $*"
+else
+    fail "usage: build.sh <kivy|qml> <arm64-v8a|armeabi-v7a|x86|all> <debug|release|release-unsigned>"
+    exit 1
+fi
+
+# create symlink
+rm -f ${PROJECT_ROOT}/.buildozer
+mkdir -p "${PROJECT_ROOT}/.buildozer_$1"
+ln -s ".buildozer_$1" ${PROJECT_ROOT}/.buildozer
 
 DOCKER_BUILD_FLAGS=""
 if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
@@ -22,7 +37,7 @@ if [ ! -z "$ELECBUILD_NOCACHE" ] ; then
 fi
 
 info "building docker image."
-sudo docker build \
+docker build \
     $DOCKER_BUILD_FLAGS \
     -t electrum-android-builder-img \
     --file "$CONTRIB_ANDROID/Dockerfile" \
@@ -33,7 +48,7 @@ sudo docker build \
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     info "ELECBUILD_COMMIT=$ELECBUILD_COMMIT. doing fresh clone and git checkout."
     FRESH_CLONE="$CONTRIB_ANDROID/fresh_clone/electrum" && \
-        sudo rm -rf "$FRESH_CLONE" && \
+        rm -rf "$FRESH_CLONE" && \
         umask 0022 && \
         git clone "$PROJECT_ROOT" "$FRESH_CLONE" && \
         cd "$FRESH_CLONE"
@@ -44,24 +59,25 @@ else
 fi
 
 DOCKER_RUN_FLAGS=""
-if [[ -n "$1"  && "$1" == "release" ]] ; then
+
+if [[ "$3" == "release" ]] ; then
     info "'release' mode selected. mounting ~/.keystore inside container."
     DOCKER_RUN_FLAGS="-v $HOME/.keystore:/home/user/.keystore"
 fi
 
 info "building binary..."
 mkdir --parents "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle
-sudo docker run -it --rm \
+docker run -it --rm \
     --name electrum-android-builder-cont \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT":/home/user/wspace/electrum \
     -v "$PROJECT_ROOT_OR_FRESHCLONE_ROOT"/.buildozer/.gradle:/home/user/.gradle \
     $DOCKER_RUN_FLAGS \
     --workdir /home/user/wspace/electrum \
     electrum-android-builder-img \
-    ./contrib/android/make_apk "$@"
+    ./contrib/android/make_apk.sh "$@"
 
 # make sure resulting binary location is independent of fresh_clone
 if [ ! -z "$ELECBUILD_COMMIT" ] ; then
     mkdir --parents "$DISTDIR/"
-    sudo cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
+    cp -f "$FRESH_CLONE/dist"/* "$DISTDIR/"
 fi

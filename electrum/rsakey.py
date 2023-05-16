@@ -49,11 +49,11 @@ def SHA1(x):
 # Check that os.urandom works
 import zlib
 length = len(zlib.compress(os.urandom(1000)))
-assert(length > 900)
+assert length > 900
 
 def getRandomBytes(howMany):
     b = bytearray(os.urandom(howMany))
-    assert(len(b) == howMany)
+    assert len(b) == howMany
     return b
 
 prngName = "os.urandom"
@@ -79,7 +79,7 @@ def numberToByteArray(n, howManyBytes=None):
     not be larger.  The returned bytearray will contain a big-endian
     encoding of the input integer (n).
     """
-    if howManyBytes == None:
+    if howManyBytes is None:
         howManyBytes = numBytes(n)
     b = bytearray(howManyBytes)
     for count in range(howManyBytes-1, -1, -1):

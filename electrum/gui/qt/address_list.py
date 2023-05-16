@@ -82,6 +82,7 @@ class AddressList(MyTreeView):
 
     ROLE_SORT_ORDER = Qt.UserRole + 1000
     ROLE_ADDRESS_STR = Qt.UserRole + 1001
+    key_role = ROLE_ADDRESS_STR
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
@@ -150,7 +151,7 @@ class AddressList(MyTreeView):
     def update(self):
         if self.maybe_defer_update():
             return
-        current_address = self.get_role_data_for_current_item(col=self.Columns.LABEL, role=self.ROLE_ADDRESS_STR)
+        current_address = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
         if self.show_change == AddressTypeFilter.RECEIVING:
             addr_list = self.wallet.get_receiving_addresses()
         elif self.show_change == AddressTypeFilter.CHANGE:
@@ -162,13 +163,11 @@ class AddressList(MyTreeView):
         self.refresh_headers()
         fx = self.parent.fx
         set_address = None
-        addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
+        self.addresses_beyond_gap_limit = self.wallet.get_all_known_addresses_beyond_gap_limit()
         for address in addr_list:
-            num = self.wallet.get_address_history_len(address)
-            label = self.wallet.get_label(address)
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
-            is_used_and_empty = self.wallet.is_used(address) and balance == 0
+            is_used_and_empty = self.wallet.adb.is_used(address) and balance == 0
             if self.show_used == AddressUsageStateFilter.UNUSED and (balance or is_used_and_empty):
                 continue
             if self.show_used == AddressUsageStateFilter.FUNDED and balance == 0:
@@ -177,14 +176,7 @@ class AddressList(MyTreeView):
                 continue
             if self.show_used == AddressUsageStateFilter.FUNDED_OR_UNUSED and is_used_and_empty:
                 continue
-            balance_text = self.parent.format_amount(balance, whitespaces=True)
-            # create item
-            if fx and fx.get_fiat_address_config():
-                rate = fx.exchange_rate()
-                fiat_balance = fx.value_str(balance, rate)
-            else:
-                fiat_balance = ''
-            labels = ['', address, label, balance_text, fiat_balance, "%d"%num]
+            labels = ['', address, '', '', '', '']
             address_item = [QStandardItem(e) for e in labels]
             # align text and set fonts
             for i, item in enumerate(address_item):
@@ -200,21 +192,16 @@ class AddressList(MyTreeView):
             else:
                 address_item[self.Columns.TYPE].setText(_('receiving'))
                 address_item[self.Columns.TYPE].setBackground(ColorScheme.GREEN.as_color(True))
-            address_item[self.Columns.LABEL].setData(address, self.ROLE_ADDRESS_STR)
+            address_item[0].setData(address, self.ROLE_ADDRESS_STR)
             address_path = self.wallet.get_address_index(address)
             address_item[self.Columns.TYPE].setData(address_path, self.ROLE_SORT_ORDER)
             address_path_str = self.wallet.get_address_path_str(address)
             if address_path_str is not None:
                 address_item[self.Columns.TYPE].setToolTip(address_path_str)
-            address_item[self.Columns.FIAT_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
-            # setup column 1
-            if self.wallet.is_frozen_address(address):
-                address_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
-            if address in addresses_beyond_gap_limit:
-                address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
             # add item
             count = self.std_model.rowCount()
             self.std_model.insertRow(count, address_item)
+            self.refresh_row(address, count)
             address_idx = self.std_model.index(count, self.Columns.LABEL)
             if address == current_address:
                 set_address = QPersistentModelIndex(address_idx)
@@ -226,6 +213,32 @@ class AddressList(MyTreeView):
             self.hideColumn(self.Columns.FIAT_BALANCE)
         self.filter()
         self.proxy.setDynamicSortFilter(True)
+
+    def refresh_row(self, key, row):
+        assert row is not None
+        address = key
+        label = self.wallet.get_label_for_address(address)
+        num = self.wallet.adb.get_address_history_len(address)
+        c, u, x = self.wallet.get_addr_balance(address)
+        balance = c + u + x
+        balance_text = self.parent.format_amount(balance, whitespaces=True)
+        # create item
+        fx = self.parent.fx
+        if fx and fx.get_fiat_address_config():
+            rate = fx.exchange_rate()
+            fiat_balance_str = fx.value_str(balance, rate)
+        else:
+            fiat_balance_str = ''
+        address_item = [self.std_model.item(row, col) for col in self.Columns]
+        address_item[self.Columns.LABEL].setText(label)
+        address_item[self.Columns.COIN_BALANCE].setText(balance_text)
+        address_item[self.Columns.COIN_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
+        address_item[self.Columns.FIAT_BALANCE].setText(fiat_balance_str)
+        address_item[self.Columns.NUM_TXS].setText("%d"%num)
+        c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
+        address_item[self.Columns.ADDRESS].setBackground(c)
+        if address in self.addresses_beyond_gap_limit:
+            address_item[self.Columns.ADDRESS].setBackground(ColorScheme.RED.as_color(True))
 
     def create_menu(self, position):
         from electrum.wallet import Multisig_Wallet
@@ -268,9 +281,17 @@ class AddressList(MyTreeView):
             else:
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
 
+        else:
+            # multiple items selected
+            menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
+            menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
+
         coins = self.wallet.get_spendable_coins(addrs)
         if coins:
-            menu.addAction(_("Spend from"), lambda: self.parent.utxo_list.set_spend_list(coins))
+            if self.parent.utxo_list.are_in_coincontrol(coins):
+                menu.addAction(_("Remove from coin control"), lambda: self.parent.utxo_list.remove_from_coincontrol(coins))
+            else:
+                menu.addAction(_("Add to coin control"), lambda: self.parent.utxo_list.add_to_coincontrol(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -287,7 +308,7 @@ class AddressList(MyTreeView):
     def get_edit_key_from_coordinate(self, row, col):
         if col != self.Columns.LABEL:
             return None
-        return self.get_role_data_from_coordinate(row, col, role=self.ROLE_ADDRESS_STR)
+        return self.get_role_data_from_coordinate(row, 0, role=self.ROLE_ADDRESS_STR)
 
     def on_edited(self, idx, edit_key, *, text):
         self.parent.wallet.set_label(edit_key, text)

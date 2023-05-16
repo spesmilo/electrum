@@ -26,3 +26,14 @@ Popup:
                 SettingsItem:
                     title: _("Pending") + ': ' + str(app.lightning_gossip_num_queries)
                     description: _("Channel updates to query.")
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Clear all gossip')
+                on_release: app.delete_ln_gossip_dialog()
+            Widget:
+                size_hint: 0.5, None
+                height: '48dp'

@@ -32,8 +32,7 @@ export PYTHONPATH="$PYTHONPATH:"\
 "/usr/local/lib/python${PYTHON_VER}/site-packages:"\
 "/usr/local/lib/python${PYTHON_VER}/dist-packages:"\
 "/usr/lib/python3/dist-packages:"\
-"/usr/lib/python${PYTHON_VER}/site-packages:"\
-"${HOME}/.local/lib/python${PYTHON_VER}/site-packages"
+"/usr/lib/python${PYTHON_VER}/site-packages:"
 
 
 ./run_electrum "$@"

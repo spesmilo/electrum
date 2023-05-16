@@ -349,8 +349,12 @@ def relayfee(network: 'Network' = None) -> int:
 
 
 # see https://github.com/bitcoin/bitcoin/blob/a62f0ed64f8bbbdfe6467ac5ce92ef5b5222d1bd/src/policy/policy.cpp#L14
-DUST_LIMIT_DEFAULT_SAT_LEGACY = 546
-DUST_LIMIT_DEFAULT_SAT_SEGWIT = 294
+# and https://github.com/lightningnetwork/lightning-rfc/blob/7e3dce42cbe4fa4592320db6a4e06c26bb99122b/03-transactions.md#dust-limits
+DUST_LIMIT_P2PKH = 546
+DUST_LIMIT_P2SH = 540
+DUST_LIMIT_UNKNOWN_SEGWIT = 354
+DUST_LIMIT_P2WSH = 330
+DUST_LIMIT_P2WPKH = 294
 
 
 def dust_threshold(network: 'Network' = None) -> int:
@@ -481,23 +485,30 @@ class OnchainOutputType(Enum):
     P2SH = enum.auto()
     WITVER0_P2WPKH = enum.auto()
     WITVER0_P2WSH = enum.auto()
+    WITVER1_P2TR = enum.auto()
 
 
-def address_to_hash(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
+def address_to_payload(addr: str, *, net=None) -> Tuple[OnchainOutputType, bytes]:
     """Return (type, pubkey hash / witness program) for an address."""
     if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode_segwit_address(net.SEGWIT_HRP, addr)
     if witprog is not None:
-        if witver != 0:
-            raise BitcoinException(f"not implemented handling for witver={witver}")
-        if len(witprog) == 20:
-            return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
-        elif len(witprog) == 32:
-            return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+        if witver == 0:
+            if len(witprog) == 20:
+                return OnchainOutputType.WITVER0_P2WPKH, bytes(witprog)
+            elif len(witprog) == 32:
+                return OnchainOutputType.WITVER0_P2WSH, bytes(witprog)
+            else:
+                raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
+        elif witver == 1:
+            if len(witprog) == 32:
+                return OnchainOutputType.WITVER1_P2TR, bytes(witprog)
+            else:
+                raise BitcoinException(f"unexpected length for segwit witver=1 witprog: len={len(witprog)}")
         else:
-            raise BitcoinException(f"unexpected length for segwit witver=0 witprog: len={len(witprog)}")
+            raise BitcoinException(f"not implemented handling for witver={witver}")
     addrtype, hash_160_ = b58_address_to_hash160(addr)
     if addrtype == net.ADDRTYPE_P2PKH:
         return OnchainOutputType.P2PKH, hash_160_
@@ -530,9 +541,11 @@ def pubkeyhash_to_p2pkh_script(pubkey_hash160: str) -> str:
 
 __b58chars = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 assert len(__b58chars) == 58
+__b58chars_inv = inv_dict(dict(enumerate(__b58chars)))
 
 __b43chars = b'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:'
 assert len(__b43chars) == 43
+__b43chars_inv = inv_dict(dict(enumerate(__b43chars)))
 
 
 class BaseDecodeError(BitcoinException): pass
@@ -546,66 +559,48 @@ def base_encode(v: bytes, *, base: int) -> str:
     chars = __b58chars
     if base == 43:
         chars = __b43chars
-    long_value = 0
-    power_of_base = 1
-    for c in v[::-1]:
-        # naive but slow variant:   long_value += (256**i) * c
-        long_value += power_of_base * c
-        power_of_base <<= 8
-    result = bytearray()
-    while long_value >= base:
-        div, mod = divmod(long_value, base)
-        result.append(chars[mod])
-        long_value = div
-    result.append(chars[long_value])
-    # Bitcoin does a little leading-zero-compression:
-    # leading 0-bytes in the input become leading-1s
-    nPad = 0
-    for c in v:
-        if c == 0x00:
-            nPad += 1
-        else:
-            break
-    result.extend([chars[0]] * nPad)
-    result.reverse()
+
+    origlen = len(v)
+    v = v.lstrip(b'\x00')
+    newlen = len(v)
+
+    num = int.from_bytes(v, byteorder='big')
+    string = b""
+    while num:
+        num, idx = divmod(num, base)
+        string = chars[idx:idx + 1] + string
+
+    result = chars[0:1] * (origlen - newlen) + string
     return result.decode('ascii')
 
 
-def base_decode(v: Union[bytes, str], *, base: int, length: int = None) -> Optional[bytes]:
-    """ decode v into a string of len bytes."""
+def base_decode(v: Union[bytes, str], *, base: int) -> Optional[bytes]:
+    """ decode v into a string of len bytes.
+
+    based on the work of David Keijser in https://github.com/keis/base58
+    """
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
     if base not in (58, 43):
         raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
+    chars_inv = __b58chars_inv
     if base == 43:
         chars = __b43chars
-    long_value = 0
-    power_of_base = 1
-    for c in v[::-1]:
-        digit = chars.find(bytes([c]))
-        if digit == -1:
-            raise BaseDecodeError('Forbidden character {} for base {}'.format(c, base))
-        # naive but slow variant:   long_value += digit * (base**i)
-        long_value += digit * power_of_base
-        power_of_base *= base
-    result = bytearray()
-    while long_value >= 256:
-        div, mod = divmod(long_value, 256)
-        result.append(mod)
-        long_value = div
-    result.append(long_value)
-    nPad = 0
-    for c in v:
-        if c == chars[0]:
-            nPad += 1
-        else:
-            break
-    result.extend(b'\x00' * nPad)
-    if length is not None and len(result) != length:
-        return None
-    result.reverse()
-    return bytes(result)
+        chars_inv = __b43chars_inv
+
+    origlen = len(v)
+    v = v.lstrip(chars[0:1])
+    newlen = len(v)
+
+    num = 0
+    try:
+        for char in v:
+            num = num * base + chars_inv[char]
+    except KeyError:
+        raise BaseDecodeError('Forbidden character {} for base {}'.format(char, base))
+
+    return num.to_bytes(origlen - newlen + (num.bit_length() + 7) // 8, 'big')
 
 
 class InvalidChecksum(BaseDecodeError):

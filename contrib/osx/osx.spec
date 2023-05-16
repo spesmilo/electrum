@@ -10,11 +10,8 @@ MAIN_SCRIPT='run_electrum'
 ICONS_FILE=PYPKG + '/gui/icons/electrum.icns'
 
 
-for i, x in enumerate(sys.argv):
-    if x == '--name':
-        VERSION = sys.argv[i+1]
-        break
-else:
+VERSION = os.environ.get("ELECTRUM_VERSION")
+if not VERSION:
     raise Exception('no version')
 
 electrum = os.path.abspath(".") + "/"
@@ -25,12 +22,15 @@ hiddenimports = []
 hiddenimports += collect_submodules('pkg_resources')  # workaround for https://github.com/pypa/setuptools/issues/1963
 hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('safetlib')
-hiddenimports += collect_submodules('btchip')
+hiddenimports += collect_submodules('btchip')          # device plugin: ledger
+hiddenimports += collect_submodules('ledger_bitcoin')  # device plugin: ledger
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 hiddenimports += collect_submodules('bitbox02')
 hiddenimports += collect_submodules('smartcard')   # Satochip
+hiddenimports += ['electrum.plugins.jade.jade']
+hiddenimports += ['electrum.plugins.jade.jadepy.jade']
 hiddenimports += ['PyQt5.QtPrintSupport']  # needed by Revealer
 
 datas = [
@@ -51,9 +51,9 @@ datas += collect_data_files('bitbox02')
 datas += collect_data_files('pysatochip')
 
 # Add libusb so Trezor and Safe-T mini will work
-binaries = [(electrum + "contrib/osx/libusb-1.0.dylib", ".")]
-binaries += [(electrum + "contrib/osx/libsecp256k1.0.dylib", ".")]
-binaries += [(electrum + "contrib/osx/libzbar.0.dylib", ".")]
+binaries = [(electrum + "electrum/libusb-1.0.dylib", ".")]
+binaries += [(electrum + "electrum/libsecp256k1.0.dylib", ".")]
+binaries += [(electrum + "electrum/libzbar.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
@@ -70,7 +70,6 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/dnssec.py',
               electrum+'electrum/commands.py',
               electrum+'electrum/plugins/cosigner_pool/qt.py',
-              electrum+'electrum/plugins/email_requests/qt.py',
               electrum+'electrum/plugins/trezor/qt.py',
               electrum+'electrum/plugins/safe_t/client.py',
               electrum+'electrum/plugins/safe_t/qt.py',
@@ -78,6 +77,7 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/plugins/ledger/qt.py',
               electrum+'electrum/plugins/coldcard/qt.py',
               electrum+'electrum/plugins/satochip/qt.py', 
+              electrum+'electrum/plugins/jade/qt.py',
               ],
              binaries=binaries,
              datas=datas,
@@ -111,6 +111,7 @@ exe = EXE(
     upx=True,
     icon=electrum+ICONS_FILE,
     console=False,
+    target_arch='x86_64',  # TODO investigate building 'universal2'
 )
 
 app = BUNDLE(
@@ -124,6 +125,13 @@ app = BUNDLE(
     bundle_identifier=None,
     info_plist={
         'NSHighResolutionCapable': 'True',
-        'NSSupportsAutomaticGraphicsSwitching': 'True'
+        'NSSupportsAutomaticGraphicsSwitching': 'True',
+        'CFBundleURLTypes':
+            [{
+                'CFBundleURLName': 'bitcoin',
+                'CFBundleURLSchemes': ['bitcoin', 'lightning', ],
+            }],
+        'LSMinimumSystemVersion': '10.13.0',
+        'NSCameraUsageDescription': 'Electrum would like to access the camera to scan for QR codes',
     },
 )

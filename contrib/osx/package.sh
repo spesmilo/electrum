@@ -31,26 +31,26 @@ fi
 mkdir -p ~/bin
 
 if ! which ${genisoimage} > /dev/null 2>&1; then
-	mkdir -p /tmp/electrum-macos
-	cd /tmp/electrum-macos
-	info "Downloading cdrkit $cdrkit_version"
-	wget -nc ${cdrkit_download_path}/${cdrkit_file_name}
-	tar xvf ${cdrkit_file_name}
+    mkdir -p /tmp/electrum-macos
+    cd /tmp/electrum-macos
+    info "Downloading cdrkit $cdrkit_version"
+    wget -nc ${cdrkit_download_path}/${cdrkit_file_name}
+    tar xvf ${cdrkit_file_name}
 
-	info "Patching genisoimage"
-	cd cdrkit-${cdrkit_version}
-	patch -p1 < $CONTRIB/osx/cdrkit-deterministic.patch
+    info "Patching genisoimage"
+    cd cdrkit-${cdrkit_version}
+    patch -p1 <$CONTRIB/osx/cdrkit-deterministic.patch
 
-	info "Building genisoimage"
-	cmake . -Wno-dev
-	make genisoimage
-	cp genisoimage/genisoimage ~/bin/${genisoimage}
+    info "Building genisoimage"
+    cmake . -Wno-dev
+    make genisoimage
+    cp genisoimage/genisoimage ~/bin/${genisoimage}
 fi
 
 if ! which dmg > /dev/null 2>&1; then
     mkdir -p /tmp/electrum-macos
-	cd /tmp/electrum-macos
-	info "Downloading libdmg"
+    cd /tmp/electrum-macos
+    info "Downloading libdmg"
     LD_PRELOAD= git clone ${libdmg_url}
     cd libdmg-hfsplus
     info "Building libdmg"
@@ -60,11 +60,11 @@ if ! which dmg > /dev/null 2>&1; then
 fi
 
 ${genisoimage} -version || fail "Unable to install genisoimage"
-dmg -|| fail "Unable to install libdmg"
+dmg - || fail "Unable to install libdmg"
 
 plist=$1/Contents/Info.plist
 test -f "$plist" || fail "Info.plist not found"
-VERSION=$(grep -1 ShortVersionString $plist |tail -1|gawk 'match($0, /<string>(.*)<\/string>/, a) {print a[1]}')
+VERSION=$(grep -1 ShortVersionString $plist | tail -1 | gawk 'match($0, /<string>(.*)<\/string>/, a) {print a[1]}')
 echo $VERSION
 
 rm -rf /tmp/electrum-macos/image > /dev/null 2>&1
