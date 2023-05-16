@@ -387,14 +387,6 @@ class Kraken(ExchangeBase):
                      for k, v in json['result'].items())
 
 
-class LocalBitcoins(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json = await self.get_json('localbitcoins.com',
-                             '/bitcoinaverage/ticker-all-currencies/')
-        return dict([(r, to_decimal(json[r]['rates']['last'])) for r in json])
-
-
 class MercadoBitcoin(ExchangeBase):
 
     async def get_rates(self, ccy):
