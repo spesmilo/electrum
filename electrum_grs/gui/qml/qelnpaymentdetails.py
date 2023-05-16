@@ -6,6 +6,7 @@ from electrum_grs.util import bfh, format_time
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
+
 class QELnPaymentDetails(QObject):
     _logger = get_logger(__name__)
 
@@ -16,9 +17,14 @@ class QELnPaymentDetails(QObject):
 
         self._wallet = None
         self._key = None
+        self._label = ''
         self._date = None
+        self._timestamp = 0
         self._fee = QEAmount()
         self._amount = QEAmount()
+        self._status = ''
+        self._phash = ''
+        self._preimage = ''
 
     walletChanged = pyqtSignal()
     @pyqtProperty(QEWallet, notify=walletChanged)
@@ -64,6 +70,10 @@ class QELnPaymentDetails(QObject):
     def date(self):
         return self._date
 
+    @pyqtProperty(int, notify=detailsChanged)
+    def timestamp(self):
+        return self._timestamp
+
     @pyqtProperty(str, notify=detailsChanged)
     def paymentHash(self):
         return self._phash
@@ -93,6 +103,7 @@ class QELnPaymentDetails(QObject):
         self._amount.msatsInt = int(tx['amount_msat'])
         self._label = tx['label']
         self._date = format_time(tx['timestamp'])
+        self._timestamp = tx['timestamp']
         self._status = 'settled' # TODO: other states? get_lightning_history is deciding the filter for us :(
         self._phash = tx['payment_hash']
         self._preimage = tx['preimage']

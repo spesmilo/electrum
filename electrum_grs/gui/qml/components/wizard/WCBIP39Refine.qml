@@ -43,11 +43,24 @@ WizardComponent {
 
     function validate() {
         valid = false
+        validationtext.text = ''
+
         var p = isMultisig ? getMultisigScriptTypePurposeDict() : getScriptTypePurposeDict()
         if (!scripttypegroup.checkedButton.scripttype in p)
             return
         if (!bitcoin.verifyDerivationPath(derivationpathtext.text))
             return
+
+        if (isMultisig && cosigner) {
+            apply()
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: duplicate master public key')
+                return
+            } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: master public key types do not match')
+                return
+            }
+        }
         valid = true
     }
 
@@ -148,6 +161,13 @@ WizardComponent {
                 onTextChanged: validate()
             }
 
+            InfoTextArea {
+                id: validationtext
+                Layout.fillWidth: true
+                visible: text
+                iconStyle: InfoTextArea.IconStyle.Error
+            }
+
             Pane {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: constants.paddingLarge
@@ -199,6 +219,7 @@ WizardComponent {
             participants = wizard_data['multisig_participants']
             if ('multisig_current_cosigner' in wizard_data)
                 cosigner = wizard_data['multisig_current_cosigner']
+            validate()
         }
     }
 }

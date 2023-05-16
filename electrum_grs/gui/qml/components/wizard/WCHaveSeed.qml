@@ -64,13 +64,18 @@ WizardComponent {
             valid = validSeed
             return
         } else {
-            apply()
-            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
-                validationtext.text = qsTr('Error: duplicate master public key')
-                return
-            } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
-                validationtext.text = qsTr('Error: master public key types do not match')
-                return
+            // bip39 validate after derivation path is known
+            if (seed_variant_cb.currentValue == 'electrum') {
+                apply()
+                if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                    validationtext.text = qsTr('Error: duplicate master public key')
+                    return
+                } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                    validationtext.text = qsTr('Error: master public key types do not match')
+                    return
+                } else {
+                    valid = true
+                }
             } else {
                 valid = true
             }
@@ -165,6 +170,7 @@ WizardComponent {
 
             InfoTextArea {
                 id: infotext
+                visible: !cosigner
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 Layout.bottomMargin: constants.paddingLarge
@@ -214,7 +220,6 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
         onSeedTypeChanged: seedtext.indicatorText = bitcoin.seedType
-        onValidationMessageChanged: validationtext.text = validationMessage
     }
 
     function startValidationTimer() {

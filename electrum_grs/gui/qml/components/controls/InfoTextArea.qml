@@ -18,6 +18,7 @@ TextHighlightPane {
     property alias text: infotext.text
     property int iconStyle: InfoTextArea.IconStyle.Info
     property alias textFormat: infotext.textFormat
+    property bool compact: false
 
     borderColor: iconStyle == InfoTextArea.IconStyle.Info
         ? constants.colorInfo
@@ -30,15 +31,15 @@ TextHighlightPane {
                     : iconStyle == InfoTextArea.IconStyle.Done
                         ? constants.colorDone
                         : constants.colorInfo
-    padding: constants.paddingXLarge
+    padding: compact ? constants.paddingMedium : constants.paddingXLarge
 
     RowLayout {
         width: parent.width
-        spacing: constants.paddingLarge
+        spacing: compact ? constants.paddingMedium : constants.paddingLarge
 
         Image {
-            Layout.preferredWidth: constants.iconSizeMedium
-            Layout.preferredHeight: constants.iconSizeMedium
+            Layout.preferredWidth: compact ? constants.iconSizeSmall : constants.iconSizeMedium
+            Layout.preferredHeight: compact ? constants.iconSizeSmall : constants.iconSizeMedium
             visible: iconStyle != InfoTextArea.IconStyle.Spinner && iconStyle != InfoTextArea.IconStyle.None
             source: iconStyle == InfoTextArea.IconStyle.Info
                 ? "../../../icons/info.png"
@@ -56,8 +57,8 @@ TextHighlightPane {
         }
 
         Item {
-            Layout.preferredWidth: constants.iconSizeMedium
-            Layout.preferredHeight: constants.iconSizeMedium
+            Layout.preferredWidth: compact ? constants.iconSizeSmall : constants.iconSizeMedium
+            Layout.preferredHeight: compact ? constants.iconSizeSmall : constants.iconSizeMedium
             visible: iconStyle == InfoTextArea.IconStyle.Spinner
 
             BusyIndicator {

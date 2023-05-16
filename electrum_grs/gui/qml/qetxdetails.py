@@ -57,6 +57,7 @@ class QETxDetails(QObject, QtEventListener):
         self._mempool_depth = ''
 
         self._date = ''
+        self._timestamp = 0
         self._confirmations = 0
         self._header_hash = ''
         self._short_id = ""
@@ -171,6 +172,10 @@ class QETxDetails(QObject, QtEventListener):
     @pyqtProperty(str, notify=detailsChanged)
     def date(self):
         return self._date
+
+    @pyqtProperty(int, notify=detailsChanged)
+    def timestamp(self):
+        return self._timestamp
 
     @pyqtProperty(int, notify=detailsChanged)
     def confirmations(self):
@@ -307,6 +312,7 @@ class QETxDetails(QObject, QtEventListener):
     def update_mined_status(self, tx_mined_info: TxMinedInfo):
         self._mempool_depth = ''
         self._date = format_time(tx_mined_info.timestamp)
+        self._timestamp = tx_mined_info.timestamp
         self._confirmations = tx_mined_info.conf
         self._header_hash = tx_mined_info.header_hash
         self._short_id = tx_mined_info.short_id() or ""
