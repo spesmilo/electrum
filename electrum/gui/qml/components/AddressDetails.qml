@@ -172,13 +172,67 @@ Pane {
                 }
 
                 Label {
+                    Layout.columnSpan: 2
+                    Layout.topMargin: constants.paddingSmall
+                    visible: !Daemon.currentWallet.isWatchOnly
+                    text: qsTr('Private key')
+                    color: Material.accentColor
+                }
+
+                TextHighlightPane {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    visible: !Daemon.currentWallet.isWatchOnly
+                    RowLayout {
+                        width: parent.width
+                        Label {
+                            id: privateKeyText
+                            Layout.fillWidth: true
+                            visible: addressdetails.privkey
+                            text: addressdetails.privkey
+                            wrapMode: Text.Wrap
+                            font.pixelSize: constants.fontSizeLarge
+                            font.family: FixedFont
+                        }
+                        Label {
+                            id: showPrivateKeyText
+                            Layout.fillWidth: true
+                            visible: !addressdetails.privkey
+                            horizontalAlignment: Text.AlignHCenter
+                            text: qsTr('Tap to show private key')
+                            wrapMode: Text.Wrap
+                            font.pixelSize: constants.fontSizeLarge
+                        }
+                        ToolButton {
+                            icon.source: '../../icons/share.png'
+                            visible: addressdetails.privkey
+                            onClicked: {
+                                var dialog = app.genericShareDialog.createObject(root, {
+                                    title: qsTr('Private key'),
+                                    text: addressdetails.privkey
+                                })
+                                dialog.open()
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !addressdetails.privkey
+                            onClicked: addressdetails.requestShowPrivateKey()
+                        }
+                    }
+                }
+
+                Label {
+                    Layout.topMargin: constants.paddingSmall
                     text: qsTr('Script type')
                     color: Material.accentColor
                 }
 
                 Label {
-                    text: addressdetails.scriptType
+                    Layout.topMargin: constants.paddingSmall
                     Layout.fillWidth: true
+                    text: addressdetails.scriptType
                 }
 
                 Label {
@@ -235,5 +289,8 @@ Pane {
         address: root.address
         onFrozenChanged: addressDetailsChanged()
         onLabelChanged: addressDetailsChanged()
+        onAuthRequired: {
+            app.handleAuthRequired(addressdetails, method, authMessage)
+        }
     }
 }
