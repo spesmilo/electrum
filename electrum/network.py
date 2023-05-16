@@ -891,12 +891,18 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         return make_reliable_wrapper
 
     def catch_server_exceptions(func):
+        """Decorator that wraps server errors in UntrustedServerReturnedError,
+        to avoid showing untrusted arbitrary text to users.
+        """
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
             except aiorpcx.jsonrpc.CodeMessageError as e:
-                raise UntrustedServerReturnedError(original_exception=e) from e
+                wrapped_exc = UntrustedServerReturnedError(original_exception=e)
+                # log (sanitized) untrusted error text now, to ease debugging
+                self.logger.debug(f"got error from server for {func.__qualname__}: {wrapped_exc!r}")
+                raise wrapped_exc from e
         return wrapper
 
     @best_effort_reliable
