@@ -4,7 +4,9 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtQml import QQmlApplicationEngine
 
 from electrum.logging import get_logger
+from electrum import mnemonic
 from electrum.wizard import NewWalletWizard, ServerConnectWizard
+
 
 class QEAbstractWizard(QObject):
     _logger = get_logger(__name__)
@@ -92,6 +94,10 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         self._logger.info('Checking for heterogeneous masterkeys')
         data = js_data.toVariant()
         return self.has_heterogeneous_masterkeys(data)
+
+    @pyqtSlot(str, str, result=bool)
+    def isMatchingSeed(self, seed, seed_again):
+        return mnemonic.is_matching_seed(seed=seed, seed_again=seed_again)
 
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
