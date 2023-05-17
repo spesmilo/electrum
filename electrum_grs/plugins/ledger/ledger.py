@@ -14,7 +14,7 @@ from electrum_grs.i18n import _
 from electrum_grs.keystore import Hardware_KeyStore
 from electrum_grs.transaction import Transaction, PartialTransaction, PartialTxInput, PartialTxOutput
 from electrum_grs.wallet import Standard_Wallet
-from electrum_grs.util import bfh, bh2u, versiontuple, UserFacingException
+from electrum_grs.util import bfh, versiontuple, UserFacingException
 from electrum_grs.base_wizard import ScriptTypeNotSupported
 from electrum_grs.logging import get_logger
 from electrum_grs.plugin import runs_in_hwd_thread, Device
