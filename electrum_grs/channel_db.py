@@ -38,7 +38,7 @@ from aiorpcx import NetAddress
 
 from .sql_db import SqlDB, sql
 from . import constants, util
-from .util import profiler, get_headers_dir, is_ip_address, json_normalize
+from .util import profiler, get_headers_dir, is_ip_address, json_normalize, UserFacingException
 from .logging import Logger
 from .lnutil import (LNPeerAddr, format_short_channel_id, ShortChannelID,
                      validate_features, IncompatibleOrInsaneFeatures, InvalidGossipMsg)
@@ -57,6 +57,9 @@ if TYPE_CHECKING:
 
 FLAG_DISABLE   = 1 << 1
 FLAG_DIRECTION = 1 << 0
+
+
+class ChannelDBNotLoaded(UserFacingException): pass
 
 
 class ChannelInfo(NamedTuple):
@@ -375,7 +378,7 @@ class ChannelDB(SqlDB):
 
     def get_recent_peers(self):
         if not self.data_loaded.is_set():
-            raise Exception("channelDB data not loaded yet!")
+            raise ChannelDBNotLoaded("channelDB data not loaded yet!")
         with self.lock:
             ret = [self.get_last_good_address(node_id)
                    for node_id in self._recent_peers]
@@ -842,7 +845,7 @@ class ChannelDB(SqlDB):
     ) -> Set[ShortChannelID]:
         """Returns the set of short channel IDs where node_id is one of the channel participants."""
         if not self.data_loaded.is_set():
-            raise Exception("channelDB data not loaded yet!")
+            raise ChannelDBNotLoaded("channelDB data not loaded yet!")
         relevant_channels = self._channels_for_node.get(node_id) or set()
         relevant_channels = set(relevant_channels)  # copy
         # add our own channels  # TODO maybe slow?

@@ -90,6 +90,16 @@ def normalize_text(seed: str) -> str:
     return seed
 
 
+def is_matching_seed(*, seed: str, seed_again: str) -> bool:
+    """Compare two seeds for equality, as used in "confirm seed" screen in wizard.
+    Not just for electrum seeds, but other types (e.g. bip39) as well.
+    Note: we don't use normalize_text, as that is specific to electrum seeds.
+    """
+    seed = " ".join(seed.split())
+    seed_again = " ".join(seed_again.split())
+    return seed == seed_again
+
+
 _WORDLIST_CACHE = {}  # type: Dict[str, Wordlist]
 
 

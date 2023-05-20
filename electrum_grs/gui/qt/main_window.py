@@ -99,7 +99,7 @@ from .channels_list import ChannelsList
 from .confirm_tx_dialog import ConfirmTxDialog
 from .rbf_dialog import BumpFeeDialog, DSCancelDialog
 from .qrreader import scan_qrcode
-from .swap_dialog import SwapDialog
+from .swap_dialog import SwapDialog, InvalidSwapParameters
 from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING
 
 if TYPE_CHECKING:
@@ -1126,7 +1126,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.show_error(str(e))
             return
         d = SwapDialog(self, is_reverse=is_reverse, recv_amount_sat=recv_amount_sat, channels=channels)
-        return d.run()
+        try:
+            return d.run()
+        except InvalidSwapParameters as e:
+            self.show_error(str(e))
+            return
 
     @qt_event_listener
     def on_event_request_status(self, wallet, key, status):

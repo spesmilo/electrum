@@ -461,9 +461,9 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     min_threshold: if set, only log if time taken is higher than threshold
     NOTE: does not work with async methods.
     """
-    if func is None:
+    if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
-    def do_profile(args, kw_args):
+    def do_profile(*args, **kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
@@ -471,7 +471,7 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
-    return lambda *args, **kw_args: do_profile(args, kw_args)
+    return do_profile
 
 
 def android_ext_dir():

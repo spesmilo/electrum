@@ -720,7 +720,11 @@ class BaseWizard(Logger):
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
-        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
+        self.confirm_seed_dialog(
+            run_next=f,
+            seed=seed if self.config.get('debug_seed') else '',
+            test=lambda x: mnemonic.is_matching_seed(seed=seed, seed_again=x),
+        )
 
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)

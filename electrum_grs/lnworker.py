@@ -79,7 +79,7 @@ from .lnwatcher import LNWalletWatcher
 from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
-from .channel_db import UpdateStatus
+from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
@@ -1169,6 +1169,9 @@ class LNWallet(LNWorker):
                 channels=channels)
             success = True
         except PaymentFailure as e:
+            self.logger.info(f'payment failure: {e!r}')
+            reason = str(e)
+        except ChannelDBNotLoaded as e:
             self.logger.info(f'payment failure: {e!r}')
             reason = str(e)
         finally:

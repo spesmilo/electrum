@@ -419,7 +419,13 @@ def main():
             print_stderr("Run 'electrum-grs stop' to stop the daemon.")
             sys.exit(1)
         # fork before creating the asyncio event loop
-        pid = os.fork()
+        try:
+            pid = os.fork()
+        except AttributeError as e:
+            print_stderr(f"Error: {e!r}")
+            print_stderr("Running daemon in detached mode (-d) is not supported on this platform.")
+            print_stderr("Try running the daemon in the foreground (without -d).")
+            sys.exit(1)
         if pid:
             print_stderr("starting daemon (PID %d)" % pid)
             sys.exit(0)
