@@ -884,6 +884,8 @@ def age(
             return _("in over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
+    '3xpl.com': ('https://3xpl.com/bitcoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
