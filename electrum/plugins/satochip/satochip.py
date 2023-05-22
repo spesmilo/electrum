@@ -4,17 +4,18 @@ import hashlib
 #electrum
 from electrum import mnemonic
 from electrum import constants
+from electrum import descriptor
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device
 from electrum.keystore import Hardware_KeyStore, bip39_to_seed
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
-from electrum.util import bfh, bh2u, versiontuple
+from electrum.util import bfh, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
-from electrum.bip32 import BIP32Node, convert_bip32_path_to_list_of_uint32, convert_bip32_intpath_to_strpath
+from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 
@@ -61,7 +62,7 @@ MSG_USE_2FA= _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, a
     # return (depth, bytePath)
 
 def bip32path2bytes(bip32path:str) -> (int, bytes):
-    intPath= convert_bip32_path_to_list_of_uint32(bip32path)
+    intPath= convert_bip32_strpath_to_intpath(bip32path)
     depth= len(intPath)    
     bytePath=b''
     for index in intPath:
@@ -319,7 +320,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
             txOutputs += var_int(len(script)//2)
             txOutputs += script
         #txOutputs = bfh(txOutputs)
-        hashOutputs = bh2u(sha256d(bfh(txOutputs)))
+        hashOutputs = sha256d(bfh(txOutputs)).hex()
         _logger.info(f"In sign_transaction(): hashOutputs= {hashOutputs}") #debugSatochip
         _logger.info(f"In sign_transaction(): outputs= {txOutputs}") #debugSatochip
         
@@ -328,15 +329,19 @@ class Satochip_KeyStore(Hardware_KeyStore):
              
             if tx.is_complete():
                 break
-        
-            _logger.info(f"In sign_transaction(): input= {str(i)} - input[type]: {txin.script_type}") #debugSatochip
+            
+            desc = txin.script_descriptor
+            assert desc
+            script_type = desc.to_legacy_electrum_script_type()
+
+            _logger.info(f"In sign_transaction(): input= {str(i)} - input[type]: {script_type}") #debugSatochip
             if txin.is_coinbase_input():
                 self.give_error("Coinbase not supported")     # should never happen
 
-            if txin.script_type in ['p2sh']:
+            if script_type in ['p2sh']:
                 p2shTransaction = True
 
-            if txin.script_type in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
+            if script_type in ['p2wpkh', 'p2wsh', 'p2wpkh-p2sh', 'p2wsh-p2sh']:
                 segwitTransaction = True
             
             my_pubkey, inputPath = self.find_my_pubkey_in_txinout(txin)          
@@ -370,7 +375,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 import json
                 coin_type= 1 if constants.net.TESTNET else 0
                 if segwitTransaction:
-                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs, 'ty':txin.script_type} 
+                    msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction, 'txo':txOutputs, 'ty':script_type} 
                 else:
                     msg= {'tx':pre_tx_hex, 'ct':coin_type, 'sw':segwitTransaction} 
                 msg=  json.dumps(msg)
