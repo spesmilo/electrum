@@ -159,7 +159,7 @@ class SettingsDialog(Factory.Popup):
         if self._language_dialog is None:
             l = self.config.get('language') or ''
             def cb(key):
-                self.config.set_key("language", key, True)
+                self.config.set_key("language", key, save=True)
                 item.lang = self.get_language_name()
                 self.app.language = key
             self._language_dialog = ChoiceDialog(_('Language'), languages, l, cb)

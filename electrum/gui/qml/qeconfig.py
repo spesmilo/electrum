@@ -55,7 +55,7 @@ class QEConfig(AuthMixin, QObject):
 
     @autoConnect.setter
     def autoConnect(self, auto_connect):
-        self.config.set_key('auto_connect', auto_connect, True)
+        self.config.set_key('auto_connect', auto_connect, save=True)
         self.autoConnectChanged.emit()
 
     # auto_connect is actually a tri-state, expose the undefined case
@@ -70,7 +70,7 @@ class QEConfig(AuthMixin, QObject):
 
     @manualServer.setter
     def manualServer(self, oneserver):
-        self.config.set_key('oneserver', oneserver, True)
+        self.config.set_key('oneserver', oneserver, save=True)
         self.manualServerChanged.emit()
 
     baseUnitChanged = pyqtSignal()
@@ -113,7 +113,7 @@ class QEConfig(AuthMixin, QObject):
 
     @spendUnconfirmed.setter
     def spendUnconfirmed(self, checked):
-        self.config.set_key('confirmed_only', not checked, True)
+        self.config.set_key('confirmed_only', not checked, save=True)
         self.spendUnconfirmedChanged.emit()
 
     requestExpiryChanged = pyqtSignal()
@@ -136,12 +136,12 @@ class QEConfig(AuthMixin, QObject):
         if pin_code == '':
             self.pinCodeRemoveAuth()
         else:
-            self.config.set_key('pin_code', pin_code, True)
+            self.config.set_key('pin_code', pin_code, save=True)
             self.pinCodeChanged.emit()
 
     @auth_protect(method='wallet')
     def pinCodeRemoveAuth(self):
-        self.config.set_key('pin_code', '', True)
+        self.config.set_key('pin_code', '', save=True)
         self.pinCodeChanged.emit()
 
     useGossipChanged = pyqtSignal()

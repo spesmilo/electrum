@@ -747,7 +747,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if out:
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.set_key('fee_per_kb', fee, True)
+                self.config.set_key('fee_per_kb', fee, save=True)
 
     def password_dialog(self):
         out = self.run_dialog('Password', [

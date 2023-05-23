@@ -1051,7 +1051,7 @@ def getOpenFileName(*, parent, title, filter="", config: 'SimpleConfig') -> Opti
     directory = config.get('io_dir', os.path.expanduser('~'))
     fileName, __ = QFileDialog.getOpenFileName(parent, title, directory, filter)
     if fileName and directory != os.path.dirname(fileName):
-        config.set_key('io_dir', os.path.dirname(fileName), True)
+        config.set_key('io_dir', os.path.dirname(fileName), save=True)
     return fileName
 
 
@@ -1082,7 +1082,7 @@ def getSaveFileName(
 
     selected_path = file_dialog.selectedFiles()[0]
     if selected_path and directory != os.path.dirname(selected_path):
-        config.set_key('io_dir', os.path.dirname(selected_path), True)
+        config.set_key('io_dir', os.path.dirname(selected_path), save=True)
     return selected_path
 
 

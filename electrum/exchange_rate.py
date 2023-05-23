@@ -599,7 +599,7 @@ class FxThread(ThreadJob, EventListener):
 
     def set_currency(self, ccy: str):
         self.ccy = ccy
-        self.config.set_key('currency', ccy, True)
+        self.config.set_key('currency', ccy, save=True)
         self.trigger_update()
         self.on_quotes()
 
@@ -611,7 +611,7 @@ class FxThread(ThreadJob, EventListener):
         class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
         self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:
-            self.config.set_key('use_exchange', name, True)
+            self.config.set_key('use_exchange', name, save=True)
         assert issubclass(class_, ExchangeBase), f"unexpected type {class_} for {name}"
         self.exchange = class_(self.on_quotes, self.on_history)  # type: ExchangeBase
         # A new exchange means new fx quotes, initially empty.  Force
