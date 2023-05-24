@@ -4,7 +4,7 @@ from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton, CancelButton, WindowModalDialog, WWLabel)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog, QRDialogCancellable
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QWidget, QGridLayout, QLineEdit, QCheckBox)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QComboBox, QLineEdit, QCheckBox)
 from functools import partial
 from os import urandom
 
@@ -14,7 +14,7 @@ from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 #pysatochip 
 from pysatochip.CardConnector import CardConnector, UnexpectedSW12Error, CardError, CardNotPresentError
-from pysatochip.Satochip2FA import Satochip2FA                                       
+from pysatochip.Satochip2FA import Satochip2FA, SERVER_LIST                                    
 from pysatochip.version import SATOCHIP_PROTOCOL_MAJOR_VERSION, SATOCHIP_PROTOCOL_MINOR_VERSION
 
 _logger = get_logger(__name__)
@@ -150,6 +150,11 @@ class SatochipSettingsDialog(WindowModalDialog):
             thread.add(connect_and_doit, on_success=self.show_values)
         reset_2FA_btn.clicked.connect(_reset_2FA)
         
+        change_2FA_server_btn = QPushButton('Select 2FA server')
+        def _change_2FA_server():
+            thread.add(connect_and_doit, on_success=self.change_2FA_server)
+        change_2FA_server_btn.clicked.connect(_change_2FA_server)
+
         verify_card_btn = QPushButton('Verify card')
         def _verify_card():
             thread.add(connect_and_doit, on_success=self.verify_card)
@@ -169,6 +174,8 @@ class SatochipSettingsDialog(WindowModalDialog):
         grid.addWidget(set_2FA_btn, y, 0, 1, 2, Qt.AlignHCenter)
         y += 2
         grid.addWidget(reset_2FA_btn, y, 0, 1, 2, Qt.AlignHCenter)
+        y += 2
+        grid.addWidget(change_2FA_server_btn, y, 0, 1, 2, Qt.AlignHCenter)
         y += 2
         grid.addWidget(verify_card_btn, y, 0, 1, 2, Qt.AlignHCenter)
         y += 2
@@ -404,7 +411,17 @@ class SatochipSettingsDialog(WindowModalDialog):
         else:
             msg= _(f"2FA is already disabled!")
             self.window.show_error(msg)    
-            
+    
+    def change_2FA_server(self, client):
+        _logger.info("in change_2FA_server")
+        config = SimpleConfig()
+        help_txt="Select 2FA server in the list:"
+        option_name= "satochip_2FA_server"
+        options= SERVER_LIST #["server1", "server2", "server3"]
+        title= "Select 2FA server"
+        d = SelectOptionsDialog(option_name = option_name, options = options, parent=None, title=title, help_text=help_txt, config=config)
+        result=d.exec_() # result should be 0 or 1
+
     def verify_card(self, client):    
         is_authentic, txt_ca, txt_subca, txt_device, txt_error = self.card_verify_authenticity(client)            
          
@@ -499,5 +516,53 @@ class SatochipSettingsDialog(WindowModalDialog):
                 self.window.show_error(_("Card label should not be longer than 64 chars!"))
     
     
-    
+class SelectOptionsDialog(WindowModalDialog):
+
+    def __init__(
+            self,
+            *,
+            option_name,
+            options=None,
+            parent=None,
+            title="",
+            help_text=None,
+            config: SimpleConfig,
+    ):
+        WindowModalDialog.__init__(self, parent, title)
+        self.config = config
+
+        vbox = QVBoxLayout()
+        if help_text:
+            text_label = WWLabel()
+            text_label.setText(help_text)
+            vbox.addWidget(text_label)
+
+        def set_option():
+            _logger.info(f"New 2FA server: {options_combo.currentText()}")
+            # save in config
+            config.set_key(option_name, options_combo.currentText(), save=True)
+            _logger.info("config changed!")
+
+        default= config.get(option_name, default= SERVER_LIST[0])
+        options_combo = QComboBox()
+        options_combo.addItems(options)
+        options_combo.setCurrentText(default)
+        options_combo.currentIndexChanged.connect(set_option)
+        vbox.addWidget(options_combo)
+
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+
+        b = QPushButton(_("Ok"))
+        hbox.addWidget(b)
+        b.clicked.connect(self.accept)
+        b.setDefault(True)
+        
+        vbox.addLayout(hbox)
+        self.setLayout(vbox)
+
+        # note: the word-wrap on the text_label is causing layout sizing issues.
+        #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
+        #       workaround:
+        self.setMinimumSize(self.sizeHint())
     

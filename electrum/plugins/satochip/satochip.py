@@ -17,6 +17,7 @@ from electrum.crypto import hash_160, sha256d
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
 from electrum.bip32 import BIP32Node, convert_bip32_strpath_to_intpath, convert_bip32_intpath_to_strpath
 from electrum.logging import get_logger
+from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 
 from ..hw_wallet import HW_PluginBase, HardwareClientBase
@@ -421,20 +422,20 @@ class Satochip_KeyStore(Hardware_KeyStore):
         _logger.info("id_2FA: "+id_2FA)
 
         reply_encrypt= None
-        hmac= 20*"00" #bytes.fromhex(20*"00") # default response (reject)
+        hmac= 20*"00" # default response (reject)
         status_msg=""
-        for server in SERVER_LIST:
-            status_msg += f"2FA request sent to '{server}' \nApprove or reject request on your second device."
+
+        config = SimpleConfig()
+        server_2FA = config.get("satochip_2FA_server", default= SERVER_LIST[0])
+        status_msg += f"2FA request sent to '{server_2FA}' \nApprove or reject request on your second device."
+        self.handler.show_message(status_msg)
+        try:
+            Satochip2FA.do_challenge_response(d, server_name= server_2FA)
+            # decrypt and parse reply to extract challenge response
+            reply_encrypt= d['reply_encrypt']
+        except Exception as e:
+            status_msg += f"\nFailed to contact cosigner! \n=> Select another 2FA server in Satochip settings\n\n" 
             self.handler.show_message(status_msg)
-            try:
-                Satochip2FA.do_challenge_response(d, server_name= server)
-                # decrypt and parse reply to extract challenge response
-                reply_encrypt= d['reply_encrypt']
-                break
-            except Exception as e:
-                status_msg += f"\nFailed to contact cosigner! \n=>trying another server\n\n" 
-                self.handler.show_message(status_msg)
-                #self.handler.show_error(f"No response received from '{server}', trying another server")
         if reply_encrypt is not None:    
             reply_decrypt= client.cc.card_crypt_transaction_2FA(reply_encrypt, False)
             _logger.info("challenge:response= "+ reply_decrypt)
