@@ -10,6 +10,10 @@ from electrum.simple_config import (SimpleConfig, read_user_config)
 from . import ElectrumTestCase
 
 
+MAX_MSG_SIZE_DEFAULT = SimpleConfig.NETWORK_MAX_INCOMING_MSG_SIZE.get_default_value()
+assert isinstance(MAX_MSG_SIZE_DEFAULT, int), MAX_MSG_SIZE_DEFAULT
+
+
 class Test_SimpleConfig(ElectrumTestCase):
 
     def setUp(self):
@@ -108,6 +112,75 @@ class Test_SimpleConfig(ElectrumTestCase):
         result = ast.literal_eval(contents)
         result.pop('config_version', None)
         self.assertEqual({"something": "a"}, result)
+
+    def test_configvars_set_and_get(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual("server", config.cv.NETWORK_SERVER.key())
+
+        def _set_via_assignment():
+            config.NETWORK_SERVER = "example.com:443:s"
+
+        for f in (
+            lambda: config.set_key("server", "example.com:443:s"),
+            _set_via_assignment,
+            lambda: config.cv.NETWORK_SERVER.set("example.com:443:s"),
+        ):
+            self.assertTrue(config.get("server") is None)
+            self.assertTrue(config.NETWORK_SERVER is None)
+            self.assertTrue(config.cv.NETWORK_SERVER.get() is None)
+            f()
+            self.assertEqual("example.com:443:s", config.get("server"))
+            self.assertEqual("example.com:443:s", config.NETWORK_SERVER)
+            self.assertEqual("example.com:443:s", config.cv.NETWORK_SERVER.get())
+            # revert:
+            config.NETWORK_SERVER = None
+
+    def test_configvars_get_default_value(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.get_default_value())
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = 5_555_555
+        self.assertEqual(5_555_555, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.get_default_value())
+
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = None
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+    def test_configvars_is_set(self):
+        config = SimpleConfig(self.options)
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+        self.assertFalse(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_set())
+
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = 5_555_555
+        self.assertTrue(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_set())
+
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = None
+        self.assertFalse(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_set())
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = MAX_MSG_SIZE_DEFAULT
+        self.assertTrue(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_set())
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+    def test_configvars_is_modifiable(self):
+        config = SimpleConfig({**self.options, "server": "example.com:443:s"})
+
+        self.assertFalse(config.is_modifiable("server"))
+        self.assertFalse(config.cv.NETWORK_SERVER.is_modifiable())
+
+        config.NETWORK_SERVER = "other-example.com:80:t"
+        self.assertEqual("example.com:443:s", config.NETWORK_SERVER)
+
+        self.assertEqual(MAX_MSG_SIZE_DEFAULT, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+        self.assertTrue(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_modifiable())
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = 5_555_555
+        self.assertEqual(5_555_555, config.NETWORK_MAX_INCOMING_MSG_SIZE)
+
+        config.make_key_not_modifiable(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE)
+        self.assertFalse(config.cv.NETWORK_MAX_INCOMING_MSG_SIZE.is_modifiable())
+        config.NETWORK_MAX_INCOMING_MSG_SIZE = 2_222_222
+        self.assertEqual(5_555_555, config.NETWORK_MAX_INCOMING_MSG_SIZE)
 
     def test_depth_target_to_fee(self):
         config = SimpleConfig(self.options)

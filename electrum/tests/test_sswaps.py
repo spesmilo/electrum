@@ -12,8 +12,8 @@ class TestSwapTxs(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.config.set_key('dynamic_fees', False)
-        self.config.set_key('fee_per_kb', 1000)
+        self.config.FEE_EST_DYNAMIC = False
+        self.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
 
     def test_claim_tx_for_successful_reverse_swap(self):
         swap_data = SwapData(

@@ -68,8 +68,6 @@ ca_path = certifi.where()
 
 BUCKET_NAME_OF_ONION_SERVERS = 'onion'
 
-MAX_INCOMING_MSG_SIZE = 1_000_000  # in bytes
-
 _KNOWN_NETWORK_PROTOCOLS = {'t', 's'}
 PREFERRED_NETWORK_PROTOCOL = 's'
 assert PREFERRED_NETWORK_PROTOCOL in _KNOWN_NETWORK_PROTOCOLS
@@ -216,8 +214,8 @@ class NotificationSession(RPCSession):
 
     def default_framer(self):
         # overridden so that max_size can be customized
-        max_size = int(self.interface.network.config.get('network_max_incoming_msg_size',
-                                                         MAX_INCOMING_MSG_SIZE))
+        max_size = self.interface.network.config.NETWORK_MAX_INCOMING_MSG_SIZE
+        assert max_size > 500_000, f"{max_size=} (< 500_000) is too small"
         return NewlineFramer(max_size=max_size)
 
     async def close(self, *, force_after: int = None):
@@ -604,7 +602,7 @@ class Interface(Logger):
 
     def _get_expected_fingerprint(self) -> Optional[str]:
         if self.is_main_server():
-            return self.network.config.get("serverfingerprint")
+            return self.network.config.NETWORK_SERVERFINGERPRINT
 
     def _verify_certificate_fingerprint(self, certificate):
         expected_fingerprint = self._get_expected_fingerprint()

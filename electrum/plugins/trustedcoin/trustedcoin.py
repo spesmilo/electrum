@@ -296,11 +296,11 @@ class Wallet_2fa(Multisig_Wallet):
         return min(self.price_per_tx.keys())
 
     def num_prepay(self):
-        default = self.min_prepay()
-        n = self.config.get('trustedcoin_prepay', default)
-        if n not in self.price_per_tx:
-            n = default
-        return n
+        default_fallback = self.min_prepay()
+        num = self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY
+        if num not in self.price_per_tx:
+            num = default_fallback
+        return num
 
     def extra_fee(self):
         if self.can_sign_without_server():
@@ -559,7 +559,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def choose_seed_type(self, wizard):
-        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
+        seed_type = '2fa' if self.config.WIZARD_DONT_CREATE_SEGWIT else '2fa_segwit'
         self.create_seed(wizard, seed_type)
 
     def create_seed(self, wizard, seed_type):

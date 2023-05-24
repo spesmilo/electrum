@@ -480,7 +480,7 @@ class ReceiveScreen(CScreen):
         self.expiration_text = pr_expiration_values[c]
 
     def expiry(self):
-        return self.app.electrum_config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        return self.app.electrum_config.WALLET_PAYREQ_EXPIRY_SECONDS
 
     def clear(self):
         self.address = ''
@@ -587,7 +587,7 @@ class ReceiveScreen(CScreen):
     def expiration_dialog(self, obj):
         from .dialogs.choice_dialog import ChoiceDialog
         def callback(c):
-            self.app.electrum_config.set_key('request_expiry', c)
+            self.app.electrum_config.WALLET_PAYREQ_EXPIRY_SECONDS = c
             self.expiration_text = pr_expiration_values[c]
         d = ChoiceDialog(_('Expiration date'), pr_expiration_values, self.expiry(), callback)
         d.open()

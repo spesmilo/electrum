@@ -483,7 +483,7 @@ def filename_field(parent, config, defaultname, select_msg):
 
     hbox = QHBoxLayout()
 
-    directory = config.get('io_dir', os.path.expanduser('~'))
+    directory = config.IO_DIRECTORY
     path = os.path.join(directory, defaultname)
     filename_e = QLineEdit()
     filename_e.setText(path)
@@ -1048,10 +1048,10 @@ def export_meta_gui(electrum_window: 'ElectrumWindow', title, exporter):
 
 def getOpenFileName(*, parent, title, filter="", config: 'SimpleConfig') -> Optional[str]:
     """Custom wrapper for getOpenFileName that remembers the path selected by the user."""
-    directory = config.get('io_dir', os.path.expanduser('~'))
+    directory = config.IO_DIRECTORY
     fileName, __ = QFileDialog.getOpenFileName(parent, title, directory, filter)
     if fileName and directory != os.path.dirname(fileName):
-        config.set_key('io_dir', os.path.dirname(fileName), save=True)
+        config.IO_DIRECTORY = os.path.dirname(fileName)
     return fileName
 
 
@@ -1066,7 +1066,7 @@ def getSaveFileName(
         config: 'SimpleConfig',
 ) -> Optional[str]:
     """Custom wrapper for getSaveFileName that remembers the path selected by the user."""
-    directory = config.get('io_dir', os.path.expanduser('~'))
+    directory = config.IO_DIRECTORY
     path = os.path.join(directory, filename)
 
     file_dialog = QFileDialog(parent, title, path, filter)
@@ -1082,7 +1082,7 @@ def getSaveFileName(
 
     selected_path = file_dialog.selectedFiles()[0]
     if selected_path and directory != os.path.dirname(selected_path):
-        config.set_key('io_dir', os.path.dirname(selected_path), save=True)
+        config.IO_DIRECTORY = os.path.dirname(selected_path)
     return selected_path
 
 

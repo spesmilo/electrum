@@ -59,19 +59,19 @@ class Plugin(PayServerPlugin):
             partial(self.settings_dialog, window))
 
     def settings_dialog(self, window: WindowModalDialog):
-        if self.config.get('offline'):
+        if self.config.NETWORK_OFFLINE:
             window.show_error(_("You are offline."))
             return
         d = WindowModalDialog(window, _("PayServer Settings"))
         form = QtWidgets.QFormLayout(None)
-        addr = self.config.get('payserver_address', 'localhost:8080')
+        addr = self.config.PAYSERVER_ADDRESS
         assert self.server
         url = self.server.base_url + self.server.root + '/create_invoice.html'
         self.help_button = QtWidgets.QPushButton('View sample invoice creation form')
         self.help_button.clicked.connect(lambda: webopen(url))
         address_e = QtWidgets.QLineEdit(addr)
-        keyfile_e = QtWidgets.QLineEdit(self.config.get('ssl_keyfile', ''))
-        certfile_e = QtWidgets.QLineEdit(self.config.get('ssl_certfile', ''))
+        keyfile_e = QtWidgets.QLineEdit(self.config.SSL_KEYFILE_PATH)
+        certfile_e = QtWidgets.QLineEdit(self.config.SSL_CERTFILE_PATH)
         form.addRow(QtWidgets.QLabel("Network address:"), address_e)
         form.addRow(QtWidgets.QLabel("SSL key file:"), keyfile_e)
         form.addRow(QtWidgets.QLabel("SSL cert file:"), certfile_e)
@@ -82,9 +82,9 @@ class Plugin(PayServerPlugin):
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(OkButton(d)))
         if d.exec_():
-            self.config.set_key('payserver_address', str(address_e.text()))
-            self.config.set_key('ssl_keyfile', str(keyfile_e.text()))
-            self.config.set_key('ssl_certfile', str(certfile_e.text()))
+            self.config.PAYSERVER_ADDRESS = str(address_e.text())
+            self.config.SSL_KEYFILE_PATH = str(keyfile_e.text())
+            self.config.SSL_CERTFILE_PATH = str(certfile_e.text())
             # fixme: restart the server
             window.show_message('Please restart Electrum to enable those changes')
 
