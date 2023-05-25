@@ -6,6 +6,10 @@ import importlib
 from collections import defaultdict
 
 
+if len(sys.argv) < 2:
+    print(f"ERROR. usage: {os.path.basename(__file__)} <WWW_DIR>", file=sys.stderr)
+    sys.exit(1)
+
 # cd to project root
 os.chdir(os.path.dirname(os.path.dirname(__file__)))
 
@@ -16,24 +20,24 @@ version_spec.loader.exec_module(version_module)
 
 ELECTRUM_VERSION = version_module.ELECTRUM_VERSION
 APK_VERSION = version_module.APK_VERSION
-print("version", ELECTRUM_VERSION)
+print(f"version: {ELECTRUM_VERSION}", file=sys.stderr)
 
 dirname = sys.argv[1]
 
-print("directory", dirname)
+print(f"directory: {dirname}", file=sys.stderr)
 
 download_page = os.path.join(dirname, "panel-download.html")
 download_template = download_page + ".template"
 
 with open(download_template) as f:
-    string = f.read()
+    download_page_str = f.read()
 
 version = version_win = version_mac = version_android = ELECTRUM_VERSION
-string = string.replace("##VERSION##", version)
-string = string.replace("##VERSION_WIN##", version_win)
-string = string.replace("##VERSION_MAC##", version_mac)
-string = string.replace("##VERSION_ANDROID##", version_android)
-string = string.replace("##VERSION_APK##", APK_VERSION)
+download_page_str = download_page_str.replace("##VERSION##", version)
+download_page_str = download_page_str.replace("##VERSION_WIN##", version_win)
+download_page_str = download_page_str.replace("##VERSION_MAC##", version_mac)
+download_page_str = download_page_str.replace("##VERSION_ANDROID##", version_android)
+download_page_str = download_page_str.replace("##VERSION_APK##", APK_VERSION)
 
 # note: all dist files need to be listed here that we expect sigs for,
 #       even if they are not linked to from the website
@@ -67,18 +71,26 @@ for k, v in detected_sigs.items():
         if k not in signers:
             signers.append(k)
 
-print("signers:", signers)
+print(f"signers: {signers}", file=sys.stderr)
 
 gpg_name = lambda x: 'jackielove4u' if x=='Hashengineering' else x
 signers_list = ', '.join("<a href=\"https://raw.githubusercontent.com/Groestlcoin/electrum-grs/master/pubkeys/%s.asc\">%s</a>"%(gpg_name(x), x) for x in signers)
-string = string.replace("##signers_list##", signers_list)
+download_page_str = download_page_str.replace("##signers_list##", signers_list)
 
 for k, filename in files.items():
     path = "dist/%s"%filename
     assert filename in list_dir
     link = "https://download.groestlcoin.org/%s/%s"%(version, filename)
-    string = string.replace("##link_%s##"%k, link)
-    string = string.replace("##sigs_%s##"%k, link+'.asc')
+    download_page_str = download_page_str.replace("##link_%s##" % k, link)
+    download_page_str = download_page_str.replace("##sigs_%s##" % k, link + '.asc')
 
-with open(download_page,'w') as f:
-    f.write(string)
+
+# download page has been constructed from template; now insert it into index.html
+index_html_path = os.path.join(dirname, "index.html")
+with open(f"{index_html_path}.template") as f:
+    index_html_str = f.read()
+
+index_html_str = index_html_str.replace("##DOWNLOAD_PAGE##", download_page_str)
+
+with open(index_html_path, 'w') as f:
+    f.write(index_html_str)
