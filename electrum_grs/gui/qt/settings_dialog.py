@@ -83,7 +83,7 @@ class SettingsDialog(QDialog, QtEventListener):
         def on_lang(x):
             lang_request = list(languages.keys())[lang_combo.currentIndex()]
             if lang_request != self.config.get('language'):
-                self.config.set_key("language", lang_request, True)
+                self.config.set_key("language", lang_request, save=True)
                 self.need_restart = True
         lang_combo.currentIndexChanged.connect(on_lang)
 
@@ -99,7 +99,7 @@ class SettingsDialog(QDialog, QtEventListener):
             value = nz.value()
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
-                self.config.set_key('num_zeros', value, True)
+                self.config.set_key('num_zeros', value, save=True)
                 self.app.refresh_tabs_signal.emit()
                 self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
@@ -211,7 +211,7 @@ class SettingsDialog(QDialog, QtEventListener):
             qr_combo.addItem(cam_desc, cam_path)
         index = qr_combo.findData(self.config.get("video_device"))
         qr_combo.setCurrentIndex(index)
-        on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), True)
+        on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), save=True)
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
@@ -221,7 +221,7 @@ class SettingsDialog(QDialog, QtEventListener):
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(_('Color theme') + ':')
         def on_colortheme(x):
-            self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
+            self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), save=True)
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
@@ -279,8 +279,8 @@ class SettingsDialog(QDialog, QtEventListener):
                 on_be_edit()
             else:
                 be_result = block_explorers[block_ex_combo.currentIndex()]
-                self.config.set_key('block_explorer_custom', None, False)
-                self.config.set_key('block_explorer', be_result, True)
+                self.config.set_key('block_explorer_custom', None, save=False)
+                self.config.set_key('block_explorer', be_result, save=True)
             showhide_block_ex_custom_e()
         block_ex_combo.currentIndexChanged.connect(on_be_combo)
         def on_be_edit():
@@ -429,7 +429,7 @@ class SettingsDialog(QDialog, QtEventListener):
     def on_alias_edit(self):
         self.alias_e.setStyleSheet("")
         alias = str(self.alias_e.text())
-        self.config.set_key('alias', alias, True)
+        self.config.set_key('alias', alias, save=True)
         if alias:
             self.wallet.contacts.fetch_openalias(self.config)
 

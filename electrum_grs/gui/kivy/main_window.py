@@ -196,7 +196,7 @@ class ElectrumWindow(App, Logger, EventListener):
 
     use_gossip = BooleanProperty(False)
     def on_use_gossip(self, instance, x):
-        self.electrum_config.set_key('use_gossip', self.use_gossip, True)
+        self.electrum_config.set_key('use_gossip', self.use_gossip, save=True)
         if self.network:
             if self.use_gossip:
                 self.network.start_gossip()
@@ -206,7 +206,7 @@ class ElectrumWindow(App, Logger, EventListener):
 
     enable_debug_logs = BooleanProperty(False)
     def on_enable_debug_logs(self, instance, x):
-        self.electrum_config.set_key('gui_enable_debug_logs', self.enable_debug_logs, True)
+        self.electrum_config.set_key('gui_enable_debug_logs', self.enable_debug_logs, save=True)
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
@@ -217,11 +217,11 @@ class ElectrumWindow(App, Logger, EventListener):
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
-        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, True)
+        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, save=True)
 
     use_recoverable_channels = BooleanProperty(True)
     def on_use_recoverable_channels(self, instance, x):
-        self.electrum_config.set_key('use_recoverable_channels', self.use_recoverable_channels, True)
+        self.electrum_config.set_key('use_recoverable_channels', self.use_recoverable_channels, save=True)
 
     def switch_to_send_screen(func):
         # try until send_screen is available

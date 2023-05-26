@@ -127,11 +127,11 @@ class TxEditor(WindowModalDialog):
     def set_fee_config(self, dyn, pos, fee_rate):
         if dyn:
             if self.config.use_mempool_fees():
-                self.config.set_key('depth_level', pos, False)
+                self.config.set_key('depth_level', pos, save=False)
             else:
-                self.config.set_key('fee_level', pos, False)
+                self.config.set_key('fee_level', pos, save=False)
         else:
-            self.config.set_key('fee_per_kb', fee_rate, False)
+            self.config.set_key('fee_per_kb', fee_rate, save=False)
 
     def update_tx(self, *, fallback_to_zero_fee: bool = False):
         # expected to set self.tx, self.message and self.error

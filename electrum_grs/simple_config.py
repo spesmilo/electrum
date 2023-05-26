@@ -158,7 +158,7 @@ class SimpleConfig(Logger):
                 updated = True
         return updated
 
-    def set_key(self, key, value, save=True):
+    def set_key(self, key, value, *, save=True):
         if not self.is_modifiable(key):
             self.logger.warning(f"not changing config key '{key}' set on the command line")
             return
@@ -168,9 +168,9 @@ class SimpleConfig(Logger):
         except Exception:
             self.logger.info(f"json error: cannot save {repr(key)} ({repr(value)})")
             return
-        self._set_key_in_user_config(key, value, save)
+        self._set_key_in_user_config(key, value, save=save)
 
-    def _set_key_in_user_config(self, key, value, save=True):
+    def _set_key_in_user_config(self, key, value, *, save=True):
         with self.lock:
             if value is not None:
                 self.user_config[key] = value
@@ -710,7 +710,7 @@ class SimpleConfig(Logger):
     def set_base_unit(self, unit):
         assert unit in base_units.keys()
         self.decimal_point = base_unit_name_to_decimal_point(unit)
-        self.set_key('decimal_point', self.decimal_point, True)
+        self.set_key('decimal_point', self.decimal_point, save=True)
 
     def get_decimal_point(self):
         return self.decimal_point

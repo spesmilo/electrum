@@ -219,7 +219,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not self.tray:
             return
         self.dark_icon = not self.dark_icon
-        self.config.set_key("dark_icon", self.dark_icon, True)
+        self.config.set_key("dark_icon", self.dark_icon, save=True)
         self.tray.setIcon(self.tray_icon())
 
     def tray_activated(self, reason):

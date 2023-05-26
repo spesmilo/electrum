@@ -110,15 +110,15 @@ class FeeSlider(QObject):
     def save_config(self):
         value = int(self._sliderPos)
         dynfees, mempool = self.get_method()
-        self._config.set_key('dynamic_fees', dynfees, False)
-        self._config.set_key('mempool_fees', mempool, False)
+        self._config.set_key('dynamic_fees', dynfees, save=False)
+        self._config.set_key('mempool_fees', mempool, save=False)
         if dynfees:
             if mempool:
-                self._config.set_key('depth_level', value, True)
+                self._config.set_key('depth_level', value, save=True)
             else:
-                self._config.set_key('fee_level', value, True)
+                self._config.set_key('fee_level', value, save=True)
         else:
-            self._config.set_key('fee_per_kb', self._config.static_fee(value), True)
+            self._config.set_key('fee_per_kb', self._config.static_fee(value), save=True)
         self.update_target()
         self.update()
 

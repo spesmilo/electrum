@@ -208,7 +208,7 @@ class Plugin(TrustedCoinPlugin):
             grid.addWidget(QLabel(window.format_amount(v/k) + ' ' + window.base_unit() + "/tx"), i, 1)
             b = QRadioButton()
             b.setChecked(k == n_prepay)
-            b.clicked.connect(lambda b, k=k: self.config.set_key('trustedcoin_prepay', k, True))
+            b.clicked.connect(lambda b, k=k: self.config.set_key('trustedcoin_prepay', k, save=True))
             grid.addWidget(b, i, 2)
             i += 1
 

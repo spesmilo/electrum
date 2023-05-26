@@ -628,10 +628,10 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 int(proxy['port'])
         except Exception:
             return
-        self.config.set_key('auto_connect', net_params.auto_connect, False)
-        self.config.set_key('oneserver', net_params.oneserver, False)
-        self.config.set_key('proxy', proxy_str, False)
-        self.config.set_key('server', str(server), True)
+        self.config.set_key('auto_connect', net_params.auto_connect, save=False)
+        self.config.set_key('oneserver', net_params.oneserver, save=False)
+        self.config.set_key('proxy', proxy_str, save=False)
+        self.config.set_key('server', str(server), save=True)
         # abort if changes were not allowed by config
         if self.config.get('server') != str(server) \
                 or self.config.get('proxy') != proxy_str \
