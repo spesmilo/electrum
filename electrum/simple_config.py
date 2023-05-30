@@ -816,7 +816,7 @@ class SimpleConfig(Logger):
         return self.decimal_point
 
     @cached_property
-    def cv(self):
+    def cv(config):
         """Allows getting a reference to a config variable without dereferencing it.
 
         Compare:
@@ -826,11 +826,11 @@ class SimpleConfig(Logger):
         <ConfigVarWithConfig key='server'>
         """
         class CVLookupHelper:
-            def __getattribute__(self2, name: str) -> ConfigVarWithConfig:
-                config_var = self.__class__.__getattribute__(type(self), name)
+            def __getattribute__(self, name: str) -> ConfigVarWithConfig:
+                config_var = config.__class__.__getattribute__(type(config), name)
                 if not isinstance(config_var, ConfigVar):
                     raise AttributeError()
-                return ConfigVarWithConfig(config=self, config_var=config_var)
+                return ConfigVarWithConfig(config=config, config_var=config_var)
             def __setattr__(self, name, value):
                 raise Exception(
                     f"Cannot assign value to config.cv.{name} directly. "
