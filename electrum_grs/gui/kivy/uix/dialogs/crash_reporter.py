@@ -17,7 +17,7 @@ from electrum_grs.base_crash_reporter import BaseCrashReporter, EarlyExceptionsQ
 from electrum_grs.logging import Logger
 
 if TYPE_CHECKING:
-    from electrum.gui.kivy.main_window import ElectrumWindow
+    from electrum_grs.gui.kivy.main_window import ElectrumWindow
 
 
 Builder.load_string('''
