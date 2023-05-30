@@ -786,11 +786,15 @@ class DeviceMgr(ThreadJob):
             except AttributeError:
                 ret["libusb.path"] = None
         # add hidapi
-        from importlib.metadata import version
         try:
-            ret["hidapi.version"] = version("hidapi")  # FIXME does not work in macOS binary
-        except ImportError:
-            ret["hidapi.version"] = None
+            import hid
+            ret["hidapi.version"] = hid.__version__  # available starting with 0.12.0.post2
+        except Exception as e:
+            from importlib.metadata import version
+            try:
+                ret["hidapi.version"] = version("hidapi")
+            except ImportError:
+                ret["hidapi.version"] = None
         return ret
 
     def trigger_pairings(
