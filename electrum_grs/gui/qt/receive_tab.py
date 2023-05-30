@@ -147,10 +147,10 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.toolbar.insertWidget(2, self.toggle_view_button)
         # menu
         menu.addConfig(
-            _('Add on-chain fallback to lightning requests'), 'bolt11_fallback', True,
+            _('Add on-chain fallback to lightning requests'), self.config.cv.WALLET_BOLT11_FALLBACK,
             callback=self.on_toggle_bolt11_fallback)
         menu.addConfig(
-            _('Add lightning requests to groestlcoin URIs'), 'bip21_lightning', False,
+            _('Add lightning requests to groestlcoin URIs'), self.config.cv.WALLET_BIP21_LIGHTNING,
             tooltip=_('This may result in large QR codes'),
             callback=self.update_current_request)
         self.qr_menu_action = menu.addToggle(_("Show detached QR code window"), self.window.toggle_qr_window)
@@ -181,7 +181,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.update_expiry_text()
 
     def update_expiry_text(self):
-        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         text = pr_expiration_values[expiry]
         self.expiry_button.setText(text)
 
@@ -196,11 +196,11 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
             '\n\n',
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
-        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         v = self.window.query_choice(msg, pr_expiration_values, title=_('Expiry'), default_choice=expiry)
         if v is None:
             return
-        self.config.set_key('request_expiry', v)
+        self.config.WALLET_PAYREQ_EXPIRY_SECONDS = v
         self.update_expiry_text()
 
     def on_toggle_bolt11_fallback(self):
@@ -210,7 +210,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.update_current_request()
 
     def update_view_button(self):
-        i = self.config.get('receive_tabs_index', 0)
+        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
         if i == 0:
             icon, text = read_QIcon("link.png"), _('Groestlcoin URI')
         elif i == 1:
@@ -221,9 +221,9 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.toggle_view_button.setIcon(icon)
 
     def toggle_view(self):
-        i = self.config.get('receive_tabs_index', 0)
+        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
         i = (i + 1) % (3 if self.wallet.has_lightning() else 2)
-        self.config.set_key('receive_tabs_index', i)
+        self.config.GUI_QT_RECEIVE_TABS_INDEX = i
         self.update_current_request()
         self.update_view_button()
 
@@ -239,12 +239,12 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.window.do_copy(data, title=title)
 
     def toggle_receive_qr(self):
-        b = not self.config.get('receive_qr_visible', False)
-        self.config.set_key('receive_qr_visible', b)
+        b = not self.config.GUI_QT_RECEIVE_TAB_QR_VISIBLE
+        self.config.GUI_QT_RECEIVE_TAB_QR_VISIBLE = b
         self.update_receive_widgets()
 
     def update_receive_widgets(self):
-        b = self.config.get('receive_qr_visible', False)
+        b = self.config.GUI_QT_RECEIVE_TAB_QR_VISIBLE
         self.receive_widget.update_visibility(b)
 
     def update_current_request(self):
@@ -286,7 +286,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
         self.update_receive_qr_window()
 
     def get_tab_data(self):
-        i = self.config.get('receive_tabs_index', 0)
+        i = self.config.GUI_QT_RECEIVE_TABS_INDEX
         if i == 0:
             out = self.URI, self.URI, self.URI_help, _('Bitcoin URI')
         elif i == 1:
@@ -305,7 +305,7 @@ class ReceiveTab(QWidget, MessageBoxMixin, Logger):
     def create_invoice(self):
         amount_sat = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
-        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
 
         if amount_sat and amount_sat < self.wallet.dust_threshold():
             address = None

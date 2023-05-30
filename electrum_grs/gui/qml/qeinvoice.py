@@ -387,7 +387,7 @@ class QEInvoice(QObject, QtEventListener):
 
     def get_max_spendable_onchain(self):
         spendable = self._wallet.confirmedBalance.satsInt
-        if not self._wallet.wallet.config.get('confirmed_only', False):
+        if not self._wallet.wallet.config.WALLET_SPEND_CONFIRMED_ONLY:
             spendable += self._wallet.unconfirmedBalance.satsInt
         return spendable
 

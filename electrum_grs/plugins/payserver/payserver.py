@@ -60,7 +60,7 @@ class PayServerPlugin(BasePlugin):
         # we use the first wallet loaded
         if self.server is not None:
             return
-        if self.config.get('offline'):
+        if self.config.NETWORK_OFFLINE:
             return
         self.server = PayServer(self.config, wallet)
         asyncio.run_coroutine_threadsafe(daemon.taskgroup.spawn(self.server.run()), daemon.asyncio_loop)
@@ -79,7 +79,7 @@ class PayServer(Logger, EventListener):
         assert self.has_www_dir(), self.WWW_DIR
         self.config = config
         self.wallet = wallet
-        url = self.config.get('payserver_address', 'localhost:8080')
+        url = self.config.PAYSERVER_ADDRESS
         self.addr = NetAddress.from_string(url)
         self.pending = defaultdict(asyncio.Event)
         self.register_callbacks()
@@ -91,15 +91,15 @@ class PayServer(Logger, EventListener):
 
     @property
     def base_url(self):
-        payserver = self.config.get('payserver_address', 'localhost:8080')
+        payserver = self.config.PAYSERVER_ADDRESS
         payserver = NetAddress.from_string(payserver)
-        use_ssl = bool(self.config.get('ssl_keyfile'))
+        use_ssl = bool(self.config.SSL_KEYFILE_PATH)
         protocol = 'https' if use_ssl else 'http'
         return '%s://%s:%d'%(protocol, payserver.host, payserver.port)
 
     @property
     def root(self):
-        return self.config.get('payserver_root', '/r')
+        return self.config.PAYSERVER_ROOT
 
     @event_listener
     async def on_event_request_status(self, wallet, key, status):
@@ -118,7 +118,7 @@ class PayServer(Logger, EventListener):
         # to minimise attack surface. note: "add_routes" call order matters (inner path goes first)
         app.add_routes([web.static(f"{self.root}/vendor", os.path.join(self.WWW_DIR, 'vendor'), follow_symlinks=True)])
         app.add_routes([web.static(self.root, self.WWW_DIR)])
-        if self.config.get('payserver_allow_create_invoice'):
+        if self.config.PAYSERVER_ALLOW_CREATE_INVOICE:
             app.add_routes([web.post('/api/create_invoice', self.create_request)])
         runner = web.AppRunner(app)
         await runner.setup()

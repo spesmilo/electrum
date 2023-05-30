@@ -98,7 +98,7 @@ class Contacts(dict, Logger):
 
     def fetch_openalias(self, config):
         self.alias_info = None
-        alias = config.get('alias')
+        alias = config.OPENALIAS_ID
         if alias:
             alias = str(alias)
             def f():

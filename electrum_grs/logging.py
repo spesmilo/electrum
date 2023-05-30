@@ -318,12 +318,12 @@ def configure_logging(config: 'SimpleConfig', *, log_to_file: Optional[bool] = N
 
     verbosity = config.get('verbosity')
     verbosity_shortcuts = config.get('verbosity_shortcuts')
-    if not verbosity and config.get('gui_enable_debug_logs'):
+    if not verbosity and config.GUI_ENABLE_DEBUG_LOGS:
         verbosity = '*'
     _configure_stderr_logging(verbosity=verbosity, verbosity_shortcuts=verbosity_shortcuts)
 
     if log_to_file is None:
-        log_to_file = config.get('log_to_file', False)
+        log_to_file = config.WRITE_LOGS_TO_DISK
         log_to_file |= is_android_debug_apk()
     if log_to_file:
         log_directory = pathlib.Path(config.path) / "logs"

@@ -1040,7 +1040,7 @@ class TestWalletSending(ElectrumTestCase):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.config = SimpleConfig({'electrum_path': self.name})
-                self.config.set_key('coin_chooser_output_rounding', False)
+                self.config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = False
             def __enter__(self):
                 return self.config
 
@@ -1744,7 +1744,7 @@ class TestWalletSending(ElectrumTestCase):
     async def _rbf_batching(self, *, simulate_moving_txs, config):
         wallet = self.create_standard_wallet_from_seed('frost repair depend effort salon ring foam oak cancel receive save usage',
                                                        config=config)
-        wallet.config.set_key('batch_rbf', True)
+        wallet.config.WALLET_BATCH_RBF = True
 
         # bootstrap wallet (incoming funding_tx1)
         funding_tx1 = Transaction('01000000000102acd6459dec7c3c51048eb112630da756f5d4cb4752b8d39aa325407ae0885cba020000001716001455c7f5e0631d8e6f5f05dddb9f676cec48845532fdffffffd146691ef6a207b682b13da5f2388b1f0d2a2022c8cfb8dc27b65434ec9ec8f701000000171600147b3be8a7ceaf15f57d7df2a3d216bc3c259e3225fdffffff02a9875b000000000017a914ea5a99f83e71d1c1dfc5d0370e9755567fe4a141878096980000000000160014d4ca56fcbad98fb4dcafdc573a75d6a6fffb09b702483045022100dde1ba0c9a2862a65791b8d91295a6603207fb79635935a67890506c214dd96d022046c6616642ef5971103c1db07ac014e63fa3b0e15c5729eacdd3e77fcb7d2086012103a72410f185401bb5b10aaa30989c272b554dc6d53bda6da85a76f662723421af024730440220033d0be8f74e782fbcec2b396647c7715d2356076b442423f23552b617062312022063c95cafdc6d52ccf55c8ee0f9ceb0f57afb41ea9076eb74fe633f59c50c6377012103b96a4954d834fbcfb2bbf8cf7de7dc2b28bc3d661c1557d1fd1db1bfc123a94abb391400')
@@ -1879,7 +1879,7 @@ class TestWalletSending(ElectrumTestCase):
                 coins = wallet.get_spendable_coins(domain=None)
                 self.assertEqual(2, len(coins))
 
-                wallet.config.set_key('batch_rbf', batch_rbf)
+                wallet.config.WALLET_BATCH_RBF = batch_rbf
                 tx = wallet.make_unsigned_transaction(coins=coins, outputs=outputs, fee=1000)
                 tx.set_rbf(True)
                 tx.locktime = 2423302
@@ -2211,7 +2211,7 @@ class TestWalletSending(ElectrumTestCase):
     async def test_dscancel(self, mock_save_db):
         self.maxDiff = None
         config = SimpleConfig({'electrum_path': self.electrum_path})
-        config.set_key('coin_chooser_output_rounding', False)
+        config.WALLET_COIN_CHOOSER_OUTPUT_ROUNDING = False
 
         for simulate_moving_txs in (False, True):
             with self.subTest(msg="_dscancel_when_all_outputs_are_ismine", simulate_moving_txs=simulate_moving_txs):
@@ -3691,8 +3691,8 @@ class TestWalletHistory_EvilGapLimit(ElectrumTestCase):
         super().setUp()
         self.config = SimpleConfig({
             'electrum_path': self.electrum_path,
-            'skipmerklecheck': True,  # needed for Synchronizer to generate new addresses without SPV
         })
+        self.config.NETWORK_SKIPMERKLECHECK = True  # needed for Synchronizer to generate new addresses without SPV
 
     def create_wallet(self):
         ks = keystore.from_xpub('vpub5Vhmk4dEJKanDTTw6immKXa3thw45u3gbd1rPYjREB6viP13sVTWcH6kvbR2YeLtGjradr6SFLVt9PxWDBSrvw1Dc1nmd3oko3m24CQbfaJ')

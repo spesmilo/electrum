@@ -41,13 +41,11 @@ from electrum_grs.interface import ServerAddr, PREFERRED_NETWORK_PROTOCOL
 from electrum_grs.network import Network
 from electrum_grs.logging import get_logger
 from electrum_grs.util import detect_tor_socks_proxy
+from electrum_grs.simple_config import SimpleConfig
 
 from .util import (Buttons, CloseButton, HelpButton, read_QIcon, char_width_in_lineedit,
                    PasswordLineEdit)
 from .util import QtEventListener, qt_event_listener
-
-if TYPE_CHECKING:
-    from electrum_grs.simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -279,7 +277,7 @@ class NetworkChoiceLayout(object):
         grid.addWidget(HelpButton(msg), 0, 4)
 
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
-        self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
+        self.autoconnect_cb.setEnabled(self.config.cv.NETWORK_AUTO_CONNECT.is_modifiable())
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
         msg = ' '.join([
@@ -327,13 +325,13 @@ class NetworkChoiceLayout(object):
             self.td = None
 
     def check_disable_proxy(self, b):
-        if not self.config.is_modifiable('proxy'):
+        if not self.config.cv.NETWORK_PROXY.is_modifiable():
             b = False
         for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
             w.setEnabled(b)
 
     def enable_set_server(self):
-        if self.config.is_modifiable('server'):
+        if self.config.cv.NETWORK_SERVER.is_modifiable():
             enabled = not self.autoconnect_cb.isChecked()
             self.server_e.setEnabled(enabled)
         else:

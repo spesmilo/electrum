@@ -647,7 +647,7 @@ class Peer(Logger):
             channel_seed=channel_seed,
             static_remotekey=static_remotekey,
             upfront_shutdown_script=upfront_shutdown_script,
-            to_self_delay=self.network.config.get('lightning_to_self_delay', 7 * 144),
+            to_self_delay=self.network.config.LIGHTNING_TO_SELF_DELAY_CSV,
             dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=30,
@@ -1389,7 +1389,7 @@ class Peer(Logger):
         if pending_channel_update:
             chan.set_remote_update(pending_channel_update)
         self.logger.info(f"CHANNEL OPENING COMPLETED ({chan.get_id_for_log()})")
-        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         if forwarding_enabled:
             # send channel_update of outgoing edge to peer,
             # so that channel can be used to to receive payments
@@ -1578,7 +1578,7 @@ class Peer(Logger):
         #          (same for trampoline forwarding)
         #        - we could check for the exposure to dust HTLCs, see:
         #          https://github.com/ACINQ/eclair/pull/1985
-        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
+        forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         if not forwarding_enabled:
             self.logger.info(f"forwarding is disabled. failing htlc.")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
@@ -1660,8 +1660,8 @@ class Peer(Logger):
             htlc: UpdateAddHtlc,
             trampoline_onion: ProcessedOnionPacket):
 
-        forwarding_enabled = self.network.config.get('lightning_forward_payments', False)
-        forwarding_trampoline_enabled = self.network.config.get('lightning_forward_trampoline_payments', False)
+        forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
+        forwarding_trampoline_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS
         if not (forwarding_enabled and forwarding_trampoline_enabled):
             self.logger.info(f"trampoline forwarding is disabled. failing htlc.")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
@@ -1996,8 +1996,8 @@ class Peer(Logger):
         """ return the closing fee and fee range we initially try to enforce """
         config = self.network.config
         our_fee = None
-        if config.get('test_shutdown_fee'):
-            our_fee = config.get('test_shutdown_fee')
+        if config.TEST_SHUTDOWN_FEE:
+            our_fee = config.TEST_SHUTDOWN_FEE
         else:
             fee_rate_per_kb = config.eta_target_to_fee(FEE_LN_ETA_TARGET)
             if fee_rate_per_kb is None:  # fallback
@@ -2012,10 +2012,10 @@ class Peer(Logger):
                 our_fee = max_fee
             our_fee = min(our_fee, max_fee)
         # config modern_fee_negotiation can be set in tests
-        if config.get('test_shutdown_legacy'):
+        if config.TEST_SHUTDOWN_LEGACY:
             our_fee_range = None
-        elif config.get('test_shutdown_fee_range'):
-            our_fee_range = config.get('test_shutdown_fee_range')
+        elif config.TEST_SHUTDOWN_FEE_RANGE:
+            our_fee_range = config.TEST_SHUTDOWN_FEE_RANGE
         else:
             # we aim at a fee between next block inclusion and some lower value
             our_fee_range = {'min_fee_satoshis': our_fee // 2, 'max_fee_satoshis': our_fee * 2}
@@ -2101,7 +2101,7 @@ class Peer(Logger):
             fee_range_sent = our_fee_range and (is_initiator or (their_previous_fee is not None))
 
             # The sending node, if it is not the funder:
-            if our_fee_range and their_fee_range and not is_initiator and not self.network.config.get('test_shutdown_fee_range'):
+            if our_fee_range and their_fee_range and not is_initiator and not self.network.config.TEST_SHUTDOWN_FEE_RANGE:
                 # SHOULD set max_fee_satoshis to at least the max_fee_satoshis received
                 our_fee_range['max_fee_satoshis'] = max(their_fee_range['max_fee_satoshis'], our_fee_range['max_fee_satoshis'])
                 # SHOULD set min_fee_satoshis to a fairly low value
@@ -2400,8 +2400,8 @@ class Peer(Logger):
         except Exception as e:
             self.logger.info(f"error processing onion packet: {e!r}")
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
-        if self.network.config.get('test_fail_malformed_htlc'):
+        if self.network.config.TEST_FAIL_HTLCS_AS_MALFORMED:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_VERSION, data=failure_data)
-        if self.network.config.get('test_fail_htlcs_with_temp_node_failure'):
+        if self.network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE:
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         return processed_onion

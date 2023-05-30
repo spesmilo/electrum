@@ -15,8 +15,8 @@ class TestUnifiedPassword(ElectrumTestCase):
     def setUp(self):
         super().setUp()
         self.config = SimpleConfig({'electrum_path': self.electrum_path})
-        self.config.set_key("single_password", True)
-        self.config.set_key("offline", True)
+        self.config.WALLET_USE_SINGLE_PASSWORD = True
+        self.config.NETWORK_OFFLINE = True
 
         self.wallet_dir = os.path.dirname(self.config.get_wallet_path())
         assert "wallets" == os.path.basename(self.wallet_dir)

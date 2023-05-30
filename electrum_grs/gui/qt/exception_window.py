@@ -132,7 +132,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin, Logger):
         self.close()
 
     def show_never(self):
-        self.config.set_key(BaseCrashReporter.config_key, False)
+        self.config.SHOW_CRASH_REPORTER = False
         self.close()
 
     def closeEvent(self, event):
@@ -177,7 +177,7 @@ class Exception_Hook(QObject, Logger):
 
     @classmethod
     def maybe_setup(cls, *, config: 'SimpleConfig', wallet: 'Abstract_Wallet' = None) -> None:
-        if not config.get(BaseCrashReporter.config_key, default=True):
+        if not config.SHOW_CRASH_REPORTER:
             EarlyExceptionsQueue.set_hook_as_ready()  # flush already queued exceptions
             return
         if not cls._INSTANCE:

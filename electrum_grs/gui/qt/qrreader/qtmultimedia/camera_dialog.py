@@ -130,7 +130,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         # Flip horizontally checkbox with default coming from global config
         self.flip_x = QCheckBox()
         self.flip_x.setText(_("&Flip horizontally"))
-        self.flip_x.setChecked(bool(self.config.get('qrreader_flip_x', True)))
+        self.flip_x.setChecked(self.config.QR_READER_FLIP_X)
         self.flip_x.stateChanged.connect(self._on_flip_x_changed)
         controls_layout.addWidget(self.flip_x)
 
@@ -155,7 +155,7 @@ class QrReaderCameraDialog(Logger, MessageBoxMixin, QDialog):
         self.finished.connect(self._on_finished, Qt.QueuedConnection)
 
     def _on_flip_x_changed(self, _state: int):
-        self.config.set_key('qrreader_flip_x', self.flip_x.isChecked())
+        self.config.QR_READER_FLIP_X = self.flip_x.isChecked()
 
     def _get_resolution(self, resolutions: List[QSize], min_size: int) -> QSize:
         """

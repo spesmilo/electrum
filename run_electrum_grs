@@ -341,8 +341,8 @@ def main():
         config_options = {
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
-            'gui': android_gui,
-            'single_password': True,
+            SimpleConfig.GUI_NAME.key(): android_gui,
+            SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
         }
         if util.get_android_package_name() == "org.groestlcoin.testnet.electrumgrs":
             # ~hack for easier testnet builds. pkgname subject to change.
@@ -394,8 +394,8 @@ def main():
     #       to not-yet-evaluated strings.
     if cmdname == 'gui':
         from electrum_grs.gui.default_lang import get_default_language
-        gui_name = config.get('gui', 'qt')
-        lang = config.get('language')
+        gui_name = config.GUI_NAME
+        lang = config.LOCALIZATION_LANGUAGE
         if not lang:
             lang = get_default_language(gui_name=gui_name)
             _logger.info(f"get_default_language: detected default as {lang=!r}")
@@ -459,7 +459,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            plugins = init_plugins(config, config.get('gui', 'qt'))
+            plugins = init_plugins(config, config.GUI_NAME)
             d = daemon.Daemon(config, fd, start_network=False)
             try:
                 d.run_gui(config, plugins)
@@ -490,10 +490,9 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config, log_to_file=False)  # don't spam logfiles for each client-side RPC, but support "-v"
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
-        if not config.get('offline'):
+        if not config.NETWORK_OFFLINE:
             init_cmdline(config_options, wallet_path, True, config=config)
-            timeout = config.get('timeout', 60)
-            if timeout: timeout = int(timeout)
+            timeout = config.CLI_TIMEOUT
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
             except daemon.DaemonNotRunning:

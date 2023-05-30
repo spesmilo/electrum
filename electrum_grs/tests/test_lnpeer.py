@@ -366,8 +366,8 @@ GRAPH_DEFINITIONS = {
                 'dave': high_fee_channel.copy(),
             },
             'config': {
-                'lightning_forward_payments': True,
-                'lightning_forward_trampoline_payments': True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'carol': {
@@ -375,8 +375,8 @@ GRAPH_DEFINITIONS = {
                 'dave': low_fee_channel.copy(),
             },
             'config': {
-                'lightning_forward_payments': True,
-                'lightning_forward_trampoline_payments': True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_PAYMENTS: True,
+                SimpleConfig.EXPERIMENTAL_LN_FORWARD_TRAMPOLINE_PAYMENTS: True,
             },
         },
         'dave': {
@@ -932,8 +932,8 @@ class TestPeer(ElectrumTestCase):
     @needs_test_with_all_chacha20_implementations
     async def test_payment_multihop_temp_node_failure(self):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
-        graph.workers['bob'].network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
-        graph.workers['carol'].network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
+        graph.workers['bob'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
+        graph.workers['carol'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         peers = graph.peers.values()
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, graph.workers['dave'].get_payment_status(lnaddr.paymenthash))
@@ -959,7 +959,7 @@ class TestPeer(ElectrumTestCase):
         # Alice will pay Dave. Alice first tries A->C->D route, due to lower fees, but Carol
         # will fail the htlc and get blacklisted. Alice will then try A->B->D and succeed.
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
-        graph.workers['carol'].network.config.set_key('test_fail_htlcs_with_temp_node_failure', True)
+        graph.workers['carol'].network.config.TEST_FAIL_HTLCS_WITH_TEMP_NODE_FAILURE = True
         peers = graph.peers.values()
         async def pay(lnaddr, pay_req):
             self.assertEqual(500000000000, graph.channels[('alice', 'bob')].balance(LOCAL))
@@ -1298,16 +1298,16 @@ class TestPeer(ElectrumTestCase):
     async def _test_shutdown(self, alice_fee, bob_fee, alice_fee_range=None, bob_fee_range=None):
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('test_shutdown_fee', alice_fee)
-        w2.network.config.set_key('test_shutdown_fee', bob_fee)
+        w1.network.config.TEST_SHUTDOWN_FEE = alice_fee
+        w2.network.config.TEST_SHUTDOWN_FEE = bob_fee
         if alice_fee_range is not None:
-            w1.network.config.set_key('test_shutdown_fee_range', alice_fee_range)
+            w1.network.config.TEST_SHUTDOWN_FEE_RANGE = alice_fee_range
         else:
-            w1.network.config.set_key('test_shutdown_legacy', True)
+            w1.network.config.TEST_SHUTDOWN_LEGACY = True
         if bob_fee_range is not None:
-            w2.network.config.set_key('test_shutdown_fee_range', bob_fee_range)
+            w2.network.config.TEST_SHUTDOWN_FEE_RANGE = bob_fee_range
         else:
-            w2.network.config.set_key('test_shutdown_legacy', True)
+            w2.network.config.TEST_SHUTDOWN_LEGACY = True
         w2.enable_htlc_settle = False
         lnaddr, pay_req = self.prepare_invoice(w2)
         async def pay():
@@ -1377,10 +1377,10 @@ class TestPeer(ElectrumTestCase):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = b''
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('dynamic_fees', False)
-        w2.network.config.set_key('dynamic_fees', False)
-        w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w1.network.config.FEE_EST_DYNAMIC = False
+        w2.network.config.FEE_EST_DYNAMIC = False
+        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
 
         async def test():
             async def close():
@@ -1407,10 +1407,10 @@ class TestPeer(ElectrumTestCase):
         bob_channel.config[HTLCOwner.LOCAL].upfront_shutdown_script = bob_uss
 
         p1, p2, w1, w2, q1, q2 = self.prepare_peers(alice_channel, bob_channel)
-        w1.network.config.set_key('dynamic_fees', False)
-        w2.network.config.set_key('dynamic_fees', False)
-        w1.network.config.set_key('fee_per_kb', 5000)
-        w2.network.config.set_key('fee_per_kb', 1000)
+        w1.network.config.FEE_EST_DYNAMIC = False
+        w2.network.config.FEE_EST_DYNAMIC = False
+        w1.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 5000
+        w2.network.config.FEE_EST_STATIC_FEERATE_FALLBACK = 1000
 
         async def test():
             async def close():

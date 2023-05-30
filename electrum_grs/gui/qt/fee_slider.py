@@ -23,8 +23,8 @@ class FeeComboBox(QComboBox):
         )
 
     def on_fee_type(self, x):
-        self.config.set_key('mempool_fees', x==2)
-        self.config.set_key('dynamic_fees', x>0)
+        self.config.FEE_EST_USE_MEMPOOL = (x == 2)
+        self.config.FEE_EST_DYNAMIC = (x > 0)
         self.fee_slider.update()
 
 

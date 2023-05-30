@@ -25,6 +25,7 @@ from electrum_grs.network import Network, TxBroadcastError, BestEffortRequestFai
 from electrum_grs.interface import PREFERRED_NETWORK_PROTOCOL, ServerAddr
 from electrum_grs.logging import Logger
 from electrum_grs.bitcoin import COIN
+from electrum_grs.simple_config import SimpleConfig
 
 from electrum_grs.gui import messages
 from .i18n import _
@@ -94,7 +95,6 @@ from .uix.dialogs.lightning_channels import LightningChannelsDialog, SwapDialog
 
 if TYPE_CHECKING:
     from . import ElectrumGui
-    from electrum_grs.simple_config import SimpleConfig
     from electrum_grs.plugin import Plugins
     from electrum_grs.paymentrequest import PaymentRequest
 
@@ -133,7 +133,7 @@ class ElectrumWindow(App, Logger, EventListener):
     def set_auto_connect(self, b: bool):
         # This method makes sure we persist x into the config even if self.auto_connect == b.
         # Note: on_auto_connect() only gets called if the value of the self.auto_connect property *changes*.
-        self.electrum_config.set_key('auto_connect', b)
+        self.electrum_config.NETWORK_AUTO_CONNECT = b
         self.auto_connect = b
 
     def toggle_auto_connect(self, x):
@@ -196,7 +196,7 @@ class ElectrumWindow(App, Logger, EventListener):
 
     use_gossip = BooleanProperty(False)
     def on_use_gossip(self, instance, x):
-        self.electrum_config.set_key('use_gossip', self.use_gossip, save=True)
+        self.electrum_config.LIGHTNING_USE_GOSSIP = self.use_gossip
         if self.network:
             if self.use_gossip:
                 self.network.start_gossip()
@@ -206,7 +206,7 @@ class ElectrumWindow(App, Logger, EventListener):
 
     enable_debug_logs = BooleanProperty(False)
     def on_enable_debug_logs(self, instance, x):
-        self.electrum_config.set_key('gui_enable_debug_logs', self.enable_debug_logs, save=True)
+        self.electrum_config.GUI_ENABLE_DEBUG_LOGS = self.enable_debug_logs
 
     use_change = BooleanProperty(False)
     def on_use_change(self, instance, x):
@@ -217,11 +217,11 @@ class ElectrumWindow(App, Logger, EventListener):
 
     use_unconfirmed = BooleanProperty(False)
     def on_use_unconfirmed(self, instance, x):
-        self.electrum_config.set_key('confirmed_only', not self.use_unconfirmed, save=True)
+        self.electrum_config.WALLET_SPEND_CONFIRMED_ONLY = not self.use_unconfirmed
 
     use_recoverable_channels = BooleanProperty(True)
     def on_use_recoverable_channels(self, instance, x):
-        self.electrum_config.set_key('use_recoverable_channels', self.use_recoverable_channels, save=True)
+        self.electrum_config.LIGHTNING_USE_RECOVERABLE_CHANNELS = self.use_recoverable_channels
 
     def switch_to_send_screen(func):
         # try until send_screen is available
@@ -414,7 +414,7 @@ class ElectrumWindow(App, Logger, EventListener):
         Logger.__init__(self)
 
         self.electrum_config = config = kwargs.get('config', None)  # type: SimpleConfig
-        self.language = config.get('language', get_default_language())
+        self.language = config.LOCALIZATION_LANGUAGE or get_default_language()
         self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
             self.num_blocks = self.network.get_local_height()
@@ -431,9 +431,9 @@ class ElectrumWindow(App, Logger, EventListener):
         self.gui_object = kwargs.get('gui_object', None)  # type: ElectrumGui
         self.daemon = self.gui_object.daemon
         self.fx = self.daemon.fx
-        self.use_gossip = config.get('use_gossip', False)
-        self.use_unconfirmed = not config.get('confirmed_only', False)
-        self.enable_debug_logs = config.get('gui_enable_debug_logs', False)
+        self.use_gossip = config.LIGHTNING_USE_GOSSIP
+        self.use_unconfirmed = not config.WALLET_SPEND_CONFIRMED_ONLY
+        self.enable_debug_logs = config.GUI_ENABLE_DEBUG_LOGS
 
         # create triggers so as to minimize updating a max of 2 times a sec
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
@@ -644,7 +644,7 @@ class ElectrumWindow(App, Logger, EventListener):
             self.on_new_intent(mactivity.getIntent())
             activity.bind(on_new_intent=self.on_new_intent)
         self.register_callbacks()
-        if self.network and self.electrum_config.get('auto_connect') is None:
+        if self.network and not self.electrum_config.cv.NETWORK_AUTO_CONNECT.is_set():
             self.popup_dialog("first_screen")
             # load_wallet_on_start will be called later, after initial network setup is completed
         else:
@@ -676,7 +676,7 @@ class ElectrumWindow(App, Logger, EventListener):
 
     def on_wizard_success(self, storage, db, password):
         self.password = password
-        if self.electrum_config.get('single_password'):
+        if self.electrum_config.WALLET_USE_SINGLE_PASSWORD:
             self._use_single_password = self.daemon.update_password_for_directory(
                 old_password=password, new_password=password)
         self.logger.info(f'use single password: {self._use_single_password}')
@@ -811,7 +811,7 @@ class ElectrumWindow(App, Logger, EventListener):
             Clock.schedule_once(lambda dt: self._channels_dialog.update())
 
     def is_wallet_creation_disabled(self):
-        return bool(self.electrum_config.get('single_password')) and self.password is None
+        return self.electrum_config.WALLET_USE_SINGLE_PASSWORD and self.password is None
 
     def wallets_dialog(self):
         from .uix.dialogs.wallets import WalletDialog
@@ -1278,7 +1278,7 @@ class ElectrumWindow(App, Logger, EventListener):
         self.set_fee_status()
 
     def protected(self, msg, f, args):
-        if self.electrum_config.get('pin_code'):
+        if self.electrum_config.CONFIG_PIN_CODE:
             msg += "\n" + _("Enter your PIN code to proceed")
             on_success = lambda pw: f(*args, self.password)
             d = PincodeDialog(
@@ -1337,10 +1337,10 @@ class ElectrumWindow(App, Logger, EventListener):
             label.data += '\n\n' + _('Passphrase') + ': ' + passphrase
 
     def has_pin_code(self):
-        return bool(self.electrum_config.get('pin_code'))
+        return bool(self.electrum_config.CONFIG_PIN_CODE)
 
     def check_pin_code(self, pin):
-        if pin != self.electrum_config.get('pin_code'):
+        if pin != self.electrum_config.CONFIG_PIN_CODE:
             raise InvalidPassword
 
     def change_password(self, cb):
@@ -1386,7 +1386,7 @@ class ElectrumWindow(App, Logger, EventListener):
         d.open()
 
     def _set_new_pin_code(self, new_pin, cb):
-        self.electrum_config.set_key('pin_code', new_pin)
+        self.electrum_config.CONFIG_PIN_CODE = new_pin
         cb()
         self.show_info(_("PIN updated") if new_pin else _('PIN disabled'))
 

@@ -45,7 +45,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _("Allow instant swaps"), 'allow_instant_swaps', False,
+            _("Allow instant swaps"), self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
             tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
@@ -138,11 +138,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:
             if self.config.use_mempool_fees():
-                self.config.set_key('depth_level', pos, save=False)
+                self.config.cv.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS.set(pos, save=False)
             else:
-                self.config.set_key('fee_level', pos, save=False)
+                self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
         else:
-            self.config.set_key('fee_per_kb', fee_rate, save=False)
+            self.config.cv.FEE_EST_STATIC_FEERATE_FALLBACK.set(fee_rate, save=False)
         if self.send_follows:
             self.on_recv_edited()
         else:

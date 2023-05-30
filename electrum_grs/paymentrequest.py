@@ -400,10 +400,10 @@ def verify_cert_chain(chain):
     return x509_chain[0], ca
 
 
-def check_ssl_config(config):
+def check_ssl_config(config: 'SimpleConfig'):
     from . import pem
-    key_path = config.get('ssl_keyfile')
-    cert_path = config.get('ssl_certfile')
+    key_path = config.SSL_KEYFILE_PATH
+    cert_path = config.SSL_CERTFILE_PATH
     with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
     with open(cert_path, 'r', encoding='utf-8') as f:
@@ -453,8 +453,8 @@ def serialize_request(req):  # FIXME this is broken
 
 def make_request(config: 'SimpleConfig', req: 'Invoice'):
     pr = make_unsigned_request(req)
-    key_path = config.get('ssl_keyfile')
-    cert_path = config.get('ssl_certfile')
+    key_path = config.SSL_KEYFILE_PATH
+    cert_path = config.SSL_CERTFILE_PATH
     if key_path and cert_path:
         sign_request_with_x509(pr, key_path, cert_path)
     return pr

@@ -222,13 +222,13 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     async def maybe_listen(self):
         # FIXME: only one LNWorker can listen at a time (single port)
-        listen_addr = self.config.get('lightning_listen')
+        listen_addr = self.config.LIGHTNING_LISTEN
         if listen_addr:
             self.logger.info(f'lightning_listen enabled. will try to bind: {listen_addr!r}')
             try:
                 netaddr = NetAddress.from_string(listen_addr)
             except Exception as e:
-                self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
+                self.logger.error(f"failed to parse config key '{self.config.cv.LIGHTNING_LISTEN.key()}'. got: {e!r}")
                 return
             addr = str(netaddr.host)
             async def cb(reader, writer):
@@ -320,7 +320,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         await self.taskgroup.cancel_remaining()
 
     def _add_peers_from_config(self):
-        peer_list = self.config.get('lightning_peers', [])
+        peer_list = self.config.LIGHTNING_PEERS or []
         for host, port, pubkey in peer_list:
             asyncio.run_coroutine_threadsafe(
                 self._add_peer(host, int(port), bfh(pubkey)),
@@ -644,14 +644,14 @@ class LNWallet(LNWorker):
 
     def can_have_recoverable_channels(self) -> bool:
         return (self.has_deterministic_node_id()
-                and not (self.config.get('lightning_listen')))
+                and not self.config.LIGHTNING_LISTEN)
 
     def has_recoverable_channels(self) -> bool:
         """Whether *future* channels opened by this wallet would be recoverable
         from seed (via putting OP_RETURN outputs into funding txs).
         """
         return (self.can_have_recoverable_channels()
-                and self.config.get('use_recoverable_channels', True))
+                and self.config.LIGHTNING_USE_RECOVERABLE_CHANNELS)
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
@@ -697,7 +697,7 @@ class LNWallet(LNWorker):
         while True:
             # periodically poll if the user updated 'watchtower_url'
             await asyncio.sleep(5)
-            watchtower_url = self.config.get('watchtower_url')
+            watchtower_url = self.config.WATCHTOWER_CLIENT_URL
             if not watchtower_url:
                 continue
             parsed_url = urllib.parse.urlparse(watchtower_url)

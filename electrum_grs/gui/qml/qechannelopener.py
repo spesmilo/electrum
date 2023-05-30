@@ -1,6 +1,7 @@
 import threading
 from concurrent.futures import CancelledError
 from asyncio.exceptions import TimeoutError
+from typing import TYPE_CHECKING, Optional
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
@@ -32,7 +33,7 @@ class QEChannelOpener(QObject, AuthMixin):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._wallet = None
+        self._wallet = None  # type: Optional[QEWallet]
         self._connect_str = None
         self._amount = QEAmount()
         self._valid = False
@@ -101,7 +102,7 @@ class QEChannelOpener(QObject, AuthMixin):
         connect_str_valid = False
         if self._connect_str:
             self._logger.debug(f'checking if {self._connect_str=!r} is valid')
-            if not self._wallet.wallet.config.get('use_gossip', False):
+            if not self._wallet.wallet.config.LIGHTNING_USE_GOSSIP:
                 # using trampoline: connect_str is the name of a trampoline node
                 peer_addr = hardcoded_trampoline_nodes()[self._connect_str]
                 self._node_pubkey = peer_addr.pubkey
