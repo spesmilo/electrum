@@ -510,6 +510,12 @@ class BitBox02Client(HardwareClientBase):
                 )
 
         keypath_account = full_path[:-2]
+
+        format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.DEFAULT
+        # Base unit is configured to be "sat":
+        if self.config.get_decimal_point() == 0:
+            format_unit = bitbox02.btc.BTCSignInitRequest.FormatUnit.SAT
+
         sigs = self.bitbox02_device.btc_sign(
             coin,
             [bitbox02.btc.BTCScriptConfigWithKeypath(
@@ -520,6 +526,7 @@ class BitBox02Client(HardwareClientBase):
             outputs=outputs,
             locktime=tx.locktime,
             version=tx.version,
+            format_unit=format_unit,
         )
 
         # Fill signatures
