@@ -103,6 +103,7 @@ from .swap_dialog import SwapDialog, InvalidSwapParameters
 from .balance_dialog import BalanceToolButton, COLOR_FROZEN, COLOR_UNMATURED, COLOR_UNCONFIRMED, COLOR_CONFIRMED, COLOR_LIGHTNING, COLOR_FROZEN_LIGHTNING
 
 if TYPE_CHECKING:
+    from electrum.simple_config import ConfigVarWithConfig
     from . import ElectrumGui
 
 
@@ -173,8 +174,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.gui_thread = gui_object.gui_thread
         assert wallet, "no wallet"
         self.wallet = wallet
-        if wallet.has_lightning():
-            self.wallet.config.set_key('show_channels_tab', True)
+        if wallet.has_lightning() and not self.config.cv.GUI_QT_SHOW_TAB_CHANNELS.is_set():
+            self.config.GUI_QT_SHOW_TAB_CHANNELS = True  # override default, but still allow disabling tab manually
 
         Exception_Hook.maybe_setup(config=self.config, wallet=self.wallet)
 
@@ -216,19 +217,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
 
-        def add_optional_tab(tabs, tab, icon, description, name):
+        def add_optional_tab(tabs, tab, icon, description):
             tab.tab_icon = icon
             tab.tab_description = description
             tab.tab_pos = len(tabs)
-            tab.tab_name = name
-            if self.config.get('show_{}_tab'.format(name), False):
+            if tab.is_shown_cv.get():
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
-        add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"), "addresses")
-        add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"), "channels")
-        add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"), "utxo")
-        add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"), "contacts")
-        add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"), "console")
+        add_optional_tab(tabs, self.addresses_tab, read_QIcon("tab_addresses.png"), _("&Addresses"))
+        add_optional_tab(tabs, self.channels_tab, read_QIcon("lightning.png"), _("Channels"))
+        add_optional_tab(tabs, self.utxo_tab, read_QIcon("tab_coins.png"), _("Co&ins"))
+        add_optional_tab(tabs, self.contacts_tab, read_QIcon("tab_contacts.png"), _("Con&tacts"))
+        add_optional_tab(tabs, self.console_tab, read_QIcon("tab_console.png"), _("Con&sole"))
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -339,8 +339,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         self.address_list.refresh_all()
 
     def toggle_tab(self, tab):
-        show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
-        self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
+        show = not tab.is_shown_cv.get()
+        tab.is_shown_cv.set(show)
         if show:
             # Find out where to place the tab
             index = len(self.tabs)
@@ -698,7 +698,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
 
         def add_toggle_action(view_menu, tab):
-            is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
+            is_shown = tab.is_shown_cv.get()
             tab.menu_action = view_menu.addAction(tab.tab_description, lambda: self.toggle_tab(tab))
             tab.menu_action.setCheckable(True)
             tab.menu_action.setChecked(is_shown)
@@ -1026,7 +1026,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
 
     def create_channels_tab(self):
         self.channels_list = ChannelsList(self)
-        return self.create_list_tab(self.channels_list)
+        tab = self.create_list_tab(self.channels_list)
+        tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_CHANNELS
+        return tab
 
     def create_history_tab(self):
         self.history_model = HistoryModel(self)
@@ -1351,17 +1353,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .address_list import AddressList
         self.address_list = AddressList(self)
         tab =  self.create_list_tab(self.address_list)
+        tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_ADDRESSES
         return tab
 
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
         self.utxo_list = UTXOList(self)
-        return self.create_list_tab(self.utxo_list)
+        tab = self.create_list_tab(self.utxo_list)
+        tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_UTXO
+        return tab
 
     def create_contacts_tab(self):
         from .contact_list import ContactList
         self.contact_list = l = ContactList(self)
-        return self.create_list_tab(l)
+        tab = self.create_list_tab(l)
+        tab.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_CONTACTS
+        return tab
 
     def remove_address(self, addr):
         if not self.question(_("Do you want to remove {} from your wallet?").format(addr)):
@@ -1489,6 +1496,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
     def create_console_tab(self):
         from .console import Console
         self.console = console = Console()
+        console.is_shown_cv = self.config.cv.GUI_QT_SHOW_TAB_CONSOLE
         return console
 
     def update_console(self):

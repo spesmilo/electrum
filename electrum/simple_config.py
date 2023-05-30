@@ -911,6 +911,11 @@ class SimpleConfig(Logger):
     GUI_QT_TX_EDITOR_SHOW_IO = ConfigVar('show_tx_io', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_FEE_DETAILS = ConfigVar('show_tx_fee_details', default=False, type_=bool)
     GUI_QT_TX_EDITOR_SHOW_LOCKTIME = ConfigVar('show_tx_locktime', default=False, type_=bool)
+    GUI_QT_SHOW_TAB_ADDRESSES = ConfigVar('show_addresses_tab', default=False, type_=bool)
+    GUI_QT_SHOW_TAB_CHANNELS = ConfigVar('show_channels_tab', default=False, type_=bool)
+    GUI_QT_SHOW_TAB_UTXO = ConfigVar('show_utxo_tab', default=False, type_=bool)
+    GUI_QT_SHOW_TAB_CONTACTS = ConfigVar('show_contacts_tab', default=False, type_=bool)
+    GUI_QT_SHOW_TAB_CONSOLE = ConfigVar('show_console_tab', default=False, type_=bool)
 
     GUI_QML_PREFERRED_REQUEST_TYPE = ConfigVar('preferred_request_type', default='bolt11', type_=str)
     GUI_QML_USER_KNOWS_PRESS_AND_HOLD = ConfigVar('user_knows_press_and_hold', default=False, type_=bool)
