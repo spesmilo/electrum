@@ -69,7 +69,7 @@ def get_rpcsock_defaultpath(config: SimpleConfig):
     return os.path.join(config.path, 'daemon_rpc_socket')
 
 def get_rpcsock_default_type(config: SimpleConfig):
-    if config.get('rpcport'):
+    if config.RPC_PORT:
         return 'tcp'
     # Use unix domain sockets when available,
     # with the extra paranoia that in case windows "implements" them,
@@ -106,7 +106,7 @@ def get_file_descriptor(config: SimpleConfig):
 
 
 
-def request(config: SimpleConfig, endpoint, args=(), timeout=60):
+def request(config: SimpleConfig, endpoint, args=(), timeout: Union[float, int] = 60):
     lockfile = get_lockfile(config)
     while True:
         create_time = None
@@ -152,12 +152,8 @@ def request(config: SimpleConfig, endpoint, args=(), timeout=60):
 
 
 def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
-    rpc_user = config.get('rpcuser', None)
-    rpc_password = config.get('rpcpassword', None)
-    if rpc_user == '':
-        rpc_user = None
-    if rpc_password == '':
-        rpc_password = None
+    rpc_user = config.RPC_USERNAME or None
+    rpc_password = config.RPC_PASSWORD or None
     if rpc_user is None or rpc_password is None:
         rpc_user = 'user'
         bits = 128
@@ -166,8 +162,8 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
         pw_b64 = b64encode(
             pw_int.to_bytes(nbytes, 'big'), b'-_')
         rpc_password = to_string(pw_b64, 'ascii')
-        config.set_key('rpcuser', rpc_user)
-        config.set_key('rpcpassword', rpc_password, save=True)
+        config.RPC_USERNAME = rpc_user
+        config.RPC_PASSWORD = rpc_password
     return rpc_user, rpc_password
 
 
@@ -252,17 +248,17 @@ class AuthenticatedServer(Logger):
 
 class CommandsServer(AuthenticatedServer):
 
-    def __init__(self, daemon, fd):
+    def __init__(self, daemon: 'Daemon', fd):
         rpc_user, rpc_password = get_rpc_credentials(daemon.config)
         AuthenticatedServer.__init__(self, rpc_user, rpc_password)
         self.daemon = daemon
         self.fd = fd
         self.config = daemon.config
-        sockettype = self.config.get('rpcsock', 'auto')
+        sockettype = self.config.RPC_SOCKET_TYPE
         self.socktype = sockettype if sockettype != 'auto' else get_rpcsock_default_type(self.config)
-        self.sockpath = self.config.get('rpcsockpath', get_rpcsock_defaultpath(self.config))
-        self.host = self.config.get('rpchost', '127.0.0.1')
-        self.port = self.config.get('rpcport', 0)
+        self.sockpath = self.config.RPC_SOCKET_FILEPATH or get_rpcsock_defaultpath(self.config)
+        self.host = self.config.RPC_HOST
+        self.port = self.config.RPC_PORT
         self.app = web.Application()
         self.app.router.add_post("/", self.handle)
         self.register_method(self.ping)
@@ -348,12 +344,12 @@ class CommandsServer(AuthenticatedServer):
 
 class WatchTowerServer(AuthenticatedServer):
 
-    def __init__(self, network, netaddress):
+    def __init__(self, network: 'Network', netaddress):
         self.addr = netaddress
         self.config = network.config
         self.network = network
-        watchtower_user = self.config.get('watchtower_user', '')
-        watchtower_password = self.config.get('watchtower_password', '')
+        watchtower_user = self.config.WATCHTOWER_SERVER_USER or ""
+        watchtower_password = self.config.WATCHTOWER_SERVER_PASSWORD or ""
         AuthenticatedServer.__init__(self, watchtower_user, watchtower_password)
         self.lnwatcher = network.local_watchtower
         self.app = web.Application()
@@ -403,7 +399,7 @@ class Daemon(Logger):
             self.logger.warning("Ignoring parameter 'wallet_path' for daemon. "
                                 "Use the load_wallet command instead.")
         self.asyncio_loop = util.get_asyncio_loop()
-        if not config.get('offline'):
+        if not self.config.NETWORK_OFFLINE:
             self.network = Network(config, daemon=self)
         self.fx = FxThread(config=config)
         # path -> wallet;   make sure path is standardized.
@@ -444,16 +440,16 @@ class Daemon(Logger):
 
     def start_network(self):
         self.logger.info(f"starting network.")
-        assert not self.config.get('offline')
+        assert not self.config.NETWORK_OFFLINE
         assert self.network
         # server-side watchtower
-        if watchtower_address := self.config.get_netaddress('watchtower_address'):
+        if watchtower_address := self.config.get_netaddress(self.config.cv.WATCHTOWER_SERVER_ADDRESS):
             self.watchtower = WatchTowerServer(self.network, watchtower_address)
             asyncio.run_coroutine_threadsafe(self.taskgroup.spawn(self.watchtower.run), self.asyncio_loop)
 
         self.network.start(jobs=[self.fx.run])
         # prepare lightning functionality, also load channel db early
-        if self.config.get('use_gossip', False):
+        if self.config.LIGHTNING_USE_GOSSIP:
             self.network.start_gossip()
 
     def with_wallet_lock(func):
@@ -582,7 +578,7 @@ class Daemon(Logger):
 
     def run_gui(self, config: 'SimpleConfig', plugins: 'Plugins'):
         threading.current_thread().name = 'GUI'
-        gui_name = config.get('gui', 'qt')
+        gui_name = config.GUI_NAME
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         self.logger.info(f'launching GUI: {gui_name}')

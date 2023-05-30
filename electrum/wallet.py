@@ -1731,7 +1731,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             # Let the coin chooser select the coins to spend
             coin_chooser = coinchooser.get_coin_chooser(self.config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if self.config.get('batch_rbf', False) else None
+            base_tx = self.get_unconfirmed_base_tx_for_batching(outputs, coins) if self.config.WALLET_BATCH_RBF else None
             if base_tx:
                 # make sure we don't try to spend change from the tx-to-be-replaced:
                 coins = [c for c in coins if c.prevout.txid.hex() != base_tx.txid()]
@@ -1847,7 +1847,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         # exempt large value UTXOs
         value_sats = utxo.value_sats()
         assert value_sats is not None
-        threshold = self.config.get('unconf_utxo_freeze_threshold', 5_000)
+        threshold = self.config.WALLET_UNCONF_UTXO_FREEZE_THRESHOLD_SAT
         if value_sats >= threshold:
             return False
         # if funding tx has any is_mine input, then UTXO is fine
@@ -2457,7 +2457,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
 
     def get_request_URI(self, req: Request) -> Optional[str]:
         lightning_invoice = None
-        if self.config.get('bip21_lightning', False):
+        if self.config.WALLET_BIP21_LIGHTNING:
             lightning_invoice = self.get_bolt11_invoice(req)
         return req.get_bip21_URI(lightning_invoice=lightning_invoice)
 
@@ -2614,7 +2614,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
             amount_msat=amount_msat,
             message=req.message,
             expiry=req.exp,
-            fallback_address=req.get_address() if self.config.get('bolt11_fallback', True) else None)
+            fallback_address=req.get_address() if self.config.WALLET_BOLT11_FALLBACK else None)
         return invoice
 
     def create_request(self, amount_sat: int, message: str, exp_delay: int, address: Optional[str]):

@@ -37,7 +37,7 @@ class NewChannelDialog(WindowModalDialog):
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         recov_tooltip = messages.to_rtf(messages.MSG_RECOVERABLE_CHANNELS)
         menu.addConfig(
-            _("Create recoverable channels"), 'use_recoverable_channels', True,
+            _("Create recoverable channels"), self.config.cv.LIGHTNING_USE_RECOVERABLE_CHANNELS,
             tooltip=recov_tooltip,
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)

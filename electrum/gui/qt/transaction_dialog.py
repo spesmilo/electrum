@@ -416,7 +416,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _('Download missing data'), 'tx_dialog_fetch_txin_data', False,
+            _('Download missing data'), self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
             tooltip=_(
                 'Download parent transactions from the network.\n'
                 'Allows filling in missing fee and input details.'),
@@ -945,7 +945,7 @@ class TxDialog(QDialog, MessageBoxMixin):
               We could also SPV-verify the tx, to fill in missing tx_mined_status (block height, blockhash, timestamp),
               but this is not done currently.
         """
-        if not self.config.get('tx_dialog_fetch_txin_data', False):
+        if not self.config.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA:
             return
         tx = self.tx
         if not tx:

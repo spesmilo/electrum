@@ -72,18 +72,18 @@ class SettingsDialog(QDialog, QtEventListener):
         lang_combo = QComboBox()
         lang_combo.addItems(list(languages.values()))
         lang_keys = list(languages.keys())
-        lang_cur_setting = self.config.get("language", '')
+        lang_cur_setting = self.config.LOCALIZATION_LANGUAGE
         try:
             index = lang_keys.index(lang_cur_setting)
         except ValueError:  # not in list
             index = 0
         lang_combo.setCurrentIndex(index)
-        if not self.config.is_modifiable('language'):
+        if not self.config.cv.LOCALIZATION_LANGUAGE.is_modifiable():
             for w in [lang_combo, lang_label]: w.setEnabled(False)
         def on_lang(x):
             lang_request = list(languages.keys())[lang_combo.currentIndex()]
-            if lang_request != self.config.get('language'):
-                self.config.set_key("language", lang_request, save=True)
+            if lang_request != self.config.LOCALIZATION_LANGUAGE:
+                self.config.LOCALIZATION_LANGUAGE = lang_request
                 self.need_restart = True
         lang_combo.currentIndexChanged.connect(on_lang)
 
@@ -93,13 +93,13 @@ class SettingsDialog(QDialog, QtEventListener):
         nz.setMinimum(0)
         nz.setMaximum(self.config.decimal_point)
         nz.setValue(self.config.num_zeros)
-        if not self.config.is_modifiable('num_zeros'):
+        if not self.config.cv.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT.is_modifiable():
             for w in [nz, nz_label]: w.setEnabled(False)
         def on_nz():
             value = nz.value()
             if self.config.num_zeros != value:
                 self.config.num_zeros = value
-                self.config.set_key('num_zeros', value, save=True)
+                self.config.BTC_AMOUNTS_FORCE_NZEROS_AFTER_DECIMAL_POINT = value
                 self.app.refresh_tabs_signal.emit()
                 self.app.update_status_signal.emit()
         nz.valueChanged.connect(on_nz)
@@ -108,7 +108,7 @@ class SettingsDialog(QDialog, QtEventListener):
         help_trampoline = messages.MSG_HELP_TRAMPOLINE
         trampoline_cb = QCheckBox(_("Use trampoline routing"))
         trampoline_cb.setToolTip(messages.to_rtf(help_trampoline))
-        trampoline_cb.setChecked(not bool(self.config.get('use_gossip', False)))
+        trampoline_cb.setChecked(not self.config.LIGHTNING_USE_GOSSIP)
         def on_trampoline_checked(use_trampoline):
             use_trampoline = bool(use_trampoline)
             if not use_trampoline:
@@ -119,7 +119,7 @@ class SettingsDialog(QDialog, QtEventListener):
                 ])):
                     trampoline_cb.setCheckState(Qt.Checked)
                     return
-            self.config.set_key('use_gossip', not use_trampoline)
+            self.config.LIGHTNING_USE_GOSSIP = not use_trampoline
             if not use_trampoline:
                 self.network.start_gossip()
             else:
@@ -137,17 +137,17 @@ class SettingsDialog(QDialog, QtEventListener):
         ])
         remote_wt_cb = QCheckBox(_("Use a remote watchtower"))
         remote_wt_cb.setToolTip('<p>'+help_remote_wt+'</p>')
-        remote_wt_cb.setChecked(bool(self.config.get('use_watchtower', False)))
+        remote_wt_cb.setChecked(self.config.WATCHTOWER_CLIENT_ENABLED)
         def on_remote_wt_checked(x):
-            self.config.set_key('use_watchtower', bool(x))
+            self.config.WATCHTOWER_CLIENT_ENABLED = bool(x)
             self.watchtower_url_e.setEnabled(bool(x))
         remote_wt_cb.stateChanged.connect(on_remote_wt_checked)
-        watchtower_url = self.config.get('watchtower_url')
+        watchtower_url = self.config.WATCHTOWER_CLIENT_URL
         self.watchtower_url_e = QLineEdit(watchtower_url)
-        self.watchtower_url_e.setEnabled(self.config.get('use_watchtower', False))
+        self.watchtower_url_e.setEnabled(self.config.WATCHTOWER_CLIENT_ENABLED)
         def on_wt_url():
             url = self.watchtower_url_e.text() or None
-            watchtower_url = self.config.set_key('watchtower_url', url)
+            self.config.WATCHTOWER_CLIENT_URL = url
         self.watchtower_url_e.editingFinished.connect(on_wt_url)
 
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
@@ -155,18 +155,18 @@ class SettingsDialog(QDialog, QtEventListener):
               + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
               + 'For more information, see https://openalias.org'
         alias_label = HelpLabel(_('OpenAlias') + ':', msg)
-        alias = self.config.get('alias','')
+        alias = self.config.OPENALIAS_ID
         self.alias_e = QLineEdit(alias)
         self.set_alias_color()
         self.alias_e.editingFinished.connect(self.on_alias_edit)
 
         msat_cb = QCheckBox(_("Show Lightning amounts with msat precision"))
-        msat_cb.setChecked(bool(self.config.get('amt_precision_post_satoshi', False)))
+        msat_cb.setChecked(self.config.BTC_AMOUNTS_PREC_POST_SAT > 0)
         def on_msat_checked(v):
             prec = 3 if v == Qt.Checked else 0
             if self.config.amt_precision_post_satoshi != prec:
                 self.config.amt_precision_post_satoshi = prec
-                self.config.set_key('amt_precision_post_satoshi', prec)
+                self.config.BTC_AMOUNTS_PREC_POST_SAT = prec
                 self.app.refresh_tabs_signal.emit()
         msat_cb.stateChanged.connect(on_msat_checked)
 
@@ -191,12 +191,12 @@ class SettingsDialog(QDialog, QtEventListener):
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
 
         thousandsep_cb = QCheckBox(_("Add thousand separators to bitcoin amounts"))
-        thousandsep_cb.setChecked(bool(self.config.get('amt_add_thousands_sep', False)))
+        thousandsep_cb.setChecked(self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP)
         def on_set_thousandsep(v):
             checked = v == Qt.Checked
             if self.config.amt_add_thousands_sep != checked:
                 self.config.amt_add_thousands_sep = checked
-                self.config.set_key('amt_add_thousands_sep', checked)
+                self.config.BTC_AMOUNTS_ADD_THOUSANDS_SEP = checked
                 self.app.refresh_tabs_signal.emit()
         thousandsep_cb.stateChanged.connect(on_set_thousandsep)
 
@@ -209,32 +209,33 @@ class SettingsDialog(QDialog, QtEventListener):
         system_cameras = find_system_cameras()
         for cam_desc, cam_path in system_cameras.items():
             qr_combo.addItem(cam_desc, cam_path)
-        index = qr_combo.findData(self.config.get("video_device"))
+        index = qr_combo.findData(self.config.VIDEO_DEVICE_PATH)
         qr_combo.setCurrentIndex(index)
-        on_video_device = lambda x: self.config.set_key("video_device", qr_combo.itemData(x), save=True)
+        def on_video_device(x):
+            self.config.VIDEO_DEVICE_PATH = qr_combo.itemData(x)
         qr_combo.currentIndexChanged.connect(on_video_device)
 
         colortheme_combo = QComboBox()
         colortheme_combo.addItem(_('Light'), 'default')
         colortheme_combo.addItem(_('Dark'), 'dark')
-        index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
+        index = colortheme_combo.findData(self.config.GUI_QT_COLOR_THEME)
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(_('Color theme') + ':')
         def on_colortheme(x):
-            self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), save=True)
+            self.config.GUI_QT_COLOR_THEME = colortheme_combo.itemData(x)
             self.need_restart = True
         colortheme_combo.currentIndexChanged.connect(on_colortheme)
 
         updatecheck_cb = QCheckBox(_("Automatically check for software updates"))
-        updatecheck_cb.setChecked(bool(self.config.get('check_updates', False)))
+        updatecheck_cb.setChecked(self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS)
         def on_set_updatecheck(v):
-            self.config.set_key('check_updates', v == Qt.Checked, save=True)
+            self.config.AUTOMATIC_CENTRALIZED_UPDATE_CHECKS = (v == Qt.Checked)
         updatecheck_cb.stateChanged.connect(on_set_updatecheck)
 
         filelogging_cb = QCheckBox(_("Write logs to file"))
-        filelogging_cb.setChecked(bool(self.config.get('log_to_file', False)))
+        filelogging_cb.setChecked(self.config.WRITE_LOGS_TO_DISK)
         def on_set_filelogging(v):
-            self.config.set_key('log_to_file', v == Qt.Checked, save=True)
+            self.config.WRITE_LOGS_TO_DISK = (v == Qt.Checked)
             self.need_restart = True
         filelogging_cb.stateChanged.connect(on_set_filelogging)
         filelogging_cb.setToolTip(_('Debug logs can be persisted to disk. These are useful for troubleshooting.'))
@@ -256,7 +257,7 @@ class SettingsDialog(QDialog, QtEventListener):
             chooser_combo.setCurrentIndex(i)
             def on_chooser(x):
                 chooser_name = choosers[chooser_combo.currentIndex()]
-                self.config.set_key('coin_chooser', chooser_name)
+                self.config.WALLET_COIN_CHOOSER_POLICY = chooser_name
             chooser_combo.currentIndexChanged.connect(on_chooser)
 
         block_explorers = sorted(util.block_explorer_info().keys())
@@ -267,7 +268,7 @@ class SettingsDialog(QDialog, QtEventListener):
         msg = _('Choose which online block explorer to use for functions that open a web browser')
         block_ex_label = HelpLabel(_('Online Block Explorer') + ':', msg)
         block_ex_combo = QComboBox()
-        block_ex_custom_e = QLineEdit(str(self.config.get('block_explorer_custom') or ''))
+        block_ex_custom_e = QLineEdit(str(self.config.BLOCK_EXPLORER_CUSTOM or ''))
         block_ex_combo.addItems(block_explorers)
         block_ex_combo.setCurrentIndex(
             block_ex_combo.findText(util.block_explorer(self.config) or BLOCK_EX_CUSTOM_ITEM))
@@ -279,8 +280,8 @@ class SettingsDialog(QDialog, QtEventListener):
                 on_be_edit()
             else:
                 be_result = block_explorers[block_ex_combo.currentIndex()]
-                self.config.set_key('block_explorer_custom', None, save=False)
-                self.config.set_key('block_explorer', be_result, save=True)
+                self.config.BLOCK_EXPLORER_CUSTOM = None
+                self.config.BLOCK_EXPLORER = be_result
             showhide_block_ex_custom_e()
         block_ex_combo.currentIndexChanged.connect(on_be_combo)
         def on_be_edit():
@@ -289,7 +290,7 @@ class SettingsDialog(QDialog, QtEventListener):
                 val = ast.literal_eval(val)  # to also accept tuples
             except Exception:
                 pass
-            self.config.set_key('block_explorer_custom', val)
+            self.config.BLOCK_EXPLORER_CUSTOM = val
         block_ex_custom_e.editingFinished.connect(on_be_edit)
         block_ex_hbox = QHBoxLayout()
         block_ex_hbox.setContentsMargins(0, 0, 0, 0)
@@ -307,7 +308,7 @@ class SettingsDialog(QDialog, QtEventListener):
         def update_currencies():
             if not self.fx:
                 return
-            h = bool(self.config.get('history_rates', False))
+            h = self.config.FX_HISTORY_RATES
             currencies = sorted(self.fx.get_currencies(h))
             ccy_combo.clear()
             ccy_combo.addItems([_('None')] + currencies)
@@ -319,7 +320,7 @@ class SettingsDialog(QDialog, QtEventListener):
             b = self.fx.is_enabled()
             ex_combo.setEnabled(b)
             if b:
-                h = bool(self.config.get('history_rates', False))
+                h = self.config.FX_HISTORY_RATES
                 c = self.fx.get_currency()
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
@@ -347,7 +348,7 @@ class SettingsDialog(QDialog, QtEventListener):
             self.app.update_fiat_signal.emit()
 
         def on_history_rates(checked):
-            self.config.set_key('history_rates', bool(checked))
+            self.config.FX_HISTORY_RATES = bool(checked)
             if not self.fx:
                 return
             update_exchanges()
@@ -356,7 +357,7 @@ class SettingsDialog(QDialog, QtEventListener):
         update_currencies()
         update_exchanges()
         ccy_combo.currentIndexChanged.connect(on_currency)
-        self.history_rates_cb.setChecked(bool(self.config.get('history_rates', False)))
+        self.history_rates_cb.setChecked(self.config.FX_HISTORY_RATES)
         self.history_rates_cb.stateChanged.connect(on_history_rates)
         ex_combo.currentIndexChanged.connect(on_exchange)
 
@@ -417,7 +418,7 @@ class SettingsDialog(QDialog, QtEventListener):
         self.app.alias_received_signal.emit()
 
     def set_alias_color(self):
-        if not self.config.get('alias'):
+        if not self.config.OPENALIAS_ID:
             self.alias_e.setStyleSheet("")
             return
         if self.wallet.contacts.alias_info:
@@ -429,7 +430,7 @@ class SettingsDialog(QDialog, QtEventListener):
     def on_alias_edit(self):
         self.alias_e.setStyleSheet("")
         alias = str(self.alias_e.text())
-        self.config.set_key('alias', alias, save=True)
+        self.config.OPENALIAS_ID = alias
         if alias:
             self.wallet.contacts.fetch_openalias(self.config)
 

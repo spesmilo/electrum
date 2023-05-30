@@ -959,7 +959,7 @@ class AddressSynchronizer(Logger, EventListener):
         """
         max_conf = -1
         h = self.db.get_addr_history(address)
-        needs_spv_check = not self.config.get("skipmerklecheck", False)
+        needs_spv_check = not self.config.NETWORK_SKIPMERKLECHECK
         for tx_hash, tx_height in h:
             if needs_spv_check:
                 tx_age = self.get_tx_height(tx_hash).conf

@@ -23,11 +23,6 @@ from .simple_config import SimpleConfig
 from .logging import Logger
 
 
-DEFAULT_ENABLED = False
-DEFAULT_CURRENCY = "EUR"
-DEFAULT_EXCHANGE = "CoinGecko"  # default exchange should ideally provide historical rates
-
-
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'CVE': 0, 'DJF': 0, 'GNF': 0, 'IQD': 3, 'ISK': 0,
@@ -577,29 +572,29 @@ class FxThread(ThreadJob, EventListener):
             if self.is_enabled():
                 await self.exchange.update_safe(self.ccy)
 
-    def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate', DEFAULT_ENABLED))
+    def is_enabled(self) -> bool:
+        return self.config.FX_USE_EXCHANGE_RATE
 
-    def set_enabled(self, b):
-        self.config.set_key('use_exchange_rate', bool(b))
+    def set_enabled(self, b: bool) -> None:
+        self.config.FX_USE_EXCHANGE_RATE = b
         self.trigger_update()
 
     def can_have_history(self):
         return self.is_enabled() and self.ccy in self.exchange.history_ccys()
 
     def has_history(self) -> bool:
-        return self.can_have_history() and bool(self.config.get('history_rates', False))
+        return self.can_have_history() and self.config.FX_HISTORY_RATES
 
     def get_currency(self) -> str:
         '''Use when dynamic fetching is needed'''
-        return self.config.get("currency", DEFAULT_CURRENCY)
+        return self.config.FX_CURRENCY
 
     def config_exchange(self):
-        return self.config.get('use_exchange', DEFAULT_EXCHANGE)
+        return self.config.FX_EXCHANGE
 
     def set_currency(self, ccy: str):
         self.ccy = ccy
-        self.config.set_key('currency', ccy, save=True)
+        self.config.FX_CURRENCY = ccy
         self.trigger_update()
         self.on_quotes()
 
@@ -608,10 +603,10 @@ class FxThread(ThreadJob, EventListener):
         loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
-        class_ = globals().get(name) or globals().get(DEFAULT_EXCHANGE)
+        class_ = globals().get(name) or globals().get(self.config.cv.FX_EXCHANGE.get_default_value())
         self.logger.info(f"using exchange {name}")
         if self.config_exchange() != name:
-            self.config.set_key('use_exchange', name, save=True)
+            self.config.FX_EXCHANGE = name
         assert issubclass(class_, ExchangeBase), f"unexpected type {class_} for {name}"
         self.exchange = class_(self.on_quotes, self.on_history)  # type: ExchangeBase
         # A new exchange means new fx quotes, initially empty.  Force
@@ -689,4 +684,4 @@ class FxThread(ThreadJob, EventListener):
         return self.history_rate(date)
 
 
-assert globals().get(DEFAULT_EXCHANGE), f"default exchange {DEFAULT_EXCHANGE} does not exist"
+assert globals().get(SimpleConfig.FX_EXCHANGE.get_default_value()), f"default exchange {SimpleConfig.FX_EXCHANGE.get_default_value()} does not exist"

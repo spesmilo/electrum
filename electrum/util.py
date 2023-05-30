@@ -974,25 +974,24 @@ def block_explorer(config: 'SimpleConfig') -> Optional[str]:
     """Returns name of selected block explorer,
     or None if a custom one (not among hardcoded ones) is configured.
     """
-    if config.get('block_explorer_custom') is not None:
+    if config.BLOCK_EXPLORER_CUSTOM is not None:
         return None
-    default_ = 'Blockstream.info'
-    be_key = config.get('block_explorer', default_)
+    be_key = config.BLOCK_EXPLORER
     be_tuple = block_explorer_info().get(be_key)
     if be_tuple is None:
-        be_key = default_
+        be_key = config.cv.BLOCK_EXPLORER.get_default_value()
     assert isinstance(be_key, str), f"{be_key!r} should be str"
     return be_key
 
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    custom_be = config.get('block_explorer_custom')
+    custom_be = config.BLOCK_EXPLORER_CUSTOM
     if custom_be:
         if isinstance(custom_be, str):
             return custom_be, _block_explorer_default_api_loc
         if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
             return tuple(custom_be)
-        _logger.warning(f"not using 'block_explorer_custom' from config. "
+        _logger.warning(f"not using {config.cv.BLOCK_EXPLORER_CUSTOM.key()!r} from config. "
                         f"expected a str or a pair but got {custom_be!r}")
         return None
     else:

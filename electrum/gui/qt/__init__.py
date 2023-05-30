@@ -63,6 +63,7 @@ from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.wallet_db import WalletDB
 from electrum.logging import Logger
 from electrum.gui import BaseElectrumGui
+from electrum.simple_config import SimpleConfig
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 from .util import read_QIcon, ColorScheme, custom_message_box, MessageBoxMixin
@@ -75,7 +76,6 @@ from .exception_window import Exception_Hook
 
 if TYPE_CHECKING:
     from electrum.daemon import Daemon
-    from electrum.simple_config import SimpleConfig
     from electrum.plugin import Plugins
 
 
@@ -139,7 +139,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         self.watchtower_dialog = None
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
-        self.dark_icon = self.config.get("dark_icon", False)
+        self.dark_icon = self.config.GUI_QT_DARK_TRAY_ICON
         self.tray = None
         self._init_tray()
         self.app.new_window_signal.connect(self.start_new_window)
@@ -167,7 +167,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
              - in Coins tab, the color for "frozen" UTXOs, or
              - in TxDialog, the receiving/change address colors
         """
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        use_dark_theme = self.config.GUI_QT_COLOR_THEME == 'dark'
         if use_dark_theme:
             try:
                 import qdarkstyle
@@ -219,7 +219,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         if not self.tray:
             return
         self.dark_icon = not self.dark_icon
-        self.config.set_key("dark_icon", self.dark_icon, save=True)
+        self.config.GUI_QT_DARK_TRAY_ICON = self.dark_icon
         self.tray.setIcon(self.tray_icon())
 
     def tray_activated(self, reason):
@@ -436,7 +436,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         """Start the network, including showing a first-start network dialog if config does not exist."""
         if self.daemon.network:
             # first-start network-setup
-            if self.config.get('auto_connect') is None:
+            if not self.config.cv.NETWORK_AUTO_CONNECT.is_set():
                 wizard = InstallWizard(self.config, self.app, self.plugins, gui_object=self)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
