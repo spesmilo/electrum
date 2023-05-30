@@ -22,7 +22,7 @@ hidapi
 ckcc-protocol>=0.7.7
 
 # device plugin: bitbox02
-bitbox02>=6.0.0
+bitbox02>=6.2.0
 
 # device plugin: jade
 cbor>=1.0.0,<2.0.0
