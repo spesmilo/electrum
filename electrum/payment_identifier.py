@@ -2,7 +2,7 @@ import asyncio
 import urllib
 import re
 from decimal import Decimal, InvalidOperation
-from typing import NamedTuple, Optional, Callable, Any, Sequence
+from typing import NamedTuple, Optional, Callable, Any, Sequence, List
 from urllib.parse import urlparse
 
 from . import bitcoin
@@ -15,6 +15,7 @@ from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNUR
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
+
 
 def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     data = data.strip()  # whitespaces
@@ -36,7 +37,8 @@ BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
 LIGHTNING_URI_SCHEME = 'lightning'
 
 
-class InvalidBitcoinURI(Exception): pass
+class InvalidBitcoinURI(Exception):
+    pass
 
 
 def parse_bip21_URI(uri: str) -> dict:
@@ -122,7 +124,6 @@ def parse_bip21_URI(uri: str) -> dict:
     return out
 
 
-
 def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
                      *, extra_query_params: Optional[dict] = None) -> str:
     if not bitcoin.is_address(addr):
@@ -131,9 +132,9 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
         extra_query_params = {}
     query = []
     if amount_sat:
-        query.append('amount=%s'%format_satoshis_plain(amount_sat))
+        query.append('amount=%s' % format_satoshis_plain(amount_sat))
     if message:
-        query.append('message=%s'%urllib.parse.quote(message))
+        query.append('message=%s' % urllib.parse.quote(message))
     for k, v in extra_query_params.items():
         if not isinstance(k, str) or k != urllib.parse.quote(k):
             raise Exception(f"illegal key for URI: {repr(k)}")
@@ -145,10 +146,9 @@ def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
         path=addr,
         params='',
         query='&'.join(query),
-        fragment='',
+        fragment=''
     )
     return str(urllib.parse.urlunparse(p))
-
 
 
 def is_uri(data: str) -> bool:
@@ -159,9 +159,9 @@ def is_uri(data: str) -> bool:
     return False
 
 
-
 class FailedToParsePaymentIdentifier(Exception):
     pass
+
 
 class PayToLineError(NamedTuple):
     line_content: str
@@ -169,8 +169,10 @@ class PayToLineError(NamedTuple):
     idx: int = 0  # index of line
     is_multiline: bool = False
 
+
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+
 
 class PaymentIdentifier(Logger):
     """
@@ -235,7 +237,7 @@ class PaymentIdentifier(Logger):
         text = text.strip()
         if not text:
             return
-        if outputs:= self._parse_as_multiline(text):
+        if outputs := self._parse_as_multiline(text):
             self._type = 'multiline'
             self.multiline_outputs = outputs
         elif invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
@@ -286,7 +288,7 @@ class PaymentIdentifier(Logger):
         # filter out empty lines
         lines = text.split('\n')
         lines = [i for i in lines if i]
-        is_multiline = len(lines)>1
+        is_multiline = len(lines) > 1
         outputs = []  # type: List[PartialTxOutput]
         errors = []
         total = 0
@@ -357,7 +359,7 @@ class PaymentIdentifier(Logger):
 
     def parse_address(self, line):
         r = line.strip()
-        m = re.match('^'+RE_ALIAS+'$', r)
+        m = re.match('^' + RE_ALIAS + '$', r)
         address = str(m.group(2) if m else r)
         assert bitcoin.is_address(address)
         return address
@@ -447,12 +449,12 @@ class PaymentIdentifier(Logger):
             self.show_error(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
             return
         pubkey = lnaddr.pubkey.serialize().hex()
-        for k,v in lnaddr.tags:
+        for k, v in lnaddr.tags:
             if k == 'd':
                 description = v
                 break
         else:
-             description = ''
+            description = ''
         amount = lnaddr.get_amount_sat()
         return pubkey, amount, description
 
@@ -502,7 +504,7 @@ class PaymentIdentifier(Logger):
         on_success(self)
 
     @log_exceptions
-    async def round_2(self, on_success, amount_sat:int=None, comment=None):
+    async def round_2(self, on_success, amount_sat: int = None, comment: str = None):
         from .invoices import Invoice
         if self.lnurl:
             if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
@@ -510,7 +512,7 @@ class PaymentIdentifier(Logger):
                 return
             if self.lnurl_data.comment_allowed == 0:
                 comment = None
-            params = {'amount': amount_sat * 1000 }
+            params = {'amount': amount_sat * 1000}
             if comment:
                 params['comment'] = comment
             try:
