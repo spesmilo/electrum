@@ -399,6 +399,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def get_message(self):
         return self.message_e.text()
+
     def read_invoice(self) -> Optional[Invoice]:
         if self.check_payto_line_and_show_errors():
             return
@@ -410,7 +411,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         invoice = self.payment_identifier.get_invoice(self.wallet, amount_sat, self.get_message())
         #except Exception as e:
         if not invoice:
-            self.show_error('error getting invoice' + pi.error)
+            self.show_error('error getting invoice' + self.payment_identifier.error)
             return
         if not self.wallet.has_lightning() and not invoice.can_be_paid_onchain():
             self.show_error(_('Lightning is disabled'))
@@ -533,9 +534,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 #               for err in errors]))
             return True
 
-        if self.payment_identifier.warning:
-            msg += '\n' + _('Do you wish to continue?')
-            if not self.question(msg):
+        warning = self.payment_identifier.warning
+        if warning:
+            warning += '\n' + _('Do you wish to continue?')
+            if not self.question(warning):
                 return True
 
         if self.payment_identifier.has_expired():

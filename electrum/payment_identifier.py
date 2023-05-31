@@ -1,17 +1,18 @@
 import asyncio
 import urllib
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import NamedTuple, Optional, Callable, Any, Sequence
 from urllib.parse import urlparse
 
 from . import bitcoin
+from .i18n import _
 from .logging import Logger
 from .util import parse_max_spend, format_satoshis_plain
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
-from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
+from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
 
@@ -351,7 +352,7 @@ class PaymentIdentifier(Logger):
         p = pow(10, self.config.get_decimal_point())
         try:
             return int(p * Decimal(x))
-        except decimal.InvalidOperation:
+        except InvalidOperation:
             raise Exception("Invalid amount")
 
     def parse_address(self, line):
