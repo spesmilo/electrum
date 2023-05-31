@@ -194,7 +194,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.set_payment_identifier(text)
 
     def set_payment_identifier(self, text):
-        pi = PaymentIdentifier(self.config, self.window.contacts, text)
+        pi = PaymentIdentifier(self.wallet, text)
         if pi.error:
             self.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + pi.error)
             return
@@ -356,7 +356,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setReadOnly(False)
 
     def update_fields(self, pi):
-        recipient, amount, description, comment, validated = pi.get_fields_for_GUI(self.wallet)
+        recipient, amount, description, comment, validated = pi.get_fields_for_GUI()
         if recipient:
             self.payto_e.setTextNoCheck(recipient)
         elif pi.multiline_outputs:
@@ -408,7 +408,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.show_error(_('No amount'))
             return
 
-        invoice = self.payment_identifier.get_invoice(self.wallet, amount_sat, self.get_message())
+        invoice = self.payment_identifier.get_invoice(amount_sat, self.get_message())
         #except Exception as e:
         if not invoice:
             self.show_error('error getting invoice' + self.payment_identifier.error)
@@ -449,7 +449,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.do_clear()
             return
         self.update_fields(pi)
-        invoice = pi.get_invoice(self.wallet, self.get_amount(), self.get_message())
+        invoice = pi.get_invoice(self.get_amount(), self.get_message())
         self.pending_invoice = invoice
         self.do_pay_invoice(invoice)
 

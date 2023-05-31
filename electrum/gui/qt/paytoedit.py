@@ -213,9 +213,9 @@ class PayToEdit(Logger, GenericInputHandler):
             self.previous_payto = text
         if self.disable_checks:
             return
-        pi = PaymentIdentifier(self.config, self.win.contacts, text)
+        pi = PaymentIdentifier(self.send_tab.wallet, text)
         self.is_multiline = bool(pi.multiline_outputs)
-        print('is_multiline', self.is_multiline)
+        self.logger.debug(f'is_multiline {self.is_multiline}')
         self.send_tab.handle_payment_identifier(pi, can_use_network=full_check)
 
     def handle_multiline(self, outputs):

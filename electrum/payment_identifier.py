@@ -2,7 +2,7 @@ import asyncio
 import urllib
 import re
 from decimal import Decimal, InvalidOperation
-from typing import NamedTuple, Optional, Callable, Any, Sequence, List
+from typing import NamedTuple, Optional, Callable, Any, Sequence, List, TYPE_CHECKING
 from urllib.parse import urlparse
 
 from . import bitcoin
@@ -15,6 +15,9 @@ from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNUR
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
+
+if TYPE_CHECKING:
+    from .wallet import Abstract_Wallet
 
 
 def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
@@ -184,12 +187,14 @@ class PaymentIdentifier(Logger):
         * lightning-URI (containing bolt11 or lnurl)
         * bolt11 invoice
         * lnurl
+        * TODO: lightning address
     """
 
-    def __init__(self, config, contacts, text):
+    def __init__(self, wallet: 'Abstract_Wallet', text):
         Logger.__init__(self)
-        self.contacts = contacts
-        self.config = config
+        self.wallet = wallet
+        self.contacts = wallet.contacts if wallet is not None else None
+        self.config = wallet.config if wallet is not None else None
         self.text = text
         self._type = None
         self.error = None    # if set, GUI should show error and stop
@@ -307,7 +312,7 @@ class PaymentIdentifier(Logger):
                 total += output.value
         if is_multiline and errors:
             self.error = str(errors) if errors else None
-        print(outputs, self.error)
+        self.logger.debug(f'multiline: {outputs!r}, {self.error}')
         return outputs
 
     def parse_address_and_amount(self, line) -> 'PartialTxOutput':
@@ -364,7 +369,7 @@ class PaymentIdentifier(Logger):
         assert bitcoin.is_address(address)
         return address
 
-    def get_fields_for_GUI(self, wallet):
+    def get_fields_for_GUI(self):
         """ sets self.error as side effect"""
         recipient = None
         amount = None
@@ -429,7 +434,7 @@ class PaymentIdentifier(Logger):
             if label and not description:
                 description = label
             lightning = self.bip21.get('lightning')
-            if lightning and wallet.has_lightning():
+            if lightning and self.wallet.has_lightning():
                 # maybe set self.bolt11?
                 recipient, amount, description = self.get_bolt11_fields(lightning)
                 if not amount:
@@ -540,8 +545,7 @@ class PaymentIdentifier(Logger):
             self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
         on_success(self)
 
-    def get_invoice(self, wallet, amount_sat, message):
-        # fixme: wallet not really needed, only height
+    def get_invoice(self, amount_sat, message):
         from .invoices import Invoice
         if self.is_lightning():
             invoice_str = self.bolt11
@@ -555,7 +559,7 @@ class PaymentIdentifier(Logger):
             outputs = self.get_onchain_outputs(amount_sat)
             message = self.bip21.get('message') if self.bip21 else message
             bip70_data = self.bip70_data if self.bip70 else None
-            return wallet.create_invoice(
+            return self.wallet.create_invoice(
                 outputs=outputs,
                 message=message,
                 pr=bip70_data,

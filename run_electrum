@@ -367,7 +367,7 @@ def main():
 
     # check if we received a valid payment identifier
     uri = config_options.get('url')
-    if uri and not PaymentIdentifier(None, None, uri).is_valid():
+    if uri and not PaymentIdentifier(None, uri).is_valid():
         print_stderr('unknown command:', uri)
         sys.exit(1)
 
