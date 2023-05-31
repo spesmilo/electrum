@@ -27,6 +27,7 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
     channelCloseSuccess = pyqtSignal()
     channelCloseFailed = pyqtSignal([str], arguments=['message'])
     isClosingChanged = pyqtSignal()
+    trampolineFrozenInGossipMode = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -214,6 +215,7 @@ class QEChannelDetails(AuthMixin, QObject, QtEventListener):
             self.channelChanged.emit()
         else:
             self._logger.debug(messages.MSG_NON_TRAMPOLINE_CHANNEL_FROZEN_WITHOUT_GOSSIP)
+            self.trampolineFrozenInGossipMode.emit()
 
     @pyqtSlot()
     def freezeForReceiving(self):
