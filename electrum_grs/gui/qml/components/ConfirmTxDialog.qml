@@ -35,164 +35,172 @@ ElDialog {
     }
 
     ColumnLayout {
-        width: parent.width
-        height: parent.height
+        anchors.fill: parent
         spacing: 0
 
-        GridLayout {
+        Flickable {
             Layout.fillWidth: true
-            Layout.leftMargin: constants.paddingLarge
-            Layout.rightMargin: constants.paddingLarge
+            Layout.fillHeight: true
 
-            columns: 2
+            leftMargin: constants.paddingLarge
+            rightMargin: constants.paddingLarge
 
-            Label {
-                id: amountLabel
-                Layout.fillWidth: true
-                Layout.minimumWidth: implicitWidth
-                text: qsTr('Amount to send')
-                color: Material.accentColor
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Label {
-                    id: btcValue
-                    font.bold: true
-                    font.family: FixedFont
-                }
+            contentHeight: rootLayout.height
+            clip: true
+            interactive: height < contentHeight
+
+            GridLayout {
+                id: rootLayout
+                width: parent.width
+
+                columns: 2
 
                 Label {
-                    text: Config.baseUnit
+                    id: amountLabel
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: implicitWidth
+                    text: qsTr('Amount to send')
                     color: Material.accentColor
                 }
-
-                Label {
-                    id: fiatValue
+                RowLayout {
                     Layout.fillWidth: true
-                    font.pixelSize: constants.fontSizeMedium
-                }
-
-                Component.onCompleted: updateAmountText()
-                Connections {
-                    target: finalizer
-                    function onEffectiveAmountChanged() {
-                        updateAmountText()
+                    Label {
+                        id: btcValue
+                        font.bold: true
+                        font.family: FixedFont
                     }
-                }
-            }
 
-            Label {
-                text: qsTr('Mining fee')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                amount: finalizer.fee
-            }
-
-            Label {
-                visible: !finalizer.extraFee.isEmpty
-                text: qsTr('Extra fee')
-                color: Material.accentColor
-            }
-
-            FormattedAmount {
-                visible: !finalizer.extraFee.isEmpty
-                amount: finalizer.extraFee
-            }
-
-            Label {
-                text: qsTr('Fee rate')
-                color: Material.accentColor
-            }
-
-            RowLayout {
-                Label {
-                    id: feeRate
-                    text: finalizer.feeRate
-                    font.family: FixedFont
-                }
-
-                Label {
-                    text: 'gro/vB'
-                    color: Material.accentColor
-                }
-            }
-
-            Label {
-                text: qsTr('Target')
-                color: Material.accentColor
-            }
-
-            Label {
-                id: targetdesc
-                text: finalizer.target
-            }
-
-            RowLayout {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-
-                Slider {
-                    id: feeslider
-                    Layout.fillWidth: true
-                    leftPadding: constants.paddingMedium
-
-                    snapMode: Slider.SnapOnRelease
-                    stepSize: 1
-                    from: 0
-                    to: finalizer.sliderSteps
-
-                    onValueChanged: {
-                        if (activeFocus)
-                            finalizer.sliderPos = value
+                    Label {
+                        text: Config.baseUnit
+                        color: Material.accentColor
                     }
-                    Component.onCompleted: {
-                        value = finalizer.sliderPos
+
+                    Label {
+                        id: fiatValue
+                        Layout.fillWidth: true
+                        font.pixelSize: constants.fontSizeMedium
                     }
+
+                    Component.onCompleted: updateAmountText()
                     Connections {
                         target: finalizer
-                        function onSliderPosChanged() {
-                            feeslider.value = finalizer.sliderPos
+                        function onEffectiveAmountChanged() {
+                            updateAmountText()
                         }
                     }
                 }
 
-                FeeMethodComboBox {
-                    id: target
-                    feeslider: finalizer
+                Label {
+                    text: qsTr('Mining fee')
+                    color: Material.accentColor
                 }
-            }
 
-            InfoTextArea {
-                Layout.columnSpan: 2
-                Layout.fillWidth: true
-                Layout.topMargin: constants.paddingLarge
-                Layout.bottomMargin: constants.paddingLarge
-                visible: finalizer.warning != ''
-                text: finalizer.warning
-                iconStyle: InfoTextArea.IconStyle.Warn
-            }
+                FormattedAmount {
+                    amount: finalizer.fee
+                }
 
-            Label {
-                text: qsTr('Outputs')
-                Layout.columnSpan: 2
-                color: Material.accentColor
-            }
+                Label {
+                    visible: !finalizer.extraFee.isEmpty
+                    text: qsTr('Extra fee')
+                    color: Material.accentColor
+                }
 
-            Repeater {
-                model: finalizer.outputs
-                delegate: TxOutput {
+                FormattedAmount {
+                    visible: !finalizer.extraFee.isEmpty
+                    amount: finalizer.extraFee
+                }
+
+                Label {
+                    text: qsTr('Fee rate')
+                    color: Material.accentColor
+                }
+
+                RowLayout {
+                    Label {
+                        id: feeRate
+                        text: finalizer.feeRate
+                        font.family: FixedFont
+                    }
+
+                    Label {
+                        text: 'gro/vB'
+                        color: Material.accentColor
+                    }
+                }
+
+                Label {
+                    text: qsTr('Target')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    id: targetdesc
+                    text: finalizer.target
+                }
+
+                RowLayout {
                     Layout.columnSpan: 2
                     Layout.fillWidth: true
 
-                    allowShare: false
-                    model: modelData
+                    Slider {
+                        id: feeslider
+                        Layout.fillWidth: true
+                        leftPadding: constants.paddingMedium
+
+                        snapMode: Slider.SnapOnRelease
+                        stepSize: 1
+                        from: 0
+                        to: finalizer.sliderSteps
+
+                        onValueChanged: {
+                            if (activeFocus)
+                                finalizer.sliderPos = value
+                        }
+                        Component.onCompleted: {
+                            value = finalizer.sliderPos
+                        }
+                        Connections {
+                            target: finalizer
+                            function onSliderPosChanged() {
+                                feeslider.value = finalizer.sliderPos
+                            }
+                        }
+                    }
+
+                    FeeMethodComboBox {
+                        id: target
+                        feeslider: finalizer
+                    }
+                }
+
+                InfoTextArea {
+                    Layout.columnSpan: 2
+                    Layout.fillWidth: true
+                    Layout.topMargin: constants.paddingLarge
+                    Layout.bottomMargin: constants.paddingLarge
+                    visible: finalizer.warning != ''
+                    text: finalizer.warning
+                    iconStyle: InfoTextArea.IconStyle.Warn
+                }
+
+                Label {
+                    text: qsTr('Outputs')
+                    Layout.columnSpan: 2
+                    color: Material.accentColor
+                }
+
+                Repeater {
+                    model: finalizer.outputs
+                    delegate: TxOutput {
+                        Layout.columnSpan: 2
+                        Layout.fillWidth: true
+
+                        allowShare: false
+                        model: modelData
+                    }
                 }
             }
         }
-
-        Item { Layout.fillHeight: true; Layout.preferredWidth: 1 }
 
         FlatButton {
             id: sendButton

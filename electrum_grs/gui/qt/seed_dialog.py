@@ -66,6 +66,7 @@ class SeedLayout(QVBoxLayout):
 
     def seed_options(self):
         dialog = QDialog()
+        dialog.setWindowTitle(_("Seed Options"))
         vbox = QVBoxLayout(dialog)
 
         seed_types = [
