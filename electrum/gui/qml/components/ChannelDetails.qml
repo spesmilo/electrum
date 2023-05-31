@@ -135,9 +135,10 @@ Pane {
                                 icon.source: '../../icons/share.png'
                                 icon.color: 'transparent'
                                 onClicked: {
-                                    var dialog = app.genericShareDialog.createObject(root,
-                                        { title: qsTr('Channel node ID'), text: channeldetails.pubkey }
-                                    )
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Channel node ID'),
+                                        text: channeldetails.pubkey
+                                    })
                                     dialog.open()
                                 }
                             }
@@ -158,6 +159,18 @@ Pane {
                         width: parent.width
                         columns: 2
                         rowSpacing: constants.paddingSmall
+
+                        InfoTextArea {
+                            Layout.columnSpan: 2
+                            Layout.fillWidth: true
+                            Layout.bottomMargin: constants.paddingMedium
+                            visible: channeldetails.canSend.msatsInt < 0.5 * channeldetails.localCapacity.msatsInt
+                                && channeldetails.localCapacity.msatsInt > 0.2 * channeldetails.capacity.msatsInt
+                            iconStyle: InfoTextArea.IconStyle.Warn
+                            compact: true
+                            text: [qsTr('The amount available for sending is considerably lower than the local balance.'),
+                                qsTr('This can occur when mempool fees are high.')].join(' ')
+                        }
 
                         ChannelBar {
                             Layout.columnSpan: 2
@@ -222,7 +235,7 @@ Pane {
                         }
 
                         Label {
-                            text: qsTr('Can Receive')
+                            text: qsTr('Can receive')
                             color: Material.accentColor
                         }
 
@@ -324,6 +337,14 @@ Pane {
         id: channeldetails
         wallet: Daemon.currentWallet
         channelid: root.channelid
+        onTrampolineFrozenInGossipMode: {
+            var dialog = app.messageDialog.createObject(root, {
+                title: qsTr('Cannot unfreeze channel'),
+                text: [qsTr('Non-Trampoline channels cannot be used for sending while in trampoline mode.'),
+                        qsTr('Disable trampoline mode to enable sending from this channel.')].join(' ')
+            })
+            dialog.open()
+        }
     }
 
     Component {
