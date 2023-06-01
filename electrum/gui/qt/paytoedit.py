@@ -23,22 +23,16 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import re
-import decimal
 from functools import partial
-from decimal import Decimal
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
 from PyQt5.QtGui import QFontMetrics, QFont
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QTextEdit, QVBoxLayout
 
-from electrum import bitcoin
+from electrum.i18n import _
 from electrum.util import parse_max_spend
-from electrum.payment_identifier import PaymentIdentifier, FailedToParsePaymentIdentifier
-from electrum.transaction import PartialTxOutput
-from electrum.bitcoin import opcodes, construct_script
+from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger
-from electrum.lnurl import LNURLError
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -214,9 +208,15 @@ class PayToEdit(Logger, GenericInputHandler):
         if self.disable_checks:
             return
         pi = PaymentIdentifier(self.send_tab.wallet, text)
-        self.is_multiline = bool(pi.multiline_outputs)
+        self.is_multiline = bool(pi.multiline_outputs) # TODO: why both is_multiline and set_paytomany(True)??
         self.logger.debug(f'is_multiline {self.is_multiline}')
-        self.send_tab.handle_payment_identifier(pi, can_use_network=full_check)
+        if pi.is_valid():
+            self.send_tab.set_payment_identifier(text)
+        else:
+            if not full_check and pi.error:
+                self.send_tab.show_error(
+                    _('Clipboard text is not a valid payment identifier') + '\n' + str(pi.error))
+                return
 
     def handle_multiline(self, outputs):
         total = 0

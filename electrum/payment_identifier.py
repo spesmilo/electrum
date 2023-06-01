@@ -3,8 +3,7 @@ import urllib
 import re
 from decimal import Decimal, InvalidOperation
 from enum import IntEnum
-from typing import NamedTuple, Optional, Callable, Any, Sequence, List, TYPE_CHECKING
-from urllib.parse import urlparse
+from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING
 
 from . import bitcoin
 from .contacts import AliasNotFoundException
@@ -13,7 +12,7 @@ from .logging import Logger
 from .util import parse_max_spend, format_satoshis_plain
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
-from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data, lightning_address_to_url
+from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
@@ -164,10 +163,6 @@ def is_uri(data: str) -> bool:
     return False
 
 
-class FailedToParsePaymentIdentifier(Exception):
-    pass
-
-
 class PayToLineError(NamedTuple):
     line_content: str
     exc: Exception
@@ -223,7 +218,6 @@ class PaymentIdentifier(Logger):
         #
         self.emaillike = None
         self.openalias_data = None
-        self.lnaddress_data = None
         #
         self.bip70 = None
         self.bip70_data = None
@@ -241,8 +235,11 @@ class PaymentIdentifier(Logger):
     def need_resolve(self):
         return self._state == PaymentIdentifierState.NEED_RESOLVE
 
+    def need_finalize(self):
+        return self._state == PaymentIdentifierState.LNURLP_FINALIZE
+
     def is_valid(self):
-        return bool(self._type)
+        return self._state not in [PaymentIdentifierState.INVALID, PaymentIdentifierState.EMPTY]
 
     def is_lightning(self):
         return self.lnurl or self.bolt11
@@ -252,9 +249,6 @@ class PaymentIdentifier(Logger):
 
     def get_error(self) -> str:
         return self.error
-
-    def needs_round_2(self):
-        return self.lnurl and self.lnurl_data
 
     def needs_round_3(self):
         return self.bip70
@@ -305,7 +299,7 @@ class PaymentIdentifier(Logger):
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif self.error is None:
             truncated_text = f"{text[:100]}..." if len(text) > 100 else text
-            self.error = FailedToParsePaymentIdentifier(f"Unknown payment identifier:\n{truncated_text}")
+            self.error = f"Unknown payment identifier:\n{truncated_text}"
             self.set_state(PaymentIdentifierState.INVALID)
 
     def resolve(self, *, on_finished: 'Callable'):
@@ -353,8 +347,53 @@ class PaymentIdentifier(Logger):
                 self.set_state(PaymentIdentifierState.ERROR)
                 return
         except Exception as e:
-            self.error = f'{e!r}'
-            self.logger.error(self.error)
+            self.error = str(e)
+            self.logger.error(repr(e))
+            self.set_state(PaymentIdentifierState.ERROR)
+        finally:
+            if on_finished:
+                on_finished(self)
+
+    def finalize(self, *, amount_sat: int = 0, comment: str = None, on_finished: Callable = None):
+        assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
+        coro = self.do_finalize(amount_sat, comment, on_finished=on_finished)
+        asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
+
+    @log_exceptions
+    async def do_finalize(self, amount_sat: int = None, comment: str = None, on_finished: Callable = None):
+        from .invoices import Invoice
+        try:
+            if not self.lnurl_data:
+                raise Exception("Unexpected missing LNURL data")
+
+            if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
+                self.error = _('Amount must be between %d and %d sat.') \
+                    % (self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
+                return
+            if self.lnurl_data.comment_allowed == 0:
+                comment = None
+            params = {'amount': amount_sat * 1000}
+            if comment:
+                params['comment'] = comment
+            try:
+                invoice_data = await callback_lnurl(
+                    self.lnurl_data.callback_url,
+                    params=params,
+                )
+            except LNURLError as e:
+                self.error = f"LNURL request encountered error: {e}"
+                return
+            bolt11_invoice = invoice_data.get('pr')
+            #
+            invoice = Invoice.from_bech32(bolt11_invoice)
+            if invoice.get_amount_sat() != amount_sat:
+                raise Exception("lnurl returned invoice with wrong amount")
+            # this will change what is returned by get_fields_for_GUI
+            self.bolt11 = bolt11_invoice
+            self.set_state(PaymentIdentifierState.AVAILABLE)
+        except Exception as e:
+            self.error = str(e)
+            self.logger.error(repr(e))
             self.set_state(PaymentIdentifierState.ERROR)
         finally:
             if on_finished:
@@ -477,7 +516,7 @@ class PaymentIdentifier(Logger):
             recipient, amount, description = self.get_bolt11_fields(self.bolt11)
 
         elif self.lnurl and self.lnurl_data:
-            domain = urlparse(self.lnurl).netloc
+            domain = urllib.parse.urlparse(self.lnurl).netloc
             #recipient = "invoice from lnurl"
             recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
             #amount = self.lnurl_data.min_sendable_sat
@@ -569,36 +608,6 @@ class PaymentIdentifier(Logger):
         if self.bip70:
             return self.bip70_data.has_expired()
         return False
-
-    @log_exceptions
-    async def round_2(self, on_success, amount_sat: int = None, comment: str = None):
-        from .invoices import Invoice
-        if self.lnurl:
-            if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
-                self.error = f'Amount must be between {self.lnurl_data.min_sendable_sat} and {self.lnurl_data.max_sendable_sat} sat.'
-                return
-            if self.lnurl_data.comment_allowed == 0:
-                comment = None
-            params = {'amount': amount_sat * 1000}
-            if comment:
-                params['comment'] = comment
-            try:
-                invoice_data = await callback_lnurl(
-                    self.lnurl_data.callback_url,
-                    params=params,
-                )
-            except LNURLError as e:
-                self.error = f"LNURL request encountered error: {e}"
-                return
-            bolt11_invoice = invoice_data.get('pr')
-            #
-            invoice = Invoice.from_bech32(bolt11_invoice)
-            if invoice.get_amount_sat() != amount_sat:
-                raise Exception("lnurl returned invoice with wrong amount")
-            # this will change what is returned by get_fields_for_GUI
-            self.bolt11 = bolt11_invoice
-
-        on_success(self)
 
     @log_exceptions
     async def round_3(self, tx, refund_address, *, on_success):

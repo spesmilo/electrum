@@ -4,21 +4,19 @@
 
 import asyncio
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Sequence, List, Callable, Any
+from typing import Optional, TYPE_CHECKING, Sequence, List, Callable
 from PyQt5.QtCore import pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout,
                              QHBoxLayout, QCompleter, QWidget, QToolTip, QPushButton)
 
-from electrum import util, paymentrequest
-from electrum import lnutil
 from electrum.plugin import run_hook
 from electrum.i18n import _
 
-from electrum.util import get_asyncio_loop, NotEnoughFunds, NoDynamicFeeEstimates, InvoiceError, parse_max_spend
-from electrum.payment_identifier import PaymentIdentifier, FailedToParsePaymentIdentifier, InvalidBitcoinURI
+from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
+from electrum.payment_identifier import PaymentIdentifier
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 
-from electrum.transaction import Transaction, PartialTxInput, PartialTransaction, PartialTxOutput
+from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
 from electrum.logging import Logger
 
@@ -34,7 +32,7 @@ if TYPE_CHECKING:
 class SendTab(QWidget, MessageBoxMixin, Logger):
 
     resolve_done_signal = pyqtSignal(object)
-    round_2_signal = pyqtSignal(object)
+    finalize_done_signal = pyqtSignal(object)
     round_3_signal = pyqtSignal(object)
 
     def __init__(self, window: 'ElectrumWindow'):
@@ -184,7 +182,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         run_hook('create_send_tab', grid)
 
         self.resolve_done_signal.connect(self.on_resolve_done)
-        self.round_2_signal.connect(self.on_round_2)
+        self.finalize_done_signal.connect(self.on_round_2)
         self.round_3_signal.connect(self.on_round_3)
 
     def do_paste(self):
@@ -203,7 +201,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.payto_e.text_edit.setText(text)
         else:
             self.payto_e.setTextNoCheck(text)
-        self.handle_payment_identifier(can_use_network=True)
+        self._handle_payment_identifier(can_use_network=True)
 
     def spend_max(self):
         if run_hook('abort_send', self):
@@ -372,7 +370,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.set_field_style(self.amount_e, amount, validated)
         self.set_field_style(self.fiat_send_e, amount, validated)
 
-    def handle_payment_identifier(self, *, can_use_network: bool = True):
+    def _handle_payment_identifier(self, *, can_use_network: bool = True):
         is_valid = self.payment_identifier.is_valid()
         self.save_button.setEnabled(is_valid)
         self.send_button.setEnabled(is_valid)
@@ -456,10 +454,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def do_pay_or_get_invoice(self):
         pi = self.payment_identifier
-        if pi.needs_round_2():
-            coro = pi.round_2(self.round_2_signal.emit, amount_sat=self.get_amount(), comment=self.message_e.text())
-            asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())  # TODO should be cancellable
+        if pi.need_finalize():
             self.prepare_for_send_tab_network_lookup()
+            pi.finalize(amount_sat=self.get_amount(), comment=self.message_e.text(),
+                        on_finished=self.finalize_done_signal.emit)
             return
         self.pending_invoice = self.read_invoice()
         if not self.pending_invoice:
