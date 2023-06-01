@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 class SendTab(QWidget, MessageBoxMixin, Logger):
 
-    round_1_signal = pyqtSignal(object)
+    resolve_done_signal = pyqtSignal(object)
     round_2_signal = pyqtSignal(object)
     round_3_signal = pyqtSignal(object)
 
@@ -183,7 +183,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.invoice_list.update()  # after parented and put into a layout, can update without flickering
         run_hook('create_send_tab', grid)
 
-        self.round_1_signal.connect(self.on_round_1)
+        self.resolve_done_signal.connect(self.on_resolve_done)
         self.round_2_signal.connect(self.on_round_2)
         self.round_3_signal.connect(self.on_round_3)
 
@@ -194,16 +194,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.set_payment_identifier(text)
 
     def set_payment_identifier(self, text):
-        pi = PaymentIdentifier(self.wallet, text)
-        if pi.error:
-            self.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + pi.error)
+        self.payment_identifier = PaymentIdentifier(self.wallet, text)
+        if self.payment_identifier.error:
+            self.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + self.payment_identifier.error)
             return
-        if pi.is_multiline():
+        if self.payment_identifier.is_multiline():
             self.payto_e.set_paytomany(True)
             self.payto_e.text_edit.setText(text)
         else:
             self.payto_e.setTextNoCheck(text)
-        self.handle_payment_identifier(pi, can_use_network=True)
+        self.handle_payment_identifier(can_use_network=True)
 
     def spend_max(self):
         if run_hook('abort_send', self):
@@ -355,45 +355,43 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setStyleSheet('')
             w.setReadOnly(False)
 
-    def update_fields(self, pi):
-        recipient, amount, description, comment, validated = pi.get_fields_for_GUI()
+    def update_fields(self):
+        recipient, amount, description, comment, validated = self.payment_identifier.get_fields_for_GUI()
         if recipient:
             self.payto_e.setTextNoCheck(recipient)
-        elif pi.multiline_outputs:
-            self.payto_e.handle_multiline(pi.multiline_outputs)
+        elif self.payment_identifier.multiline_outputs:
+            self.payto_e.handle_multiline(self.payment_identifier.multiline_outputs)
         if description:
             self.message_e.setText(description)
         if amount:
             self.amount_e.setAmount(amount)
         for w in [self.comment_e, self.comment_label]:
             w.setVisible(not bool(comment))
-        self.set_field_style(self.payto_e, recipient or pi.multiline_outputs, validated)
+        self.set_field_style(self.payto_e, recipient or self.payment_identifier.multiline_outputs, validated)
         self.set_field_style(self.message_e, description, validated)
         self.set_field_style(self.amount_e, amount, validated)
         self.set_field_style(self.fiat_send_e, amount, validated)
 
-    def handle_payment_identifier(self, pi, *, can_use_network: bool = True):
-        self.payment_identifier = pi
-        is_valid = pi.is_valid()
+    def handle_payment_identifier(self, *, can_use_network: bool = True):
+        is_valid = self.payment_identifier.is_valid()
         self.save_button.setEnabled(is_valid)
         self.send_button.setEnabled(is_valid)
         if not is_valid:
             return
-        self.update_fields(pi)
-        if can_use_network and pi.needs_round_1():
-            coro = pi.round_1(on_success=self.round_1_signal.emit)
-            asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
+        self.update_fields()
+        if self.payment_identifier.need_resolve():
             self.prepare_for_send_tab_network_lookup()
+            self.payment_identifier.resolve(on_finished=self.resolve_done_signal.emit)
         # update fiat amount
         self.amount_e.textEdited.emit("")
         self.window.show_send_tab()
 
-    def on_round_1(self, pi):
-        if pi.error:
-            self.show_error(pi.error)
+    def on_resolve_done(self, pi):
+        if self.payment_identifier.error:
+            self.show_error(self.payment_identifier.error)
             self.do_clear()
             return
-        self.update_fields(pi)
+        self.update_fields()
         for btn in [self.send_button, self.clear_button, self.save_button]:
             btn.setEnabled(True)
 

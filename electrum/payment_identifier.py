@@ -2,16 +2,18 @@ import asyncio
 import urllib
 import re
 from decimal import Decimal, InvalidOperation
+from enum import IntEnum
 from typing import NamedTuple, Optional, Callable, Any, Sequence, List, TYPE_CHECKING
 from urllib.parse import urlparse
 
 from . import bitcoin
+from .contacts import AliasNotFoundException
 from .i18n import _
 from .logging import Logger
 from .util import parse_max_spend, format_satoshis_plain
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
-from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
+from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data, lightning_address_to_url
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
@@ -177,6 +179,19 @@ RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
 
 
+class PaymentIdentifierState(IntEnum):
+    EMPTY           = 0  # Initial state.
+    INVALID         = 1  # Unrecognized PI
+    AVAILABLE       = 2  # PI contains a payable destination
+                         # payable means there's enough addressing information to submit to one
+                         # of the channels Electrum supports (on-chain, lightning)
+    NEED_RESOLVE    = 3  # PI contains a recognized destination format, but needs an online resolve step
+    LNURLP_FINALIZE = 4  # PI contains a resolved LNURLp, but needs amount and comment to resolve to a bolt11
+    BIP70_VIA       = 5  # PI contains a valid payment request that should have the tx submitted through bip70 gw
+    ERROR           = 50 # generic error
+    NOT_FOUND       = 51 # PI contains a recognized destination format, but resolve step was unsuccesful
+
+
 class PaymentIdentifier(Logger):
     """
     Takes:
@@ -187,11 +202,12 @@ class PaymentIdentifier(Logger):
         * lightning-URI (containing bolt11 or lnurl)
         * bolt11 invoice
         * lnurl
-        * TODO: lightning address
+        * lightning address
     """
 
     def __init__(self, wallet: 'Abstract_Wallet', text):
         Logger.__init__(self)
+        self._state = PaymentIdentifierState.EMPTY
         self.wallet = wallet
         self.contacts = wallet.contacts if wallet is not None else None
         self.config = wallet.config if wallet is not None else None
@@ -205,8 +221,9 @@ class PaymentIdentifier(Logger):
         self.bip21 = None
         self.spk = None
         #
-        self.openalias = None
+        self.emaillike = None
         self.openalias_data = None
+        self.lnaddress_data = None
         #
         self.bip70 = None
         self.bip70_data = None
@@ -214,7 +231,15 @@ class PaymentIdentifier(Logger):
         self.lnurl = None
         self.lnurl_data = None
         # parse without network
+        self.logger.debug(f'PI parsing...')
         self.parse(text)
+
+    def set_state(self, state: 'PaymentIdentifierState'):
+        self.logger.debug(f'PI state -> {state}')
+        self._state = state
+
+    def need_resolve(self):
+        return self._state == PaymentIdentifierState.NEED_RESOLVE
 
     def is_valid(self):
         return bool(self._type)
@@ -227,9 +252,6 @@ class PaymentIdentifier(Logger):
 
     def get_error(self) -> str:
         return self.error
-
-    def needs_round_1(self):
-        return self.bip70 or self.openalias or self.lnurl
 
     def needs_round_2(self):
         return self.lnurl and self.lnurl_data
@@ -250,30 +272,93 @@ class PaymentIdentifier(Logger):
                 self._type = 'lnurl'
                 try:
                     self.lnurl = decode_lnurl(invoice_or_lnurl)
+                    self.set_state(PaymentIdentifierState.NEED_RESOLVE)
                 except Exception as e:
                     self.error = "Error parsing Lightning invoice" + f":\n{e}"
+                    self.set_state(PaymentIdentifierState.INVALID)
                     return
             else:
                 self._type = 'bolt11'
                 self.bolt11 = invoice_or_lnurl
+                self.set_state(PaymentIdentifierState.AVAILABLE)
         elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             try:
                 out = parse_bip21_URI(text)
             except InvalidBitcoinURI as e:
                 self.error = _("Error parsing URI") + f":\n{e}"
+                self.set_state(PaymentIdentifierState.INVALID)
                 return
             self._type = 'bip21'
             self.bip21 = out
             self.bip70 = out.get('r')
+            if self.bip70:
+                self.set_state(PaymentIdentifierState.NEED_RESOLVE)
+            else:
+                self.set_state(PaymentIdentifierState.AVAILABLE)
         elif scriptpubkey := self.parse_output(text):
             self._type = 'spk'
             self.spk = scriptpubkey
+            self.set_state(PaymentIdentifierState.AVAILABLE)
         elif re.match(RE_EMAIL, text):
             self._type = 'alias'
-            self.openalias = text
+            self.emaillike = text
+            self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif self.error is None:
             truncated_text = f"{text[:100]}..." if len(text) > 100 else text
             self.error = FailedToParsePaymentIdentifier(f"Unknown payment identifier:\n{truncated_text}")
+            self.set_state(PaymentIdentifierState.INVALID)
+
+    def resolve(self, *, on_finished: 'Callable'):
+        assert self._state == PaymentIdentifierState.NEED_RESOLVE
+        coro = self.do_resolve(on_finished=on_finished)
+        asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
+
+    @log_exceptions
+    async def do_resolve(self, *, on_finished=None):
+        try:
+            if self.emaillike:
+                data = await self.resolve_openalias()
+                if data:
+                    self.openalias_data = data # needed?
+                    self.logger.debug(f'OA: {data!r}')
+                    name = data.get('name')
+                    address = data.get('address')
+                    self.contacts[self.emaillike] = ('openalias', name)
+                    if not data.get('validated'):
+                        self.warning = _(
+                            'WARNING: the alias "{}" could not be validated via an additional '
+                            'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
+                    # this will set self.spk and update state
+                    self.parse(address)
+                else:
+                    lnurl = lightning_address_to_url(self.emaillike)
+                    try:
+                        data = await request_lnurl(lnurl)
+                        self.lnurl = lnurl
+                        self.lnurl_data = data
+                        self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+                    except LNURLError as e:
+                        self.error = str(e)
+                        self.set_state(PaymentIdentifierState.NOT_FOUND)
+            elif self.bip70:
+                from . import paymentrequest
+                data = await paymentrequest.get_payment_request(self.bip70)
+                self.bip70_data = data
+                self.set_state(PaymentIdentifierState.BIP70_VIA)
+            elif self.lnurl:
+                data = await request_lnurl(self.lnurl)
+                self.lnurl_data = data
+                self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+            else:
+                self.set_state(PaymentIdentifierState.ERROR)
+                return
+        except Exception as e:
+            self.error = f'{e!r}'
+            self.logger.error(self.error)
+            self.set_state(PaymentIdentifierState.ERROR)
+        finally:
+            if on_finished:
+                on_finished(self)
 
     def get_onchain_outputs(self, amount):
         if self.bip70:
@@ -377,14 +462,14 @@ class PaymentIdentifier(Logger):
         validated = None
         comment = "no comment"
 
-        if self.openalias and self.openalias_data:
+        if self.emaillike and self.openalias_data:
             address = self.openalias_data.get('address')
             name = self.openalias_data.get('name')
-            recipient = self.openalias + ' <' + address + '>'
+            recipient = self.emaillike + ' <' + address + '>'
             validated = self.openalias_data.get('validated')
             if not validated:
                 self.warning = _('WARNING: the alias "{}" could not be validated via an additional '
-                                 'security check, DNSSEC, and thus may not be correct.').format(self.openalias)
+                                 'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
             #self.payto_e.set_openalias(key=pi.openalias, data=oa_data)
             #self.window.contact_list.update()
 
@@ -464,7 +549,7 @@ class PaymentIdentifier(Logger):
         return pubkey, amount, description
 
     async def resolve_openalias(self) -> Optional[dict]:
-        key = self.openalias
+        key = self.emaillike
         if not (('.' in key) and ('<' not in key) and (' ' not in key)):
             return None
         parts = key.split(sep=',')  # assuming single line
@@ -472,41 +557,18 @@ class PaymentIdentifier(Logger):
             return None
         try:
             data = self.contacts.resolve(key)
+            return data
+        except AliasNotFoundException as e:
+            self.logger.info(f'OpenAlias not found: {repr(e)}')
+            return None
         except Exception as e:
             self.logger.info(f'error resolving address/alias: {repr(e)}')
             return None
-        if data:
-            name = data.get('name')
-            address = data.get('address')
-            self.contacts[key] = ('openalias', name)
-            # this will set self.spk
-            self.parse(address)
-            return data
 
     def has_expired(self):
         if self.bip70:
             return self.bip70_data.has_expired()
         return False
-
-    @log_exceptions
-    async def round_1(self, on_success):
-        if self.openalias:
-            data = await self.resolve_openalias()
-            self.openalias_data = data
-            if not self.openalias_data.get('validated'):
-                self.warning = _(
-                    'WARNING: the alias "{}" could not be validated via an additional '
-                    'security check, DNSSEC, and thus may not be correct.').format(self.openalias)
-        elif self.bip70:
-            from . import paymentrequest
-            data = await paymentrequest.get_payment_request(self.bip70)
-            self.bip70_data = data
-        elif self.lnurl:
-            data = await request_lnurl(self.lnurl)
-            self.lnurl_data = data
-        else:
-            return
-        on_success(self)
 
     @log_exceptions
     async def round_2(self, on_success, amount_sat: int = None, comment: str = None):
