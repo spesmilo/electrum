@@ -35,5 +35,15 @@ from .logging import get_logger
 __version__ = ELECTRUM_VERSION
 
 _logger = get_logger(__name__)
-if not __debug__:
-    _logger.warning(f"__debug__ is False. running with asserts disabled!")
+
+
+# Ensure that asserts are enabled. For sanity and paranoia, we require this.
+# Code *should not rely* on asserts being enabled. In particular, safety and security checks should
+# always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
+try:
+    assert False
+except AssertionError:
+    pass
+else:
+    raise ImportError("Running with asserts disabled. Refusing to continue. Exiting...")
+

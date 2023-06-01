@@ -63,19 +63,6 @@ if is_pyinstaller:
     # causes ImportErrors and other runtime failures). (see #4072)
     _file = open(sys.executable, 'rb')
 
-if is_binary_distributable:
-    # Ensure that asserts are enabled.
-    # Code *should not rely* on asserts being enabled. In particular, safety and security checks should
-    # always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
-    # In case we are a binary build, we know for a fact that we want the asserts, so enforce them.
-    # When running from source, defer to the user. (a warning is logged in __init__.py)
-    try:
-        assert False
-    except AssertionError:
-        pass
-    else:
-        sys.exit("Error: Running with asserts disabled, in a binary distributable! Please check build settings.")
-
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
