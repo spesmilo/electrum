@@ -33,6 +33,11 @@ from .util import read_json_file, write_json_file, to_string
 from .logging import Logger
 from .util import trigger_callback
 
+
+class AliasNotFoundException(Exception):
+    pass
+
+
 class Contacts(dict, Logger):
 
     def __init__(self, db):
@@ -94,7 +99,7 @@ class Contacts(dict, Logger):
                 'type': 'openalias',
                 'validated': validated
             }
-        raise Exception("Invalid Bitcoin address or alias", k)
+        raise AliasNotFoundException("Invalid Bitcoin address or alias", k)
 
     def fetch_openalias(self, config):
         self.alias_info = None
