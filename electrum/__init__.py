@@ -41,7 +41,7 @@ _logger = get_logger(__name__)
 # Code *should not rely* on asserts being enabled. In particular, safety and security checks should
 # always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
 try:
-    assert False
+    assert False  # noqa: B011
 except AssertionError:
     pass
 else:
