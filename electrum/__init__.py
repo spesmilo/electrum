@@ -32,3 +32,14 @@ from .commands import Commands, known_commands
 
 
 __version__ = ELECTRUM_VERSION
+
+
+# Ensure that asserts are enabled. For sanity and paranoia, we require this.
+# Code *should not rely* on asserts being enabled. In particular, safety and security checks should
+# always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
+try:
+    assert False  # noqa: B011
+except AssertionError:
+    pass
+else:
+    raise ImportError("Running with asserts disabled. Refusing to continue. Exiting...")
