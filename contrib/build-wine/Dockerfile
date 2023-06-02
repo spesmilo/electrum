@@ -47,12 +47,12 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/debian/ && \
     apt-get update -q && \
     apt-get install -qy --allow-downgrades \
-        wine-stable-amd64:amd64=7.0.0.0~bullseye-1 \
-        wine-stable-i386:i386=7.0.0.0~bullseye-1 \
-        wine-stable:amd64=7.0.0.0~bullseye-1 \
-        winehq-stable:amd64=7.0.0.0~bullseye-1 \
-        libvkd3d1:amd64=1.2~bullseye-1 \
-        libvkd3d1:i386=1.2~bullseye-1 \
+        wine-stable-amd64:amd64=8.0.1~bullseye-1 \
+        wine-stable-i386:i386=8.0.1~bullseye-1 \
+        wine-stable:amd64=8.0.1~bullseye-1 \
+        winehq-stable:amd64=8.0.1~bullseye-1 \
+        libvkd3d1:amd64=1.3~bullseye-1 \
+        libvkd3d1:i386=1.3~bullseye-1 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \

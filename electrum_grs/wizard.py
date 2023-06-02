@@ -275,7 +275,7 @@ class NewWalletWizard(AbstractWizard):
             self._logger.info('maybe_master_pubkey2')
             return
 
-        wizard_data['multisig_master_pubkey'] = self.keystore_from_data(wizard_data).get_master_public_key()
+        wizard_data['multisig_master_pubkey'] = self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key()
 
     def on_cosigner_keystore_type(self, wizard_data):
         t = wizard_data['cosigner_keystore_type']
@@ -308,10 +308,10 @@ class NewWalletWizard(AbstractWizard):
     def has_duplicate_masterkeys(self, wizard_data) -> bool:
         """Multisig wallets need distinct master keys. If True, need to prevent wallet-creation."""
         xpubs = []
-        xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
+        xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key())
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
-            xpubs.append(self.keystore_from_data(data).get_master_public_key())
+            xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], data).get_master_public_key())
         assert xpubs
         return len(xpubs) != len(set(xpubs))
 
@@ -321,10 +321,10 @@ class NewWalletWizard(AbstractWizard):
         If True, need to prevent wallet-creation.
         """
         xpubs = []
-        xpubs.append(self.keystore_from_data(wizard_data).get_master_public_key())
+        xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], wizard_data).get_master_public_key())
         for cosigner in wizard_data['multisig_cosigner_data']:
             data = wizard_data['multisig_cosigner_data'][cosigner]
-            xpubs.append(self.keystore_from_data(data).get_master_public_key())
+            xpubs.append(self.keystore_from_data(wizard_data['wallet_type'], data).get_master_public_key())
         assert xpubs
         try:
             k_xpub_type = xpub_type(xpubs[0])
@@ -339,14 +339,18 @@ class NewWalletWizard(AbstractWizard):
                 return True
         return False
 
-    def keystore_from_data(self, data):
+    def keystore_from_data(self, wallet_type, data):
         if 'seed' in data:
             if data['seed_variant'] == 'electrum':
                 return keystore.from_seed(data['seed'], data['seed_extra_words'], True)
             elif data['seed_variant'] == 'bip39':
                 root_seed = keystore.bip39_to_seed(data['seed'], data['seed_extra_words'])
                 derivation = normalize_bip32_derivation(data['derivation_path'])
-                return keystore.from_bip43_rootseed(root_seed, derivation, xtype='p2wsh')
+                if wallet_type == 'multisig':
+                    script = data['script_type'] if data['script_type'] != 'p2sh' else 'standard'
+                else:
+                    script = data['script_type'] if data['script_type'] != 'p2pkh' else 'standard'
+                return keystore.from_bip43_rootseed(root_seed, derivation, xtype=script)
             else:
                 raise Exception('Unsupported seed variant %s' % data['seed_variant'])
         elif 'master_key' in data:
@@ -448,7 +452,7 @@ class NewWalletWizard(AbstractWizard):
             db.put('wallet_type', '%dof%d' % (data['multisig_signatures'],data['multisig_participants']))
             db.put('x1/', k.dump())
             for cosigner in data['multisig_cosigner_data']:
-                cosigner_keystore = self.keystore_from_data(data['multisig_cosigner_data'][cosigner])
+                cosigner_keystore = self.keystore_from_data('multisig', data['multisig_cosigner_data'][cosigner])
                 if not isinstance(cosigner_keystore, keystore.Xpub):
                     raise Exception(f"unexpected keystore(cosigner) type={type(cosigner_keystore)} in multisig. not bip32.")
                 if k_xpub_type != xpub_type(cosigner_keystore.xpub):
