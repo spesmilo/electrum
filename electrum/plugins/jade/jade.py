@@ -299,7 +299,7 @@ class Jade_KeyStore(Hardware_KeyStore):
                         change[index] = {'path':path, 'variant': desc.to_legacy_electrum_script_type()}
 
             # The txn itself
-            txn_bytes = bytes.fromhex(tx.serialize_to_network())
+            txn_bytes = bytes.fromhex(tx.serialize_to_network(include_sigs=False))
 
             # Request Jade generate the signatures for our inputs.
             # Change details are passed to be validated on the hw (user does not confirm)
