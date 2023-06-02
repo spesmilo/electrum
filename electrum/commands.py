@@ -585,6 +585,8 @@ class Commands:
         ret = {
             "electrum.version": ELECTRUM_VERSION,
             "electrum.path": os.path.dirname(os.path.realpath(__file__)),
+            "python.version": sys.version,
+            "python.path": sys.executable,
         }
         # add currently running GUI
         if self.daemon and self.daemon.gui_object:
