@@ -146,7 +146,7 @@ class PayServer(Logger, EventListener):
         return web.json_response(request)
 
     async def get_bip70_request(self, r):
-        from electrum.paymentrequest import make_request
+        from electrum_grs.paymentrequest import make_request
         key = r.match_info['key']
         request = self.wallet.get_request(key)
         if not request:
