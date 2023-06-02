@@ -632,10 +632,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 return False, repr(e)
             # success
             txid = tx.txid()
-            if self.payment_identifier.needs_round_3():
+            if self.payment_identifier.need_merchant_notify():
                 refund_address = self.wallet.get_receiving_address()
-                coro = self.payment_identifier.round_3(tx.serialize(), refund_address)
-                asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                self.payment_identifier.notify_merchant(tx=tx, refund_address=refund_address)
             return True, txid
 
         # Capture current TL window; override might be removed on return

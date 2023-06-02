@@ -182,9 +182,13 @@ class PaymentIdentifierState(IntEnum):
                          # of the channels Electrum supports (on-chain, lightning)
     NEED_RESOLVE    = 3  # PI contains a recognized destination format, but needs an online resolve step
     LNURLP_FINALIZE = 4  # PI contains a resolved LNURLp, but needs amount and comment to resolve to a bolt11
-    BIP70_VIA       = 5  # PI contains a valid payment request that should have the tx submitted through bip70 gw
+    MERCHANT_NOTIFY = 5  # PI contains a valid payment request and on-chain destination. It should notify
+                         # the merchant payment processor of the tx after on-chain broadcast,
+                         # and supply a refund address (bip70)
+    MERCHANT_ACK    = 6  # PI notified merchant. nothing to be done.
     ERROR           = 50 # generic error
     NOT_FOUND       = 51 # PI contains a recognized destination format, but resolve step was unsuccesful
+    MERCHANT_ERROR  = 52 # PI failed notifying the merchant after broadcasting onchain TX
 
 
 class PaymentIdentifier(Logger):
@@ -221,6 +225,8 @@ class PaymentIdentifier(Logger):
         #
         self.bip70 = None
         self.bip70_data = None
+        self.merchant_ack_status = None
+        self.merchant_ack_message = None
         #
         self.lnurl = None
         self.lnurl_data = None
@@ -238,6 +244,9 @@ class PaymentIdentifier(Logger):
     def need_finalize(self):
         return self._state == PaymentIdentifierState.LNURLP_FINALIZE
 
+    def need_merchant_notify(self):
+        return self._state == PaymentIdentifierState.MERCHANT_NOTIFY
+
     def is_valid(self):
         return self._state not in [PaymentIdentifierState.INVALID, PaymentIdentifierState.EMPTY]
 
@@ -249,9 +258,6 @@ class PaymentIdentifier(Logger):
 
     def get_error(self) -> str:
         return self.error
-
-    def needs_round_3(self):
-        return self.bip70
 
     def parse(self, text):
         # parse text, set self._type and self.error
@@ -304,11 +310,11 @@ class PaymentIdentifier(Logger):
 
     def resolve(self, *, on_finished: 'Callable'):
         assert self._state == PaymentIdentifierState.NEED_RESOLVE
-        coro = self.do_resolve(on_finished=on_finished)
+        coro = self._do_resolve(on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
-    async def do_resolve(self, *, on_finished=None):
+    async def _do_resolve(self, *, on_finished=None):
         try:
             if self.emaillike:
                 data = await self.resolve_openalias()
@@ -338,7 +344,7 @@ class PaymentIdentifier(Logger):
                 from . import paymentrequest
                 data = await paymentrequest.get_payment_request(self.bip70)
                 self.bip70_data = data
-                self.set_state(PaymentIdentifierState.BIP70_VIA)
+                self.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
             elif self.lnurl:
                 data = await request_lnurl(self.lnurl)
                 self.lnurl_data = data
@@ -356,11 +362,11 @@ class PaymentIdentifier(Logger):
 
     def finalize(self, *, amount_sat: int = 0, comment: str = None, on_finished: Callable = None):
         assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
-        coro = self.do_finalize(amount_sat, comment, on_finished=on_finished)
+        coro = self._do_finalize(amount_sat, comment, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
-    async def do_finalize(self, amount_sat: int = None, comment: str = None, on_finished: Callable = None):
+    async def _do_finalize(self, amount_sat: int = None, comment: str = None, on_finished: Callable = None):
         from .invoices import Invoice
         try:
             if not self.lnurl_data:
@@ -395,6 +401,32 @@ class PaymentIdentifier(Logger):
             self.error = str(e)
             self.logger.error(repr(e))
             self.set_state(PaymentIdentifierState.ERROR)
+        finally:
+            if on_finished:
+                on_finished(self)
+
+    def notify_merchant(self, *, tx: 'Transaction' = None, refund_address: str = None, on_finished: 'Callable' = None):
+        assert self._state == PaymentIdentifierState.MERCHANT_NOTIFY
+        assert tx
+        coro = self._do_notify_merchant(tx, refund_address, on_finished=on_finished)
+        asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
+
+    @log_exceptions
+    async def _do_notify_merchant(self, tx, refund_address, *, on_finished: 'Callable'):
+        try:
+            if not self.bip70_data:
+                self.set_state(PaymentIdentifierState.ERROR)
+                return
+
+            ack_status, ack_msg = await self.bip70_data.send_payment_and_receive_paymentack(tx.serialize(), refund_address)
+            self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
+            self.merchant_ack_status = ack_status
+            self.merchant_ack_message = ack_msg
+            self.set_state(PaymentIdentifierState.MERCHANT_ACK)
+        except Exception as e:
+            self.error = str(e)
+            self.logger.error(repr(e))
+            self.set_state(PaymentIdentifierState.MERCHANT_ERROR)
         finally:
             if on_finished:
                 on_finished(self)
@@ -608,13 +640,6 @@ class PaymentIdentifier(Logger):
         if self.bip70:
             return self.bip70_data.has_expired()
         return False
-
-    @log_exceptions
-    async def round_3(self, tx, refund_address, *, on_success):
-        if self.bip70:
-            ack_status, ack_msg = await self.bip70.send_payment_and_receive_paymentack(tx.serialize(), refund_address)
-            self.logger.info(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
-        on_success(self)
 
     def get_invoice(self, amount_sat, message):
         from .invoices import Invoice
