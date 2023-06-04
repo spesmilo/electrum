@@ -1842,8 +1842,7 @@ class LNWallet(LNWorker):
         self._bolt11_cache[payment_hash] = pair
         return pair
 
-    def create_payment_info(self, amount_sat: Optional[int], write_to_disk=True) -> bytes:
-        amount_msat = amount_sat * 1000 if amount_sat else None
+    def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
@@ -2289,17 +2288,19 @@ class LNWallet(LNWorker):
         for chan, swap_recv_amount in suggestions:
             return (chan, swap_recv_amount)
 
-    async def rebalance_channels(self, chan1, chan2, amount_msat):
+    async def rebalance_channels(self, chan1: Channel, chan2: Channel, *, amount_msat: int):
         if chan1 == chan2:
             raise Exception('Rebalance requires two different channels')
         if self.uses_trampoline() and chan1.node_id == chan2.node_id:
             raise Exception('Rebalance requires channels from different trampolines')
-        lnaddr, invoice = self.add_reqest(
+        payment_hash = self.create_payment_info(amount_msat=amount_msat)
+        lnaddr, invoice = self.get_bolt11_invoice(
+            payment_hash=payment_hash,
             amount_msat=amount_msat,
             message='rebalance',
             expiry=3600,
             fallback_address=None,
-            channels = [chan2]
+            channels=[chan2],
         )
         return await self.pay_invoice(
             invoice, channels=[chan1])

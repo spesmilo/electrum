@@ -262,7 +262,7 @@ class SwapManager(Logger):
         privkey = os.urandom(32)
         pubkey = ECPrivkey(privkey).get_public_key_bytes(compressed=True)
         amount_msat = lightning_amount_sat * 1000
-        payment_hash = self.lnworker.create_payment_info(lightning_amount_sat)
+        payment_hash = self.lnworker.create_payment_info(amount_msat=amount_msat)
         lnaddr, invoice = self.lnworker.get_bolt11_invoice(
             payment_hash=payment_hash,
             amount_msat=amount_msat,
