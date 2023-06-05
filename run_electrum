@@ -338,8 +338,8 @@ def main():
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            config_options['auto_connect'] = False
+        if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
+            config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
 
     config_options['cwd'] = cwd = os.getcwd()
 
