@@ -33,7 +33,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     resolve_done_signal = pyqtSignal(object)
     finalize_done_signal = pyqtSignal(object)
-    round_3_signal = pyqtSignal(object)
+    notify_merchant_done_signal = pyqtSignal(object)
 
     def __init__(self, window: 'ElectrumWindow'):
         QWidget.__init__(self, window)
@@ -182,8 +182,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         run_hook('create_send_tab', grid)
 
         self.resolve_done_signal.connect(self.on_resolve_done)
-        self.finalize_done_signal.connect(self.on_round_2)
-        self.round_3_signal.connect(self.on_round_3)
+        self.finalize_done_signal.connect(self.on_finalize_done)
+        self.notify_merchant_done_signal.connect(self.on_notify_merchant_done)
 
     def do_paste(self):
         text = self.window.app.clipboard().text()
@@ -438,7 +438,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # must not be None
         return self.amount_e.get_amount() or 0
 
-    def on_round_2(self, pi):
+    def on_finalize_done(self, pi):
         self.do_clear()
         if pi.error:
             self.show_error(pi.error)
@@ -448,9 +448,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         invoice = pi.get_invoice(self.get_amount(), self.get_message())
         self.pending_invoice = invoice
         self.do_pay_invoice(invoice)
-
-    def on_round_3(self):
-        pass
 
     def do_pay_or_get_invoice(self):
         pi = self.payment_identifier
@@ -634,7 +631,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             txid = tx.txid()
             if self.payment_identifier.need_merchant_notify():
                 refund_address = self.wallet.get_receiving_address()
-                self.payment_identifier.notify_merchant(tx=tx, refund_address=refund_address)
+                self.payment_identifier.notify_merchant(
+                    tx=tx,
+                    refund_address=refund_address,
+                    on_finished=self.notify_merchant_done_signal.emit
+                )
             return True, txid
 
         # Capture current TL window; override might be removed on return
@@ -657,6 +658,14 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
+
+    def on_notify_merchant_done(self, pi):
+        if pi.is_error():
+            self.logger.debug(f'merchant notify error: {pi.get_error()}')
+        else:
+            self.logger.debug(f'merchant notify result: {pi.merchant_ack_status}: {pi.merchant_ack_message}')
+        # TODO: show user? if we broadcasted the tx succesfully, do we care?
+        # BitPay complains with a NAK if tx is RbF
 
     def toggle_paytomany(self):
         self.payto_e.toggle_paytomany()

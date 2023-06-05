@@ -256,6 +256,9 @@ class PaymentIdentifier(Logger):
     def is_multiline(self):
         return bool(self.multiline_outputs)
 
+    def is_error(self) -> bool:
+        return self._state >= PaymentIdentifierState.ERROR
+
     def get_error(self) -> str:
         return self.error
 
@@ -267,6 +270,10 @@ class PaymentIdentifier(Logger):
         if outputs := self._parse_as_multiline(text):
             self._type = 'multiline'
             self.multiline_outputs = outputs
+            if self.error:
+                self.set_state(PaymentIdentifierState.INVALID)
+            else:
+                self.set_state(PaymentIdentifierState.AVAILABLE)
         elif invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
             if invoice_or_lnurl.startswith('lnurl'):
                 self._type = 'lnurl'
@@ -457,15 +464,15 @@ class PaymentIdentifier(Logger):
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
+                outputs.append(output)
+                if parse_max_spend(output.value):
+                    is_max = True
+                else:
+                    total += output.value
             except Exception as e:
                 errors.append(PayToLineError(
                     idx=i, line_content=line.strip(), exc=e, is_multiline=True))
                 continue
-            outputs.append(output)
-            if parse_max_spend(output.value):
-                is_max = True
-            else:
-                total += output.value
         if is_multiline and errors:
             self.error = str(errors) if errors else None
         self.logger.debug(f'multiline: {outputs!r}, {self.error}')
@@ -477,6 +484,8 @@ class PaymentIdentifier(Logger):
         except ValueError:
             raise Exception("expected two comma-separated values: (address, amount)") from None
         scriptpubkey = self.parse_output(x)
+        if not scriptpubkey:
+            raise Exception('Invalid address')
         amount = self.parse_amount(y)
         return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 

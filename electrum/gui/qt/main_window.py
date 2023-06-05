@@ -846,7 +846,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.update_status()
         # resolve aliases
         # FIXME this might do blocking network calls that has a timeout of several seconds
-        self.send_tab.payto_e.on_timer_check_text()
+        # self.send_tab.payto_e.on_timer_check_text()
         self.notify_transactions()
 
     def format_amount(

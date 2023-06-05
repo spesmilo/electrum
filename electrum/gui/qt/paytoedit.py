@@ -190,12 +190,6 @@ class PayToEdit(Logger, GenericInputHandler):
             self.text_edit.setText(text)
             self.text_edit.setFocus()
 
-    def on_timer_check_text(self):
-        if self.editor.hasFocus():
-            return
-        text = self.toPlainText()
-        self._check_text(text, full_check=True)
-
     def _check_text(self, text, *, full_check: bool):
         """ side effects: self.is_multiline """
         text = str(text).strip()
