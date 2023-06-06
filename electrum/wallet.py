@@ -1792,7 +1792,7 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                     lower_bound = max(lower_bound_feerate, lower_bound_relayfee)
                     return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
-                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)       
+                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs())) + list(outputs)
                 output_dict = {}
                 for output in txo:
                     if output.address in output_dict:
