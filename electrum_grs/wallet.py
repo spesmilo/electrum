@@ -2625,7 +2625,9 @@ class Abstract_Wallet(ABC, Logger, EventListener):
         address = address or None  # converts "" to None
         exp_delay = exp_delay or 0
         timestamp = int(Request._get_cur_time())
-        payment_hash = self.lnworker.create_payment_info(amount_sat, write_to_disk=False) if self.has_lightning() else None
+        payment_hash = None  # type: Optional[bytes]
+        if self.has_lightning():
+            payment_hash = self.lnworker.create_payment_info(amount_msat=amount_sat * 1000, write_to_disk=False)
         outputs = [ PartialTxOutput.from_address_and_value(address, amount_sat)] if address else []
         height = self.adb.get_local_height()
         req = Request(

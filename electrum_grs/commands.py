@@ -585,6 +585,8 @@ class Commands:
         ret = {
             "electrum.version": ELECTRUM_VERSION,
             "electrum.path": os.path.dirname(os.path.realpath(__file__)),
+            "python.version": sys.version,
+            "python.path": sys.executable,
         }
         # add currently running GUI
         if self.daemon and self.daemon.gui_object:
@@ -1267,7 +1269,11 @@ class Commands:
         from_channel = wallet.lnworker.get_channel_by_scid(from_scid)
         dest_channel = wallet.lnworker.get_channel_by_scid(dest_scid)
         amount_sat = satoshis(amount)
-        success, log = await wallet.lnworker.rebalance_channels(from_channel, dest_channel, amount_sat * 1000)
+        success, log = await wallet.lnworker.rebalance_channels(
+            from_channel,
+            dest_channel,
+            amount_msat=amount_sat * 1000,
+        )
         return {
             'success': success,
             'log': [x.formatted_tuple() for x in log]
