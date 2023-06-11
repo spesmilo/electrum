@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import asyncio
+import contextlib
 import enum
 import os.path
 import time
@@ -451,6 +452,13 @@ class MyTreeView(QTreeView):
         return cc
 
     def place_text_on_clipboard(self, text: str, *, title: str = None) -> None:
+        if title in {
+            "Amount",
+            "Balance",
+        } or title.endswith(" Value") or title.endswith(" Acquisition price") or title.endswith(" Capital Gains"):
+            with contextlib.suppress(Exception):
+                # remove formatting for numbers
+                text = text.replace(" ", "")
         self.main_window.do_copy(text, title=title)
 
     def showEvent(self, e: 'QShowEvent'):

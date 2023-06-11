@@ -785,6 +785,7 @@ class SimpleConfig(Logger):
         is_diff=False,
         whitespaces=False,
         precision=None,
+        ignore_thousands_sep: bool=False,
     ) -> str:
         if precision is None:
             precision = self.amt_precision_post_satoshi
@@ -795,7 +796,7 @@ class SimpleConfig(Logger):
             is_diff=is_diff,
             whitespaces=whitespaces,
             precision=precision,
-            add_thousands_sep=self.amt_add_thousands_sep,
+            add_thousands_sep=False if ignore_thousands_sep else self.amt_add_thousands_sep,
         )
 
     def format_amount_and_units(self, *args, **kwargs) -> str:
