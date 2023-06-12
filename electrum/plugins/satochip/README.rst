@@ -42,10 +42,6 @@ Pyscard is required to connect to the smartcard::
 
     python -m pip install pyscard
     
-In case of error message, you may also install pyscard from the installer:
-Download the .whl files from https://sourceforge.net/projects/pyscard/files/pyscard/pyscard%201.9.7/ and run::
-
-    python -m pip install pyscard-1.9.7-cp36-cp36m-win_amd64.whl
 
 In PowerShell, run electrum on the testnet (-v allows for verbose output)::
 

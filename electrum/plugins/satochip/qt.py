@@ -24,11 +24,6 @@ MSG_USE_2FA= _("Do you want to use 2-Factor-Authentication (2FA)?\n\nWith 2FA, a
 class Plugin(SatochipPlugin, QtPluginBase):
     icon_unpaired = "satochip_unpaired.png"
     icon_paired = "satochip.png"
-    #icon_unpaired = ":icons/satochip_unpaired.png"
-    #icon_paired = ":icons/satochip.png"
-    
-    #def __init__(self, parent, config, name):
-    #    BasePlugin.__init__(self, parent, config, name)
     
     def create_handler(self, window):
         return Satochip_Handler(window)
@@ -53,9 +48,6 @@ class Plugin(SatochipPlugin, QtPluginBase):
         
     def show_settings_dialog(self, window, keystore):
         # When they click on the icon for Satochip we come here.
-        # device_id = self.choose_device(window, keystore)
-        # if device_id:
-            # SatochipSettingsDialog(window, self, keystore, device_id).exec_()
         def connect():
             device_id = self.choose_device(window, keystore)
             return device_id
@@ -68,8 +60,6 @@ class Satochip_Handler(QtHandlerBase):
 
     def __init__(self, win):
         super(Satochip_Handler, self).__init__(win, 'Satochip')
-        
-    #TODO: something?    
     
 class SatochipSettingsDialog(WindowModalDialog):
     '''This dialog doesn't require a device be paired with a wallet.
@@ -290,7 +280,6 @@ class SatochipSettingsDialog(WindowModalDialog):
             d={}
             d['msg_encrypt']= msg_out
             d['id_2FA']= id_2FA
-            # _logger.info("encrypted message: "+msg_out)
             
             #do challenge-response with 2FA device...
             self.window.show_message('2FA request sent! Approve or reject request on your second device.')
@@ -356,8 +345,7 @@ class SatochipSettingsDialog(WindowModalDialog):
                         amount_limit= 0 # i.e. always use 
                         (response, sw1, sw2)=client.cc.card_set_2FA_key(secret_2FA, amount_limit)
                         if sw1!=0x90 or sw2!=0x00:                 
-                            _logger.info(f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")#debugSatochip
-                            #raise RuntimeError(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
+                            _logger.info(f"Unable to set 2FA with error code:= {hex(256*sw1+sw2)}")
                             self.window.show_error(f'Unable to setup 2FA with error code: {hex(256*sw1+sw2)}')
                         else:
                             self.window.show_message("2FA enabled successfully!") 
@@ -380,7 +368,6 @@ class SatochipSettingsDialog(WindowModalDialog):
             d={}
             d['msg_encrypt']= msg_out
             d['id_2FA']= id_2FA
-            # _logger.info("encrypted message: "+msg_out)
             
             #do challenge-response with 2FA device...
             self.window.show_message('2FA request sent! Approve or reject request on your second device.')
