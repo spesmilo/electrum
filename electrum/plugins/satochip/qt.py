@@ -2,7 +2,7 @@ from electrum.i18n import _
 from electrum.logging import get_logger
 from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton, CancelButton, WindowModalDialog, WWLabel)
-from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog, QRDialogCancellable
+from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QComboBox, QLineEdit, QCheckBox)
 from functools import partial
@@ -336,8 +336,7 @@ class SatochipSettingsDialog(WindowModalDialog):
                 try:
                     config = SimpleConfig()
                     help_txt="Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: "+ secret_2FA_hex
-                    # QRDialogCancellable is like QRDialog but with an additional cancel button
-                    d = QRDialogCancellable(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, config=config)
+                    d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=config)
                     result=d.exec_() # result should be 0 or 1
                     if (result==1):
                         # further communications will require an id and an encryption key (for privacy). 
