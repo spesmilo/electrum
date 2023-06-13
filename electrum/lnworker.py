@@ -211,6 +211,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.lock = threading.RLock()
         self.node_keypair = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.NODE_KEY)
         self.backup_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.BACKUP_CIPHER).privkey
+        self.payment_secret_key = generate_keypair(BIP32Node.from_xkey(xprv), LnKeyFamily.PAYMENT_SECRET_KEY).privkey
         self._peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer  # needs self.lock
         self.taskgroup = OldTaskGroup()
         self.listen_server = None  # type: Optional[asyncio.AbstractServer]
@@ -1817,9 +1818,7 @@ class LNWallet(LNWorker):
         routing_hints, trampoline_hints = self.calc_routing_hints_for_invoice(amount_msat, channels=channels)
         self.logger.info(f"creating bolt11 invoice with routing_hints: {routing_hints}")
         invoice_features = self.features.for_invoice()
-        payment_preimage = self.get_preimage(payment_hash)
-        if payment_preimage is None:  # e.g. when export/importing requests between wallets
-            raise Exception("missing preimage for payment_hash")
+        payment_secret = self.get_payment_secret(payment_hash)
         amount_btc = amount_msat/Decimal(COIN*1000) if amount_msat else None
         if expiry == 0:
             expiry = LN_EXPIRY_NEVER
@@ -1836,11 +1835,14 @@ class LNWallet(LNWorker):
             + routing_hints
             + trampoline_hints,
             date=timestamp,
-            payment_secret=derive_payment_secret_from_payment_preimage(payment_preimage))
+            payment_secret=payment_secret)
         invoice = lnencode(lnaddr, self.node_keypair.privkey)
         pair = lnaddr, invoice
         self._bolt11_cache[payment_hash] = pair
         return pair
+
+    def get_payment_secret(self, payment_hash):
+        return sha256(sha256(self.payment_secret_key) + payment_hash)
 
     def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
         payment_preimage = os.urandom(32)

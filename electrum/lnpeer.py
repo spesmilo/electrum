@@ -1812,8 +1812,12 @@ class Peer(Logger):
             raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
         if payment_secret_from_onion:
-            if payment_secret_from_onion != derive_payment_secret_from_payment_preimage(preimage):
-                log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {derive_payment_secret_from_payment_preimage(preimage).hex()}')
+            expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
+            if preimage:
+                # legacy secret for old invoices
+                expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage))
+            if payment_secret_from_onion not in expected_payment_secrets:
+                log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
                 raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
