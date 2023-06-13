@@ -314,8 +314,10 @@ class Wallet_2fa(Multisig_Wallet):
             return 0
         n = self.num_prepay()
         price = int(self.price_per_tx[n])
-        if price > 100000 * n:
-            raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
+        # sanity check: price capped at 0.5 mBTC per tx or 20 mBTC total
+        #               (note that the server can influence our choice of n by sending unexpected values)
+        if price > min(50_000 * n, 2_000_000):
+            raise Exception(f"too high trustedcoin fee ({price} for {n} txns)")
         return price
 
     def make_unsigned_transaction(
