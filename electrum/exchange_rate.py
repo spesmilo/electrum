@@ -651,13 +651,16 @@ class FxThread(ThreadJob, EventListener):
     def fiat_value(self, satoshis, rate) -> Decimal:
         return Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
 
-    def value_str(self, satoshis, rate) -> str:
-        return self.format_fiat(self.fiat_value(satoshis, rate))
+    def value_str(self, satoshis, rate, *, add_thousands_sep: bool = None) -> str:
+        fiat_val = self.fiat_value(satoshis, rate)
+        return self.format_fiat(fiat_val, add_thousands_sep=add_thousands_sep)
 
-    def format_fiat(self, value: Decimal) -> str:
+    def format_fiat(self, value: Decimal, *, add_thousands_sep: bool = None) -> str:
         if value.is_nan():
             return _("No data")
-        return self.ccy_amount_str(value, add_thousands_sep=True)
+        if add_thousands_sep is None:
+            add_thousands_sep = True
+        return self.ccy_amount_str(value, add_thousands_sep=add_thousands_sep)
 
     def history_rate(self, d_t: Optional[datetime]) -> Decimal:
         if d_t is None:

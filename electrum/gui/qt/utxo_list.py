@@ -101,12 +101,17 @@ class UTXOList(MyTreeView):
             name = utxo.prevout.to_str()
             self._utxo_dict[name] = utxo
             labels = [""] * len(self.Columns)
+            amount_str = self.main_window.format_amount(
+                utxo.value_sats(), whitespaces=True)
+            amount_str_nots = self.main_window.format_amount(
+                utxo.value_sats(), whitespaces=False, add_thousands_sep=False)
             labels[self.Columns.OUTPOINT] = str(utxo.short_id)
             labels[self.Columns.ADDRESS] = utxo.address
-            labels[self.Columns.AMOUNT] = self.main_window.format_amount(utxo.value_sats(), whitespaces=True)
+            labels[self.Columns.AMOUNT] = amount_str
             utxo_item = [QStandardItem(x) for x in labels]
             self.set_editability(utxo_item)
             utxo_item[self.Columns.OUTPOINT].setData(name, self.ROLE_PREVOUT_STR)
+            utxo_item[self.Columns.AMOUNT].setData(amount_str_nots, self.ROLE_CLIPBOARD_DATA)
             utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
             utxo_item[self.Columns.PARENTS].setFont(QFont(MONOSPACE_FONT))

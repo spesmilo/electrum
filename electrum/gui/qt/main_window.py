@@ -857,7 +857,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         amount_sat,
         is_diff=False,
         whitespaces=False,
-        ignore_thousands_sep: bool = False,
+        *,
+        add_thousands_sep: bool = None,
     ) -> str:
         """Formats amount as string, converting to desired unit.
         E.g. 500_000 -> '0.005'
@@ -866,7 +867,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             amount_sat,
             is_diff=is_diff,
             whitespaces=whitespaces,
-            ignore_thousands_sep=ignore_thousands_sep,
+            add_thousands_sep=add_thousands_sep,
         )
 
     def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
