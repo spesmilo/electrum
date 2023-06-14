@@ -14,7 +14,7 @@ jobs:
       - name: Builder image
         env:
           TARGET_OS: Windows
-        run: docker build --no-cache -t electrum-grs-wine-builder-img ./contrib/build-wine/
+        run: docker build -t electrum-grs-wine-builder-img ./contrib/build-wine/
       - name: Compile Windows binary
         env:
           TARGET_OS: Windows
@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: 3.10.11
       - name: Builder image
-        run: docker build --no-cache -t electrum-grs-appimage-builder-img ./contrib/build-linux/appimage/
+        run: docker build -t electrum-grs-appimage-builder-img ./contrib/build-linux/appimage/
       - name: Compile Linux AppImage
         run: docker run --name electrum-grs-appimage-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/appimage electrum-grs-appimage-builder-img ./make_appimage.sh
       - name: Upload Artifact
@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Builder image
-        run: docker build --no-cache -t electrum-grs-sdist-builder-img ./contrib/build-linux/sdist/
+        run: docker build -t electrum-grs-sdist-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux tarball
         run: docker run --name electrum-grs-sdist-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist electrum-grs-sdist-builder-img ./make_sdist.sh
       - name: Upload Artifact
@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Builder image
-        run: docker build --no-cache -t electrum-grs-source-only-tarball-builder-img ./contrib/build-linux/sdist/
+        run: docker build -t electrum-grs-source-only-tarball-builder-img ./contrib/build-linux/sdist/
       - name: Compile Linux tarball
         run: docker run --name electrum-grs-source-only-tarball-builder-cont -v $PWD:/opt/electrum-grs --rm --workdir /opt/electrum-grs/contrib/build-linux/sdist --env OMIT_UNCLEAN_FILES=1 electrum-grs-source-only-tarball-builder-img ./make_sdist.sh
       - name: Upload Artifact
@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Builder image
-        run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
+        run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
         env:
            ENCODED_STRING: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
@@ -142,7 +142,7 @@ jobs:
           docker-images: true
           swap-storage: true
       - name: Builder image
-        run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
+        run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
         env:
            ENCODED_STRING: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
