@@ -102,9 +102,14 @@ jobs:
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
+        env:
+           ENCODED_STRING: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
+           SIGNING_KEY_STORE_PATH: ${{ secrets.SIGNING_KEY_STORE_PATH }}
         run: |
           sudo mkdir --parents /.buildozer/.gradle
-          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh kivy all debug
+          echo $ENCODED_STRING > keystore-b64.txt
+          base64 -d keystore-b64.txt > $SIGNING_KEY_STORE_PATH
+          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh kivy all release ${{ secrets.SIGNING_KEY_PASSWORD }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
@@ -138,9 +143,14 @@ jobs:
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
+        env:
+           ENCODED_STRING: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
+           SIGNING_KEY_STORE_PATH: ${{ secrets.SIGNING_KEY_STORE_PATH }}
         run: |
           sudo mkdir --parents /.buildozer/.gradle
-          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh qml all debug
+          echo $ENCODED_STRING > keystore-b64.txt
+          base64 -d keystore-b64.txt > $SIGNING_KEY_STORE_PATH
+          sudo docker run --name electrum-grs-android-builder-cont -v $PWD:/home/user/wspace/electrum-grs -v /.buildozer/.gradle:/home/user/.gradle --workdir /home/user/wspace/electrum-grs electrum-grs-android-builder-img ./contrib/android/make_apk.sh qml all release ${{ secrets.SIGNING_KEY_PASSWORD }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
