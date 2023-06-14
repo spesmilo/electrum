@@ -139,6 +139,7 @@ RUN apt -y update -qq \
     && apt -y autoremove \
     && apt -y clean
 
+RUN git config --global --add safe.directory '*'
 
 # create new user to avoid using root; but with sudo access and no password for convenience.
 #ARG UID=1000
