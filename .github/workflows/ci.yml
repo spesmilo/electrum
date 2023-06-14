@@ -138,7 +138,8 @@ jobs:
           android: true
           dotnet: true
           haskell: true
-          large-packages: false
+          large-packages: true
+          docker-images: true
           swap-storage: true
       - name: Builder image
         run: docker build --no-cache -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
