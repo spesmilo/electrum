@@ -371,7 +371,7 @@ class TrezorPlugin(HW_PluginBase):
                                        serialize=False,
                                        prev_txes=prev_tx)
         sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [(x.hex() + sighash) for x in signatures]
+        signatures = [((x.hex() + sighash) if x else None) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread
@@ -412,17 +412,23 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    desc = txin.script_descriptor
-                    assert desc
-                    if multi := desc.get_simple_multisig():
-                        txinputtype.multisig = self._make_multisig(multi)
-                    txinputtype.script_type = self.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
-                    my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
-                    if full_path:
-                        txinputtype.address_n = full_path
+                    if txin.is_complete():
+                        txinputtype.script_type = InputScriptType.EXTERNAL
+                        assert txin.scriptpubkey
+                        txinputtype.script_pubkey = txin.scriptpubkey
+                    else:
+                        desc = txin.script_descriptor
+                        assert desc
+                        if multi := desc.get_simple_multisig():
+                            txinputtype.multisig = self._make_multisig(multi)
+                        txinputtype.script_type = self.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
+                        my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
+                        if full_path:
+                            txinputtype.address_n = full_path
 
             txinputtype.amount = txin.value_sats()
             txinputtype.script_sig = txin.script_sig
+            txinputtype.witness = txin.witness
             txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
