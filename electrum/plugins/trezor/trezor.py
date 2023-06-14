@@ -362,7 +362,7 @@ class TrezorPlugin(HW_PluginBase):
         prev_tx = {bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items()}
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
-        outputs = self.tx_outputs(tx, keystore=keystore)
+        outputs = self.tx_outputs(tx, keystore=keystore, firmware_version=client.client.version)
         signatures, _ = client.sign_tx(self.get_coin_name(),
                                        inputs, outputs,
                                        lock_time=tx.locktime,
@@ -442,7 +442,7 @@ class TrezorPlugin(HW_PluginBase):
             signatures=[b''] * len(pubkeys),
             m=desc.thresh)
 
-    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore'):
+    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore', firmware_version: Sequence[int]):
 
         def create_output_by_derivation():
             desc = txout.script_descriptor
@@ -483,14 +483,18 @@ class TrezorPlugin(HW_PluginBase):
             address = txout.address
             use_create_by_derivation = False
 
-            if txout.is_mine and not has_change:
-                # prioritise hiding outputs on the 'change' branch from user
-                # because no more than one change address allowed
-                # note: ^ restriction can be removed once we require fw
-                # that has https://github.com/trezor/trezor-mcu/pull/306
-                if txout.is_change == any_output_on_change_branch:
+            if txout.is_mine:
+                if tuple(firmware_version) >= (1, 6, 1):
                     use_create_by_derivation = True
-                    has_change = True
+                else:
+                    if not has_change:
+                        # prioritise hiding outputs on the 'change' branch from user
+                        # because no more than one change address allowed
+                        # note: ^ restriction can be removed once we require fw 1.6.1
+                        # that has https://github.com/trezor/trezor-mcu/pull/306
+                        if txout.is_change == any_output_on_change_branch:
+                            use_create_by_derivation = True
+                            has_change = True
 
             if use_create_by_derivation:
                 txoutputtype = create_output_by_derivation()
