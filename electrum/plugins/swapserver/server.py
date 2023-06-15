@@ -103,7 +103,7 @@ class SwapServer(Logger, EventListener):
             their_pubkey=bytes.fromhex(request['claimPublicKey'])
             assert len(payment_hash) == 32
             assert len(their_pubkey) == 33
-            swap, payment_hash, invoice = sm.add_server_swap(
+            swap, payment_hash, invoice, prepay_invoice = sm.add_server_swap(
                 lightning_amount_sat=lightning_amount_sat,
                 payment_hash=payment_hash,
                 their_pubkey=their_pubkey
@@ -111,7 +111,7 @@ class SwapServer(Logger, EventListener):
             response = {
                 'id': payment_hash.hex(),
                 'invoice': invoice,
-                'minerFeeInvoice': None,
+                'minerFeeInvoice': prepay_invoice,
                 'lockupAddress': swap.lockup_address,
                 'redeemScript': swap.redeem_script.hex(),
                 'timeoutBlockHeight': swap.locktime,
@@ -121,7 +121,7 @@ class SwapServer(Logger, EventListener):
             their_invoice=request['invoice']
             their_pubkey=bytes.fromhex(request['refundPublicKey'])
             assert len(their_pubkey) == 33
-            swap, payment_hash, invoice = sm.add_server_swap(
+            swap, payment_hash, invoice, prepay_invoice = sm.add_server_swap(
                 invoice=their_invoice,
                 their_pubkey=their_pubkey
             )
