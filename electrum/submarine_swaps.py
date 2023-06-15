@@ -316,18 +316,31 @@ class SwapManager(Logger):
                 {1:ripemd(payment_hash), 4:our_pubkey, 6:locktime, 9:their_pubkey}
             )
             self.wallet.save_invoice(Invoice.from_bech32(invoice))
+            prepay_invoice = None
         else:
             onchain_amount_sat = self._get_recv_amount(lightning_amount_sat, is_reverse=True)
+            prepay_amount_sat = self.get_claim_fee() * 2
+            main_amount_sat = lightning_amount_sat - prepay_amount_sat
             lnaddr, invoice = self.lnworker.get_bolt11_invoice(
                 payment_hash=payment_hash,
-                amount_msat=lightning_amount_sat * 1000,
+                amount_msat=main_amount_sat * 1000,
                 message='Submarine swap',
                 expiry=3600 * 24,
                 fallback_address=None,
                 channels=None,
             )
             # add payment info to lnworker
-            self.lnworker.add_payment_info_for_hold_invoice(payment_hash, lightning_amount_sat)
+            self.lnworker.add_payment_info_for_hold_invoice(payment_hash, main_amount_sat)
+            prepay_hash = self.lnworker.create_payment_info(amount_msat=prepay_amount_sat*1000)
+            _, prepay_invoice = self.lnworker.get_bolt11_invoice(
+                payment_hash=prepay_hash,
+                amount_msat=prepay_amount_sat * 1000,
+                message='prepay',
+                expiry=3600 * 24,
+                fallback_address=None,
+                channels=None,
+            )
+            self.lnworker.bundle_payments([payment_hash, prepay_hash])
             redeem_script = construct_script(
                 WITNESS_TEMPLATE_REVERSE_SWAP,
                 {1:32, 5:ripemd(payment_hash), 7:their_pubkey, 10:locktime, 13:our_pubkey}
@@ -352,7 +365,7 @@ class SwapManager(Logger):
         swap._payment_hash = payment_hash
         self._add_or_reindex_swap(swap)
         self.add_lnwatcher_callback(swap)
-        return swap, payment_hash, invoice
+        return swap, payment_hash, invoice, prepay_invoice
 
     async def normal_swap(
             self,
