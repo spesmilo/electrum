@@ -676,6 +676,7 @@ class LNWallet(LNWorker):
         self.trampoline_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
+        self.hold_invoice_callbacks = {}                # payment_hash -> callback, timeout
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -1880,6 +1881,14 @@ class LNWallet(LNWorker):
                 amount_msat, direction, status = self.payment_info[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
+    def add_payment_info_for_hold_invoice(self, payment_hash, lightning_amount_sat):
+        info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
+        self.save_payment_info(info, write_to_disk=False)
+
+    def register_callback_for_hold_invoice(self, payment_hash, cb, timeout: Optional[int] = None):
+        expiry = int(time.time()) + timeout
+        self.hold_invoice_callbacks[payment_hash] = cb, expiry
+
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
@@ -1891,13 +1900,22 @@ class LNWallet(LNWorker):
     def check_received_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None (waiting)
         """
+        payment_hash = htlc.payment_hash
+        preimage = self.get_preimage(payment_hash)
+        callback = self.hold_invoice_callbacks.get(payment_hash)
+        if not preimage and callback:
+            cb, timeout = callback
+            if int(time.time()) < timeout:
+                cb(payment_hash)
+                return None
+            else:
+                return False
 
         amt_to_forward = htlc.amount_msat # check this
         if amt_to_forward >= expected_msat:
             # not multi-part
             return True
 
-        payment_hash = htlc.payment_hash
         is_expired, is_accepted, htlc_set = self.received_mpp_htlcs.get(payment_secret, (False, False, set()))
         if self.get_payment_status(payment_hash) == PR_PAID:
             # payment_status is persisted
