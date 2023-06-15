@@ -671,6 +671,11 @@ class LNWallet(LNWorker):
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
 
+        # bundles
+        self.payment_bundles = [] # lists of hashes. todo:persist
+        self.payment_bundle_ready_parts = set() # hashes
+
+
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
 
@@ -1853,6 +1858,24 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
         return payment_hash
+
+    def bundle_payments(self, hash_list):
+        self.payment_bundles.append(hash_list)
+
+    def get_payment_bundle(self, payment_hash):
+        for hash_list in self.payment_bundles:
+            if payment_hash in hash_list:
+                return hash_list
+
+    def is_part_of_bundle(self, payment_hash):
+        return bool(self.get_payment_bundle(payment_hash))
+
+    def set_bundle_part_ready(self, payment_hash):
+        self.payment_bundle_ready_parts.add(payment_hash)
+
+    def is_bundle_ready(self, payment_hash):
+        l = self.get_payment_bundle(payment_hash)
+        return all([x in self.payment_bundle_ready_parts for x in l])
 
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash

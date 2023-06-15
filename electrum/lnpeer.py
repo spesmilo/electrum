@@ -1831,6 +1831,12 @@ class Peer(Logger):
                     coro = self.lnworker.swap_manager.start_normal_swap(swap, None, None)
                     asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
             return None, None
+
+        if self.lnworker.is_part_of_bundle(htlc.payment_hash):
+            self.lnworker.set_bundle_part_ready(htlc.payment_hash)
+            if not self.lnworker.is_bundle_ready(htlc.payment_hash):
+                return None, None
+
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
         return preimage, None
