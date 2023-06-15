@@ -98,10 +98,15 @@ class SwapServer(Logger, EventListener):
         req_type = request['type']
         assert request['pairId'] == 'BTC/BTC'
         if req_type == 'reversesubmarine':
+            lightning_amount_sat=request['invoiceAmount']
+            payment_hash=bytes.fromhex(request['preimageHash'])
+            their_pubkey=bytes.fromhex(request['claimPublicKey'])
+            assert len(payment_hash) == 32
+            assert len(their_pubkey) == 33
             swap, payment_hash, invoice, prepay_invoice = sm.add_server_swap(
-                lightning_amount_sat=request['invoiceAmount'],
-                payment_hash=bytes.fromhex(request['preimageHash']),
-                their_pubkey=bytes.fromhex(request['claimPublicKey'])
+                lightning_amount_sat=lightning_amount_sat,
+                payment_hash=payment_hash,
+                their_pubkey=their_pubkey
             )
             response = {
                 'id': payment_hash.hex(),
@@ -113,9 +118,12 @@ class SwapServer(Logger, EventListener):
                 "onchainAmount": swap.onchain_amount,
             }
         elif req_type == 'submarine':
+            their_invoice=request['invoice']
+            their_pubkey=bytes.fromhex(request['refundPublicKey'])
+            assert len(their_pubkey) == 33
             swap, payment_hash, invoice, prepay_invoice = sm.add_server_swap(
-                invoice=request['invoice'],
-                their_pubkey=request['refundPublicKey']
+                invoice=their_invoice,
+                their_pubkey=their_pubkey
             )
             response = {
                 "id": payment_hash.hex(),
