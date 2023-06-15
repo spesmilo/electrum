@@ -68,7 +68,7 @@ def _(msg: str, *, context=None) -> str:
             if out != msg:  # found non-trivial translation
                 return out
         # else try without context
-    dic = [('BTC', 'GRS'), ('Electrum Technologies GmbH', 'Groestlcoin Developers'), ('Electrum', 'Electrum-GRS'), ('Bitcoin', 'Groestlcoin'), ('Bitcoins', 'Groestlcoins'), ('bitcoin', 'groestlcoin'), ('bitcoins', 'groestlcoins'), ('satoshi', 'gro'), ('satoshis', 'gros'), ('غرسلكوين' ,'بتكوين'), ('غرسلكوين' ,'بيتكوين'), ('غرسلكوين' ,'بیت‌کوین'), ('גרוסטלקוין' ,'הביטקוין'), ('비트코인', '그로스톨코인'), ('比特币', '格羅斯币'), ('比特幣', '格羅斯幣'), ('Биткоин', 'Грoстлкоин'), ('Биткойн', 'Грoстлкоин'), ('биткойн', 'Грoстлкоин'), ('ビットコイン', 'グロストルコイン')]
+    dic = [('BTC', 'GRS'), ('Electrum', 'Electrum-GRS'), ('Bitcoin', 'Groestlcoin'), ('Bitcoins', 'Groestlcoins'), ('bitcoin', 'groestlcoin'), ('bitcoins', 'groestlcoins'), ('satoshi', 'gro'), ('satoshis', 'gros'), ('غرسلكوين' ,'بتكوين'), ('غرسلكوين' ,'بيتكوين'), ('غرسلكوين' ,'بیت‌کوین'), ('גרוסטלקוין' ,'הביטקוין'), ('비트코인', '그로스톨코인'), ('比特币', '格羅斯币'), ('比特幣', '格羅斯幣'), ('Биткоин', 'Грoстлкоин'), ('Биткойн', 'Грoстлкоин'), ('биткойн', 'Грoстлкоин'), ('ビットコイン', 'グロストルコイン')]
     for b, m in dic:
         msg = msg.replace(m, b)
     t = language.gettext(msg)

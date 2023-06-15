@@ -774,7 +774,7 @@ class Commands:
         if show_fiat:
             from .exchange_rate import FxThread
             fx = FxThread(config=self.config)
-            kwargs['fx'] = fx
+            kwargs['fx'] = self.daemon.fx if self.daemon else FxThread(config=self.config)
 
         return json_normalize(wallet.get_detailed_history(**kwargs))
 
