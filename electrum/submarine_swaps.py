@@ -39,6 +39,7 @@ API_URL_REGTEST = 'http://localhost:5455/api'
 CLAIM_FEE_SIZE = 136
 LOCKUP_FEE_SIZE = 153 # assuming 1 output, 2 outputs
 
+MIN_LOCKTIME_DELTA = 60
 
 WITNESS_TEMPLATE_SWAP = [
     opcodes.OP_HASH160,
@@ -192,8 +193,8 @@ class SwapManager(Logger):
                 if not invoice:
                     continue
                 current_height = self.network.get_local_height()
-                delta = current_height - swap.locktime
-                if delta > - 5:
+                delta = swap.locktime - current_height
+                if delta <= MIN_LOCKTIME_DELTA:
                     # fixme: should consider cltv of ln payment
                     self.logger.info(f'locktime too close {key}')
                     continue
@@ -540,7 +541,7 @@ class SwapManager(Logger):
             raise Exception(f"rswap check failed: onchain_amount is less than what we expected: "
                             f"{onchain_amount} < {expected_onchain_amount_sat}")
         # verify that we will have enough time to get our tx confirmed
-        if locktime - self.network.get_local_height() <= 60:
+        if locktime - self.network.get_local_height() <= MIN_LOCKTIME_DELTA:
             raise Exception("rswap check failed: locktime too close")
         # verify invoice preimage_hash
         lnaddr = self.lnworker._check_invoice(invoice)
