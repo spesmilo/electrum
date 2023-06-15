@@ -174,6 +174,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.stopping_soon = False
         self.downstream_htlc_to_upstream_peer_map = {}
         self.hold_invoice_callbacks = {}
+        self.payment_bundles = [] # lists of hashes. todo:persist
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
@@ -278,6 +279,16 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     suggest_splits = LNWallet.suggest_splits
     register_callback_for_hold_invoice = LNWallet.register_callback_for_hold_invoice
     add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
+
+    update_mpp_with_received_htlc = LNWallet.update_mpp_with_received_htlc
+    get_mpp_status = LNWallet.get_mpp_status
+    set_mpp_status = LNWallet.set_mpp_status
+    is_mpp_amount_reached = LNWallet.is_mpp_amount_reached
+    get_first_timestamp_of_mpp = LNWallet.get_first_timestamp_of_mpp
+    maybe_cleanup_mpp_status = LNWallet.maybe_cleanup_mpp_status
+    bundle_payments = LNWallet.bundle_payments
+    get_payment_bundle = LNWallet.get_payment_bundle
+
 
 class MockTransport:
     def __init__(self, name):
@@ -727,7 +738,14 @@ class TestPeer(ElectrumTestCase):
             await w.network.channel_db.stopped_event.wait()
             w.network.channel_db = None
 
-    async def _test_simple_payment(self, trampoline: bool, test_hold_invoice=False, test_timeout=False):
+    async def _test_simple_payment(
+            self,
+            test_trampoline: bool,
+            test_hold_invoice=False,
+            test_hold_timeout=False,
+            test_bundle=False,
+            test_bundle_timeout=False
+    ):
         """Alice pays Bob a single HTLC via direct channel."""
         alice_channel, bob_channel = create_test_channels()
         p1, p2, w1, w2, _q1, _q2 = self.prepare_peers(alice_channel, bob_channel)
@@ -746,12 +764,21 @@ class TestPeer(ElectrumTestCase):
             def cb(payment_hash):
                 if not test_timeout:
                     w2.save_preimage(payment_hash, preimage)
-            timeout = 1 if test_timeout else 60
+            timeout = 1 if test_hold_timeout else 60
             w2.register_callback_for_hold_invoice(payment_hash, cb, timeout)
 
+        if test_bundle:
+            lnaddr2, pay_req2 = self.prepare_invoice(w2)
+            w2.bundle_payments([lnaddr.paymenthash, lnaddr2.paymenthash])
+
+        if test_trampoline:
+            await self._activate_trampoline(w1)
+            # declare bob as trampoline node
+            electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
+                'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
+            }
+
         async def f():
-            if trampoline:
-                await self._activate_trampoline(w1)
             async with OldTaskGroup() as group:
                 await group.spawn(p1._message_loop())
                 await group.spawn(p1.htlc_switch())
@@ -761,22 +788,31 @@ class TestPeer(ElectrumTestCase):
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
-        # declare bob as trampoline node
-        electrum.trampoline._TRAMPOLINE_NODES_UNITTESTS = {
-            'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
-        }
+                if test_bundle and not test_bundle_timeout:
+                    await group.spawn(pay(lnaddr2, pay_req2))
+
         await f()
 
     @needs_test_with_all_chacha20_implementations
     async def test_simple_payment(self):
-        for trampoline in [False, True]:
+        for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
-                await self._test_simple_payment(trampoline=trampoline)
+                await self._test_simple_payment(test_trampoline=test_trampoline)
+
+    async def test_payment_bundle(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentDone):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True)
+
+    async def test_payment_bundle_timeout(self):
+        for test_trampoline in [False, True]:
+            with self.assertRaises(PaymentFailure):
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_bundle=True, test_bundle_timeout=True)
 
     async def test_simple_payment_with_hold_invoice(self):
-        for trampoline in [False, True]:
+        for test_trampoline in [False, True]:
             with self.assertRaises(PaymentDone):
-                await self._test_simple_payment(trampoline=trampoline, test_hold_invoice=True)
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True)
 
     async def test_simple_payment_with_hold_invoice_timing_out(self):
         for trampoline in [False, True]:
