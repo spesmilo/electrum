@@ -1823,6 +1823,14 @@ class Peer(Logger):
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")
             raise exc_incorrect_or_unknown_pd
+        if not preimage:
+            key = htlc.payment_hash.hex()
+            if key in self.lnworker.swap_manager.swaps:
+                swap = self.lnworker.swap_manager.swaps[key]
+                if swap.funding_txid is None:
+                    coro = self.lnworker.swap_manager.start_normal_swap(swap, None, None)
+                    asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+            return None, None
         self.logger.info(f"maybe_fulfill_htlc. will FULFILL HTLC: chan {chan.short_channel_id}. htlc={str(htlc)}")
         self.lnworker.set_request_status(htlc.payment_hash, PR_PAID)
         return preimage, None

@@ -1873,6 +1873,10 @@ class LNWallet(LNWorker):
                 amount_msat, direction, status = self.payment_info[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
+    def add_payment_info_for_hold_invoice(self, payment_hash, lightning_amount_sat):
+        info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
+        self.save_payment_info(info, write_to_disk=False)
+
     def save_payment_info(self, info: PaymentInfo, *, write_to_disk: bool = True) -> None:
         key = info.payment_hash.hex()
         assert info.status in SAVED_PR_STATUS
