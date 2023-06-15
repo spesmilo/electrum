@@ -219,11 +219,11 @@ class SwapManager(Logger):
             swap.funding_txid = txin.prevout.txid.hex()
             swap._funding_prevout = txin.prevout
             self._add_or_reindex_swap(swap)  # to update _swaps_by_funding_outpoint
-            funding_height = txin.block_height
+            funding_conf = self.lnwatcher.adb.get_tx_height(txin.prevout.txid.hex()).conf
             spent_height = txin.spent_height
 
             if swap.is_reverse and swap.preimage is None:
-                if funding_height <= 0:
+                if funding_conf <= 0:
                     continue
                 preimage = self.lnworker.get_preimage(swap.payment_hash)
                 if preimage is None:
