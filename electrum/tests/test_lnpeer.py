@@ -256,7 +256,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     get_preimage = LNWallet.get_preimage
     create_route_for_payment = LNWallet.create_route_for_payment
     create_routes_for_payment = LNWallet.create_routes_for_payment
-    _check_invoice = staticmethod(LNWallet._check_invoice)
+    _check_invoice = LNWallet._check_invoice
     pay_to_route = LNWallet.pay_to_route
     pay_to_node = LNWallet.pay_to_node
     pay_invoice = LNWallet.pay_invoice

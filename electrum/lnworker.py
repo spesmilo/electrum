@@ -194,6 +194,8 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
     | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.VAR_ONION_REQ
+    | LnFeatures.PAYMENT_SECRET_REQ
     | LnFeatures.BASIC_MPP_OPT
     | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
@@ -1238,7 +1240,7 @@ class LNWallet(LNWorker):
             self, *,
             node_pubkey: bytes,
             payment_hash: bytes,
-            payment_secret: Optional[bytes],
+            payment_secret: bytes,
             amount_to_pay: int,  # in msat
             min_cltv_expiry: int,
             r_tags,
@@ -1389,7 +1391,7 @@ class LNWallet(LNWorker):
             total_msat: int,
             amount_receiver_msat:int,
             payment_hash: bytes,
-            payment_secret: Optional[bytes],
+            payment_secret: bytes,
             min_cltv_expiry: int,
             trampoline_onion: bytes = None,
             trampoline_fee_level: int,
@@ -1546,8 +1548,7 @@ class LNWallet(LNWorker):
             except Exception:
                 return None
 
-    @staticmethod
-    def _check_invoice(invoice: str, *, amount_msat: int = None) -> LnAddr:
+    def _check_invoice(self, invoice: str, *, amount_msat: int = None) -> LnAddr:
         addr = lndecode(invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
@@ -1562,6 +1563,7 @@ class LNWallet(LNWorker):
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
+        addr.validate_and_compare_features(self.features)
         return addr
 
     def is_trampoline_peer(self, node_id: bytes) -> bool:
@@ -1615,8 +1617,8 @@ class LNWallet(LNWorker):
             min_cltv_expiry,
             r_tags,
             invoice_features: int,
-            payment_hash,
-            payment_secret,
+            payment_hash: bytes,
+            payment_secret: bytes,
             trampoline_fee_level: int,
             use_two_trampolines: bool,
             fwd_trampoline_onion=None,

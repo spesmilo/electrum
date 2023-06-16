@@ -1441,7 +1441,7 @@ class Peer(Logger):
             total_msat: int,
             payment_hash: bytes,
             min_final_cltv_expiry: int,
-            payment_secret: bytes = None,
+            payment_secret: bytes,
             trampoline_onion=None) -> UpdateAddHtlc:
 
         assert amount_msat > 0, "amount_msat is not greater zero"
@@ -1786,7 +1786,8 @@ class Peer(Logger):
         try:
             total_msat = processed_onion.hop_data.payload["payment_data"]["total_msat"]
         except Exception:
-            total_msat = amt_to_forward # fall back to "amt_to_forward"
+            log_fail_reason(f"'total_msat' missing from onion")
+            raise exc_incorrect_or_unknown_pd
 
         if not is_trampoline and amt_to_forward != htlc.amount_msat:
             log_fail_reason(f"amt_to_forward != htlc.amount_msat")
@@ -1795,14 +1796,10 @@ class Peer(Logger):
                 data=htlc.amount_msat.to_bytes(8, byteorder="big"))
 
         try:
-            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]
+            payment_secret_from_onion = processed_onion.hop_data.payload["payment_data"]["payment_secret"]  # type: bytes
         except Exception:
-            if total_msat > amt_to_forward:
-                # payment_secret is required for MPP
-                log_fail_reason(f"'payment_secret' missing from onion")
-                raise exc_incorrect_or_unknown_pd
-            # TODO fail here if invoice has set PAYMENT_SECRET_REQ
-            payment_secret_from_onion = None
+            log_fail_reason(f"'payment_secret' missing from onion")
+            raise exc_incorrect_or_unknown_pd
 
         payment_status = self.lnworker.check_received_htlc(payment_secret_from_onion, chan.short_channel_id, htlc, total_msat)
         if payment_status is None:
@@ -1825,14 +1822,13 @@ class Peer(Logger):
             log_fail_reason(f"no payment_info found for RHASH {htlc.payment_hash.hex()}")
             raise exc_incorrect_or_unknown_pd
         preimage = self.lnworker.get_preimage(htlc.payment_hash)
-        if payment_secret_from_onion:
-            expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
-            if preimage:
-                # legacy secret for old invoices
-                expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage))
-            if payment_secret_from_onion not in expected_payment_secrets:
-                log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
-                raise exc_incorrect_or_unknown_pd
+        expected_payment_secrets = [self.lnworker.get_payment_secret(htlc.payment_hash)]
+        if preimage:
+            # legacy secret for old invoices
+            expected_payment_secrets.append(derive_payment_secret_from_payment_preimage(preimage))
+        if payment_secret_from_onion not in expected_payment_secrets:
+            log_fail_reason(f'incorrect payment secret {payment_secret_from_onion.hex()} != {expected_payment_secrets[0].hex()}')
+            raise exc_incorrect_or_unknown_pd
         invoice_msat = info.amount_msat
         if not (invoice_msat is None or invoice_msat <= total_msat <= 2 * invoice_msat):
             log_fail_reason(f"total_msat={total_msat} too different from invoice_msat={invoice_msat}")

@@ -150,7 +150,7 @@ class OnionHopsDataSingle:  # called HopData in lnd
         elif first_byte == b'\x01':
             # reserved for future use
             raise Exception("unsupported hop payload: length==1")
-        else:
+        else:  # tlv format
             hop_payload_length = read_bigsize_int(fd)
             hop_payload = fd.read(hop_payload_length)
             if hop_payload_length != len(hop_payload):
@@ -266,8 +266,9 @@ def calc_hops_data_for_payment(
         route: 'LNPaymentRoute',
         amount_msat: int,
         final_cltv: int, *,
-        total_msat=None,
-        payment_secret: bytes = None) -> Tuple[List[OnionHopsDataSingle], int, int]:
+        total_msat: int,
+        payment_secret: bytes,
+) -> Tuple[List[OnionHopsDataSingle], int, int]:
 
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
@@ -283,12 +284,11 @@ def calc_hops_data_for_payment(
     }
     # for multipart payments we need to tell the receiver about the total and
     # partial amounts
-    if payment_secret is not None:
-        hop_payload["payment_data"] = {
-            "payment_secret": payment_secret,
-            "total_msat": total_msat,
-            "amount_msat": amt
-        }
+    hop_payload["payment_data"] = {
+        "payment_secret": payment_secret,
+        "total_msat": total_msat,
+        "amount_msat": amt
+    }
     hops_data = [OnionHopsDataSingle(
         is_tlv_payload=route[-1].has_feature_varonion(), payload=hop_payload)]
     # payloads, backwards from last hop (but excluding the first edge):
