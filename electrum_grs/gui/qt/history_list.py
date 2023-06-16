@@ -156,7 +156,7 @@ class HistoryNode(CustomNode):
             return QVariant(d[col])
         if role == MyTreeView.ROLE_EDIT_KEY:
             return QVariant(get_item_key(tx_item))
-        if role not in (Qt.DisplayRole, Qt.EditRole):
+        if role not in (Qt.DisplayRole, Qt.EditRole, MyTreeView.ROLE_CLIPBOARD_DATA):
             if col == HistoryColumns.STATUS and role == Qt.DecorationRole:
                 icon = "lightning" if is_lightning else TX_ICONS[status]
                 return QVariant(read_QIcon(icon))
@@ -189,6 +189,13 @@ class HistoryNode(CustomNode):
                 blue_brush = QBrush(QColor("#1E1EFF"))
                 return QVariant(blue_brush)
             return QVariant()
+
+        add_thousands_sep = None
+        whitespaces = True
+        if role == MyTreeView.ROLE_CLIPBOARD_DATA:
+            add_thousands_sep = False
+            whitespaces = False
+
         if col == HistoryColumns.STATUS:
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION and 'label' in tx_item:
@@ -197,23 +204,23 @@ class HistoryNode(CustomNode):
             bc_value = tx_item['bc_value'].value if 'bc_value' in tx_item else 0
             ln_value = tx_item['ln_value'].value if 'ln_value' in tx_item else 0
             value = bc_value + ln_value
-            v_str = window.format_amount(value, is_diff=True, whitespaces=True)
+            v_str = window.format_amount(value, is_diff=True, whitespaces=whitespaces, add_thousands_sep=add_thousands_sep)
             return QVariant(v_str)
         elif col == HistoryColumns.BALANCE:
             balance = tx_item['balance'].value
-            balance_str = window.format_amount(balance, whitespaces=True)
+            balance_str = window.format_amount(balance, whitespaces=whitespaces, add_thousands_sep=add_thousands_sep)
             return QVariant(balance_str)
         elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
-            value_str = window.fx.format_fiat(tx_item['fiat_value'].value)
+            value_str = window.fx.format_fiat(tx_item['fiat_value'].value, add_thousands_sep=add_thousands_sep)
             return QVariant(value_str)
         elif col == HistoryColumns.FIAT_ACQ_PRICE and \
                 tx_item['value'].value < 0 and 'acquisition_price' in tx_item:
             # fixme: should use is_mine
             acq = tx_item['acquisition_price'].value
-            return QVariant(window.fx.format_fiat(acq))
+            return QVariant(window.fx.format_fiat(acq, add_thousands_sep=add_thousands_sep))
         elif col == HistoryColumns.FIAT_CAP_GAINS and 'capital_gain' in tx_item:
             cg = tx_item['capital_gain'].value
-            return QVariant(window.fx.format_fiat(cg))
+            return QVariant(window.fx.format_fiat(cg, add_thousands_sep=add_thousands_sep))
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash) if not is_lightning else QVariant('')
         elif col == HistoryColumns.SHORT_ID:
@@ -733,10 +740,12 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 continue
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             idx2 = idx.sibling(idx.row(), column)
-            column_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
+            clipboard_data = self.hm.data(idx2, self.ROLE_CLIPBOARD_DATA).value()
+            if clipboard_data is None:
+                clipboard_data = (self.hm.data(idx2, Qt.DisplayRole).value() or '').strip()
             cc.addAction(
                 column_title,
-                lambda text=column_data, title=column_title:
+                lambda text=clipboard_data, title=column_title:
                 self.place_text_on_clipboard(text, title=title))
         return cc
 

@@ -742,7 +742,14 @@ class AddressSynchronizer(Logger, EventListener):
         return delta
 
     def get_tx_fee(self, txid: str) -> Optional[int]:
-        """ Returns tx_fee or None. Use server fee only if tx is unconfirmed and not mine"""
+        """Returns tx_fee or None. Use server fee only if tx is unconfirmed and not mine.
+
+        Note: being fast is prioritised over completeness here. We try to avoid deserializing
+              the tx, as that is expensive if we are called for the whole history. We sometimes
+              incorrectly early-exit and return None, e.g. for not-all-ismine-input txs,
+              where we could calculate the fee if we deserialized (but to see if we have all
+              the parent txs available, we would have to deserialize first).
+        """
         # check if stored fee is available
         fee = self.db.get_tx_fee(txid, trust_server=False)
         if fee is not None:

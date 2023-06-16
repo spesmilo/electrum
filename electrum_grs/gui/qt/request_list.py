@@ -145,6 +145,7 @@ class RequestList(MyTreeView):
             message = req.get_message()
             date = format_time(timestamp)
             amount_str = self.main_window.format_amount(amount) if amount else ""
+            amount_str_nots = self.main_window.format_amount(amount, add_thousands_sep=False) if amount else ""
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = date
             labels[self.Columns.DESCRIPTION] = message
@@ -157,6 +158,7 @@ class RequestList(MyTreeView):
             #items[self.Columns.DATE].setData(request_type, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_KEY)
             items[self.Columns.DATE].setData(timestamp, ROLE_SORT_ORDER)
+            items[self.Columns.AMOUNT].setData(amount_str_nots.strip(), self.ROLE_CLIPBOARD_DATA)
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.std_model.insertRow(self.std_model.rowCount(), items)
         self.filter()

@@ -250,18 +250,24 @@ class AddressList(MyTreeView):
         c, u, x = self.wallet.get_addr_balance(address)
         balance = c + u + x
         balance_text = self.main_window.format_amount(balance, whitespaces=True)
+        balance_text_nots = self.main_window.format_amount(balance, whitespaces=False, add_thousands_sep=False)
         # create item
         fx = self.main_window.fx
         if self.should_show_fiat():
             rate = fx.exchange_rate()
-            fiat_balance_str = fx.value_str(balance, rate)
+            fiat_balance_str = fx.value_str(balance, rate, add_thousands_sep=True)
+            fiat_balance_str_nots = fx.value_str(balance, rate, add_thousands_sep=False)
         else:
             fiat_balance_str = ''
+            fiat_balance_str_nots = ''
         address_item = [self.std_model.item(row, col) for col in self.Columns]
         address_item[self.Columns.LABEL].setText(label)
         address_item[self.Columns.COIN_BALANCE].setText(balance_text)
         address_item[self.Columns.COIN_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
+        address_item[self.Columns.COIN_BALANCE].setData(balance_text_nots, self.ROLE_CLIPBOARD_DATA)
         address_item[self.Columns.FIAT_BALANCE].setText(fiat_balance_str)
+        address_item[self.Columns.FIAT_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
+        address_item[self.Columns.FIAT_BALANCE].setData(fiat_balance_str_nots, self.ROLE_CLIPBOARD_DATA)
         address_item[self.Columns.NUM_TXS].setText("%d"%num)
         c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
         address_item[self.Columns.ADDRESS].setBackground(c)

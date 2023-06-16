@@ -314,7 +314,7 @@ class TxInOutWidget(QWidget):
                 copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
             txin_value = self.wallet.adb.get_txin_value(txin)
             if txin_value:
-                value_str = self.main_window.format_amount(txin_value)
+                value_str = self.main_window.format_amount(txin_value, add_thousands_sep=False)
                 copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
 
         for item in show_list:
@@ -356,7 +356,7 @@ class TxInOutWidget(QWidget):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
             copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
         txout_value = self.tx.outputs()[txout_idx].value
-        value_str = self.main_window.format_amount(txout_value)
+        value_str = self.main_window.format_amount(txout_value, add_thousands_sep=False)
         copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
 
         for item in show_list:

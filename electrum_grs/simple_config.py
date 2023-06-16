@@ -785,9 +785,12 @@ class SimpleConfig(Logger):
         is_diff=False,
         whitespaces=False,
         precision=None,
+        add_thousands_sep: bool = None,
     ) -> str:
         if precision is None:
             precision = self.amt_precision_post_satoshi
+        if add_thousands_sep is None:
+            add_thousands_sep = self.amt_add_thousands_sep
         return format_satoshis(
             amount_sat,
             num_zeros=self.num_zeros,
@@ -795,7 +798,7 @@ class SimpleConfig(Logger):
             is_diff=is_diff,
             whitespaces=whitespaces,
             precision=precision,
-            add_thousands_sep=self.amt_add_thousands_sep,
+            add_thousands_sep=add_thousands_sep,
         )
 
     def format_amount_and_units(self, *args, **kwargs) -> str:
