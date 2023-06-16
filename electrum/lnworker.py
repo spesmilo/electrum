@@ -172,27 +172,33 @@ class ErrorAddingPeer(Exception): pass
 
 # set some feature flags as baseline for both LNWallet and LNGossip
 # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-BASE_FEATURES = LnFeatures(0)\
-    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT\
-    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
-    | LnFeatures.VAR_ONION_OPT\
-    | LnFeatures.PAYMENT_SECRET_OPT\
-    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT\
+BASE_FEATURES = (
+    LnFeatures(0)
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+    | LnFeatures.VAR_ONION_OPT
+    | LnFeatures.PAYMENT_SECRET_OPT
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+)
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
-LNWALLET_FEATURES = BASE_FEATURES\
-    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ\
-    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
-    | LnFeatures.GOSSIP_QUERIES_REQ\
-    | LnFeatures.BASIC_MPP_OPT\
-    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM\
-    | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
-    | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
-    | LnFeatures.OPTION_SCID_ALIAS_OPT\
+LNWALLET_FEATURES = (
+    BASE_FEATURES
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+    | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.BASIC_MPP_OPT
+    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+    | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
+    | LnFeatures.OPTION_CHANNEL_TYPE_OPT
+    | LnFeatures.OPTION_SCID_ALIAS_OPT
+)
 
-LNGOSSIP_FEATURES = BASE_FEATURES\
-    | LnFeatures.GOSSIP_QUERIES_OPT\
-    | LnFeatures.GOSSIP_QUERIES_REQ\
+LNGOSSIP_FEATURES = (
+    BASE_FEATURES
+    | LnFeatures.GOSSIP_QUERIES_OPT
+    | LnFeatures.GOSSIP_QUERIES_REQ
+)
 
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
