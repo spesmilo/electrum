@@ -28,11 +28,6 @@ WizardComponent {
         }
         RadioButton {
             ButtonGroup.group: wallettypegroup
-            property string wallettype: '2fa'
-            text: qsTr('Wallet with two-factor authentication')
-        }
-        RadioButton {
-            ButtonGroup.group: wallettypegroup
             property string wallettype: 'multisig'
             text: qsTr('Multi-signature wallet')
         }
