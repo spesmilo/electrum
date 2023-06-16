@@ -6,7 +6,7 @@ import time
 from hashlib import sha256
 from binascii import hexlify
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING, Type
+from typing import Optional, TYPE_CHECKING, Type, Dict, Any
 
 import random
 import bitstring
@@ -353,6 +353,25 @@ class LnAddr(object):
         # BOLT-11 does not specify what expiration of '0' means.
         # we treat it as 0 seconds here (instead of never)
         return now > self.get_expiry() + self.date
+
+    def to_debug_json(self) -> Dict[str, Any]:
+        d = {
+            'pubkey': self.pubkey.serialize().hex(),
+            'amount_BTC': str(self.amount),
+            'rhash': self.paymenthash.hex(),
+            'payment_secret': self.payment_secret.hex() if self.payment_secret else None,
+            'description': self.get_description(),
+            'exp': self.get_expiry(),
+            'time': self.date,
+            'min_final_cltv_expiry': self.get_min_final_cltv_expiry(),
+            'features': self.get_features().get_names(),
+            'tags': self.tags,
+            'unknown_tags': self.unknown_tags,
+        }
+        if ln_routing_info := self.get_routing_info('r'):
+            # show the last hop of routing hints. (our invoices only have one hop)
+            d['r_tags'] = [str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in ln_routing_info[-1]]
+        return d
 
 
 class SerializableKey:

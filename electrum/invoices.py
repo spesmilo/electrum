@@ -290,17 +290,7 @@ class Invoice(BaseInvoice):
 
     def to_debug_json(self) -> Dict[str, Any]:
         d = self.to_json()
-        d.update({
-            'pubkey': self._lnaddr.pubkey.serialize().hex(),
-            'amount_BTC': str(self._lnaddr.amount),
-            'rhash': self._lnaddr.paymenthash.hex(),
-            'description': self._lnaddr.get_description(),
-            'exp': self._lnaddr.get_expiry(),
-            'time': self._lnaddr.date,
-        })
-        if ln_routing_info := self._lnaddr.get_routing_info('r'):
-            # show the last hop of routing hints. (our invoices only have one hop)
-            d['r_tags'] = [str((a.hex(),b.hex(),c,d,e)) for a,b,c,d,e in ln_routing_info[-1]]
+        d["lnaddr"] = self._lnaddr.to_debug_json()
         return d
 
 
