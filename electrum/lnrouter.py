@@ -489,6 +489,12 @@ class LNPathFinder(Logger):
         route_edge = private_route_edges.get(short_channel_id, None)
         if route_edge is None:
             node_info = self.channel_db.get_node_info_for_node_id(node_id=end_node)
+            if node_info:
+                # it's ok if we are missing the node_announcement (node_info) for this node,
+                # but if we have it, we enforce that they support var_onion_optin
+                node_features = LnFeatures(node_info.features)
+                if not node_features.supports(LnFeatures.VAR_ONION_OPT):
+                    return float('inf'), 0
             route_edge = RouteEdge.from_channel_policy(
                 channel_policy=channel_policy,
                 short_channel_id=short_channel_id,
