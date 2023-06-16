@@ -247,7 +247,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    check_received_mpp_htlc = LNWallet.check_received_mpp_htlc
+    check_received_htlc = LNWallet.check_received_htlc
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage

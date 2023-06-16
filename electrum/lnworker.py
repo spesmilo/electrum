@@ -1888,8 +1888,15 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def check_received_mpp_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
-        """ return MPP status: True (accepted), False (expired) or None """
+    def check_received_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
+        """ return MPP status: True (accepted), False (expired) or None (waiting)
+        """
+
+        amt_to_forward = htlc.amount_msat # check this
+        if amt_to_forward >= expected_msat:
+            # not multi-part
+            return True
+
         payment_hash = htlc.payment_hash
         is_expired, is_accepted, htlc_set = self.received_mpp_htlcs.get(payment_secret, (False, False, set()))
         if self.get_payment_status(payment_hash) == PR_PAID:
