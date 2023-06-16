@@ -89,12 +89,9 @@ class FxDialog(Factory.Popup):
         self.config = config
         self.callback = callback
         self.fx = self.app.fx
-        if self.fx.get_history_config(allow_none=True) is None:
-            # If nothing is set, force-enable it. (Note that as fiat rates itself
-            # are disabled by default, it is enough to set this here. If they
-            # were enabled by default, this would be too late.)
-            self.fx.set_history_config(True)
-        self.has_history_rates = self.fx.get_history_config()
+        if not self.fx.config.cv.FX_HISTORY_RATES.is_set():
+            self.fx.config.FX_HISTORY_RATES = True  # override default
+        self.has_history_rates = self.fx.config.FX_HISTORY_RATES
 
         Factory.Popup.__init__(self)
         self.add_currencies()
@@ -128,7 +125,7 @@ class FxDialog(Factory.Popup):
         self.ids.ccy.text = my_ccy
 
     def on_checkbox_history(self, checked):
-        self.fx.set_history_config(checked)
+        self.fx.config.FX_HISTORY_RATES = bool(checked)
         self.has_history_rates = checked
         self.add_currencies()
         self.on_currency(self.ids.ccy.text)
