@@ -146,6 +146,7 @@ class TestBolt11(ElectrumTestCase):
     def test_min_final_cltv_expiry_roundtrip(self):
         for cltv in (1, 15, 16, 31, 32, 33, 150, 511, 512, 513, 1023, 1024, 1025):
             lnaddr = LnAddr(paymenthash=RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', cltv)])
+            self.assertEqual(cltv, lnaddr.get_min_final_cltv_expiry())
             invoice = lnencode(lnaddr, PRIVKEY)
             self.assertEqual(cltv, lndecode(invoice).get_min_final_cltv_expiry())
 

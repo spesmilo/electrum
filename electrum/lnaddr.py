@@ -272,7 +272,6 @@ class LnAddr(object):
         self.pubkey = None
         self.net = constants.net if net is None else net  # type: Type[AbstractNet]
         self._amount = amount  # type: Optional[Decimal]  # in bitcoins
-        self._min_final_cltv_expiry = 18
 
     @property
     def amount(self) -> Optional[Decimal]:
@@ -326,7 +325,10 @@ class LnAddr(object):
         )
 
     def get_min_final_cltv_expiry(self) -> int:
-        return self._min_final_cltv_expiry
+        cltv = self.get_tag('c')
+        if cltv is None:
+            return 18
+        return int(cltv)
 
     def get_tag(self, tag):
         for k, v in self.tags:
@@ -482,7 +484,7 @@ def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
             addr.pubkey = pubkeybytes
 
         elif tag == 'c':
-            addr._min_final_cltv_expiry = tagdata.uint
+            addr.tags.append(('c', tagdata.uint))
 
         elif tag == '9':
             features = tagdata.uint
