@@ -16,8 +16,8 @@ from .bitcoin import (script_to_p2wsh, opcodes, p2wsh_nested_script, push_script
 from .transaction import PartialTxInput, PartialTxOutput, PartialTransaction, Transaction, TxInput, TxOutpoint
 from .transaction import script_GetOp, match_script_against_template, OPPushDataGeneric, OPPushDataPubkey
 from .util import log_exceptions, BelowDustLimit, OldTaskGroup
-from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
-from .bitcoin import dust_threshold
+from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY
+from .bitcoin import dust_threshold, get_dummy_address
 from .logging import Logger
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode
@@ -190,6 +190,7 @@ class SwapManager(Logger):
         self.wallet = wallet
         self.lnworker = lnworker
         self.taskgroup = None
+        self.dummy_address = get_dummy_address('swap')
 
         self.swaps = self.wallet.db.get_dict('submarine_swaps')  # type: Dict[str, SwapData]
         self._swaps_by_funding_outpoint = {}  # type: Dict[TxOutpoint, SwapData]
@@ -578,6 +579,11 @@ class SwapManager(Logger):
         """
         assert self.network
         assert self.lnwatcher
+        swap, invoice = await self.request_normal_swap(lightning_amount_sat, expected_onchain_amount_sat, channels=channels)
+        tx = self.create_funding_tx(swap, tx, password)
+        return await self.wait_for_htlcs_and_broadcast(swap, invoice, tx, channels=channels)
+
+    async def request_normal_swap(self, lightning_amount_sat, expected_onchain_amount_sat, channels=None):
         amount_msat = lightning_amount_sat * 1000
         refund_privkey = os.urandom(32)
         refund_pubkey = ECPrivkey(refund_privkey).get_public_key_bytes(compressed=True)
@@ -654,8 +660,11 @@ class SwapManager(Logger):
             their_pubkey=claim_pubkey,
             invoice=invoice,
             prepay=False)
+        return swap, invoice
 
-        tx = self.create_funding_tx(swap, tx, password)
+    async def wait_for_htlcs_and_broadcast(self, swap, invoice, tx, channels=None):
+        payment_hash = swap.payment_hash
+        refund_pubkey = ECPrivkey(swap.privkey).get_public_key_bytes(compressed=True)
         if self.server_supports_htlc_first:
             # send invoice to server and wait for htlcs
             request_data = {
@@ -679,22 +688,38 @@ class SwapManager(Logger):
         else:
             # broadcast funding tx right away
             await self.broadcast_funding_tx(swap, tx)
+            # fixme: if broadcast fails, we need to fail htlcs and cancel the swap
         return swap.funding_txid
 
     def create_funding_tx(self, swap, tx, password):
         # create funding tx
         # note: rbf must not decrease payment
         # this is taken care of in wallet._is_rbf_allowed_to_touch_tx_output
-        funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
         if tx is None:
+            funding_output = PartialTxOutput.from_address_and_value(swap.lockup_address, swap.onchain_amount)
             tx = self.wallet.create_transaction(outputs=[funding_output], rbf=True, password=password)
         else:
-            dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), swap.onchain_amount)
-            tx.outputs().remove(dummy_output)
-            tx.add_outputs([funding_output])
+            tx.replace_dummy_output('swap', swap.lockup_address)
             tx.set_rbf(True)
             self.wallet.sign_transaction(tx, password)
         return tx
+
+    @log_exceptions
+    async def request_swap_for_tx(self, tx):
+        for o in tx.outputs():
+            if o.address == self.dummy_address:
+                change_amount = o.value
+                break
+        else:
+            return
+        await self.get_pairs()
+        assert self.server_supports_htlc_first
+        lightning_amount_sat = self.get_recv_amount(change_amount, is_reverse=False)
+        swap, invoice = await self.request_normal_swap(
+            lightning_amount_sat = lightning_amount_sat,
+            expected_onchain_amount_sat=change_amount)
+        tx.replace_dummy_output('swap', swap.lockup_address)
+        return swap, invoice, tx
 
     @log_exceptions
     async def broadcast_funding_tx(self, swap, tx):

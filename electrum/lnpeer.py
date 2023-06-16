@@ -24,7 +24,7 @@ from . import constants
 from .util import (bfh, log_exceptions, ignore_exceptions, chunks, OldTaskGroup,
                    UnrelatedTransactionException, error_text_bytes_to_safe_str)
 from . import transaction
-from .bitcoin import make_op_return
+from .bitcoin import make_op_return, get_dummy_address
 from .transaction import PartialTxOutput, match_script_against_template, Sighash
 from .logging import Logger
 from .lnonion import (new_onion_packet, OnionFailureCode, calc_hops_data_for_payment,
@@ -48,7 +48,6 @@ from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg, UnknownOptionalMsgType, FailedToParseMsg
 from .interface import GracefulDisconnect
 from .lnrouter import fee_for_edge_msat
-from .lnutil import ln_dummy_address
 from .json_db import StoredDict
 from .invoices import PR_PAID
 from .simple_config import FEE_LN_ETA_TARGET
@@ -813,11 +812,7 @@ class Peer(Logger):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = PartialTxOutput.from_address_and_value(funding_address, funding_sat)
-        dummy_output = PartialTxOutput.from_address_and_value(ln_dummy_address(), funding_sat)
-        if dummy_output not in funding_tx.outputs(): raise Exception("LN dummy output (err 1)")
-        funding_tx._outputs.remove(dummy_output)
-        if dummy_output in funding_tx.outputs(): raise Exception("LN dummy output (err 2)")
-        funding_tx.add_outputs([funding_output])
+        funding_tx.replace_dummy_output('channel', funding_address)
         # find and encrypt op_return data associated to funding_address
         has_onchain_backup = self.lnworker and self.lnworker.has_recoverable_channels()
         if has_onchain_backup:

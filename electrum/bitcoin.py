@@ -753,3 +753,7 @@ def is_minikey(text: str) -> bool:
 
 def minikey_to_private_key(text: str) -> bytes:
     return sha256(text)
+
+# dummy address for fee estimation of funding tx
+def get_dummy_address(purpose):
+    return redeem_script_to_address('p2wsh', sha256(bytes(purpose, "utf8")).hex())

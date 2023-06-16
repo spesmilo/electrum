@@ -221,6 +221,8 @@ class CoinChooserBase(Logger):
         amounts = [amount for amount in amounts if amount >= dust_threshold]
         change = [PartialTxOutput.from_address_and_value(addr, amount)
                   for addr, amount in zip(change_addrs, amounts)]
+        for c in change:
+            c.is_change = True
         return change
 
     def _construct_tx_from_selected_buckets(self, *, buckets: Sequence[Bucket],

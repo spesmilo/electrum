@@ -53,9 +53,6 @@ HTLC_OUTPUT_WEIGHT = 172
 LN_MAX_FUNDING_SAT_LEGACY = pow(2, 24) - 1
 DUST_LIMIT_MAX = 1000
 
-# dummy address for fee estimation of funding tx
-def ln_dummy_address():
-    return redeem_script_to_address('p2wsh', '')
 
 from .json_db import StoredObject, stored_in, stored_as
 

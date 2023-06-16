@@ -877,6 +877,7 @@ class SimpleConfig(Logger):
     WALLET_PAYREQ_EXPIRY_SECONDS = ConfigVar('request_expiry', default=invoices.PR_DEFAULT_EXPIRATION_WHEN_CREATING, type_=int)
     WALLET_USE_SINGLE_PASSWORD = ConfigVar('single_password', default=False, type_=bool)
     # note: 'use_change' and 'multiple_change' are per-wallet settings
+    WALLET_SEND_CHANGE_TO_LIGHTNING = ConfigVar('send_change_to_lightning', default=False, type_=bool)
 
     FX_USE_EXCHANGE_RATE = ConfigVar('use_exchange_rate', default=False, type_=bool)
     FX_CURRENCY = ConfigVar('currency', default='EUR', type_=str)

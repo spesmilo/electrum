@@ -60,7 +60,7 @@ from .util import (NotEnoughFunds, UserCancelled, profiler, OldTaskGroup, ignore
                    Fiat, bfh, TxMinedInfo, quantize_feerate, OrderedDictWithIndex)
 from .simple_config import SimpleConfig, FEE_RATIO_HIGH_WARNING, FEERATE_WARNING_HIGH_FEE
 from .bitcoin import COIN, TYPE_ADDRESS
-from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold
+from .bitcoin import is_address, address_to_script, is_minikey, relayfee, dust_threshold, get_dummy_address
 from .crypto import sha256d
 from . import keystore
 from .keystore import (load_keystore, Hardware_KeyStore, KeyStore, KeyStoreWithMPK,
@@ -1762,6 +1762,14 @@ class Abstract_Wallet(ABC, Logger, EventListener):
                 change_addrs=change_addrs,
                 fee_estimator_vb=fee_estimator,
                 dust_threshold=self.dust_threshold())
+            if self.lnworker and self.config.WALLET_SEND_CHANGE_TO_LIGHTNING:
+                change = tx.get_change_outputs()
+                # do not use multiple change addresses
+                if len(change) == 1:
+                    amount = change[0].value
+                    ln_amount = self.lnworker.swap_manager.get_recv_amount(amount, is_reverse=False)
+                    if ln_amount and ln_amount <= self.lnworker.num_sats_can_receive():
+                        tx.replace_output_address(change[0].address, get_dummy_address('swap'))
         else:
             # "spend max" branch
             # note: This *will* spend inputs with negative effective value (if there are any).

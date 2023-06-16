@@ -52,6 +52,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_SCRIPT, hash_160,
 from .crypto import sha256d
 from .logging import get_logger
 from .util import ShortID, OldTaskGroup
+from .bitcoin import get_dummy_address
 from .descriptor import Descriptor, MissingSolutionPiece, create_dummy_descriptor_from_address
 from .json_db import stored_in
 
@@ -1154,6 +1155,27 @@ class Transaction:
     def get_output_idxs_from_address(self, addr: str) -> Set[int]:
         script = bitcoin.address_to_script(addr)
         return self.get_output_idxs_from_scriptpubkey(script)
+
+    def replace_output_address(self, old_address, new_address):
+        idx = list(self.get_output_idxs_from_address(old_address))
+        assert len(idx) == 1
+        amount = self._outputs[idx[0]].value
+        funding_output = PartialTxOutput.from_address_and_value(new_address, amount)
+        old_output = PartialTxOutput.from_address_and_value(old_address, amount)
+        self._outputs.remove(old_output)
+        self.add_outputs([funding_output])
+        delattr(self, '_script_to_output_idx')
+
+    def get_change_outputs(self):
+        return  [o for o in self._outputs if o.is_change]
+
+    def replace_dummy_output(self, purpose, new_address):
+        dummy_addr = get_dummy_address(purpose)
+        self.replace_output_address(dummy_addr, new_address)
+
+    def has_dummy_output(self, purpose):
+        addr = get_dummy_address(purpose)
+        return len(self.get_output_idxs_from_address(addr)) == 1
 
     def output_value_for_address(self, addr):
         # assumes exactly one output has that address

@@ -325,6 +325,15 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             # user cancelled
             return
         is_preview = conf_dlg.is_preview
+
+        if tx.has_dummy_output('swap'):
+            sm = self.wallet.lnworker.swap_manager
+            coro = sm.request_swap_for_tx(tx)
+            swap, invoice, tx = self.network.run_from_another_thread(coro)
+            assert not tx.has_dummy_output('swap')
+            tx.swap_invoice = invoice
+            tx.swap_payment_hash = swap.payment_hash
+
         if is_preview:
             self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
             return
@@ -711,6 +720,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
         # note: payment_identifier is explicitly passed as self.payto_e.payment_identifier might
         #       already be cleared or otherwise have changed.
+        if hasattr(tx, 'swap_payment_hash'):
+            sm = self.wallet.lnworker.swap_manager
+            swap = sm.get_swap(tx.swap_payment_hash)
+            coro = sm.wait_for_htlcs_and_broadcast(swap, tx.swap_invoice, tx)
+            self.window.run_coroutine_from_thread(coro, _('Awaiting lightning payment..'), on_result=self.window.on_swap_result)
+            return
 
         def broadcast_thread():
             # non-GUI thread
