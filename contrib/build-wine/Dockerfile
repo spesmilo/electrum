@@ -58,6 +58,8 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-get autoremove -y && \
     apt-get clean
 
+RUN git config --global --add safe.directory '*'
+
 # create new user to avoid using root; but with sudo access and no password for convenience.
 #ARG UID=1000
 #ENV USER="user"
