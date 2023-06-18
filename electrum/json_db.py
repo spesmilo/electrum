@@ -197,12 +197,6 @@ class JsonDB(Logger):
             self.data[name] = {}
         return self.data[name]
 
-    def _convert_dict(self, path, key, v):
-        return v
-
-    def _convert_value(self, path, key, v):
-        return v
-
     @locked
     def dump(self, *, human_readable: bool = True) -> str:
         """Serializes the DB as a string.
@@ -231,7 +225,6 @@ class JsonDB(Logger):
         registered_parent_keys[name] = method
 
     def _convert_dict(self, path, key, v):
-
         if key in registered_dicts:
             constructor, _type = registered_dicts[key]
             if _type == dict:
@@ -240,7 +233,6 @@ class JsonDB(Logger):
                 v = dict((k, constructor(*x)) for k, x in v.items())
             else:
                 v = dict((k, constructor(x)) for k, x in v.items())
-
         if key in registered_dict_keys:
             convert_key = registered_dict_keys[key]
         elif path and path[-1] in registered_parent_keys:
@@ -249,7 +241,6 @@ class JsonDB(Logger):
             convert_key = None
         if convert_key:
             v = dict((convert_key(k), x) for k, x in v.items())
-
         return v
 
     def _convert_value(self, path, key, v):
