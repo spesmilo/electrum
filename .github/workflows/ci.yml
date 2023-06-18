@@ -144,8 +144,9 @@ jobs:
           android: true
           dotnet: true
           haskell: true
-          large-packages: true
           docker-images: true
+          codeql-images: true
+          large-packages: true
           swap-storage: true
       - name: Unpin the distro packages
         run: sed -i 's|COPY contrib/android|#&|' contrib/android/Dockerfile
