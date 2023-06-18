@@ -11,8 +11,6 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: 3.10.11
-      - name: Unpin the distro packages
-        run: sed -i 's|COPY|#&|' contrib/build-wine/Dockerfile
       - name: Builder image
         env:
           TARGET_OS: Windows
@@ -41,8 +39,6 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: 3.10.11
-      - name: Unpin the distro packages
-        run: sed -i 's|COPY|#&|' contrib/build-linux/appimage/Dockerfile
       - name: Builder image
         run: docker build -t electrum-grs-appimage-builder-img ./contrib/build-linux/appimage/
       - name: Compile Linux AppImage
@@ -103,8 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Unpin the distro packages
-        run: sed -i 's|COPY contrib/android|#&|' contrib/android/Dockerfile
       - name: Builder image
         run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
@@ -148,8 +142,6 @@ jobs:
           codeql-images: true
           large-packages: true
           swap-storage: false
-      - name: Unpin the distro packages
-        run: sed -i 's|COPY contrib/android|#&|' contrib/android/Dockerfile
       - name: Builder image
         run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk

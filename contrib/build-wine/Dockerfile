@@ -5,8 +5,8 @@ RUN apt update -qq > /dev/null && apt install -qq --yes --no-install-recommends 
     ca-certificates
 
 # pin the distro packages.
-COPY apt.sources.list /etc/apt/sources.list
-COPY apt.preferences /etc/apt/preferences.d/snapshot
+# COPY apt.sources.list /etc/apt/sources.list
+# COPY apt.preferences /etc/apt/preferences.d/snapshot
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
