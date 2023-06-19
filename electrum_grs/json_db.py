@@ -45,6 +45,28 @@ def locked(func):
     return wrapper
 
 
+registered_names = {}
+registered_dicts = {}
+registered_dict_keys = {}
+registered_parent_keys = {}
+
+
+def stored_as(name, _type=dict):
+    """ decorator that indicates the storage key of a stored object"""
+    def decorator(func):
+        registered_names[name] = func, _type
+        return func
+    return decorator
+
+def stored_in(name, _type=dict):
+    """ decorator that indicates the storage key of an element in a StoredDict"""
+    def decorator(func):
+        registered_dicts[name] = func, _type
+        return func
+    return decorator
+
+
+
 class StoredObject:
 
     db = None
@@ -175,12 +197,6 @@ class JsonDB(Logger):
             self.data[name] = {}
         return self.data[name]
 
-    def _convert_dict(self, path, key, v):
-        return v
-
-    def _convert_value(self, path, key, v):
-        return v
-
     @locked
     def dump(self, *, human_readable: bool = True) -> str:
         """Serializes the DB as a string.
@@ -195,3 +211,43 @@ class JsonDB(Logger):
 
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
+
+    def register_dict(self, name, method, _type):
+        registered_dicts[name] = method, _type
+
+    def register_name(self, name, method, _type):
+        registered_names[name] = method, _type
+
+    def register_dict_key(self, name, method):
+        registered_dict_keys[name] = method
+
+    def register_parent_key(self, name, method):
+        registered_parent_keys[name] = method
+
+    def _convert_dict(self, path, key, v):
+        if key in registered_dicts:
+            constructor, _type = registered_dicts[key]
+            if _type == dict:
+                v = dict((k, constructor(**x)) for k, x in v.items())
+            elif _type == tuple:
+                v = dict((k, constructor(*x)) for k, x in v.items())
+            else:
+                v = dict((k, constructor(x)) for k, x in v.items())
+        if key in registered_dict_keys:
+            convert_key = registered_dict_keys[key]
+        elif path and path[-1] in registered_parent_keys:
+            convert_key = registered_parent_keys.get(path[-1])
+        else:
+            convert_key = None
+        if convert_key:
+            v = dict((convert_key(k), x) for k, x in v.items())
+        return v
+
+    def _convert_value(self, path, key, v):
+        if key in registered_names:
+            constructor, _type = registered_names[key]
+            if _type == dict:
+                v = constructor(**v)
+            else:
+                v = constructor(v)
+        return v

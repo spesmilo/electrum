@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import attr
 
-from .json_db import StoredObject
+from .json_db import StoredObject, stored_in
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
 from .lnutil import hex_to_bytes
@@ -244,6 +244,7 @@ class BaseInvoice(StoredObject):
         return d
 
 
+@stored_in('invoices')
 @attr.s
 class Invoice(BaseInvoice):
     lightning_invoice = attr.ib(type=str, kw_only=True)  # type: Optional[str]
@@ -303,6 +304,7 @@ class Invoice(BaseInvoice):
         return d
 
 
+@stored_in('payment_requests')
 @attr.s
 class Request(BaseInvoice):
     payment_hash = attr.ib(type=bytes, kw_only=True, converter=hex_to_bytes)  # type: Optional[bytes]

@@ -52,7 +52,7 @@ DUST_LIMIT_MAX = 1000
 def ln_dummy_address():
     return redeem_script_to_address('p2wsh', '')
 
-from .json_db import StoredObject
+from .json_db import StoredObject, stored_in, stored_as
 
 
 def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
@@ -181,6 +181,7 @@ class ChannelConfig(StoredObject):
             raise Exception(f"feerate lower than min relay fee. {initial_feerate_per_kw} gro/kw.")
 
 
+@stored_as('local_config')
 @attr.s
 class LocalConfig(ChannelConfig):
     channel_seed = attr.ib(type=bytes, converter=hex_to_bytes)  # type: Optional[bytes]
@@ -214,17 +215,20 @@ class LocalConfig(ChannelConfig):
         if self.htlc_minimum_msat < HTLC_MINIMUM_MSAT_MIN:
             raise Exception(f"{conf_name}. htlc_minimum_msat too low: {self.htlc_minimum_msat} msat < {HTLC_MINIMUM_MSAT_MIN}")
 
+@stored_as('remote_config')
 @attr.s
 class RemoteConfig(ChannelConfig):
     next_per_commitment_point = attr.ib(type=bytes, converter=hex_to_bytes)
     current_per_commitment_point = attr.ib(default=None, type=bytes, converter=hex_to_bytes)
 
+@stored_in('fee_updates')
 @attr.s
 class FeeUpdate(StoredObject):
     rate = attr.ib(type=int)  # in sat/kw
     ctn_local = attr.ib(default=None, type=int)
     ctn_remote = attr.ib(default=None, type=int)
 
+@stored_as('constraints')
 @attr.s
 class ChannelConstraints(StoredObject):
     capacity = attr.ib(type=int)  # in sat
@@ -248,10 +252,12 @@ class ChannelBackupStorage(StoredObject):
         chan_id, _ = channel_id_from_funding_tx(self.funding_txid, self.funding_index)
         return chan_id
 
+@stored_in('onchain_channel_backups')
 @attr.s
 class OnchainChannelBackupStorage(ChannelBackupStorage):
     node_id_prefix = attr.ib(type=bytes, converter=hex_to_bytes)
 
+@stored_in('imported_channel_backups')
 @attr.s
 class ImportedChannelBackupStorage(ChannelBackupStorage):
     node_id = attr.ib(type=bytes, converter=hex_to_bytes)
@@ -320,6 +326,7 @@ class ScriptHtlc(NamedTuple):
 
 
 # FIXME duplicate of TxOutpoint in transaction.py??
+@stored_as('funding_outpoint')
 @attr.s
 class Outpoint(StoredObject):
     txid = attr.ib(type=str)
@@ -484,8 +491,17 @@ def shachain_derive(element, to_index):
         get_per_commitment_secret_from_seed(element.secret, to_index, zeros),
         to_index)
 
-ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
-ShachainElement.__str__ = lambda self: f"ShachainElement({self.secret.hex()},{self.index})"
+class ShachainElement(NamedTuple):
+    secret: bytes
+    index: int
+
+    def __str__(self):
+        return "ShachainElement(" + self.secret.hex() + "," + str(self.index) + ")"
+
+    @stored_in('buckets', tuple)
+    def read(*x):
+        return ShachainElement(bfh(x[0]), int(x[1]))
+
 
 def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> bytes:
     """Generate per commitment secret."""
@@ -1226,6 +1242,7 @@ class LnFeatures(IntFlag):
         return hex(self._value_)
 
 
+@stored_as('channel_type', _type=None)
 class ChannelType(IntFlag):
     OPTION_LEGACY_CHANNEL = 0
     OPTION_STATIC_REMOTEKEY = 1 << 12
@@ -1546,15 +1563,16 @@ class UpdateAddHtlc:
     timestamp = attr.ib(type=int, kw_only=True)
     htlc_id = attr.ib(type=int, kw_only=True, default=None)
 
-    @classmethod
-    def from_tuple(cls, amount_msat, payment_hash, cltv_expiry, htlc_id, timestamp) -> 'UpdateAddHtlc':
-        return cls(amount_msat=amount_msat,
-                   payment_hash=payment_hash,
-                   cltv_expiry=cltv_expiry,
-                   htlc_id=htlc_id,
-                   timestamp=timestamp)
+    @stored_in('adds', tuple)
+    def from_tuple(amount_msat, payment_hash, cltv_expiry, htlc_id, timestamp) -> 'UpdateAddHtlc':
+        return UpdateAddHtlc(
+            amount_msat=amount_msat,
+            payment_hash=payment_hash,
+            cltv_expiry=cltv_expiry,
+            htlc_id=htlc_id,
+            timestamp=timestamp)
 
-    def to_tuple(self):
+    def to_json(self):
         return (self.amount_msat, self.payment_hash, self.cltv_expiry, self.htlc_id, self.timestamp)
 
 

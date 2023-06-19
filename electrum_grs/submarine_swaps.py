@@ -19,7 +19,7 @@ from .lnutil import REDEEM_AFTER_DOUBLE_SPENT_DELAY, ln_dummy_address
 from .bitcoin import dust_threshold
 from .logging import Logger
 from .lnutil import hex_to_bytes
-from .json_db import StoredObject
+from .json_db import StoredObject, stored_in
 from . import constants
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .i18n import _
@@ -32,9 +32,6 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-API_URL_MAINNET = 'https://swaps.groestlcoin.org'
-API_URL_TESTNET = 'https://testnet-swaps.groestlcoin.org'
-API_URL_REGTEST = 'https://localhost'
 
 
 
@@ -87,6 +84,7 @@ class SwapServerError(Exception):
         return _("The swap server errored or is unreachable.")
 
 
+@stored_in('submarine_swaps')
 @attr.s
 class SwapData(StoredObject):
     is_reverse = attr.ib(type=bool)
@@ -158,12 +156,7 @@ class SwapManager(Logger):
             if swap.is_reverse and swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
         # api url
-        if constants.net == constants.BitcoinMainnet:
-            self.api_url = API_URL_MAINNET
-        elif constants.net == constants.BitcoinTestnet:
-            self.api_url = API_URL_TESTNET
-        else:
-            self.api_url = API_URL_REGTEST
+        self.api_url = wallet.config.get_swapserver_url()
         # init default min & max
         self.init_min_max_values()
 
