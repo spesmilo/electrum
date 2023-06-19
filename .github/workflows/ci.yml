@@ -141,7 +141,7 @@ jobs:
           docker-images: true
           codeql-images: true
           large-packages: true
-          swap-storage: false
+          swap-storage: true
       - name: Builder image
         run: docker build -t electrum-grs-android-builder-img --file contrib/android/Dockerfile .
       - name: Compile Android apk
