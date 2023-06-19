@@ -32,9 +32,6 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
-API_URL_MAINNET = 'https://swaps.electrum.org/api'
-API_URL_TESTNET = 'https://swaps.electrum.org/testnet'
-API_URL_REGTEST = 'https://localhost/api'
 
 
 
@@ -159,12 +156,7 @@ class SwapManager(Logger):
             if swap.is_reverse and swap.prepay_hash is not None:
                 self.prepayments[swap.prepay_hash] = bytes.fromhex(k)
         # api url
-        if constants.net == constants.BitcoinMainnet:
-            self.api_url = API_URL_MAINNET
-        elif constants.net == constants.BitcoinTestnet:
-            self.api_url = API_URL_TESTNET
-        else:
-            self.api_url = API_URL_REGTEST
+        self.api_url = wallet.config.get_swapserver_url()
         # init default min & max
         self.init_min_max_values()
 
