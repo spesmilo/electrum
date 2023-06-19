@@ -959,8 +959,8 @@ class SimpleConfig(Logger):
     SSL_CERTFILE_PATH = ConfigVar('ssl_certfile', default='', type_=str)
     SSL_KEYFILE_PATH = ConfigVar('ssl_keyfile', default='', type_=str)
     # submarine swap server
-    SWAPSERVER_URL_MAINNET = ConfigVar('swapserver_url_mainnet', default='https://swaps.electrum.org/api', type_=str)
-    SWAPSERVER_URL_TESTNET = ConfigVar('swapserver_url_testnet', default='https://swaps.electrum.org/testnet', type_=str)
+    SWAPSERVER_URL_MAINNET = ConfigVar('swapserver_url_mainnet', default='https://swaps.groestlcoin.org', type_=str)
+    SWAPSERVER_URL_TESTNET = ConfigVar('swapserver_url_testnet', default='https://testnet-swaps.groestlcoin.org', type_=str)
     SWAPSERVER_URL_REGTEST = ConfigVar('swapserver_url_regtest', default='https://localhost/api', type_=str)
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar('use_watchtower', default=False, type_=bool)
