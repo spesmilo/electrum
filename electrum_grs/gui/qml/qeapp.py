@@ -147,7 +147,7 @@ class QEAppController(BaseCrashReporter, QObject):
                 from plyer import notification
             icon = (os.path.dirname(os.path.realpath(__file__))
                     + '/../icons/electrum.png')
-            notification.notify('Electrum', message, app_icon=icon, app_name='Electrum')
+            notification.notify('Electrum-GRS', message, app_icon=icon, app_name='Electrum-GRS')
         except ImportError:
             self.logger.warning('Notification: needs plyer; `sudo python3 -m pip install plyer`')
         except Exception as e:
