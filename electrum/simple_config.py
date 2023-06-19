@@ -842,11 +842,11 @@ class SimpleConfig(Logger):
 
     def get_swapserver_url(self):
         if constants.net == constants.BitcoinMainnet:
-            return wallet.config.SWAPSERVER_URL_MAINNET
+            return self.SWAPSERVER_URL_MAINNET
         elif constants.net == constants.BitcoinTestnet:
-            return wallet.config.SWAPSERVER_URL_TESTNET
+            return self.SWAPSERVER_URL_TESTNET
         else:
-            return wallet.config.SWAPSERVER_URL_REGTEST
+            return self.SWAPSERVER_URL_REGTEST
 
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
