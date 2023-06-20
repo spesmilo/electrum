@@ -1648,6 +1648,8 @@ class LNWallet(LNWorker):
             is_mpp = sum(len(x) for x in list(sc.config.values())) > 1
             if is_mpp and not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
+            if not is_mpp and self.config.TEST_FORCE_MPP:
+                continue
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
             routes = []
             try:
