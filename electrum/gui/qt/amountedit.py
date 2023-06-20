@@ -13,7 +13,6 @@ from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_nam
                            FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT)
 from electrum.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
-
 _NOT_GIVEN = object()  # sentinel value
 
 

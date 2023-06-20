@@ -1,4 +1,5 @@
 import asyncio
+import time
 import urllib
 import re
 from decimal import Decimal, InvalidOperation
@@ -163,13 +164,6 @@ def is_uri(data: str) -> bool:
     return False
 
 
-class PayToLineError(NamedTuple):
-    line_content: str
-    exc: Exception
-    idx: int = 0  # index of line
-    is_multiline: bool = False
-
-
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
 
@@ -210,12 +204,13 @@ class PaymentIdentifier(Logger):
         self.wallet = wallet
         self.contacts = wallet.contacts if wallet is not None else None
         self.config = wallet.config if wallet is not None else None
-        self.text = text
+        self.text = text.strip()
         self._type = None
         self.error = None    # if set, GUI should show error and stop
         self.warning = None  # if set, GUI should ask user if they want to proceed
         # more than one of those may be set
         self.multiline_outputs = None
+        self._is_max = False
         self.bolt11 = None
         self.bip21 = None
         self.spk = None
@@ -234,8 +229,12 @@ class PaymentIdentifier(Logger):
         self.logger.debug(f'PI parsing...')
         self.parse(text)
 
+    @property
+    def type(self):
+        return self._type
+
     def set_state(self, state: 'PaymentIdentifierState'):
-        self.logger.debug(f'PI state -> {state}')
+        self.logger.debug(f'PI state {self._state} -> {state}')
         self._state = state
 
     def need_resolve(self):
@@ -255,6 +254,31 @@ class PaymentIdentifier(Logger):
 
     def is_multiline(self):
         return bool(self.multiline_outputs)
+
+    def is_multiline_max(self):
+        return self.is_multiline() and self._is_max
+
+    def is_amount_locked(self):
+        if self._type == 'spk':
+            return False
+        elif self._type == 'bip21':
+            return bool(self.bip21.get('amount'))
+        elif self._type == 'bip70':
+            return True  # TODO always given?
+        elif self._type == 'bolt11':
+            lnaddr = lndecode(self.bolt11)
+            return bool(lnaddr.amount)
+        elif self._type == 'lnurl':
+            # amount limits known after resolve, might be specific amount or locked to range
+            if self.need_resolve():
+                self.logger.debug(f'lnurl r')
+                return True
+            if self.need_finalize():
+                self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_sat}-{self.lnurl_data.max_sendable_sat}')
+                return not (self.lnurl_data.min_sendable_sat < self.lnurl_data.max_sendable_sat)
+            return True
+        elif self._type == 'multiline':
+            return True
 
     def is_error(self) -> bool:
         return self._state >= PaymentIdentifierState.ERROR
@@ -281,11 +305,21 @@ class PaymentIdentifier(Logger):
                     self.lnurl = decode_lnurl(invoice_or_lnurl)
                     self.set_state(PaymentIdentifierState.NEED_RESOLVE)
                 except Exception as e:
-                    self.error = "Error parsing Lightning invoice" + f":\n{e}"
+                    self.error = _("Error parsing LNURL") + f":\n{e}"
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
             else:
                 self._type = 'bolt11'
+                try:
+                    lndecode(invoice_or_lnurl)
+                except LnInvoiceException as e:
+                    self.error = _("Error parsing Lightning invoice") + f":\n{e}"
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return
+                except IncompatibleOrInsaneFeatures as e:
+                    self.error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"
+                    self.set_state(PaymentIdentifierState.INVALID)
+                    return
                 self.bolt11 = invoice_or_lnurl
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
@@ -295,19 +329,31 @@ class PaymentIdentifier(Logger):
                 self.error = _("Error parsing URI") + f":\n{e}"
                 self.set_state(PaymentIdentifierState.INVALID)
                 return
-            self._type = 'bip21'
             self.bip21 = out
             self.bip70 = out.get('r')
             if self.bip70:
+                self._type = 'bip70'
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
             else:
+                self._type = 'bip21'
+                # check optional lightning in bip21, set self.bolt11 if valid
+                bolt11 = out.get('lightning')
+                if bolt11:
+                    try:
+                        lndecode(bolt11)
+                        # if we get here, we have a usable bolt11
+                        self.bolt11 = bolt11
+                    except LnInvoiceException as e:
+                        self.logger.debug(_("Error parsing Lightning invoice") + f":\n{e}")
+                    except IncompatibleOrInsaneFeatures as e:
+                        self.logger.debug(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif scriptpubkey := self.parse_output(text):
             self._type = 'spk'
             self.spk = scriptpubkey
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif re.match(RE_EMAIL, text):
-            self._type = 'alias'
+            self._type = 'emaillike'
             self.emaillike = text
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif self.error is None:
@@ -324,9 +370,10 @@ class PaymentIdentifier(Logger):
     async def _do_resolve(self, *, on_finished=None):
         try:
             if self.emaillike:
+                # TODO: parallel lookup?
                 data = await self.resolve_openalias()
                 if data:
-                    self.openalias_data = data # needed?
+                    self.openalias_data = data
                     self.logger.debug(f'OA: {data!r}')
                     name = data.get('name')
                     address = data.get('address')
@@ -335,8 +382,14 @@ class PaymentIdentifier(Logger):
                         self.warning = _(
                             'WARNING: the alias "{}" could not be validated via an additional '
                             'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
-                    # this will set self.spk and update state
-                    self.parse(address)
+                    try:
+                        scriptpubkey = self.parse_output(address)
+                        self._type = 'openalias'
+                        self.spk = scriptpubkey
+                        self.set_state(PaymentIdentifierState.AVAILABLE)
+                    except Exception as e:
+                        self.error = str(e)
+                        self.set_state(PaymentIdentifierState.NOT_FOUND)
                 else:
                     lnurl = lightning_address_to_url(self.emaillike)
                     try:
@@ -356,6 +409,7 @@ class PaymentIdentifier(Logger):
                 data = await request_lnurl(self.lnurl)
                 self.lnurl_data = data
                 self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
+                self.logger.debug(f'LNURL data: {data!r}')
             else:
                 self.set_state(PaymentIdentifierState.ERROR)
                 return
@@ -458,23 +512,22 @@ class PaymentIdentifier(Logger):
         lines = [i for i in lines if i]
         is_multiline = len(lines) > 1
         outputs = []  # type: List[PartialTxOutput]
-        errors = []
+        errors = ''
         total = 0
-        is_max = False
+        self._is_max = False
         for i, line in enumerate(lines):
             try:
                 output = self.parse_address_and_amount(line)
                 outputs.append(output)
                 if parse_max_spend(output.value):
-                    is_max = True
+                    self._is_max = True
                 else:
                     total += output.value
             except Exception as e:
-                errors.append(PayToLineError(
-                    idx=i, line_content=line.strip(), exc=e, is_multiline=True))
+                errors = f'{errors}line #{i}: {str(e)}\n'
                 continue
         if is_multiline and errors:
-            self.error = str(errors) if errors else None
+            self.error = errors.strip() if errors else None
         self.logger.debug(f'multiline: {outputs!r}, {self.error}')
         return outputs
 
@@ -494,15 +547,14 @@ class PaymentIdentifier(Logger):
             address = self.parse_address(x)
             return bytes.fromhex(bitcoin.address_to_script(address))
         except Exception as e:
-            error = PayToLineError(idx=0, line_content=x, exc=e, is_multiline=False)
+            pass
         try:
             script = self.parse_script(x)
             return bytes.fromhex(script)
         except Exception as e:
-            #error = PayToLineError(idx=0, line_content=x, exc=e, is_multiline=False)
             pass
-        #raise Exception("Invalid address or script.")
-        #self.errors.append(error)
+
+        raise Exception("Invalid address or script.")
 
     def parse_script(self, x):
         script = ''
@@ -535,12 +587,11 @@ class PaymentIdentifier(Logger):
         return address
 
     def get_fields_for_GUI(self):
-        """ sets self.error as side effect"""
         recipient = None
         amount = None
         description = None
         validated = None
-        comment = "no comment"
+        comment = None
 
         if self.emaillike and self.openalias_data:
             address = self.openalias_data.get('address')
@@ -550,21 +601,17 @@ class PaymentIdentifier(Logger):
             if not validated:
                 self.warning = _('WARNING: the alias "{}" could not be validated via an additional '
                                  'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
-            #self.payto_e.set_openalias(key=pi.openalias, data=oa_data)
-            #self.window.contact_list.update()
 
-        elif self.bolt11:
-            recipient, amount, description = self.get_bolt11_fields(self.bolt11)
+        elif self.bolt11 and self.wallet.has_lightning():
+            recipient, amount, description = self._get_bolt11_fields(self.bolt11)
 
         elif self.lnurl and self.lnurl_data:
             domain = urllib.parse.urlparse(self.lnurl).netloc
-            #recipient = "invoice from lnurl"
             recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
-            #amount = self.lnurl_data.min_sendable_sat
-            amount = None
-            description = None
+            amount = self.lnurl_data.min_sendable_sat if self.lnurl_data.min_sendable_sat else None
+            description = self.lnurl_data.metadata_plaintext
             if self.lnurl_data.comment_allowed:
-                comment = None
+                comment = self.lnurl_data.comment_allowed
 
         elif self.bip70 and self.bip70_data:
             pr = self.bip70_data
@@ -575,8 +622,6 @@ class PaymentIdentifier(Logger):
             amount = pr.get_amount()
             description = pr.get_memo()
             validated = not pr.has_expired()
-            #self.set_onchain(True)
-            #self.max_button.setEnabled(False)
             # note: allow saving bip70 reqs, as we save them anyway when paying them
             #for btn in [self.send_button, self.clear_button, self.save_button]:
             #    btn.setEnabled(True)
@@ -584,8 +629,7 @@ class PaymentIdentifier(Logger):
             #self.amount_e.textEdited.emit("")
 
         elif self.spk:
-            recipient = self.text
-            amount = None
+            pass
 
         elif self.multiline_outputs:
             pass
@@ -598,26 +642,12 @@ class PaymentIdentifier(Logger):
             # use label as description (not BIP21 compliant)
             if label and not description:
                 description = label
-            lightning = self.bip21.get('lightning')
-            if lightning and self.wallet.has_lightning():
-                # maybe set self.bolt11?
-                recipient, amount, description = self.get_bolt11_fields(lightning)
-                if not amount:
-                    amount_required = True
-                # todo: merge logic
 
         return recipient, amount, description, comment, validated
 
-    def get_bolt11_fields(self, bolt11_invoice):
+    def _get_bolt11_fields(self, bolt11_invoice):
         """Parse ln invoice, and prepare the send tab for it."""
-        try:
-            lnaddr = lndecode(bolt11_invoice)
-        except LnInvoiceException as e:
-            self.show_error(_("Error parsing Lightning invoice") + f":\n{e}")
-            return
-        except IncompatibleOrInsaneFeatures as e:
-            self.show_error(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
-            return
+        lnaddr = lndecode(bolt11_invoice) #
         pubkey = lnaddr.pubkey.serialize().hex()
         for k, v in lnaddr.tags:
             if k == 'd':
@@ -628,15 +658,17 @@ class PaymentIdentifier(Logger):
         amount = lnaddr.get_amount_sat()
         return pubkey, amount, description
 
+    # TODO: rename to resolve_emaillike to disambiguate
     async def resolve_openalias(self) -> Optional[dict]:
         key = self.emaillike
-        if not (('.' in key) and ('<' not in key) and (' ' not in key)):
-            return None
+        # TODO: below check needed? we already matched RE_EMAIL
+        # if not (('.' in key) and ('<' not in key) and (' ' not in key)):
+        #     return None
         parts = key.split(sep=',')  # assuming single line
         if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
             return None
         try:
-            data = self.contacts.resolve(key)
+            data = self.contacts.resolve(key) # TODO: don't use contacts as delegate to resolve openalias, separate.
             return data
         except AliasNotFoundException as e:
             self.logger.info(f'OpenAlias not found: {repr(e)}')
@@ -648,6 +680,12 @@ class PaymentIdentifier(Logger):
     def has_expired(self):
         if self.bip70:
             return self.bip70_data.has_expired()
+        elif self.bolt11:
+            lnaddr = lndecode(self.bolt11)
+            return lnaddr.is_expired()
+        elif self.bip21:
+            expires = self.bip21.get('exp') + self.bip21.get('time') if self.bip21.get('exp') else 0
+            return bool(expires) and expires < time.time()
         return False
 
     def get_invoice(self, amount_sat, message):

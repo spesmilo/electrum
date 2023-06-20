@@ -562,7 +562,10 @@ class GenericInputHandler:
                 new_text = self.text() + data + '\n'
             else:
                 new_text = data
-            setText(new_text)
+                try:
+                    setText(new_text)
+                except Exception as e:
+                    show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
         from .qrreader import scan_qrcode
         if parent is None:
@@ -599,7 +602,10 @@ class GenericInputHandler:
             new_text = self.text() + data + '\n'
         else:
             new_text = data
-        setText(new_text)
+            try:
+                setText(new_text)
+            except Exception as e:
+                show_error(_('Invalid payment identifier in QR') + ':\n' + repr(e))
 
     def input_file(
             self,
@@ -628,7 +634,10 @@ class GenericInputHandler:
         except BaseException as e:
             show_error(_('Error opening file') + ':\n' + repr(e))
         else:
-            setText(data)
+            try:
+                setText(data)
+            except Exception as e:
+                show_error(_('Invalid payment identifier in file') + ':\n' + repr(e))
 
     def input_paste_from_clipboard(
             self,
