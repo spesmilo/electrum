@@ -4,9 +4,10 @@ from electrum.simple_config import SimpleConfig
 from electrum.gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton, CancelButton, WindowModalDialog, WWLabel)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget, QRDialog
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QComboBox, QLineEdit, QCheckBox)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QComboBox, QLineEdit, QCheckBox, QTabWidget)
 from functools import partial
 from os import urandom
+import textwrap
 
 #satochip
 from .satochip import SatochipPlugin
@@ -409,29 +410,41 @@ class SatochipSettingsDialog(WindowModalDialog):
         result=d.exec_() # result should be 0 or 1
 
     def verify_card(self, client):    
-        is_authentic, txt_ca, txt_subca, txt_device, txt_error = self.card_verify_authenticity(client)            
-         
-        text_cert_chain= 4*"="+" Root CA certificate: "+4*"="+"\n"
-        text_cert_chain+= txt_ca
-        text_cert_chain+= "\n"+4*"="+" Sub CA certificate: "+4*"="+"\n"
-        text_cert_chain+= txt_subca
-        text_cert_chain+= "\n"+4*"="+" Device certificate: "+4*"="+"\n"
-        text_cert_chain+= txt_device
-         
+        is_authentic, txt_ca, txt_subca, txt_device, txt_error = self.card_verify_authenticity(client)              
+        
+        # wrap data for better display
+        tmp = ""
+        for line in txt_ca.splitlines():
+            tmp += textwrap.fill(line, 120, subsequent_indent="\t") + "\n" 
+        txt_ca = tmp
+        tmp = ""
+        for line in txt_subca.splitlines():
+            tmp += textwrap.fill(line, 120, subsequent_indent="\t") + "\n" 
+        txt_subca = tmp
+        tmp = ""
+        for line in txt_device.splitlines():
+            tmp += textwrap.fill(line, 120, subsequent_indent="\t") + "\n" 
+        txt_device = tmp
+
         if is_authentic:
             txt_result= 'Device authenticated successfully!'
-            txt_result+= '\n\n' + text_cert_chain
-            txt_color= 'green'
-            self.window.show_message(txt_result)
         else:
             txt_result= ''.join(['Error: could not authenticate the issuer of this card! \n', 
                                         'Reason: ', txt_error , '\n\n',
                                         'If you did not load the card yourself, be extremely careful! \n',
-                                        'Contact support(at)satochip.io to report a suspicious device.'])
-            txt_result+= '\n\n' + text_cert_chain
-            txt_color= 'red'
-            self.window.show_error(txt_result)
-    
+                                        'Contact support(at)satochip.io to report a suspicious device.'])        
+        d = DeviceCertificateDialog(
+                parent=None,
+                title= "Satochip certificate chain",
+                is_authentic = is_authentic,
+                txt_summary = txt_result,
+                txt_ca = txt_ca,
+                txt_subca = txt_subca,
+                txt_device = txt_device,
+        )
+        result=d.exec_()
+
+
     def card_verify_authenticity(self, client): #todo: add this function in pysatochip
         cert_pem=txt_error=""
         try:
@@ -551,4 +564,68 @@ class SelectOptionsDialog(WindowModalDialog):
         #       see https://stackoverflow.com/a/25661985 and https://bugreports.qt.io/browse/QTBUG-37673
         #       workaround:
         self.setMinimumSize(self.sizeHint())
+
+class DeviceCertificateDialog(WindowModalDialog):
     
+    def __init__(
+            self, 
+            *,
+            parent=None,
+            title="",
+            is_authentic,
+            txt_summary = "",
+            txt_ca = "",
+            txt_subca = "",
+            txt_device = "",
+    ):
+        WindowModalDialog.__init__(self, parent, title)
+
+
+        #super(QWidget, self).__init__(parent)
+        self.layout = QVBoxLayout(self)
+        
+        # add summary text
+        self.summary = QLabel(txt_summary)
+        if is_authentic:
+            self.summary.setStyleSheet('color: green')
+        else:
+            self.summary.setStyleSheet('color: red')
+        self.summary.setWordWrap(True)
+        self.layout.addWidget(self.summary)
+
+        # Initialize tab screen
+        self.tabs = QTabWidget()
+        self.tab1 = QWidget()
+        self.tab2 = QWidget()
+        self.tab3 = QWidget()
+        self.tabs.resize(300,200)
+        
+        # Add tabs
+        self.tabs.addTab(self.tab1,"RootCA")
+        self.tabs.addTab(self.tab2,"SubCA")
+        self.tabs.addTab(self.tab3,"Device")
+        
+        # Create first tab
+        self.tab1.layout = QVBoxLayout(self)
+        self.cert1 = QLabel(txt_ca)
+        self.cert1.setWordWrap(True)
+        self.tab1.layout.addWidget(self.cert1)
+        self.tab1.setLayout(self.tab1.layout)
+        
+        # Create second tab
+        self.tab2.layout = QVBoxLayout(self)
+        self.cert2 = QLabel(txt_subca)
+        self.cert2.setWordWrap(True)
+        self.tab2.layout.addWidget(self.cert2)
+        self.tab2.setLayout(self.tab2.layout)
+        
+        # Create third tab
+        self.tab3.layout = QVBoxLayout(self)
+        self.cert3 = QLabel(txt_device)
+        self.cert3.setWordWrap(True)
+        self.tab3.layout.addWidget(self.cert3)
+        self.tab3.setLayout(self.tab3.layout)
+
+        # Add tabs to widget
+        self.layout.addWidget(self.tabs)
+        self.setLayout(self.layout)
