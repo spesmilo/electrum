@@ -6,7 +6,7 @@ import QtQuick.Controls.Material 2.0
 Pane {
     objectName: 'About'
 
-    property string title: qsTr("About Electrum)
+    property string title: qsTr("About Electrum")
 
     Flickable {
         anchors.fill: parent
