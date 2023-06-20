@@ -1178,7 +1178,7 @@ class TestPeer(ElectrumTestCase):
         graph = self.prepare_chans_and_peers_in_graph(GRAPH_DEFINITIONS['square_graph'])
         await self._run_mpp(graph, {'mpp_invoice': False}, {'mpp_invoice': True})
 
-    async def _run_trampoline_payment(self, is_legacy, direct, drop_dave=None):
+    async def _run_trampoline_payment(self, is_legacy, direct, drop_dave=None, test_mpp_consolidation=False):
         if drop_dave is None: drop_dave = []
 
         async def pay(lnaddr, pay_req):
@@ -1215,7 +1215,17 @@ class TestPeer(ElectrumTestCase):
             # insert a channel from bob to carol
             graph_definition['bob']['channels']['carol'] = high_fee_channel
 
+        if test_mpp_consolidation:
+            # deplete alice to carol so that all htlcs go through bob
+            graph_definition['alice']['channels']['carol'] = depleted_channel
+
         graph = self.prepare_chans_and_peers_in_graph(graph_definition)
+
+        if test_mpp_consolidation:
+            graph.workers['dave'].features |= LnFeatures.BASIC_MPP_OPT
+            graph.workers['alice'].network.config.TEST_FORCE_MPP = True
+            graph.workers['alice'].INITIAL_TRAMPOLINE_FEE_LEVEL = 1
+
         peers = graph.peers.values()
         if is_legacy:
             # turn off trampoline features in invoice
@@ -1228,6 +1238,11 @@ class TestPeer(ElectrumTestCase):
         }
 
         await f()
+
+    @needs_test_with_all_chacha20_implementations
+    async def test_trampoline_mpp_consolidation(self):
+        with self.assertRaises(PaymentDone):
+            await self._run_trampoline_payment(is_legacy=True, direct=False, test_mpp_consolidation=True)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_trampoline_legacy(self):
