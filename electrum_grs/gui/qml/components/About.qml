@@ -82,7 +82,7 @@ Pane {
                 Layout.columnSpan: 2
             }
             Label {
-                text: qsTr('Distributed by Groestlcoin Developers')
+                text: qsTr('Distributed by Electrum Technologies GmbH')
                 Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignHCenter
             }
