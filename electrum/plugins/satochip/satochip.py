@@ -391,8 +391,8 @@ class Satochip_KeyStore(Hardware_KeyStore):
         hmac= 20*"00" # default response (reject)
         status_msg=""
 
-        config = SimpleConfig()
-        server_2FA = config.get("satochip_2FA_server", default= SERVER_LIST[0])
+        # get server_2FA from config from existing object
+        server_2FA = self.plugin.config.get("satochip_2FA_server", default= SERVER_LIST[0])
         status_msg += f"2FA request sent to '{server_2FA}' \nApprove or reject request on your second device."
         self.handler.show_message(status_msg)
         try:

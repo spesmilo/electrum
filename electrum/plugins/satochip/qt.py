@@ -73,7 +73,7 @@ class SatochipSettingsDialog(WindowModalDialog):
         self.setMaximumWidth(540)
 
         devmgr = plugin.device_manager()
-        config = devmgr.config
+        self.config = devmgr.config
         handler = keystore.handler
         self.thread = thread = keystore.thread
         self.window = window
@@ -283,7 +283,8 @@ class SatochipSettingsDialog(WindowModalDialog):
             
             #do challenge-response with 2FA device...
             self.window.show_message('2FA request sent! Approve or reject request on your second device.')
-            Satochip2FA.do_challenge_response(d)
+            server_2FA = self.config.get("satochip_2FA_server", default= SERVER_LIST[0])
+            Satochip2FA.do_challenge_response(d, server_name= server_2FA)
             # decrypt and parse reply to extract challenge response
             try: 
                 reply_encrypt= d['reply_encrypt']
@@ -334,9 +335,8 @@ class SatochipSettingsDialog(WindowModalDialog):
                 secret_2FA_hex=secret_2FA.hex()
                 # the secret must be shared with the second factor app (eg on a smartphone)
                 try:
-                    config = SimpleConfig()
                     help_txt="Scan the QR-code with your Satochip-2FA app and make a backup of the following secret: "+ secret_2FA_hex
-                    d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=config)
+                    d = QRDialog(data=secret_2FA_hex, parent=None, title="Secret_2FA", show_text=False, help_text=help_txt, show_copy_text_btn=True, show_cancel_btn=True, config=self.config)
                     result=d.exec_() # result should be 0 or 1
                     if (result==1):
                         # further communications will require an id and an encryption key (for privacy). 
@@ -370,7 +370,8 @@ class SatochipSettingsDialog(WindowModalDialog):
             
             #do challenge-response with 2FA device...
             self.window.show_message('2FA request sent! Approve or reject request on your second device.')
-            Satochip2FA.do_challenge_response(d)
+            server_2FA = self.config.get("satochip_2FA_server", default= SERVER_LIST[0])
+            Satochip2FA.do_challenge_response(d, server_name= server_2FA)
             # decrypt and parse reply to extract challenge response
             try: 
                 reply_encrypt= d['reply_encrypt']
@@ -400,12 +401,11 @@ class SatochipSettingsDialog(WindowModalDialog):
     
     def change_2FA_server(self, client):
         _logger.info("in change_2FA_server")
-        config = SimpleConfig()
         help_txt="Select 2FA server in the list:"
         option_name= "satochip_2FA_server"
         options= SERVER_LIST #["server1", "server2", "server3"]
         title= "Select 2FA server"
-        d = SelectOptionsDialog(option_name = option_name, options = options, parent=None, title=title, help_text=help_txt, config=config)
+        d = SelectOptionsDialog(option_name = option_name, options = options, parent=None, title=title, help_text=help_txt, config=self.config)
         result=d.exec_() # result should be 0 or 1
 
     def verify_card(self, client):    
