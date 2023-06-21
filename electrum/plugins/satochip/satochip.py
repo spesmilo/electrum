@@ -8,7 +8,7 @@ from electrum import descriptor
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device
-from electrum.keystore import Hardware_KeyStore, bip39_to_seed
+from electrum.keystore import Hardware_KeyStore, bip39_to_seed, bip39_is_checksum_valid
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.util import bfh, versiontuple
@@ -593,46 +593,55 @@ class SatochipPlugin(HW_PluginBase):
     
     # create/restore seed during satochip initialization
     def choose_seed(self, wizard):
-        title = _('Create or restore')
-        message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+        title = _('restore from BIP39 seed')
+        message = _('You can restore a Satochip wallet using an existing BIP39 seed. \nIt is not possible to generate a new BIP39 seed from Electrum. \nTo import a new seed in Satochip, use the Satochip-Bridge application instead then restart Electrum.')
         choices = [
-            ('create_seed', _('Create a new BIP39 seed')),
+            #('create_seed', _('Create a new BIP39 seed')),
             ('restore_from_seed', _('I already have a BIP39 seed')),
         ]
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
     
-    #create seed
-    def create_seed(self, wizard):
-        wizard.seed_type = 'bip39'
-        wizard.opt_bip39 = True
-        wizard.opt_slip39 = False
-        #seed = mnemonic.Mnemonic('en').make_seed(wizard.seed_type) # Electrum seed
-        seed= self.to_bip39_mnemonic(128)
-        f = lambda x: self.request_passphrase(wizard, seed, x)
-        wizard.show_seed_dialog(run_next=f, seed_text=seed)
+    # def choose_seed_legacy(self, wizard):
+    #     title = _('Create or restore')
+    #     message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+    #     choices = [
+    #         #('create_seed', _('Create a new BIP39 seed')),
+    #         ('restore_from_seed', _('I already have a BIP39 seed')),
+    #     ]
+    #     wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
+    
+    # #create seed
+    # def create_seed(self, wizard):
+    #     wizard.seed_type = 'bip39'
+    #     wizard.opt_bip39 = True
+    #     wizard.opt_slip39 = False
+    #     #seed = mnemonic.Mnemonic('en').make_seed(wizard.seed_type) # Electrum seed
+    #     seed= self.to_bip39_mnemonic(128)
+    #     f = lambda x: self.request_passphrase(wizard, seed, x)
+    #     wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
-    def request_passphrase(self, wizard, seed, opt_passphrase):
-        if opt_passphrase:
-            f = lambda x: self.confirm_seed(wizard, seed, x)
-            wizard.passphrase_dialog(run_next=f)
-        else:
-            wizard.run('confirm_seed', seed, '')
+    # def request_passphrase(self, wizard, seed, opt_passphrase):
+    #     if opt_passphrase:
+    #         f = lambda x: self.confirm_seed(wizard, seed, x)
+    #         wizard.passphrase_dialog(run_next=f)
+    #     else:
+    #         wizard.run('confirm_seed', seed, '')
 
-    def confirm_seed(self, wizard, seed, passphrase):
-        f = lambda x: self.confirm_passphrase(wizard, seed, passphrase)
-        wizard.confirm_seed_dialog(run_next=f, seed='', test=lambda x: x==seed)
+    # def confirm_seed(self, wizard, seed, passphrase):
+    #     f = lambda x: self.confirm_passphrase(wizard, seed, passphrase)
+    #     wizard.confirm_seed_dialog(run_next=f, seed='', test=lambda x: x==seed)
 
-    def confirm_passphrase(self, wizard, seed, passphrase):
-        f = lambda x: self.derive_bip39_seed(seed, x) #f = lambda x: self.derive_bip32_seed(seed, x)
-        if passphrase:
-            title = _('Confirm Seed Extension')
-            message = '\n'.join([
-                _('Your seed extension must be saved together with your seed.'),
-                _('Please type it here.'),
-            ])
-            wizard.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
-        else:
-            f('')    
+    # def confirm_passphrase(self, wizard, seed, passphrase):
+    #     f = lambda x: self.derive_bip39_seed(seed, x) #f = lambda x: self.derive_bip32_seed(seed, x)
+    #     if passphrase:
+    #         title = _('Confirm Seed Extension')
+    #         message = '\n'.join([
+    #             _('Your seed extension must be saved together with your seed.'),
+    #             _('Please type it here.'),
+    #         ])
+    #         wizard.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
+    #     else:
+    #         f('')    
         
     #restore from seed
     def restore_from_seed(self, wizard):
@@ -657,7 +666,7 @@ class SatochipPlugin(HW_PluginBase):
                 _("\n\nElectrum seeds are not compatible with the BIP39 seeds typically used in hardware wallets."), 
                 _("This means you may have difficulty to import this seed in another wallet in the future."),
                 _("\n\nProceed with caution! If you are not sure, click on 'Back', enable BIP39 in 'Options' and introduce a BIP39 seed instead."),
-                _("You can also generate a new random BIP39 seed by clicking on 'Back' twice.")
+                #_("You can also generate a new random BIP39 seed by clicking on 'Back' twice.")
             ])
             wizard.confirm_dialog('Warning', message, run_next=lambda x: None)
             f = lambda passphrase: self.derive_bip32_seed(seed, passphrase)
@@ -673,27 +682,31 @@ class SatochipPlugin(HW_PluginBase):
         self.bip32_seed= mnemonic.Mnemonic('en').mnemonic_to_seed(seed, passphrase)
         
     def derive_bip39_seed(self, seed, passphrase):
-        self.bip32_seed=bip39_to_seed(seed, passphrase)
+        (is_checksum_valid, is_wordlist_valid) = bip39_is_checksum_valid(seed)
+        if is_checksum_valid:
+            self.bip32_seed=bip39_to_seed(seed, passphrase)
+        else:
+            raise Exception('Wrong BIP39 mnemonic format!')
     
-    # based on https://github.com/trezor/python-mnemonic/blob/master/mnemonic/mnemonic.py
-    def to_bip39_mnemonic(self, strength: int) -> str:
-        wordlist = mnemonic.Wordlist.from_file("english.txt")
-        data= urandom(strength // 8)
-        if len(data) not in [16, 20, 24, 28, 32]:
-            raise ValueError(
-                "Data length should be one of the following: [16, 20, 24, 28, 32], but it is not (%d)."
-                % len(data)
-            )
-        h = hashlib.sha256(data).hexdigest()
-        b = (
-            bin(int.from_bytes(data, byteorder="big"))[2:].zfill(len(data) * 8)
-            + bin(int(h, 16))[2:].zfill(256)[: len(data) * 8 // 32]
-        )
-        result = []
-        for i in range(len(b) // 11):
-            idx = int(b[i * 11 : (i + 1) * 11], 2)
-            result.append(wordlist[idx])
-        result_phrase = " ".join(result)
-        return result_phrase
+    # # based on https://github.com/trezor/python-mnemonic/blob/master/mnemonic/mnemonic.py
+    # def to_bip39_mnemonic(self, strength: int) -> str:
+    #     wordlist = mnemonic.Wordlist.from_file("english.txt")
+    #     data= urandom(strength // 8)
+    #     if len(data) not in [16, 20, 24, 28, 32]:
+    #         raise ValueError(
+    #             "Data length should be one of the following: [16, 20, 24, 28, 32], but it is not (%d)."
+    #             % len(data)
+    #         )
+    #     h = hashlib.sha256(data).hexdigest()
+    #     b = (
+    #         bin(int.from_bytes(data, byteorder="big"))[2:].zfill(len(data) * 8)
+    #         + bin(int(h, 16))[2:].zfill(256)[: len(data) * 8 // 32]
+    #     )
+    #     result = []
+    #     for i in range(len(b) // 11):
+    #         idx = int(b[i * 11 : (i + 1) * 11], 2)
+    #         result.append(wordlist[idx])
+    #     result_phrase = " ".join(result)
+    #     return result_phrase
 
 
