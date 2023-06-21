@@ -1624,11 +1624,12 @@ class LNWallet(LNWorker):
         random.shuffle(my_active_channels)
         split_configurations = self.suggest_splits(amount_msat, my_active_channels, invoice_features, r_tags)
         for sc in split_configurations:
-            is_mpp = len(sc.config.items()) > 1
-            routes = []
+            is_multichan_mpp = len(sc.config.items()) > 1
+            is_mpp = sum(len(x) for x in list(sc.config.values())) > 1
             if is_mpp and not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
+            routes = []
             try:
                 if self.uses_trampoline():
                     per_trampoline_channel_amounts = defaultdict(list)
@@ -1705,7 +1706,7 @@ class LNWallet(LNWorker):
                                     min_cltv_expiry=min_cltv_expiry,
                                     r_tags=r_tags,
                                     invoice_features=invoice_features,
-                                    my_sending_channels=[channel] if is_mpp else my_active_channels,
+                                    my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
                                 )
                             )
