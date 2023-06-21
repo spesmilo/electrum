@@ -1568,6 +1568,7 @@ class Peer(Logger):
 
     def maybe_forward_htlc(
             self, *,
+            incoming_chan: Channel,
             htlc: UpdateAddHtlc,
             processed_onion: ProcessedOnionPacket) -> Tuple[bytes, int]:
 
@@ -1578,35 +1579,42 @@ class Peer(Logger):
         #          (same for trampoline forwarding)
         #        - we could check for the exposure to dust HTLCs, see:
         #          https://github.com/ACINQ/eclair/pull/1985
+
+        def log_fail_reason(reason: str):
+            self.logger.debug(
+                f"maybe_forward_htlc. will FAIL HTLC: inc_chan={incoming_chan.get_id_for_log()}. "
+                f"{reason}. inc_htlc={str(htlc)}. onion_payload={processed_onion.hop_data.payload}")
+
         forwarding_enabled = self.network.config.EXPERIMENTAL_LN_FORWARD_PAYMENTS
         if not forwarding_enabled:
-            self.logger.info(f"forwarding is disabled. failing htlc.")
+            log_fail_reason("forwarding is disabled")
             raise OnionRoutingFailure(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
         chain = self.network.blockchain()
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         try:
-            next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]
+            next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]  # type: bytes
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = chain.height()
         if next_chan is None:
-            self.logger.info(f"cannot forward htlc. cannot find next_chan {next_chan_scid}")
+            log_fail_reason(f"cannot find next_chan {next_chan_scid.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
         outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
         if not next_chan.can_send_update_add_htlc():
-            self.logger.info(f"cannot forward htlc. next_chan {next_chan_scid} cannot send ctx updates. "
-                             f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
+            log_fail_reason(
+                f"next_chan {next_chan.get_id_for_log()} cannot send ctx updates. "
+                f"chan state {next_chan.get_state()!r}, peer state: {next_chan.peer_state!r}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         try:
             next_amount_msat_htlc = processed_onion.hop_data.payload["amt_to_forward"]["amt_to_forward"]
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         if not next_chan.can_pay(next_amount_msat_htlc):
-            self.logger.info(f"cannot forward htlc due to transient errors (likely due to insufficient funds)")
+            log_fail_reason(f"transient error (likely due to insufficient funds): not next_chan.can_pay(amt)")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         try:
             next_cltv_expiry = processed_onion.hop_data.payload["outgoing_cltv_value"]["outgoing_cltv_value"]
@@ -1627,10 +1635,12 @@ class Peer(Logger):
         if htlc.amount_msat - next_amount_msat_htlc < forwarding_fees:
             data = next_amount_msat_htlc.to_bytes(8, byteorder="big") + outgoing_chan_upd_message
             raise OnionRoutingFailure(code=OnionFailureCode.FEE_INSUFFICIENT, data=data)
-        self.logger.info(f'forwarding htlc to {next_chan.node_id.hex()}')
+        self.logger.info(
+            f"maybe_forward_htlc. will forward HTLC: inc_chan={incoming_chan.short_channel_id}. inc_htlc={str(htlc)}. "
+            f"next_chan={next_chan.get_id_for_log()}.")
         next_peer = self.lnworker.peers.get(next_chan.node_id)
         if next_peer is None:
-            self.logger.info(f"failed to forward htlc: next_peer offline ({next_chan.node_id.hex()})")
+            log_fail_reason(f"next_peer offline ({next_chan.node_id.hex()})")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         next_htlc = UpdateAddHtlc(
             amount_msat=next_amount_msat_htlc,
@@ -1649,7 +1659,7 @@ class Peer(Logger):
                 onion_routing_packet=processed_onion.next_packet.to_bytes()
             )
         except BaseException as e:
-            self.logger.info(f"failed to forward htlc: error sending message. {e}")
+            log_fail_reason(f"error sending message to next_peer={next_chan.node_id.hex()}")
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_CHANNEL_FAILURE, data=outgoing_chan_upd_message)
         next_peer.maybe_send_commitment(next_chan)
         return next_chan_scid, next_htlc.htlc_id
@@ -2358,6 +2368,7 @@ class Peer(Logger):
             if not self.lnworker.enable_htlc_forwarding:
                 return None, None, None
             next_chan_id, next_htlc_id = self.maybe_forward_htlc(
+                incoming_chan=chan,
                 htlc=htlc,
                 processed_onion=processed_onion)
             fw_info = (next_chan_id.hex(), next_htlc_id)
