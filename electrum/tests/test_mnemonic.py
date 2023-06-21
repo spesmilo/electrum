@@ -7,7 +7,7 @@ from electrum import mnemonic
 from electrum import slip39
 from electrum import old_mnemonic
 from electrum.util import bfh
-from electrum.mnemonic import is_new_seed, is_old_seed, seed_type
+from electrum.mnemonic import is_new_seed, is_old_seed, seed_type, is_matching_seed
 from electrum.version import SEED_PREFIX_SW, SEED_PREFIX
 
 from . import ElectrumTestCase
@@ -192,6 +192,26 @@ class Test_seeds(ElectrumTestCase):
         for idx, (seed_words, _type) in enumerate(self.mnemonics):
             with self.subTest(msg=f"seed_type_subcase_{idx}", seed_words=seed_words):
                 self.assertEqual(_type, seed_type(seed_words), msg=seed_words)
+
+    def test_is_matching_seed(self):
+        self.assertTrue(is_matching_seed(seed="9dk", seed_again="9dk "))
+        self.assertTrue(is_matching_seed(seed="9dk", seed_again=" 9dk"))
+        self.assertTrue(is_matching_seed(seed="9dk", seed_again="  9dk "))
+        self.assertTrue(is_matching_seed(seed="when blade focus", seed_again="when blade focus "))
+        self.assertTrue(is_matching_seed(seed="when blade focus", seed_again=" when  blade       focus  "))
+        self.assertTrue(is_matching_seed(seed=" when  blade  focus  ", seed_again=" when  blade       focus  "))
+        self.assertTrue(is_matching_seed(
+            seed=" when  blade  focus  ",
+            seed_again=
+            """ when  blade
+
+               focus  """))
+
+        self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="wen blade focus"))
+        self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when bladefocus"))
+        self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when blAde focus"))
+        self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when bl4de focus"))
+        self.assertFalse(is_matching_seed(seed="when blade focus", seed_again="when bla4de focus"))
 
 
 class Test_slip39(ElectrumTestCase):

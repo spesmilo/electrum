@@ -10,6 +10,8 @@ GridLayout {
     property bool showAlt: true
     property bool singleLine: true
     property bool valid: true
+    property bool historic: Daemon.fx.historicRates
+    property int timestamp: 0
 
     columns: !valid
                 ? 1
@@ -42,7 +44,11 @@ GridLayout {
 
     function setFiatValue() {
         if (showAlt)
-            fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+            if (historic && timestamp)
+                fiatLabel.text = '(' + Daemon.fx.fiatValueHistoric(amount, timestamp) + ' ' + Daemon.fx.fiatCurrency + ')'
+            else
+                fiatLabel.text = '(' + Daemon.fx.fiatValue(amount) + ' ' + Daemon.fx.fiatCurrency + ')'
+
     }
 
     onAmountChanged: setFiatValue()

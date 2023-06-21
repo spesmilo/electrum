@@ -746,10 +746,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
                 nlayout.accept()
-                self.config.set_key('auto_connect', network.auto_connect, True)
+                self.config.NETWORK_AUTO_CONNECT = network.auto_connect
         else:
             network.auto_connect = True
-            self.config.set_key('auto_connect', True, True)
+            self.config.NETWORK_AUTO_CONNECT = True
 
     @wizard_dialog
     def multisig_dialog(self, run_next):

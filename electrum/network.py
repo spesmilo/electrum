@@ -172,7 +172,7 @@ def serialize_proxy(p):
                      p.get('user', ''), p.get('password', '')])
 
 
-def deserialize_proxy(s: str) -> Optional[dict]:
+def deserialize_proxy(s: Optional[str]) -> Optional[dict]:
     if not isinstance(s, str):
         return None
     if s.lower() == 'none':
@@ -295,7 +295,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         blockchain.read_blockchains(self.config)
         blockchain.init_headers_file_for_best_chain()
         self.logger.info(f"blockchains {list(map(lambda b: b.forkpoint, blockchain.blockchains.values()))}")
-        self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Dict[str, Any]
+        self._blockchain_preferred_block = self.config.BLOCKCHAIN_PREFERRED_BLOCK  # type: Dict[str, Any]
         if self._blockchain_preferred_block is None:
             self._set_preferred_chain(None)
         self._blockchain = blockchain.get_best_chain()
@@ -342,7 +342,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self._was_started = False
 
         # lightning network
-        if self.config.get('run_watchtower', False):
+        if self.config.WATCHTOWER_SERVER_ENABLED:
             from . import lnwatcher
             self.local_watchtower = lnwatcher.WatchTower(self)
             asyncio.ensure_future(self.local_watchtower.start_watching())
@@ -358,7 +358,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         from . import lnrouter
         from . import channel_db
         from . import lnworker
-        if not self.config.get('use_gossip'):
+        if not self.config.LIGHTNING_USE_GOSSIP:
             return
         if self.lngossip is None:
             self.channel_db = channel_db.ChannelDB(self)
@@ -489,9 +489,9 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                                  oneserver=self.oneserver)
 
     def _init_parameters_from_config(self) -> None:
-        self.auto_connect = self.config.get('auto_connect', True)
+        self.auto_connect = self.config.NETWORK_AUTO_CONNECT
         self._set_default_server()
-        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
+        self._set_proxy(deserialize_proxy(self.config.NETWORK_PROXY))
         self._maybe_set_oneserver()
 
     def get_donation_address(self):
@@ -554,7 +554,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             else:
                 out[server.host] = {server.protocol: port}
         # potentially filter out some
-        if self.config.get('noonion'):
+        if self.config.NETWORK_NOONION:
             out = filter_noonion(out)
         return out
 
@@ -590,7 +590,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
 
     def _set_default_server(self) -> None:
         # Server for addresses and transactions
-        server = self.config.get('server', None)
+        server = self.config.NETWORK_SERVER
         # Sanitize default server
         if server:
             try:
@@ -628,14 +628,14 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
                 int(proxy['port'])
         except Exception:
             return
-        self.config.set_key('auto_connect', net_params.auto_connect, False)
-        self.config.set_key('oneserver', net_params.oneserver, False)
-        self.config.set_key('proxy', proxy_str, False)
-        self.config.set_key('server', str(server), True)
+        self.config.NETWORK_AUTO_CONNECT = net_params.auto_connect
+        self.config.NETWORK_ONESERVER = net_params.oneserver
+        self.config.NETWORK_PROXY = proxy_str
+        self.config.NETWORK_SERVER = str(server)
         # abort if changes were not allowed by config
-        if self.config.get('server') != str(server) \
-                or self.config.get('proxy') != proxy_str \
-                or self.config.get('oneserver') != net_params.oneserver:
+        if self.config.NETWORK_SERVER != str(server) \
+                or self.config.NETWORK_PROXY != proxy_str \
+                or self.config.NETWORK_ONESERVER != net_params.oneserver:
             return
 
         proxy_changed = self.proxy != proxy
@@ -657,7 +657,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('network_updated')
 
     def _maybe_set_oneserver(self) -> None:
-        oneserver = bool(self.config.get('oneserver', False))
+        oneserver = self.config.NETWORK_ONESERVER
         self.oneserver = oneserver
         self.num_server = NUM_TARGET_CONNECTED_SERVERS if not oneserver else 0
 
@@ -788,8 +788,8 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         util.trigger_callback('network_updated')
 
     def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
-        if self.config.get('network_timeout', None):
-            return int(self.config.get('network_timeout'))
+        if self.config.NETWORK_TIMEOUT:
+            return self.config.NETWORK_TIMEOUT
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
         if self.proxy:
@@ -891,12 +891,18 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         return make_reliable_wrapper
 
     def catch_server_exceptions(func):
+        """Decorator that wraps server errors in UntrustedServerReturnedError,
+        to avoid showing untrusted arbitrary text to users.
+        """
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
             except aiorpcx.jsonrpc.CodeMessageError as e:
-                raise UntrustedServerReturnedError(original_exception=e) from e
+                wrapped_exc = UntrustedServerReturnedError(original_exception=e)
+                # log (sanitized) untrusted error text now, to ease debugging
+                self.logger.debug(f"got error from server for {func.__qualname__}: {wrapped_exc!r}")
+                raise wrapped_exc from e
         return wrapper
 
     @best_effort_reliable
@@ -1185,7 +1191,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
             'height': height,
             'hash': header_hash,
         }
-        self.config.set_key('blockchain_preferred_block', self._blockchain_preferred_block)
+        self.config.BLOCKCHAIN_PREFERRED_BLOCK = self._blockchain_preferred_block
 
     async def follow_chain_given_id(self, chain_id: str) -> None:
         bc = blockchain.blockchains.get(chain_id)

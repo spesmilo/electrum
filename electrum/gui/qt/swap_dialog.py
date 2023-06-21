@@ -20,17 +20,18 @@ from .my_treeview import create_toolbar_with_menu
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
 
-CANNOT_RECEIVE_WARNING = """
-The requested amount is higher than what you can receive in your currently open channels.
+CANNOT_RECEIVE_WARNING = _(
+"""The requested amount is higher than what you can receive in your currently open channels.
 If you continue, your funds will be locked until the remote server can find a path to pay you.
 If the swap cannot be performed after 24h, you will be refunded.
-Do you want to continue?
-"""
+Do you want to continue?"""
+)
+
+
+class InvalidSwapParameters(Exception): pass
 
 
 class SwapDialog(WindowModalDialog, QtEventListener):
-
-    tx: Optional[PartialTransaction]
 
     def __init__(self, window: 'ElectrumWindow', is_reverse=None, recv_amount_sat=None, channels=None):
         WindowModalDialog.__init__(self, window, _('Submarine Swap'))
@@ -44,7 +45,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         vbox = QVBoxLayout(self)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _("Allow instant swaps"), 'allow_instant_swaps', False,
+            _("Allow instant swaps"), self.config.cv.LIGHTNING_ALLOW_INSTANT_SWAPS,
             tooltip=messages.to_rtf(messages.MSG_CONFIG_INSTANT_SWAPS),
         ).setEnabled(self.lnworker.can_have_recoverable_channels())
         vbox.addLayout(toolbar)
@@ -137,11 +138,11 @@ class SwapDialog(WindowModalDialog, QtEventListener):
     def fee_slider_callback(self, dyn, pos, fee_rate):
         if dyn:
             if self.config.use_mempool_fees():
-                self.config.set_key('depth_level', pos, False)
+                self.config.cv.FEE_EST_DYNAMIC_MEMPOOL_SLIDERPOS.set(pos, save=False)
             else:
-                self.config.set_key('fee_level', pos, False)
+                self.config.cv.FEE_EST_DYNAMIC_ETA_SLIDERPOS.set(pos, save=False)
         else:
-            self.config.set_key('fee_per_kb', fee_rate, False)
+            self.config.cv.FEE_EST_STATIC_FEERATE_FALLBACK.set(fee_rate, save=False)
         if self.send_follows:
             self.on_recv_edited()
         else:
@@ -231,7 +232,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.server_fee_label.repaint()  # macOS hack for #6269
         self.needs_tx_update = True
 
-    def update_fee(self, tx):
+    def update_fee(self, tx: Optional[PartialTransaction]) -> None:
         """Updates self.fee_label. No other side-effects."""
         if self.is_reverse:
             sm = self.swap_manager
@@ -243,6 +244,7 @@ class SwapDialog(WindowModalDialog, QtEventListener):
         self.fee_label.repaint()  # macOS hack for #6269
 
     def run(self):
+        """Can raise InvalidSwapParameters."""
         if not self.exec_():
             return
         if self.is_reverse:
@@ -273,24 +275,23 @@ class SwapDialog(WindowModalDialog, QtEventListener):
             return
         is_max = self.max_button.isChecked()
         if is_max:
-            tx = self._create_tx('!')
+            tx = self._create_tx_safe('!')
             self._spend_max_forward_swap(tx)
         else:
             onchain_amount = self.send_amount_e.get_amount()
-            tx = self._create_tx(onchain_amount)
+            tx = self._create_tx_safe(onchain_amount)
         self.update_fee(tx)
 
-    def _create_tx(self, onchain_amount: Union[int, str, None]) -> Optional[PartialTransaction]:
-        if self.is_reverse:
-            return
+    def _create_tx(self, onchain_amount: Union[int, str, None]) -> PartialTransaction:
+        assert not self.is_reverse
         if onchain_amount is None:
-            return
+            raise InvalidSwapParameters("onchain_amount is None")
         coins = self.window.get_coins()
         if onchain_amount == '!':
             max_amount = sum(c.value_sats() for c in coins)
             max_swap_amount = self.swap_manager.max_amount_forward_swap()
             if max_swap_amount is None:
-                return None
+                raise InvalidSwapParameters("swap_manager.max_amount_forward_swap() is None")
             if max_amount > max_swap_amount:
                 onchain_amount = max_swap_amount
         outputs = [PartialTxOutput.from_address_and_value(ln_dummy_address(), onchain_amount)]
@@ -299,8 +300,14 @@ class SwapDialog(WindowModalDialog, QtEventListener):
                 coins=coins,
                 outputs=outputs)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
-            return
+            raise InvalidSwapParameters(str(e)) from e
         return tx
+
+    def _create_tx_safe(self, onchain_amount: Union[int, str, None]) -> Optional[PartialTransaction]:
+        try:
+            return self._create_tx(onchain_amount=onchain_amount)
+        except InvalidSwapParameters:
+            return None
 
     def update_ok_button(self):
         """Updates self.ok_button. No other side-effects."""

@@ -450,14 +450,12 @@ Pane {
                 infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
             })
             dialog.accepted.connect(function() {
-                Daemon.setPassword(dialog.password)
-            })
-            dialog.open()
-        }
-        function onPasswordChangeFailed() {
-            var dialog = app.messageDialog.createObject(app, {
-                title: qsTr('Error'),
-                text: qsTr('Password change failed')
+                var success = Daemon.setPassword(dialog.password)
+                var done_dialog = app.messageDialog.createObject(app, {
+                    title: success ? qsTr('Success') : qsTr('Error'),
+                    text: success ? qsTr('Password changed') : qsTr('Password change failed')
+                })
+                done_dialog.open()
             })
             dialog.open()
         }
@@ -501,7 +499,12 @@ Pane {
                 infotext: qsTr('If you forget your password, you\'ll need to restore from seed. Please make sure you have your seed stored safely')
             })
             dialog.accepted.connect(function() {
-                Daemon.currentWallet.setPassword(dialog.password)
+                var success = Daemon.currentWallet.setPassword(dialog.password)
+                var done_dialog = app.messageDialog.createObject(app, {
+                    title: success ? qsTr('Success') : qsTr('Error'),
+                    text: success ? qsTr('Password changed') : qsTr('Password change failed')
+                })
+                done_dialog.open()
             })
             dialog.open()
         }

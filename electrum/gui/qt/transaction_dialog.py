@@ -314,7 +314,7 @@ class TxInOutWidget(QWidget):
                 copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
             txin_value = self.wallet.adb.get_txin_value(txin)
             if txin_value:
-                value_str = self.main_window.format_amount(txin_value)
+                value_str = self.main_window.format_amount(txin_value, add_thousands_sep=False)
                 copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
 
         for item in show_list:
@@ -356,7 +356,7 @@ class TxInOutWidget(QWidget):
                 show_list += [(_("Address Details"), lambda: self.main_window.show_address(addr, parent=self))]
             copy_list += [(_("Copy Address"), lambda: self.main_window.do_copy(addr))]
         txout_value = self.tx.outputs()[txout_idx].value
-        value_str = self.main_window.format_amount(txout_value)
+        value_str = self.main_window.format_amount(txout_value, add_thousands_sep=False)
         copy_list += [(_("Copy Amount"), lambda: self.main_window.do_copy(value_str))]
 
         for item in show_list:
@@ -416,7 +416,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.setLayout(vbox)
         toolbar, menu = create_toolbar_with_menu(self.config, '')
         menu.addConfig(
-            _('Download missing data'), 'tx_dialog_fetch_txin_data', False,
+            _('Download missing data'), self.config.cv.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA,
             tooltip=_(
                 'Download parent transactions from the network.\n'
                 'Allows filling in missing fee and input details.'),
@@ -945,7 +945,7 @@ class TxDialog(QDialog, MessageBoxMixin):
               We could also SPV-verify the tx, to fill in missing tx_mined_status (block height, blockhash, timestamp),
               but this is not done currently.
         """
-        if not self.config.get('tx_dialog_fetch_txin_data', False):
+        if not self.config.GUI_QT_TX_DIALOG_FETCH_TXIN_DATA:
             return
         tx = self.tx
         if not tx:

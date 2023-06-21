@@ -296,11 +296,11 @@ class Wallet_2fa(Multisig_Wallet):
         return min(self.price_per_tx.keys())
 
     def num_prepay(self):
-        default = self.min_prepay()
-        n = self.config.get('trustedcoin_prepay', default)
-        if n not in self.price_per_tx:
-            n = default
-        return n
+        default_fallback = self.min_prepay()
+        num = self.config.PLUGIN_TRUSTEDCOIN_NUM_PREPAY
+        if num not in self.price_per_tx:
+            num = default_fallback
+        return num
 
     def extra_fee(self):
         if self.can_sign_without_server():
@@ -314,8 +314,10 @@ class Wallet_2fa(Multisig_Wallet):
             return 0
         n = self.num_prepay()
         price = int(self.price_per_tx[n])
-        if price > 100000 * n:
-            raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
+        # sanity check: price capped at 0.5 mBTC per tx or 20 mBTC total
+        #               (note that the server can influence our choice of n by sending unexpected values)
+        if price > min(50_000 * n, 2_000_000):
+            raise Exception(f"too high trustedcoin fee ({price} for {n} txns)")
         return price
 
     def make_unsigned_transaction(
@@ -559,7 +561,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
     def choose_seed_type(self, wizard):
-        seed_type = '2fa' if self.config.get('nosegwit') else '2fa_segwit'
+        seed_type = '2fa' if self.config.WIZARD_DONT_CREATE_SEGWIT else '2fa_segwit'
         self.create_seed(wizard, seed_type)
 
     def create_seed(self, wizard, seed_type):

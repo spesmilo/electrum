@@ -297,9 +297,6 @@ class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction, TxOutput
-        from .lnutil import UpdateAddHtlc
-        if isinstance(obj, UpdateAddHtlc):
-            return obj.to_tuple()
         if isinstance(obj, Transaction):
             return obj.serialize()
         if isinstance(obj, TxOutput):
@@ -461,9 +458,9 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
     min_threshold: if set, only log if time taken is higher than threshold
     NOTE: does not work with async methods.
     """
-    if func is None:
+    if func is None:  # to make "@profiler(...)" work. (in addition to bare "@profiler")
         return partial(profiler, min_threshold=min_threshold)
-    def do_profile(args, kw_args):
+    def do_profile(*args, **kw_args):
         name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
@@ -471,7 +468,7 @@ def profiler(func=None, *, min_threshold: Union[int, float, None] = None):
         if min_threshold is None or t > min_threshold:
             _profiler_logger.debug(f"{name} {t:,.4f} sec")
         return o
-    return lambda *args, **kw_args: do_profile(args, kw_args)
+    return do_profile
 
 
 def android_ext_dir():
@@ -884,6 +881,8 @@ def age(
             return _("in over {} years").format(round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
+    '3xpl.com': ('https://3xpl.com/bitcoin/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
@@ -972,25 +971,24 @@ def block_explorer(config: 'SimpleConfig') -> Optional[str]:
     """Returns name of selected block explorer,
     or None if a custom one (not among hardcoded ones) is configured.
     """
-    if config.get('block_explorer_custom') is not None:
+    if config.BLOCK_EXPLORER_CUSTOM is not None:
         return None
-    default_ = 'Blockstream.info'
-    be_key = config.get('block_explorer', default_)
+    be_key = config.BLOCK_EXPLORER
     be_tuple = block_explorer_info().get(be_key)
     if be_tuple is None:
-        be_key = default_
+        be_key = config.cv.BLOCK_EXPLORER.get_default_value()
     assert isinstance(be_key, str), f"{be_key!r} should be str"
     return be_key
 
 
 def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
-    custom_be = config.get('block_explorer_custom')
+    custom_be = config.BLOCK_EXPLORER_CUSTOM
     if custom_be:
         if isinstance(custom_be, str):
             return custom_be, _block_explorer_default_api_loc
         if isinstance(custom_be, (tuple, list)) and len(custom_be) == 2:
             return tuple(custom_be)
-        _logger.warning(f"not using 'block_explorer_custom' from config. "
+        _logger.warning(f"not using {config.cv.BLOCK_EXPLORER_CUSTOM.key()!r} from config. "
                         f"expected a str or a pair but got {custom_be!r}")
         return None
     else:

@@ -4,7 +4,9 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtQml import QQmlApplicationEngine
 
 from electrum.logging import get_logger
+from electrum import mnemonic
 from electrum.wizard import NewWalletWizard, ServerConnectWizard
+
 
 class QEAbstractWizard(QObject):
     _logger = get_logger(__name__)
@@ -60,7 +62,6 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
             'bip39_refine': { 'gui': 'WCBIP39Refine' },
             'have_master_key': { 'gui': 'WCHaveMasterKey' },
             'multisig': { 'gui': 'WCMultisig' },
-            # 'multisig_show_masterpubkey': { 'gui': 'WCShowMasterPubkey' },
             'multisig_cosigner_keystore': { 'gui': 'WCCosignerKeystore' },
             'multisig_cosigner_key': { 'gui': 'WCHaveMasterKey' },
             'multisig_cosigner_seed': { 'gui': 'WCHaveSeed' },
@@ -94,6 +95,10 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         data = js_data.toVariant()
         return self.has_heterogeneous_masterkeys(data)
 
+    @pyqtSlot(str, str, result=bool)
+    def isMatchingSeed(self, seed, seed_again):
+        return mnemonic.is_matching_seed(seed=seed, seed_again=seed_again)
+
     @pyqtSlot('QJSValue', bool, str)
     def createStorage(self, js_data, single_password_enabled, single_password):
         self._logger.info('Creating wallet from wizard data')
@@ -116,6 +121,7 @@ class QENewWalletWizard(NewWalletWizard, QEAbstractWizard):
         except Exception as e:
             self._logger.error(f"createStorage errored: {e!r}")
             self.createError.emit(str(e))
+
 
 class QEServerConnectWizard(ServerConnectWizard, QEAbstractWizard):
 

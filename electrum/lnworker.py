@@ -79,7 +79,7 @@ from .lnwatcher import LNWalletWatcher
 from .crypto import pw_encode_with_version_and_mac, pw_decode_with_version_and_mac
 from .lnutil import ImportedChannelBackupStorage, OnchainChannelBackupStorage
 from .lnchannel import ChannelBackup
-from .channel_db import UpdateStatus
+from .channel_db import UpdateStatus, ChannelDBNotLoaded
 from .channel_db import get_mychannel_info, get_mychannel_policy
 from .submarine_swaps import SwapManager
 from .channel_db import ChannelInfo, Policy
@@ -253,13 +253,13 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
 
     async def maybe_listen(self):
         # FIXME: only one LNWorker can listen at a time (single port)
-        listen_addr = self.config.get('lightning_listen')
+        listen_addr = self.config.LIGHTNING_LISTEN
         if listen_addr:
             self.logger.info(f'lightning_listen enabled. will try to bind: {listen_addr!r}')
             try:
                 netaddr = NetAddress.from_string(listen_addr)
             except Exception as e:
-                self.logger.error(f"failed to parse config key 'lightning_listen'. got: {e!r}")
+                self.logger.error(f"failed to parse config key '{self.config.cv.LIGHTNING_LISTEN.key()}'. got: {e!r}")
                 return
             addr = str(netaddr.host)
             async def cb(reader, writer):
@@ -351,7 +351,7 @@ class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         await self.taskgroup.cancel_remaining()
 
     def _add_peers_from_config(self):
-        peer_list = self.config.get('lightning_peers', [])
+        peer_list = self.config.LIGHTNING_PEERS or []
         for host, port, pubkey in peer_list:
             asyncio.run_coroutine_threadsafe(
                 self._add_peer(host, int(port), bfh(pubkey)),
@@ -675,14 +675,14 @@ class LNWallet(LNWorker):
 
     def can_have_recoverable_channels(self) -> bool:
         return (self.has_deterministic_node_id()
-                and not (self.config.get('lightning_listen')))
+                and not self.config.LIGHTNING_LISTEN)
 
     def has_recoverable_channels(self) -> bool:
         """Whether *future* channels opened by this wallet would be recoverable
         from seed (via putting OP_RETURN outputs into funding txs).
         """
         return (self.can_have_recoverable_channels()
-                and self.config.get('use_recoverable_channels', True))
+                and self.config.LIGHTNING_USE_RECOVERABLE_CHANNELS)
 
     @property
     def channels(self) -> Mapping[bytes, Channel]:
@@ -728,7 +728,7 @@ class LNWallet(LNWorker):
         while True:
             # periodically poll if the user updated 'watchtower_url'
             await asyncio.sleep(5)
-            watchtower_url = self.config.get('watchtower_url')
+            watchtower_url = self.config.WATCHTOWER_CLIENT_URL
             if not watchtower_url:
                 continue
             parsed_url = urllib.parse.urlparse(watchtower_url)
@@ -1202,6 +1202,9 @@ class LNWallet(LNWorker):
         except PaymentFailure as e:
             self.logger.info(f'payment failure: {e!r}')
             reason = str(e)
+        except ChannelDBNotLoaded as e:
+            self.logger.info(f'payment failure: {e!r}')
+            reason = str(e)
         finally:
             self.logger.info(f"pay_invoice ending session for RHASH={payment_hash.hex()}. {success=}")
         if success:
@@ -1621,11 +1624,12 @@ class LNWallet(LNWorker):
         random.shuffle(my_active_channels)
         split_configurations = self.suggest_splits(amount_msat, my_active_channels, invoice_features, r_tags)
         for sc in split_configurations:
-            is_mpp = len(sc.config.items()) > 1
-            routes = []
+            is_multichan_mpp = len(sc.config.items()) > 1
+            is_mpp = sum(len(x) for x in list(sc.config.values())) > 1
             if is_mpp and not invoice_features.supports(LnFeatures.BASIC_MPP_OPT):
                 continue
             self.logger.info(f"trying split configuration: {sc.config.values()} rating: {sc.rating}")
+            routes = []
             try:
                 if self.uses_trampoline():
                     per_trampoline_channel_amounts = defaultdict(list)
@@ -1702,7 +1706,7 @@ class LNWallet(LNWorker):
                                     min_cltv_expiry=min_cltv_expiry,
                                     r_tags=r_tags,
                                     invoice_features=invoice_features,
-                                    my_sending_channels=[channel] if is_mpp else my_active_channels,
+                                    my_sending_channels=[channel] if is_multichan_mpp else my_active_channels,
                                     full_path=full_path,
                                 )
                             )
@@ -1839,8 +1843,7 @@ class LNWallet(LNWorker):
         self._bolt11_cache[payment_hash] = pair
         return pair
 
-    def create_payment_info(self, amount_sat: Optional[int], write_to_disk=True) -> bytes:
-        amount_msat = amount_sat * 1000 if amount_sat else None
+    def create_payment_info(self, *, amount_msat: Optional[int], write_to_disk=True) -> bytes:
         payment_preimage = os.urandom(32)
         payment_hash = sha256(payment_preimage)
         info = PaymentInfo(payment_hash, amount_msat, RECEIVED, PR_UNPAID)
@@ -2286,17 +2289,19 @@ class LNWallet(LNWorker):
         for chan, swap_recv_amount in suggestions:
             return (chan, swap_recv_amount)
 
-    async def rebalance_channels(self, chan1, chan2, amount_msat):
+    async def rebalance_channels(self, chan1: Channel, chan2: Channel, *, amount_msat: int):
         if chan1 == chan2:
             raise Exception('Rebalance requires two different channels')
         if self.uses_trampoline() and chan1.node_id == chan2.node_id:
             raise Exception('Rebalance requires channels from different trampolines')
-        lnaddr, invoice = self.add_reqest(
+        payment_hash = self.create_payment_info(amount_msat=amount_msat)
+        lnaddr, invoice = self.get_bolt11_invoice(
+            payment_hash=payment_hash,
             amount_msat=amount_msat,
             message='rebalance',
             expiry=3600,
             fallback_address=None,
-            channels = [chan2]
+            channels=[chan2],
         )
         return await self.pay_invoice(
             invoice, channels=[chan1])

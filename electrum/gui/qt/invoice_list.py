@@ -120,6 +120,7 @@ class InvoiceList(MyTreeView):
             status = self.wallet.get_invoice_status(item)
             amount = item.get_amount_sat()
             amount_str = self.main_window.format_amount(amount, whitespaces=True) if amount else ""
+            amount_str_nots = self.main_window.format_amount(amount, whitespaces=True, add_thousands_sep=False) if amount else ""
             timestamp = item.time or 0
             labels = [""] * len(self.Columns)
             labels[self.Columns.DATE] = format_time(timestamp) if timestamp else _('Unknown')
@@ -133,6 +134,7 @@ class InvoiceList(MyTreeView):
             items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
             #items[self.Columns.DATE].setData(item.type, role=ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(timestamp, role=ROLE_SORT_ORDER)
+            items[self.Columns.AMOUNT].setData(amount_str_nots.strip(), role=self.ROLE_CLIPBOARD_DATA)
             self.std_model.insertRow(idx, items)
         self.filter()
         self.proxy.setDynamicSortFilter(True)

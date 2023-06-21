@@ -362,7 +362,7 @@ class TrezorPlugin(HW_PluginBase):
         prev_tx = {bfh(txhash): self.electrum_tx_to_txtype(tx) for txhash, tx in prev_tx.items()}
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, for_sig=True, keystore=keystore)
-        outputs = self.tx_outputs(tx, keystore=keystore)
+        outputs = self.tx_outputs(tx, keystore=keystore, firmware_version=client.client.version)
         signatures, _ = client.sign_tx(self.get_coin_name(),
                                        inputs, outputs,
                                        lock_time=tx.locktime,
@@ -371,7 +371,7 @@ class TrezorPlugin(HW_PluginBase):
                                        serialize=False,
                                        prev_txes=prev_tx)
         sighash = Sighash.to_sigbytes(Sighash.ALL).hex()
-        signatures = [(x.hex() + sighash) for x in signatures]
+        signatures = [((x.hex() + sighash) if x else None) for x in signatures]
         tx.update_signatures(signatures)
 
     @runs_in_hwd_thread
@@ -412,17 +412,23 @@ class TrezorPlugin(HW_PluginBase):
                     assert isinstance(tx, PartialTransaction)
                     assert isinstance(txin, PartialTxInput)
                     assert keystore
-                    desc = txin.script_descriptor
-                    assert desc
-                    if multi := desc.get_simple_multisig():
-                        txinputtype.multisig = self._make_multisig(multi)
-                    txinputtype.script_type = self.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
-                    my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
-                    if full_path:
-                        txinputtype.address_n = full_path
+                    if txin.is_complete():
+                        txinputtype.script_type = InputScriptType.EXTERNAL
+                        assert txin.scriptpubkey
+                        txinputtype.script_pubkey = txin.scriptpubkey
+                    else:
+                        desc = txin.script_descriptor
+                        assert desc
+                        if multi := desc.get_simple_multisig():
+                            txinputtype.multisig = self._make_multisig(multi)
+                        txinputtype.script_type = self.get_trezor_input_script_type(desc.to_legacy_electrum_script_type())
+                        my_pubkey, full_path = keystore.find_my_pubkey_in_txinout(txin)
+                        if full_path:
+                            txinputtype.address_n = full_path
 
             txinputtype.amount = txin.value_sats()
             txinputtype.script_sig = txin.script_sig
+            txinputtype.witness = txin.witness
             txinputtype.sequence = txin.nsequence
 
             inputs.append(txinputtype)
@@ -442,7 +448,7 @@ class TrezorPlugin(HW_PluginBase):
             signatures=[b''] * len(pubkeys),
             m=desc.thresh)
 
-    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore'):
+    def tx_outputs(self, tx: PartialTransaction, *, keystore: 'TrezorKeyStore', firmware_version: Sequence[int]):
 
         def create_output_by_derivation():
             desc = txout.script_descriptor
@@ -483,14 +489,18 @@ class TrezorPlugin(HW_PluginBase):
             address = txout.address
             use_create_by_derivation = False
 
-            if txout.is_mine and not has_change:
-                # prioritise hiding outputs on the 'change' branch from user
-                # because no more than one change address allowed
-                # note: ^ restriction can be removed once we require fw
-                # that has https://github.com/trezor/trezor-mcu/pull/306
-                if txout.is_change == any_output_on_change_branch:
+            if txout.is_mine:
+                if tuple(firmware_version) >= (1, 6, 1):
                     use_create_by_derivation = True
-                    has_change = True
+                else:
+                    if not has_change:
+                        # prioritise hiding outputs on the 'change' branch from user
+                        # because no more than one change address allowed
+                        # note: ^ restriction can be removed once we require fw 1.6.1
+                        # that has https://github.com/trezor/trezor-mcu/pull/306
+                        if txout.is_change == any_output_on_change_branch:
+                            use_create_by_derivation = True
+                            has_change = True
 
             if use_create_by_derivation:
                 txoutputtype = create_output_by_derivation()

@@ -92,7 +92,7 @@ class BaseWizard(Logger):
         self._stack = []  # type: List[WizardStackItem]
         self.plugin = None  # type: Optional[BasePlugin]
         self.keystores = []  # type: List[KeyStore]
-        self.is_kivy = config.get('gui') == 'kivy'
+        self.is_kivy = config.GUI_NAME == 'kivy'
         self.seed_type = None
 
     def set_icon(self, icon):
@@ -697,7 +697,7 @@ class BaseWizard(Logger):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
     def choose_seed_type(self):
-        seed_type = 'standard' if self.config.get('nosegwit') else 'segwit'
+        seed_type = 'standard' if self.config.WIZARD_DONT_CREATE_SEGWIT else 'segwit'
         self.create_seed(seed_type)
 
     def create_seed(self, seed_type):
@@ -719,7 +719,11 @@ class BaseWizard(Logger):
 
     def confirm_seed(self, seed, passphrase):
         f = lambda x: self.confirm_passphrase(seed, passphrase)
-        self.confirm_seed_dialog(run_next=f, seed=seed if self.config.get('debug_seed') else '', test=lambda x: x==seed)
+        self.confirm_seed_dialog(
+            run_next=f,
+            seed=seed if self.config.get('debug_seed') else '',
+            test=lambda x: mnemonic.is_matching_seed(seed=seed, seed_again=x),
+        )
 
     def confirm_passphrase(self, seed, passphrase):
         f = lambda x: self.run('create_keystore', seed, x)

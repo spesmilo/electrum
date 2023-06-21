@@ -609,7 +609,8 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
                 fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
                 fut.result()
             except Exception as e:
-                self.paymentFailed.emit(invoice.get_id(), repr(e))
+                self._logger.error(f'pay_invoice failed! {e!r}')
+                self.paymentFailed.emit(invoice.get_id(), str(e))
 
         threading.Thread(target=pay_thread, daemon=True).start()
 
@@ -673,7 +674,7 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
         except InvalidPassword as e:
             return False
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, result=bool)
     def setPassword(self, password):
         if password == '':
             password = None
@@ -682,16 +683,18 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
 
         # HW wallet not supported yet
         if storage.is_encrypted_with_hw_device():
-            return
+            return False
 
         current_password = self.password if self.password != '' else None
 
         try:
-            self._logger.info(f'PW change from {current_password} to {password}')
+            self._logger.info('setting new password')
             self.wallet.update_password(current_password, password, encrypt_storage=True)
             self.password = password
+            return True
         except InvalidPassword as e:
             self._logger.exception(repr(e))
+            return False
 
     @pyqtSlot(str)
     def importAddresses(self, addresslist):

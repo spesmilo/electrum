@@ -60,6 +60,7 @@ Pane {
 
             FormattedAmount {
                 amount: lnpaymentdetails.amount
+                timestamp: lnpaymentdetails.timestamp
             }
 
             Label {
@@ -71,6 +72,7 @@ Pane {
             FormattedAmount {
                 visible: lnpaymentdetails.amount.msatsInt < 0
                 amount: lnpaymentdetails.fee
+                timestamp: lnpaymentdetails.timestamp
             }
 
             Label {

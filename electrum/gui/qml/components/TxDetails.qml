@@ -90,6 +90,7 @@ Pane {
                         Layout.preferredWidth: 1
                         Layout.fillWidth: true
                         amount: txdetails.lnAmount.isEmpty ? txdetails.amount : txdetails.lnAmount
+                        timestamp: txdetails.timestamp
                     }
 
                     Label {
@@ -104,6 +105,7 @@ Pane {
                         FormattedAmount {
                             Layout.fillWidth: true
                             amount: txdetails.fee
+                            timestamp: txdetails.timestamp
                         }
                     }
 

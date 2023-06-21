@@ -13,7 +13,7 @@ WizardComponent {
     valid: false
 
     function checkValid() {
-        var seedvalid = confirm.text == wizard_data['seed']
+        var seedvalid = wizard.wiz.isMatchingSeed(wizard_data['seed'], confirm.text)
         var customwordsvalid =  customwordstext.text == wizard_data['seed_extra_words']
         valid = seedvalid && (wizard_data['seed_extend'] ? customwordsvalid : true)
     }

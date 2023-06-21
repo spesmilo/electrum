@@ -63,19 +63,6 @@ if is_pyinstaller:
     # causes ImportErrors and other runtime failures). (see #4072)
     _file = open(sys.executable, 'rb')
 
-if is_binary_distributable:
-    # Ensure that asserts are enabled.
-    # Code *should not rely* on asserts being enabled. In particular, safety and security checks should
-    # always explicitly raise exceptions. However, this rule is mistakenly broken occasionally...
-    # In case we are a binary build, we know for a fact that we want the asserts, so enforce them.
-    # When running from source, defer to the user. (a warning is logged in __init__.py)
-    try:
-        assert False
-    except AssertionError:
-        pass
-    else:
-        sys.exit("Error: Running with asserts disabled, in a binary distributable! Please check build settings.")
-
 
 def check_imports():
     # pure-python dependencies need to be imported here for pyinstaller
@@ -341,8 +328,8 @@ def main():
         config_options = {
             'verbosity': '*' if util.is_android_debug_apk() else '',
             'cmd': 'gui',
-            'gui': android_gui,
-            'single_password': True,
+            SimpleConfig.GUI_NAME.key(): android_gui,
+            SimpleConfig.WALLET_USE_SINGLE_PASSWORD.key(): True,
         }
         if util.get_android_package_name() == "org.electrum.testnet.electrum":
             # ~hack for easier testnet builds. pkgname subject to change.
@@ -351,8 +338,8 @@ def main():
         config_options = args.__dict__
         f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
         config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            config_options['auto_connect'] = False
+        if config_options.get(SimpleConfig.NETWORK_SERVER.key()):
+            config_options[SimpleConfig.NETWORK_AUTO_CONNECT.key()] = False
 
     config_options['cwd'] = cwd = os.getcwd()
 
@@ -394,8 +381,8 @@ def main():
     #       to not-yet-evaluated strings.
     if cmdname == 'gui':
         from electrum.gui.default_lang import get_default_language
-        gui_name = config.get('gui', 'qt')
-        lang = config.get('language')
+        gui_name = config.GUI_NAME
+        lang = config.LOCALIZATION_LANGUAGE
         if not lang:
             lang = get_default_language(gui_name=gui_name)
             _logger.info(f"get_default_language: detected default as {lang=!r}")
@@ -419,7 +406,13 @@ def main():
             print_stderr("Run 'electrum stop' to stop the daemon.")
             sys.exit(1)
         # fork before creating the asyncio event loop
-        pid = os.fork()
+        try:
+            pid = os.fork()
+        except AttributeError as e:
+            print_stderr(f"Error: {e!r}")
+            print_stderr("Running daemon in detached mode (-d) is not supported on this platform.")
+            print_stderr("Try running the daemon in the foreground (without -d).")
+            sys.exit(1)
         if pid:
             print_stderr("starting daemon (PID %d)" % pid)
             sys.exit(0)
@@ -453,7 +446,7 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config)
         fd = daemon.get_file_descriptor(config)
         if fd is not None:
-            plugins = init_plugins(config, config.get('gui', 'qt'))
+            plugins = init_plugins(config, config.GUI_NAME)
             d = daemon.Daemon(config, fd, start_network=False)
             try:
                 d.run_gui(config, plugins)
@@ -484,10 +477,9 @@ def handle_cmd(*, cmdname: str, config: 'SimpleConfig', config_options: dict):
         configure_logging(config, log_to_file=False)  # don't spam logfiles for each client-side RPC, but support "-v"
         cmd = known_commands[cmdname]
         wallet_path = config.get_wallet_path()
-        if not config.get('offline'):
+        if not config.NETWORK_OFFLINE:
             init_cmdline(config_options, wallet_path, True, config=config)
-            timeout = config.get('timeout', 60)
-            if timeout: timeout = int(timeout)
+            timeout = config.CLI_TIMEOUT
             try:
                 result = daemon.request(config, 'run_cmdline', (config_options,), timeout)
             except daemon.DaemonNotRunning:

@@ -1344,7 +1344,6 @@ class LedgerPlugin(HW_PluginBase):
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
     def __init__(self, parent, config, name):
-        self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
         self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:

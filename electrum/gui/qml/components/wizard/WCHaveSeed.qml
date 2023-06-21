@@ -31,6 +31,15 @@ WizardComponent {
             wizard_data['seed_type'] = bitcoin.seedType
             wizard_data['seed_extend'] = extendcb.checked
             wizard_data['seed_extra_words'] = extendcb.checked ? customwordstext.text : ''
+
+            // determine script type from electrum seed type
+            // (used to limit script type options for bip39 cosigners)
+            if (wizard_data['wallet_type'] == 'multisig' && seed_variant_cb.currentValue == 'electrum') {
+                wizard_data['script_type'] = {
+                    'standard': 'p2sh',
+                    'segwit': 'p2wsh'
+                }[bitcoin.seedType]
+            }
         }
     }
 
@@ -64,13 +73,18 @@ WizardComponent {
             valid = validSeed
             return
         } else {
-            apply()
-            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
-                validationtext.text = qsTr('Error: duplicate master public key')
-                return
-            } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
-                validationtext.text = qsTr('Error: master public key types do not match')
-                return
+            // bip39 validate after derivation path is known
+            if (seed_variant_cb.currentValue == 'electrum') {
+                apply()
+                if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                    validationtext.text = qsTr('Error: duplicate master public key')
+                    return
+                } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                    validationtext.text = qsTr('Error: master public key types do not match')
+                    return
+                } else {
+                    valid = true
+                }
             } else {
                 valid = true
             }
@@ -165,6 +179,7 @@ WizardComponent {
 
             InfoTextArea {
                 id: infotext
+                visible: !cosigner
                 Layout.fillWidth: true
                 Layout.columnSpan: 2
                 Layout.bottomMargin: constants.paddingLarge
@@ -214,7 +229,6 @@ WizardComponent {
     Bitcoin {
         id: bitcoin
         onSeedTypeChanged: seedtext.indicatorText = bitcoin.seedType
-        onValidationMessageChanged: validationtext.text = validationMessage
     }
 
     function startValidationTimer() {

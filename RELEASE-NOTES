@@ -1,8 +1,28 @@
+# Release 4.4.5 (June 20, 2023)
+ * Hardware wallets:
+   - jade: fix regression in sign_transaction (#8463)
+ * Lightning:
+   - fix "rebalance_channels" function (#8468)
+ * enforce that we run with python asserts enabled,
+   regardless of platform (d1c88108)
+
+
+# Release 4.4.4 (May 31, 2023)
+ * QML GUI:
+   - fix creating multisig wallets involving BIP39 seeds (#8432)
+   - fix "cannot scroll to open a lightning channel" (#8446)
+   - wizard: "confirm seed" screen to normalize whitespaces (#8442)
+   - fix assert on address details screen (#8420)
+ * Qt GUI:
+   - better handle some expected errors in SwapDialog (#8430)
+ * libsecp256k1: bump bundled version to 0.3.2 (10574bb1)
+
+
 # Release 4.4.3 (May 11, 2023)
  * Intentionally break multisig wallets that have heterogeneous master
    keys. Versions 4.4.0 to 4.4.2 of Electrum for Android did not check
    that master keys used the same script type. This may have resulted
-   in the creation of multisig wallets that that cannot be spent from
+   in the creation of multisig wallets that cannot be spent from
    with any existing version of Electrum. It is not sure whether any
    users are affected by this; if there are any, we will publish
    instructions on how to spend those coins (#8417, #8418).

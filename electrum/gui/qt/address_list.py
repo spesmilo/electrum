@@ -36,6 +36,7 @@ from electrum.util import block_explorer_URL, profiler
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
+from electrum.simple_config import SimpleConfig
 
 from .util import MONOSPACE_FONT, ColorScheme, webopen
 from .my_treeview import MyTreeView, MySortModel
@@ -115,23 +116,24 @@ class AddressList(MyTreeView):
         self.setModel(self.proxy)
         self.update()
         self.sortByColumn(self.Columns.TYPE, Qt.AscendingOrder)
+        if self.config:
+            self.configvar_show_toolbar = self.config.cv.GUI_QT_ADDRESSES_TAB_SHOW_TOOLBAR
 
     def on_double_click(self, idx):
         addr = self.get_role_data_for_current_item(col=0, role=self.ROLE_ADDRESS_STR)
         self.main_window.show_address(addr)
 
-    CONFIG_KEY_SHOW_TOOLBAR = "show_toolbar_addresses"
     def create_toolbar(self, config):
         toolbar, menu = self.create_toolbar_with_menu('')
         self.num_addr_label = toolbar.itemAt(0).widget()
         self._toolbar_checkbox = menu.addToggle(_("Show Filter"), lambda: self.toggle_toolbar())
-        menu.addConfig(_('Show Fiat balances'), 'fiat_address', False, callback=self.main_window.app.update_fiat_signal.emit)
+        menu.addConfig(_('Show Fiat balances'), config.cv.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES, callback=self.main_window.app.update_fiat_signal.emit)
         hbox = self.create_toolbar_buttons()
         toolbar.insertLayout(1, hbox)
         return toolbar
 
     def should_show_fiat(self):
-        return self.main_window.fx and self.main_window.fx.is_enabled() and self.config.get('fiat_address', False)
+        return self.main_window.fx and self.main_window.fx.is_enabled() and self.config.FX_SHOW_FIAT_BALANCE_FOR_ADDRESSES
 
     def get_toolbar_buttons(self):
         return self.change_button, self.used_button
@@ -248,18 +250,24 @@ class AddressList(MyTreeView):
         c, u, x = self.wallet.get_addr_balance(address)
         balance = c + u + x
         balance_text = self.main_window.format_amount(balance, whitespaces=True)
+        balance_text_nots = self.main_window.format_amount(balance, whitespaces=False, add_thousands_sep=False)
         # create item
         fx = self.main_window.fx
         if self.should_show_fiat():
             rate = fx.exchange_rate()
-            fiat_balance_str = fx.value_str(balance, rate)
+            fiat_balance_str = fx.value_str(balance, rate, add_thousands_sep=True)
+            fiat_balance_str_nots = fx.value_str(balance, rate, add_thousands_sep=False)
         else:
             fiat_balance_str = ''
+            fiat_balance_str_nots = ''
         address_item = [self.std_model.item(row, col) for col in self.Columns]
         address_item[self.Columns.LABEL].setText(label)
         address_item[self.Columns.COIN_BALANCE].setText(balance_text)
         address_item[self.Columns.COIN_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
+        address_item[self.Columns.COIN_BALANCE].setData(balance_text_nots, self.ROLE_CLIPBOARD_DATA)
         address_item[self.Columns.FIAT_BALANCE].setText(fiat_balance_str)
+        address_item[self.Columns.FIAT_BALANCE].setData(balance, self.ROLE_SORT_ORDER)
+        address_item[self.Columns.FIAT_BALANCE].setData(fiat_balance_str_nots, self.ROLE_CLIPBOARD_DATA)
         address_item[self.Columns.NUM_TXS].setText("%d"%num)
         c = ColorScheme.BLUE.as_color(True) if self.wallet.is_frozen_address(address) else self._default_bg_brush
         address_item[self.Columns.ADDRESS].setBackground(c)

@@ -558,7 +558,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             if not address:
                 return
         message = self.str_recv_description
-        expiry = self.config.get('request_expiry', PR_DEFAULT_EXPIRATION_WHEN_CREATING)
+        expiry = self.config.WALLET_PAYREQ_EXPIRY_SECONDS
         key = self.wallet.create_request(amount_sat, message, expiry, address)
         self.do_clear_request()
         self.pos = self.max_pos
@@ -719,7 +719,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         srv = 'auto-connect' if auto_connect else str(self.network.default_server)
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
-            {'label':'proxy', 'type':'str', 'value':self.config.get('proxy', '')},
+            {'label':'proxy', 'type':'str', 'value':self.config.NETWORK_PROXY},
             ], buttons = 1)
         if out:
             if out.get('server'):
@@ -747,7 +747,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         if out:
             if out.get('Default fee'):
                 fee = int(Decimal(out['Default fee']) * COIN)
-                self.config.set_key('fee_per_kb', fee, True)
+                self.config.FEE_EST_STATIC_FEERATE_FALLBACK = fee
 
     def password_dialog(self):
         out = self.run_dialog('Password', [

@@ -153,6 +153,6 @@ def lightning_address_to_url(address: str) -> Optional[str]:
     """Converts an email-type lightning address to a decoded lnurl.
     see https://github.com/fiatjaf/lnurl-rfc/blob/luds/16.md
     """
-    if re.match(r"[^@]+@[^@]+\.[^@]+", address):
+    if re.match(r"^[^@]+@[^.@]+(\.[^.@]+)+$", address):
         username, domain = address.split("@")
         return f"https://{domain}/.well-known/lnurlp/{username}"

@@ -43,11 +43,24 @@ WizardComponent {
 
     function validate() {
         valid = false
+        validationtext.text = ''
+
         var p = isMultisig ? getMultisigScriptTypePurposeDict() : getScriptTypePurposeDict()
         if (!scripttypegroup.checkedButton.scripttype in p)
             return
         if (!bitcoin.verifyDerivationPath(derivationpathtext.text))
             return
+
+        if (isMultisig && cosigner) {
+            apply()
+            if (wiz.hasDuplicateMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: duplicate master public key')
+                return
+            } else if (wiz.hasHeterogeneousMasterKeys(wizard_data)) {
+                validationtext.text = qsTr('Error: master public key types do not match')
+                return
+            }
+        }
         valid = true
     }
 
@@ -116,19 +129,24 @@ WizardComponent {
                 property string scripttype: 'p2sh'
                 text: qsTr('legacy multisig (p2sh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2sh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2sh' : false
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh-p2sh'
                 text: qsTr('p2sh-segwit multisig (p2wsh-p2sh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2wsh-p2sh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2wsh-p2sh' : false
             }
             RadioButton {
                 ButtonGroup.group: scripttypegroup
                 property string scripttype: 'p2wsh'
-                checked: isMultisig
                 text: qsTr('native segwit multisig (p2wsh)')
                 visible: isMultisig
+                enabled: !cosigner || wizard_data['script_type'] == 'p2wsh'
+                checked: cosigner ? wizard_data['script_type'] == 'p2wsh' : isMultisig
             }
 
             InfoTextArea {
@@ -146,6 +164,13 @@ WizardComponent {
                 Layout.fillWidth: true
                 Layout.leftMargin: constants.paddingMedium
                 onTextChanged: validate()
+            }
+
+            InfoTextArea {
+                id: validationtext
+                Layout.fillWidth: true
+                visible: text
+                iconStyle: InfoTextArea.IconStyle.Error
             }
 
             Pane {
@@ -199,6 +224,7 @@ WizardComponent {
             participants = wizard_data['multisig_participants']
             if ('multisig_current_cosigner' in wizard_data)
                 cosigner = wizard_data['multisig_current_cosigner']
+            validate()
         }
     }
 }

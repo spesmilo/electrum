@@ -132,14 +132,14 @@ class Plugins(DaemonThread):
         self.remove_jobs(plugin.thread_jobs())
 
     def enable(self, name: str) -> 'BasePlugin':
-        self.config.set_key('use_' + name, True, True)
+        self.config.set_key('use_' + name, True, save=True)
         p = self.get(name)
         if p:
             return p
         return self.load_plugin(name)
 
     def disable(self, name: str) -> None:
-        self.config.set_key('use_' + name, False, True)
+        self.config.set_key('use_' + name, False, save=True)
         p = self.get(name)
         if not p:
             return
@@ -786,11 +786,15 @@ class DeviceMgr(ThreadJob):
             except AttributeError:
                 ret["libusb.path"] = None
         # add hidapi
-        from importlib.metadata import version
         try:
-            ret["hidapi.version"] = version("hidapi")  # FIXME does not work in macOS binary
-        except ImportError:
-            ret["hidapi.version"] = None
+            import hid
+            ret["hidapi.version"] = hid.__version__  # available starting with 0.12.0.post2
+        except Exception as e:
+            from importlib.metadata import version
+            try:
+                ret["hidapi.version"] = version("hidapi")
+            except ImportError:
+                ret["hidapi.version"] = None
         return ret
 
     def trigger_pairings(
