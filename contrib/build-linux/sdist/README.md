@@ -19,7 +19,9 @@ the source-only one, also includes:
 
 1. Install Docker
 
-    See `contrib/docker_notes.md`.
+    See [`contrib/docker_notes.md`](../../docker_notes.md).
+
+    (worth reading even if you already have docker)
 
 2. Build tarball
 
