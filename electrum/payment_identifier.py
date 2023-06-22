@@ -20,6 +20,7 @@ from .lnutil import IncompatibleOrInsaneFeatures
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
+    from .transaction import Transaction
 
 
 def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
@@ -31,10 +32,6 @@ def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     if data.startswith('ln'):
         return data
     return None
-
-# URL decode
-#_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
-#urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
 
 # note: when checking against these, use .lower() to support case-insensitivity
@@ -183,6 +180,7 @@ class PaymentIdentifierState(IntEnum):
     ERROR           = 50 # generic error
     NOT_FOUND       = 51 # PI contains a recognized destination format, but resolve step was unsuccesful
     MERCHANT_ERROR  = 52 # PI failed notifying the merchant after broadcasting onchain TX
+    INVALID_AMOUNT  = 53 # Specified amount not accepted
 
 
 class PaymentIdentifier(Logger):
@@ -250,6 +248,9 @@ class PaymentIdentifier(Logger):
 
     def is_valid(self):
         return self._state not in [PaymentIdentifierState.INVALID, PaymentIdentifierState.EMPTY]
+
+    def is_available(self):
+        return self._state in [PaymentIdentifierState.AVAILABLE]
 
     def is_lightning(self):
         return self.lnurl or self.bolt11
@@ -445,22 +446,23 @@ class PaymentIdentifier(Logger):
             if not (self.lnurl_data.min_sendable_sat <= amount_sat <= self.lnurl_data.max_sendable_sat):
                 self.error = _('Amount must be between %d and %d sat.') \
                     % (self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
+                self.set_state(PaymentIdentifierState.INVALID_AMOUNT)
                 return
+
             if self.lnurl_data.comment_allowed == 0:
                 comment = None
             params = {'amount': amount_sat * 1000}
             if comment:
                 params['comment'] = comment
+
             try:
-                invoice_data = await callback_lnurl(
-                    self.lnurl_data.callback_url,
-                    params=params,
-                )
+                invoice_data = await callback_lnurl(self.lnurl_data.callback_url, params=params)
             except LNURLError as e:
                 self.error = f"LNURL request encountered error: {e}"
+                self.set_state(PaymentIdentifierState.ERROR)
                 return
+
             bolt11_invoice = invoice_data.get('pr')
-            #
             invoice = Invoice.from_bech32(bolt11_invoice)
             if invoice.get_amount_sat() != amount_sat:
                 raise Exception("lnurl returned invoice with wrong amount")

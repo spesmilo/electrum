@@ -5,21 +5,19 @@ from urllib.parse import urlparse
 
 from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject, Q_ENUMS, QTimer
 
-from electrum import bitcoin
-from electrum import lnutil
 from electrum.i18n import _
-from electrum.invoices import Invoice
-from electrum.invoices import (PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
+from electrum.logging import get_logger
+from electrum.invoices import (Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
                                PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
 from electrum.lnaddr import LnInvoiceException
-from electrum.logging import get_logger
 from electrum.transaction import PartialTxOutput
-from electrum.util import (parse_URI, InvalidBitcoinURI, InvoiceError,
-                           maybe_extract_lightning_payment_identifier, get_asyncio_loop)
-from electrum.lnutil import format_short_channel_id
+from electrum.util import InvoiceError, get_asyncio_loop
+from electrum.lnutil import format_short_channel_id, IncompatibleOrInsaneFeatures
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
+from electrum.payment_identifier import (parse_bip21_URI, InvalidBitcoinURI, maybe_extract_lightning_payment_identifier,
+                                         PaymentIdentifier, PaymentIdentifierState)
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -249,7 +247,8 @@ class QEInvoice(QObject, QtEventListener):
         }
 
     def name_for_node_id(self, node_id):
-        return self._wallet.wallet.lnworker.get_node_alias(node_id) or node_id.hex()
+        lnworker = self._wallet.wallet.lnworker
+        return (lnworker.get_node_alias(node_id) if lnworker else None) or node_id.hex()
 
     def set_effective_invoice(self, invoice: Invoice):
         self._effectiveInvoice = invoice
@@ -406,13 +405,11 @@ class QEInvoiceParser(QEInvoice):
     lnurlRetrieved = pyqtSignal()
     lnurlError = pyqtSignal([str,str], arguments=['code', 'message'])
 
-    _bip70PrResolvedSignal = pyqtSignal([PaymentRequest], arguments=['pr'])
-
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self._recipient = ''
-        self._bip70PrResolvedSignal.connect(self._bip70_payment_request_resolved)
+        self._pi = None
 
         self.clear()
 
@@ -493,79 +490,54 @@ class QEInvoiceParser(QEInvoice):
             self.setInvoiceType(QEInvoice.Type.Invalid)
             return
 
-        maybe_lightning_invoice = recipient
-
-        try:
-            bip21 = parse_URI(recipient, lambda pr: self._bip70PrResolvedSignal.emit(pr))
-            if bip21:
-                if 'r' in bip21 or ('name' in bip21 and 'sig' in bip21): # TODO set flag in util?
-                    # let callback handle state
-                    return
-                if ':' not in recipient:
-                    # address only
-                    # create bare invoice
-                    outputs = [PartialTxOutput.from_address_and_value(bip21['address'], 0)]
-                    invoice = self.create_onchain_invoice(outputs, None, None, None)
-                    self._logger.debug(repr(invoice))
-                    self.setValidOnchainInvoice(invoice)
-                    self.validationSuccess.emit()
-                    return
-                else:
-                    # fallback lightning invoice?
-                    if 'lightning' in bip21:
-                        maybe_lightning_invoice = bip21['lightning']
-        except InvalidBitcoinURI as e:
-            bip21 = None
-
-        lninvoice = None
-        maybe_lightning_invoice = maybe_extract_lightning_payment_identifier(maybe_lightning_invoice)
-        if maybe_lightning_invoice is not None:
-            if maybe_lightning_invoice.startswith('lnurl'):
-                self.resolve_lnurl(maybe_lightning_invoice)
-                return
-            try:
-                lninvoice = Invoice.from_bech32(maybe_lightning_invoice)
-            except InvoiceError as e:
-                e2 = e.__cause__
-                if isinstance(e2, LnInvoiceException):
-                    self.validationError.emit('unknown', _("Error parsing Lightning invoice") + f":\n{e2}")
-                    self.clear()
-                    return
-                if isinstance(e2, lnutil.IncompatibleOrInsaneFeatures):
-                    self.validationError.emit('unknown', _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e2!r}")
-                    self.clear()
-                    return
-                self._logger.exception(repr(e))
-
-        if not lninvoice and not bip21:
-            self.validationError.emit('unknown',_('Unknown invoice'))
-            self.clear()
+        self._pi = PaymentIdentifier(self._wallet.wallet, recipient)
+        if not self._pi.is_valid() or self._pi.type not in ['spk', 'bip21', 'bip70', 'bolt11', 'lnurl']:
+            self.validationError.emit('unknown', _('Unknown invoice'))
             return
 
-        if lninvoice:
-            if not self._wallet.wallet.has_lightning():
-                if not bip21:
-                    if lninvoice.get_address():
-                        self.setValidLightningInvoice(lninvoice)
-                        self.validationSuccess.emit()
-                    else:
-                        self.validationError.emit('no_lightning',_('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
-                else:
-                    self._logger.debug('flow with LN but not LN enabled AND having bip21 uri')
-                    self._validateRecipient_bip21_onchain(bip21)
-            else:
-                if not self._wallet.wallet.lnworker.channels:
-                    if bip21 and 'address' in bip21:
-                        self._logger.debug('flow where invoice has both LN and onchain, we have LN enabled but no channels')
-                        self._validateRecipient_bip21_onchain(bip21)
-                    else:
-                        self.validationWarning.emit('no_channels',_('Detected valid Lightning invoice, but there are no open channels'))
-                else:
+        self._update_from_payment_identifier()
+
+    def _update_from_payment_identifier(self):
+        if self._pi.need_resolve():
+            self.resolve_pi()
+            return
+
+        if self._pi.type == 'lnurl':
+            self.on_lnurl(self._pi.lnurl_data)
+            return
+
+        if self._pi.type == 'bip70':
+            self._bip70_payment_request_resolved(self._pi.bip70_data)
+            return
+
+        if self._pi.is_available():
+            if self._pi.type == 'spk':
+                outputs = [PartialTxOutput(scriptpubkey=self._pi.spk, value=0)]
+                invoice = self.create_onchain_invoice(outputs, None, None, None)
+                self._logger.debug(repr(invoice))
+                self.setValidOnchainInvoice(invoice)
+                self.validationSuccess.emit()
+                return
+            elif self._pi.type == 'bolt11':
+                lninvoice = Invoice.from_bech32(self._pi.bolt11)
+                if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
+                    self.validationError.emit('no_lightning',
+                        _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
+                    return
+                if self._wallet.wallet.lnworker and not self._wallet.wallet.lnworker.channels:
+                    self.validationWarning.emit('no_channels',
+                        _('Detected valid Lightning invoice, but there are no open channels'))
+
+                self.setValidLightningInvoice(lninvoice)
+                self.validationSuccess.emit()
+            elif self._pi.type == 'bip21':
+                if self._wallet.wallet.has_lightning() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
+                    lninvoice = Invoice.from_bech32(self._pi.bolt11)
                     self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()
-        else:
-            self._logger.debug('flow without LN but having bip21 uri')
-            self._validateRecipient_bip21_onchain(bip21)
+                else:
+                    self._validateRecipient_bip21_onchain(self._pi.bip21)
+
 
     def _validateRecipient_bip21_onchain(self, bip21: Dict[str, Any]) -> None:
         if 'amount' not in bip21:
@@ -580,20 +552,15 @@ class QEInvoiceParser(QEInvoice):
         self.setValidOnchainInvoice(invoice)
         self.validationSuccess.emit()
 
-    def resolve_lnurl(self, lnurl):
-        self._logger.debug('resolve_lnurl')
-        url = decode_lnurl(lnurl)
-        self._logger.debug(f'{repr(url)}')
+    def resolve_pi(self):
+        assert self._pi.need_resolve()
+        def on_finished(pi):
+            if pi.is_error():
+                pass
+            else:
+                self._update_from_payment_identifier()
 
-        def resolve_task():
-            try:
-                coro = request_lnurl(url)
-                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
-                self.on_lnurl(fut.result())
-            except Exception as e:
-                self.validationError.emit('lnurl', repr(e))
-
-        threading.Thread(target=resolve_task, daemon=True).start()
+        self._pi.resolve(on_finished=on_finished)
 
     def on_lnurl(self, lnurldata):
         self._logger.debug('on_lnurl')
@@ -610,49 +577,39 @@ class QEInvoiceParser(QEInvoice):
         self.setValidLNURLPayRequest()
         self.lnurlRetrieved.emit()
 
-    @pyqtSlot('quint64')
-    @pyqtSlot('quint64', str)
-    def lnurlGetInvoice(self, amount, comment=None):
+    @pyqtSlot()
+    @pyqtSlot(str)
+    def lnurlGetInvoice(self, comment=None):
         assert self._lnurlData
+        assert self._pi.need_finalize()
         self._logger.debug(f'{repr(self._lnurlData)}')
 
         amount = self.amountOverride.satsInt
-        if self.lnurlData['min_sendable_sat'] != 0:
-            try:
-                assert amount >= self.lnurlData['min_sendable_sat']
-                assert amount <= self.lnurlData['max_sendable_sat']
-            except Exception:
-                self.lnurlError.emit('amount', _('Amount out of bounds'))
-                return
 
         if self._lnurlData['comment_allowed'] == 0:
             comment = None
 
-        self._logger.debug(f'fetching callback url {self._lnurlData["callback_url"]}')
-        def fetch_invoice_task():
-            try:
-                params = { 'amount': amount * 1000 }
-                if comment:
-                    params['comment'] = comment
-                coro = callback_lnurl(self._lnurlData['callback_url'], params)
-                fut = asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
-                self.on_lnurl_invoice(amount, fut.result())
-            except Exception as e:
-                self._logger.error(repr(e))
-                self.lnurlError.emit('lnurl', str(e))
+        def on_finished(pi):
+            if pi.is_error():
+                if pi.is_state(PaymentIdentifierState.INVALID_AMOUNT):
+                    self.lnurlError.emit('amount', pi.get_error())
+                else:
+                    self.lnurlError.emit('lnurl', pi.get_error())
+            else:
+                self.on_lnurl_invoice(self.amountOverride.satsInt, pi.bolt11)
 
-        threading.Thread(target=fetch_invoice_task, daemon=True).start()
+        self._pi.finalize(amount_sat=amount, comment=comment, on_finished=on_finished)
 
     def on_lnurl_invoice(self, orig_amount, invoice):
         self._logger.debug('on_lnurl_invoice')
         self._logger.debug(f'{repr(invoice)}')
 
         # assure no shenanigans with the bolt11 invoice we get back
-        lninvoice = Invoice.from_bech32(invoice['pr'])
-        if orig_amount * 1000 != lninvoice.amount_msat:
+        lninvoice = Invoice.from_bech32(invoice)
+        if orig_amount * 1000 != lninvoice.amount_msat: # TODO msat precision can cause trouble here
             raise Exception('Unexpected amount in invoice, differs from lnurl-pay specified amount')
 
-        self.recipient = invoice['pr']
+        self.recipient = invoice
 
     @pyqtSlot()
     def saveInvoice(self):
