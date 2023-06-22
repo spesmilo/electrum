@@ -118,7 +118,7 @@ python3 -m pip install --no-build-isolation --no-dependencies --no-binary :all: 
     || fail "Could not install build dependencies (mac)"
 
 info "Installing some build-time deps for compilation..."
-brew install autoconf automake libtool gettext coreutils pkgconfig
+brew install autoconf automake libtool gettext coreutils pkgconfig swig
 
 info "Building PyInstaller."
 PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
@@ -154,54 +154,6 @@ PYINSTALLER_COMMIT="413cce49ff28d87fad4472f4953489226ec90c84"
 info "Installing PyInstaller."
 python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
 
-
-info "DEBUG SATOCHIP START"
-
-info "Installing some build-time deps for compilation..."
-brew install autoconf automake libtool gettext coreutils pkgconfig
-
-
-info "Building PyInstaller."
-PYINSTALLER_REPO="https://github.com/pyinstaller/pyinstaller.git"
-PYINSTALLER_COMMIT="40c9abce2d8de879e414fd377c933dccaab1e156"
-# ^ tag "4.2"
-# TODO test newer versions of pyinstaller for build-reproducibility.
-#      we are using this version for now due to change in code-signing behaviour
-#      (https://github.com/pyinstaller/pyinstaller/pull/5581)
-(
-    if [ -f "$CACHEDIR/pyinstaller/PyInstaller/bootloader/Darwin-64bit/runw" ]; then
-        info "pyinstaller already built, skipping"
-        exit 0
-    fi
-    cd "$PROJECT_ROOT"
-    ELECTRUM_COMMIT_HASH=$(git rev-parse HEAD)
-    cd "$CACHEDIR"
-    rm -rf pyinstaller
-    mkdir pyinstaller
-    cd pyinstaller
-    # Shallow clone
-    git init
-    git remote add origin $PYINSTALLER_REPO
-    git fetch --depth 1 origin $PYINSTALLER_COMMIT
-    git checkout -b pinned "${PYINSTALLER_COMMIT}^{commit}"
-    rm -fv PyInstaller/bootloader/Darwin-*/run* || true
-    # add reproducible randomness. this ensures we build a different bootloader for each commit.
-    # if we built the same one for all releases, that might also get anti-virus false positives
-    echo "const char *electrum_tag = \"tagged by Electrum@$ELECTRUM_COMMIT_HASH\";" >> ./bootloader/src/pyi_main.c
-    pushd bootloader
-    # compile bootloader
-    python3 ./waf all CFLAGS="-static"
-    popd
-    # sanity check bootloader is there:
-    [[ -e "PyInstaller/bootloader/Darwin-64bit/runw" ]] || fail "Could not find runw in target dir!"
-    rm pyinstaller.py  # workaround for https://github.com/pyinstaller/pyinstaller/pull/6701
-) || fail "PyInstaller build failed"
-info "Installing PyInstaller."
-python3 -m pip install --no-build-isolation --no-dependencies --no-warn-script-location "$CACHEDIR/pyinstaller"
-
-
-info "DEBUG SATOCHIP END"
-
 info "Using these versions for building $PACKAGE:"
 sw_vers
 python3 --version
@@ -223,9 +175,6 @@ info "generating locale"
     rm -rf "$LOCALE"
     "$CONTRIB/build_locale.sh" "$CONTRIB/deterministic-build/electrum-locale/locale/" "$LOCALE"
 ) || fail "failed generating locale"
-
-info "Installing some build-time deps for compilation..."
-brew install swig
 
 if [ ! -f "$DLL_TARGET_DIR/libsecp256k1.2.dylib" ]; then
     info "Building libsecp256k1 dylib..."
