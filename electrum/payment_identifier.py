@@ -225,8 +225,7 @@ class PaymentIdentifier(Logger):
         #
         self.lnurl = None
         self.lnurl_data = None
-        # parse without network
-        self.logger.debug(f'PI parsing...')
+
         self.parse(text)
 
     @property
@@ -236,6 +235,9 @@ class PaymentIdentifier(Logger):
     def set_state(self, state: 'PaymentIdentifierState'):
         self.logger.debug(f'PI state {self._state} -> {state}')
         self._state = state
+
+    def is_state(self, state: 'PaymentIdentifierState'):
+        return self._state == state
 
     def need_resolve(self):
         return self._state == PaymentIdentifierState.NEED_RESOLVE
@@ -268,10 +270,9 @@ class PaymentIdentifier(Logger):
         elif self._type == 'bolt11':
             lnaddr = lndecode(self.bolt11)
             return bool(lnaddr.amount)
-        elif self._type == 'lnurl':
+        elif self._type == 'lnurl' or self._type == 'lightningaddress':
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
-                self.logger.debug(f'lnurl r')
                 return True
             if self.need_finalize():
                 self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_sat}-{self.lnurl_data.max_sendable_sat}')
@@ -279,6 +280,10 @@ class PaymentIdentifier(Logger):
             return True
         elif self._type == 'multiline':
             return True
+        elif self._type == 'emaillike':
+            return False
+        elif self._type == 'openalias':
+            return False
 
     def is_error(self) -> bool:
         return self._state >= PaymentIdentifierState.ERROR
@@ -394,11 +399,15 @@ class PaymentIdentifier(Logger):
                     lnurl = lightning_address_to_url(self.emaillike)
                     try:
                         data = await request_lnurl(lnurl)
+                        self._type = 'lightningaddress'
                         self.lnurl = lnurl
                         self.lnurl_data = data
                         self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)
                     except LNURLError as e:
-                        self.error = str(e)
+                        self.set_state(PaymentIdentifierState.NOT_FOUND)
+                    except Exception as e:
+                        # NOTE: any other exception is swallowed here (e.g. DNS error)
+                        # as the user may be typing and we have an incomplete emaillike
                         self.set_state(PaymentIdentifierState.NOT_FOUND)
             elif self.bip70:
                 from . import paymentrequest
@@ -554,7 +563,7 @@ class PaymentIdentifier(Logger):
         except Exception as e:
             pass
 
-        raise Exception("Invalid address or script.")
+        # raise Exception("Invalid address or script.")
 
     def parse_script(self, x):
         script = ''
@@ -658,7 +667,6 @@ class PaymentIdentifier(Logger):
         amount = lnaddr.get_amount_sat()
         return pubkey, amount, description
 
-    # TODO: rename to resolve_emaillike to disambiguate
     async def resolve_openalias(self) -> Optional[dict]:
         key = self.emaillike
         # TODO: below check needed? we already matched RE_EMAIL

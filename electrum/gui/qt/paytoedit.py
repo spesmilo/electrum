@@ -26,13 +26,12 @@
 from functools import partial
 from typing import NamedTuple, Sequence, Optional, List, TYPE_CHECKING
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtGui import QFontMetrics, QFont
-from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QTextEdit, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QTextEdit, QVBoxLayout
 
 from electrum.i18n import _
-from electrum.util import parse_max_spend
 from electrum.payment_identifier import PaymentIdentifier
 from electrum.logging import Logger
 
@@ -42,7 +41,6 @@ from . import util
 from .util import MONOSPACE_FONT, GenericInputHandler, editor_contextMenuEvent
 
 if TYPE_CHECKING:
-    from .main_window import ElectrumWindow
     from .send_tab import SendTab
 
 
@@ -97,7 +95,7 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
         GenericInputHandler.__init__(self)
 
         self.text_edit = ResizingTextEdit()
-        self.text_edit.textChanged.connect(self._on_text_edit_text_changed)
+        self.text_edit.textChanged.connect(self._handle_text_change)
         self._is_paytomany = False
         self.text_edit.setFont(QFont(MONOSPACE_FONT))
         self.send_tab = send_tab
@@ -138,6 +136,11 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
 
         self.text_edit.contextMenuEvent = partial(editor_contextMenuEvent, self.text_edit, self)
 
+        self.edit_timer = QTimer(self)
+        self.edit_timer.setSingleShot(True)
+        self.edit_timer.setInterval(1000)
+        self.edit_timer.timeout.connect(self._on_edit_timer)
+
         self.payment_identifier = None
 
     def set_text(self, text: str):
@@ -167,7 +170,6 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
 
         # toggle to multiline if payment identifier is a multiline
         self.is_multiline = self.payment_identifier.is_multiline()
-        self.logger.debug(f'is_multiline {self.is_multiline}')
         if self.is_multiline and not self._is_paytomany:
             self.set_paytomany(True)
 
@@ -209,18 +211,25 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
     def setExpired(self):
         self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
-    def _on_text_edit_text_changed(self):
-        self._handle_text_change(self.text_edit.toPlainText())
-
-    def _handle_text_change(self, text):
+    def _handle_text_change(self):
         if self.isFrozen():
             # if editor is frozen, we ignore text changes as they might not be a payment identifier
             # but a user friendly representation.
             return
 
-        self.set_payment_identifier(text)
-        if self.app.clipboard().text() and self.app.clipboard().text().strip() == self.payment_identifier.text:
-            # user pasted from clipboard
-            self.logger.debug('from clipboard')
-            if self.payment_identifier.error:
-                self.send_tab.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + self.payment_identifier.error)
+        # pushback timer if timer active or PI needs resolving
+        pi = PaymentIdentifier(self.send_tab.wallet, self.text_edit.toPlainText())
+        if pi.need_resolve() or self.edit_timer.isActive():
+            self.edit_timer.start()
+        else:
+            self.set_payment_identifier(self.text_edit.toPlainText())
+
+        # self.set_payment_identifier(text)
+        # if self.app.clipboard().text() and self.app.clipboard().text().strip() == self.payment_identifier.text:
+        #     # user pasted from clipboard
+        #     self.logger.debug('from clipboard')
+        #     if self.payment_identifier.error:
+        #         self.send_tab.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + self.payment_identifier.error)
+
+    def _on_edit_timer(self):
+        self.set_payment_identifier(self.text_edit.toPlainText())

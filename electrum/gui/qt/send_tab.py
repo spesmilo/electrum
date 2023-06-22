@@ -2,22 +2,21 @@
 # Distributed under the MIT software license, see the accompanying
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
-import asyncio
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING, Sequence, List, Callable
 from PyQt5.QtCore import pyqtSignal, QPoint
 from PyQt5.QtWidgets import (QLabel, QVBoxLayout, QGridLayout, QHBoxLayout,
                              QWidget, QToolTip, QPushButton, QApplication)
 
-from electrum.plugin import run_hook
 from electrum.i18n import _
+from electrum.logging import Logger
 
+from electrum.plugin import run_hook
 from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
-
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.logging import Logger
+from electrum.payment_identifier import PaymentIdentifierState
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -73,7 +72,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 0, 0)
-        # grid.addWidget(self.payto_e.line_edit, 0, 1, 1, 4)
         grid.addWidget(self.payto_e.text_edit, 0, 1, 1, 4)
 
         #completer = QCompleter()
@@ -190,8 +188,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def on_amount_changed(self, text):
         # FIXME: implement full valid amount check to enable/disable Pay button
         pi_valid = self.payto_e.payment_identifier.is_valid() if self.payto_e.payment_identifier else False
-        self.send_button.setEnabled(bool(self.amount_e.get_amount()) and pi_valid)
-
+        pi_error = self.payto_e.payment_identifier.is_error() if pi_valid else False
+        self.send_button.setEnabled(bool(self.amount_e.get_amount()) and pi_valid and not pi_error)
 
     def do_paste(self):
         try:
@@ -324,7 +322,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         run_hook('do_clear', self)
 
     def prepare_for_send_tab_network_lookup(self):
-        self.window.show_send_tab()
+        self.window.show_send_tab() # FIXME why is this here
         #for e in [self.payto_e, self.message_e]:
         # self.payto_e.setFrozen(True)
         for btn in [self.save_button, self.send_button, self.clear_button]:
@@ -367,16 +365,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
     def update_fields(self):
         pi = self.payto_e.payment_identifier
 
+        self.clear_button.setEnabled(True)
+
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
-            self.set_field_style(self.payto_e, pi.multiline_outputs, False if not pi.is_valid() else None)
+            self.set_field_style(self.payto_e, True if not pi.is_valid() else None, False)
             self.save_button.setEnabled(pi.is_valid())
             self.send_button.setEnabled(pi.is_valid())
+            self.payto_e.setToolTip(pi.get_error() if not pi.is_valid() else '')
             if pi.is_valid():
                 self.handle_multiline(pi.multiline_outputs)
-            else:
-                # self.payto_e.setToolTip('\n'.join(list(map(lambda x: f'{x.idx}: {x.line_content}', pi.get_error()))))
-                self.payto_e.setToolTip(pi.get_error())
             return
 
         if not pi.is_valid():
@@ -385,10 +383,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.send_button.setEnabled(False)
             return
 
-        lock_recipient = pi.type != 'spk'
+        lock_recipient = pi.type != 'spk' \
+                         and not (pi.type == 'emaillike' and pi.is_state(PaymentIdentifierState.NOT_FOUND))
+        lock_max = pi.is_amount_locked() \
+                   or pi.type in ['bolt11', 'lnurl', 'lightningaddress']
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=pi.is_amount_locked(),
-                         lock_max=pi.is_amount_locked(),
+                         lock_max=lock_max,
                          lock_description=False)
         if lock_recipient:
             recipient, amount, description, comment, validated = pi.get_fields_for_GUI()
@@ -406,16 +407,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.set_field_style(self.amount_e, amount, validated)
             self.set_field_style(self.fiat_send_e, amount, validated)
 
-        self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired())
-        self.save_button.setEnabled(True)
+        self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
+        self.save_button.setEnabled(not pi.is_error())
 
     def _handle_payment_identifier(self):
-        is_valid = self.payto_e.payment_identifier.is_valid()
-        self.logger.debug(f'handle PI, valid={is_valid}')
-
         self.update_fields()
 
-        if not is_valid:
+        if not self.payto_e.payment_identifier.is_valid():
             self.logger.debug(f'PI error: {self.payto_e.payment_identifier.error}')
             return
 
@@ -424,16 +422,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.payto_e.payment_identifier.resolve(on_finished=self.resolve_done_signal.emit)
         # update fiat amount (and reset max)
         self.amount_e.textEdited.emit("")
-        self.window.show_send_tab()
+        self.window.show_send_tab() # FIXME: why is this here?
 
     def on_resolve_done(self, pi):
-        if self.payto_e.payment_identifier.error:
-            self.show_error(self.payto_e.payment_identifier.error)
+        # TODO: resolve can happen while typing, we don't want message dialogs to pop up
+        # currently we don't set error for emaillike recipients to avoid just that
+        if pi.error:
+            self.show_error(pi.error)
             self.do_clear()
             return
         self.update_fields()
-        for btn in [self.send_button, self.clear_button, self.save_button]:
-            btn.setEnabled(True)
+        # for btn in [self.send_button, self.clear_button, self.save_button]:
+        #     btn.setEnabled(True)
 
     def get_message(self):
         return self.message_e.text()
@@ -447,7 +447,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         invoice = self.payto_e.payment_identifier.get_invoice(amount_sat, self.get_message())
-        #except Exception as e:
         if not invoice:
             self.show_error('error getting invoice' + self.payto_e.payment_identifier.error)
             return
@@ -526,8 +525,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.pay_onchain_dialog(invoice.outputs)
 
     def read_amount(self) -> List[PartialTxOutput]:
-        is_max = self.max_button.isChecked()
-        amount = '!' if is_max else self.get_amount()
+        amount = '!' if self.max_button.isChecked() else self.get_amount()
         return amount
 
     def check_onchain_outputs_and_show_errors(self, outputs: List[PartialTxOutput]) -> bool:
