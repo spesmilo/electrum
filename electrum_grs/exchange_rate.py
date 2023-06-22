@@ -262,15 +262,6 @@ class CryptoCompare(ExchangeBase):
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
 
-class Huobi(ExchangeBase):
-
-    async def get_rates(self, ccy):
-        json1 = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
-        if ccy != "BTC":
-            json2 = await self.get_json('api.coingecko.com', '/api/v3/simple/price?ids=bitcoin&vs_currencies=%s' % ccy)
-            return {ccy: to_decimal(json1['tick']['data'][0]['price'])*to_decimal(json2['bitcoin'][ccy.lower()])}
-        return {ccy: to_decimal(json1['tick']['data'][0]['price'])}
-
 class Upbit(ExchangeBase):
 
     async def get_rates(self, ccy):
