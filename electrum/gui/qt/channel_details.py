@@ -5,7 +5,7 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import QLabel, QLineEdit, QHBoxLayout, QGridLayout
 
-from electrum.util import EventListener
+from electrum.util import EventListener, ShortID
 from electrum.i18n import _
 from electrum.util import format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
@@ -181,9 +181,10 @@ class ChannelDetailsDialog(QtWidgets.QDialog, MessageBoxMixin, QtEventListener):
         channel_id_e = ShowQRLineEdit(chan.channel_id.hex(), self.window.config, title=_("Channel ID"))
         form.addRow(QLabel(_('Channel ID') + ':'), channel_id_e)
         form.addRow(QLabel(_('Short Channel ID') + ':'), QLabel(str(chan.short_channel_id)))
-        alias = chan.get_remote_alias()
-        if alias:
-            form.addRow(QLabel(_('Alias') + ':'), QLabel('0x'+alias.hex()))
+        if local_scid_alias := chan.get_local_scid_alias():
+            form.addRow(QLabel('Local SCID Alias:'), QLabel(str(ShortID(local_scid_alias))))
+        if remote_scid_alias := chan.get_remote_scid_alias():
+            form.addRow(QLabel('Remote SCID Alias:'), QLabel(str(ShortID(remote_scid_alias))))
         form.addRow(QLabel(_('State') + ':'), SelectableLabel(chan.get_state_for_GUI()))
         self.capacity = self.format_sat(chan.get_capacity())
         form.addRow(QLabel(_('Capacity') + ':'), SelectableLabel(self.capacity))
