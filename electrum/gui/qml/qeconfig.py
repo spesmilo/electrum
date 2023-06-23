@@ -223,6 +223,15 @@ class QEConfig(AuthMixin, QObject):
             self.config.set_key('user_knows_press_and_hold', userKnowsPressAndHold)
             self.userKnowsPressAndHoldChanged.emit()
 
+    @pyqtSlot('qint64', result=str)
+    @pyqtSlot(QEAmount, result=str)
+    def formatSatsForEditing(self, satoshis):
+        if isinstance(satoshis, QEAmount):
+            satoshis = satoshis.satsInt
+        return self.config.format_amount(
+            satoshis,
+            add_thousands_sep=False,
+        )
 
     @pyqtSlot('qint64', result=str)
     @pyqtSlot('qint64', bool, result=str)
