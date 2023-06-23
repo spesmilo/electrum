@@ -85,7 +85,7 @@ def bech32_encode(encoding: Encoding, hrp: str, data: List[int]) -> str:
     return hrp + '1' + ''.join([CHARSET[d] for d in combined])
 
 
-def bech32_decode(bech: str, *, ignore_long_length=False) -> DecodedBech32:
+def bech32_decode(bech: str, *, ignore_long_length=False, with_checksum=True) -> DecodedBech32:
     """Validate a Bech32/Bech32m string, and determine HRP and data."""
     bech_lower = bech.lower()
     if bech_lower != bech and bech.upper() != bech:
@@ -102,6 +102,8 @@ def bech32_decode(bech: str, *, ignore_long_length=False) -> DecodedBech32:
         data = [_CHARSET_INVERSE[x] for x in bech[pos+1:]]
     except KeyError:
         return DecodedBech32(None, None, None)
+    if not with_checksum:
+        return DecodedBech32(encoding=None, hrp=hrp, data=data)
     encoding = bech32_verify_checksum(hrp, data)
     if encoding is None:
         return DecodedBech32(None, None, None)

@@ -168,6 +168,26 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
     return hop_shared_secrets
 
 
+def get_shared_secrets_along_route2(payment_path_pubkeys: Sequence[Union[bytes, Tuple[bytes, bytes]]],
+                                    session_key: bytes) -> Sequence[bytes]:
+    num_hops = len(payment_path_pubkeys)
+    hop_shared_secrets = num_hops * [b'']
+    ephemeral_key = session_key
+    # compute shared key for each hop
+    for i in range(0, num_hops):
+        if isinstance(payment_path_pubkeys[i], tuple):
+            ephemeral_key = payment_path_pubkeys[i][1]
+            payment_path_pubkeys[i] = payment_path_pubkeys[i][0]
+        hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
+        ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
+        blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
+        blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+        ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
+        ephemeral_key_int = ephemeral_key_int * blinding_factor_int % ecc.CURVE_ORDER
+        ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
+    return hop_shared_secrets
+
+
 def new_onion_packet(
     payment_path_pubkeys: Sequence[bytes],
     session_key: bytes,
