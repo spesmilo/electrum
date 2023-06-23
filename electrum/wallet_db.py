@@ -43,6 +43,7 @@ from .transaction import Transaction, TxOutpoint, tx_from_any, PartialTransactio
 from .logging import Logger
 
 from .lnutil import LOCAL, REMOTE, HTLCOwner, ChannelType
+from . import json_db
 from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_in, stored_as
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
@@ -86,25 +87,25 @@ class DBMetadata(StoredObject):
 #       separate tracking issues
 class WalletFileExceptionVersion51(WalletFileException): pass
 
+# register dicts that require value conversions not handled by constructor
+json_db.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
+json_db.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
+json_db.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
+# register dicts that require key conversion
+for key in [
+        'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
+        'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
+    json_db.register_dict_key(key, int)
+for key in ['log']:
+    json_db.register_dict_key(key, lambda x: HTLCOwner(int(x)))
+for key in ['locked_in', 'fails', 'settles']:
+    json_db.register_parent_key(key, lambda x: HTLCOwner(int(x)))
+
 
 class WalletDB(JsonDB):
 
     def __init__(self, raw, *, manual_upgrades: bool):
         JsonDB.__init__(self, {})
-        # register dicts that require value conversions not handled by constructor
-        self.register_dict('transactions', lambda x: tx_from_any(x, deserialize=False), None)
-        self.register_dict('prevouts_by_scripthash', lambda x: set(tuple(k) for k in x), None)
-        self.register_dict('data_loss_protect_remote_pcp', lambda x: bytes.fromhex(x), None)
-        # register dicts that require key conversion
-        for key in [
-                'adds', 'locked_in', 'settles', 'fails', 'fee_updates', 'buckets',
-                'unacked_updates', 'unfulfilled_htlcs', 'fail_htlc_reasons', 'onion_keys']:
-            self.register_dict_key(key, int)
-        for key in ['log']:
-            self.register_dict_key(key, lambda x: HTLCOwner(int(x)))
-        for key in ['locked_in', 'fails', 'settles']:
-            self.register_parent_key(key, lambda x: HTLCOwner(int(x)))
-
         self._manual_upgrades = manual_upgrades
         self._called_after_upgrade_tasks = False
         if raw:  # loading existing db

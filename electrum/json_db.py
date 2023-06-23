@@ -50,6 +50,17 @@ registered_dicts = {}
 registered_dict_keys = {}
 registered_parent_keys = {}
 
+def register_dict(name, method, _type):
+    registered_dicts[name] = method, _type
+
+def register_name(name, method, _type):
+    registered_names[name] = method, _type
+
+def register_dict_key(name, method):
+    registered_dict_keys[name] = method
+
+def register_parent_key(name, method):
+    registered_parent_keys[name] = method
 
 def stored_as(name, _type=dict):
     """ decorator that indicates the storage key of a stored object"""
@@ -211,18 +222,6 @@ class JsonDB(Logger):
 
     def _should_convert_to_stored_dict(self, key) -> bool:
         return True
-
-    def register_dict(self, name, method, _type):
-        registered_dicts[name] = method, _type
-
-    def register_name(self, name, method, _type):
-        registered_names[name] = method, _type
-
-    def register_dict_key(self, name, method):
-        registered_dict_keys[name] = method
-
-    def register_parent_key(self, name, method):
-        registered_parent_keys[name] = method
 
     def _convert_dict(self, path, key, v):
         if key in registered_dicts:
