@@ -102,8 +102,8 @@ for key in ['locked_in', 'fails', 'settles']:
 
 class WalletDB(JsonDB):
 
-    def __init__(self, data, *, manual_upgrades: bool):
-        JsonDB.__init__(self, data)
+    def __init__(self, data, *, storage=None, manual_upgrades: bool):
+        JsonDB.__init__(self, data, storage)
         if not data:
             # create new DB
             self.put('seed_version', FINAL_SEED_VERSION)
@@ -1599,10 +1599,10 @@ class WalletDB(JsonDB):
         for data in result:
             path = root_path + '.' + data['suffix']
             storage = WalletStorage(path)
-            db = WalletDB(json.dumps(data), manual_upgrades=False)
+            db = WalletDB(json.dumps(data), storage=storage, manual_upgrades=False)
             db._called_after_upgrade_tasks = False
             db.upgrade()
-            db.write(storage)
+            db.write()
             out.append(path)
         return out
 

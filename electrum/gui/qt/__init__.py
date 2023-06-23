@@ -407,7 +407,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
                 wizard.run('new')
                 storage, db = wizard.create_storage(path)
             else:
-                db = WalletDB(storage.read(), manual_upgrades=False)
+                db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
                 wizard.run_upgrades(storage, db)
         except (UserCancelled, GoBack):
             return
@@ -418,7 +418,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         # return if wallet creation is not complete
         if storage is None or db.get_action():
             return
-        wallet = Wallet(db, storage, config=self.config)
+        wallet = Wallet(db, config=self.config)
         wallet.start_network(self.daemon.network)
         self.daemon.add_wallet(wallet)
         return wallet

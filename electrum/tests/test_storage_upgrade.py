@@ -270,7 +270,7 @@ class TestStorageUpgrade(WalletTestCase):
         # see #6066
         wallet_str = '''{"addr_history":{"bc1q0k4hemnmw5czyq7yyka5mpc3hvz37lk0urhd34":[],"bc1q2tgeuhkr85pjkrys44zn2a7lfap0g8u7ny68p3":[],"bc1q2xm8slpsqlt47u0j7segcsfmaq6s4s2pvx2526":[],"bc1q4dhwcvnnm8a0umt4gvn2tatq66qf9d37rx5t8u":[],"bc1q4pqe6tcfyl8m35myj9trz7fn4w0kdpljnt3sxd":[],"bc1q5l345sqf8fhlurn4hgu8dxu0w76j5tf3kc2f7h":[],"bc1q5nd447vdf9gx0l8xmj500wr859pny29xurgcpn":[],"bc1qaa2xnanrpmttw35gc4xqvz9ldz5sggqvc2ed72":[],"bc1qav4zrnx5g4s5h2z5hzr9hncg8qwt96ezltepmp":[],"bc1qcxryu22d3k66k4l55dzupvx45e88lmvp3rcww3":[],"bc1qd4us67486cn5qy44z6v6ervv5cuzrykq0vlcw2":[],"bc1qdd773rd9p8t3eylv2gvs2tmn2n79pwcfz65uyp":[],"bc1qdwafv8hy0cx9utkkj4hs6ntafm3x95m9zgpgvn":[],"bc1qehqt2um35x0c49snyugf94hvh7jz3vcjt0ya6m":[],"bc1qex23ueucc9hxyxgk3jg8ahw7cgw954legfnrxg":[],"bc1qf4tx5eesmrcy478gk384s2jv4lfh9dwt9jws0e":[],"bc1qh9l2au0f6m2fl3l3qa6perw5xnpvjul8lyylkt":[],"bc1qkmprcg50zcsdd0p3w70w2rxs5hwmwwn2xd0ls9":[],"bc1qkztpz05djsatmxxafgjqqldp0yfs8knr6um3e4":[],"bc1qrgj0zygryl6edylgm6gzx5j9rghdufrn5fp6hw":[],"bc1qscxh3na5uqapjm006xmg4s0geurq7nw427ywca":[],"bc1qunqye3f6cw88wqsjkks7amskder0rvufu49l6e":[],"bc1qv077qy5udlr3q8ammxq9ecq57vh9lxjnwh0vy9":[],"bc1qw9nqstryl3e0e49jg6670u6mu8507takz66qgv":[],"bc1qx4neqay68lmvgrav3yslzuempv9xn7aqdks5r6":[],"bc1qzhwpu84e5ajet4mxxr9ylc0fwass3q5k32uj5u":[]},"addresses":{"change":["bc1qdd773rd9p8t3eylv2gvs2tmn2n79pwcfz65uyp","bc1qv077qy5udlr3q8ammxq9ecq57vh9lxjnwh0vy9","bc1qx4neqay68lmvgrav3yslzuempv9xn7aqdks5r6","bc1qh9l2au0f6m2fl3l3qa6perw5xnpvjul8lyylkt","bc1qw9nqstryl3e0e49jg6670u6mu8507takz66qgv","bc1qaa2xnanrpmttw35gc4xqvz9ldz5sggqvc2ed72"],"receiving":["bc1qav4zrnx5g4s5h2z5hzr9hncg8qwt96ezltepmp","bc1qzhwpu84e5ajet4mxxr9ylc0fwass3q5k32uj5u","bc1qehqt2um35x0c49snyugf94hvh7jz3vcjt0ya6m","bc1q0k4hemnmw5czyq7yyka5mpc3hvz37lk0urhd34","bc1qf4tx5eesmrcy478gk384s2jv4lfh9dwt9jws0e","bc1q2xm8slpsqlt47u0j7segcsfmaq6s4s2pvx2526","bc1q5nd447vdf9gx0l8xmj500wr859pny29xurgcpn","bc1qex23ueucc9hxyxgk3jg8ahw7cgw954legfnrxg","bc1qscxh3na5uqapjm006xmg4s0geurq7nw427ywca","bc1qdwafv8hy0cx9utkkj4hs6ntafm3x95m9zgpgvn","bc1qkmprcg50zcsdd0p3w70w2rxs5hwmwwn2xd0ls9","bc1qunqye3f6cw88wqsjkks7amskder0rvufu49l6e","bc1q5l345sqf8fhlurn4hgu8dxu0w76j5tf3kc2f7h","bc1q4pqe6tcfyl8m35myj9trz7fn4w0kdpljnt3sxd","bc1qkztpz05djsatmxxafgjqqldp0yfs8knr6um3e4","bc1q4dhwcvnnm8a0umt4gvn2tatq66qf9d37rx5t8u","bc1q2tgeuhkr85pjkrys44zn2a7lfap0g8u7ny68p3","bc1qrgj0zygryl6edylgm6gzx5j9rghdufrn5fp6hw","bc1qd4us67486cn5qy44z6v6ervv5cuzrykq0vlcw2","bc1qcxryu22d3k66k4l55dzupvx45e88lmvp3rcww3"]},"keystore":{"cfg":{"mode":0,"pair":""},"derivation":"m/84'/0'/0'","hw_type":"ledger","label":"","type":"hardware","xpub":"zpub6qmVsnBYWipPzoeuZwtVeVnC42achPEZpGopT7jsop5WgDuFqKT3aS3EuAAQ6G76wbwtvDMdzffwxyEtwa6iafXSgjW2RjraiXfsgxQHnz8"},"seed_version":18,"spent_outpoints":{},"stored_height":646576,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[168,276,840,400]}'''
         db = await self._upgrade_storage(wallet_str)
-        wallet = Wallet(db, None, config=self.config)
+        wallet = Wallet(db, config=self.config)
         ks = wallet.keystore
         # to simulate ks.opportunistically_fill_in_missing_info_from_device():
         ks._root_fingerprint = "deadbeef"
@@ -281,7 +281,7 @@ class TestStorageUpgrade(WalletTestCase):
         # see #6401
         wallet_str = '{"addr_history":{"1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr":[],"15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA":[],"1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6":[]},"addresses":{"change":[],"receiving":["1364Js2VG66BwRdkaoxAaFtdPb1eQgn8Dr","1Exet2BhHsFxKTwhnfdsBMkPYLGvobxuW6","15CyDgLffJsJgQrhcyooFH4gnVDG82pUrA"]},"keystore":{"keypairs":{"0344b1588589958b0bcab03435061539e9bcf54677c104904044e4f8901f4ebdf5":"L2sED74axVXC4H8szBJ4rQJrkfem7UMc6usLCPUoEWxDCFGUaGUM","0389508c13999d08ffae0f434a085f4185922d64765c0bff2f66e36ad7f745cc5f":"L3Gi6EQLvYw8gEEUckmqawkevfj9s8hxoQDFveQJGZHTfyWnbk1U","04575f52b82f159fa649d2a4c353eb7435f30206f0a6cb9674fbd659f45082c37d559ffd19bea9c0d3b7dcc07a7b79f4cffb76026d5d4dff35341efe99056e22d2":"5JyVyXU1LiRXATvRTQvR9Kp8Rx1X84j2x49iGkjSsXipydtByUq"},"type":"imported"},"pruned_txo":{},"seed_version":13,"stored_height":-1,"transactions":{},"tx_fees":{},"txi":{},"txo":{},"use_encryption":false,"verified_tx3":{},"wallet_type":"standard","winpos-qt":[100,100,840,405]}'
         db = await self._upgrade_storage(wallet_str)
-        wallet = Wallet(db, None, config=self.config)
+        wallet = Wallet(db, config=self.config)
         wallet.import_private_keys(
             ["p2wpkh:L1cgMEnShp73r9iCukoPE3MogLeueNYRD9JVsfT1zVHyPBR3KqBY"],
             password=None
@@ -339,16 +339,16 @@ class TestStorageUpgrade(WalletTestCase):
             self.assertEqual(accounts, len(split_data))
             for item in split_data:
                 data = json.dumps(item)
-                new_db = WalletDB(data, manual_upgrades=False)
+                new_db = WalletDB(data, storage=None, manual_upgrades=False)
                 await self._sanity_check_upgraded_db(new_db)
 
     async def _sanity_check_upgraded_db(self, db):
         self.assertFalse(db.requires_split())
         self.assertFalse(db.requires_upgrade())
-        wallet = Wallet(db, None, config=self.config)
+        wallet = Wallet(db, config=self.config)
         await wallet.stop()
 
     @staticmethod
     def _load_db_from_json_string(*, wallet_json, manual_upgrades):
-        db = WalletDB(wallet_json, manual_upgrades=manual_upgrades)
+        db = WalletDB(wallet_json, storage=None, manual_upgrades=manual_upgrades)
         return db

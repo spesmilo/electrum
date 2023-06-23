@@ -680,12 +680,12 @@ class BaseWizard(Logger):
         storage = WalletStorage(path)
         if pw_args.encrypt_storage:
             storage.set_password(pw_args.password, enc_version=pw_args.storage_enc_version)
-        db = WalletDB('', manual_upgrades=False)
+        db = WalletDB('', storage=storage, manual_upgrades=False)
         db.set_keystore_encryption(bool(pw_args.password) and pw_args.encrypt_keystore)
         for key, value in self.data.items():
             db.put(key, value)
         db.load_plugins()
-        db.write(storage)
+        db.write()
         return storage, db
 
     def terminate(self, *, storage: WalletStorage = None,

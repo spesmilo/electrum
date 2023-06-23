@@ -168,9 +168,10 @@ class StoredDict(dict):
 
 class JsonDB(Logger):
 
-    def __init__(self, data):
+    def __init__(self, data, storage=None):
         Logger.__init__(self)
         self.lock = threading.RLock()
+        self.storage = storage
         self._modified = False
         # load data
         if data:
@@ -268,18 +269,17 @@ class JsonDB(Logger):
                 v = constructor(v)
         return v
 
-    def write(self, storage: 'WalletStorage'):
+    def write(self):
         with self.lock:
-            self._write(storage)
+            self._write()
 
     @profiler
-    def _write(self, storage: 'WalletStorage'):
+    def _write(self):
         if threading.current_thread().daemon:
             self.logger.warning('daemon thread cannot write db')
             return
         if not self.modified():
             return
-        json_str = self.dump(human_readable=not storage.is_encrypted())
-        storage.write(json_str)
+        json_str = self.dump(human_readable=not self.storage.is_encrypted())
+        self.storage.write(json_str)
         self.set_modified(False)
-

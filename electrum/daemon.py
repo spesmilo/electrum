@@ -511,14 +511,14 @@ class Daemon(Logger):
                 return
             storage.decrypt(password)
         # read data, pass it to db
-        db = WalletDB(storage.read(), manual_upgrades=manual_upgrades)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=manual_upgrades)
         if db.requires_split():
             return
         if db.requires_upgrade():
             return
         if db.get_action():
             return
-        wallet = Wallet(db, storage, config=config)
+        wallet = Wallet(db, config=config)
         return wallet
 
     @with_wallet_lock

@@ -33,7 +33,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
 
-        db = WalletDB(storage.read(), manual_upgrades=False)
+        db = WalletDB(storage.read(), storage=storage, manual_upgrades=False)
 
         self.done = 0
         self.last_balance = ""
@@ -43,7 +43,7 @@ class ElectrumGui(BaseElectrumGui, EventListener):
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(db, storage, config=config)  # type: Optional[Abstract_Wallet]
+        self.wallet = Wallet(db, config=config)  # type: Optional[Abstract_Wallet]
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
