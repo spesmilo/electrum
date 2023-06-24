@@ -357,7 +357,7 @@ class LnAddr(object):
     def to_debug_json(self) -> Dict[str, Any]:
         d = {
             'pubkey': self.pubkey.serialize().hex(),
-            'amount_BTC': str(self.amount),
+            'amount_GRS': str(self.amount),
             'rhash': self.paymenthash.hex(),
             'payment_secret': self.payment_secret.hex() if self.payment_secret else None,
             'description': self.get_description(),
