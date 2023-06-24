@@ -30,6 +30,9 @@ from . import util
 from .util import WalletFileException
 from .logging import Logger
 
+if TYPE_CHECKING:
+    from .storage import WalletStorage
+
 JsonDBJsonEncoder = util.MyEncoder
 
 def modifier(func):

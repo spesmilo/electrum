@@ -48,8 +48,6 @@ from .json_db import StoredDict, JsonDB, locked, modifier, StoredObject, stored_
 from .plugin import run_hook, plugin_loaders
 from .version import ELECTRUM_VERSION
 
-if TYPE_CHECKING:
-    from .storage import WalletStorage
 
 
 # seed_version is now used for the version of the wallet file
