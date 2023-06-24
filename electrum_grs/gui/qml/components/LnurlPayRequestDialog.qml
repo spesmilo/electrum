@@ -64,7 +64,7 @@ ElDialog {
                 BtcField {
                     id: amountBtc
                     Layout.preferredWidth: rootLayout.width /3
-                    text: Config.formatSats(invoiceParser.lnurlData['min_sendable_sat'])
+                    text: Config.formatSatsForEditing(invoiceParser.lnurlData['min_sendable_sat'])
                     enabled: invoiceParser.lnurlData['min_sendable_sat'] != invoiceParser.lnurlData['max_sendable_sat']
                     color: Material.foreground // override gray-out on disabled
                     fiatfield: amountFiat

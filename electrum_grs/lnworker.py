@@ -141,27 +141,33 @@ class ErrorAddingPeer(Exception): pass
 
 # set some feature flags as baseline for both LNWallet and LNGossip
 # note that e.g. DATA_LOSS_PROTECT is needed for LNGossip as many peers require it
-BASE_FEATURES = LnFeatures(0)\
-    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT\
-    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT\
-    | LnFeatures.VAR_ONION_OPT\
-    | LnFeatures.PAYMENT_SECRET_OPT\
-    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT\
+BASE_FEATURES = (
+    LnFeatures(0)
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_OPT
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_OPT
+    | LnFeatures.VAR_ONION_OPT
+    | LnFeatures.PAYMENT_SECRET_OPT
+    | LnFeatures.OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT
+)
 
 # we do not want to receive unrequested gossip (see lnpeer.maybe_save_remote_update)
-LNWALLET_FEATURES = BASE_FEATURES\
-    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ\
-    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ\
-    | LnFeatures.GOSSIP_QUERIES_REQ\
-    | LnFeatures.BASIC_MPP_OPT\
-    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM\
-    | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT\
-    | LnFeatures.OPTION_CHANNEL_TYPE_OPT\
-    | LnFeatures.OPTION_SCID_ALIAS_OPT\
+LNWALLET_FEATURES = (
+    BASE_FEATURES
+    | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
+    | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
+    | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.BASIC_MPP_OPT
+    | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
+    | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
+    | LnFeatures.OPTION_CHANNEL_TYPE_OPT
+    | LnFeatures.OPTION_SCID_ALIAS_OPT
+)
 
-LNGOSSIP_FEATURES = BASE_FEATURES\
-    | LnFeatures.GOSSIP_QUERIES_OPT\
-    | LnFeatures.GOSSIP_QUERIES_REQ\
+LNGOSSIP_FEATURES = (
+    BASE_FEATURES
+    | LnFeatures.GOSSIP_QUERIES_OPT
+    | LnFeatures.GOSSIP_QUERIES_REQ
+)
 
 
 class LNWorker(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
@@ -1698,7 +1704,7 @@ class LNWallet(LNWorker):
             my_sending_channels: List[Channel],
             full_path: Optional[LNPaymentPath]) -> LNPaymentRoute:
 
-        my_sending_aliases = set(chan.get_local_alias() for chan in my_sending_channels)
+        my_sending_aliases = set(chan.get_local_scid_alias() for chan in my_sending_channels)
         my_sending_channels = {chan.short_channel_id: chan for chan in my_sending_channels
             if chan.short_channel_id is not None}
         # Collect all private edges from route hints.
@@ -2018,7 +2024,7 @@ class LNWallet(LNWorker):
         scid_to_my_channels = {chan.short_channel_id: chan for chan in channels
                                if chan.short_channel_id is not None}
         for chan in channels:
-            alias_or_scid = chan.get_remote_alias() or chan.short_channel_id
+            alias_or_scid = chan.get_remote_scid_alias() or chan.short_channel_id
             assert isinstance(alias_or_scid, bytes), alias_or_scid
             channel_info = get_mychannel_info(chan.short_channel_id, scid_to_my_channels)
             # note: as a fallback, if we don't have a channel update for the

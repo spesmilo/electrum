@@ -385,7 +385,7 @@ class Peer(Logger):
         if not self.channels:
             return
         for chan in self.channels.values():
-            if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_alias()]:
+            if payload['short_channel_id'] in [chan.short_channel_id, chan.get_local_scid_alias()]:
                 chan.set_remote_update(payload)
                 self.logger.info(f"saved remote channel_update gossip msg for chan {chan.get_id_for_log()}")
                 break
@@ -1272,7 +1272,10 @@ class Peer(Logger):
             resend_revoke_and_ack()
 
         chan.peer_state = PeerState.GOOD
+        chan_just_became_ready = False
         if chan.is_funded() and their_next_local_ctn == next_local_ctn == 1:
+            chan_just_became_ready = True
+        if chan_just_became_ready or self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             self.send_channel_ready(chan)
         # checks done
         if chan.is_funded() and chan.config[LOCAL].funding_locked_received:
@@ -1289,11 +1292,11 @@ class Peer(Logger):
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
 
         channel_ready_tlvs = {}
-        if self.their_features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
+        if self.features.supports(LnFeatures.OPTION_SCID_ALIAS_OPT):
             # LND requires that we send an alias if the option has been negotiated in INIT.
             # otherwise, the channel will not be marked as active.
             # This does not apply if the channel was previously marked active without an alias.
-            channel_ready_tlvs['short_channel_id'] = {'alias':chan.get_local_alias()}
+            channel_ready_tlvs['short_channel_id'] = {'alias': chan.get_local_scid_alias(create_new_if_needed=True)}
 
         # note: if 'channel_ready' was not yet received, we might send it multiple times
         self.send_message(
@@ -1309,7 +1312,7 @@ class Peer(Logger):
         # save remote alias for use in invoices
         scid_alias = payload.get('channel_ready_tlvs', {}).get('short_channel_id', {}).get('alias')
         if scid_alias:
-            chan.save_remote_alias(scid_alias)
+            chan.save_remote_scid_alias(scid_alias)
 
         if not chan.config[LOCAL].funding_locked_received:
             their_next_point = payload["second_per_commitment_point"]
@@ -1593,15 +1596,16 @@ class Peer(Logger):
         if chain.is_tip_stale():
             raise OnionRoutingFailure(code=OnionFailureCode.TEMPORARY_NODE_FAILURE, data=b'')
         try:
-            next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]  # type: bytes
+            _next_chan_scid = processed_onion.hop_data.payload["short_channel_id"]["short_channel_id"]  # type: bytes
+            next_chan_scid = ShortChannelID(_next_chan_scid)
         except Exception:
             raise OnionRoutingFailure(code=OnionFailureCode.INVALID_ONION_PAYLOAD, data=b'\x00\x00\x00')
         next_chan = self.lnworker.get_channel_by_short_id(next_chan_scid)
         local_height = chain.height()
         if next_chan is None:
-            log_fail_reason(f"cannot find next_chan {next_chan_scid.hex()}")
+            log_fail_reason(f"cannot find next_chan {next_chan_scid}")
             raise OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
-        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update()[2:]
+        outgoing_chan_upd = next_chan.get_outgoing_gossip_channel_update(scid=next_chan_scid)[2:]
         outgoing_chan_upd_len = len(outgoing_chan_upd).to_bytes(2, byteorder="big")
         outgoing_chan_upd_message = outgoing_chan_upd_len + outgoing_chan_upd
         if not next_chan.can_send_update_add_htlc():

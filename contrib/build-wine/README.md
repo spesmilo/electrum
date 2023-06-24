@@ -8,7 +8,9 @@ similar system.
 
 1. Install Docker
 
-    See `contrib/docker_notes.md`.
+    See [`contrib/docker_notes.md`](../docker_notes.md).
+
+    (worth reading even if you already have docker)
 
     Note: older versions of Docker might not work well
     (see [#6971](https://github.com/spesmilo/electrum/issues/6971)).
@@ -21,7 +23,7 @@ similar system.
     ```
     If you want reproducibility, try instead e.g.:
     ```
-    $ ELECBUILD_COMMIT=HEAD ELECBUILD_NOCACHE=1 ./build.sh
+    $ ELECBUILD_COMMIT=HEAD ./build.sh
     ```
 
 3. The generated binaries are in `./contrib/build-wine/dist`.

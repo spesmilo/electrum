@@ -11,8 +11,9 @@ import urllib.parse
 import aiohttp.client_exceptions
 from aiohttp import ClientResponse
 
-from electrum_grs.segwit_addr import bech32_decode, Encoding, convertbits
-from electrum_grs.lnaddr import LnDecodeException
+from electrum_grs import segwit_addr
+from electrum_grs.segwit_addr import bech32_decode, Encoding, convertbits, bech32_encode
+from electrum_grs.lnaddr import LnDecodeException, LnEncodeException
 from electrum_grs.network import Network
 from electrum_grs.logging import get_logger
 
@@ -43,6 +44,19 @@ def decode_lnurl(lnurl: str) -> str:
     data = convertbits(data, 5, 8, False)
     url = bytes(data).decode("utf-8")
     return url
+
+
+def encode_lnurl(url: str) -> str:
+    """Encode url to bech32 lnurl string."""
+    try:
+        url = url.encode("utf-8")
+    except UnicodeError as e:
+        raise LnEncodeException("invalid url") from e
+    bech32_data = convertbits(url, 8, 5, True)
+    assert bech32_data
+    lnurl = bech32_encode(
+        encoding=segwit_addr.Encoding.BECH32, hrp="lnurl", data=bech32_data)
+    return lnurl.upper()
 
 
 def _is_url_safe_enough_for_lnurl(url: str) -> bool:
