@@ -25,6 +25,7 @@
 import threading
 import copy
 import json
+from typing import TYPE_CHECKING
 
 from . import util
 from .util import WalletFileException
