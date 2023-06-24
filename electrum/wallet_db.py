@@ -104,21 +104,27 @@ for key in ['locked_in', 'fails', 'settles']:
 
 class WalletDB(JsonDB):
 
-    def __init__(self, raw, *, manual_upgrades: bool):
-        JsonDB.__init__(self, {})
-        self._manual_upgrades = manual_upgrades
-        self._called_after_upgrade_tasks = False
-        if raw:  # loading existing db
-            self.load_data(raw)
-            self.load_plugins()
-        else:  # creating new db
+    def __init__(self, data, *, manual_upgrades: bool):
+        JsonDB.__init__(self, data)
+        if not data:
+            # create new DB
             self.put('seed_version', FINAL_SEED_VERSION)
             self._add_db_creation_metadata()
             self._after_upgrade_tasks()
+        self._manual_upgrades = manual_upgrades
+        self._called_after_upgrade_tasks = False
+        if not self._manual_upgrades and self.requires_split():
+            raise WalletFileException("This wallet has multiple accounts and must be split")
+        if not self.requires_upgrade():
+            self._after_upgrade_tasks()
+        elif not self._manual_upgrades:
+            self.upgrade()
+        # load plugins that are conditional on wallet type
+        self.load_plugins()
 
     def load_data(self, s):
         try:
-            self.data = json.loads(s)
+            JsonDB.load_data(self, s)
         except Exception:
             try:
                 d = ast.literal_eval(s)
@@ -136,14 +142,6 @@ class WalletDB(JsonDB):
                 self.data[key] = value
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
-
-        if not self._manual_upgrades and self.requires_split():
-            raise WalletFileException("This wallet has multiple accounts and must be split")
-
-        if not self.requires_upgrade():
-            self._after_upgrade_tasks()
-        elif not self._manual_upgrades:
-            self.upgrade()
 
     def requires_split(self):
         d = self.get('accounts', {})
@@ -1582,21 +1580,6 @@ class WalletDB(JsonDB):
         if key in multisig_keystore_names:
             return False
         return True
-
-    def write(self, storage: 'WalletStorage'):
-        with self.lock:
-            self._write(storage)
-
-    @profiler
-    def _write(self, storage: 'WalletStorage'):
-        if threading.current_thread().daemon:
-            self.logger.warning('daemon thread cannot write db')
-            return
-        if not self.modified():
-            return
-        json_str = self.dump(human_readable=not storage.is_encrypted())
-        storage.write(json_str)
-        self.set_modified(False)
 
     def is_ready_to_be_used_by_wallet(self):
         return not self.requires_upgrade() and self._called_after_upgrade_tasks
