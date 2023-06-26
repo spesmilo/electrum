@@ -182,6 +182,17 @@ class PaymentIdentifierState(IntEnum):
     MERCHANT_ERROR  = 52 # PI failed notifying the merchant after broadcasting onchain TX
     INVALID_AMOUNT  = 53 # Specified amount not accepted
 
+class PaymentIdentifierType(IntEnum):
+    UNKNOWN = 0
+    SPK = 1
+    BIP21 = 2
+    BIP70 = 3
+    MULTILINE = 4
+    BOLT11 = 5
+    LNURLP = 6
+    EMAILLIKE = 7
+    OPENALIAS = 8
+    LNADDR = 9
 
 class PaymentIdentifier(Logger):
     """
@@ -203,7 +214,7 @@ class PaymentIdentifier(Logger):
         self.contacts = wallet.contacts if wallet is not None else None
         self.config = wallet.config if wallet is not None else None
         self.text = text.strip()
-        self._type = None
+        self._type = PaymentIdentifierType.UNKNOWN
         self.error = None    # if set, GUI should show error and stop
         self.warning = None  # if set, GUI should ask user if they want to proceed
         # more than one of those may be set
@@ -262,16 +273,16 @@ class PaymentIdentifier(Logger):
         return self.is_multiline() and self._is_max
 
     def is_amount_locked(self):
-        if self._type == 'spk':
+        if self._type == PaymentIdentifierType.SPK:
             return False
-        elif self._type == 'bip21':
+        elif self._type == PaymentIdentifierType.BIP21:
             return bool(self.bip21.get('amount'))
-        elif self._type == 'bip70':
+        elif self._type == PaymentIdentifierType.BIP70:
             return True  # TODO always given?
-        elif self._type == 'bolt11':
+        elif self._type == PaymentIdentifierType.BOLT11:
             lnaddr = lndecode(self.bolt11)
             return bool(lnaddr.amount)
-        elif self._type == 'lnurl' or self._type == 'lightningaddress':
+        elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
                 return True
@@ -279,11 +290,11 @@ class PaymentIdentifier(Logger):
                 self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_sat}-{self.lnurl_data.max_sendable_sat}')
                 return not (self.lnurl_data.min_sendable_sat < self.lnurl_data.max_sendable_sat)
             return True
-        elif self._type == 'multiline':
+        elif self._type == PaymentIdentifierType.MULTILINE:
             return True
-        elif self._type == 'emaillike':
+        elif self._type == PaymentIdentifierType.EMAILLIKE:
             return False
-        elif self._type == 'openalias':
+        elif self._type == PaymentIdentifierType.OPENALIAS:
             return False
 
     def is_error(self) -> bool:
@@ -298,7 +309,7 @@ class PaymentIdentifier(Logger):
         if not text:
             return
         if outputs := self._parse_as_multiline(text):
-            self._type = 'multiline'
+            self._type = PaymentIdentifierType.MULTILINE
             self.multiline_outputs = outputs
             if self.error:
                 self.set_state(PaymentIdentifierState.INVALID)
@@ -306,7 +317,7 @@ class PaymentIdentifier(Logger):
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif invoice_or_lnurl := maybe_extract_lightning_payment_identifier(text):
             if invoice_or_lnurl.startswith('lnurl'):
-                self._type = 'lnurl'
+                self._type = PaymentIdentifierType.LNURLP
                 try:
                     self.lnurl = decode_lnurl(invoice_or_lnurl)
                     self.set_state(PaymentIdentifierState.NEED_RESOLVE)
@@ -315,7 +326,7 @@ class PaymentIdentifier(Logger):
                     self.set_state(PaymentIdentifierState.INVALID)
                     return
             else:
-                self._type = 'bolt11'
+                self._type = PaymentIdentifierType.BOLT11
                 try:
                     lndecode(invoice_or_lnurl)
                 except LnInvoiceException as e:
@@ -338,10 +349,10 @@ class PaymentIdentifier(Logger):
             self.bip21 = out
             self.bip70 = out.get('r')
             if self.bip70:
-                self._type = 'bip70'
+                self._type = PaymentIdentifierType.BIP70
                 self.set_state(PaymentIdentifierState.NEED_RESOLVE)
             else:
-                self._type = 'bip21'
+                self._type = PaymentIdentifierType.BIP21
                 # check optional lightning in bip21, set self.bolt11 if valid
                 bolt11 = out.get('lightning')
                 if bolt11:
@@ -355,11 +366,11 @@ class PaymentIdentifier(Logger):
                         self.logger.debug(_("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}")
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif scriptpubkey := self.parse_output(text):
-            self._type = 'spk'
+            self._type = PaymentIdentifierType.SPK
             self.spk = scriptpubkey
             self.set_state(PaymentIdentifierState.AVAILABLE)
         elif re.match(RE_EMAIL, text):
-            self._type = 'emaillike'
+            self._type = PaymentIdentifierType.EMAILLIKE
             self.emaillike = text
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif self.error is None:
@@ -390,7 +401,7 @@ class PaymentIdentifier(Logger):
                             'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
                     try:
                         scriptpubkey = self.parse_output(address)
-                        self._type = 'openalias'
+                        self._type = PaymentIdentifierType.OPENALIAS
                         self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)
                     except Exception as e:
@@ -400,7 +411,7 @@ class PaymentIdentifier(Logger):
                     lnurl = lightning_address_to_url(self.emaillike)
                     try:
                         data = await request_lnurl(lnurl)
-                        self._type = 'lightningaddress'
+                        self._type = PaymentIdentifierType.LNADDR
                         self.lnurl = lnurl
                         self.lnurl_data = data
                         self.set_state(PaymentIdentifierState.LNURLP_FINALIZE)

@@ -17,7 +17,7 @@ from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
 from electrum.payment_identifier import (parse_bip21_URI, InvalidBitcoinURI, maybe_extract_lightning_payment_identifier,
-                                         PaymentIdentifier, PaymentIdentifierState)
+                                         PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
 
 from .qetypes import QEAmount
 from .qewallet import QEWallet
@@ -491,7 +491,8 @@ class QEInvoiceParser(QEInvoice):
             return
 
         self._pi = PaymentIdentifier(self._wallet.wallet, recipient)
-        if not self._pi.is_valid() or self._pi.type not in ['spk', 'bip21', 'bip70', 'bolt11', 'lnurl']:
+        if not self._pi.is_valid() or self._pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21,
+                PaymentIdentifierType.BIP70, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP]:
             self.validationError.emit('unknown', _('Unknown invoice'))
             return
 
@@ -502,23 +503,23 @@ class QEInvoiceParser(QEInvoice):
             self.resolve_pi()
             return
 
-        if self._pi.type == 'lnurl':
+        if self._pi.type == PaymentIdentifierType.LNURLP:
             self.on_lnurl(self._pi.lnurl_data)
             return
 
-        if self._pi.type == 'bip70':
+        if self._pi.type == PaymentIdentifierType.BIP70:
             self._bip70_payment_request_resolved(self._pi.bip70_data)
             return
 
         if self._pi.is_available():
-            if self._pi.type == 'spk':
+            if self._pi.type == PaymentIdentifierType.SPK:
                 outputs = [PartialTxOutput(scriptpubkey=self._pi.spk, value=0)]
                 invoice = self.create_onchain_invoice(outputs, None, None, None)
                 self._logger.debug(repr(invoice))
                 self.setValidOnchainInvoice(invoice)
                 self.validationSuccess.emit()
                 return
-            elif self._pi.type == 'bolt11':
+            elif self._pi.type == PaymentIdentifierType.BOLT11:
                 lninvoice = Invoice.from_bech32(self._pi.bolt11)
                 if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
                     self.validationError.emit('no_lightning',
@@ -530,7 +531,7 @@ class QEInvoiceParser(QEInvoice):
 
                 self.setValidLightningInvoice(lninvoice)
                 self.validationSuccess.emit()
-            elif self._pi.type == 'bip21':
+            elif self._pi.type == PaymentIdentifierType.BIP21:
                 if self._wallet.wallet.has_lightning() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
                     lninvoice = Invoice.from_bech32(self._pi.bolt11)
                     self.setValidLightningInvoice(lninvoice)

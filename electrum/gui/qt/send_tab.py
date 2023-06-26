@@ -16,7 +16,7 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.payment_identifier import PaymentIdentifierState
+from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -206,7 +206,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def spend_max(self):
         assert self.payto_e.payment_identifier is not None
-        assert self.payto_e.payment_identifier.type in ['spk', 'multiline']
+        assert self.payto_e.payment_identifier.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE]
         if run_hook('abort_send', self):
             return
         outputs = self.payto_e.payment_identifier.get_onchain_outputs('!')
@@ -383,10 +383,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.send_button.setEnabled(False)
             return
 
-        lock_recipient = pi.type != 'spk' \
-                         and not (pi.type == 'emaillike' and pi.is_state(PaymentIdentifierState.NOT_FOUND))
+        lock_recipient = pi.type != PaymentIdentifierType.SPK \
+                         and not (pi.type == PaymentIdentifierType.EMAILLIKE and pi.is_state(PaymentIdentifierState.NOT_FOUND))
         lock_max = pi.is_amount_locked() \
-                   or pi.type in ['bolt11', 'lnurl', 'lightningaddress']
+                   or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=pi.is_amount_locked(),
                          lock_max=lock_max,
