@@ -216,7 +216,7 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
 
         # pushback timer if timer active or PI needs resolving
         pi = PaymentIdentifier(self.send_tab.wallet, self.text_edit.toPlainText())
-        if pi.need_resolve() or self.edit_timer.isActive():
+        if not pi.is_valid() or pi.need_resolve() or self.edit_timer.isActive():
             self.edit_timer.start()
         else:
             self.set_payment_identifier(self.text_edit.toPlainText())

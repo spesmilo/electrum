@@ -162,7 +162,8 @@ def is_uri(data: str) -> bool:
 
 
 RE_ALIAS = r'(.*?)\s*\<([0-9A-Za-z]{1,})\>'
-RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+RE_EMAIL = r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
+RE_DOMAIN = r'\b([A-Za-z0-9-]+\.)+[A-Z|a-z]{2,7}\b'
 
 
 class PaymentIdentifierState(IntEnum):
@@ -194,6 +195,7 @@ class PaymentIdentifierType(IntEnum):
     EMAILLIKE = 7
     OPENALIAS = 8
     LNADDR = 9
+    DOMAINLIKE = 10
 
 
 class FieldsForGUI(NamedTuple):
@@ -235,6 +237,7 @@ class PaymentIdentifier(Logger):
         self.spk = None
         #
         self.emaillike = None
+        self.domainlike = None
         self.openalias_data = None
         #
         self.bip70 = None
@@ -284,9 +287,7 @@ class PaymentIdentifier(Logger):
         return self.is_multiline() and self._is_max
 
     def is_amount_locked(self):
-        if self._type == PaymentIdentifierType.SPK:
-            return False
-        elif self._type == PaymentIdentifierType.BIP21:
+        if self._type == PaymentIdentifierType.BIP21:
             return bool(self.bip21.get('amount'))
         elif self._type == PaymentIdentifierType.BIP70:
             return True  # TODO always given?
@@ -303,9 +304,7 @@ class PaymentIdentifier(Logger):
             return True
         elif self._type == PaymentIdentifierType.MULTILINE:
             return True
-        elif self._type == PaymentIdentifierType.EMAILLIKE:
-            return False
-        elif self._type == PaymentIdentifierType.OPENALIAS:
+        else:
             return False
 
     def is_error(self) -> bool:
@@ -384,6 +383,10 @@ class PaymentIdentifier(Logger):
             self._type = PaymentIdentifierType.EMAILLIKE
             self.emaillike = text
             self.set_state(PaymentIdentifierState.NEED_RESOLVE)
+        elif re.match(RE_DOMAIN, text):
+            self._type = PaymentIdentifierType.DOMAINLIKE
+            self.domainlike = text
+            self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif self.error is None:
             truncated_text = f"{text[:100]}..." if len(text) > 100 else text
             self.error = f"Unknown payment identifier:\n{truncated_text}"
@@ -397,7 +400,7 @@ class PaymentIdentifier(Logger):
     @log_exceptions
     async def _do_resolve(self, *, on_finished=None):
         try:
-            if self.emaillike:
+            if self.emaillike or self.domainlike:
                 # TODO: parallel lookup?
                 data = await self.resolve_openalias()
                 if data:
@@ -405,11 +408,12 @@ class PaymentIdentifier(Logger):
                     self.logger.debug(f'OA: {data!r}')
                     name = data.get('name')
                     address = data.get('address')
-                    self.contacts[self.emaillike] = ('openalias', name)
+                    key = self.emaillike if self.emaillike else self.domainlike
+                    self.contacts[key] = ('openalias', name)
                     if not data.get('validated'):
                         self.warning = _(
                             'WARNING: the alias "{}" could not be validated via an additional '
-                            'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
+                            'security check, DNSSEC, and thus may not be correct.').format(key)
                     try:
                         assert bitcoin.is_address(address)
                         scriptpubkey = bytes.fromhex(bitcoin.address_to_script(address))
@@ -419,7 +423,7 @@ class PaymentIdentifier(Logger):
                     except Exception as e:
                         self.error = str(e)
                         self.set_state(PaymentIdentifierState.NOT_FOUND)
-                else:
+                elif self.emaillike:
                     lnurl = lightning_address_to_url(self.emaillike)
                     try:
                         data = await request_lnurl(lnurl)
@@ -433,6 +437,8 @@ class PaymentIdentifier(Logger):
                         # NOTE: any other exception is swallowed here (e.g. DNS error)
                         # as the user may be typing and we have an incomplete emaillike
                         self.set_state(PaymentIdentifierState.NOT_FOUND)
+                else:
+                    self.set_state(PaymentIdentifierState.NOT_FOUND)
             elif self.bip70:
                 from . import paymentrequest
                 data = await paymentrequest.get_payment_request(self.bip70)
@@ -627,14 +633,16 @@ class PaymentIdentifier(Logger):
         validated = None
         comment = None
 
-        if self.emaillike and self.openalias_data:
+        if (self.emaillike or self.domainlike) and self.openalias_data:
+            key = self.emaillike if self.emaillike else self.domainlike
             address = self.openalias_data.get('address')
             name = self.openalias_data.get('name')
-            recipient = self.emaillike + ' <' + address + '>'
+            description = name
+            recipient = key + ' <' + address + '>'
             validated = self.openalias_data.get('validated')
             if not validated:
                 self.warning = _('WARNING: the alias "{}" could not be validated via an additional '
-                                 'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
+                                 'security check, DNSSEC, and thus may not be correct.').format(key)
 
         elif self.bolt11 and self.wallet.has_lightning():
             recipient, amount, description = self._get_bolt11_fields(self.bolt11)
@@ -689,8 +697,8 @@ class PaymentIdentifier(Logger):
         return pubkey, amount, description
 
     async def resolve_openalias(self) -> Optional[dict]:
-        key = self.emaillike
-        # TODO: below check needed? we already matched RE_EMAIL
+        key = self.emaillike if self.emaillike else self.domainlike
+        # TODO: below check needed? we already matched RE_EMAIL/RE_DOMAIN
         # if not (('.' in key) and ('<' not in key) and (' ' not in key)):
         #     return None
         parts = key.split(sep=',')  # assuming single line

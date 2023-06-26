@@ -363,7 +363,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
         if pi.is_multiline():
             self.lock_fields(lock_recipient=False, lock_amount=True, lock_max=True, lock_description=False)
-            self.set_field_style(self.payto_e, True if not pi.is_valid() else None, False)
+            self.set_field_validated(self.payto_e, validated=pi.is_valid()) # TODO: validated used differently here than openalias
             self.save_button.setEnabled(pi.is_valid())
             self.send_button.setEnabled(pi.is_valid())
             self.payto_e.setToolTip(pi.get_error() if not pi.is_valid() else '')
@@ -378,11 +378,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         lock_recipient = pi.type != PaymentIdentifierType.SPK \
-                         and not (pi.type == PaymentIdentifierType.EMAILLIKE and pi.state in [PaymentIdentifierState.NOT_FOUND,PaymentIdentifierState.NEED_RESOLVE])
+                         and not (pi.type in [PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE] \
+                                  and pi.state in [PaymentIdentifierState.NOT_FOUND, PaymentIdentifierState.NEED_RESOLVE])
         lock_amount = pi.is_amount_locked()
         lock_max = lock_amount \
                    or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP,
-                                  PaymentIdentifierType.LNADDR, PaymentIdentifierType.EMAILLIKE]
+                                  PaymentIdentifierType.LNADDR, PaymentIdentifierType.EMAILLIKE,
+                                  PaymentIdentifierType.DOMAINLIKE]
 
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=lock_amount,
