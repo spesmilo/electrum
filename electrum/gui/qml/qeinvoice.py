@@ -10,7 +10,7 @@ from electrum.logging import get_logger
 from electrum.invoices import (Invoice, PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID, PR_INFLIGHT,
                                PR_FAILED, PR_ROUTING, PR_UNCONFIRMED, PR_BROADCASTING, PR_BROADCAST, LN_EXPIRY_NEVER)
 from electrum.lnaddr import LnInvoiceException
-from electrum.transaction import PartialTxOutput
+from electrum.transaction import PartialTxOutput, TxOutput
 from electrum.util import InvoiceError, get_asyncio_loop
 from electrum.lnutil import format_short_channel_id, IncompatibleOrInsaneFeatures
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
@@ -495,6 +495,12 @@ class QEInvoiceParser(QEInvoice):
                 PaymentIdentifierType.BIP70, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP]:
             self.validationError.emit('unknown', _('Unknown invoice'))
             return
+
+        if self._pi.type == PaymentIdentifierType.SPK:
+            txo = TxOutput(scriptpubkey=self._pi.spk, value=0)
+            if not txo.address:
+                self.validationError.emit('unknown', _('Unknown invoice'))
+                return
 
         self._update_from_payment_identifier()
 
