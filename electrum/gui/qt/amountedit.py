@@ -21,9 +21,11 @@ class FreezableLineEdit(QLineEdit):
 
     def setFrozen(self, b):
         self.setReadOnly(b)
-        self.setFrame(not b)
+        self.setStyleSheet(ColorScheme.BLUE.as_stylesheet(True) if b else '')
         self.frozen.emit()
 
+    def isFrozen(self):
+        return self.isReadOnly()
 
 class SizedFreezableLineEdit(FreezableLineEdit):
 
@@ -152,6 +154,7 @@ class BTCAmountEdit(AmountEdit):
         else:
             text = self._get_text_from_amount(amount_sat)
             self.setText(text)
+        self.setFrozen(self.isFrozen()) # re-apply styling, as it is nuked by setText (?)
         self.repaint()  # macOS hack for #6269
 
 

@@ -38,7 +38,7 @@ from electrum.logging import Logger
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
-from .util import MONOSPACE_FONT, GenericInputHandler, editor_contextMenuEvent
+from .util import MONOSPACE_FONT, GenericInputHandler, editor_contextMenuEvent, ColorScheme
 
 if TYPE_CHECKING:
     from .send_tab import SendTab
@@ -102,9 +102,7 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
         self.config = send_tab.config
         self.app = QApplication.instance()
 
-        self.logger.debug(util.ColorScheme.RED.as_stylesheet(True))
         self.is_multiline = False
-        # self.is_alias = False
         self.payto_scriptpubkey = None  # type: Optional[bytes]
         self.previous_payto = ''
         # editor methods
@@ -193,8 +191,7 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
 
     def setFrozen(self, b):
         self.text_edit.setReadOnly(b)
-        if not b:
-            self.setStyleSheet(normal_style)
+        self.text_edit.setStyleSheet(ColorScheme.BLUE.as_stylesheet(True) if b else '')
 
     def isFrozen(self):
         return self.text_edit.isReadOnly()
@@ -224,12 +221,6 @@ class PayToEdit(QObject, Logger, GenericInputHandler):
         else:
             self.set_payment_identifier(self.text_edit.toPlainText())
 
-        # self.set_payment_identifier(text)
-        # if self.app.clipboard().text() and self.app.clipboard().text().strip() == self.payment_identifier.text:
-        #     # user pasted from clipboard
-        #     self.logger.debug('from clipboard')
-        #     if self.payment_identifier.error:
-        #         self.send_tab.show_error(_('Clipboard text is not a valid payment identifier') + '\n' + self.payment_identifier.error)
-
     def _on_edit_timer(self):
-        self.set_payment_identifier(self.text_edit.toPlainText())
+        if not self.isFrozen():
+            self.set_payment_identifier(self.text_edit.toPlainText())

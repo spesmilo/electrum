@@ -598,7 +598,7 @@ class QEInvoiceParser(QEInvoice):
 
         def on_finished(pi):
             if pi.is_error():
-                if pi.is_state(PaymentIdentifierState.INVALID_AMOUNT):
+                if pi.state == PaymentIdentifierState.INVALID_AMOUNT:
                     self.lnurlError.emit('amount', pi.get_error())
                 else:
                     self.lnurlError.emit('lnurl', pi.get_error())

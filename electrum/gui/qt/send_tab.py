@@ -22,7 +22,7 @@ from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
 from .util import (WaitingDialog, HelpLabel, MessageBoxMixin, EnterButton,
                    char_width_in_lineedit, get_iconname_camera, get_iconname_qrcode,
-                   read_QIcon)
+                   read_QIcon, ColorScheme)
 from .confirm_tx_dialog import ConfirmTxDialog
 
 if TYPE_CHECKING:
@@ -192,6 +192,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.send_button.setEnabled(bool(self.amount_e.get_amount()) and pi_valid and not pi_error)
 
     def do_paste(self):
+        self.logger.debug('do_paste')
         try:
             self.payto_e.try_payment_identifier(self.app.clipboard().text())
         except InvalidPaymentIdentifier as e:
@@ -308,6 +309,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return self.format_amount_and_units(frozen_bal)
 
     def do_clear(self):
+        self.logger.debug('do_clear')
         self.lock_fields(lock_recipient=False, lock_amount=False, lock_max=True, lock_description=False)
         self.max_button.setChecked(False)
         self.payto_e.do_clear()
@@ -315,7 +317,6 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             w.setVisible(False)
         for e in [self.message_e, self.amount_e, self.fiat_send_e]:
             e.setText('')
-            self.set_field_style(e, None, False)
         for e in [self.save_button, self.send_button]:
             e.setEnabled(False)
         self.window.update_status()
@@ -333,18 +334,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.show_message(error)
         self.do_clear()
 
-    def set_field_style(self, w, text, validated):
-        from .util import ColorScheme
-        if validated is None:
-            style = ColorScheme.LIGHTBLUE.as_stylesheet(True)
-        elif validated is True:
-            style = ColorScheme.GREEN.as_stylesheet(True)
-        else:
-            style = ColorScheme.RED.as_stylesheet(True)
-        if text is not None:
-            w.setStyleSheet(style)
-        else:
-            w.setStyleSheet('')
+    def set_field_validated(self, w, *, validated: Optional[bool] = None):
+        if validated is not None:
+            w.setStyleSheet(ColorScheme.GREEN.as_stylesheet(True) if validated else ColorScheme.RED.as_stylesheet(True))
 
     def lock_fields(self, *,
             lock_recipient: Optional[bool] = None,
@@ -363,6 +355,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.message_e.setFrozen(lock_description)
 
     def update_fields(self):
+        self.logger.debug('update_fields')
         pi = self.payto_e.payment_identifier
 
         self.clear_button.setEnabled(True)
@@ -384,11 +377,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
 
         lock_recipient = pi.type != PaymentIdentifierType.SPK \
-                         and not (pi.type == PaymentIdentifierType.EMAILLIKE and pi.is_state(PaymentIdentifierState.NOT_FOUND))
-        lock_max = pi.is_amount_locked() \
-                   or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]
+                         and not (pi.type == PaymentIdentifierType.EMAILLIKE and pi.state in [PaymentIdentifierState.NOT_FOUND,PaymentIdentifierState.NEED_RESOLVE])
+        lock_amount = pi.is_amount_locked()
+        lock_max = lock_amount or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]
         self.lock_fields(lock_recipient=lock_recipient,
-                         lock_amount=pi.is_amount_locked(),
+                         lock_amount=lock_amount,
                          lock_max=lock_max,
                          lock_description=False)
         if lock_recipient:
@@ -402,10 +395,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 self.amount_e.setAmount(amount)
             for w in [self.comment_e, self.comment_label]:
                 w.setVisible(bool(comment))
-            self.set_field_style(self.payto_e, recipient or pi.multiline_outputs, validated)
-            self.set_field_style(self.message_e, description, validated)
-            self.set_field_style(self.amount_e, amount, validated)
-            self.set_field_style(self.fiat_send_e, amount, validated)
+            self.set_field_validated(self.payto_e, validated=validated)
 
         self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
         self.save_button.setEnabled(not pi.is_error())
@@ -420,20 +410,16 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         if self.payto_e.payment_identifier.need_resolve():
             self.prepare_for_send_tab_network_lookup()
             self.payto_e.payment_identifier.resolve(on_finished=self.resolve_done_signal.emit)
-        # update fiat amount (and reset max)
-        self.amount_e.textEdited.emit("")
-        self.window.show_send_tab() # FIXME: why is this here?
 
     def on_resolve_done(self, pi):
         # TODO: resolve can happen while typing, we don't want message dialogs to pop up
         # currently we don't set error for emaillike recipients to avoid just that
+        self.logger.debug('payment identifier resolve done')
         if pi.error:
             self.show_error(pi.error)
             self.do_clear()
             return
         self.update_fields()
-        # for btn in [self.send_button, self.clear_button, self.save_button]:
-        #     btn.setEnabled(True)
 
     def get_message(self):
         return self.message_e.text()
@@ -480,10 +466,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         return self.amount_e.get_amount() or 0
 
     def on_finalize_done(self, pi):
+        self.update_fields()
         if pi.error:
             self.show_error(pi.error)
             return
-        self.update_fields()
         invoice = pi.get_invoice(self.get_amount(), self.get_message())
         self.pending_invoice = invoice
         self.logger.debug(f'after finalize invoice: {invoice!r}')

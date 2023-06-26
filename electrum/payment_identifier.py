@@ -245,8 +245,9 @@ class PaymentIdentifier(Logger):
         self.logger.debug(f'PI state {self._state} -> {state}')
         self._state = state
 
-    def is_state(self, state: 'PaymentIdentifierState'):
-        return self._state == state
+    @property
+    def state(self):
+        return self._state
 
     def need_resolve(self):
         return self._state == PaymentIdentifierState.NEED_RESOLVE
