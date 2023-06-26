@@ -25,9 +25,14 @@
 import threading
 import copy
 import json
+from typing import TYPE_CHECKING
 
 from . import util
+from .util import WalletFileException
 from .logging import Logger
+
+if TYPE_CHECKING:
+    from .storage import WalletStorage
 
 JsonDBJsonEncoder = util.MyEncoder
 
@@ -166,8 +171,20 @@ class JsonDB(Logger):
     def __init__(self, data):
         Logger.__init__(self)
         self.lock = threading.RLock()
-        self.data = data
         self._modified = False
+        # load data
+        if data:
+            self.load_data(data)
+        else:
+            self.data = {}
+
+    def load_data(self, s):
+        try:
+            self.data = json.loads(s)
+        except Exception:
+            raise WalletFileException("Cannot read wallet file. (parsing failed)")
+        if not isinstance(self.data, dict):
+            raise WalletFileException("Malformed wallet file (not dict)")
 
     def set_modified(self, b):
         with self.lock:
@@ -250,3 +267,18 @@ class JsonDB(Logger):
             else:
                 v = constructor(v)
         return v
+
+    def write(self, storage: 'WalletStorage'):
+        with self.lock:
+            self._write(storage)
+
+    def _write(self, storage: 'WalletStorage'):
+        if threading.current_thread().daemon:
+            self.logger.warning('daemon thread cannot write db')
+            return
+        if not self.modified():
+            return
+        json_str = self.dump(human_readable=not storage.is_encrypted())
+        storage.write(json_str)
+        self.set_modified(False)
+

@@ -138,6 +138,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         Logger.__init__(self)
         NetworkRetryManager.__init__(self, max_retry_delay_normal=1, init_retry_delay_normal=1)
         self.node_keypair = local_keypair
+        self.payment_secret_key = os.urandom(256) # does not need to be deterministic in tests
         self._user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
         self.config = SimpleConfig({}, read_user_dir_function=lambda: self._user_dir)
         self.network = MockNetwork(tx_queue, config=self.config)
@@ -172,6 +173,7 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
         self.preimages = {}
         self.stopping_soon = False
         self.downstream_htlc_to_upstream_peer_map = {}
+        self.hold_invoice_callbacks = {}
 
         self.logger.info(f"created LNWallet[{name}] with nodeID={local_keypair.pubkey.hex()}")
 
@@ -239,13 +241,14 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
             full_path=full_path)]
 
     get_payments = LNWallet.get_payments
+    get_payment_secret = LNWallet.get_payment_secret
     get_payment_info = LNWallet.get_payment_info
     save_payment_info = LNWallet.save_payment_info
     set_invoice_status = LNWallet.set_invoice_status
     set_request_status = LNWallet.set_request_status
     set_payment_status = LNWallet.set_payment_status
     get_payment_status = LNWallet.get_payment_status
-    check_received_mpp_htlc = LNWallet.check_received_mpp_htlc
+    check_received_htlc = LNWallet.check_received_htlc
     htlc_fulfilled = LNWallet.htlc_fulfilled
     htlc_failed = LNWallet.htlc_failed
     save_preimage = LNWallet.save_preimage
@@ -273,7 +276,8 @@ class MockLNWallet(Logger, EventListener, NetworkRetryManager[LNPeerAddr]):
     _on_maybe_forwarded_htlc_resolved = LNWallet._on_maybe_forwarded_htlc_resolved
     _force_close_channel = LNWallet._force_close_channel
     suggest_splits = LNWallet.suggest_splits
-
+    register_callback_for_hold_invoice = LNWallet.register_callback_for_hold_invoice
+    add_payment_info_for_hold_invoice = LNWallet.add_payment_info_for_hold_invoice
 
 class MockTransport:
     def __init__(self, name):
@@ -729,10 +733,12 @@ class TestPeer(ElectrumTestCase):
         async def pay(lnaddr, pay_req):
             self.assertEqual(PR_UNPAID, w2.get_payment_status(lnaddr.paymenthash))
             result, log = await w1.pay_invoice(pay_req)
-            self.assertTrue(result)
-            self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
-            raise PaymentDone()
-        async def f():
+            if result is True:
+                self.assertEqual(PR_PAID, w2.get_payment_status(lnaddr.paymenthash))
+                raise PaymentDone()
+            else:
+                raise PaymentFailure()
+        async def f(test_hold_invoice=False, test_timeout=False):
             if trampoline:
                 await turn_on_trampoline_alice()
             async with OldTaskGroup() as group:
@@ -742,6 +748,14 @@ class TestPeer(ElectrumTestCase):
                 await group.spawn(p2.htlc_switch())
                 await asyncio.sleep(0.01)
                 lnaddr, pay_req = self.prepare_invoice(w2)
+                if test_hold_invoice:
+                    payment_hash = lnaddr.paymenthash
+                    preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
+                    def cb(payment_hash):
+                        if not test_timeout:
+                            w2.save_preimage(payment_hash, preimage)
+                    timeout = 1 if test_timeout else 60
+                    w2.register_callback_for_hold_invoice(payment_hash, cb, timeout)
                 invoice_features = lnaddr.get_features()
                 self.assertFalse(invoice_features.supports(LnFeatures.BASIC_MPP_OPT))
                 await group.spawn(pay(lnaddr, pay_req))
@@ -750,7 +764,11 @@ class TestPeer(ElectrumTestCase):
             'bob': LNPeerAddr(host="127.0.0.1", port=9735, pubkey=w2.node_keypair.pubkey),
         }
         with self.assertRaises(PaymentDone):
-            await f()
+            await f(test_hold_invoice=False)
+        with self.assertRaises(PaymentDone):
+            await f(test_hold_invoice=True, test_timeout=False)
+        with self.assertRaises(PaymentFailure):
+            await f(test_hold_invoice=True, test_timeout=True)
 
     @needs_test_with_all_chacha20_implementations
     async def test_simple_payment(self):
