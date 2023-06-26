@@ -651,11 +651,11 @@ class PaymentIdentifier(Logger):
             pr = self.bip70_data
             if pr.error:
                 self.error = pr.error
-                return
-            recipient = pr.get_requestor()
-            amount = pr.get_amount()
-            description = pr.get_memo()
-            validated = not pr.has_expired()
+            else:
+                recipient = pr.get_requestor()
+                amount = pr.get_amount()
+                description = pr.get_memo()
+                validated = not pr.has_expired()
 
         elif self.spk:
             pass
