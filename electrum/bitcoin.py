@@ -317,10 +317,13 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
     return witness
 
 
-def construct_script(items: Sequence[Union[str, int, bytes, opcodes]]) -> str:
+def construct_script(items: Sequence[Union[str, int, bytes, opcodes]], values=None) -> str:
     """Constructs bitcoin script from given items."""
     script = ''
-    for item in items:
+    values = values or {}
+    for i, item in enumerate(items):
+        if i in values:
+            item = values[i]
         if isinstance(item, opcodes):
             script += item.hex()
         elif type(item) is int:
