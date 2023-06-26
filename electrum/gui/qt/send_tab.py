@@ -382,10 +382,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                          and not (pi.type in [PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE] \
                                   and pi.state in [PaymentIdentifierState.NOT_FOUND, PaymentIdentifierState.NEED_RESOLVE])
         lock_amount = pi.is_amount_locked()
-        lock_max = lock_amount \
-                   or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP,
-                                  PaymentIdentifierType.LNADDR, PaymentIdentifierType.EMAILLIKE,
-                                  PaymentIdentifierType.DOMAINLIKE]
+        lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
 
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=lock_amount,
@@ -416,7 +413,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 self.amount_e.setToolTip('')
 
         self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
-        self.save_button.setEnabled(not pi.is_error() and not pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
+        self.save_button.setEnabled(not pi.is_error() and pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
 
     def _handle_payment_identifier(self):
         self.update_fields()
