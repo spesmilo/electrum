@@ -401,7 +401,8 @@ class PaymentIdentifier(Logger):
                             'WARNING: the alias "{}" could not be validated via an additional '
                             'security check, DNSSEC, and thus may not be correct.').format(self.emaillike)
                     try:
-                        scriptpubkey = self.parse_output(address)
+                        assert bitcoin.is_address(address)
+                        scriptpubkey = bytes.fromhex(bitcoin.address_to_script(address))
                         self._type = PaymentIdentifierType.OPENALIAS
                         self.spk = scriptpubkey
                         self.set_state(PaymentIdentifierState.AVAILABLE)

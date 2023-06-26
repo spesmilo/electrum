@@ -207,7 +207,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def spend_max(self):
         assert self.payto_e.payment_identifier is not None
-        assert self.payto_e.payment_identifier.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE]
+        assert self.payto_e.payment_identifier.type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE,
+                                                        PaymentIdentifierType.OPENALIAS]
         if run_hook('abort_send', self):
             return
         outputs = self.payto_e.payment_identifier.get_onchain_outputs('!')
@@ -379,7 +380,10 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         lock_recipient = pi.type != PaymentIdentifierType.SPK \
                          and not (pi.type == PaymentIdentifierType.EMAILLIKE and pi.state in [PaymentIdentifierState.NOT_FOUND,PaymentIdentifierState.NEED_RESOLVE])
         lock_amount = pi.is_amount_locked()
-        lock_max = lock_amount or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]
+        lock_max = lock_amount \
+                   or pi.type in [PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNURLP,
+                                  PaymentIdentifierType.LNADDR, PaymentIdentifierType.EMAILLIKE]
+
         self.lock_fields(lock_recipient=lock_recipient,
                          lock_amount=lock_amount,
                          lock_max=lock_max,
