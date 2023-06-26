@@ -389,17 +389,17 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                          lock_max=lock_max,
                          lock_description=False)
         if lock_recipient:
-            recipient, amount, description, comment, validated = pi.get_fields_for_GUI()
-            if recipient:
-                self.payto_e.setText(recipient)
-            if description:
-                self.message_e.setText(description)
+            fields = pi.get_fields_for_GUI()
+            if fields.recipient:
+                self.payto_e.setText(fields.recipient)
+            if fields.description:
+                self.message_e.setText(fields.description)
                 self.lock_fields(lock_description=True)
-            if amount:
-                self.amount_e.setAmount(amount)
+            if fields.amount:
+                self.amount_e.setAmount(fields.amount)
             for w in [self.comment_e, self.comment_label]:
-                w.setVisible(bool(comment))
-            self.set_field_validated(self.payto_e, validated=validated)
+                w.setVisible(bool(fields.comment))
+            self.set_field_validated(self.payto_e, validated=fields.validated)
 
         self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
         self.save_button.setEnabled(not pi.is_error())

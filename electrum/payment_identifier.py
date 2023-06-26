@@ -182,6 +182,7 @@ class PaymentIdentifierState(IntEnum):
     MERCHANT_ERROR  = 52 # PI failed notifying the merchant after broadcasting onchain TX
     INVALID_AMOUNT  = 53 # Specified amount not accepted
 
+
 class PaymentIdentifierType(IntEnum):
     UNKNOWN = 0
     SPK = 1
@@ -193,6 +194,15 @@ class PaymentIdentifierType(IntEnum):
     EMAILLIKE = 7
     OPENALIAS = 8
     LNADDR = 9
+
+
+class FieldsForGUI(NamedTuple):
+    recipient: Optional[str]
+    amount: Optional[int]
+    description: Optional[str]
+    validated: Optional[bool]
+    comment: Optional[int]
+
 
 class PaymentIdentifier(Logger):
     """
@@ -610,7 +620,7 @@ class PaymentIdentifier(Logger):
         assert bitcoin.is_address(address)
         return address
 
-    def get_fields_for_GUI(self):
+    def get_fields_for_GUI(self) -> FieldsForGUI:
         recipient = None
         amount = None
         description = None
@@ -646,11 +656,6 @@ class PaymentIdentifier(Logger):
             amount = pr.get_amount()
             description = pr.get_memo()
             validated = not pr.has_expired()
-            # note: allow saving bip70 reqs, as we save them anyway when paying them
-            #for btn in [self.send_button, self.clear_button, self.save_button]:
-            #    btn.setEnabled(True)
-            # signal to set fee
-            #self.amount_e.textEdited.emit("")
 
         elif self.spk:
             pass
@@ -667,7 +672,8 @@ class PaymentIdentifier(Logger):
             if label and not description:
                 description = label
 
-        return recipient, amount, description, comment, validated
+        return FieldsForGUI(recipient=recipient, amount=amount, description=description,
+                            comment=comment, validated=validated)
 
     def _get_bolt11_fields(self, bolt11_invoice):
         """Parse ln invoice, and prepare the send tab for it."""
