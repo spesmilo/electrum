@@ -316,10 +316,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         self.payto_e.do_clear()
         for w in [self.comment_e, self.comment_label]:
             w.setVisible(False)
-        for e in [self.message_e, self.amount_e, self.fiat_send_e]:
-            e.setText('')
-        for e in [self.save_button, self.send_button]:
-            e.setEnabled(False)
+        for w in [self.message_e, self.amount_e, self.fiat_send_e, self.comment_e]:
+            w.setText('')
+            w.setToolTip('')
+        for w in [self.save_button, self.send_button]:
+            w.setEnabled(False)
         self.window.update_status()
         run_hook('do_clear', self)
 
@@ -401,7 +402,18 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 self.amount_e.setAmount(fields.amount)
             for w in [self.comment_e, self.comment_label]:
                 w.setVisible(bool(fields.comment))
+            if fields.comment:
+                self.comment_e.setToolTip(_('Max comment length: %d characters') % fields.comment)
             self.set_field_validated(self.payto_e, validated=fields.validated)
+
+            # LNURLp amount range and comment tooltip
+            if pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR] \
+                    and pi.state == PaymentIdentifierState.LNURLP_FINALIZE \
+                    and pi.lnurl_data.min_sendable_sat != pi.lnurl_data.max_sendable_sat:
+                self.amount_e.setToolTip(_('Amount must be between %d and %d sat.') \
+                    % (pi.lnurl_data.min_sendable_sat, pi.lnurl_data.max_sendable_sat))
+            else:
+                self.amount_e.setToolTip('')
 
         self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
         self.save_button.setEnabled(not pi.is_error())
