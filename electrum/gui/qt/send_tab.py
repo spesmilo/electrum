@@ -418,11 +418,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.set_field_validated(self.payto_e, validated=fields.validated)
 
             # LNURLp amount range
-            if pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR] \
-                    and pi.state == PaymentIdentifierState.LNURLP_FINALIZE \
-                    and pi.lnurl_data.min_sendable_sat != pi.lnurl_data.max_sendable_sat:
-                self.amount_e.setToolTip(_('Amount must be between %d and %d sat.') \
-                    % (pi.lnurl_data.min_sendable_sat, pi.lnurl_data.max_sendable_sat))
+            if fields.amount_range:
+                amin, amax = fields.amount_range
+                self.amount_e.setToolTip(_('Amount must be between %d and %d sat.') % (amin, amax))
             else:
                 self.amount_e.setToolTip('')
 

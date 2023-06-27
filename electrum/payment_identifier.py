@@ -204,6 +204,7 @@ class FieldsForGUI(NamedTuple):
     description: Optional[str]
     validated: Optional[bool]
     comment: Optional[int]
+    amount_range: Optional[tuple[int, int]]
 
 
 class PaymentIdentifier(Logger):
@@ -632,6 +633,7 @@ class PaymentIdentifier(Logger):
         description = None
         validated = None
         comment = None
+        amount_range = None
 
         if (self.emaillike or self.domainlike) and self.openalias_data:
             key = self.emaillike if self.emaillike else self.domainlike
@@ -650,10 +652,13 @@ class PaymentIdentifier(Logger):
         elif self.lnurl and self.lnurl_data:
             domain = urllib.parse.urlparse(self.lnurl).netloc
             recipient = f"{self.lnurl_data.metadata_plaintext} <{domain}>"
-            amount = self.lnurl_data.min_sendable_sat if self.lnurl_data.min_sendable_sat else None
             description = self.lnurl_data.metadata_plaintext
             if self.lnurl_data.comment_allowed:
                 comment = self.lnurl_data.comment_allowed
+            if self.lnurl_data.min_sendable_sat:
+                amount = self.lnurl_data.min_sendable_sat
+                if self.lnurl_data.min_sendable_sat != self.lnurl_data.max_sendable_sat:
+                    amount_range = (self.lnurl_data.min_sendable_sat, self.lnurl_data.max_sendable_sat)
 
         elif self.bip70 and self.bip70_data:
             pr = self.bip70_data
@@ -681,7 +686,7 @@ class PaymentIdentifier(Logger):
                 description = label
 
         return FieldsForGUI(recipient=recipient, amount=amount, description=description,
-                            comment=comment, validated=validated)
+                            comment=comment, validated=validated, amount_range=amount_range)
 
     def _get_bolt11_fields(self, bolt11_invoice):
         """Parse ln invoice, and prepare the send tab for it."""
