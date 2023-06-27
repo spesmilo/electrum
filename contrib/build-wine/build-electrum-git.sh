@@ -44,7 +44,13 @@ $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-scr
 info "Installing hardware wallet requirements..."
 $WINE_PYTHON -m pip install --no-build-isolation --no-dependencies --no-warn-script-location \
     --no-binary :all: --only-binary cffi,cryptography,hidapi \
-    --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw.txt
+    --cache-dir "$WINE_PIP_CACHE_DIR" -r "$CONTRIB"/deterministic-build/requirements-hw-win.txt
+
+info "DEBUG Satochip build pyscard from win32 wheel"
+download_if_not_exist "$CACHEDIR/pyscard-2.0.7-cp310-cp310-win32.whl" "https://github.com/Toporin/pyscard/releases/download/v2.0.7/pyscard-2.0.7-cp310-cp310-win32.whl"
+verify_hash "$CACHEDIR/pyscard-2.0.7-cp310-cp310-win32.whl" "83cdbdb18fefad9a27f60deec00eb6511a40b608e021a4c7e8ac8738289bcfc1"
+$WINE_PYTHON -m pip install --no-build-isolation --no-dependencies "$CACHEDIR/pyscard-2.0.7-cp310-cp310-win32.whl"
+info "END-DEBUG Satochip"
 
 pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
