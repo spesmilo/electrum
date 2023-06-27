@@ -392,9 +392,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             self.send_button.setEnabled(False)
             return
 
-        lock_recipient = pi.type != PaymentIdentifierType.SPK \
-                         and not (pi.type in [PaymentIdentifierType.EMAILLIKE, PaymentIdentifierType.DOMAINLIKE] \
-                                  and pi.state in [PaymentIdentifierState.NOT_FOUND, PaymentIdentifierState.NEED_RESOLVE])
+        lock_recipient = pi.type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR,
+                                     PaymentIdentifierType.OPENALIAS, PaymentIdentifierType.BIP70,
+                                     PaymentIdentifierType.BIP21, PaymentIdentifierType.BOLT11] and not pi.need_resolve()
         lock_amount = pi.is_amount_locked()
         lock_max = lock_amount or pi.type not in [PaymentIdentifierType.SPK, PaymentIdentifierType.BIP21]
 

@@ -298,7 +298,7 @@ class PaymentIdentifier(Logger):
         elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
-                return True
+                return False
             if self.need_finalize():
                 self.logger.debug(f'lnurl f {self.lnurl_data.min_sendable_sat}-{self.lnurl_data.max_sendable_sat}')
                 return not (self.lnurl_data.min_sendable_sat < self.lnurl_data.max_sendable_sat)
