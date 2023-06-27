@@ -54,13 +54,12 @@ class QRCodeWidget(QWidget):
 
         self.update()
 
-
     def paintEvent(self, e):
         if not self.data:
             return
 
         black = QColor(0, 0, 0, 255)
-        grey  = QColor(196, 196, 196, 255)
+        grey = QColor(196, 196, 196, 255)
         white = QColor(255, 255, 255, 255)
         black_pen = QPen(black) if self.isEnabled() else QPen(grey)
         black_pen.setJoinStyle(Qt.MiterJoin)
@@ -182,7 +181,7 @@ class QRDialog(WindowModalDialog):
         b = QPushButton(_("Save"))
         hbox.addWidget(b)
         b.clicked.connect(print_qr)
-        
+
         if show_cancel_btn:
             b = QPushButton(_("Ok"))
             hbox.addWidget(b)
@@ -198,7 +197,7 @@ class QRDialog(WindowModalDialog):
             hbox.addWidget(b)
             b.clicked.connect(self.accept)
             b.setDefault(True)
-        
+
         vbox.addLayout(hbox)
         self.setLayout(vbox)
 
