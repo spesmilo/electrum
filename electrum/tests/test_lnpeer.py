@@ -36,7 +36,7 @@ from electrum import lnmsg
 from electrum.logging import console_stderr_handler, Logger
 from electrum.lnworker import PaymentInfo, RECEIVED
 from electrum.lnonion import OnionFailureCode
-from electrum.lnutil import derive_payment_secret_from_payment_preimage, UpdateAddHtlc
+from electrum.lnutil import UpdateAddHtlc
 from electrum.lnutil import LOCAL, REMOTE
 from electrum.invoices import PR_PAID, PR_UNPAID
 from electrum.interface import GracefulDisconnect
@@ -538,7 +538,7 @@ class TestPeer(ElectrumTestCase):
             trampoline_hints = []
         invoice_features = w2.features.for_invoice()
         if invoice_features.supports(LnFeatures.PAYMENT_SECRET_OPT):
-            payment_secret = derive_payment_secret_from_payment_preimage(payment_preimage)
+            payment_secret = w2.get_payment_secret(RHASH)
         else:
             payment_secret = None
         lnaddr1 = LnAddr(
