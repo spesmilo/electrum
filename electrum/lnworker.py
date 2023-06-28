@@ -1923,8 +1923,6 @@ class LNWallet(LNWorker):
                 is_accepted = True
             elif self.stopping_soon:
                 is_expired = True # try to time out pending HTLCs before shutting down
-            elif time.time() - first_timestamp > self.MPP_EXPIRY:
-                is_expired = True
             elif all([self.is_mpp_amount_reached(x) for x in payment_secrets]):
                 preimage = self.get_preimage(payment_hash)
                 hold_invoice_callback = self.hold_invoice_callbacks.get(payment_hash)
@@ -1935,14 +1933,18 @@ class LNWallet(LNWorker):
                         cb(payment_hash)
                     else:
                         is_expired = True
-                elif bundle is not None:
-                    is_accepted = all([bool(self.get_preimage(x)) for x in bundle])
                 else:
-                    # trampoline forwarding needs this to return True
+                    # note: preimage will be None for outer trampoline onion
                     is_accepted = True
 
-            # set status for the bundle
-            if is_expired or is_accepted:
+            elif time.time() - first_timestamp > self.MPP_EXPIRY:
+                is_expired = True
+
+            if is_accepted:
+                # accept only the current part of a bundle
+                self.set_mpp_status(payment_secret, is_expired, is_accepted)
+            elif is_expired:
+                # .. but expire all parts
                 for x in payment_secrets:
                     if x in self.received_mpp_htlcs:
                         self.set_mpp_status(x, is_expired, is_accepted)
