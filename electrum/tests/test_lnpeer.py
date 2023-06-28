@@ -762,7 +762,7 @@ class TestPeer(ElectrumTestCase):
             payment_hash = lnaddr.paymenthash
             preimage = bytes.fromhex(w2.preimages.pop(payment_hash.hex()))
             def cb(payment_hash):
-                if not test_timeout:
+                if not test_hold_timeout:
                     w2.save_preimage(payment_hash, preimage)
             timeout = 1 if test_hold_timeout else 60
             w2.register_callback_for_hold_invoice(payment_hash, cb, timeout)
@@ -815,9 +815,9 @@ class TestPeer(ElectrumTestCase):
                 await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True)
 
     async def test_simple_payment_with_hold_invoice_timing_out(self):
-        for trampoline in [False, True]:
+        for test_trampoline in [False, True]:
             with self.assertRaises(PaymentFailure):
-                await self._test_simple_payment(trampoline=trampoline, test_hold_invoice=True, test_timeout=True)
+                await self._test_simple_payment(test_trampoline=test_trampoline, test_hold_invoice=True, test_hold_timeout=True)
 
     @needs_test_with_all_chacha20_implementations
     async def test_payment_race(self):
