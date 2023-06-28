@@ -47,8 +47,11 @@ class TestLightningAB(TestLightning):
     def test_collaborative_close(self):
         self.run_shell(['collaborative_close'])
 
-    def test_submarine_swap(self):
-        self.run_shell(['reverse_swap'])
+    def test_swapserver_success(self):
+        self.run_shell(['swapserver_success'])
+
+    def test_swapserver_refund(self):
+        self.run_shell(['swapserver_refund'])
 
     def test_backup(self):
         self.run_shell(['backup'])

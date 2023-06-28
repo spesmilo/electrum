@@ -967,6 +967,7 @@ class SimpleConfig(Logger):
     SWAPSERVER_URL_MAINNET = ConfigVar('swapserver_url_mainnet', default='https://swaps.electrum.org/api', type_=str)
     SWAPSERVER_URL_TESTNET = ConfigVar('swapserver_url_testnet', default='https://swaps.electrum.org/testnet', type_=str)
     SWAPSERVER_URL_REGTEST = ConfigVar('swapserver_url_regtest', default='http://localhost:5455/api', type_=str)
+    TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)
     # connect to remote WT
     WATCHTOWER_CLIENT_ENABLED = ConfigVar('use_watchtower', default=False, type_=bool)
     WATCHTOWER_CLIENT_URL = ConfigVar('watchtower_url', default=None, type_=str)

@@ -2704,3 +2704,8 @@ class LNWallet(LNWorker):
             self._channel_backups[bfh(channel_id)] = cb
         util.trigger_callback('channels_updated', self.wallet)
         self.lnwatcher.add_channel(cb.funding_outpoint.to_str(), cb.get_funding_address())
+
+    def fail_trampoline_forwarding(self, payment_key):
+        """ use this to fail htlcs received for hold invoices"""
+        e = OnionRoutingFailure(code=OnionFailureCode.UNKNOWN_NEXT_PEER, data=b'')
+        self.trampoline_forwarding_failures[payment_key] = e

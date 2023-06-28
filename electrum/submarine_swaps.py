@@ -232,11 +232,18 @@ class SwapManager(Logger):
                     #
                     tx = self.lnwatcher.adb.get_transaction(txin.spent_txid)
                     preimage = tx.inputs()[0].witness_elements()[1]
-                    assert swap.payment_hash == sha256(preimage)
-                    swap.preimage = preimage
-                    self.logger.info(f'found preimage: {preimage.hex()}')
-                    self.lnworker.preimages[swap.payment_hash.hex()] = preimage.hex()
-                    # note: we must check the payment secret before we broadcast the funding tx
+                    if sha256(preimage) == swap.payment_hash:
+                        swap.preimage = preimage
+                        self.logger.info(f'found preimage: {preimage.hex()}')
+                        self.lnworker.preimages[swap.payment_hash.hex()] = preimage.hex()
+                        # note: we must check the payment secret before we broadcast the funding tx
+                    else:
+                        # refund tx
+                        if spent_height > 0:
+                            self.logger.info(f'found confirmed refund')
+                            payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
+                            payment_key = swap.payment_hash + payment_secret
+                            self.lnworker.fail_trampoline_forwarding(payment_key)
 
                 if spent_height > 0:
                     if current_height - spent_height > REDEEM_AFTER_DOUBLE_SPENT_DELAY:
@@ -256,6 +263,8 @@ class SwapManager(Logger):
             #
             if swap.is_reverse and swap.preimage is None:
                 self.logger.info('preimage not available yet')
+                continue
+            if swap.is_reverse and self.network.config.TEST_SWAPSERVER_REFUND:
                 continue
             try:
                 tx = self._create_and_sign_claim_tx(txin=txin, swap=swap, config=self.wallet.config)
@@ -586,13 +595,12 @@ class SwapManager(Logger):
             asyncio.ensure_future(self.lnworker.pay_invoice(fee_invoice, attempts=10))
         # we return if we detect funding
         async def wait_for_funding(swap):
-            while swap.spending_txid is None:
+            while swap.funding_txid is None:
                 await asyncio.sleep(1)
         # initiate main payment
         tasks = [asyncio.create_task(self.lnworker.pay_invoice(invoice, attempts=10, channels=channels)), asyncio.create_task(wait_for_funding(swap))]
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        success = swap.spending_txid is not None
-        return success
+        return swap.funding_txid
 
     def _add_or_reindex_swap(self, swap: SwapData) -> None:
         if swap.payment_hash.hex() not in self.swaps:
