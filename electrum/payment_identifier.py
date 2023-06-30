@@ -4,7 +4,7 @@ import urllib
 import re
 from decimal import Decimal, InvalidOperation
 from enum import IntEnum
-from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING
+from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple
 
 from . import bitcoin
 from .contacts import AliasNotFoundException
@@ -204,7 +204,7 @@ class FieldsForGUI(NamedTuple):
     description: Optional[str]
     validated: Optional[bool]
     comment: Optional[int]
-    amount_range: Optional[tuple[int, int]]
+    amount_range: Optional[Tuple[int, int]]
 
 
 class PaymentIdentifier(Logger):
@@ -291,7 +291,7 @@ class PaymentIdentifier(Logger):
         if self._type == PaymentIdentifierType.BIP21:
             return bool(self.bip21.get('amount'))
         elif self._type == PaymentIdentifierType.BIP70:
-            return True  # TODO always given?
+            return not self.need_resolve()  # always fixed after resolve?
         elif self._type == PaymentIdentifierType.BOLT11:
             lnaddr = lndecode(self.bolt11)
             return bool(lnaddr.amount)
@@ -442,9 +442,13 @@ class PaymentIdentifier(Logger):
                     self.set_state(PaymentIdentifierState.NOT_FOUND)
             elif self.bip70:
                 from . import paymentrequest
-                data = await paymentrequest.get_payment_request(self.bip70)
-                self.bip70_data = data
-                self.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
+                pr = await paymentrequest.get_payment_request(self.bip70)
+                if not pr.error:
+                    self.bip70_data = pr
+                    self.set_state(PaymentIdentifierState.MERCHANT_NOTIFY)
+                else:
+                    self.error = pr.error
+                    self.set_state(PaymentIdentifierState.ERROR)
             elif self.lnurl:
                 data = await request_lnurl(self.lnurl)
                 self.lnurl_data = data
