@@ -522,12 +522,13 @@ def assert_file_in_datadir_available(path, config_path):
 
 
 def standardize_path(path):
+    # note: os.path.realpath() is not used, as on Windows it can return non-working paths (see #8495).
+    #       This means that we don't resolve symlinks!
     return os.path.normcase(
-            os.path.realpath(
                 os.path.abspath(
                     os.path.expanduser(
                         path
-    ))))
+    )))
 
 
 def get_new_wallet_name(wallet_folder: str) -> str:

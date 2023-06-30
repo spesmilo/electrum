@@ -402,7 +402,7 @@ class Daemon(Logger):
         if not self.config.NETWORK_OFFLINE:
             self.network = Network(config, daemon=self)
         self.fx = FxThread(config=config)
-        # path -> wallet;   make sure path is standardized.
+        # wallet_key -> wallet
         self._wallets = {}  # type: Dict[str, Abstract_Wallet]
         self._wallet_lock = threading.RLock()
         daemon_jobs = []
@@ -452,6 +452,17 @@ class Daemon(Logger):
         if self.config.LIGHTNING_USE_GOSSIP:
             self.network.start_gossip()
 
+    @staticmethod
+    def _wallet_key_from_path(path) -> str:
+        """This does stricter path standardization than 'standardize_path'.
+        It is used for keying the _wallets dict, but not for the actual filesystem operations. (see #8495)
+        """
+        path = standardize_path(path)
+        # also resolve symlinks and windows network mounts/etc:
+        path = os.path.realpath(path)
+        path = os.path.normcase(path)
+        return str(path)
+
     def with_wallet_lock(func):
         def func_wrapper(self: 'Daemon', *args, **kwargs):
             with self._wallet_lock:
@@ -461,9 +472,9 @@ class Daemon(Logger):
     @with_wallet_lock
     def load_wallet(self, path, password, *, manual_upgrades=True) -> Optional[Abstract_Wallet]:
         path = standardize_path(path)
+        wallet_key = self._wallet_key_from_path(path)
         # wizard will be launched if we return
-        if path in self._wallets:
-            wallet = self._wallets[path]
+        if wallet := self._wallets.get(wallet_key):
             return wallet
         wallet = self._load_wallet(path, password, manual_upgrades=manual_upgrades, config=self.config)
         if wallet is None:
@@ -503,13 +514,13 @@ class Daemon(Logger):
     @with_wallet_lock
     def add_wallet(self, wallet: Abstract_Wallet) -> None:
         path = wallet.storage.path
-        path = standardize_path(path)
-        self._wallets[path] = wallet
+        wallet_key = self._wallet_key_from_path(path)
+        self._wallets[wallet_key] = wallet
         run_hook('daemon_wallet_loaded', self, wallet)
 
     def get_wallet(self, path: str) -> Optional[Abstract_Wallet]:
-        path = standardize_path(path)
-        return self._wallets.get(path)
+        wallet_key = self._wallet_key_from_path(path)
+        return self._wallets.get(wallet_key)
 
     @with_wallet_lock
     def get_wallets(self) -> Dict[str, Abstract_Wallet]:
@@ -531,8 +542,8 @@ class Daemon(Logger):
     @with_wallet_lock
     async def _stop_wallet(self, path: str) -> bool:
         """Returns True iff a wallet was found."""
-        path = standardize_path(path)
-        wallet = self._wallets.pop(path, None)
+        wallet_key = self._wallet_key_from_path(path)
+        wallet = self._wallets.pop(wallet_key, None)
         if not wallet:
             return False
         await wallet.stop()
