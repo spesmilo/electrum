@@ -228,7 +228,15 @@ def create_trampoline_route(
     return route
 
 
-def create_trampoline_onion(*, route, amount_msat, final_cltv, total_msat, payment_hash, payment_secret):
+def create_trampoline_onion(
+    *,
+    route,
+    amount_msat,
+    final_cltv,
+    total_msat: int,
+    payment_hash: bytes,
+    payment_secret: bytes,
+):
     # all edges are trampoline
     hops_data, amount_msat, cltv = calc_hops_data_for_payment(
         route,
@@ -277,8 +285,8 @@ def create_trampoline_route_and_onion(
         my_pubkey: bytes,
         node_id,
         r_tags,
-        payment_hash,
-        payment_secret,
+        payment_hash: bytes,
+        payment_secret: bytes,
         local_height: int,
         trampoline_fee_level: int,
         use_two_trampolines: bool,

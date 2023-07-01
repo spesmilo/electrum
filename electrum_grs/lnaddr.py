@@ -184,6 +184,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
     tags_set = set()
 
     # Payment hash
+    assert addr.paymenthash is not None
     data += tagged_bytes('p', addr.paymenthash)
     tags_set.add('p')
 
@@ -196,7 +197,7 @@ def lnencode(addr: 'LnAddr', privkey) -> str:
         # BOLT #11:
         #
         # A writer MUST NOT include more than one `d`, `h`, `n` or `x` fields,
-        if k in ('d', 'h', 'n', 'x', 'p', 's'):
+        if k in ('d', 'h', 'n', 'x', 'p', 's', '9'):
             if k in tags_set:
                 raise LnEncodeException("Duplicate '{}' tag".format(k))
 
@@ -317,6 +318,17 @@ class LnAddr(object):
         from .lnutil import LnFeatures
         return LnFeatures(self.get_tag('9') or 0)
 
+    def validate_and_compare_features(self, myfeatures: 'LnFeatures') -> None:
+        """Raises IncompatibleOrInsaneFeatures.
+
+        note: these checks are not done by the parser (in lndecode), as then when we started requiring a new feature,
+              old saved already paid invoices could no longer be parsed.
+        """
+        from .lnutil import validate_features, ln_compare_features
+        invoice_features = self.get_features()
+        validate_features(invoice_features)
+        ln_compare_features(myfeatures.for_invoice(), invoice_features)
+
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
             hexlify(self.pubkey.serialize()).decode('utf-8') if self.pubkey else None,
@@ -381,6 +393,9 @@ class SerializableKey:
         return self.pubkey.get_public_key_bytes(True)
 
 def lndecode(invoice: str, *, verbose=False, net=None) -> LnAddr:
+    """Parses a string into an LnAddr object.
+    Can raise LnDecodeException or IncompatibleOrInsaneFeatures.
+    """
     if net is None:
         net = constants.net
     decoded_bech32 = bech32_decode(invoice, ignore_long_length=True)

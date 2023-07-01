@@ -10,7 +10,7 @@ import time
 import operator
 from enum import IntEnum
 from typing import (Optional, Sequence, Tuple, List, Set, Dict, TYPE_CHECKING,
-                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict)
+                    NamedTuple, Union, Mapping, Any, Iterable, AsyncGenerator, DefaultDict, Callable)
 import threading
 import socket
 import aiohttp
@@ -136,6 +136,13 @@ class PaymentInfo(NamedTuple):
     status: int
 
 
+class ReceivedMPPStatus(NamedTuple):
+    is_expired: bool
+    is_accepted: bool
+    expected_msat: int
+    htlc_set: Set[Tuple[ShortChannelID, UpdateAddHtlc]]
+
+
 class ErrorAddingPeer(Exception): pass
 
 
@@ -156,6 +163,8 @@ LNWALLET_FEATURES = (
     | LnFeatures.OPTION_DATA_LOSS_PROTECT_REQ
     | LnFeatures.OPTION_STATIC_REMOTEKEY_REQ
     | LnFeatures.GOSSIP_QUERIES_REQ
+    | LnFeatures.VAR_ONION_REQ
+    | LnFeatures.PAYMENT_SECRET_REQ
     | LnFeatures.BASIC_MPP_OPT
     | LnFeatures.OPTION_TRAMPOLINE_ROUTING_OPT_ELECTRUM
     | LnFeatures.OPTION_SHUTDOWN_ANYSEGWIT_OPT
@@ -634,7 +643,7 @@ class LNWallet(LNWorker):
         self.sent_htlcs = defaultdict(asyncio.Queue)  # type: Dict[bytes, asyncio.Queue[HtlcLog]]
         self.sent_htlcs_info = dict()                 # (RHASH, scid, htlc_id) -> route, payment_secret, amount_msat, bucket_msat, trampoline_fee_level
         self.sent_buckets = dict()                    # payment_secret -> (amount_sent, amount_failed)
-        self.received_mpp_htlcs = dict()                  # RHASH -> mpp_status, htlc_set
+        self.received_mpp_htlcs = dict()              # type: Dict[bytes, ReceivedMPPStatus]  # payment_secret -> ReceivedMPPStatus
 
         self.swap_manager = SwapManager(wallet=self.wallet, lnworker=self)
         # detect inflight payments
@@ -645,7 +654,10 @@ class LNWallet(LNWorker):
         self.trampoline_forwarding_failures = {} # todo: should be persisted
         # map forwarded htlcs (fw_info=(scid_hex, htlc_id)) to originating peer pubkeys
         self.downstream_htlc_to_upstream_peer_map = {}  # type: Dict[Tuple[str, int], bytes]
-        self.hold_invoice_callbacks = {}                # payment_hash -> callback, timeout
+        # payment_hash -> callback, timeout:
+        self.hold_invoice_callbacks = {}                # type: Dict[bytes, Tuple[Callable[[bytes], None], int]]
+        self.payment_bundles = []                       # lists of hashes. todo:persist
+
 
     def has_deterministic_node_id(self) -> bool:
         return bool(self.db.get('lightning_xprv'))
@@ -1197,7 +1209,7 @@ class LNWallet(LNWorker):
             self, *,
             node_pubkey: bytes,
             payment_hash: bytes,
-            payment_secret: Optional[bytes],
+            payment_secret: bytes,
             amount_to_pay: int,  # in msat
             min_cltv_expiry: int,
             r_tags,
@@ -1348,7 +1360,7 @@ class LNWallet(LNWorker):
             total_msat: int,
             amount_receiver_msat:int,
             payment_hash: bytes,
-            payment_secret: Optional[bytes],
+            payment_secret: bytes,
             min_cltv_expiry: int,
             trampoline_onion: bytes = None,
             trampoline_fee_level: int,
@@ -1505,8 +1517,7 @@ class LNWallet(LNWorker):
             except Exception:
                 return None
 
-    @staticmethod
-    def _check_invoice(invoice: str, *, amount_msat: int = None) -> LnAddr:
+    def _check_invoice(self, invoice: str, *, amount_msat: int = None) -> LnAddr:
         addr = lndecode(invoice)
         if addr.is_expired():
             raise InvoiceError(_("This invoice has expired"))
@@ -1521,6 +1532,7 @@ class LNWallet(LNWorker):
             raise InvoiceError("{}\n{}".format(
                 _("Invoice wants us to risk locking funds for unreasonably long."),
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
+        addr.validate_and_compare_features(self.features)
         return addr
 
     def is_trampoline_peer(self, node_id: bytes) -> bool:
@@ -1574,8 +1586,8 @@ class LNWallet(LNWorker):
             min_cltv_expiry,
             r_tags,
             invoice_features: int,
-            payment_hash,
-            payment_secret,
+            payment_hash: bytes,
+            payment_secret: bytes,
             trampoline_fee_level: int,
             use_two_trampolines: bool,
             fwd_trampoline_onion=None,
@@ -1831,6 +1843,14 @@ class LNWallet(LNWorker):
             self.wallet.save_db()
         return payment_hash
 
+    def bundle_payments(self, hash_list):
+        self.payment_bundles.append(hash_list)
+
+    def get_payment_bundle(self, payment_hash):
+        for hash_list in self.payment_bundles:
+            if payment_hash in hash_list:
+                return hash_list
+
     def save_preimage(self, payment_hash: bytes, preimage: bytes, *, write_to_disk: bool = True):
         assert sha256(preimage) == payment_hash
         self.preimages[payment_hash.hex()] = preimage.hex()
@@ -1850,11 +1870,13 @@ class LNWallet(LNWorker):
                 amount_msat, direction, status = self.payment_info[key]
                 return PaymentInfo(payment_hash, amount_msat, direction, status)
 
-    def add_payment_info_for_hold_invoice(self, payment_hash, lightning_amount_sat):
+    def add_payment_info_for_hold_invoice(self, payment_hash: bytes, lightning_amount_sat: int):
         info = PaymentInfo(payment_hash, lightning_amount_sat * 1000, RECEIVED, PR_UNPAID)
         self.save_payment_info(info, write_to_disk=False)
 
-    def register_callback_for_hold_invoice(self, payment_hash, cb, timeout: Optional[int] = None):
+    def register_callback_for_hold_invoice(
+        self, payment_hash: bytes, cb: Callable[[bytes], None], timeout: int,
+    ):
         expiry = int(time.time()) + timeout
         self.hold_invoice_callbacks[payment_hash] = cb, expiry
 
@@ -1866,49 +1888,115 @@ class LNWallet(LNWorker):
         if write_to_disk:
             self.wallet.save_db()
 
-    def check_received_htlc(self, payment_secret, short_channel_id, htlc: UpdateAddHtlc, expected_msat: int) -> Optional[bool]:
+    def check_received_htlc(
+        self, payment_secret: bytes,
+        short_channel_id: ShortChannelID,
+        htlc: UpdateAddHtlc,
+        expected_msat: int,
+    ) -> Optional[bool]:
         """ return MPP status: True (accepted), False (expired) or None (waiting)
         """
         payment_hash = htlc.payment_hash
-        preimage = self.get_preimage(payment_hash)
-        callback = self.hold_invoice_callbacks.get(payment_hash)
-        if not preimage and callback:
-            cb, timeout = callback
-            if int(time.time()) < timeout:
-                cb(payment_hash)
-                return None
-            else:
-                return False
 
-        amt_to_forward = htlc.amount_msat # check this
-        if amt_to_forward >= expected_msat:
-            # not multi-part
-            return True
-
-        is_expired, is_accepted, htlc_set = self.received_mpp_htlcs.get(payment_secret, (False, False, set()))
-        if self.get_payment_status(payment_hash) == PR_PAID:
-            # payment_status is persisted
-            is_accepted = True
-            is_expired = False
-        key = (short_channel_id, htlc)
-        if key not in htlc_set:
-            htlc_set.add(key)
+        self.update_mpp_with_received_htlc(payment_secret, short_channel_id, htlc, expected_msat)
+        is_expired, is_accepted = self.get_mpp_status(payment_secret)
         if not is_accepted and not is_expired:
-            total = sum([_htlc.amount_msat for scid, _htlc in htlc_set])
-            first_timestamp = min([_htlc.timestamp for scid, _htlc in htlc_set])
-            if self.stopping_soon:
-                is_expired = True  # try to time out pending HTLCs before shutting down
+            bundle = self.get_payment_bundle(payment_hash)
+            payment_hashes = bundle or [payment_hash]
+            payment_secrets = [self.get_payment_secret(h) for h in bundle] if bundle else [payment_secret]
+            first_timestamp = min([self.get_first_timestamp_of_mpp(x) for x in payment_secrets])
+            if self.get_payment_status(payment_hash) == PR_PAID:
+                is_accepted = True
+            elif self.stopping_soon:
+                is_expired = True # try to time out pending HTLCs before shutting down
+            elif all([self.is_mpp_amount_reached(x) for x in payment_secrets]):
+                preimage = self.get_preimage(payment_hash)
+                hold_invoice_callback = self.hold_invoice_callbacks.get(payment_hash)
+                if not preimage and hold_invoice_callback:
+                    # for hold invoices, trigger callback
+                    cb, timeout = hold_invoice_callback
+                    if int(time.time()) < timeout:
+                        cb(payment_hash)
+                    else:
+                        is_expired = True
+                else:
+                    # note: preimage will be None for outer trampoline onion
+                    is_accepted = True
+
             elif time.time() - first_timestamp > self.MPP_EXPIRY:
                 is_expired = True
-            elif total == expected_msat:
-                is_accepted = True
-        if is_accepted or is_expired:
-            htlc_set.remove(key)
-        if len(htlc_set) > 0:
-            self.received_mpp_htlcs[payment_secret] = is_expired, is_accepted, htlc_set
-        elif payment_secret in self.received_mpp_htlcs:
-            self.received_mpp_htlcs.pop(payment_secret)
+
+            if is_accepted:
+                # accept only the current part of a bundle
+                self.set_mpp_status(payment_secret, is_expired, is_accepted)
+            elif is_expired:
+                # .. but expire all parts
+                for x in payment_secrets:
+                    if x in self.received_mpp_htlcs:
+                        self.set_mpp_status(x, is_expired, is_accepted)
+
+        self.maybe_cleanup_mpp_status(payment_secret, short_channel_id, htlc)
         return True if is_accepted else (False if is_expired else None)
+
+    def update_mpp_with_received_htlc(
+        self,
+        payment_secret: bytes,
+        short_channel_id: ShortChannelID,
+        htlc: UpdateAddHtlc,
+        expected_msat: int,
+    ):
+        # add new htlc to set
+        mpp_status = self.received_mpp_htlcs.get(payment_secret)
+        if mpp_status is None:
+            mpp_status = ReceivedMPPStatus(
+                is_expired=False,
+                is_accepted=False,
+                expected_msat=expected_msat,
+                htlc_set=set(),
+            )
+        assert expected_msat == mpp_status.expected_msat
+        key = (short_channel_id, htlc)
+        if key not in mpp_status.htlc_set:
+            mpp_status.htlc_set.add(key)  # side-effecting htlc_set
+            self.received_mpp_htlcs[payment_secret] = mpp_status
+
+    def get_mpp_status(self, payment_secret: bytes) -> Tuple[bool, bool]:
+        mpp_status = self.received_mpp_htlcs[payment_secret]
+        return mpp_status.is_expired, mpp_status.is_accepted
+
+    def set_mpp_status(self, payment_secret: bytes, is_expired: bool, is_accepted: bool):
+        mpp_status = self.received_mpp_htlcs[payment_secret]
+        self.received_mpp_htlcs[payment_secret] = mpp_status._replace(
+            is_expired=is_expired,
+            is_accepted=is_accepted,
+        )
+
+    def is_mpp_amount_reached(self, payment_secret: bytes) -> bool:
+        mpp_status = self.received_mpp_htlcs.get(payment_secret)
+        if not mpp_status:
+            return False
+        total = sum([_htlc.amount_msat for scid, _htlc in mpp_status.htlc_set])
+        return total >= mpp_status.expected_msat
+
+    def get_first_timestamp_of_mpp(self, payment_secret: bytes) -> int:
+        mpp_status = self.received_mpp_htlcs.get(payment_secret)
+        if not mpp_status:
+            return int(time.time())
+        return min([_htlc.timestamp for scid, _htlc in mpp_status.htlc_set])
+
+    def maybe_cleanup_mpp_status(
+        self,
+        payment_secret: bytes,
+        short_channel_id: ShortChannelID,
+        htlc: UpdateAddHtlc,
+    ) -> None:
+        mpp_status = self.received_mpp_htlcs[payment_secret]
+        if not mpp_status.is_accepted and not mpp_status.is_expired:
+            return
+        key = (short_channel_id, htlc)
+        mpp_status.htlc_set.remove(key)  # side-effecting htlc_set
+        if not mpp_status.htlc_set and payment_secret in self.received_mpp_htlcs:
+            self.received_mpp_htlcs.pop(payment_secret)
 
     def get_payment_status(self, payment_hash: bytes) -> int:
         info = self.get_payment_info(payment_hash)

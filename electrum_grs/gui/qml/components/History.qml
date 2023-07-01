@@ -107,6 +107,18 @@ Pane {
         }
     }
 
+    MouseArea {
+        // cover list items, make left side insensitive to clicks
+        // this helps with the back gesture on newer androids
+        id: left_backgesture_hack
+        anchors {
+            top: listview.top
+            left: listview.left
+            bottom: listview.bottom
+        }
+        width: constants.fingerWidth
+    }
+
     Rectangle {
         id: dragb
         anchors.right: vdragscroll.left
