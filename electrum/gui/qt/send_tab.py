@@ -73,7 +73,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                    "e.g. set one amount to '2!' and another to '3!' to split your coins 40-60."))
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 0, 0)
-        grid.addWidget(self.payto_e.text_edit, 0, 1, 1, 4)
+        grid.addWidget(self.payto_e, 0, 1, 1, 4)
 
         #completer = QCompleter()
         #completer.setCaseSensitivity(False)
@@ -339,6 +339,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         for w in [self.save_button, self.send_button]:
             w.setEnabled(False)
         self.window.update_status()
+        self.paytomany_menu.setChecked(self.payto_e.multiline)
+
         run_hook('do_clear', self)
 
     def prepare_for_send_tab_network_lookup(self):
