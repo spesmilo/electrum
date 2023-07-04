@@ -13,6 +13,7 @@ from .qewallet import QEWallet
 from .qetypes import QEAmount
 from .util import QtEventListener, qt_event_listener, event_listener
 
+
 class QEChannelDetails(QObject, QtEventListener):
     _logger = get_logger(__name__)
 
@@ -171,12 +172,25 @@ class QEChannelDetails(QObject, QtEventListener):
         return self._channel.can_be_deleted()
 
     @pyqtProperty(str, notify=channelChanged)
-    def messageForceClose(self, notify=channelChanged):
+    def messageForceClose(self):
         return messages.MSG_REQUEST_FORCE_CLOSE.strip()
+
+    @pyqtProperty(str, notify=channelChanged)
+    def messageForceCloseBackup(self):
+        return ' '.join([
+            _('If you force-close this channel, the funds you have in it will not be available for {} blocks.').format(self.toSelfDelay),
+            _('During that time, funds will not be recoverable from your seed, and may be lost if you lose your device.'),
+            _('To prevent that, please save this channel backup.'),
+            _('It may be imported in another wallet with the same seed.')
+        ])
 
     @pyqtProperty(bool, notify=channelChanged)
     def isBackup(self):
         return self._channel.is_backup()
+
+    @pyqtProperty(int, notify=channelChanged)
+    def toSelfDelay(self):
+        return self._channel.config[REMOTE].to_self_delay
 
     @pyqtSlot()
     def freezeForSending(self):
