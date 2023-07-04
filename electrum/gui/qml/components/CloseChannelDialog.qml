@@ -18,7 +18,6 @@ ElDialog {
     title: qsTr('Close Channel')
     iconSource: Qt.resolvedUrl('../../icons/lightning_disconnected.png')
 
-    property bool _closing: false
     property string _closing_method
 
     closePolicy: Popup.NoAutoClose
@@ -114,21 +113,21 @@ ElDialog {
                         id: closetypeCoop
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'cooperative'
-                        enabled: !_closing && channeldetails.canCoopClose
+                        enabled: !channeldetails.isClosing && channeldetails.canCoopClose
                         text: qsTr('Cooperative close')
                     }
                     RadioButton {
                         id: closetypeRemoteForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'remote_force'
-                        enabled: !_closing && channeldetails.canForceClose
+                        enabled: !channeldetails.isClosing && channeldetails.canForceClose
                         text: qsTr('Request Force-close')
                     }
                     RadioButton {
                         id: closetypeLocalForce
                         ButtonGroup.group: closetypegroup
                         property string closetype: 'local_force'
-                        enabled: !_closing && channeldetails.canForceClose && !channeldetails.isBackup
+                        enabled: !channeldetails.isClosing && channeldetails.canForceClose && !channeldetails.isBackup
                         text: qsTr('Local Force-close')
                     }
                 }
@@ -141,17 +140,17 @@ ElDialog {
                         id: errorText
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: parent.width
-                        visible: !_closing && errorText.text
+                        visible: !channeldetails.isClosing && errorText.text
                         iconStyle: InfoTextArea.IconStyle.Error
                     }
                     Label {
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr('Closing...')
-                        visible: _closing
+                        visible: channeldetails.isClosing
                     }
                     BusyIndicator {
                         Layout.alignment: Qt.AlignHCenter
-                        visible: _closing
+                        visible: channeldetails.isClosing
                     }
                 }
             }
@@ -162,10 +161,10 @@ ElDialog {
             Layout.fillWidth: true
             text: qsTr('Close channel')
             icon.source: '../../icons/closebutton.png'
-            enabled: !_closing
+            enabled: !channeldetails.isClosing
             onClicked: {
                 if (closetypegroup.checkedButton.closetype == 'local_force') {
-                    showBackupThenConfirmClose()
+                    showBackupThenClose()
                 } else {
                     doCloseChannel()
                 }
@@ -173,7 +172,7 @@ ElDialog {
         }
     }
 
-    function showBackupThenConfirmClose() {
+    function showBackupThenClose() {
         var sharedialog = app.genericShareDialog.createObject(app, {
             title: qsTr('Save channel backup and force close'),
             text_qr: channeldetails.channelBackup(),
@@ -181,24 +180,12 @@ ElDialog {
             helpTextIconStyle: InfoTextArea.IconStyle.Warn
         })
         sharedialog.closed.connect(function() {
-            confirmCloseChannel()
+            doCloseChannel()
         })
         sharedialog.open()
     }
 
-    function confirmCloseChannel() {
-        var confirmdialog = app.messageDialog.createObject(app, {
-            title: qsTr('Confirm force close?'),
-            yesno: true
-        })
-        confirmdialog.accepted.connect(function() {
-            doCloseChannel()
-        })
-        confirmdialog.open()
-    }
-
     function doCloseChannel() {
-        _closing = true
         _closing_method = closetypegroup.checkedButton.closetype
         channeldetails.closeChannel(_closing_method)
     }
@@ -215,8 +202,12 @@ ElDialog {
         wallet: Daemon.currentWallet
         channelid: dialog.channelid
 
+        onAuthRequired: {
+            app.handleAuthRequired(channeldetails, method, authMessage)
+        }
+
         onChannelChanged: {
-            if (!channeldetails.canClose)
+            if (!channeldetails.canClose || channeldetails.isClosing)
                 return
 
             // init default choice
@@ -227,7 +218,6 @@ ElDialog {
         }
 
         onChannelCloseSuccess: {
-            _closing = false
             if (_closing_method == 'local_force') {
                 showCloseMessage(qsTr('Channel closed. You may need to wait at least %1 blocks, because of CSV delays').arg(channeldetails.toSelfDelay))
             } else if (_closing_method == 'remote_force') {
@@ -239,7 +229,6 @@ ElDialog {
         }
 
         onChannelCloseFailed: {
-            _closing = false
             errorText.text = message
         }
     }
