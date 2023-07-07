@@ -182,10 +182,11 @@ RUN cd /opt \
     && git clone https://github.com/kivy/buildozer \
     && cd buildozer \
     && git remote add sombernight https://github.com/SomberNight/buildozer \
+    && git remote add accumulator https://github.com/accumulator/buildozer \
     && git fetch --all \
-    # commit: from branch sombernight/electrum_20210421 (note: careful with force-pushing! see #8162) \
+    # commit: from branch master (note: careful with force-pushing! see #8162) \
     # no, this is master
-    && git checkout "10f9c8b789f4f4cb020356bdb50607eceae10493^{commit}" \
+    && git checkout "698b48136c55b2495128207c5e98dccc128bb6c2^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # install python-for-android
@@ -195,9 +196,9 @@ RUN cd /opt \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git remote add accumulator https://github.com/accumulator/python-for-android \
     && git fetch --all \
-    # commit: from branch accumulator/electrum_20210421d (note: careful with force-pushing! see #8162) \
+    # commit: from branch accumulator/qt6-wip (note: careful with force-pushing! see #8162) \
     #
-    && git checkout "710cc81d9cdcdcef910547074f031e8a3f102d63^{commit}" \
+    && git checkout "3b3733dbf5f461e197ba83887ac0d3b6d0f1c396^{commit}" \
     && /opt/venv/bin/python3 -m pip install --no-build-isolation --no-dependencies -e .
 
 # build env vars

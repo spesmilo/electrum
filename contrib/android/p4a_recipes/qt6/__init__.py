@@ -11,7 +11,7 @@ assert Qt6Recipe.depends == ['python3', 'hostqt6']
 assert Qt6Recipe.python_depends == []
 
 class Qt6RecipePinned(util.InheritedRecipeMixin, Qt6Recipe):
-    sha512sum = "767d2d388dab64ba314743841b9b2dbd68996876d15621e0ae97688e2ef1300c70f96b417bf111f119c87699a3d7014c70aec3a80b5216212bb5d35979230db7"
+    sha512sum = "0bdbe8b9a43390c98cf19e851ec5394bc78438d227cf9d0d7a3748aee9a32a7f14fc46f52d4fa283819f21413567080aee7225c566af5278557f5e1992674da3"
 
 
 recipe = Qt6RecipePinned()
