@@ -292,7 +292,7 @@ class TrezorClientBase(HardwareClientBase, Logger):
         limit = 9
         if self.features.model == "1" and (1, 10, 0) <= self.client.version:
             limit = 50
-        elif self.features.model == "2" and (2, 4, 0) <= self.client.version:
+        elif self.features.model == "T" and (2, 4, 0) <= self.client.version:
             limit = 50
         if len(pin) > limit:
             self.handler.show_error(_('The PIN cannot be longer than {} characters.').format(limit))
