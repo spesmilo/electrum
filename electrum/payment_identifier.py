@@ -380,6 +380,18 @@ class PaymentIdentifier(Logger):
             self._type = PaymentIdentifierType.SPK
             self.spk = scriptpubkey
             self.set_state(PaymentIdentifierState.AVAILABLE)
+        elif contact := self.contacts.by_name(text):
+            if contact['type'] == 'address':
+                self._type = PaymentIdentifierType.BIP21
+                self.bip21 = {
+                    'address': contact['address'],
+                    'label': contact['name']
+                }
+                self.set_state(PaymentIdentifierState.AVAILABLE)
+            elif contact['type'] == 'openalias':
+                self._type = PaymentIdentifierType.EMAILLIKE
+                self.emaillike = contact['address']
+                self.set_state(PaymentIdentifierState.NEED_RESOLVE)
         elif re.match(RE_EMAIL, text):
             self._type = PaymentIdentifierType.EMAILLIKE
             self.emaillike = text
@@ -681,13 +693,14 @@ class PaymentIdentifier(Logger):
             pass
 
         elif self.bip21:
-            recipient = self.bip21.get('address')
-            amount = self.bip21.get('amount')
             label = self.bip21.get('label')
+            address = self.bip21.get('address')
+            recipient = f'{label} <{address}>' if label else address
+            amount = self.bip21.get('amount')
             description = self.bip21.get('message')
-            # use label as description (not BIP21 compliant)
-            if label and not description:
-                description = label
+            # TODO: use label as description? (not BIP21 compliant)
+            # if label and not description:
+            #     description = label
 
         return FieldsForGUI(recipient=recipient, amount=amount, description=description,
                             comment=comment, validated=validated, amount_range=amount_range)

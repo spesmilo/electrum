@@ -101,6 +101,17 @@ class Contacts(dict, Logger):
             }
         raise AliasNotFoundException("Invalid Bitcoin address or alias", k)
 
+    def by_name(self, name):
+        for k in self.keys():
+            _type, addr = self[k]
+            if addr.casefold() == name.casefold():
+                return {
+                    'name': addr,
+                    'type': _type,
+                    'address': k
+                }
+        return None
+
     def fetch_openalias(self, config):
         self.alias_info = None
         alias = config.OPENALIAS_ID
