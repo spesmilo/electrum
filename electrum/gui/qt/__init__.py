@@ -393,6 +393,7 @@ class ElectrumGui(BaseElectrumGui, Logger):
         window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
         window.activateWindow()
         if uri:
+            window.show_send_tab()
             window.send_tab.set_payment_identifier(uri)
         return window
 
