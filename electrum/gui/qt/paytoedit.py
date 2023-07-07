@@ -256,7 +256,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
 
     def setFrozen(self, b) -> None:
         self.setReadOnly(b)
-        self.setStyleSheet(ColorScheme.BLUE.as_stylesheet(True) if b else '')
+        self.setStyleSheet(ColorScheme.LIGHTBLUE.as_stylesheet(True) if b else '')
 
     def isFrozen(self):
         return self.isReadOnly()

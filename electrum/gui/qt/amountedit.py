@@ -21,7 +21,7 @@ class FreezableLineEdit(QLineEdit):
 
     def setFrozen(self, b):
         self.setReadOnly(b)
-        self.setStyleSheet(ColorScheme.BLUE.as_stylesheet(True) if b else '')
+        self.setStyleSheet(ColorScheme.LIGHTBLUE.as_stylesheet(True) if b else '')
         self.frozen.emit()
 
     def isFrozen(self):
