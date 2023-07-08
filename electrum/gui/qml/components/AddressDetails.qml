@@ -44,10 +44,18 @@ Pane {
                     text: qsTr('Address details')
                 }
 
-                Label {
-                    text: qsTr('Address')
+                RowLayout {
                     Layout.columnSpan: 2
-                    color: Material.accentColor
+                    Label {
+                        text: qsTr('Address')
+                        color: Material.accentColor
+                    }
+
+                    Tag {
+                        visible: addressdetails.isFrozen
+                        text: qsTr('Frozen')
+                        labelcolor: 'white'
+                    }
                 }
 
                 TextHighlightPane {
@@ -74,6 +82,24 @@ Pane {
                             }
                         }
                     }
+                }
+
+                Label {
+                    text: qsTr('Balance')
+                    color: Material.accentColor
+                }
+
+                FormattedAmount {
+                    amount: addressdetails.balance
+                }
+
+                Label {
+                    text: qsTr('Transactions')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    text: addressdetails.numTx
                 }
 
                 Label {
@@ -133,6 +159,34 @@ Pane {
                             onClicked: labelContent.editmode = false
                         }
                     }
+                }
+
+                Heading {
+                    Layout.columnSpan: 2
+                    text: qsTr('Technical Properties')
+                }
+
+                Label {
+                    Layout.topMargin: constants.paddingSmall
+                    text: qsTr('Script type')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    Layout.topMargin: constants.paddingSmall
+                    Layout.fillWidth: true
+                    text: addressdetails.scriptType
+                }
+
+                Label {
+                    visible: addressdetails.derivationPath
+                    text: qsTr('Derivation path')
+                    color: Material.accentColor
+                }
+
+                Label {
+                    visible: addressdetails.derivationPath
+                    text: addressdetails.derivationPath
                 }
 
                 Label {
@@ -221,56 +275,6 @@ Pane {
                             onClicked: addressdetails.requestShowPrivateKey()
                         }
                     }
-                }
-
-                Label {
-                    Layout.topMargin: constants.paddingSmall
-                    text: qsTr('Script type')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    Layout.topMargin: constants.paddingSmall
-                    Layout.fillWidth: true
-                    text: addressdetails.scriptType
-                }
-
-                Label {
-                    text: qsTr('Balance')
-                    color: Material.accentColor
-                }
-
-                FormattedAmount {
-                    amount: addressdetails.balance
-                }
-
-                Label {
-                    text: qsTr('Transactions')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: addressdetails.numTx
-                }
-
-                Label {
-                    visible: addressdetails.derivationPath
-                    text: qsTr('Derivation path')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    visible: addressdetails.derivationPath
-                    text: addressdetails.derivationPath
-                }
-
-                Label {
-                    text: qsTr('Frozen')
-                    color: Material.accentColor
-                }
-
-                Label {
-                    text: addressdetails.isFrozen ? qsTr('Frozen') : qsTr('Not frozen')
                 }
             }
         }
