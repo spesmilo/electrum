@@ -426,8 +426,11 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             else:
                 self.amount_e.setToolTip('')
 
-        self.send_button.setEnabled(bool(self.amount_e.get_amount()) and not pi.has_expired() and not pi.is_error())
-        self.save_button.setEnabled(not pi.is_error() and pi.type not in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR])
+        pi_unusable = pi.is_error() or (not self.wallet.has_lightning() and not pi.is_onchain())
+
+        self.send_button.setEnabled(not pi_unusable and bool(self.amount_e.get_amount()) and not pi.has_expired())
+        self.save_button.setEnabled(not pi_unusable and pi.type not in [PaymentIdentifierType.LNURLP,
+                                                                        PaymentIdentifierType.LNADDR])
 
     def _handle_payment_identifier(self):
         self.update_fields()
