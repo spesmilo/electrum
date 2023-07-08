@@ -5,7 +5,7 @@ from electrum import util
 from electrum.util import (format_satoshis, format_fee_satoshis, is_hash256_str, chunks, is_ip_address,
                            list_enabled_bits, format_satoshis_plain, is_private_netaddress, is_hex_str,
                            is_integer, is_non_negative_integer, is_int_or_float, is_non_negative_int_or_float)
-from electrum.payment_identifier import parse_bip21_URI, InvalidBitcoinURI
+from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from . import ElectrumTestCase, as_testnet
 
 

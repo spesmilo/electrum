@@ -16,9 +16,9 @@ from electrum.lnutil import format_short_channel_id, IncompatibleOrInsaneFeature
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl
 from electrum.bitcoin import COIN
 from electrum.paymentrequest import PaymentRequest
-from electrum.payment_identifier import (parse_bip21_URI, InvalidBitcoinURI, maybe_extract_lightning_payment_identifier,
+from electrum.payment_identifier import (maybe_extract_lightning_payment_identifier,
                                          PaymentIdentifier, PaymentIdentifierState, PaymentIdentifierType)
-
+from electrum.bip21 import parse_bip21_URI, InvalidBitcoinURI
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 from .util import status_update_timer_interval, QtEventListener, event_listener
@@ -526,7 +526,7 @@ class QEInvoiceParser(QEInvoice):
                 self.validationSuccess.emit()
                 return
             elif self._pi.type == PaymentIdentifierType.BOLT11:
-                lninvoice = Invoice.from_bech32(self._pi.bolt11)
+                lninvoice = self._pi.bolt11
                 if not self._wallet.wallet.has_lightning() and not lninvoice.get_address():
                     self.validationError.emit('no_lightning',
                         _('Detected valid Lightning invoice, but Lightning not enabled for wallet and no fallback address found.'))
@@ -539,7 +539,7 @@ class QEInvoiceParser(QEInvoice):
                 self.validationSuccess.emit()
             elif self._pi.type == PaymentIdentifierType.BIP21:
                 if self._wallet.wallet.has_lightning() and self._wallet.wallet.lnworker.channels and self._pi.bolt11:
-                    lninvoice = Invoice.from_bech32(self._pi.bolt11)
+                    lninvoice = self._pi.bolt11
                     self.setValidLightningInvoice(lninvoice)
                     self.validationSuccess.emit()
                 else:

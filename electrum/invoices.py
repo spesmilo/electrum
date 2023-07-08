@@ -7,7 +7,7 @@ import attr
 from .json_db import StoredObject, stored_in
 from .i18n import _
 from .util import age, InvoiceError, format_satoshis
-from .payment_identifier import create_bip21_uri
+from .bip21 import create_bip21_uri
 from .lnutil import hex_to_bytes
 from .lnaddr import lndecode, LnAddr
 from . import constants

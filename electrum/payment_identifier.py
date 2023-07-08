@@ -9,14 +9,16 @@ from typing import NamedTuple, Optional, Callable, List, TYPE_CHECKING, Tuple
 from . import bitcoin
 from .contacts import AliasNotFoundException
 from .i18n import _
+from .invoices import Invoice
 from .logging import Logger
-from .util import parse_max_spend, format_satoshis_plain
+from .util import parse_max_spend, format_satoshis_plain, InvoiceError
 from .util import get_asyncio_loop, log_exceptions
 from .transaction import PartialTxOutput
 from .lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, lightning_address_to_url
 from .bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, opcodes, construct_script
 from .lnaddr import lndecode, LnDecodeException, LnInvoiceException
 from .lnutil import IncompatibleOrInsaneFeatures
+from .bip21 import parse_bip21_URI, InvalidBitcoinURI, LIGHTNING_URI_SCHEME, BITCOIN_BIP21_URI_SCHEME
 
 if TYPE_CHECKING:
     from .wallet import Abstract_Wallet
@@ -32,125 +34,6 @@ def maybe_extract_lightning_payment_identifier(data: str) -> Optional[str]:
     if data.startswith('ln'):
         return data
     return None
-
-
-# note: when checking against these, use .lower() to support case-insensitivity
-BITCOIN_BIP21_URI_SCHEME = 'bitcoin'
-LIGHTNING_URI_SCHEME = 'lightning'
-
-
-class InvalidBitcoinURI(Exception):
-    pass
-
-
-def parse_bip21_URI(uri: str) -> dict:
-    """Raises InvalidBitcoinURI on malformed URI."""
-
-    if not isinstance(uri, str):
-        raise InvalidBitcoinURI(f"expected string, not {repr(uri)}")
-
-    if ':' not in uri:
-        if not bitcoin.is_address(uri):
-            raise InvalidBitcoinURI("Not a bitcoin address")
-        return {'address': uri}
-
-    u = urllib.parse.urlparse(uri)
-    if u.scheme.lower() != BITCOIN_BIP21_URI_SCHEME:
-        raise InvalidBitcoinURI("Not a bitcoin URI")
-    address = u.path
-
-    # python for android fails to parse query
-    if address.find('?') > 0:
-        address, query = u.path.split('?')
-        pq = urllib.parse.parse_qs(query)
-    else:
-        pq = urllib.parse.parse_qs(u.query)
-
-    for k, v in pq.items():
-        if len(v) != 1:
-            raise InvalidBitcoinURI(f'Duplicate Key: {repr(k)}')
-
-    out = {k: v[0] for k, v in pq.items()}
-    if address:
-        if not bitcoin.is_address(address):
-            raise InvalidBitcoinURI(f"Invalid bitcoin address: {address}")
-        out['address'] = address
-    if 'amount' in out:
-        am = out['amount']
-        try:
-            m = re.match(r'([0-9.]+)X([0-9])', am)
-            if m:
-                k = int(m.group(2)) - 8
-                amount = Decimal(m.group(1)) * pow(Decimal(10), k)
-            else:
-                amount = Decimal(am) * COIN
-            if amount > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-                raise InvalidBitcoinURI(f"amount is out-of-bounds: {amount!r} BTC")
-            out['amount'] = int(amount)
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'amount' field: {repr(e)}") from e
-    if 'message' in out:
-        out['message'] = out['message']
-        out['memo'] = out['message']
-    if 'time' in out:
-        try:
-            out['time'] = int(out['time'])
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'time' field: {repr(e)}") from e
-    if 'exp' in out:
-        try:
-            out['exp'] = int(out['exp'])
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'exp' field: {repr(e)}") from e
-    if 'sig' in out:
-        try:
-            out['sig'] = bitcoin.base_decode(out['sig'], base=58).hex()
-        except Exception as e:
-            raise InvalidBitcoinURI(f"failed to parse 'sig' field: {repr(e)}") from e
-    if 'lightning' in out:
-        try:
-            lnaddr = lndecode(out['lightning'])
-        except LnDecodeException as e:
-            raise InvalidBitcoinURI(f"Failed to decode 'lightning' field: {e!r}") from e
-        amount_sat = out.get('amount')
-        if amount_sat:
-            # allow small leeway due to msat precision
-            if abs(amount_sat - int(lnaddr.get_amount_sat())) > 1:
-                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: amount")
-        address = out.get('address')
-        ln_fallback_addr = lnaddr.get_fallback_address()
-        if address and ln_fallback_addr:
-            if ln_fallback_addr != address:
-                raise InvalidBitcoinURI("Inconsistent lightning field in bip21: address")
-
-    return out
-
-
-def create_bip21_uri(addr, amount_sat: Optional[int], message: Optional[str],
-                     *, extra_query_params: Optional[dict] = None) -> str:
-    if not bitcoin.is_address(addr):
-        return ""
-    if extra_query_params is None:
-        extra_query_params = {}
-    query = []
-    if amount_sat:
-        query.append('amount=%s' % format_satoshis_plain(amount_sat))
-    if message:
-        query.append('message=%s' % urllib.parse.quote(message))
-    for k, v in extra_query_params.items():
-        if not isinstance(k, str) or k != urllib.parse.quote(k):
-            raise Exception(f"illegal key for URI: {repr(k)}")
-        v = urllib.parse.quote(v)
-        query.append(f"{k}={v}")
-    p = urllib.parse.ParseResult(
-        scheme=BITCOIN_BIP21_URI_SCHEME,
-        netloc='',
-        path=addr,
-        params='',
-        query='&'.join(query),
-        fragment=''
-    )
-    return str(urllib.parse.urlunparse(p))
 
 
 def is_uri(data: str) -> bool:
@@ -279,7 +162,14 @@ class PaymentIdentifier(Logger):
         return self._state in [PaymentIdentifierState.AVAILABLE]
 
     def is_lightning(self):
-        return self.lnurl or self.bolt11
+        return bool(self.lnurl) or bool(self.bolt11)
+
+    def is_onchain(self):
+        if self._type in [PaymentIdentifierType.SPK, PaymentIdentifierType.MULTILINE, PaymentIdentifierType.BIP70,
+                          PaymentIdentifierType.OPENALIAS]:
+            return True
+        if self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.BOLT11, PaymentIdentifierType.LNADDR]:
+            return bool(self.bolt11) and bool(self.bolt11.get_address())
 
     def is_multiline(self):
         return bool(self.multiline_outputs)
@@ -293,8 +183,7 @@ class PaymentIdentifier(Logger):
         elif self._type == PaymentIdentifierType.BIP70:
             return not self.need_resolve()  # always fixed after resolve?
         elif self._type == PaymentIdentifierType.BOLT11:
-            lnaddr = lndecode(self.bolt11)
-            return bool(lnaddr.amount)
+            return bool(self.bolt11.get_amount_sat())
         elif self._type in [PaymentIdentifierType.LNURLP, PaymentIdentifierType.LNADDR]:
             # amount limits known after resolve, might be specific amount or locked to range
             if self.need_resolve():
@@ -339,16 +228,12 @@ class PaymentIdentifier(Logger):
             else:
                 self._type = PaymentIdentifierType.BOLT11
                 try:
-                    lndecode(invoice_or_lnurl)
-                except LnInvoiceException as e:
-                    self.error = _("Error parsing Lightning invoice") + f":\n{e}"
+                    self.bolt11 = Invoice.from_bech32(invoice_or_lnurl)
+                except InvoiceError as e:
+                    self.error = self._get_error_from_invoiceerror(e)
                     self.set_state(PaymentIdentifierState.INVALID)
+                    self.logger.debug(f'Exception cause {e.args!r}')
                     return
-                except IncompatibleOrInsaneFeatures as e:
-                    self.error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"
-                    self.set_state(PaymentIdentifierState.INVALID)
-                    return
-                self.bolt11 = invoice_or_lnurl
                 self.set_state(PaymentIdentifierState.AVAILABLE)
         elif text.lower().startswith(BITCOIN_BIP21_URI_SCHEME + ':'):
             try:
@@ -643,6 +528,16 @@ class PaymentIdentifier(Logger):
         assert bitcoin.is_address(address)
         return address
 
+    def _get_error_from_invoiceerror(self, e: 'InvoiceError') -> str:
+        error = _("Error parsing Lightning invoice") + f":\n{e!r}"
+        if e.args and len(e.args):
+            arg = e.args[0]
+            if isinstance(arg, LnInvoiceException):
+                error = _("Error parsing Lightning invoice") + f":\n{e}"
+            elif isinstance(arg, IncompatibleOrInsaneFeatures):
+                error = _("Invoice requires unknown or incompatible Lightning feature") + f":\n{e!r}"
+        return error
+
     def get_fields_for_GUI(self) -> FieldsForGUI:
         recipient = None
         amount = None
@@ -662,8 +557,8 @@ class PaymentIdentifier(Logger):
                 self.warning = _('WARNING: the alias "{}" could not be validated via an additional '
                                  'security check, DNSSEC, and thus may not be correct.').format(key)
 
-        elif self.bolt11 and self.wallet.has_lightning():
-            recipient, amount, description = self._get_bolt11_fields(self.bolt11)
+        elif self.bolt11:
+            recipient, amount, description = self._get_bolt11_fields()
 
         elif self.lnurl and self.lnurl_data:
             domain = urllib.parse.urlparse(self.lnurl).netloc
@@ -705,9 +600,8 @@ class PaymentIdentifier(Logger):
         return FieldsForGUI(recipient=recipient, amount=amount, description=description,
                             comment=comment, validated=validated, amount_range=amount_range)
 
-    def _get_bolt11_fields(self, bolt11_invoice):
-        """Parse ln invoice, and prepare the send tab for it."""
-        lnaddr = lndecode(bolt11_invoice) #
+    def _get_bolt11_fields(self):
+        lnaddr = self.bolt11._lnaddr # TODO: improve access to lnaddr
         pubkey = lnaddr.pubkey.serialize().hex()
         for k, v in lnaddr.tags:
             if k == 'd':
@@ -740,20 +634,17 @@ class PaymentIdentifier(Logger):
         if self.bip70:
             return self.bip70_data.has_expired()
         elif self.bolt11:
-            lnaddr = lndecode(self.bolt11)
-            return lnaddr.is_expired()
+            return self.bolt11.has_expired()
         elif self.bip21:
             expires = self.bip21.get('exp') + self.bip21.get('time') if self.bip21.get('exp') else 0
             return bool(expires) and expires < time.time()
         return False
 
     def get_invoice(self, amount_sat, message):
-        from .invoices import Invoice
         if self.is_lightning():
-            invoice_str = self.bolt11
-            if not invoice_str:
+            invoice = self.bolt11
+            if not invoice:
                 return
-            invoice = Invoice.from_bech32(invoice_str)
             if invoice.amount_msat is None:
                 invoice.amount_msat = int(amount_sat * 1000)
             return invoice

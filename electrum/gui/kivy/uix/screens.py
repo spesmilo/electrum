@@ -19,7 +19,8 @@ from electrum import bitcoin, constants
 from electrum import lnutil
 from electrum.transaction import tx_from_any, PartialTxOutput
 from electrum.util import TxMinedInfo, InvoiceError, format_time, parse_max_spend
-from electrum.payment_identifier import parse_bip21_URI, BITCOIN_BIP21_URI_SCHEME, maybe_extract_lightning_payment_identifier, InvalidBitcoinURI
+from electrum.bip21 import BITCOIN_BIP21_URI_SCHEME, parse_bip21_URI, InvalidBitcoinURI
+from electrum.payment_identifier import maybe_extract_lightning_payment_identifier
 from electrum.lnaddr import lndecode, LnInvoiceException
 from electrum.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 from electrum.logging import Logger
