@@ -641,6 +641,8 @@ class PaymentIdentifier(Logger):
         return False
 
     def get_invoice(self, amount_sat, message):
+        # FIXME: this should not be a PI method
+        # ideally, PI should not have a reference to wallet.
         if self.is_lightning():
             invoice = self.bolt11
             if not invoice:
