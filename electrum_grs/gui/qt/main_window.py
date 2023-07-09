@@ -26,7 +26,6 @@ import sys
 import time
 import threading
 import os
-import traceback
 import json
 import weakref
 import csv
@@ -55,12 +54,11 @@ from electrum_grs import (keystore, ecc, constants, util, bitcoin, commands,
 from electrum_grs.bitcoin import COIN, is_address
 from electrum_grs.plugin import run_hook, BasePlugin
 from electrum_grs.i18n import _
-from electrum_grs.util import (format_time, get_asyncio_loop,
-                           UserCancelled, profiler,
-                           bfh, InvalidPassword,
-                           UserFacingException, FailedToParsePaymentIdentifier,
-                           get_new_wallet_name, send_exception_to_crash_reporter,
-                           AddTransactionException, BITCOIN_BIP21_URI_SCHEME, os_chmod)
+from electrum_grs.util import (format_time, UserCancelled, profiler, bfh, InvalidPassword,
+                           UserFacingException, get_new_wallet_name, send_exception_to_crash_reporter,
+                           AddTransactionException, os_chmod)
+from electrum_grs.bip21 import BITCOIN_BIP21_URI_SCHEME
+from electrum_grs.payment_identifier import PaymentIdentifier
 from electrum_grs.invoices import PR_PAID, Invoice
 from electrum_grs.transaction import (Transaction, PartialTxInput,
                                   PartialTransaction, PartialTxOutput)
@@ -849,7 +847,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             self.update_status()
         # resolve aliases
         # FIXME this might do blocking network calls that has a timeout of several seconds
-        self.send_tab.payto_e.on_timer_check_text()
+        # self.send_tab.payto_e.on_timer_check_text()
         self.notify_transactions()
 
     def format_amount(
@@ -1328,11 +1326,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
             return None
         return clayout.selected_index()
 
-    def handle_payment_identifier(self, *args, **kwargs):
-        try:
-            self.send_tab.handle_payment_identifier(*args, **kwargs)
-        except FailedToParsePaymentIdentifier as e:
-            self.show_error(str(e))
+    def handle_payment_identifier(self, text: str):
+        pi = PaymentIdentifier(self.wallet, text)
+        if pi.is_valid():
+            self.send_tab.set_payment_identifier(text)
+        else:
+            if pi.error:
+                self.show_error(str(pi.error))
 
     def set_frozen_state_of_addresses(self, addrs, freeze: bool):
         self.wallet.set_frozen_state_of_addresses(addrs, freeze)

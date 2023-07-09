@@ -13,7 +13,6 @@ from electrum_grs.util import (format_satoshis_plain, decimal_point_to_base_unit
                            FEERATE_PRECISION, quantize_feerate, DECIMAL_POINT)
 from electrum_grs.bitcoin import COIN, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC
 
-
 _NOT_GIVEN = object()  # sentinel value
 
 
@@ -22,9 +21,11 @@ class FreezableLineEdit(QLineEdit):
 
     def setFrozen(self, b):
         self.setReadOnly(b)
-        self.setFrame(not b)
+        self.setStyleSheet(ColorScheme.LIGHTBLUE.as_stylesheet(True) if b else '')
         self.frozen.emit()
 
+    def isFrozen(self):
+        return self.isReadOnly()
 
 class SizedFreezableLineEdit(FreezableLineEdit):
 
@@ -153,6 +154,7 @@ class BTCAmountEdit(AmountEdit):
         else:
             text = self._get_text_from_amount(amount_sat)
             self.setText(text)
+        self.setFrozen(self.isFrozen()) # re-apply styling, as it is nuked by setText (?)
         self.repaint()  # macOS hack for #6269
 
 

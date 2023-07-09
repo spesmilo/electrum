@@ -59,7 +59,6 @@ from .interface import (Interface, PREFERRED_NETWORK_PROTOCOL,
                         RequestTimedOut, NetworkTimeout, BUCKET_NAME_OF_ONION_SERVERS,
                         NetworkException, RequestCorrupted, ServerAddr)
 from .version import PROTOCOL_VERSION
-from .simple_config import SimpleConfig
 from .i18n import _
 from .logging import get_logger, Logger
 
@@ -71,6 +70,7 @@ if TYPE_CHECKING:
     from .lnworker import LNGossip
     from .lnwatcher import WatchTower
     from .daemon import Daemon
+    from .simple_config import SimpleConfig
 
 
 _logger = get_logger(__name__)
@@ -270,7 +270,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
     local_watchtower: Optional['WatchTower'] = None
     path_finder: Optional['LNPathFinder'] = None
 
-    def __init__(self, config: SimpleConfig, *, daemon: 'Daemon' = None):
+    def __init__(self, config: 'SimpleConfig', *, daemon: 'Daemon' = None):
         global _INSTANCE
         assert _INSTANCE is None, "Network is a singleton!"
         _INSTANCE = self
@@ -287,9 +287,7 @@ class Network(Logger, NetworkRetryManager[ServerAddr]):
         self.asyncio_loop = util.get_asyncio_loop()
         assert self.asyncio_loop.is_running(), "event loop not running"
 
-        assert isinstance(config, SimpleConfig), f"config should be a SimpleConfig instead of {type(config)}"
         self.config = config
-
         self.daemon = daemon
 
         blockchain.read_blockchains(self.config)

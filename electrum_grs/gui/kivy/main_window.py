@@ -86,9 +86,8 @@ Label.register(
 )
 
 
-from electrum_grs.util import (NoDynamicFeeEstimates, NotEnoughFunds,
-                           BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME,
-                           UserFacingException)
+from electrum_grs.util import NoDynamicFeeEstimates, NotEnoughFunds, UserFacingException
+from electrum_grs.bip21 import BITCOIN_BIP21_URI_SCHEME, LIGHTNING_URI_SCHEME
 
 from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog, SwapDialog

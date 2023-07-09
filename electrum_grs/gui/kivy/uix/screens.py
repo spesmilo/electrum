@@ -18,8 +18,9 @@ from electrum_grs.invoices import (PR_DEFAULT_EXPIRATION_WHEN_CREATING,
 from electrum_grs import bitcoin, constants
 from electrum_grs import lnutil
 from electrum_grs.transaction import tx_from_any, PartialTxOutput
-from electrum_grs.util import (parse_URI, InvalidBitcoinURI, TxMinedInfo, maybe_extract_lightning_payment_identifier,
-                           InvoiceError, format_time, parse_max_spend, BITCOIN_BIP21_URI_SCHEME)
+from electrum_grs.util import TxMinedInfo, InvoiceError, format_time, parse_max_spend
+from electrum_grs.bip21 import BITCOIN_BIP21_URI_SCHEME, parse_bip21_URI, InvalidBitcoinURI
+from electrum_grs.payment_identifier import maybe_extract_lightning_payment_identifier
 from electrum_grs.lnaddr import lndecode, LnInvoiceException
 from electrum_grs.lnurl import decode_lnurl, request_lnurl, callback_lnurl, LNURLError, LNURL6Data
 from electrum_grs.logging import Logger
@@ -208,7 +209,7 @@ class SendScreen(CScreen, Logger):
 
     def set_bip21(self, text: str):
         try:
-            uri = parse_URI(text, self.app.on_pr, loop=self.app.asyncio_loop)
+            uri = parse_bip21_URI(text) # bip70 not supported
         except InvalidBitcoinURI as e:
             self.app.show_info(_("Error parsing URI") + f":\n{e}")
             return

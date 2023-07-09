@@ -2,12 +2,13 @@ from PyQt5.QtCore import pyqtProperty, pyqtSignal, pyqtSlot, QObject
 
 from electrum_grs.logging import get_logger
 
+from .auth import auth_protect, AuthMixin
 from .qetransactionlistmodel import QETransactionListModel
 from .qetypes import QEAmount
 from .qewallet import QEWallet
 
 
-class QEAddressDetails(QObject):
+class QEAddressDetails(AuthMixin, QObject):
     _logger = get_logger(__name__)
 
     detailsChanged = pyqtSignal()
@@ -67,6 +68,10 @@ class QEAddressDetails(QObject):
         return self._pubkeys
 
     @pyqtProperty(str, notify=detailsChanged)
+    def privkey(self):
+        return self._privkey
+
+    @pyqtProperty(str, notify=detailsChanged)
     def derivationPath(self):
         return self._derivationPath
 
@@ -107,6 +112,19 @@ class QEAddressDetails(QObject):
             self._historyModel = QETransactionListModel(self._wallet.wallet,
                                                         onchain_domain=[self._address], include_lightning=False)
         return self._historyModel
+
+    @pyqtSlot()
+    def requestShowPrivateKey(self):
+        self.retrieve_private_key()
+
+    @auth_protect(method='wallet')
+    def retrieve_private_key(self):
+        try:
+            self._privkey = self._wallet.wallet.export_private_key(self._address, self._wallet.password)
+        except Exception:
+            self._privkey = ''
+
+        self.detailsChanged.emit()
 
     def update(self):
         if self._wallet is None:

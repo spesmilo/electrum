@@ -24,6 +24,7 @@ ElDialog {
     }
 
     function dispatch(data) {
+        data = data.trim()
         if (bitcoin.isRawTx(data)) {
             txFound(data)
         } else if (Daemon.currentWallet.isValidChannelBackup(data)) {

@@ -33,6 +33,11 @@ from .util import read_json_file, write_json_file, to_string
 from .logging import Logger
 from .util import trigger_callback
 
+
+class AliasNotFoundException(Exception):
+    pass
+
+
 class Contacts(dict, Logger):
 
     def __init__(self, db):
@@ -94,7 +99,18 @@ class Contacts(dict, Logger):
                 'type': 'openalias',
                 'validated': validated
             }
-        raise Exception("Invalid Groestlcoin address or alias", k)
+        raise AliasNotFoundException("Invalid Groestlcoin address or alias", k)
+
+    def by_name(self, name):
+        for k in self.keys():
+            _type, addr = self[k]
+            if addr.casefold() == name.casefold():
+                return {
+                    'name': addr,
+                    'type': _type,
+                    'address': k
+                }
+        return None
 
     def fetch_openalias(self, config):
         self.alias_info = None
