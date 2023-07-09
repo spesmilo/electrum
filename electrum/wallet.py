@@ -3127,7 +3127,8 @@ class Simple_Wallet(Abstract_Wallet):
         pass
 
     def get_public_keys(self, address: str) -> Sequence[str]:
-        return [self.get_public_key(address)]
+        pk = self.get_public_key(address)
+        return [pk] if pk else []
 
 
 class Imported_Wallet(Simple_Wallet):

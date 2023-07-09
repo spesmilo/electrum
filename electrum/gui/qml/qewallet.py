@@ -709,11 +709,15 @@ class QEWallet(AuthMixin, QObject, QtEventListener):
     @pyqtSlot(str)
     def importAddresses(self, addresslist):
         self.wallet.import_addresses(addresslist.split())
+        if self._addressCoinModel:
+            self._addressCoinModel.setDirty()
         self.dataChanged.emit()
 
     @pyqtSlot(str)
     def importPrivateKeys(self, keyslist):
         self.wallet.import_private_keys(keyslist.split(), self.password)
+        if self._addressCoinModel:
+            self._addressCoinModel.setDirty()
         self.dataChanged.emit()
 
     @pyqtSlot(str)

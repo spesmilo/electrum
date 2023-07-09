@@ -16,6 +16,7 @@ Pane {
     property string address
 
     signal addressDetailsChanged
+    signal addressDeleted
 
     ColumnLayout {
         anchors.fill: parent
@@ -192,6 +193,7 @@ Pane {
                 Label {
                     Layout.columnSpan: 2
                     Layout.topMargin: constants.paddingSmall
+                    visible: addressdetails.pubkeys.length
                     text: qsTr('Public keys')
                     color: Material.accentColor
                 }
@@ -215,9 +217,10 @@ Pane {
                                 icon.source: '../../icons/share.png'
                                 enabled: modelData
                                 onClicked: {
-                                    var dialog = app.genericShareDialog.createObject(root,
-                                        { title: qsTr('Public key'), text: modelData }
-                                    )
+                                    var dialog = app.genericShareDialog.createObject(root, {
+                                        title: qsTr('Public key'),
+                                        text: modelData
+                                    })
                                     dialog.open()
                                 }
                             }
@@ -300,6 +303,25 @@ Pane {
                     })
                     dialog.open()
                 }
+            }
+            FlatButton {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                visible: addressdetails.canDelete
+                text: qsTr('Delete')
+                onClicked: {
+                    var confirmdialog = app.messageDialog.createObject(root, {
+                        text: qsTr('Are you sure you want to delete this address from the wallet?'),
+                        yesno: true
+                    })
+                    confirmdialog.accepted.connect(function () {
+                        addressdetails.deleteAddress()
+                        addressDeleted()
+                        app.stack.pop()
+                    })
+                    confirmdialog.open()
+                }
+                icon.source: '../../icons/delete.png'
             }
         }
     }

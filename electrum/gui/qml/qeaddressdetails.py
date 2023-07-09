@@ -28,6 +28,7 @@ class QEAddressDetails(AuthMixin, QObject):
         self._privkey = None
         self._derivationPath = None
         self._numtx = 0
+        self._candelete = False
 
         self._historyModel = None
 
@@ -79,6 +80,10 @@ class QEAddressDetails(AuthMixin, QObject):
     def numTx(self):
         return self._numtx
 
+    @pyqtProperty(bool, notify=detailsChanged)
+    def canDelete(self):
+        return self._candelete
+
 
     frozenChanged = pyqtSignal()
     @pyqtProperty(bool, notify=frozenChanged)
@@ -126,6 +131,11 @@ class QEAddressDetails(AuthMixin, QObject):
 
         self.detailsChanged.emit()
 
+    @pyqtSlot()
+    def deleteAddress(self):
+        assert self.canDelete
+        self._wallet.wallet.delete_address(self._address)
+
     def update(self):
         if self._wallet is None:
             self._logger.error('wallet undefined')
@@ -143,4 +153,5 @@ class QEAddressDetails(AuthMixin, QObject):
         if self._wallet.derivationPrefix:
             self._derivationPath = self._derivationPath.replace('m', self._wallet.derivationPrefix)
         self._numtx = self._wallet.wallet.adb.get_address_history_len(self._address)
+        self._candelete = self.wallet.wallet.can_delete_address()
         self.detailsChanged.emit()
