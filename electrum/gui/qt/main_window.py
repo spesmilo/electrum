@@ -1062,8 +1062,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         from .channel_details import ChannelDetailsDialog
         ChannelDetailsDialog(self, chan).show()
 
-    def show_transaction(self, tx: Transaction, *, external_keypairs=None):
-        show_transaction(tx, parent=self, external_keypairs=external_keypairs)
+    def show_transaction(
+        self,
+        tx: Transaction,
+        *,
+        external_keypairs=None,
+        payment_identifier: PaymentIdentifier = None,
+    ):
+        show_transaction(tx, parent=self, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
 
     def show_lightning_transaction(self, tx_item):
         from .lightning_tx_dialog import LightningTxDialog
@@ -1208,18 +1214,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger, QtEventListener):
         """
         return self.utxo_list.get_spend_list()
 
-    def broadcast_or_show(self, tx: Transaction):
+    def broadcast_or_show(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
         if not tx.is_complete():
-            self.show_transaction(tx)
+            self.show_transaction(tx, payment_identifier=payment_identifier)
             return
         if not self.network:
             self.show_error(_("You can't broadcast a transaction without a live network connection."))
-            self.show_transaction(tx)
+            self.show_transaction(tx, payment_identifier=payment_identifier)
             return
-        self.broadcast_transaction(tx)
+        self.broadcast_transaction(tx, payment_identifier=payment_identifier)
 
-    def broadcast_transaction(self, tx: Transaction):
-        self.send_tab.broadcast_transaction(tx)
+    def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
+        self.send_tab.broadcast_transaction(tx, payment_identifier=payment_identifier)
 
     @protected
     def sign_tx(self, tx, *, callback, external_keypairs, password):

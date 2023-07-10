@@ -173,7 +173,7 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
         self.edit_timer.setInterval(1000)
         self.edit_timer.timeout.connect(self._on_edit_timer)
 
-        self.payment_identifier = None
+        self.payment_identifier = None  # type: Optional[PaymentIdentifier]
 
     @property
     def multiline(self):
@@ -206,8 +206,8 @@ class PayToEdit(QWidget, Logger, GenericInputHandler):
         self.line_edit.setToolTip(tt)
         self.text_edit.setToolTip(tt)
 
-    '''set payment identifier only if valid, else exception'''
     def try_payment_identifier(self, text) -> None:
+        '''set payment identifier only if valid, else exception'''
         text = text.strip()
         pi = PaymentIdentifier(self.send_tab.wallet, text)
         if not pi.is_valid():

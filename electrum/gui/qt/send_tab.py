@@ -17,7 +17,7 @@ from electrum.util import NotEnoughFunds, NoDynamicFeeEstimates, parse_max_spend
 from electrum.invoices import PR_PAID, Invoice, PR_BROADCASTING, PR_BROADCAST
 from electrum.transaction import Transaction, PartialTxInput, PartialTxOutput
 from electrum.network import TxBroadcastError, BestEffortRequestFailed
-from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType
+from electrum.payment_identifier import PaymentIdentifierState, PaymentIdentifierType, PaymentIdentifier
 
 from .amountedit import AmountEdit, BTCAmountEdit, SizedFreezableLineEdit
 from .paytoedit import InvalidPaymentIdentifier
@@ -268,7 +268,8 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
 
     def pay_onchain_dialog(
             self,
-            outputs: List[PartialTxOutput], *,
+            outputs: List[PartialTxOutput],
+            *,
             nonlocal_only=False,
             external_keypairs=None,
             get_coins: Callable[..., Sequence[PartialTxInput]] = None,
@@ -276,6 +277,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         # trustedcoin requires this
         if run_hook('abort_send', self):
             return
+        # save current PI as local now. this is best-effort only...
+        # does not work e.g. when using InvoiceList context menu "pay"
+        payment_identifier = self.payto_e.payment_identifier
         is_sweep = bool(external_keypairs)
         # we call get_coins inside make_tx, so that inputs can be changed dynamically
         if get_coins is None:
@@ -302,12 +306,12 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             return
         is_preview = conf_dlg.is_preview
         if is_preview:
-            self.window.show_transaction(tx, external_keypairs=external_keypairs)
+            self.window.show_transaction(tx, external_keypairs=external_keypairs, payment_identifier=payment_identifier)
             return
         self.save_pending_invoice()
         def sign_done(success):
             if success:
-                self.window.broadcast_or_show(tx)
+                self.window.broadcast_or_show(tx, payment_identifier=payment_identifier)
         self.window.sign_tx(
             tx,
             callback=sign_done,
@@ -527,7 +531,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
             outputs += invoice.outputs
         self.pay_onchain_dialog(outputs)
 
-    def do_edit_invoice(self, invoice: 'Invoice'):
+    def do_edit_invoice(self, invoice: 'Invoice'):  # FIXME broken
         assert not bool(invoice.get_amount_sat())
         text = invoice.lightning_invoice if invoice.is_lightning() else invoice.get_address()
         self.payto_e._on_input_btn(text)
@@ -674,11 +678,13 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         coro = lnworker.pay_invoice(invoice.lightning_invoice, amount_msat=amount_msat)
         self.window.run_coroutine_from_thread(coro, _('Sending payment'))
 
-    def broadcast_transaction(self, tx: Transaction):
+    def broadcast_transaction(self, tx: Transaction, *, payment_identifier: PaymentIdentifier = None):
+        # note: payment_identifier is explicitly passed as self.payto_e.payment_identifier might
+        #       already be cleared or otherwise have changed.
 
         def broadcast_thread():
             # non-GUI thread
-            if self.payto_e.payment_identifier.has_expired():
+            if payment_identifier and payment_identifier.has_expired():
                 return False, _("Invoice has expired")
             try:
                 self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
@@ -688,9 +694,9 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
                 return False, repr(e)
             # success
             txid = tx.txid()
-            if self.payto_e.payment_identifier.need_merchant_notify():
+            if payment_identifier and payment_identifier.need_merchant_notify():
                 refund_address = self.wallet.get_receiving_address()
-                self.payto_e.payment_identifier.notify_merchant(
+                payment_identifier.notify_merchant(
                     tx=tx,
                     refund_address=refund_address,
                     on_finished=self.notify_merchant_done_signal.emit
@@ -718,7 +724,7 @@ class SendTab(QWidget, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.window.on_error)
 
-    def on_notify_merchant_done(self, pi):
+    def on_notify_merchant_done(self, pi: PaymentIdentifier):
         if pi.is_error():
             self.logger.debug(f'merchant notify error: {pi.get_error()}')
         else:
