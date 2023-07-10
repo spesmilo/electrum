@@ -103,7 +103,7 @@ class PaymentIdentifier(Logger):
         * lightning address
     """
 
-    def __init__(self, wallet: 'Abstract_Wallet', text):
+    def __init__(self, wallet: 'Abstract_Wallet', text: str):
         Logger.__init__(self)
         self._state = PaymentIdentifierState.EMPTY
         self.wallet = wallet
@@ -139,7 +139,7 @@ class PaymentIdentifier(Logger):
         return self._type
 
     def set_state(self, state: 'PaymentIdentifierState'):
-        self.logger.debug(f'PI state {self._state} -> {state}')
+        self.logger.debug(f'PI state {self._state.name} -> {state.name}')
         self._state = state
 
     @property
@@ -203,7 +203,7 @@ class PaymentIdentifier(Logger):
     def get_error(self) -> str:
         return self.error
 
-    def parse(self, text):
+    def parse(self, text: str):
         # parse text, set self._type and self.error
         text = text.strip()
         if not text:
@@ -290,13 +290,13 @@ class PaymentIdentifier(Logger):
             self.error = f"Unknown payment identifier:\n{truncated_text}"
             self.set_state(PaymentIdentifierState.INVALID)
 
-    def resolve(self, *, on_finished: 'Callable'):
+    def resolve(self, *, on_finished: Callable[['PaymentIdentifier'], None]) -> None:
         assert self._state == PaymentIdentifierState.NEED_RESOLVE
         coro = self._do_resolve(on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
-    async def _do_resolve(self, *, on_finished=None):
+    async def _do_resolve(self, *, on_finished: Callable[['PaymentIdentifier'], None] = None):
         try:
             if self.emaillike or self.domainlike:
                 # TODO: parallel lookup?
@@ -356,19 +356,31 @@ class PaymentIdentifier(Logger):
                 return
         except Exception as e:
             self.error = str(e)
-            self.logger.error(repr(e))
+            self.logger.error(f"_do_resolve() got error: {e!r}")
             self.set_state(PaymentIdentifierState.ERROR)
         finally:
             if on_finished:
                 on_finished(self)
 
-    def finalize(self, *, amount_sat: int = 0, comment: str = None, on_finished: Callable = None):
+    def finalize(
+        self,
+        *,
+        amount_sat: int = 0,
+        comment: str = None,
+        on_finished: Callable[['PaymentIdentifier'], None] = None,
+    ):
         assert self._state == PaymentIdentifierState.LNURLP_FINALIZE
         coro = self._do_finalize(amount_sat, comment, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
-    async def _do_finalize(self, amount_sat: int = None, comment: str = None, on_finished: Callable = None):
+    async def _do_finalize(
+        self,
+        *,
+        amount_sat: int = None,
+        comment: str = None,
+        on_finished: Callable[['PaymentIdentifier'], None] = None,
+    ):
         from .invoices import Invoice
         try:
             if not self.lnurl_data:
@@ -402,20 +414,33 @@ class PaymentIdentifier(Logger):
             self.set_state(PaymentIdentifierState.AVAILABLE)
         except Exception as e:
             self.error = str(e)
-            self.logger.error(repr(e))
+            self.logger.error(f"_do_finalize() got error: {e!r}")
             self.set_state(PaymentIdentifierState.ERROR)
         finally:
             if on_finished:
                 on_finished(self)
 
-    def notify_merchant(self, *, tx: 'Transaction' = None, refund_address: str = None, on_finished: 'Callable' = None):
+    def notify_merchant(
+        self,
+        *,
+        tx: 'Transaction',
+        refund_address: str,
+        on_finished: Callable[['PaymentIdentifier'], None] = None,
+    ):
         assert self._state == PaymentIdentifierState.MERCHANT_NOTIFY
         assert tx
+        assert refund_address
         coro = self._do_notify_merchant(tx, refund_address, on_finished=on_finished)
         asyncio.run_coroutine_threadsafe(coro, get_asyncio_loop())
 
     @log_exceptions
-    async def _do_notify_merchant(self, tx, refund_address, *, on_finished: 'Callable'):
+    async def _do_notify_merchant(
+        self,
+        tx: 'Transaction',
+        refund_address: str,
+        *,
+        on_finished: Callable[['PaymentIdentifier'], None] = None,
+    ):
         try:
             if not self.bip70_data:
                 self.set_state(PaymentIdentifierState.ERROR)
@@ -428,7 +453,7 @@ class PaymentIdentifier(Logger):
             self.set_state(PaymentIdentifierState.MERCHANT_ACK)
         except Exception as e:
             self.error = str(e)
-            self.logger.error(repr(e))
+            self.logger.error(f"_do_notify_merchant() got error: {e!r}")
             self.set_state(PaymentIdentifierState.MERCHANT_ERROR)
         finally:
             if on_finished:
@@ -448,7 +473,7 @@ class PaymentIdentifier(Logger):
         else:
             raise Exception('not onchain')
 
-    def _parse_as_multiline(self, text):
+    def _parse_as_multiline(self, text: str):
         # filter out empty lines
         lines = text.split('\n')
         lines = [i for i in lines if i]
@@ -473,7 +498,7 @@ class PaymentIdentifier(Logger):
         self.logger.debug(f'multiline: {outputs!r}, {self.error}')
         return outputs
 
-    def parse_address_and_amount(self, line) -> 'PartialTxOutput':
+    def parse_address_and_amount(self, line: str) -> 'PartialTxOutput':
         try:
             x, y = line.split(',')
         except ValueError:
@@ -484,7 +509,7 @@ class PaymentIdentifier(Logger):
         amount = self.parse_amount(y)
         return PartialTxOutput(scriptpubkey=scriptpubkey, value=amount)
 
-    def parse_output(self, x) -> bytes:
+    def parse_output(self, x: str) -> bytes:
         try:
             address = self.parse_address(x)
             return bytes.fromhex(bitcoin.address_to_script(address))
@@ -498,7 +523,7 @@ class PaymentIdentifier(Logger):
 
         # raise Exception("Invalid address or script.")
 
-    def parse_script(self, x):
+    def parse_script(self, x: str):
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':
@@ -509,7 +534,7 @@ class PaymentIdentifier(Logger):
                 script += construct_script([word])
         return script
 
-    def parse_amount(self, x):
+    def parse_amount(self, x: str):
         x = x.strip()
         if not x:
             raise Exception("Amount is empty")
@@ -521,7 +546,7 @@ class PaymentIdentifier(Logger):
         except InvalidOperation:
             raise Exception("Invalid amount")
 
-    def parse_address(self, line):
+    def parse_address(self, line: str):
         r = line.strip()
         m = re.match('^' + RE_ALIAS + '$', r)
         address = str(m.group(2) if m else r)
